@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { GoalProgressService } from "@/lib/goal-progress";
 
 const toggleSchema = z.object({
   completed: z.boolean(),
@@ -63,6 +64,14 @@ export async function PATCH(
         data: { parentTaskId: taskId },
       },
     });
+
+    // Recalculate goal progress for subtask and parent task
+    try {
+      await GoalProgressService.recalculateForTask(subtaskId);
+      await GoalProgressService.recalculateForTask(taskId);
+    } catch (progressError) {
+      console.error("Error recalculating goal progress:", progressError);
+    }
 
     return NextResponse.json(updatedSubtask);
   } catch (error) {

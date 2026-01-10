@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { GoalProgressService } from "@/lib/goal-progress";
 
 const updateTaskSchema = z.object({
   name: z.string().min(1).optional(),
@@ -318,6 +319,16 @@ export async function PATCH(
           data: activity.data as object,
         },
       });
+    }
+
+    // Recalculate goal progress if task completion status changed
+    if (data.completed !== undefined && data.completed !== existingTask.completed) {
+      try {
+        await GoalProgressService.recalculateForTask(taskId);
+      } catch (progressError) {
+        // Log but don't fail the request if progress calculation fails
+        console.error("Error recalculating goal progress:", progressError);
+      }
     }
 
     return NextResponse.json(task);

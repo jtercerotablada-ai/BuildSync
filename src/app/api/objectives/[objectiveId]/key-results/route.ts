@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { GoalProgressService } from "@/lib/goal-progress";
 
 const createKeyResultSchema = z.object({
   name: z.string().min(1),
@@ -53,6 +54,9 @@ export async function POST(
         ownerId: userId,
       },
     });
+
+    // Recalculate objective progress
+    await GoalProgressService.recalculateProgress(objectiveId);
 
     return NextResponse.json(keyResult, { status: 201 });
   } catch (error) {
@@ -144,6 +148,11 @@ export async function PATCH(
       },
     });
 
+    // Recalculate objective progress if currentValue changed
+    if (data.currentValue !== undefined && data.currentValue !== existing.currentValue) {
+      await GoalProgressService.recalculateProgress(existing.objectiveId);
+    }
+
     return NextResponse.json(keyResult);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -168,7 +177,7 @@ export async function DELETE(
 ) {
   try {
     const userId = await getCurrentUserId();
-    await params;
+    const { objectiveId } = await params;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -187,6 +196,9 @@ export async function DELETE(
     await prisma.keyResult.delete({
       where: { id: keyResultId },
     });
+
+    // Recalculate objective progress after deleting key result
+    await GoalProgressService.recalculateProgress(objectiveId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

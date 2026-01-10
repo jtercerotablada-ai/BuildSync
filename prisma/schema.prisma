@@ -320,6 +320,7 @@ model Project {
   workflows     Workflow[]
   forms         Form[]
   objectives    ObjectiveProject[]
+  keyResults    KeyResultProject[]
   statusUpdates StatusUpdate[]
 }
 
@@ -436,6 +437,8 @@ model Task {
   activities        Activity[]
   collaborators     TaskCollaborator[]
   likes             TaskLike[]
+  objectives        ObjectiveTask[]
+  keyResults        KeyResultTask[]
 }
 
 enum TaskType {
@@ -773,6 +776,7 @@ model Objective {
   children      Objective[]             @relation("SubObjectives")
   keyResults    KeyResult[]
   projects      ObjectiveProject[]
+  tasks         ObjectiveTask[]
   statusUpdates ObjectiveStatusUpdate[]
   likes         ObjectiveLike[]
 }
@@ -811,6 +815,8 @@ model KeyResult {
 
   objective Objective         @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
   updates   KeyResultUpdate[]
+  projects  KeyResultProject[]
+  tasks     KeyResultTask[]
 }
 
 enum KRFormat {
@@ -843,6 +849,42 @@ model ObjectiveProject {
   project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([objectiveId, projectId])
+}
+
+model ObjectiveTask {
+  id String @id @default(cuid())
+
+  objectiveId String
+  taskId      String
+
+  objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([objectiveId, taskId])
+}
+
+model KeyResultProject {
+  id String @id @default(cuid())
+
+  keyResultId String
+  projectId   String
+
+  keyResult KeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([keyResultId, projectId])
+}
+
+model KeyResultTask {
+  id String @id @default(cuid())
+
+  keyResultId String
+  taskId      String
+
+  keyResult KeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([keyResultId, taskId])
 }
 
 model ObjectiveStatusUpdate {
