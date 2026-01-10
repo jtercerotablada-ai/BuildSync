@@ -31,6 +31,12 @@ export async function GET(
     const objective = await prisma.objective.findUnique({
       where: { id: objectiveId },
       include: {
+        workspace: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         owner: {
           select: {
             id: true,
