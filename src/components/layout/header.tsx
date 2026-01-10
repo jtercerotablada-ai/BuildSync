@@ -12,13 +12,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, Bell, HelpCircle, Settings, LogOut, User } from "lucide-react";
+import { Search, Plus, Bell, HelpCircle, Settings, LogOut, User, CheckSquare, FolderKanban, Briefcase, Target } from "lucide-react";
 
 interface HeaderProps {
   onCreateTask?: () => void;
+  onCreateProject?: () => void;
+  onCreatePortfolio?: () => void;
+  onCreateGoal?: () => void;
 }
 
-export function Header({ onCreateTask }: HeaderProps) {
+export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCreateGoal }: HeaderProps) {
   const { data: session } = useSession();
 
   const userInitials = session?.user?.name
@@ -46,14 +49,35 @@ export function Header({ onCreateTask }: HeaderProps) {
 
       {/* Right side - Actions */}
       <div className="flex-1 flex items-center justify-end gap-2">
-        <Button
-          onClick={onCreateTask}
-          size="sm"
-          className="gap-2 bg-slate-900 hover:bg-slate-800"
-        >
-          <Plus className="h-4 w-4" />
-          Create
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              className="gap-2 bg-slate-900 hover:bg-slate-800"
+            >
+              <Plus className="h-4 w-4" />
+              Create
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={onCreateTask} className="cursor-pointer">
+              <CheckSquare className="mr-2 h-4 w-4 text-blue-500" />
+              Task
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onCreateProject} className="cursor-pointer">
+              <FolderKanban className="mr-2 h-4 w-4 text-green-500" />
+              Project
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onCreatePortfolio} className="cursor-pointer">
+              <Briefcase className="mr-2 h-4 w-4 text-purple-500" />
+              Portfolio
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onCreateGoal} className="cursor-pointer">
+              <Target className="mr-2 h-4 w-4 text-orange-500" />
+              Goal
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <Button variant="ghost" size="icon" className="text-slate-600">
           <Bell className="h-5 w-5" />
