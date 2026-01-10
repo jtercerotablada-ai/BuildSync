@@ -39,7 +39,7 @@ import {
   Edit2,
   ThumbsUp,
   Star,
-  Circle,
+  
   Users,
   Settings,
   Zap,
@@ -373,7 +373,7 @@ export default function GoalDetailPage() {
           <Select value={objective.status} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-[140px]">
               <div className="flex items-center gap-2">
-                <Circle className={cn("h-3 w-3", currentStatus.color)} />
+                <div className={cn("h-3 w-3 rounded-full", currentStatus.color)} />
                 <span>{currentStatus.label}</span>
               </div>
             </SelectTrigger>
@@ -381,7 +381,7 @@ export default function GoalDetailPage() {
               {STATUS_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   <div className="flex items-center gap-2">
-                    <Circle className={cn("h-3 w-3", option.color)} />
+                    <div className={cn("h-3 w-3 rounded-full", option.color)} />
                     {option.label}
                   </div>
                 </SelectItem>
@@ -445,7 +445,7 @@ export default function GoalDetailPage() {
             <div className="border rounded-lg p-6 text-center">
               <p className="text-sm text-gray-500 mb-2">Latest status</p>
               <div className="flex items-center justify-center gap-2 mb-1">
-                <Circle className={cn("h-4 w-4", currentStatus.color)} />
+                <div className={cn("h-4 w-4 rounded-full", currentStatus.color)} />
                 <span className="text-lg font-medium">{currentStatus.label}</span>
               </div>
               <button className="text-xs text-blue-600 hover:underline">
