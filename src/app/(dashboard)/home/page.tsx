@@ -23,6 +23,7 @@ import { WidgetContainer } from '@/components/dashboard/widget-container';
 import { CustomizeWidgetsModal } from '@/components/dashboard/customize-widgets-modal';
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
 import { CreateObjectiveDialog } from '@/components/goals/create-objective-dialog';
+import { QuickCreateTaskModal } from '@/components/tasks/quick-create-task-modal';
 import {
   MyTasksWidget,
   ProjectsWidget,
@@ -53,6 +54,7 @@ export default function HomePage() {
   const { data: session } = useSession();
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateGoal, setShowCreateGoal] = useState(false);
+  const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
 
   const {
     preferences,
@@ -100,7 +102,7 @@ export default function HomePage() {
       case 'learning':
         return <LearningWidget />;
       case 'assigned-tasks':
-        return <AssignedTasksWidget />;
+        return <AssignedTasksWidget onAssignTask={() => setShowQuickCreateTask(true)} />;
       case 'people':
         return <PeopleWidget />;
       case 'status-updates':
@@ -206,6 +208,10 @@ export default function HomePage() {
         <CreateObjectiveDialog
           open={showCreateGoal}
           onOpenChange={setShowCreateGoal}
+        />
+        <QuickCreateTaskModal
+          open={showQuickCreateTask}
+          onOpenChange={setShowQuickCreateTask}
         />
       </div>
     </div>
