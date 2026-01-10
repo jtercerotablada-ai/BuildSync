@@ -1,0 +1,1069 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ USUARIOS Y AUTENTICACIÓN (NextAuth) ============
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? 
+  access_token      String? 
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? 
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  jobTitle      String?
+  bio           String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // NextAuth relations
+  accounts Account[]
+  sessions Session[]
+
+  // App relations
+  workspaceMembers  WorkspaceMember[]
+  projectMembers    ProjectMember[]
+  teamMembers       TeamMember[]
+  assignedTasks     Task[]            @relation("AssignedTasks")
+  createdTasks      Task[]            @relation("CreatedTasks")
+  comments          Comment[]
+  activities        Activity[]
+  notifications     Notification[]
+  objectives        Objective[]       @relation("ObjectiveOwner")
+  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
+  ownedProjects     Project[]         @relation("ProjectOwner")
+  ownedPortfolios   Portfolio[]       @relation("PortfolioOwner")
+  messages          Message[]         @relation("MessageAuthor")
+  teamMessages      TeamMessage[]     @relation("TeamMessageAuthor")
+  workspaceNotes    WorkspaceNote[]   @relation("NoteAuthor")
+  noteCollaborators NoteCollaborator[]
+}
+
+// ============ WORKSPACE (ESPACIO DE TRABAJO) ============
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  avatar      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ownerId String
+  owner   User   @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+
+  // Relations
+  members      WorkspaceMember[]
+  invitations  WorkspaceInvitation[]
+  projects     Project[]
+  portfolios   Portfolio[]
+  objectives   Objective[]
+  teams        Team[]
+  customFields CustomFieldDefinition[]
+  messages     Message[]
+  knowledge    KnowledgeEntry[]
+  notes        WorkspaceNote[]
+  templates    ProjectTemplate[]
+}
+
+model WorkspaceMember {
+  id       String        @id @default(cuid())
+  role     WorkspaceRole @default(MEMBER)
+  joinedAt DateTime      @default(now())
+
+  userId      String
+  workspaceId String
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+model WorkspaceInvitation {
+  id        String           @id @default(cuid())
+  email     String
+  role      WorkspaceRole    @default(MEMBER)
+  status    InvitationStatus @default(PENDING)
+  token     String           @unique
+  expiresAt DateTime
+  createdAt DateTime         @default(now())
+
+  workspaceId String
+  inviterId   String
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([token])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+// ============ EQUIPOS ============
+
+model Team {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  color       String?
+  avatar      String?
+  privacy     TeamPrivacy @default(PUBLIC)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  members    TeamMember[]
+  projects   Project[]
+  objectives Objective[]
+  messages   TeamMessage[]
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  role     TeamRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  userId String
+  teamId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+}
+
+enum TeamRole {
+  LEAD
+  MEMBER
+}
+
+enum TeamPrivacy {
+  PUBLIC
+  REQUEST_TO_JOIN
+  PRIVATE
+}
+
+// ============ PORTAFOLIOS ============
+
+model Portfolio {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  color       String?           @default("#7C3AED")
+  icon        String?           @default("folder")
+  status      PortfolioStatus   @default(ON_TRACK)
+  privacy     PortfolioPrivacy  @default(WORKSPACE)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  workspaceId String
+  ownerId     String
+
+  workspace     Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner         User                     @relation("PortfolioOwner", fields: [ownerId], references: [id])
+  projects      PortfolioProject[]
+  members       PortfolioMember[]
+  statusUpdates PortfolioStatusUpdate[]
+}
+
+enum PortfolioStatus {
+  ON_TRACK
+  AT_RISK
+  OFF_TRACK
+  ON_HOLD
+  COMPLETE
+}
+
+enum PortfolioPrivacy {
+  PRIVATE
+  WORKSPACE
+  PUBLIC
+}
+
+model PortfolioProject {
+  id       String   @id @default(cuid())
+  position Int      @default(0)
+  addedAt  DateTime @default(now())
+
+  portfolioId String
+  projectId   String
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, projectId])
+}
+
+model PortfolioMember {
+  id       String        @id @default(cuid())
+  role     PortfolioRole @default(VIEWER)
+  joinedAt DateTime      @default(now())
+
+  portfolioId String
+  userId      String
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, userId])
+}
+
+enum PortfolioRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+model PortfolioStatusUpdate {
+  id        String          @id @default(cuid())
+  status    PortfolioStatus
+  summary   String
+  createdAt DateTime        @default(now())
+
+  portfolioId String
+  authorId    String
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+}
+
+// ============ PROYECTOS ============
+
+model Project {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  color       String            @default("#4573D2")
+  icon        String?
+  status      ProjectStatus     @default(ON_TRACK)
+  visibility  ProjectVisibility @default(WORKSPACE)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  workspaceId String
+  teamId      String?
+  ownerId     String
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  team      Team?     @relation(fields: [teamId], references: [id])
+  owner     User      @relation("ProjectOwner", fields: [ownerId], references: [id])
+
+  // Relations
+  sections      Section[]
+  tasks         Task[]
+  members       ProjectMember[]
+  views         ProjectView[]
+  customFields  ProjectCustomField[]
+  portfolios    PortfolioProject[]
+  messages      Message[]
+  files         File[]
+  workflows     Workflow[]
+  forms         Form[]
+  objectives    ObjectiveProject[]
+  statusUpdates StatusUpdate[]
+}
+
+model ProjectMember {
+  id       String      @id @default(cuid())
+  role     ProjectRole @default(EDITOR)
+  joinedAt DateTime    @default(now())
+
+  userId    String
+  projectId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+}
+
+enum ProjectStatus {
+  ON_TRACK
+  AT_RISK
+  OFF_TRACK
+  ON_HOLD
+  COMPLETE
+}
+
+enum ProjectVisibility {
+  PRIVATE
+  WORKSPACE
+  PUBLIC
+}
+
+enum ProjectRole {
+  ADMIN
+  EDITOR
+  COMMENTER
+  VIEWER
+}
+
+// ============ VISTAS DE PROYECTO ============
+
+model ProjectView {
+  id        String   @id @default(cuid())
+  name      String
+  type      ViewType
+  isDefault Boolean  @default(false)
+  config    Json? // View configuration (filters, sorting, visible columns, etc.)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+enum ViewType {
+  LIST
+  BOARD
+  TIMELINE
+  CALENDAR
+  GANTT
+  DASHBOARD
+  FILES
+}
+
+// ============ SECCIONES ============
+
+model Section {
+  id       String @id @default(cuid())
+  name     String
+  position Int    @default(0)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks Task[]
+}
+
+// ============ TAREAS ============
+
+model Task {
+  id          String    @id @default(cuid())
+  name        String
+  description String?   
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  startDate   DateTime?
+  dueDate     DateTime?
+  position    Int       @default(0)
+  isPrivate   Boolean   @default(false)
+  taskType    TaskType    @default(TASK)
+  priority    Priority    @default(NONE)
+  taskStatus  TaskStatus?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign keys
+  projectId    String?
+  sectionId    String?
+  assigneeId   String?
+  creatorId    String
+  parentTaskId String? // For subtasks
+
+  // Relations
+  project    Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  section    Section?  @relation(fields: [sectionId], references: [id])
+  assignee   User?     @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  creator    User      @relation("CreatedTasks", fields: [creatorId], references: [id])
+  parentTask Task?     @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+
+  subtasks          Task[]             @relation("Subtasks")
+  comments          Comment[]
+  attachments       Attachment[]
+  customFieldValues CustomFieldValue[]
+  dependencies      TaskDependency[]   @relation("DependentTask")
+  dependents        TaskDependency[]   @relation("BlockingTask")
+  activities        Activity[]
+  collaborators     TaskCollaborator[]
+  likes             TaskLike[]
+}
+
+enum TaskType {
+  TASK
+  MILESTONE
+  APPROVAL
+}
+
+enum Priority {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  ON_TRACK
+  AT_RISK
+  OFF_TRACK
+}
+
+model TaskCollaborator {
+  id String @id @default(cuid())
+
+  taskId String
+  userId String
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+}
+
+model TaskLike {
+  id String @id @default(cuid())
+
+  taskId String
+  userId String
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+}
+
+// ============ DEPENDENCIAS ============
+
+model TaskDependency {
+  id   String         @id @default(cuid())
+  type DependencyType @default(FINISH_TO_START)
+
+  dependentTaskId String // The task that depends
+  blockingTaskId  String // The task that blocks
+
+  dependentTask Task @relation("DependentTask", fields: [dependentTaskId], references: [id], onDelete: Cascade)
+  blockingTask  Task @relation("BlockingTask", fields: [blockingTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([dependentTaskId, blockingTaskId])
+}
+
+enum DependencyType {
+  FINISH_TO_START
+  START_TO_START
+  FINISH_TO_FINISH
+  START_TO_FINISH
+}
+
+// ============ CAMPOS PERSONALIZADOS ============
+
+model CustomFieldDefinition {
+  id         String          @id @default(cuid())
+  name       String
+  type       CustomFieldType
+  options    Json? // For DROPDOWN/MULTI_SELECT type fields
+  isRequired Boolean         @default(false)
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  projectFields ProjectCustomField[]
+  values        CustomFieldValue[]
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  DROPDOWN
+  MULTI_SELECT
+  PEOPLE
+  CHECKBOX
+  CURRENCY
+  PERCENTAGE
+}
+
+model ProjectCustomField {
+  id       String @id @default(cuid())
+  position Int    @default(0)
+
+  projectId String
+  fieldId   String
+
+  project Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  field   CustomFieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, fieldId])
+}
+
+model CustomFieldValue {
+  id    String @id @default(cuid())
+  value Json // Field value (flexible based on type)
+
+  taskId  String
+  fieldId String
+
+  task  Task                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  field CustomFieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, fieldId])
+}
+
+// ============ COMENTARIOS ============
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String   
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taskId   String
+  authorId String
+  parentId String? // For replies
+
+  task   Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User     @relation(fields: [authorId], references: [id])
+  parent Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+
+  replies     Comment[]     @relation("CommentReplies")
+  attachments Attachment[]
+  likes       CommentLike[]
+}
+
+model CommentLike {
+  id String @id @default(cuid())
+
+  commentId String
+  userId    String
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+}
+
+// ============ ARCHIVOS Y ADJUNTOS ============
+
+model File {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  size      Int
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  projectId  String
+  uploaderId String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  size      Int
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  taskId     String?
+  commentId  String?
+  uploaderId String
+
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+}
+
+// ============ ACTIVIDAD / HISTORIAL ============
+
+model Activity {
+  id        String       @id @default(cuid())
+  type      ActivityType
+  data      Json // Specific change data
+  createdAt DateTime     @default(now())
+
+  taskId String?
+  userId String
+
+  task Task? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User  @relation(fields: [userId], references: [id])
+}
+
+enum ActivityType {
+  TASK_CREATED
+  TASK_COMPLETED
+  TASK_UNCOMPLETED
+  TASK_ASSIGNED
+  TASK_UNASSIGNED
+  TASK_MOVED
+  TASK_RENAMED
+  TASK_DESCRIPTION_CHANGED
+  DUE_DATE_CHANGED
+  COMMENT_ADDED
+  ATTACHMENT_ADDED
+  CUSTOM_FIELD_CHANGED
+  SUBTASK_ADDED
+  DEPENDENCY_ADDED
+}
+
+// ============ NOTIFICACIONES ============
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String?
+  read      Boolean          @default(false)
+  archived  Boolean          @default(false)
+  data      Json? // Additional data (taskId, projectId, etc.)
+  createdAt DateTime         @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_COMPLETED
+  COMMENT_ADDED
+  MENTIONED
+  DUE_DATE_APPROACHING
+  PROJECT_INVITATION
+  STATUS_UPDATE
+}
+
+// ============ MENSAJES ============
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspaceId String?
+  projectId   String?
+  authorId    String
+
+  workspace   Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author      User                @relation("MessageAuthor", fields: [authorId], references: [id])
+  attachments MessageAttachment[]
+  reactions   MessageReaction[]
+}
+
+model TeamMessage {
+  id        String   @id @default(cuid())
+  content   String
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teamId   String
+  authorId String
+
+  team        Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  author      User                @relation("TeamMessageAuthor", fields: [authorId], references: [id])
+  attachments MessageAttachment[]
+  reactions   MessageReaction[]
+}
+
+model MessageAttachment {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  size      Int
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  messageId     String?
+  teamMessageId String?
+
+  message     Message?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  teamMessage TeamMessage? @relation(fields: [teamMessageId], references: [id], onDelete: Cascade)
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  createdAt DateTime @default(now())
+
+  messageId     String?
+  teamMessageId String?
+  userId        String
+
+  message     Message?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  teamMessage TeamMessage? @relation(fields: [teamMessageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@unique([teamMessageId, userId, emoji])
+}
+
+// ============ OBJETIVOS (OKRs) ============
+
+model Objective {
+  id             String          @id @default(cuid())
+  name           String
+  description    String?
+  status         ObjectiveStatus @default(ON_TRACK)
+  progress       Int             @default(0) // 0-100
+  progressSource ProgressSource  @default(MANUAL)
+  startDate      DateTime?
+  endDate        DateTime?
+  period         String? // "Q1 2024", "2024", etc.
+  isPrivate      Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  workspaceId String
+  ownerId     String
+  teamId      String?
+  parentId    String? // For nested objectives
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner     User       @relation("ObjectiveOwner", fields: [ownerId], references: [id])
+  team      Team?      @relation(fields: [teamId], references: [id])
+  parent    Objective? @relation("SubObjectives", fields: [parentId], references: [id], onDelete: Cascade)
+
+  children      Objective[]             @relation("SubObjectives")
+  keyResults    KeyResult[]
+  projects      ObjectiveProject[]
+  statusUpdates ObjectiveStatusUpdate[]
+  likes         ObjectiveLike[]
+}
+
+enum ObjectiveStatus {
+  ON_TRACK
+  AT_RISK
+  OFF_TRACK
+  ACHIEVED
+  PARTIAL
+  MISSED
+  DROPPED
+}
+
+enum ProgressSource {
+  MANUAL
+  KEY_RESULTS
+  SUB_OBJECTIVES
+  PROJECTS
+}
+
+model KeyResult {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  targetValue  Float
+  currentValue Float    @default(0)
+  startValue   Float    @default(0)
+  unit         String? // "%", "$", "users", etc.
+  format       KRFormat @default(NUMBER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  objectiveId String
+  ownerId     String?
+
+  objective Objective         @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  updates   KeyResultUpdate[]
+}
+
+enum KRFormat {
+  NUMBER
+  PERCENTAGE
+  CURRENCY
+  BOOLEAN
+}
+
+model KeyResultUpdate {
+  id            String   @id @default(cuid())
+  previousValue Float
+  newValue      Float
+  note          String?
+  createdAt     DateTime @default(now())
+
+  keyResultId String
+  authorId    String
+
+  keyResult KeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+}
+
+model ObjectiveProject {
+  id String @id @default(cuid())
+
+  objectiveId String
+  projectId   String
+
+  objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([objectiveId, projectId])
+}
+
+model ObjectiveStatusUpdate {
+  id        String          @id @default(cuid())
+  status    ObjectiveStatus
+  summary   String
+  createdAt DateTime        @default(now())
+
+  objectiveId String
+  authorId    String
+
+  objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+}
+
+model ObjectiveLike {
+  id String @id @default(cuid())
+
+  objectiveId String
+  userId      String
+
+  objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+
+  @@unique([objectiveId, userId])
+}
+
+// ============ FLUJOS DE TRABAJO / AUTOMATIZACIONES ============
+
+model Workflow {
+  id       String  @id @default(cuid())
+  name     String
+  isActive Boolean @default(true)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  rules WorkflowRule[]
+}
+
+model WorkflowRule {
+  id      String @id @default(cuid())
+  trigger Json // { type: "TASK_MOVED_TO_SECTION", sectionId: "..." }
+  actions Json // [{ type: "SET_ASSIGNEE", userId: "..." }, ...]
+
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+}
+
+// ============ FORMULARIOS ============
+
+model Form {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  fields      Json // Form field configuration
+  isActive    Boolean @default(true)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  submissions FormSubmission[]
+}
+
+model FormSubmission {
+  id        String   @id @default(cuid())
+  data      Json
+  createdAt DateTime @default(now())
+
+  formId String
+  taskId String? // Task created from form submission
+
+  form Form @relation(fields: [formId], references: [id], onDelete: Cascade)
+}
+
+// ============ ACTUALIZACIONES DE ESTADO ============
+
+model StatusUpdate {
+  id        String        @id @default(cuid())
+  status    ProjectStatus
+  summary   String        
+  createdAt DateTime      @default(now())
+
+  projectId String
+  authorId  String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ============ BASE DE CONOCIMIENTO ============
+
+model KnowledgeEntry {
+  id          String            @id @default(cuid())
+  term        String
+  definition  String
+  category    String?
+  tags        String[]
+  attachments Json?
+  visibility  KnowledgeVisibility @default(WORKSPACE)
+  viewCount   Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  workspaceId String
+  authorId    String
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+enum KnowledgeVisibility {
+  WORKSPACE
+  TEAM
+  PRIVATE
+}
+
+// ============ REPORTES / DASHBOARDS ============
+
+model Report {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  type        ReportType @default(CUSTOM)
+  isDefault   Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  workspaceId String
+  ownerId     String
+
+  widgets ReportWidget[]
+}
+
+enum ReportType {
+  MY_IMPACT
+  ORGANIZATION
+  CUSTOM
+}
+
+model ReportWidget {
+  id       String     @id @default(cuid())
+  type     WidgetType
+  title    String
+  position Int        @default(0)
+  width    Int        @default(1) // 1 = half, 2 = full width
+  config   Json // Configuration (filters, groupBy, etc.)
+
+  reportId String
+  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+enum WidgetType {
+  KPI_CARD
+  BAR_CHART
+  DONUT_CHART
+  LINE_CHART
+  STACKED_BAR
+  TASK_LIST
+}
+
+// ============ NOTAS DEL WORKSPACE ============
+
+model WorkspaceNote {
+  id        String       @id @default(cuid())
+  title     String
+  content   String
+  icon      String?
+  color     String?
+  isPinned  Boolean      @default(false)
+  isArchived Boolean     @default(false)
+  visibility NoteVisibility @default(PRIVATE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  workspaceId String
+  authorId    String
+  folderId    String?
+
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author        User               @relation("NoteAuthor", fields: [authorId], references: [id])
+  collaborators NoteCollaborator[]
+}
+
+model NoteCollaborator {
+  id         String         @id @default(cuid())
+  permission NotePermission @default(VIEW)
+  addedAt    DateTime       @default(now())
+
+  noteId String
+  userId String
+
+  note WorkspaceNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, userId])
+}
+
+enum NoteVisibility {
+  PRIVATE
+  SHARED
+  WORKSPACE
+}
+
+enum NotePermission {
+  VIEW
+  EDIT
+  ADMIN
+}
+
+// ============ PLANTILLAS DE PROYECTO ============
+
+model ProjectTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  icon        String?
+  color       String?
+  isPublic    Boolean  @default(false)
+  structure   Json     // Template structure (sections, default tasks, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaceId String
+  creatorId   String
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}

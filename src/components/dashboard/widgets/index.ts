@@ -1,0 +1,14 @@
+export { MyTasksWidget } from './my-tasks-widget';
+export { ProjectsWidget } from './projects-widget';
+export { QuickOverviewWidget } from './quick-overview-widget';
+export { GoalsWidget } from './goals-widget';
+export { AssignedTasksWidget } from './assigned-tasks-widget';
+export { PeopleWidget } from './people-widget';
+export { StatusUpdatesWidget } from './status-updates-widget';
+export { PortfoliosWidget } from './portfolios-widget';
+export { PrivateNotepadWidget } from './private-notepad-widget';
+export { DraftCommentsWidget } from './draft-comments-widget';
+export { FormsWidget } from './forms-widget';
+export { MentionsWidget } from './mentions-widget';
+export { LearningWidget } from './learning-widget';
+export { AIAssistantWidget } from './ai-assistant-widget';
