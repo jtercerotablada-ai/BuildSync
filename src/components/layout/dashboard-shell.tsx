@@ -6,6 +6,7 @@ import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
+import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
 import { CreateObjectiveDialog } from "@/components/goals/create-objective-dialog";
 import {
   Dialog,
@@ -33,6 +34,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const router = useRouter();
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
   const [showCreatePortfolio, setShowCreatePortfolio] = useState(false);
   const [showCreateGoal, setShowCreateGoal] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -89,7 +91,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header 
-          onCreateTask={() => setShowCreateTask(true)} 
+          onCreateTask={() => setShowQuickCreateTask(true)} 
           onCreateProject={() => setShowCreateProject(true)}
           onCreatePortfolio={() => setShowCreatePortfolio(true)}
           onCreateGoal={() => setShowCreateGoal(true)}
@@ -107,6 +109,11 @@ export function DashboardShell({ children }: DashboardShellProps) {
       <CreateTaskDialog
         open={showCreateTask}
         onOpenChange={setShowCreateTask}
+      />
+      <QuickCreateTaskModal
+        open={showQuickCreateTask}
+        onOpenChange={setShowQuickCreateTask}
+        projects={projects}
       />
       <CreateObjectiveDialog
         open={showCreateGoal}
