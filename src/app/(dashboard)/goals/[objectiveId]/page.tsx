@@ -7,13 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -37,7 +37,16 @@ import {
   Trash2,
   Calendar,
   Edit2,
+  ThumbsUp,
+  Star,
+  Circle,
+  Users,
+  Settings,
+  Zap,
+  Sparkles,
+  ChevronDown,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface KeyResult {
   id: string;
@@ -99,14 +108,19 @@ interface Objective {
 }
 
 const STATUS_OPTIONS = [
-  { value: "ON_TRACK", label: "On track", color: "bg-green-100 text-green-700" },
-  { value: "AT_RISK", label: "At risk", color: "bg-yellow-100 text-yellow-700" },
-  { value: "OFF_TRACK", label: "Off track", color: "bg-red-100 text-red-700" },
-  { value: "ACHIEVED", label: "Achieved", color: "bg-blue-100 text-blue-700" },
-  { value: "PARTIAL", label: "Partial", color: "bg-slate-100 text-slate-700" },
-  { value: "MISSED", label: "Missed", color: "bg-red-100 text-red-700" },
-  { value: "DROPPED", label: "Dropped", color: "bg-slate-100 text-slate-700" },
+  { value: "ON_TRACK", label: "On track", color: "bg-green-500", badgeColor: "bg-green-100 text-green-700" },
+  { value: "AT_RISK", label: "At risk", color: "bg-yellow-500", badgeColor: "bg-yellow-100 text-yellow-700" },
+  { value: "OFF_TRACK", label: "Off track", color: "bg-red-500", badgeColor: "bg-red-100 text-red-700" },
+  { value: "ACHIEVED", label: "Achieved", color: "bg-blue-500", badgeColor: "bg-blue-100 text-blue-700" },
+  { value: "PARTIAL", label: "Partial", color: "bg-slate-400", badgeColor: "bg-slate-100 text-slate-700" },
+  { value: "MISSED", label: "Missed", color: "bg-red-500", badgeColor: "bg-red-100 text-red-700" },
+  { value: "DROPPED", label: "Dropped", color: "bg-slate-400", badgeColor: "bg-slate-100 text-slate-700" },
 ];
+
+function getInitials(name: string | null): string {
+  if (!name) return "?";
+  return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+}
 
 export default function GoalDetailPage() {
   const params = useParams();
@@ -119,6 +133,7 @@ export default function GoalDetailPage() {
   const [updateKROpen, setUpdateKROpen] = useState(false);
   const [selectedKR, setSelectedKR] = useState<KeyResult | null>(null);
   const [saving, setSaving] = useState(false);
+  const [description, setDescription] = useState("");
 
   const [newKR, setNewKR] = useState({
     name: "",
@@ -142,6 +157,7 @@ export default function GoalDetailPage() {
       if (res.ok) {
         const data = await res.json();
         setObjective(data);
+        setDescription(data.description || "");
       }
     } catch (error) {
       console.error("Error fetching objective:", error);
@@ -163,6 +179,20 @@ export default function GoalDetailPage() {
       }
     } catch (error) {
       console.error("Error updating status:", error);
+    }
+  }
+
+  async function handleDescriptionBlur() {
+    if (objective && description !== objective.description) {
+      try {
+        await fetch(`/api/objectives/${objectiveId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description }),
+        });
+      } catch (error) {
+        console.error("Error updating description:", error);
+      }
     }
   }
 
@@ -257,15 +287,7 @@ export default function GoalDetailPage() {
     setUpdateKROpen(true);
   };
 
-  const getStatusColor = (status: string) => {
-    const option = STATUS_OPTIONS.find((o) => o.value === status);
-    return option?.color || "bg-slate-100 text-slate-700";
-  };
-
-  const getStatusLabel = (status: string) => {
-    const option = STATUS_OPTIONS.find((o) => o.value === status);
-    return option?.label || status;
-  };
+  const getStatusOption = (status: string) => STATUS_OPTIONS.find((o) => o.value === status) || STATUS_OPTIONS[0];
 
   const calculateKRProgress = (kr: KeyResult) => {
     const range = kr.targetValue - kr.startValue;
@@ -292,111 +314,170 @@ export default function GoalDetailPage() {
     );
   }
 
+  const currentStatus = getStatusOption(objective.status);
+
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b bg-white px-6 py-4">
-        <div className="flex items-center gap-4 mb-2">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/goals")}>
-            <ArrowLeft className="h-4 w-4" />
+    <div className="flex flex-col h-full bg-white">
+      {/* Top Bar - Breadcrumb */}
+      <div className="border-b px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm">
+          <button onClick={() => router.push("/goals")} className="text-gray-500 hover:text-gray-700">
+            Goals
+          </button>
+          <span className="text-gray-300">/</span>
+          <span className="text-gray-900 font-medium">{objective.name}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={objective.owner.image || ""} />
+            <AvatarFallback className="text-xs">{getInitials(objective.owner.name)}</AvatarFallback>
+          </Avatar>
+          <Button size="sm">Share</Button>
+          <Button variant="ghost" size="icon">
+            <Settings className="h-4 w-4" />
           </Button>
-          <div className="flex items-center gap-3 flex-1">
-            <Target className="h-6 w-6 text-green-600" />
-            <h1 className="text-xl font-semibold text-slate-900">
+        </div>
+      </div>
+
+      {/* Header */}
+      <div className="border-b px-6 py-4 flex items-center gap-4">
+        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+          <Target className="h-5 w-5 text-blue-600" />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-1 text-lg font-semibold hover:bg-gray-100 px-2 py-1 rounded">
               {objective.name}
-            </h1>
-          </div>
+              <ChevronDown className="h-4 w-4 text-gray-400" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem>Edit goal</DropdownMenuItem>
+            <DropdownMenuItem>Duplicate</DropdownMenuItem>
+            <DropdownMenuItem className="text-red-600" onClick={handleDeleteObjective}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <Button variant="ghost" size="icon" className="text-gray-400">
+            <ThumbsUp className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="text-gray-400">
+            <Star className="h-4 w-4" />
+          </Button>
+
           <Select value={objective.status} onValueChange={handleStatusChange}>
             <SelectTrigger className="w-[140px]">
-              <SelectValue>
-                <Badge className={getStatusColor(objective.status)}>
-                  {getStatusLabel(objective.status)}
-                </Badge>
-              </SelectValue>
+              <div className="flex items-center gap-2">
+                <Circle className={cn("h-3 w-3", currentStatus.color)} />
+                <span>{currentStatus.label}</span>
+              </div>
             </SelectTrigger>
             <SelectContent>
               {STATUS_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  <Badge className={option.color}>{option.label}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Circle className={cn("h-3 w-3", option.color)} />
+                    {option.label}
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className="text-red-600"
-                onClick={handleDeleteObjective}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete goal
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Meta info */}
-        <div className="flex items-center gap-6 text-sm text-slate-500 ml-12">
-          <div className="flex items-center gap-2">
-            <Avatar className="h-5 w-5">
-              <AvatarImage src={objective.owner.image || ""} />
-              <AvatarFallback className="text-[10px]">
-                {objective.owner.name?.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <span>{objective.owner.name}</span>
-          </div>
-          {objective.period && (
-            <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              {objective.period}
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <Progress value={objective.progress} className="w-24 h-2" />
-            <span>{objective.progress}%</span>
-          </div>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Main Content */}
       <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-4xl">
-          {/* Description */}
-          {objective.description && (
-            <div className="mb-8">
-              <h2 className="text-sm font-medium text-slate-500 mb-2">Description</h2>
-              <p className="text-slate-700">{objective.description}</p>
-            </div>
-          )}
+        <div className="max-w-4xl mx-auto">
+          {/* Goal Title */}
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">{objective.name}</h1>
 
-          {/* Key Results */}
+          {/* Meta Fields */}
+          <div className="space-y-4 mb-8">
+            <div className="flex items-center">
+              <span className="w-40 text-sm text-gray-500">Goal owner</span>
+              <div className="flex items-center gap-2">
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={objective.owner.image || ""} />
+                  <AvatarFallback className="text-xs">{getInitials(objective.owner.name)}</AvatarFallback>
+                </Avatar>
+                <span className="text-sm">{objective.owner.name}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center">
+              <span className="w-40 text-sm text-gray-500">Time period</span>
+              <span className="text-sm">{objective.period || "Not set"}</span>
+            </div>
+
+            <div className="flex items-center">
+              <span className="w-40 text-sm text-gray-500">Due date</span>
+              <button className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                {objective.endDate ? new Date(objective.endDate).toLocaleDateString() : "Set due date"}
+              </button>
+            </div>
+
+            <div className="flex items-center">
+              <span className="w-40 text-sm text-gray-500">Team</span>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Users className="h-4 w-4" />
+                <span>{objective.team?.name || "No team"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Cards */}
+          <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="border rounded-lg p-6 text-center">
+              <p className="text-sm text-gray-500 mb-2">Goal completion</p>
+              <p className="text-4xl font-bold text-gray-900 mb-1">{objective.progress}%</p>
+              <p className="text-xs text-gray-400">
+                {objective.period ? `Based on ${objective.keyResults.length} key results` : "Update key results to track progress"}
+              </p>
+            </div>
+
+            <div className="border rounded-lg p-6 text-center">
+              <p className="text-sm text-gray-500 mb-2">Latest status</p>
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Circle className={cn("h-4 w-4", currentStatus.color)} />
+                <span className="text-lg font-medium">{currentStatus.label}</span>
+              </div>
+              <button className="text-xs text-blue-600 hover:underline">
+                Update status
+              </button>
+            </div>
+          </div>
+
+          {/* Key Results Section */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider">
-                Key Results ({objective.keyResults.length})
-              </h2>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAddKROpen(true)}
-              >
-                <Plus className="h-4 w-4 mr-2" />
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">Key Results</h3>
+                <Zap className="h-4 w-4 text-yellow-500" />
+                {objective.keyResults.length === 0 && (
+                  <span className="text-sm text-yellow-600 flex items-center gap-1">
+                    No key results connected
+                  </span>
+                )}
+              </div>
+              <Button variant="ghost" size="sm" className="text-gray-500" onClick={() => setAddKROpen(true)}>
+                <Plus className="h-4 w-4 mr-1" />
                 Add key result
               </Button>
             </div>
 
             {objective.keyResults.length === 0 ? (
-              <div className="text-center py-8 bg-slate-50 rounded-lg border border-dashed">
-                <p className="text-slate-500 mb-3">
-                  No key results yet. Add measurable outcomes to track progress.
+              <div className="border rounded-lg p-6 text-center bg-gray-50">
+                <p className="text-sm text-gray-500 mb-4">
+                  Add key results to track measurable outcomes for this goal.
                 </p>
-                <Button variant="outline" size="sm" onClick={() => setAddKROpen(true)}>
+                <Button variant="outline" onClick={() => setAddKROpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add key result
                 </Button>
@@ -406,25 +487,16 @@ export default function GoalDetailPage() {
                 {objective.keyResults.map((kr) => {
                   const progress = calculateKRProgress(kr);
                   return (
-                    <div
-                      key={kr.id}
-                      className="bg-white border rounded-lg p-4 hover:shadow-sm transition-shadow"
-                    >
+                    <div key={kr.id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
                       <div className="flex items-start justify-between mb-3">
                         <div>
-                          <h3 className="font-medium text-slate-900">{kr.name}</h3>
+                          <h4 className="font-medium text-gray-900">{kr.name}</h4>
                           {kr.description && (
-                            <p className="text-sm text-slate-500 mt-1">
-                              {kr.description}
-                            </p>
+                            <p className="text-sm text-gray-500 mt-1">{kr.description}</p>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openUpdateDialog(kr)}
-                          >
+                          <Button variant="outline" size="sm" onClick={() => openUpdateDialog(kr)}>
                             <Edit2 className="h-3 w-3 mr-1" />
                             Update
                           </Button>
@@ -448,12 +520,12 @@ export default function GoalDetailPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <Progress value={progress} className="flex-1 h-2" />
-                        <span className="text-sm font-medium text-slate-700 min-w-[100px] text-right">
+                        <span className="text-sm font-medium text-gray-700 min-w-[100px] text-right">
                           {kr.currentValue} / {kr.targetValue}
                           {kr.unit ? ` ${kr.unit}` : ""}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-400 mt-2">
+                      <div className="text-xs text-gray-400 mt-2">
                         {Math.round(progress)}% complete
                       </div>
                     </div>
@@ -463,31 +535,64 @@ export default function GoalDetailPage() {
             )}
           </div>
 
-          {/* Connected Projects */}
-          {objective.projects.length > 0 && (
-            <div>
-              <h2 className="text-sm font-medium text-slate-500 uppercase tracking-wider mb-4">
-                Connected Projects ({objective.projects.length})
-              </h2>
+          {/* AI Banner */}
+          <div className="border rounded-lg p-4 mb-8 flex items-center justify-between bg-gray-50">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              <span className="text-sm">Improve your goal with AI Intelligence</span>
+            </div>
+            <Button variant="outline" size="sm">
+              See improvements
+            </Button>
+          </div>
+
+          {/* Description */}
+          <div className="mb-8">
+            <h3 className="font-semibold mb-2">Description</h3>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={handleDescriptionBlur}
+              placeholder="Click to add context. Why is this important? How will you define success?"
+              className="min-h-[100px] border-gray-200"
+            />
+          </div>
+
+          {/* Parent Goals */}
+          <div className="mb-8">
+            <h3 className="font-semibold mb-2">Parent goals</h3>
+            <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+              <Plus className="h-4 w-4" />
+              Connect a parent goal
+            </button>
+          </div>
+
+          {/* Related Work */}
+          <div className="mb-8">
+            <h3 className="font-semibold mb-2">Related work</h3>
+            {objective.projects.length > 0 ? (
               <div className="space-y-2">
                 {objective.projects.map((op) => (
                   <div
                     key={op.id}
-                    className="flex items-center gap-3 p-3 bg-white border rounded-lg cursor-pointer hover:bg-slate-50"
+                    className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
                     onClick={() => router.push(`/projects/${op.project.id}`)}
                   >
                     <div
                       className="w-3 h-3 rounded"
                       style={{ backgroundColor: op.project.color }}
                     />
-                    <span className="font-medium text-slate-900">
-                      {op.project.name}
-                    </span>
+                    <span className="font-medium text-gray-900">{op.project.name}</span>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+                <Plus className="h-4 w-4" />
+                Link tasks, projects, or portfolios
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -512,9 +617,7 @@ export default function GoalDetailPage() {
                 <Input
                   type="number"
                   value={newKR.startValue}
-                  onChange={(e) =>
-                    setNewKR({ ...newKR, startValue: parseFloat(e.target.value) || 0 })
-                  }
+                  onChange={(e) => setNewKR({ ...newKR, startValue: parseFloat(e.target.value) || 0 })}
                 />
               </div>
               <div className="space-y-2">
@@ -522,9 +625,7 @@ export default function GoalDetailPage() {
                 <Input
                   type="number"
                   value={newKR.targetValue}
-                  onChange={(e) =>
-                    setNewKR({ ...newKR, targetValue: parseFloat(e.target.value) || 0 })
-                  }
+                  onChange={(e) => setNewKR({ ...newKR, targetValue: parseFloat(e.target.value) || 0 })}
                 />
               </div>
               <div className="space-y-2">
@@ -537,7 +638,7 @@ export default function GoalDetailPage() {
               </div>
             </div>
             <Button
-              className="w-full bg-slate-900 hover:bg-slate-800"
+              className="w-full"
               onClick={handleAddKeyResult}
               disabled={saving || !newKR.name.trim()}
             >
@@ -562,7 +663,7 @@ export default function GoalDetailPage() {
           </DialogHeader>
           {selectedKR && (
             <div className="space-y-4 py-4">
-              <p className="text-sm text-slate-600">{selectedKR.name}</p>
+              <p className="text-sm text-gray-600">{selectedKR.name}</p>
               <div className="space-y-2">
                 <Label>Current value</Label>
                 <Input
@@ -575,7 +676,7 @@ export default function GoalDetailPage() {
                     })
                   }
                 />
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-gray-500">
                   Previous: {selectedKR.currentValue} → New: {updateValue.currentValue}
                   {selectedKR.unit ? ` ${selectedKR.unit}` : ""}
                 </p>
@@ -591,7 +692,7 @@ export default function GoalDetailPage() {
                 />
               </div>
               <Button
-                className="w-full bg-slate-900 hover:bg-slate-800"
+                className="w-full"
                 onClick={handleUpdateKeyResult}
                 disabled={saving}
               >
