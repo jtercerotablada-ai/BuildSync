@@ -22,110 +22,142 @@ function calculatePasswordStrength(password: string): { score: number; label: st
   return { score: Math.min(score, 4), label: labels[Math.min(score, 4)] };
 }
 
-// Asana-style onboarding illustration
+// BuildSync custom illustration - Construction meets Project Management
 function OnboardingIllustration() {
   return (
     <svg viewBox="0 0 500 500" className="w-full max-w-lg" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Background arch with pink fill */}
-      <path
-        d="M100 450 L100 200 Q100 80 250 80 Q400 80 400 200 L400 450"
-        fill="#fce8e8"
-        stroke="#f5d0d0"
-        strokeWidth="2"
-      />
+      {/* Subtle grid pattern background */}
+      <defs>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e2e8f0" strokeWidth="0.5"/>
+        </pattern>
+      </defs>
+      <rect width="500" height="500" fill="url(#grid)" opacity="0.5"/>
 
-      {/* Clouds */}
-      <g>
-        {/* Left cloud */}
-        <ellipse cx="70" cy="220" rx="35" ry="20" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
-        <ellipse cx="95" cy="210" rx="28" ry="16" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
-
-        {/* Right cloud top */}
-        <ellipse cx="420" cy="180" rx="30" ry="18" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
-        <ellipse cx="445" cy="172" rx="24" ry="14" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
-
-        {/* Right cloud bottom */}
-        <ellipse cx="430" cy="320" rx="25" ry="15" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
+      {/* Floating connection lines */}
+      <g stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.6">
+        <path d="M120 180 Q200 120 280 160"/>
+        <path d="M280 160 Q340 200 380 140"/>
+        <path d="M150 320 Q220 280 300 340"/>
       </g>
 
-      {/* Checkmark circle icon */}
-      <g transform="translate(140, 120)">
-        <circle cx="30" cy="30" r="28" fill="white" stroke="#e8b4b4" strokeWidth="2"/>
-        <path d="M18 30 L26 38 L42 22" stroke="#e07070" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-        {/* Red notification dot */}
-        <circle cx="50" cy="12" r="8" fill="#e85454"/>
+      {/* Main isometric building blocks */}
+      <g transform="translate(140, 200)">
+        {/* Base block */}
+        <path d="M60 80 L120 50 L120 130 L60 160 Z" fill="#f1f5f9"/>
+        <path d="M0 50 L60 80 L60 160 L0 130 Z" fill="#e2e8f0"/>
+        <path d="M0 50 L60 20 L120 50 L60 80 Z" fill="#f8fafc"/>
+
+        {/* Middle block */}
+        <path d="M60 40 L120 10 L120 90 L60 120 Z" fill="#f1f5f9"/>
+        <path d="M0 10 L60 40 L60 120 L0 90 Z" fill="#cbd5e1"/>
+        <path d="M0 10 L60 -20 L120 10 L60 40 Z" fill="#e2e8f0"/>
+
+        {/* Top accent block */}
+        <path d="M30 -10 L70 -30 L70 10 L30 30 Z" fill="#64748b"/>
+        <path d="M-10 -30 L30 -10 L30 30 L-10 10 Z" fill="#475569"/>
+        <path d="M-10 -30 L30 -50 L70 -30 L30 -10 Z" fill="#94a3b8"/>
       </g>
 
-      {/* Chat bubble icon */}
-      <g transform="translate(320, 100)">
-        <rect x="0" y="0" width="50" height="38" rx="8" fill="white" stroke="#e8b4b4" strokeWidth="2"/>
-        <circle cx="15" cy="19" r="3" fill="#d4a0a0"/>
-        <circle cx="25" cy="19" r="3" fill="#d4a0a0"/>
-        <circle cx="35" cy="19" r="3" fill="#d4a0a0"/>
-        {/* Red notification dot */}
-        <circle cx="46" cy="4" r="7" fill="#e85454"/>
+      {/* Second building group */}
+      <g transform="translate(280, 240)">
+        {/* Base */}
+        <path d="M50 60 L100 35 L100 95 L50 120 Z" fill="#f1f5f9"/>
+        <path d="M0 35 L50 60 L50 120 L0 95 Z" fill="#e2e8f0"/>
+        <path d="M0 35 L50 10 L100 35 L50 60 Z" fill="#f8fafc"/>
+
+        {/* Top */}
+        <path d="M50 20 L100 -5 L100 55 L50 80 Z" fill="#94a3b8"/>
+        <path d="M0 -5 L50 20 L50 80 L0 55 Z" fill="#64748b"/>
+        <path d="M0 -5 L50 -30 L100 -5 L50 20 Z" fill="#cbd5e1"/>
       </g>
 
-      {/* Envelope/Mail icon */}
-      <g transform="translate(95, 180)">
-        <rect x="0" y="0" width="70" height="50" rx="6" fill="white" stroke="#e8b4b4" strokeWidth="2"/>
-        <path d="M0 10 L35 32 L70 10" stroke="#e8b4b4" strokeWidth="2" fill="none"/>
-        {/* X mark on envelope */}
-        <g transform="translate(25, 15)">
-          <line x1="0" y1="0" x2="20" y2="20" stroke="#d08080" strokeWidth="2.5" strokeLinecap="round"/>
-          <line x1="20" y1="0" x2="0" y2="20" stroke="#d08080" strokeWidth="2.5" strokeLinecap="round"/>
-        </g>
+      {/* Floating task card 1 */}
+      <g transform="translate(60, 100)">
+        <rect x="0" y="0" width="100" height="70" rx="8" fill="white" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.07))"/>
+        <rect x="12" y="12" width="50" height="6" rx="3" fill="#1e293b"/>
+        <rect x="12" y="24" width="76" height="4" rx="2" fill="#e2e8f0"/>
+        <rect x="12" y="32" width="60" height="4" rx="2" fill="#e2e8f0"/>
+        {/* Progress bar */}
+        <rect x="12" y="48" width="76" height="6" rx="3" fill="#f1f5f9"/>
+        <rect x="12" y="48" width="52" height="6" rx="3" fill="#1e293b"/>
+        {/* Checkmark */}
+        <circle cx="82" cy="18" r="10" fill="#f1f5f9"/>
+        <path d="M78 18 L80 20 L86 14" stroke="#1e293b" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
       </g>
 
-      {/* Bar chart / Analytics icon */}
-      <g transform="translate(320, 160)">
-        <rect x="0" y="40" width="18" height="35" rx="3" fill="#f0a0a0"/>
-        <rect x="24" y="25" width="18" height="50" rx="3" fill="#e88080"/>
-        <rect x="48" y="10" width="18" height="65" rx="3" fill="#d06060"/>
+      {/* Floating task card 2 */}
+      <g transform="translate(320, 80)">
+        <rect x="0" y="0" width="90" height="60" rx="8" fill="white" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.07))"/>
+        <rect x="10" y="10" width="40" height="5" rx="2" fill="#475569"/>
+        <rect x="10" y="20" width="70" height="4" rx="2" fill="#e2e8f0"/>
+        <rect x="10" y="28" width="55" height="4" rx="2" fill="#e2e8f0"/>
+        {/* Avatar dots */}
+        <circle cx="18" cy="46" r="8" fill="#cbd5e1"/>
+        <circle cx="32" cy="46" r="8" fill="#94a3b8"/>
+        <circle cx="46" cy="46" r="8" fill="#64748b"/>
       </g>
 
-      {/* Mobile/Card icon */}
-      <g transform="translate(280, 220)">
-        <rect x="0" y="0" width="45" height="70" rx="6" fill="white" stroke="#e8b4b4" strokeWidth="2"/>
-        <rect x="8" y="12" width="29" height="6" rx="2" fill="#f0c0c0"/>
-        <rect x="8" y="24" width="20" height="6" rx="2" fill="#f0c0c0"/>
-        <rect x="8" y="36" width="29" height="6" rx="2" fill="#f0c0c0"/>
-        <rect x="8" y="52" width="14" height="10" rx="2" fill="#e88080"/>
+      {/* Floating analytics card */}
+      <g transform="translate(340, 320)">
+        <rect x="0" y="0" width="110" height="80" rx="8" fill="white" filter="drop-shadow(0 4px 6px rgba(0,0,0,0.07))"/>
+        <rect x="12" y="12" width="45" height="5" rx="2" fill="#1e293b"/>
+        {/* Mini bar chart */}
+        <rect x="12" y="55" width="14" height="18" rx="2" fill="#e2e8f0"/>
+        <rect x="30" y="45" width="14" height="28" rx="2" fill="#cbd5e1"/>
+        <rect x="48" y="35" width="14" height="38" rx="2" fill="#94a3b8"/>
+        <rect x="66" y="28" width="14" height="45" rx="2" fill="#64748b"/>
+        <rect x="84" y="40" width="14" height="33" rx="2" fill="#1e293b"/>
       </g>
 
-      {/* Building/Office illustration */}
-      <g transform="translate(170, 260)">
-        {/* Main building */}
-        <rect x="0" y="40" width="80" height="130" fill="#f5f5f5" stroke="#e0e0e0" strokeWidth="1"/>
-
-        {/* Windows row 1 */}
-        <rect x="12" y="55" width="20" height="25" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
-        <rect x="48" y="55" width="20" height="25" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
-
-        {/* Windows row 2 */}
-        <rect x="12" y="95" width="20" height="25" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
-        <rect x="48" y="95" width="20" height="25" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
-
-        {/* Door */}
-        <rect x="28" y="135" width="24" height="35" fill="#6b7280" rx="2"/>
-        <circle cx="46" cy="155" r="2" fill="#9ca3af"/>
-
-        {/* Side building */}
-        <rect x="80" y="80" width="50" height="90" fill="#ebebeb" stroke="#d8d8d8" strokeWidth="1"/>
-        <rect x="90" y="95" width="14" height="18" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
-        <rect x="110" y="95" width="14" height="18" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
-        <rect x="90" y="125" width="14" height="18" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
-        <rect x="110" y="125" width="14" height="18" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
+      {/* Sync icon in center */}
+      <g transform="translate(235, 175)">
+        <circle cx="15" cy="15" r="22" fill="white" filter="drop-shadow(0 2px 8px rgba(0,0,0,0.1))"/>
+        <path d="M8 15 A7 7 0 1 1 15 22" stroke="#1e293b" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+        <path d="M22 15 A7 7 0 1 1 15 8" stroke="#1e293b" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+        <path d="M6 12 L8 15 L11 12" stroke="#1e293b" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M24 18 L22 15 L19 18" stroke="#1e293b" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
       </g>
 
-      {/* Bottom decorative semicircle (sunrise/sunset) */}
-      <path
-        d="M140 450 Q250 380 360 450"
-        fill="#e07070"
-      />
+      {/* Construction crane */}
+      <g transform="translate(70, 220)">
+        {/* Vertical tower */}
+        <rect x="8" y="0" width="8" height="140" fill="#94a3b8"/>
+        <rect x="6" y="0" width="12" height="8" fill="#64748b"/>
+        {/* Horizontal arm */}
+        <rect x="0" y="8" width="90" height="6" fill="#64748b"/>
+        {/* Cable */}
+        <line x1="80" y1="14" x2="80" y2="60" stroke="#475569" strokeWidth="1.5"/>
+        {/* Hook */}
+        <path d="M76 60 L84 60 L84 70 Q80 75 76 70 Z" fill="#475569"/>
+        {/* Counter weight */}
+        <rect x="-10" y="8" width="18" height="20" fill="#475569"/>
+      </g>
 
-      {/* Ground line */}
-      <line x1="100" y1="450" x2="400" y2="450" stroke="#e8c0c0" strokeWidth="2"/>
+      {/* Floating notification badge */}
+      <g transform="translate(180, 90)">
+        <circle cx="12" cy="12" r="12" fill="#1e293b"/>
+        <text x="12" y="16" textAnchor="middle" fill="white" fontSize="12" fontWeight="600">3</text>
+      </g>
+
+      {/* Small decorative elements */}
+      <circle cx="420" cy="420" r="30" fill="#f1f5f9"/>
+      <circle cx="430" cy="410" r="20" fill="#e2e8f0"/>
+
+      <circle cx="80" cy="400" r="25" fill="#f1f5f9"/>
+      <circle cx="70" cy="390" r="15" fill="#e2e8f0"/>
+
+      {/* Person silhouette with laptop */}
+      <g transform="translate(380, 180)">
+        {/* Head */}
+        <circle cx="25" cy="10" r="12" fill="#cbd5e1"/>
+        {/* Body */}
+        <path d="M10 25 Q25 35 40 25 L45 60 L5 60 Z" fill="#94a3b8"/>
+        {/* Laptop */}
+        <rect x="8" y="50" width="34" height="22" rx="3" fill="#475569"/>
+        <rect x="11" y="53" width="28" height="16" rx="2" fill="#1e293b"/>
+        <rect x="5" y="72" width="40" height="4" rx="1" fill="#64748b"/>
+      </g>
     </svg>
   );
 }
@@ -353,7 +385,7 @@ export default function OnboardingPage() {
           </form>
 
           {/* Info box */}
-          <div className="mt-8 p-4 bg-slate-50 rounded-lg border-l-4 border-slate-400">
+          <div className="mt-8 p-4 bg-slate-50 rounded-lg border-l-4 border-slate-900">
             <p className="text-sm text-slate-600">
               You&apos;re getting started with BuildSync. You&apos;ll be able to manage projects,
               tasks, and collaborate with your team efficiently.
@@ -363,7 +395,7 @@ export default function OnboardingPage() {
       </div>
 
       {/* Right side - Illustration */}
-      <div className="hidden lg:flex flex-1 items-center justify-center bg-rose-50 p-12">
+      <div className="hidden lg:flex flex-1 items-center justify-center bg-slate-50 p-12">
         <OnboardingIllustration />
       </div>
     </div>
