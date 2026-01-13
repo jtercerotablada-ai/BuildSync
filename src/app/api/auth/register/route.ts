@@ -1,68 +1,54 @@
 import { NextResponse } from "next/server";
-import { hash } from "bcryptjs";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 
 const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, email, password } = registerSchema.parse(body);
+    const { email } = registerSchema.parse(body);
+
+    // Normalize email
+    const normalizedEmail = email.trim().toLowerCase();
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: normalizedEmail,
+          mode: 'insensitive'
+        }
+      },
     });
 
     if (existingUser) {
+      // If user exists but has no password, they can continue to onboarding
+      if (!existingUser.password) {
+        return NextResponse.json(
+          { message: "Continue to complete your profile", userId: existingUser.id },
+          { status: 200 }
+        );
+      }
       return NextResponse.json(
-        { error: "User with this email already exists" },
+        { error: "An account with this email already exists. Please sign in." },
         { status: 400 }
       );
     }
 
-    // Hash password
-    const hashedPassword = await hash(password, 12);
-
-    // Create user
+    // Create user with just email (no password yet)
     const user = await prisma.user.create({
       data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
-    });
-
-    // Create default workspace for the user
-    const workspace = await prisma.workspace.create({
-      data: {
-        name: `${name}'s Workspace`,
-        ownerId: user.id,
-        members: {
-          create: {
-            userId: user.id,
-            role: "OWNER",
-          },
-        },
+        email: normalizedEmail,
       },
     });
 
     return NextResponse.json(
       {
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-        },
-        workspace: {
-          id: workspace.id,
-          name: workspace.name,
-        },
+        message: "Account created. Complete your profile.",
+        userId: user.id,
       },
       { status: 201 }
     );

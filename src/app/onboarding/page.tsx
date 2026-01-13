@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useCallback, useMemo, Suspense } from "react";
+import { useSession, signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -162,10 +162,15 @@ function OnboardingIllustration() {
   );
 }
 
-export default function OnboardingPage() {
+function OnboardingForm() {
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Get email from URL params (new registration) or session (OAuth)
+  const emailFromParams = searchParams.get("email");
+  const email = emailFromParams || session?.user?.email || "";
 
   const [name, setName] = useState(session?.user?.name || "");
   const [password, setPassword] = useState("");
@@ -204,27 +209,46 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (password && password.length < 8) {
+    if (!password || password.length < 8) {
       setError("Password must be at least 8 characters");
+      return;
+    }
+
+    if (!email) {
+      setError("Email is required. Please go back to registration.");
       return;
     }
 
     setLoading(true);
 
     try {
+      // Complete onboarding
       const response = await fetch("/api/users/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          password: password || undefined,
-          image: avatarPreview
+          password,
+          image: avatarPreview,
+          email,
         }),
       });
 
       if (!response.ok) {
         const data = await response.json();
         setError(data.error || "Something went wrong");
+        return;
+      }
+
+      // Sign in with the new credentials
+      const signInResult = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        setError("Profile saved but failed to sign in. Please try logging in.");
         return;
       }
 
@@ -262,9 +286,9 @@ export default function OnboardingPage() {
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
             Welcome to BuildSync!
           </h1>
-          {session?.user?.email && (
+          {email && (
             <p className="text-slate-600 mb-8">
-              You&apos;re signing up as {session.user.email}
+              You&apos;re signing up as {email}
             </p>
           )}
 
@@ -331,7 +355,7 @@ export default function OnboardingPage() {
             {/* Password field */}
             <div className="space-y-2">
               <Label htmlFor="password" className="text-slate-700 font-medium">
-                Password
+                Create a password
               </Label>
               <div className="relative">
                 <Input
@@ -340,7 +364,8 @@ export default function OnboardingPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-11 pr-10 border-slate-300 focus:border-slate-400 focus:ring-slate-400"
-                  placeholder="Your password"
+                  placeholder="At least 8 characters"
+                  required
                 />
                 <button
                   type="button"
@@ -376,11 +401,10 @@ export default function OnboardingPage() {
             {/* Submit button */}
             <Button
               type="submit"
-              variant="outline"
-              className="h-11 px-6 border-slate-300 text-slate-700 hover:bg-slate-50"
+              className="h-11 px-6 w-full"
               disabled={loading}
             >
-              {loading ? "Saving..." : "Continue"}
+              {loading ? "Creating your account..." : "Get Started"}
             </Button>
           </form>
 
@@ -399,5 +423,17 @@ export default function OnboardingPage() {
         <OnboardingIllustration />
       </div>
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-slate-500">Loading...</div>
+      </div>
+    }>
+      <OnboardingForm />
+    </Suspense>
   );
 }
