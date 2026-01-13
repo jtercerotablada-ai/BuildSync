@@ -60,7 +60,7 @@ export default function RegisterPage() {
       if (result?.error) {
         setError("Account created but failed to sign in. Please try logging in.");
       } else {
-        router.push("/home");
+        router.push("/onboarding");
         router.refresh();
       }
     } catch {
@@ -71,7 +71,7 @@ export default function RegisterPage() {
   };
 
   const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/home" });
+    signIn("google", { callbackUrl: "/onboarding" });
   };
 
   return (
