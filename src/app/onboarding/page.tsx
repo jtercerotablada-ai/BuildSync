@@ -18,72 +18,114 @@ function calculatePasswordStrength(password: string): { score: number; label: st
   if (/\d/.test(password)) score++;
   if (/[^a-zA-Z0-9]/.test(password)) score++;
 
-  const labels = ["Muy debil", "Debil", "Regular", "Buena", "Muy fuerte"];
+  const labels = ["Very weak", "Weak", "Fair", "Good", "Strong"];
   return { score: Math.min(score, 4), label: labels[Math.min(score, 4)] };
 }
 
-// Onboarding illustration component
+// Asana-style onboarding illustration
 function OnboardingIllustration() {
   return (
-    <svg viewBox="0 0 400 400" className="w-full max-w-md" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Background arch */}
+    <svg viewBox="0 0 500 500" className="w-full max-w-lg" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Background arch with pink fill */}
       <path
-        d="M100 350 L100 180 Q100 80 200 80 Q300 80 300 180 L300 350"
-        stroke="#d1d5db"
+        d="M100 450 L100 200 Q100 80 250 80 Q400 80 400 200 L400 450"
+        fill="#fce8e8"
+        stroke="#f5d0d0"
         strokeWidth="2"
-        fill="none"
       />
 
       {/* Clouds */}
-      <g fill="#e5e7eb">
-        <ellipse cx="80" cy="200" rx="25" ry="15" />
-        <ellipse cx="95" cy="195" rx="20" ry="12" />
-        <ellipse cx="320" cy="220" rx="30" ry="18" />
-        <ellipse cx="340" cy="215" rx="22" ry="13" />
-        <ellipse cx="350" cy="280" rx="20" ry="12" />
+      <g>
+        {/* Left cloud */}
+        <ellipse cx="70" cy="220" rx="35" ry="20" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
+        <ellipse cx="95" cy="210" rx="28" ry="16" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
+
+        {/* Right cloud top */}
+        <ellipse cx="420" cy="180" rx="30" ry="18" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
+        <ellipse cx="445" cy="172" rx="24" ry="14" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
+
+        {/* Right cloud bottom */}
+        <ellipse cx="430" cy="320" rx="25" ry="15" fill="#fce8e8" stroke="#f0c0c0" strokeWidth="1.5"/>
       </g>
 
-      {/* Building/chart icon */}
-      <g transform="translate(240, 150)">
-        <rect x="0" y="30" width="20" height="40" rx="2" fill="#9ca3af" />
-        <rect x="25" y="15" width="20" height="55" rx="2" fill="#6b7280" />
-        <rect x="50" y="0" width="20" height="70" rx="2" fill="#4b5563" />
+      {/* Checkmark circle icon */}
+      <g transform="translate(140, 120)">
+        <circle cx="30" cy="30" r="28" fill="white" stroke="#e8b4b4" strokeWidth="2"/>
+        <path d="M18 30 L26 38 L42 22" stroke="#e07070" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+        {/* Red notification dot */}
+        <circle cx="50" cy="12" r="8" fill="#e85454"/>
       </g>
 
-      {/* Document/envelope icon */}
-      <g transform="translate(100, 140)">
-        <rect x="0" y="0" width="60" height="45" rx="4" fill="#f3f4f6" stroke="#d1d5db" strokeWidth="2" />
-        <path d="M0 10 L30 30 L60 10" stroke="#9ca3af" strokeWidth="2" fill="none" />
-        <circle cx="55" cy="5" r="8" fill="#ef4444" />
+      {/* Chat bubble icon */}
+      <g transform="translate(320, 100)">
+        <rect x="0" y="0" width="50" height="38" rx="8" fill="white" stroke="#e8b4b4" strokeWidth="2"/>
+        <circle cx="15" cy="19" r="3" fill="#d4a0a0"/>
+        <circle cx="25" cy="19" r="3" fill="#d4a0a0"/>
+        <circle cx="35" cy="19" r="3" fill="#d4a0a0"/>
+        {/* Red notification dot */}
+        <circle cx="46" cy="4" r="7" fill="#e85454"/>
       </g>
 
-      {/* Chat bubble */}
-      <g transform="translate(260, 100)">
-        <rect x="0" y="0" width="40" height="30" rx="6" fill="#f3f4f6" stroke="#d1d5db" strokeWidth="2" />
-        <circle cx="35" cy="5" r="6" fill="#ef4444" />
+      {/* Envelope/Mail icon */}
+      <g transform="translate(95, 180)">
+        <rect x="0" y="0" width="70" height="50" rx="6" fill="white" stroke="#e8b4b4" strokeWidth="2"/>
+        <path d="M0 10 L35 32 L70 10" stroke="#e8b4b4" strokeWidth="2" fill="none"/>
+        {/* X mark on envelope */}
+        <g transform="translate(25, 15)">
+          <line x1="0" y1="0" x2="20" y2="20" stroke="#d08080" strokeWidth="2.5" strokeLinecap="round"/>
+          <line x1="20" y1="0" x2="0" y2="20" stroke="#d08080" strokeWidth="2.5" strokeLinecap="round"/>
+        </g>
       </g>
 
-      {/* Checkmark icon */}
-      <g transform="translate(130, 100)">
-        <circle cx="20" cy="20" r="18" fill="#f3f4f6" stroke="#d1d5db" strokeWidth="2" />
-        <path d="M12 20 L18 26 L28 14" stroke="#4b5563" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Bar chart / Analytics icon */}
+      <g transform="translate(320, 160)">
+        <rect x="0" y="40" width="18" height="35" rx="3" fill="#f0a0a0"/>
+        <rect x="24" y="25" width="18" height="50" rx="3" fill="#e88080"/>
+        <rect x="48" y="10" width="18" height="65" rx="3" fill="#d06060"/>
       </g>
 
-      {/* Bottom decorative semicircle */}
+      {/* Mobile/Card icon */}
+      <g transform="translate(280, 220)">
+        <rect x="0" y="0" width="45" height="70" rx="6" fill="white" stroke="#e8b4b4" strokeWidth="2"/>
+        <rect x="8" y="12" width="29" height="6" rx="2" fill="#f0c0c0"/>
+        <rect x="8" y="24" width="20" height="6" rx="2" fill="#f0c0c0"/>
+        <rect x="8" y="36" width="29" height="6" rx="2" fill="#f0c0c0"/>
+        <rect x="8" y="52" width="14" height="10" rx="2" fill="#e88080"/>
+      </g>
+
+      {/* Building/Office illustration */}
+      <g transform="translate(170, 260)">
+        {/* Main building */}
+        <rect x="0" y="40" width="80" height="130" fill="#f5f5f5" stroke="#e0e0e0" strokeWidth="1"/>
+
+        {/* Windows row 1 */}
+        <rect x="12" y="55" width="20" height="25" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
+        <rect x="48" y="55" width="20" height="25" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
+
+        {/* Windows row 2 */}
+        <rect x="12" y="95" width="20" height="25" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
+        <rect x="48" y="95" width="20" height="25" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
+
+        {/* Door */}
+        <rect x="28" y="135" width="24" height="35" fill="#6b7280" rx="2"/>
+        <circle cx="46" cy="155" r="2" fill="#9ca3af"/>
+
+        {/* Side building */}
+        <rect x="80" y="80" width="50" height="90" fill="#ebebeb" stroke="#d8d8d8" strokeWidth="1"/>
+        <rect x="90" y="95" width="14" height="18" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
+        <rect x="110" y="95" width="14" height="18" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
+        <rect x="90" y="125" width="14" height="18" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
+        <rect x="110" y="125" width="14" height="18" fill="#e8f4fc" stroke="#d0e8f8" strokeWidth="1"/>
+      </g>
+
+      {/* Bottom decorative semicircle (sunrise/sunset) */}
       <path
-        d="M120 350 Q200 280 280 350"
-        fill="#9ca3af"
+        d="M140 450 Q250 380 360 450"
+        fill="#e07070"
       />
 
-      {/* Construction/building elements */}
-      <g transform="translate(170, 200)">
-        <rect x="0" y="50" width="60" height="100" fill="#e5e7eb" />
-        <rect x="10" y="60" width="15" height="20" fill="#f9fafb" />
-        <rect x="35" y="60" width="15" height="20" fill="#f9fafb" />
-        <rect x="10" y="90" width="15" height="20" fill="#f9fafb" />
-        <rect x="35" y="90" width="15" height="20" fill="#f9fafb" />
-        <rect x="22" y="120" width="16" height="30" fill="#6b7280" />
-      </g>
+      {/* Ground line */}
+      <line x1="100" y1="450" x2="400" y2="450" stroke="#e8c0c0" strokeWidth="2"/>
     </svg>
   );
 }
@@ -110,7 +152,7 @@ export default function OnboardingPage() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        setError("La imagen debe ser menor a 5MB");
+        setError("Image must be less than 5MB");
         return;
       }
       const reader = new FileReader();
@@ -126,12 +168,12 @@ export default function OnboardingPage() {
     setError("");
 
     if (!name.trim()) {
-      setError("Por favor ingresa tu nombre");
+      setError("Please enter your name");
       return;
     }
 
     if (password && password.length < 8) {
-      setError("La contrasena debe tener al menos 8 caracteres");
+      setError("Password must be at least 8 characters");
       return;
     }
 
@@ -150,14 +192,14 @@ export default function OnboardingPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || "Algo salio mal");
+        setError(data.error || "Something went wrong");
         return;
       }
 
       router.push("/home");
       router.refresh();
     } catch {
-      setError("Algo salio mal");
+      setError("Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -186,11 +228,11 @@ export default function OnboardingPage() {
 
           {/* Welcome text */}
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            Te damos la bienvenida a BuildSync!
+            Welcome to BuildSync!
           </h1>
           {session?.user?.email && (
             <p className="text-slate-600 mb-8">
-              Te estas registrando como {session.user.email}
+              You&apos;re signing up as {session.user.email}
             </p>
           )}
 
@@ -239,7 +281,7 @@ export default function OnboardingPage() {
                 {/* Name field */}
                 <div className="space-y-2">
                   <Label htmlFor="name" className="text-slate-700 font-medium">
-                    Cual es tu nombre completo?
+                    What&apos;s your full name?
                   </Label>
                   <Input
                     id="name"
@@ -247,7 +289,7 @@ export default function OnboardingPage() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="h-11 border-slate-300 focus:border-slate-400 focus:ring-slate-400"
-                    placeholder="Tu nombre"
+                    placeholder="Your name"
                     required
                   />
                 </div>
@@ -257,7 +299,7 @@ export default function OnboardingPage() {
             {/* Password field */}
             <div className="space-y-2">
               <Label htmlFor="password" className="text-slate-700 font-medium">
-                Contrasena
+                Password
               </Label>
               <div className="relative">
                 <Input
@@ -266,7 +308,7 @@ export default function OnboardingPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-11 pr-10 border-slate-300 focus:border-slate-400 focus:ring-slate-400"
-                  placeholder="Tu contrasena"
+                  placeholder="Your password"
                 />
                 <button
                   type="button"
@@ -294,7 +336,7 @@ export default function OnboardingPage() {
                   ))}
                 </div>
                 <p className="text-sm text-slate-500">
-                  La contrasena debe tener al menos 8 caracteres
+                  Password must be at least 8 characters
                 </p>
               </div>
             </div>
@@ -306,22 +348,22 @@ export default function OnboardingPage() {
               className="h-11 px-6 border-slate-300 text-slate-700 hover:bg-slate-50"
               disabled={loading}
             >
-              {loading ? "Guardando..." : "Continuar"}
+              {loading ? "Saving..." : "Continue"}
             </Button>
           </form>
 
           {/* Info box */}
           <div className="mt-8 p-4 bg-slate-50 rounded-lg border-l-4 border-slate-400">
             <p className="text-sm text-slate-600">
-              Estas comenzando con BuildSync. Podras gestionar proyectos, tareas
-              y colaborar con tu equipo de manera eficiente.
+              You&apos;re getting started with BuildSync. You&apos;ll be able to manage projects,
+              tasks, and collaborate with your team efficiently.
             </p>
           </div>
         </div>
       </div>
 
       {/* Right side - Illustration */}
-      <div className="hidden lg:flex flex-1 items-center justify-center bg-slate-50 p-12">
+      <div className="hidden lg:flex flex-1 items-center justify-center bg-rose-50 p-12">
         <OnboardingIllustration />
       </div>
     </div>
