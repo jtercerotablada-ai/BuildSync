@@ -803,9 +803,11 @@ function MembersContent({
   onInvite: () => void;
   onRefresh: () => void;
 }) {
+  const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredMembers = members.filter((member) => {
+    if (!searchQuery) return true;
     const searchLower = searchQuery.toLowerCase();
     return (
       member.user.name?.toLowerCase().includes(searchLower) ||
@@ -813,86 +815,157 @@ function MembersContent({
     );
   });
 
-  const roleIcons: Record<string, React.ReactNode> = {
-    OWNER: <Crown className="h-4 w-4 text-amber-500" />,
-    ADMIN: <Shield className="h-4 w-4 text-blue-500" />,
-    MEMBER: <User className="h-4 w-4 text-gray-400" />,
+  const roleLabels: Record<string, string> = {
+    OWNER: "Owner",
+    ADMIN: "Admin",
+    MEMBER: "Member",
+  };
+
+  const roleColors: Record<string, string> = {
+    OWNER: "text-purple-600",
+    ADMIN: "text-blue-600",
+    MEMBER: "text-gray-600",
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Members</h2>
-          <p className="text-sm text-gray-500">
-            {members.length} member{members.length !== 1 ? "s" : ""} in this team
-          </p>
+    <div className="bg-white min-h-[calc(100vh-120px)]">
+      <div className="max-w-5xl mx-auto px-6 py-6">
+        {/* Top bar - Asana style */}
+        <div className="flex items-center justify-between mb-6">
+          <Button variant="outline" className="gap-2" onClick={onInvite}>
+            <Plus className="h-4 w-4" />
+            Add member
+          </Button>
+
+          <div className="flex items-center gap-4">
+            <button className="text-sm text-blue-600 hover:underline">
+              Send feedback
+            </button>
+            <button
+              className="p-2 hover:bg-gray-100 rounded"
+              onClick={() => setShowSearch(!showSearch)}
+            >
+              <Search className="h-4 w-4 text-gray-500" />
+            </button>
+          </div>
         </div>
-        <Button onClick={onInvite} className="bg-green-600 hover:bg-green-700 gap-2">
-          <UserPlus className="h-4 w-4" />
-          Invite members
-        </Button>
-      </div>
 
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search members..."
-          className="pl-10"
-        />
-      </div>
+        {/* Search input (toggleable) */}
+        {showSearch && (
+          <div className="mb-4">
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search members..."
+              className="max-w-sm"
+              autoFocus
+            />
+          </div>
+        )}
 
-      <div className="bg-white border rounded-xl divide-y">
-        {filteredMembers.map((member) => (
-          <div key={member.id} className="flex items-center justify-between p-4 hover:bg-gray-50">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={member.user.image || undefined} />
-                <AvatarFallback className="bg-purple-100 text-purple-700">
-                  {member.user.name?.charAt(0).toUpperCase() || "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="flex items-center gap-2">
+        {/* Members Table - Asana style */}
+        <div className="border rounded-lg overflow-hidden">
+          {/* Header */}
+          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 border-b text-sm font-medium text-gray-500">
+            <div className="col-span-6">Name</div>
+            <div className="col-span-5">Job title</div>
+            <div className="col-span-1 flex justify-center">
+              <button className="p-1 hover:bg-gray-200 rounded">
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="divide-y">
+            {filteredMembers.map((member) => (
+              <div
+                key={member.id}
+                className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-gray-50 group"
+              >
+                {/* Name + Avatar + Role Dropdown */}
+                <div className="col-span-6 flex items-center gap-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={member.user.image || undefined} />
+                    <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
+                      {member.user.name?.charAt(0).toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+
                   <span className="font-medium text-gray-900">
                     {member.user.name || "No name"}
                   </span>
-                  <Badge variant={member.role === "OWNER" ? "default" : "secondary"} className="text-xs">
-                    {member.role === "OWNER" ? "Owner" : member.role === "ADMIN" ? "Admin" : "Member"}
-                  </Badge>
-                </div>
-                <span className="text-sm text-gray-500">{member.user.email}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {roleIcons[member.role]}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                    <Mail className="h-4 w-4 mr-2" />
-                    Send message
-                  </DropdownMenuItem>
-                  {member.role !== "OWNER" && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="text-red-600">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Remove from team
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className={cn(
+                          "flex items-center gap-1 text-sm px-2 py-0.5 rounded hover:bg-gray-100",
+                          roleColors[member.role] || "text-gray-600"
+                        )}
+                      >
+                        {roleLabels[member.role] || "Member"}
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem>
+                        <Shield className="h-4 w-4 mr-2" />
+                        Admin
                       </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                      <DropdownMenuItem>Member</DropdownMenuItem>
+                      {member.role !== "OWNER" && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-red-600">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Remove from team
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                {/* Job Title */}
+                <div className="col-span-5">
+                  <span className="text-sm text-gray-500">
+                    {member.user.jobTitle || (
+                      <span className="text-gray-400 italic">Add job title...</span>
+                    )}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="col-span-1 flex justify-center opacity-0 group-hover:opacity-100">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="p-1 hover:bg-gray-200 rounded">
+                        <MoreHorizontal className="h-4 w-4 text-gray-500" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>View profile</DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Send message
+                      </DropdownMenuItem>
+                      {member.role !== "OWNER" && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-red-600">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Remove from team
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
