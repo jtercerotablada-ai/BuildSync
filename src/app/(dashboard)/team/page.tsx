@@ -61,6 +61,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { TeamSettingsModal } from "@/components/teams";
 
 interface Member {
   id: string;
@@ -116,6 +117,7 @@ export default function TeamPage() {
   const [isStarred, setIsStarred] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [description, setDescription] = useState("");
 
@@ -218,13 +220,15 @@ export default function TeamPage() {
                 <ChevronDown className="h-4 w-4 text-gray-400" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowSettingsModal(true)}>
                   <Settings className="h-4 w-4 mr-2" />
                   Edit team
                 </DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowSettingsModal(true)}>
+                  Settings
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600">
+                <DropdownMenuItem className="text-red-600" onClick={() => setShowSettingsModal(true)}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete team
                 </DropdownMenuItem>
@@ -314,6 +318,7 @@ export default function TeamPage() {
           setupSteps={setupSteps}
           completedSteps={completedSteps}
           setShowInviteModal={setShowInviteModal}
+          setShowSettingsModal={setShowSettingsModal}
           setActiveTab={setActiveTab}
         />
       )}
@@ -344,6 +349,22 @@ export default function TeamPage() {
         onClose={() => setShowInviteModal(false)}
         onInviteSent={fetchData}
       />
+
+      {/* Settings Modal */}
+      {workspace && (
+        <TeamSettingsModal
+          team={{
+            id: workspace.id,
+            name: workspace.name,
+            description: workspace.description,
+            privacy: "PUBLIC",
+            workspace: { name: workspace.name },
+          }}
+          open={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          onSave={fetchData}
+        />
+      )}
     </div>
   );
 }
@@ -365,6 +386,7 @@ function OverviewContent({
   setupSteps,
   completedSteps,
   setShowInviteModal,
+  setShowSettingsModal,
   setActiveTab,
 }: {
   workspace: Workspace | null;
@@ -382,6 +404,7 @@ function OverviewContent({
   setupSteps: { description: boolean; work: boolean; members: boolean };
   completedSteps: number;
   setShowInviteModal: (v: boolean) => void;
+  setShowSettingsModal: (v: boolean) => void;
   setActiveTab: (v: TabType) => void;
 }) {
   const router = useRouter();
@@ -500,7 +523,7 @@ function OverviewContent({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Step 1: Description */}
               <button
-                onClick={() => setIsEditingDescription(true)}
+                onClick={() => setShowSettingsModal(true)}
                 className={cn(
                   "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
                   setupSteps.description ? "bg-green-50 border-green-200" : "bg-white"
