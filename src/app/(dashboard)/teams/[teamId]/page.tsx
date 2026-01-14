@@ -4,25 +4,39 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ChevronDown,
-  FolderKanban,
-  Briefcase,
-  Target,
+  Star,
+  Users,
+  Plus,
   FileText,
+  FolderKanban,
+  FolderPlus,
+  UserPlus,
+  X,
+  LayoutGrid,
+  MessageSquare,
+  Calendar,
+  BookOpen,
+  Target,
+  Briefcase,
+  ExternalLink,
+  Link2,
+  Paperclip,
   Loader2,
+  Settings,
+  Trash2,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { TeamHeader } from "@/components/teams/team-header";
-import { TeamSetupBanner } from "@/components/teams/team-setup-banner";
-import { TeamWorkSection } from "@/components/teams/team-work-section";
-import { TeamMembersWidget } from "@/components/teams/team-members-widget";
-import { TeamGoalsWidget } from "@/components/teams/team-goals-widget";
+import { cn } from "@/lib/utils";
+import { InviteTeamModal } from "@/components/teams/invite-team-modal";
+import { toast } from "sonner";
 
 interface TeamMember {
   id: string;
@@ -56,24 +70,45 @@ interface Team {
   };
 }
 
+interface WorkItem {
+  id: string;
+  name: string;
+  type: "project" | "portfolio" | "template";
+  color?: string;
+  status?: string;
+}
+
 export default function TeamPage() {
   const params = useParams();
   const router = useRouter();
   const teamId = params.teamId as string;
 
   const [team, setTeam] = useState<Team | null>(null);
+  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStarred, setIsStarred] = useState(false);
+  const [showSetupBanner, setShowSetupBanner] = useState(true);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [description, setDescription] = useState("");
 
   useEffect(() => {
-    async function fetchTeam() {
+    async function fetchData() {
       try {
-        const res = await fetch(`/api/teams/${teamId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setTeam(data);
-          setDescription(data.description || "");
+        const [teamRes, workRes] = await Promise.all([
+          fetch(`/api/teams/${teamId}`),
+          fetch(`/api/teams/${teamId}/work`),
+        ]);
+
+        if (teamRes.ok) {
+          const teamData = await teamRes.json();
+          setTeam(teamData);
+          setDescription(teamData.description || "");
+        }
+
+        if (workRes.ok) {
+          const workData = await workRes.json();
+          setWorkItems(workData);
         }
       } catch (error) {
         console.error("Error fetching team:", error);
@@ -82,7 +117,7 @@ export default function TeamPage() {
       }
     }
 
-    fetchTeam();
+    fetchData();
   }, [teamId]);
 
   const handleSaveDescription = async () => {
@@ -96,26 +131,32 @@ export default function TeamPage() {
       if (res.ok) {
         const updatedTeam = await res.json();
         setTeam(updatedTeam);
+        toast.success("Descripcion actualizada");
       }
     } catch (error) {
-      console.error("Error updating description:", error);
+      toast.error("Error al actualizar descripcion");
     }
     setIsEditingDescription(false);
   };
 
-  const handleSetupStepClick = (stepId: string) => {
-    switch (stepId) {
-      case "description":
-        setIsEditingDescription(true);
-        break;
-      case "members":
-        // Will trigger invite modal through TeamMembersWidget
-        break;
-      case "work":
-        // Could open a dialog to add work
-        break;
-    }
+  // Calculate setup steps completion
+  const setupSteps = {
+    description: !!team?.description,
+    work: (team?._count?.projects || 0) > 0 || workItems.length > 0,
+    members: (team?._count?.members || 0) > 1,
   };
+  const completedSteps = Object.values(setupSteps).filter(Boolean).length;
+
+  // Hide banner if all complete
+  const shouldShowBanner = showSetupBanner && completedSteps < 3;
+
+  const tabs = [
+    { id: "overview", label: "Resumen", icon: LayoutGrid, href: `/teams/${teamId}` },
+    { id: "members", label: "Miembros", icon: Users, href: `/teams/${teamId}/members` },
+    { id: "work", label: "Todo el trabajo", icon: FolderKanban, href: `/teams/${teamId}/work` },
+    { id: "messages", label: "Mensajes", icon: MessageSquare, href: `/teams/${teamId}/messages` },
+    { id: "calendar", label: "Calendario", icon: Calendar, href: `/teams/${teamId}/calendar` },
+  ];
 
   if (isLoading) {
     return (
@@ -139,33 +180,124 @@ export default function TeamPage() {
     );
   }
 
+  const teamName = team.name;
+  const teamInitial = teamName.charAt(0).toUpperCase();
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header con tabs */}
-      <TeamHeader team={team} activeTab="overview" />
+      {/* ========== HEADER ========== */}
+      <div className="bg-white border-b sticky top-0 z-10">
+        <div className="px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {/* Team Avatar */}
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center">
+              {team.avatar ? (
+                <img src={team.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
+              ) : (
+                <span className="text-sm font-medium text-purple-700">{teamInitial}</span>
+              )}
+            </div>
 
-      {/* Main content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Team Avatar + Name + Description */}
-        <div className="flex flex-col items-center text-center mb-8">
+            {/* Team Name Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1 font-semibold hover:bg-gray-100 px-2 py-1 rounded transition-colors">
+                {teamName}
+                <ChevronDown className="h-4 w-4 text-gray-400" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuItem>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Editar equipo
+                </DropdownMenuItem>
+                <DropdownMenuItem>Configuracion</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-red-600">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Eliminar equipo
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Star */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-8 w-8", isStarred && "text-yellow-500")}
+              onClick={() => setIsStarred(!isStarred)}
+            >
+              <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
+            </Button>
+          </div>
+
+          {/* Right: Avatars + Invite */}
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              {team.members.slice(0, 3).map((member) => (
+                <Avatar key={member.id} className="h-8 w-8 border-2 border-white">
+                  <AvatarImage src={member.user.image || undefined} />
+                  <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
+                    {member.user.name?.charAt(0).toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+              ))}
+              {team.members.length > 3 && (
+                <div className="h-8 w-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
+                  <span className="text-xs text-gray-600">+{team.members.length - 3}</span>
+                </div>
+              )}
+            </div>
+            <Button
+              className="bg-green-600 hover:bg-green-700 gap-2"
+              onClick={() => setShowInviteModal(true)}
+            >
+              <Users className="h-4 w-4" />
+              Invitar
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="px-6 flex items-center gap-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = tab.id === "overview";
+            return (
+              <button
+                key={tab.id}
+                onClick={() => router.push(tab.href)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+                  isActive
+                    ? "border-gray-900 text-gray-900"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+          <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* ========== HERO SECTION ========== */}
+      <div className="bg-gradient-to-b from-gray-100 to-gray-50 py-12">
+        <div className="flex flex-col items-center text-center">
           {/* Large Avatar */}
           <div className="w-32 h-32 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border-4 border-white shadow-lg flex items-center justify-center mb-6">
             {team.avatar ? (
-              <img
-                src={team.avatar}
-                alt={team.name}
-                className="w-full h-full rounded-full object-cover"
-              />
+              <img src={team.avatar} alt={team.name} className="w-full h-full rounded-full object-cover" />
             ) : (
-              <span className="text-5xl font-light text-gray-600">
-                {team.name.charAt(0).toUpperCase()}
-              </span>
+              <span className="text-5xl font-light text-gray-600">{teamInitial}</span>
             )}
           </div>
 
-          {/* Team Name + Create Work Button */}
-          <div className="flex items-center justify-center gap-4 w-full max-w-2xl">
-            <h1 className="text-2xl font-semibold text-gray-900">{team.name}</h1>
+          {/* Name + Create Work */}
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-semibold text-gray-900">{teamName}</h1>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -175,21 +307,15 @@ export default function TeamPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem
-                  onClick={() => router.push(`/projects/new?teamId=${teamId}`)}
-                >
+                <DropdownMenuItem onClick={() => router.push(`/projects/new?teamId=${teamId}`)}>
                   <FolderKanban className="h-4 w-4 mr-2" />
                   Proyecto
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => router.push(`/portfolios/new?teamId=${teamId}`)}
-                >
+                <DropdownMenuItem onClick={() => router.push(`/portfolios/new?teamId=${teamId}`)}>
                   <Briefcase className="h-4 w-4 mr-2" />
                   Portafolio
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => router.push(`/goals/new?teamId=${teamId}`)}
-                >
+                <DropdownMenuItem onClick={() => router.push(`/goals/new?teamId=${teamId}`)}>
                   <Target className="h-4 w-4 mr-2" />
                   Objetivo
                 </DropdownMenuItem>
@@ -208,7 +334,7 @@ export default function TeamPage() {
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full p-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 rows={3}
                 placeholder="Describe el proposito y responsabilidades del equipo..."
                 autoFocus
@@ -234,29 +360,383 @@ export default function TeamPage() {
               className="mt-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
               onClick={() => setIsEditingDescription(true)}
             >
-              {team.description ||
-                "Haz clic para agregar la descripcion del equipo..."}
+              {team.description || "Haz clic para agregar la descripcion del equipo..."}
             </button>
           )}
         </div>
+      </div>
 
+      {/* ========== MAIN CONTENT ========== */}
+      <div className="max-w-6xl mx-auto px-6 py-8">
         {/* Setup Banner */}
-        <TeamSetupBanner team={team} onStepClick={handleSetupStepClick} />
+        {shouldShowBanner && (
+          <div className="bg-white border rounded-xl p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <span className="font-medium text-gray-900">Termina de configurar tu equipo</span>
+                <div className="flex items-center gap-2">
+                  <div className={cn(
+                    "w-6 h-6 rounded-full border-2 flex items-center justify-center",
+                    completedSteps === 3 ? "border-green-500 bg-green-50" : "border-gray-300"
+                  )}>
+                    {completedSteps === 3 && <span className="text-green-600 text-xs">✓</span>}
+                  </div>
+                  <span className="text-sm text-gray-500">{completedSteps} de 3 pasos finalizados</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSetupBanner(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-        {/* Two column layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-          {/* Left column - Work Selection (2/3) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Step 1: Description */}
+              <button
+                onClick={() => setIsEditingDescription(true)}
+                className={cn(
+                  "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
+                  setupSteps.description ? "bg-green-50 border-green-200" : "bg-white"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                    setupSteps.description ? "bg-green-100" : "bg-gray-100"
+                  )}>
+                    {setupSteps.description ? (
+                      <span className="text-green-600 text-sm">✓</span>
+                    ) : (
+                      <FileText className="h-4 w-4 text-gray-500" />
+                    )}
+                  </div>
+                  <div>
+                    <h4 className={cn(
+                      "font-medium text-sm",
+                      setupSteps.description ? "text-green-700" : "text-gray-900"
+                    )}>
+                      Agregar descripcion del equipo
+                    </h4>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Describe el proposito y las responsabilidades de tu equipo
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Step 2: Work */}
+              <button
+                onClick={() => router.push(`/teams/${teamId}/work`)}
+                className={cn(
+                  "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
+                  setupSteps.work ? "bg-green-50 border-green-200" : "bg-white"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                    setupSteps.work ? "bg-green-100" : "bg-gray-100"
+                  )}>
+                    {setupSteps.work ? (
+                      <span className="text-green-600 text-sm">✓</span>
+                    ) : (
+                      <FolderPlus className="h-4 w-4 text-gray-500" />
+                    )}
+                  </div>
+                  <div>
+                    <h4 className={cn(
+                      "font-medium text-sm",
+                      setupSteps.work ? "text-green-700" : "text-gray-900"
+                    )}>
+                      Agregar trabajo
+                    </h4>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Vincula proyectos, portafolios o plantillas existentes
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Step 3: Members */}
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className={cn(
+                  "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
+                  setupSteps.members ? "bg-green-50 border-green-200" : "bg-white"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                    setupSteps.members ? "bg-green-100" : "bg-gray-100"
+                  )}>
+                    {setupSteps.members ? (
+                      <span className="text-green-600 text-sm">✓</span>
+                    ) : (
+                      <UserPlus className="h-4 w-4 text-gray-500" />
+                    )}
+                  </div>
+                  <div>
+                    <h4 className={cn(
+                      "font-medium text-sm",
+                      setupSteps.members ? "text-green-700" : "text-gray-900"
+                    )}>
+                      Agregar companeros de equipo
+                    </h4>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Invita companeros a tu nuevo equipo para colaborar
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Work Selection (2/3) */}
           <div className="lg:col-span-2">
-            <TeamWorkSection teamId={teamId} />
+            <div className="bg-white border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Seleccion de trabajo</h3>
+                <button
+                  className="text-sm text-blue-600 hover:underline"
+                  onClick={() => router.push(`/teams/${teamId}/work`)}
+                >
+                  Ver todo el trabajo
+                </button>
+              </div>
+
+              {workItems.length > 0 ? (
+                <div className="space-y-2">
+                  {workItems.slice(0, 5).map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => router.push(`/${item.type}s/${item.id}`)}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <div
+                        className="w-8 h-8 rounded flex items-center justify-center"
+                        style={{ backgroundColor: item.color || "#4573D2" }}
+                      >
+                        <FolderKanban className="h-4 w-4 text-white" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  {/* Skeleton placeholder items */}
+                  <div className="space-y-3 opacity-30 mb-6">
+                    <div className="flex items-center gap-3 p-3">
+                      <div className="w-8 h-8 bg-green-300 rounded" />
+                      <div className="h-3 bg-gray-300 rounded w-3/4" />
+                    </div>
+                    <div className="flex items-center gap-3 p-3">
+                      <div className="w-8 h-8 bg-gray-300 rounded" />
+                      <div className="h-3 bg-gray-300 rounded w-1/2" />
+                    </div>
+                    <div className="flex items-center gap-3 p-3">
+                      <div className="w-8 h-8 bg-blue-300 rounded" />
+                      <div className="h-3 bg-gray-300 rounded w-2/3" />
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-gray-500 text-center mb-4">
+                    Organiza enlaces a trabajos importantes, como portafolios, proyectos, plantillas, etc.,
+                    para que los miembros de tu equipo los encuentren facilmente.
+                  </p>
+
+                  <div className="flex justify-center">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="bg-blue-600 hover:bg-blue-700">
+                          Agregar trabajo
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="center" className="w-72">
+                        <DropdownMenuItem className="cursor-pointer py-3">
+                          <div className="flex items-start gap-3">
+                            <FolderKanban className="h-4 w-4 text-gray-500 mt-0.5" />
+                            <div>
+                              <span className="font-medium">Vincular el trabajo existente</span>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Portafolios, proyectos, plantillas y mas
+                              </p>
+                            </div>
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="cursor-pointer py-2">
+                          <Link2 className="h-4 w-4 text-gray-500 mr-3" />
+                          <span>URL del enlace</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="cursor-pointer py-3">
+                          <div className="flex items-start gap-3">
+                            <Paperclip className="h-4 w-4 text-gray-500 mt-0.5" />
+                            <div>
+                              <span className="font-medium">Adjuntar un archivo</span>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Cargar un archivo
+                              </p>
+                            </div>
+                          </div>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Right column - Members + Goals (1/3) */}
+          {/* Right Column (1/3) */}
           <div className="space-y-6">
-            <TeamMembersWidget teamId={teamId} members={team.members} />
-            <TeamGoalsWidget teamId={teamId} goals={team.objectives} />
+            {/* Members Widget */}
+            <div className="bg-white border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Miembros</h3>
+                <button
+                  className="text-sm text-blue-600 hover:underline"
+                  onClick={() => router.push(`/teams/${teamId}/members`)}
+                >
+                  Ver la lista de {team.members.length} elemento{team.members.length !== 1 ? "s" : ""}
+                </button>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {team.members.slice(0, 8).map((member) => (
+                  <Avatar
+                    key={member.id}
+                    className="h-10 w-10 border-2 border-white shadow-sm cursor-pointer hover:scale-105 transition-transform"
+                    title={member.user.name || member.user.email || "Miembro"}
+                  >
+                    <AvatarImage src={member.user.image || undefined} />
+                    <AvatarFallback className="bg-purple-100 text-purple-700 text-sm">
+                      {member.user.name?.charAt(0).toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                ))}
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="h-10 w-10 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+                {team.members.length > 8 && (
+                  <span className="text-sm text-gray-500">+{team.members.length - 8}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Goals Widget */}
+            <div className="bg-white border rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Objetivos</h3>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1">
+                      Crear objetivo
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72">
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/goals/new?teamId=${teamId}`)}
+                    >
+                      <Target className="h-4 w-4 mr-2" />
+                      Objetivo en blanco
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="cursor-pointer py-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Usar plantillas de objetivos</span>
+                            <ExternalLink className="h-3 w-3 text-gray-400" />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Estandariza como se crean los objetivos en tu organizacion.
+                          </p>
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {team.objectives && team.objectives.length > 0 ? (
+                <div className="space-y-3">
+                  {team.objectives.map((goal) => (
+                    <button
+                      key={goal.id}
+                      onClick={() => router.push(`/goals/${goal.id}`)}
+                      className="w-full text-left group"
+                    >
+                      <div className="w-full h-2 bg-gray-100 rounded-full mb-2 overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all",
+                            goal.status === "ON_TRACK" ? "bg-green-500" :
+                            goal.status === "AT_RISK" ? "bg-yellow-500" :
+                            goal.status === "OFF_TRACK" ? "bg-red-500" : "bg-blue-500"
+                          )}
+                          style={{ width: `${goal.progress}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-900 group-hover:text-blue-600 transition-colors">
+                          {goal.name}
+                        </span>
+                        <span className="text-gray-500">{goal.progress}%</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-gray-900 mb-1">
+                    Este equipo aun no ha creado ningun objetivo
+                  </p>
+                  <p className="text-xs text-gray-500 mb-4">
+                    Agrega un objetivo para que el equipo pueda ver lo que quieres lograr.
+                  </p>
+
+                  {/* Placeholder progress */}
+                  <div className="opacity-40">
+                    <div className="h-2 bg-gray-200 rounded-full mb-2" />
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span className="text-gray-400">En curso (0%)</span>
+                      </div>
+                      <div className="w-6 h-6 rounded-full border-2 border-dashed border-gray-300" />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Invite Modal */}
+      <InviteTeamModal
+        teamId={teamId}
+        open={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        onInviteSent={() => {
+          // Refresh team data
+          fetch(`/api/teams/${teamId}`)
+            .then((res) => res.json())
+            .then((data) => setTeam(data));
+        }}
+      />
     </div>
   );
 }
