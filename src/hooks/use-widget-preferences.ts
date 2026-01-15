@@ -27,7 +27,13 @@ export function useWidgetPreferences() {
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        setPreferences(parsed);
+        // Migrate legacy data that doesn't have widgetSizes
+        const migratedPreferences: UserWidgetPreferences = {
+          visibleWidgets: parsed.visibleWidgets || [],
+          widgetOrder: parsed.widgetOrder || [],
+          widgetSizes: parsed.widgetSizes || {},
+        };
+        setPreferences(migratedPreferences);
       } catch (e) {
         console.error('Failed to parse widget preferences:', e);
       }
@@ -76,14 +82,14 @@ export function useWidgetPreferences() {
     setPreferences(prev => ({
       ...prev,
       widgetSizes: {
-        ...prev.widgetSizes,
+        ...(prev.widgetSizes || {}),
         [widgetId]: size,
       },
     }));
   }, []);
 
   const getWidgetSize = useCallback((widgetId: WidgetType): WidgetSize => {
-    return preferences.widgetSizes[widgetId] || 'half';
+    return preferences.widgetSizes?.[widgetId] || 'half';
   }, [preferences.widgetSizes]);
 
   return {

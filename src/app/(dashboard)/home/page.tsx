@@ -175,12 +175,12 @@ export default function HomePage() {
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={preferences.widgetOrder}
+            items={preferences.widgetOrder || []}
             strategy={rectSortingStrategy}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {preferences.widgetOrder.map((widgetId) => {
-                if (!preferences.visibleWidgets.includes(widgetId)) return null;
+              {(preferences.widgetOrder || []).map((widgetId) => {
+                if (!(preferences.visibleWidgets || []).includes(widgetId)) return null;
 
                 // MyTasks widget has its own header with dropdown
                 const hideHeader = widgetId === 'my-tasks';
@@ -203,7 +203,7 @@ export default function HomePage() {
         </DndContext>
 
         {/* Empty state if no widgets */}
-        {preferences.visibleWidgets.length === 0 && (
+        {(preferences.visibleWidgets || []).length === 0 && (
           <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-lg bg-white">
             <p className="text-gray-500 mb-4">No widgets visible. Add some to get started!</p>
             <CustomizeWidgetsModal
