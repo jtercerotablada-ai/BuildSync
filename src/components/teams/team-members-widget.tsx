@@ -42,7 +42,7 @@ export function TeamMembersWidget({ teamId, members }: TeamMembersWidgetProps) {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900">Miembros</h3>
           <button
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-black hover:underline"
             onClick={() => router.push(`/teams/${teamId}/members`)}
           >
             Ver la lista de {members.length} elemento{members.length !== 1 ? "s" : ""}
@@ -58,7 +58,7 @@ export function TeamMembersWidget({ teamId, members }: TeamMembersWidgetProps) {
               title={member.user.name || member.user.email || "Member"}
             >
               <AvatarImage src={member.user.image || undefined} />
-              <AvatarFallback className="text-sm bg-purple-100 text-purple-700">
+              <AvatarFallback className="text-sm bg-white text-black border border-black">
                 {getInitials(member.user.name)}
               </AvatarFallback>
             </Avatar>

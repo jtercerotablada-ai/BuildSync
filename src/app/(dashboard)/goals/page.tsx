@@ -172,15 +172,15 @@ export default function GoalsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-green-500";
+        return "bg-black";
       case "AT_RISK":
-        return "bg-yellow-500";
+        return "bg-gray-500";
       case "OFF_TRACK":
-        return "bg-red-500";
+        return "bg-gray-300";
       case "ACHIEVED":
-        return "bg-blue-500";
+        return "bg-black";
       default:
-        return "bg-slate-300";
+        return "bg-gray-400";
     }
   };
 
@@ -196,7 +196,7 @@ export default function GoalsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-black" />
       </div>
     );
   }
@@ -205,8 +205,8 @@ export default function GoalsPage() {
     <div className="flex-1 flex flex-col h-full bg-white">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b">
-        <h1 className="text-xl font-semibold text-slate-900">Goals</h1>
-        <button className="text-sm text-blue-600 hover:text-blue-700">
+        <h1 className="text-xl font-semibold text-black">Goals</h1>
+        <button className="text-sm text-black hover:text-black">
           Send feedback
         </button>
       </div>
@@ -220,25 +220,25 @@ export default function GoalsPage() {
             className={cn(
               "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
               activeTab === tab.id
-                ? "border-slate-900 text-slate-900"
-                : "border-transparent text-slate-500 hover:text-slate-700"
+                ? "border-slate-900 text-black"
+                : "border-transparent text-black hover:text-black"
             )}
           >
             {tab.label}
           </button>
         ))}
-        <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md ml-1">
+        <button className="p-2 text-black hover:text-black hover:bg-white rounded-md ml-1">
           <Plus className="w-4 h-4" />
         </button>
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b bg-slate-50">
+      <div className="flex items-center justify-between px-6 py-3 border-b bg-white">
         <div className="flex items-center gap-3">
           {/* Create Goal Button */}
           <Button
             size="sm"
-            className="bg-slate-900 hover:bg-slate-800"
+            className="bg-black hover:bg-black"
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -249,7 +249,7 @@ export default function GoalsPage() {
           <div className="flex items-center bg-white border rounded-md">
             <button
               onClick={() => cyclePeriod("prev")}
-              className="p-1.5 hover:bg-slate-100 rounded-l-md border-r"
+              className="p-1.5 hover:bg-white rounded-l-md border-r"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -266,7 +266,7 @@ export default function GoalsPage() {
             </select>
             <button
               onClick={() => cyclePeriod("next")}
-              className="p-1.5 hover:bg-slate-100 rounded-r-md border-l"
+              className="p-1.5 hover:bg-white rounded-r-md border-l"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -276,24 +276,24 @@ export default function GoalsPage() {
         <div className="flex items-center gap-2">
           {/* Owner/Team Filter Badge */}
           {activeTab === "my-goals" && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-full text-sm">
-              <User className="w-4 h-4 text-red-600" />
-              <span className="text-red-700">Owner: Juan Tercero</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-black rounded-full text-sm">
+              <User className="w-4 h-4 text-black" />
+              <span className="text-black">Owner: Juan Tercero</span>
             </div>
           )}
           {activeTab === "team-goals" && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-full text-sm">
-              <Users className="w-4 h-4 text-red-600" />
-              <span className="text-red-700">Team: My workspace</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-black rounded-full text-sm">
+              <Users className="w-4 h-4 text-black" />
+              <span className="text-black">Team: My workspace</span>
             </div>
           )}
 
           {/* Filter & Options */}
-          <Button variant="ghost" size="sm" className="text-slate-600">
+          <Button variant="ghost" size="sm" className="text-black">
             <Filter className="w-4 h-4 mr-2" />
             Filter
           </Button>
-          <Button variant="ghost" size="sm" className="text-slate-600">
+          <Button variant="ghost" size="sm" className="text-black">
             <Settings className="w-4 h-4 mr-2" />
             Options
           </Button>
@@ -362,7 +362,7 @@ export default function GoalsPage() {
               </Select>
             </div>
             <Button
-              className="w-full bg-slate-900 hover:bg-slate-800"
+              className="w-full bg-black hover:bg-black"
               onClick={handleCreate}
               disabled={creating || !newObjective.name.trim()}
             >
@@ -410,16 +410,16 @@ function GoalsListView({
   if (objectives.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-16">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-          <Target className="h-8 w-8 text-green-600" />
+        <div className="w-16 h-16 bg-white border border-black rounded-full flex items-center justify-center mb-4">
+          <Target className="h-8 w-8 text-black" />
         </div>
-        <h3 className="text-lg font-medium text-slate-900 mb-2">No goals yet</h3>
-        <p className="text-sm text-slate-500 text-center max-w-sm mb-4">
+        <h3 className="text-lg font-medium text-black mb-2">No goals yet</h3>
+        <p className="text-sm text-black text-center max-w-sm mb-4">
           Create goals to track your objectives and key results.
         </p>
         <Button
           onClick={onCreateGoal}
-          className="bg-slate-900 hover:bg-slate-800"
+          className="bg-black hover:bg-black"
         >
           <Plus className="w-4 h-4 mr-2" />
           Create your first goal
@@ -431,7 +431,7 @@ function GoalsListView({
   return (
     <div className="p-6">
       {/* Column Headers */}
-      <div className="flex items-center border-b pb-2 text-xs font-medium text-slate-500 uppercase tracking-wide">
+      <div className="flex items-center border-b pb-2 text-xs font-medium text-black uppercase tracking-wide">
         {columns.map((col) => (
           <div
             key={col.id}
@@ -442,7 +442,7 @@ function GoalsListView({
           </div>
         ))}
         <div className="w-10">
-          <Plus className="w-4 h-4 text-slate-400" />
+          <Plus className="w-4 h-4 text-black" />
         </div>
       </div>
 
@@ -451,7 +451,7 @@ function GoalsListView({
         {objectives.map((objective) => (
           <div key={objective.id}>
             <div
-              className="flex items-center py-3 hover:bg-slate-50 cursor-pointer group"
+              className="flex items-center py-3 hover:bg-white cursor-pointer group"
               onClick={() => onRowClick(objective.id)}
             >
               {/* Name */}
@@ -463,16 +463,16 @@ function GoalsListView({
                       e.stopPropagation();
                       onToggleExpand(objective.id);
                     }}
-                    className="p-1 hover:bg-slate-200 rounded"
+                    className="p-1 hover:bg-white rounded"
                   >
                     {expandedIds.has(objective.id) ? (
-                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                      <ChevronDown className="h-4 w-4 text-black" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-slate-500" />
+                      <ChevronRight className="h-4 w-4 text-black" />
                     )}
                   </button>
                 )}
-                <span className="text-sm text-slate-700">{objective.name}</span>
+                <span className="text-sm text-black">{objective.name}</span>
               </div>
 
               {/* Status */}
@@ -488,13 +488,13 @@ function GoalsListView({
               {/* Progress */}
               <div className="w-[140px] px-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="flex-1 h-2 bg-white border border-black rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-amber-400 rounded-full transition-all"
+                      className="h-full bg-black rounded-full transition-all"
                       style={{ width: `${objective.progress}%` }}
                     />
                   </div>
-                  <span className="text-xs text-slate-500 w-8">
+                  <span className="text-xs text-black w-8">
                     {objective.progress}%
                   </span>
                 </div>
@@ -502,14 +502,14 @@ function GoalsListView({
 
               {/* Period */}
               <div className="w-[100px] px-3">
-                <span className="text-sm text-slate-500">
+                <span className="text-sm text-black">
                   {objective.period || "-"}
                 </span>
               </div>
 
               {/* Team */}
               <div className="w-[140px] px-3">
-                <span className="text-sm text-slate-500">
+                <span className="text-sm text-black">
                   {objective.team?.name || "-"}
                 </span>
               </div>
@@ -519,7 +519,7 @@ function GoalsListView({
                 {objective.owner ? (
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={objective.owner.image || ""} />
-                    <AvatarFallback className="text-xs bg-slate-200">
+                    <AvatarFallback className="text-xs bg-white border border-black">
                       {objective.owner.name?.charAt(0) || "?"}
                     </AvatarFallback>
                   </Avatar>
@@ -535,7 +535,7 @@ function GoalsListView({
             {/* Expanded Key Results */}
             {expandedIds.has(objective.id) &&
               objective.keyResults.length > 0 && (
-                <div className="bg-slate-50 border-t">
+                <div className="bg-white border-t">
                   {objective.keyResults.map((kr) => {
                     const progress =
                       kr.targetValue - kr.startValue === 0
@@ -554,20 +554,20 @@ function GoalsListView({
                         key={kr.id}
                         className="flex items-center py-2 pl-12 text-sm"
                       >
-                        <div className="flex-1 px-3 flex items-center gap-2 text-slate-600">
-                          <div className="w-2 h-2 rounded-full bg-slate-400" />
+                        <div className="flex-1 px-3 flex items-center gap-2 text-black">
+                          <div className="w-2 h-2 rounded-full bg-black" />
                           {kr.name}
                         </div>
                         <div className="w-[80px] px-3" />
                         <div className="w-[140px] px-3">
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="flex-1 h-1.5 bg-white border border-black rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-amber-400 rounded-full"
+                                className="h-full bg-black rounded-full"
                                 style={{ width: `${progress}%` }}
                               />
                             </div>
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-black">
                               {kr.currentValue}/{kr.targetValue}
                             </span>
                           </div>
@@ -607,22 +607,22 @@ function StrategyMapView({
       <div className="flex h-full">
         {/* Left: Onboarding Form */}
         <div className="w-1/2 p-8 border-r">
-          <p className="text-sm text-slate-500 mb-4">Step 1 of 2</p>
+          <p className="text-sm text-black mb-4">Step 1 of 2</p>
 
-          <h2 className="text-2xl font-semibold text-slate-900 mb-4">
+          <h2 className="text-2xl font-semibold text-black mb-4">
             Welcome to the goals
             <br />
             strategy map
           </h2>
 
-          <p className="text-slate-600 mb-6">
+          <p className="text-black mb-6">
             Try the strategy map by creating a goal that only you can see. You
             can invite members and add details to the goal later.
           </p>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-black mb-1">
                 Goal name <span className="text-red-500">*</span>
               </label>
               <Input
@@ -634,15 +634,15 @@ function StrategyMapView({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-black mb-1">
                 Period
               </label>
-              <p className="text-slate-600">Q1 FY26</p>
+              <p className="text-black">Q1 FY26</p>
             </div>
           </div>
 
           <div className="mt-8 pt-4 border-t flex items-center justify-between">
-            <p className="text-sm text-slate-500">0 people will be notified</p>
+            <p className="text-sm text-black">0 people will be notified</p>
             <div className="flex items-center gap-3">
               <Button variant="ghost" onClick={onSkipOnboarding}>
                 Go to map
@@ -650,7 +650,7 @@ function StrategyMapView({
               <Button
                 disabled={!newGoalName.trim()}
                 onClick={onCreateGoal}
-                className="bg-slate-900 hover:bg-slate-800"
+                className="bg-black hover:bg-black"
               >
                 Continue
               </Button>
@@ -659,7 +659,7 @@ function StrategyMapView({
         </div>
 
         {/* Right: Strategy Map Preview */}
-        <div className="w-1/2 p-8 bg-slate-50 overflow-auto">
+        <div className="w-1/2 p-8 bg-white overflow-auto">
           <StrategyMapPreview />
         </div>
       </div>
@@ -669,16 +669,16 @@ function StrategyMapView({
   if (objectives.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-16">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-          <Target className="h-8 w-8 text-green-600" />
+        <div className="w-16 h-16 bg-white border border-black rounded-full flex items-center justify-center mb-4">
+          <Target className="h-8 w-8 text-black" />
         </div>
-        <h3 className="text-lg font-medium text-slate-900 mb-2">
+        <h3 className="text-lg font-medium text-black mb-2">
           No goals in strategy map
         </h3>
-        <p className="text-sm text-slate-500 text-center max-w-sm mb-4">
+        <p className="text-sm text-black text-center max-w-sm mb-4">
           Create goals to visualize your strategy hierarchy.
         </p>
-        <Button onClick={onCreateGoal} className="bg-slate-900 hover:bg-slate-800">
+        <Button onClick={onCreateGoal} className="bg-black hover:bg-black">
           <Plus className="w-4 h-4 mr-2" />
           Create your first goal
         </Button>
@@ -699,24 +699,24 @@ function StrategyMapPreview() {
     <div className="relative flex flex-col items-center">
       {/* Workspace Node */}
       <div className="bg-white border rounded-lg p-4 shadow-sm w-56 mb-8">
-        <p className="font-medium text-center text-slate-900">My workspace</p>
+        <p className="font-medium text-center text-black">My workspace</p>
         <div className="mt-3 space-y-1">
-          <div className="h-2 bg-slate-200 rounded w-full" />
-          <div className="h-2 bg-slate-200 rounded w-3/4" />
+          <div className="h-2 bg-white border border-black rounded w-full" />
+          <div className="h-2 bg-white border border-black rounded w-3/4" />
         </div>
       </div>
 
       {/* Connection Line */}
-      <div className="w-px h-8 bg-slate-300" />
+      <div className="w-px h-8 bg-black" />
 
       {/* Horizontal Line */}
-      <div className="w-72 h-px bg-slate-300" />
+      <div className="w-72 h-px bg-black" />
 
       {/* Child Goals */}
       <div className="flex justify-center gap-4 mt-0">
         {[1, 2, 3].map((i) => (
           <div key={i} className="flex flex-col items-center">
-            <div className="w-px h-8 bg-slate-300" />
+            <div className="w-px h-8 bg-black" />
             <GoalCard highlight={i === 2} />
           </div>
         ))}
@@ -725,11 +725,11 @@ function StrategyMapPreview() {
       {/* Sub-goals */}
       <div className="flex gap-32 mt-0">
         <div className="flex flex-col items-center">
-          <div className="w-px h-8 bg-slate-300" />
+          <div className="w-px h-8 bg-black" />
           <GoalCard />
         </div>
         <div className="flex flex-col items-center">
-          <div className="w-px h-8 bg-slate-300" />
+          <div className="w-px h-8 bg-black" />
           <GoalCard />
         </div>
       </div>
@@ -743,17 +743,17 @@ function GoalCard({ highlight = false }: { highlight?: boolean }) {
     <div
       className={cn(
         "bg-white border rounded-lg p-3 w-40 shadow-sm relative",
-        highlight && "ring-2 ring-blue-500"
+        highlight && "ring-2 ring-black"
       )}
     >
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-4 h-4 bg-slate-200 rounded" />
-        <div className="h-2 bg-slate-200 rounded flex-1" />
+        <div className="w-4 h-4 bg-white border border-black rounded" />
+        <div className="h-2 bg-white border border-black rounded flex-1" />
       </div>
-      <div className="h-2 bg-green-400 rounded w-full mb-1" />
-      <div className="h-2 bg-slate-200 rounded w-2/3" />
+      <div className="h-2 bg-black rounded w-full mb-1" />
+      <div className="h-2 bg-white border border-black rounded w-2/3" />
       {highlight && (
-        <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-amber-400 rounded-full flex items-center justify-center text-xs text-white font-medium">
+        <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center text-xs text-white font-medium">
           JT
         </div>
       )}
@@ -768,15 +768,15 @@ function StrategyMapTree({ objectives }: { objectives: Objective[] }) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-green-500";
+        return "bg-black";
       case "AT_RISK":
-        return "bg-yellow-500";
+        return "bg-gray-500";
       case "OFF_TRACK":
-        return "bg-red-500";
+        return "bg-gray-300";
       case "ACHIEVED":
-        return "bg-blue-500";
+        return "bg-black";
       default:
-        return "bg-slate-300";
+        return "bg-gray-400";
     }
   };
 
@@ -787,31 +787,31 @@ function StrategyMapTree({ objectives }: { objectives: Objective[] }) {
           <div className="bg-white border rounded-lg p-4 shadow-sm w-64 hover:shadow-md transition-shadow cursor-pointer">
             <div className="flex items-center gap-2 mb-2">
               <div className={cn("w-3 h-3 rounded-full", getStatusColor(goal.status))} />
-              <span className="font-medium text-sm text-slate-900">{goal.name}</span>
+              <span className="font-medium text-sm text-black">{goal.name}</span>
             </div>
-            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div className="h-2 bg-white border border-black rounded-full overflow-hidden">
               <div
-                className="h-full bg-amber-400 rounded-full"
+                className="h-full bg-black rounded-full"
                 style={{ width: `${goal.progress}%` }}
               />
             </div>
-            <p className="text-xs text-slate-500 mt-2">{goal.period}</p>
+            <p className="text-xs text-black mt-2">{goal.period}</p>
           </div>
 
           {goal.children && goal.children.length > 0 && (
             <>
-              <div className="w-px h-8 bg-slate-300" />
+              <div className="w-px h-8 bg-black" />
               <div className="flex gap-8">
                 {goal.children.map((child) => (
                   <div key={child.id} className="flex flex-col items-center">
                     <div className="bg-white border rounded-lg p-3 w-48 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
                       <div className="flex items-center gap-2 mb-2">
                         <div className={cn("w-2 h-2 rounded-full", getStatusColor(child.status))} />
-                        <span className="text-sm text-slate-700">{child.name}</span>
+                        <span className="text-sm text-black">{child.name}</span>
                       </div>
-                      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-white border border-black rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-amber-400 rounded-full"
+                          className="h-full bg-black rounded-full"
                           style={{ width: `${child.progress}%` }}
                         />
                       </div>

@@ -64,10 +64,10 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
 
   const getStatusClasses = (status: string) => {
     switch (status) {
-      case 'ON_TRACK': return 'bg-green-100 text-green-700';
-      case 'AT_RISK': return 'bg-orange-100 text-orange-700';
-      case 'OFF_TRACK': return 'bg-red-100 text-red-700';
-      case 'COMPLETE': return 'bg-blue-100 text-blue-700';
+      case 'ON_TRACK': return 'bg-white text-black border border-black';
+      case 'AT_RISK': return 'bg-white text-black border border-black';
+      case 'OFF_TRACK': return 'bg-white text-black border border-black';
+      case 'COMPLETE': return 'bg-white text-black border border-black';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
@@ -95,7 +95,7 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
         <Button
           variant="ghost"
           size="sm"
-          className="text-blue-600 hover:text-blue-700 gap-1 h-7"
+          className="text-black hover:text-black gap-1 h-7"
           onClick={onCreateProject}
         >
           <Plus className="h-4 w-4" />

@@ -5,3 +5,8 @@ export { TeamMembersWidget } from "./team-members-widget";
 export { TeamGoalsWidget } from "./team-goals-widget";
 export { InviteTeamModal } from "./invite-team-modal";
 export { TeamSettingsModal } from "./team-settings-modal";
+export { LinkWorkModal } from "./link-work-modal";
+export { LinkWorkPopover } from "./link-work-popover";
+export { AddFieldModal } from "./add-field-modal";
+export { AddFieldFlow } from "./add-field-flow";
+export { FieldMembersModal } from "./field-members-modal";

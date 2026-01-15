@@ -165,13 +165,13 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
                     <div className="flex items-center gap-1 mt-0.5">
                       <Avatar className="h-4 w-4">
                         <AvatarImage src={task.assignee.image || undefined} />
-                        <AvatarFallback className="text-[8px] bg-blue-100 text-blue-700">{getInitials(task.assignee.name)}</AvatarFallback>
+                        <AvatarFallback className="text-[8px] bg-white text-black border border-black">{getInitials(task.assignee.name)}</AvatarFallback>
                       </Avatar>
                       <span className="text-xs text-gray-500">{task.assignee.name}</span>
                     </div>
                   )}
                 </div>
-                {task.dueDate && (<span className={cn('text-xs flex-shrink-0 mt-0.5', isOverdue(task.dueDate) && !task.completed ? 'text-red-600' : 'text-gray-400')}>{formatDueDate(task.dueDate)}</span>)}
+                {task.dueDate && (<span className={cn('text-xs flex-shrink-0 mt-0.5', isOverdue(task.dueDate) && !task.completed ? 'text-black' : 'text-gray-400')}>{formatDueDate(task.dueDate)}</span>)}
               </div>
             ))}
           </div>

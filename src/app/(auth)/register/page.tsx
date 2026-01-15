@@ -53,7 +53,7 @@ export default function RegisterPage() {
     <Card>
       <CardHeader className="space-y-1">
         <div className="flex items-center justify-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-900 text-white font-semibold text-base">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-black text-white font-semibold text-base">
             <span>B<span className="text-sm">s</span><span className="text-[10px] ml-[1px]">.</span></span>
           </div>
           <span className="text-2xl font-bold">BuildSync</span>
@@ -103,7 +103,7 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+            <div className="p-3 text-sm text-black bg-white border border-black rounded-md">
               {error}
             </div>
           )}

@@ -43,9 +43,9 @@ export function StatusUpdatesWidget() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ON_TRACK': return 'bg-green-500';
-      case 'AT_RISK': return 'bg-yellow-500';
-      case 'OFF_TRACK': return 'bg-red-500';
+      case 'ON_TRACK': return 'bg-black';
+      case 'AT_RISK': return 'bg-gray-500';
+      case 'OFF_TRACK': return 'bg-gray-300';
       default: return 'bg-gray-400';
     }
   };
@@ -72,14 +72,14 @@ export function StatusUpdatesWidget() {
                 <div className="h-1 bg-gray-200 rounded w-3/4" />
               </div>
             </div>
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full" />
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-black rounded-full" />
           </div>
           <p className="text-gray-500 text-sm">
             Status updates let you track progress.
           </p>
           <p className="text-gray-500 text-sm">
             You can request updates from any project.{' '}
-            <a href="#" className="text-blue-600 hover:underline">
+            <a href="#" className="text-black hover:underline">
               Learn more
             </a>
           </p>

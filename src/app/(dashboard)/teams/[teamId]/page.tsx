@@ -35,7 +35,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { InviteTeamModal } from "@/components/teams/invite-team-modal";
+import { InviteTeamModal, LinkWorkPopover } from "@/components/teams";
 import { toast } from "sonner";
 
 interface TeamMember {
@@ -427,37 +427,45 @@ export default function TeamPage() {
               </button>
 
               {/* Step 2: Work */}
-              <button
-                onClick={() => router.push(`/teams/${teamId}/work`)}
-                className={cn(
-                  "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
-                  setupSteps.work ? "bg-green-50 border-green-200" : "bg-white"
-                )}
+              <LinkWorkPopover
+                teamId={teamId}
+                onSuccess={() => {
+                  fetch(`/api/teams/${teamId}/work`)
+                    .then((res) => res.json())
+                    .then((data) => setWorkItems(data));
+                }}
               >
-                <div className="flex items-start gap-3">
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    setupSteps.work ? "bg-green-100" : "bg-gray-100"
-                  )}>
-                    {setupSteps.work ? (
-                      <span className="text-green-600 text-sm">✓</span>
-                    ) : (
-                      <FolderPlus className="h-4 w-4 text-gray-500" />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className={cn(
-                      "font-medium text-sm",
-                      setupSteps.work ? "text-green-700" : "text-gray-900"
+                <button
+                  className={cn(
+                    "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all w-full",
+                    setupSteps.work ? "bg-green-50 border-green-200" : "bg-white"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                      setupSteps.work ? "bg-green-100" : "bg-gray-100"
                     )}>
-                      Agregar trabajo
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Vincula proyectos, portafolios o plantillas existentes
-                    </p>
+                      {setupSteps.work ? (
+                        <span className="text-green-600 text-sm">✓</span>
+                      ) : (
+                        <FolderPlus className="h-4 w-4 text-gray-500" />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className={cn(
+                        "font-medium text-sm",
+                        setupSteps.work ? "text-green-700" : "text-gray-900"
+                      )}>
+                        Agregar trabajo
+                      </h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Vincula proyectos, portafolios o plantillas existentes
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+              </LinkWorkPopover>
 
               {/* Step 3: Members */}
               <button
@@ -552,43 +560,19 @@ export default function TeamPage() {
                   </p>
 
                   <div className="flex justify-center">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button className="bg-blue-600 hover:bg-blue-700">
-                          Agregar trabajo
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="center" className="w-72">
-                        <DropdownMenuItem className="cursor-pointer py-3">
-                          <div className="flex items-start gap-3">
-                            <FolderKanban className="h-4 w-4 text-gray-500 mt-0.5" />
-                            <div>
-                              <span className="font-medium">Vincular el trabajo existente</span>
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                Portafolios, proyectos, plantillas y mas
-                              </p>
-                            </div>
-                          </div>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="cursor-pointer py-2">
-                          <Link2 className="h-4 w-4 text-gray-500 mr-3" />
-                          <span>URL del enlace</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="cursor-pointer py-3">
-                          <div className="flex items-start gap-3">
-                            <Paperclip className="h-4 w-4 text-gray-500 mt-0.5" />
-                            <div>
-                              <span className="font-medium">Adjuntar un archivo</span>
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                Cargar un archivo
-                              </p>
-                            </div>
-                          </div>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <LinkWorkPopover
+                      teamId={teamId}
+                      onSuccess={() => {
+                        // Refresh work items
+                        fetch(`/api/teams/${teamId}/work`)
+                          .then((res) => res.json())
+                          .then((data) => setWorkItems(data));
+                      }}
+                    >
+                      <Button className="bg-blue-600 hover:bg-blue-700">
+                        Agregar trabajo
+                      </Button>
+                    </LinkWorkPopover>
                   </div>
                 </>
               )}

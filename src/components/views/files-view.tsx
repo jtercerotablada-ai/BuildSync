@@ -78,17 +78,17 @@ function formatFileSize(bytes: number): string {
 function getFileIcon(type: FileAttachment["type"]) {
   switch (type) {
     case "image":
-      return <Image className="w-6 h-6 text-pink-500" />;
+      return <Image className="w-6 h-6 text-black" />;
     case "video":
-      return <Film className="w-6 h-6 text-purple-500" />;
+      return <Film className="w-6 h-6 text-black" />;
     case "audio":
-      return <Music className="w-6 h-6 text-green-500" />;
+      return <Music className="w-6 h-6 text-black" />;
     case "document":
-      return <FileText className="w-6 h-6 text-blue-500" />;
+      return <FileText className="w-6 h-6 text-black" />;
     case "spreadsheet":
-      return <FileSpreadsheet className="w-6 h-6 text-green-600" />;
+      return <FileSpreadsheet className="w-6 h-6 text-black" />;
     case "presentation":
-      return <Presentation className="w-6 h-6 text-orange-500" />;
+      return <Presentation className="w-6 h-6 text-black" />;
     default:
       return <File className="w-6 h-6 text-gray-500" />;
   }
@@ -97,17 +97,17 @@ function getFileIcon(type: FileAttachment["type"]) {
 function getFileTypeColor(type: FileAttachment["type"]) {
   switch (type) {
     case "image":
-      return "bg-pink-50";
+      return "bg-white";
     case "video":
-      return "bg-purple-50";
+      return "bg-white";
     case "audio":
-      return "bg-green-50";
+      return "bg-white";
     case "document":
-      return "bg-blue-50";
+      return "bg-white";
     case "spreadsheet":
       return "bg-emerald-50";
     case "presentation":
-      return "bg-orange-50";
+      return "bg-white";
     default:
       return "bg-gray-50";
   }
@@ -302,39 +302,39 @@ function FilesIllustration() {
   return (
     <div className="relative w-28 h-28 mx-auto mb-6">
       {/* Main document (back, top-right) */}
-      <div className="absolute top-0 right-0 w-16 h-20 bg-white rounded-lg border-2 border-red-200 shadow-sm overflow-hidden">
+      <div className="absolute top-0 right-0 w-16 h-20 bg-white rounded-lg border-2 border-black shadow-sm overflow-hidden">
         {/* Header with mini card and dots */}
         <div className="p-1.5 border-b border-red-100">
           <div className="flex items-center gap-1">
-            <div className="w-4 h-2.5 bg-red-100 rounded-sm" />
+            <div className="w-4 h-2.5 bg-white rounded-sm" />
             <div className="flex gap-0.5">
-              <div className="w-1 h-1 rounded-full bg-red-400" />
-              <div className="w-1 h-1 rounded-full bg-red-400" />
+              <div className="w-1 h-1 rounded-full bg-black" />
+              <div className="w-1 h-1 rounded-full bg-black" />
             </div>
           </div>
         </div>
         {/* Content lines */}
         <div className="p-1.5 space-y-1">
-          <div className="h-1 bg-red-100 rounded-full w-full" />
-          <div className="h-1 bg-red-100 rounded-full w-full" />
-          <div className="h-1 bg-red-100 rounded-full w-2/3" />
+          <div className="h-1 bg-white rounded-full w-full" />
+          <div className="h-1 bg-white rounded-full w-full" />
+          <div className="h-1 bg-white rounded-full w-2/3" />
         </div>
       </div>
 
       {/* Image card (middle, with cursor) */}
-      <div className="absolute top-6 left-2 w-12 h-10 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border-2 border-red-200 shadow-sm flex items-center justify-center">
+      <div className="absolute top-6 left-2 w-12 h-10 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border-2 border-black shadow-sm flex items-center justify-center">
         {/* Cursor/click icon */}
-        <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="currentColor">
+        <svg className="w-5 h-5 text-black" viewBox="0 0 24 24" fill="currentColor">
           <path d="M13.64,21.97C13.14,22.21 12.54,22 12.31,21.5L10.13,16.76L7.62,18.78C7.45,18.92 7.24,19 7.02,19C6.55,19 6.16,18.61 6.16,18.14V5.86C6.16,5.39 6.55,5 7.02,5C7.24,5 7.45,5.08 7.62,5.22L18.09,13.81C18.45,14.09 18.53,14.61 18.25,14.97C18.09,15.18 17.84,15.31 17.57,15.31H14.43L16.61,20.05C16.85,20.55 16.64,21.15 16.14,21.39L13.64,21.97Z"/>
         </svg>
       </div>
 
       {/* Small document (front, bottom-left, rotated) */}
-      <div className="absolute bottom-0 left-0 w-8 h-10 bg-red-50 rounded-lg border-2 border-red-200 shadow-sm transform -rotate-12 overflow-hidden">
+      <div className="absolute bottom-0 left-0 w-8 h-10 bg-white rounded-lg border-2 border-black shadow-sm transform -rotate-12 overflow-hidden">
         <div className="p-1 space-y-0.5">
-          <div className="h-0.5 bg-red-200 rounded-full w-full" />
-          <div className="h-0.5 bg-red-200 rounded-full w-3/4" />
-          <div className="h-0.5 bg-red-200 rounded-full w-1/2" />
+          <div className="h-0.5 bg-gray-300 rounded-full w-full" />
+          <div className="h-0.5 bg-gray-300 rounded-full w-3/4" />
+          <div className="h-0.5 bg-gray-300 rounded-full w-1/2" />
         </div>
       </div>
     </div>
@@ -386,7 +386,7 @@ function FileCard({ file }: { file: FileAttachment }) {
         </p>
 
         {file.taskName && (
-          <p className="text-xs text-blue-600 mt-1 truncate">{file.taskName}</p>
+          <p className="text-xs text-black mt-1 truncate">{file.taskName}</p>
         )}
       </div>
 
@@ -461,7 +461,7 @@ function FilesList({ files }: { files: FileAttachment[] }) {
           {/* Task */}
           <div className="col-span-2">
             {file.taskName && (
-              <span className="text-sm text-blue-600 truncate">{file.taskName}</span>
+              <span className="text-sm text-black truncate">{file.taskName}</span>
             )}
           </div>
 

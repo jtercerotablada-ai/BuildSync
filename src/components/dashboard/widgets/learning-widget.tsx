@@ -94,7 +94,7 @@ export function LearningWidget() {
         <Button
           variant="link"
           size="sm"
-          className="text-blue-600"
+          className="text-black"
           onClick={() => {
             setDismissed(false);
             localStorage.removeItem('buildsync-learning-dismissed');
@@ -115,7 +115,7 @@ export function LearningWidget() {
           </span>
           <div className="w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
             <div
-              className="h-full bg-green-500 transition-all"
+              className="h-full bg-black transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -137,20 +137,20 @@ export function LearningWidget() {
             className={cn(
               "w-full p-3 rounded-lg border transition-colors text-left flex items-center gap-3",
               tutorial.completed
-                ? "border-green-200 bg-green-50"
+                ? "border-black bg-white"
                 : "border-slate-200 hover:bg-slate-50"
             )}
             onClick={() => !tutorial.completed && markCompleted(tutorial.id)}
           >
             {tutorial.completed ? (
-              <CheckCircle2 className="h-8 w-8 text-green-500 flex-shrink-0" />
+              <CheckCircle2 className="h-8 w-8 text-black flex-shrink-0" />
             ) : (
-              <PlayCircle className="h-8 w-8 text-blue-500 flex-shrink-0" />
+              <PlayCircle className="h-8 w-8 text-black flex-shrink-0" />
             )}
             <div className="min-w-0 flex-1">
               <p className={cn(
                 "text-sm font-medium",
-                tutorial.completed ? "text-green-700" : "text-slate-900"
+                tutorial.completed ? "text-black" : "text-slate-900"
               )}>
                 {tutorial.title}
               </p>

@@ -217,7 +217,7 @@ export default function MyTasksPage() {
   }
 
   function formatDueDate(dateStr: string | null): { text: string; className: string } {
-    if (!dateStr) return { text: "", className: "text-slate-400" };
+    if (!dateStr) return { text: "", className: "text-black" };
 
     const date = new Date(dateStr);
     const now = new Date();
@@ -228,15 +228,15 @@ export default function MyTasksPage() {
     thisWeekEnd.setDate(thisWeekEnd.getDate() + (7 - today.getDay()));
 
     if (date < today) {
-      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-red-500" };
+      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-black" };
     } else if (date.toDateString() === today.toDateString()) {
-      return { text: "Today", className: "text-green-600" };
+      return { text: "Today", className: "text-black" };
     } else if (date.toDateString() === tomorrow.toDateString()) {
-      return { text: "Tomorrow", className: "text-slate-600" };
+      return { text: "Tomorrow", className: "text-black" };
     } else if (date <= thisWeekEnd) {
-      return { text: date.toLocaleDateString("en-US", { weekday: "long" }), className: "text-slate-600" };
+      return { text: date.toLocaleDateString("en-US", { weekday: "long" }), className: "text-black" };
     } else {
-      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-slate-500" };
+      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-black" };
     }
   }
 
@@ -257,11 +257,11 @@ export default function MyTasksPage() {
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             <AvatarImage src={session?.user?.image || undefined} />
-            <AvatarFallback className="bg-slate-900 text-white text-sm">{userInitial}</AvatarFallback>
+            <AvatarFallback className="bg-black text-white text-sm">{userInitial}</AvatarFallback>
           </Avatar>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1 text-xl font-semibold hover:bg-slate-100 px-2 py-1 rounded">
+              <button className="flex items-center gap-1 text-xl font-semibold hover:bg-white px-2 py-1 rounded">
                 My tasks
                 <ChevronDown className="w-4 h-4" />
               </button>
@@ -270,10 +270,10 @@ export default function MyTasksPage() {
               <DropdownMenuItem>Rename view</DropdownMenuItem>
               <DropdownMenuItem>Duplicate view</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">Delete view</DropdownMenuItem>
+              <DropdownMenuItem className="text-black">Delete view</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button className="text-slate-400 hover:text-yellow-500">
+          <button className="text-black hover:text-black">
             <Star className="h-5 w-5" />
           </button>
         </div>
@@ -300,8 +300,8 @@ export default function MyTasksPage() {
               className={cn(
                 "flex items-center gap-1.5 px-3 py-3 text-sm border-b-2 -mb-px transition-colors",
                 view === tab.id
-                  ? "text-slate-900 border-slate-900"
-                  : "text-slate-500 border-transparent hover:text-slate-700"
+                  ? "text-black border-black"
+                  : "text-black border-transparent hover:text-slate-700"
               )}
             >
               <Icon className="w-4 h-4" />
@@ -309,7 +309,7 @@ export default function MyTasksPage() {
             </button>
           );
         })}
-        <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md ml-1">
+        <button className="p-2 text-black hover:text-black hover:bg-white rounded-md ml-1">
           <Plus className="w-4 h-4" />
         </button>
       </div>
@@ -319,7 +319,7 @@ export default function MyTasksPage() {
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="bg-slate-900 hover:bg-slate-800" size="sm">
+              <Button className="bg-black hover:bg-slate-800" size="sm">
                 <Plus className="w-4 h-4 mr-1" />
                 Add task
                 <ChevronDown className="w-4 h-4 ml-1" />
@@ -360,7 +360,7 @@ export default function MyTasksPage() {
           </Button>
         </div>
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-black" />
           <Input
             type="text"
             placeholder="Search tasks..."
@@ -371,14 +371,14 @@ export default function MyTasksPage() {
 
       {/* COLUMN HEADERS - Only show in List view */}
       {view === "list" && (
-        <div className="flex items-center px-6 py-2 border-b bg-slate-50 text-sm text-slate-500">
+        <div className="flex items-center px-6 py-2 border-b bg-white text-sm text-black">
           <div className="w-8" />
           <div className="flex-1">Task name</div>
           <div className="w-[120px]">Due date</div>
           <div className="w-[100px]">Collaborators</div>
           <div className="w-[180px]">Projects</div>
           <div className="w-[140px]">Visibility</div>
-          <button className="w-8 text-slate-400 hover:text-slate-600">
+          <button className="w-8 text-black hover:text-black">
             <Plus className="w-4 h-4" />
           </button>
         </div>
@@ -389,7 +389,7 @@ export default function MyTasksPage() {
         <div className={cn("flex-1 overflow-auto", taskPanelOpen && "pr-0")}>
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+              <Loader2 className="h-8 w-8 animate-spin text-black" />
             </div>
           ) : view === "list" ? (
             <div>
@@ -406,7 +406,7 @@ export default function MyTasksPage() {
               ))}
 
               {/* Add section button */}
-              <button className="flex items-center gap-2 px-6 py-3 text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left">
+              <button className="flex items-center gap-2 px-6 py-3 text-black hover:text-slate-700 hover:bg-white w-full text-left">
                 <Plus className="w-4 h-4" />
                 <span className="text-sm">Add section</span>
               </button>
@@ -493,16 +493,16 @@ function TaskSection({
       {/* Section header */}
       <button
         onClick={onToggleSection}
-        className="flex items-center gap-2 px-6 py-2 w-full hover:bg-slate-50 text-left"
+        className="flex items-center gap-2 px-6 py-2 w-full hover:bg-white text-left"
       >
         {section.collapsed ? (
-          <ChevronRight className="w-4 h-4 text-slate-500" />
+          <ChevronRight className="w-4 h-4 text-black" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-slate-500" />
+          <ChevronDown className="w-4 h-4 text-black" />
         )}
-        <span className="font-medium text-slate-900">{section.name}</span>
+        <span className="font-medium text-black">{section.name}</span>
         {section.tasks.length > 0 && (
-          <span className="text-slate-400 text-sm">{section.tasks.length}</span>
+          <span className="text-black text-sm">{section.tasks.length}</span>
         )}
       </button>
 
@@ -543,12 +543,12 @@ function TaskSection({
                 autoFocus
                 disabled={isCreating}
               />
-              {isCreating && <Loader2 className="w-4 h-4 animate-spin text-slate-400 ml-2" />}
+              {isCreating && <Loader2 className="w-4 h-4 animate-spin text-black ml-2" />}
             </div>
           ) : (
             <button
               onClick={() => setIsAddingTask(true)}
-              className="flex items-center gap-2 px-6 py-2 text-slate-400 hover:text-slate-600 w-full text-left hover:bg-slate-50"
+              className="flex items-center gap-2 px-6 py-2 text-black hover:text-black w-full text-left hover:bg-white"
             >
               <Plus className="w-4 h-4" />
               <span className="text-sm">Add a task...</span>
@@ -577,7 +577,7 @@ function TaskRow({
   return (
     <div
       onClick={onClick}
-      className="flex items-center px-6 py-2 hover:bg-slate-50 cursor-pointer group"
+      className="flex items-center px-6 py-2 hover:bg-white cursor-pointer group"
     >
       {/* Checkbox */}
       <button
@@ -599,21 +599,21 @@ function TaskRow({
       <div className="flex-1 flex items-center gap-2 min-w-0">
         <span className={cn(
           "text-sm truncate",
-          task.completed && "line-through text-slate-400"
+          task.completed && "line-through text-black"
         )}>
           {task.name}
         </span>
         {task._count.subtasks > 0 && (
-          <span className="text-xs text-slate-400 flex items-center flex-shrink-0">
+          <span className="text-xs text-black flex items-center flex-shrink-0">
             <Layers className="w-3 h-3 mr-0.5" />
             {task._count.subtasks}
           </span>
         )}
         {task._count.attachments > 0 && (
-          <Paperclip className="w-3 h-3 text-slate-400 flex-shrink-0" />
+          <Paperclip className="w-3 h-3 text-black flex-shrink-0" />
         )}
         {task._count.comments > 0 && (
-          <span className="text-xs text-slate-400 flex items-center flex-shrink-0">
+          <span className="text-xs text-black flex items-center flex-shrink-0">
             <MessageSquare className="w-3 h-3 mr-0.5" />
             {task._count.comments}
           </span>
@@ -632,7 +632,7 @@ function TaskRow({
         {task.assignee && (
           <Avatar className="w-6 h-6">
             <AvatarImage src={task.assignee.image || undefined} />
-            <AvatarFallback className="text-xs bg-slate-200">
+            <AvatarFallback className="text-xs bg-white border border-black">
               {task.assignee.name?.charAt(0) || "?"}
             </AvatarFallback>
           </Avatar>
@@ -647,7 +647,7 @@ function TaskRow({
               className="w-2 h-2 rounded-sm flex-shrink-0"
               style={{ backgroundColor: task.project.color }}
             />
-            <span className="text-sm text-slate-600 truncate">
+            <span className="text-sm text-black truncate">
               {task.project.name}
             </span>
           </div>
@@ -656,7 +656,7 @@ function TaskRow({
 
       {/* Visibility */}
       <div className="w-[140px] flex-shrink-0">
-        <span className="text-sm text-slate-500 flex items-center gap-1">
+        <span className="text-sm text-black flex items-center gap-1">
           <Globe className="w-3 h-3" />
           My workspace
         </span>
@@ -697,7 +697,7 @@ function BoardView({
 
       {/* Add section column */}
       <div className="flex-shrink-0 w-72">
-        <button className="flex items-center gap-2 px-4 py-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg w-full">
+        <button className="flex items-center gap-2 px-4 py-2 text-black hover:text-slate-700 hover:bg-white rounded-lg w-full">
           <Plus className="w-4 h-4" />
           <span className="text-sm font-medium">Add section</span>
         </button>
@@ -749,19 +749,19 @@ function BoardColumn({
           <div className="flex items-center gap-2">
             <span className="font-medium text-slate-700">{section.name}</span>
             {taskCount > 0 && (
-              <span className="text-xs text-slate-400 bg-white px-2 py-0.5 rounded-full">
+              <span className="text-xs text-black bg-white px-2 py-0.5 rounded-full">
                 {taskCount}
               </span>
             )}
           </div>
-          <button className="p-1 hover:bg-slate-200 rounded">
-            <MoreHorizontal className="w-4 h-4 text-slate-400" />
+          <button className="p-1 hover:bg-white border border-black rounded">
+            <MoreHorizontal className="w-4 h-4 text-black" />
           </button>
         </div>
 
         {/* Progress bar */}
         {taskCount > 0 && (
-          <div className="mt-2 h-1 bg-slate-200 rounded-full overflow-hidden">
+          <div className="mt-2 h-1 bg-white border border-black rounded-full overflow-hidden">
             <div
               className="h-full bg-cyan-400 transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
@@ -798,7 +798,7 @@ function BoardColumn({
         ) : (
           <button
             onClick={() => setIsAddingTask(true)}
-            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 py-1 w-full"
+            className="flex items-center gap-2 text-black hover:text-slate-700 py-1 w-full"
           >
             <Plus className="w-4 h-4" />
             <span className="text-sm">Add task</span>
@@ -834,7 +834,7 @@ function BoardColumn({
                 <div className="flex-1 min-w-0">
                   <p className={cn(
                     "text-sm",
-                    task.completed && "line-through text-slate-400"
+                    task.completed && "line-through text-black"
                   )}>
                     {task.name}
                   </p>
@@ -842,7 +842,7 @@ function BoardColumn({
                     <span className={cn("text-xs", dueDateInfo.className)}>
                       {dueDateInfo.text}
                     </span>
-                    <div className="flex items-center gap-1 text-slate-400">
+                    <div className="flex items-center gap-1 text-black">
                       {task._count.subtasks > 0 && (
                         <span className="text-xs flex items-center">
                           {task._count.subtasks}
@@ -860,7 +860,7 @@ function BoardColumn({
                         className="w-2 h-2 rounded-sm"
                         style={{ backgroundColor: task.project.color }}
                       />
-                      <span className="text-xs text-slate-500 truncate">
+                      <span className="text-xs text-black truncate">
                         {task.project.name}
                       </span>
                     </div>
@@ -877,7 +877,7 @@ function BoardColumn({
         <div className="px-3 py-2 border-t border-slate-200">
           <button
             onClick={() => setIsAddingTask(true)}
-            className="flex items-center gap-2 text-slate-400 hover:text-slate-600 py-1 w-full"
+            className="flex items-center gap-2 text-black hover:text-black py-1 w-full"
           >
             <Plus className="w-4 h-4" />
             <span className="text-sm">Add task</span>
@@ -974,7 +974,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
-        <span className="font-medium text-slate-900 ml-2">
+        <span className="font-medium text-black ml-2">
           {formatMonthYear(currentDate)}
         </span>
       </div>
@@ -985,8 +985,8 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
           <div
             key={day}
             className={cn(
-              "py-2 text-center text-xs font-medium text-slate-500 uppercase border-r last:border-r-0",
-              index >= 5 && "bg-slate-50"
+              "py-2 text-center text-xs font-medium text-black uppercase border-r last:border-r-0",
+              index >= 5 && "bg-white"
             )}
           >
             {day}
@@ -1009,8 +1009,8 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
               key={dateStr}
               className={cn(
                 "border-r border-b p-1 min-h-[90px] group relative",
-                !isCurrentMonth && "bg-slate-50/50",
-                isWeekend && "bg-slate-50/30"
+                !isCurrentMonth && "bg-white/50",
+                isWeekend && "bg-white/30"
               )}
             >
               {/* Day number */}
@@ -1019,7 +1019,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                   className={cn(
                     "text-sm",
                     !isCurrentMonth && "text-slate-300",
-                    isToday && "bg-slate-900 text-white rounded-full w-6 h-6 flex items-center justify-center font-medium"
+                    isToday && "bg-black text-white rounded-full w-6 h-6 flex items-center justify-center font-medium"
                   )}
                 >
                   {isFirstOfMonth && isCurrentMonth
@@ -1036,21 +1036,21 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                 {dayTasks.slice(0, 2).map((task) => (
                   <div
                     key={task.id}
-                    className="text-xs p-1 bg-white border rounded shadow-sm truncate cursor-pointer hover:bg-slate-50"
+                    className="text-xs p-1 bg-white border rounded shadow-sm truncate cursor-pointer hover:bg-white"
                     title={task.name}
                   >
                     {task.name}
                   </div>
                 ))}
                 {dayTasks.length > 2 && (
-                  <span className="text-xs text-slate-400 pl-1">
+                  <span className="text-xs text-black pl-1">
                     +{dayTasks.length - 2} more
                   </span>
                 )}
               </div>
 
               {/* Add task on hover */}
-              <button className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 text-xs text-slate-400 hover:text-slate-600 flex items-center gap-0.5 transition-opacity">
+              <button className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 text-xs text-black hover:text-black flex items-center gap-0.5 transition-opacity">
                 <Plus className="w-3 h-3" />
                 Add
               </button>
@@ -1137,7 +1137,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
           <Plus className="w-4 h-4 mr-2" />
           Add widget
         </Button>
-        <Button variant="ghost" size="sm" className="text-blue-600">
+        <Button variant="ghost" size="sm" className="text-black">
           Send feedback
         </Button>
       </div>
@@ -1145,33 +1145,33 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
       {/* KPI Cards */}
       <div className="grid grid-cols-4 gap-4">
         <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-slate-600">Completed tasks</p>
-          <p className="text-4xl font-light text-slate-900 mt-2">{completed}</p>
-          <div className="flex items-center justify-center mt-3 text-xs text-slate-400">
+          <p className="text-sm text-black">Completed tasks</p>
+          <p className="text-4xl font-light text-black mt-2">{completed}</p>
+          <div className="flex items-center justify-center mt-3 text-xs text-black">
             <Filter className="w-3 h-3 mr-1" />
             1 filter
           </div>
         </Card>
         <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-slate-600">Incomplete tasks</p>
-          <p className="text-4xl font-light text-slate-900 mt-2">{incomplete}</p>
-          <div className="flex items-center justify-center mt-3 text-xs text-slate-400">
+          <p className="text-sm text-black">Incomplete tasks</p>
+          <p className="text-4xl font-light text-black mt-2">{incomplete}</p>
+          <div className="flex items-center justify-center mt-3 text-xs text-black">
             <Filter className="w-3 h-3 mr-1" />
             1 filter
           </div>
         </Card>
         <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-slate-600">Overdue tasks</p>
-          <p className="text-4xl font-light text-red-500 mt-2">{overdue}</p>
-          <div className="flex items-center justify-center mt-3 text-xs text-slate-400">
+          <p className="text-sm text-black">Overdue tasks</p>
+          <p className="text-4xl font-light text-black mt-2">{overdue}</p>
+          <div className="flex items-center justify-center mt-3 text-xs text-black">
             <Filter className="w-3 h-3 mr-1" />
             1 filter
           </div>
         </Card>
         <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-slate-600">Total tasks</p>
-          <p className="text-4xl font-light text-slate-900 mt-2">{total}</p>
-          <div className="flex items-center justify-center mt-3 text-xs text-slate-400">
+          <p className="text-sm text-black">Total tasks</p>
+          <p className="text-4xl font-light text-black mt-2">{total}</p>
+          <div className="flex items-center justify-center mt-3 text-xs text-black">
             <Filter className="w-3 h-3 mr-1" />
             No filters
           </div>
@@ -1182,7 +1182,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
       <div className="grid grid-cols-2 gap-4">
         {/* Tasks by Section */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium text-slate-900 mb-4">Tasks by section</h3>
+          <h3 className="text-sm font-medium text-black mb-4">Tasks by section</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={tasksBySectionData}>
               <XAxis
@@ -1202,7 +1202,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
             </BarChart>
           </ResponsiveContainer>
           <div className="flex items-center justify-between mt-4 pt-3 border-t">
-            <div className="flex items-center text-xs text-slate-400">
+            <div className="flex items-center text-xs text-black">
               <Filter className="w-3 h-3 mr-1" />
               1 filter
             </div>
@@ -1215,7 +1215,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
 
         {/* Tasks by Completion Status (Donut) */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium text-slate-900 mb-4">Tasks by completion status</h3>
+          <h3 className="text-sm font-medium text-black mb-4">Tasks by completion status</h3>
           <div className="flex items-center justify-center">
             <div className="relative">
               <ResponsiveContainer width={180} height={180}>
@@ -1237,7 +1237,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-2xl font-semibold text-slate-900">{incomplete}</span>
+                <span className="text-2xl font-semibold text-black">{incomplete}</span>
               </div>
             </div>
             <div className="ml-6 space-y-2">
@@ -1247,13 +1247,13 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
                     className="w-3 h-3 rounded-sm"
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="text-sm text-slate-600">{item.name}</span>
+                  <span className="text-sm text-black">{item.name}</span>
                 </div>
               ))}
             </div>
           </div>
           <div className="flex items-center justify-between mt-4 pt-3 border-t">
-            <div className="flex items-center text-xs text-slate-400">
+            <div className="flex items-center text-xs text-black">
               <Filter className="w-3 h-3 mr-1" />
               2 filters
             </div>
@@ -1269,7 +1269,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
       <div className="grid grid-cols-2 gap-4">
         {/* Tasks by Project */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium text-slate-900 mb-4">Tasks by project</h3>
+          <h3 className="text-sm font-medium text-black mb-4">Tasks by project</h3>
           {tasksByProjectData.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={tasksByProjectData}>
@@ -1290,12 +1290,12 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[200px] flex items-center justify-center text-sm text-slate-400">
+            <div className="h-[200px] flex items-center justify-center text-sm text-black">
               No tasks assigned to projects yet
             </div>
           )}
           <div className="flex items-center justify-between mt-4 pt-3 border-t">
-            <div className="flex items-center text-xs text-slate-400">
+            <div className="flex items-center text-xs text-black">
               <Filter className="w-3 h-3 mr-1" />
               1 filter
             </div>
@@ -1308,7 +1308,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
 
         {/* Task Completion Over Time */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium text-slate-900 mb-4">Task completion over time</h3>
+          <h3 className="text-sm font-medium text-black mb-4">Task completion over time</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={completionOverTimeData}>
               <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={2} />
@@ -1334,7 +1334,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
             </LineChart>
           </ResponsiveContainer>
           <div className="flex items-center justify-between mt-4 pt-3 border-t">
-            <div className="flex items-center text-xs text-slate-400">
+            <div className="flex items-center text-xs text-black">
               <Filter className="w-3 h-3 mr-1" />
               2 filters
             </div>
@@ -1354,8 +1354,8 @@ function FilesView() {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-center">
       <FileText className="h-12 w-12 text-slate-300 mb-4" />
-      <h3 className="font-medium text-slate-900">No files yet</h3>
-      <p className="text-sm text-slate-500 mt-1">Files attached to your tasks will appear here</p>
+      <h3 className="font-medium text-black">No files yet</h3>
+      <p className="text-sm text-black mt-1">Files attached to your tasks will appear here</p>
     </div>
   );
 }
@@ -1470,12 +1470,12 @@ function TaskDetailPanel({
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-black" />
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
           {/* Visibility */}
-          <div className="px-4 py-2 bg-slate-50 text-xs text-slate-500 flex items-center gap-1">
+          <div className="px-4 py-2 bg-white text-xs text-black flex items-center gap-1">
             <Globe className="h-3 w-3" />
             This task is visible to everyone in My Workspace
           </div>
@@ -1483,51 +1483,51 @@ function TaskDetailPanel({
           {/* Metadata */}
           <div className="p-4 space-y-4 border-b">
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-slate-500">Assignee</span>
+              <span className="w-24 text-sm text-black">Assignee</span>
               <div className="flex items-center gap-2">
                 {taskDetail?.assignee ? (
                   <>
                     <Avatar className="h-6 w-6">
-                      <AvatarFallback className="text-xs bg-slate-200">
+                      <AvatarFallback className="text-xs bg-white border border-black">
                         {taskDetail.assignee.name?.charAt(0) || "?"}
                       </AvatarFallback>
                     </Avatar>
                     <span className="text-sm">{taskDetail.assignee.name}</span>
                   </>
                 ) : (
-                  <span className="text-sm text-slate-400">No assignee</span>
+                  <span className="text-sm text-black">No assignee</span>
                 )}
               </div>
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-slate-500">Due date</span>
+              <span className="w-24 text-sm text-black">Due date</span>
               <span className={cn("text-sm", dueDateInfo.className)}>
                 {dueDateInfo.text || "No due date"}
               </span>
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-slate-500">Projects</span>
+              <span className="w-24 text-sm text-black">Projects</span>
               {taskDetail?.project ? (
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded" style={{ backgroundColor: taskDetail.project.color }} />
                   <span className="text-sm">{taskDetail.project.name}</span>
                 </div>
               ) : (
-                <Button variant="ghost" size="sm" className="text-slate-400 h-auto p-0">+ Add to project</Button>
+                <Button variant="ghost" size="sm" className="text-black h-auto p-0">+ Add to project</Button>
               )}
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-slate-500">Priority</span>
+              <span className="w-24 text-sm text-black">Priority</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-auto p-0">
                     <span className={cn("text-sm",
-                      taskDetail?.priority === "HIGH" ? "text-red-600" :
+                      taskDetail?.priority === "HIGH" ? "text-black" :
                       taskDetail?.priority === "MEDIUM" ? "text-amber-600" :
-                      taskDetail?.priority === "LOW" ? "text-blue-600" : "text-slate-400"
+                      taskDetail?.priority === "LOW" ? "text-black" : "text-black"
                     )}>
                       {taskDetail?.priority || "None"}
                     </span>
@@ -1535,16 +1535,16 @@ function TaskDetailPanel({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "HIGH")}>
-                    <span className="text-red-600">High</span>
+                    <span className="text-black">High</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "MEDIUM")}>
                     <span className="text-amber-600">Medium</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "LOW")}>
-                    <span className="text-blue-600">Low</span>
+                    <span className="text-black">Low</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "NONE")}>
-                    <span className="text-slate-400">None</span>
+                    <span className="text-black">None</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1577,12 +1577,12 @@ function TaskDetailPanel({
                   )}>
                     {subtask.completed && <Check className="w-3 h-3 text-white" />}
                   </div>
-                  <span className={cn("text-sm", subtask.completed && "line-through text-slate-400")}>
+                  <span className={cn("text-sm", subtask.completed && "line-through text-black")}>
                     {subtask.name}
                   </span>
                 </div>
               ))}
-              <Button variant="ghost" size="sm" className="text-slate-500 w-full justify-start">
+              <Button variant="ghost" size="sm" className="text-black w-full justify-start">
                 <Plus className="h-4 w-4 mr-2" />
                 Add subtask
               </Button>
@@ -1596,7 +1596,7 @@ function TaskDetailPanel({
                 onClick={() => setActiveTab("comments")}
                 className={cn(
                   "py-2 text-sm font-medium border-b-2 -mb-px",
-                  activeTab === "comments" ? "text-slate-900 border-slate-900" : "text-slate-500 border-transparent"
+                  activeTab === "comments" ? "text-black border-black" : "text-black border-transparent"
                 )}
               >
                 Comments
@@ -1605,7 +1605,7 @@ function TaskDetailPanel({
                 onClick={() => setActiveTab("activity")}
                 className={cn(
                   "py-2 text-sm font-medium border-b-2 -mb-px",
-                  activeTab === "activity" ? "text-slate-900 border-slate-900" : "text-slate-500 border-transparent"
+                  activeTab === "activity" ? "text-black border-black" : "text-black border-transparent"
                 )}
               >
                 All activity
@@ -1620,23 +1620,23 @@ function TaskDetailPanel({
                 {taskDetail?.comments?.map((comment: any) => (
                   <div key={comment.id} className="flex gap-3">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs bg-slate-200">
+                      <AvatarFallback className="text-xs bg-white border border-black">
                         {comment.author?.name?.charAt(0) || "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{comment.author?.name}</span>
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-black">
                           {new Date(comment.createdAt).toLocaleDateString()}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600 mt-1">{comment.content}</p>
+                      <p className="text-sm text-black mt-1">{comment.content}</p>
                     </div>
                   </div>
                 ))}
                 {(!taskDetail?.comments || taskDetail.comments.length === 0) && (
-                  <p className="text-sm text-slate-400 text-center py-4">No comments yet</p>
+                  <p className="text-sm text-black text-center py-4">No comments yet</p>
                 )}
               </>
             ) : (
@@ -1644,14 +1644,14 @@ function TaskDetailPanel({
                 {taskDetail?.activities?.map((activity: any) => (
                   <div key={activity.id} className="flex gap-3 text-sm">
                     <Avatar className="h-6 w-6">
-                      <AvatarFallback className="text-[10px] bg-slate-200">
+                      <AvatarFallback className="text-[10px] bg-white border border-black">
                         {activity.user?.name?.charAt(0) || "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div>
                       <span className="font-medium">{activity.user?.name}</span>
-                      <span className="text-slate-500"> {activity.type.replace(/_/g, " ").toLowerCase()}</span>
-                      <span className="text-slate-400 text-xs ml-2">
+                      <span className="text-black"> {activity.type.replace(/_/g, " ").toLowerCase()}</span>
+                      <span className="text-black text-xs ml-2">
                         {new Date(activity.createdAt).toLocaleDateString()}
                       </span>
                     </div>
@@ -1667,7 +1667,7 @@ function TaskDetailPanel({
       <div className="p-4 border-t">
         <div className="flex gap-3">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="text-xs bg-slate-900 text-white">U</AvatarFallback>
+            <AvatarFallback className="text-xs bg-black text-white">U</AvatarFallback>
           </Avatar>
           <Input
             placeholder="Add a comment..."
@@ -1682,15 +1682,15 @@ function TaskDetailPanel({
       {/* Footer */}
       <div className="p-4 border-t flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
-          <span className="text-slate-500">Collaborators:</span>
+          <span className="text-black">Collaborators:</span>
           <Avatar className="h-6 w-6">
-            <AvatarFallback className="text-[10px] bg-slate-900 text-white">U</AvatarFallback>
+            <AvatarFallback className="text-[10px] bg-black text-white">U</AvatarFallback>
           </Avatar>
           <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
             <Plus className="h-3 w-3" />
           </Button>
         </div>
-        <Button variant="ghost" size="sm" className="text-slate-500">Leave task</Button>
+        <Button variant="ghost" size="sm" className="text-black">Leave task</Button>
       </div>
     </div>
   );

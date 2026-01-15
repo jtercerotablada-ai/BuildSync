@@ -25,9 +25,9 @@ const typeIcons = {
 };
 
 const typeColors = {
-  project: "bg-green-500",
-  portfolio: "bg-purple-500",
-  template: "bg-blue-500",
+  project: "bg-black",
+  portfolio: "bg-black",
+  template: "bg-black",
 };
 
 export function TeamWorkSection({ teamId }: TeamWorkSectionProps) {
@@ -59,7 +59,7 @@ export function TeamWorkSection({ teamId }: TeamWorkSectionProps) {
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-gray-900">Seleccion de trabajo</h3>
         <button
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm text-black hover:underline"
           onClick={() => router.push(`/teams/${teamId}/work`)}
         >
           Ver todo el trabajo
@@ -104,7 +104,7 @@ export function TeamWorkSection({ teamId }: TeamWorkSectionProps) {
           {/* Placeholder skeleton items */}
           <div className="space-y-3 mb-6 opacity-30">
             <div className="flex items-center gap-3 p-3">
-              <div className="w-8 h-8 bg-green-200 rounded" />
+              <div className="w-8 h-8 bg-gray-300 rounded" />
               <div className="flex-1 h-3 bg-gray-200 rounded w-3/4" />
             </div>
             <div className="flex items-center gap-3 p-3">
@@ -112,7 +112,7 @@ export function TeamWorkSection({ teamId }: TeamWorkSectionProps) {
               <div className="flex-1 h-3 bg-gray-200 rounded w-1/2" />
             </div>
             <div className="flex items-center gap-3 p-3">
-              <div className="w-8 h-8 bg-blue-200 rounded" />
+              <div className="w-8 h-8 bg-gray-300 rounded" />
               <div className="flex-1 h-3 bg-gray-200 rounded w-2/3" />
             </div>
           </div>

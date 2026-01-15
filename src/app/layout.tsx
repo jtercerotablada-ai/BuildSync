@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/session-provider";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
@@ -23,10 +24,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <SessionProvider>
-          {children}
-          <Toaster />
-        </SessionProvider>
+        <QueryProvider>
+          <SessionProvider>
+            {children}
+            <Toaster />
+          </SessionProvider>
+        </QueryProvider>
       </body>
     </html>
   );

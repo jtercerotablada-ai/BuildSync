@@ -69,11 +69,11 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
         <div className="px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Team Avatar */}
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-white border border-black flex items-center justify-center">
               {team.avatar ? (
                 <img src={team.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
               ) : (
-                <span className="text-sm font-medium text-purple-700">
+                <span className="text-sm font-medium text-black">
                   {team.name.charAt(0).toUpperCase()}
                 </span>
               )}
@@ -97,7 +97,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
                   Configuración
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600">
+                <DropdownMenuItem className="text-black">
                   <Trash2 className="h-4 w-4 mr-2" />
                   Eliminar equipo
                 </DropdownMenuItem>
@@ -108,7 +108,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-8 w-8", isStarred && "text-yellow-500")}
+              className={cn("h-8 w-8", isStarred && "text-black")}
               onClick={() => setIsStarred(!isStarred)}
             >
               <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
@@ -122,7 +122,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
               {team.members?.slice(0, 3).map((member) => (
                 <Avatar key={member.id} className="h-8 w-8 border-2 border-white">
                   <AvatarImage src={member.user.image || undefined} />
-                  <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
+                  <AvatarFallback className="text-xs bg-white text-black border border-black">
                     {member.user.name?.charAt(0).toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
@@ -136,7 +136,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
 
             {/* Invite button */}
             <Button
-              className="bg-green-600 hover:bg-green-700 gap-2"
+              className="bg-black hover:bg-black gap-2"
               onClick={() => setShowInviteModal(true)}
             >
               <Users className="h-4 w-4" />

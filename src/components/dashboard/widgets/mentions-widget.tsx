@@ -57,7 +57,7 @@ export function MentionsWidget() {
         <Button
           variant="link"
           size="sm"
-          className="text-blue-600 hover:text-blue-700 p-0 h-auto"
+          className="text-black hover:text-black p-0 h-auto"
           onClick={() => router.push('/inbox?filter=mentions')}
         >
           View all <ArrowRight className="ml-1 h-3 w-3" />

@@ -74,7 +74,7 @@ export function PrivateNotepadWidget() {
             size="sm"
             className={cn(
               "h-7 px-2 text-xs",
-              isSaved ? "text-slate-400" : "text-blue-600"
+              isSaved ? "text-slate-400" : "text-black"
             )}
             onClick={saveNote}
             disabled={isSaved}

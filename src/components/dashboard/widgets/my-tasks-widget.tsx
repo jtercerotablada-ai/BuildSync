@@ -194,7 +194,7 @@ export function MyTasksWidget() {
         <Button
           variant="link"
           size="sm"
-          className="text-blue-600 hover:text-blue-700 p-0 h-auto font-normal"
+          className="text-black hover:text-black p-0 h-auto font-normal"
           onClick={() => router.push('/my-tasks')}
         >
           View all →
@@ -290,8 +290,8 @@ export function MyTasksWidget() {
                     className={cn(
                       'w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all',
                       task.completed
-                        ? 'bg-green-500 border-green-500'
-                        : 'border-gray-300 hover:border-green-500 hover:bg-green-50'
+                        ? 'bg-black border-black'
+                        : 'border-gray-300 hover:border-black hover:bg-white'
                     )}
                   >
                     {/* Mostrar checkmark si completado O en hover */}
@@ -299,7 +299,7 @@ export function MyTasksWidget() {
                       'h-3 w-3 transition-opacity',
                       task.completed
                         ? 'text-white opacity-100'
-                        : 'text-green-500 opacity-0 group-hover:opacity-50'
+                        : 'text-black opacity-0 group-hover:opacity-50'
                     )} />
                   </button>
 
@@ -337,9 +337,9 @@ export function MyTasksWidget() {
                     <span className={cn(
                       'text-xs flex-shrink-0',
                       activeTab === 'overdue'
-                        ? 'text-red-500'
+                        ? 'text-black'
                         : dueInfo.isSpecial
-                          ? 'text-green-600 font-medium'
+                          ? 'text-black font-medium'
                           : 'text-gray-500'
                     )}>
                       {dueInfo.text}

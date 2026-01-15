@@ -142,7 +142,7 @@ export function InviteTeamModal({
               </div>
               <Button variant="outline" onClick={handleCopyLink} className="px-3">
                 {copied ? (
-                  <Check className="h-4 w-4 text-green-600" />
+                  <Check className="h-4 w-4 text-black" />
                 ) : (
                   <Copy className="h-4 w-4" />
                 )}

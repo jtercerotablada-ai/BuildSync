@@ -107,14 +107,14 @@ interface Objective {
 }
 
 const STATUS_OPTIONS = [
-  { value: "ON_TRACK", label: "En camino", color: "bg-green-500", textColor: "text-green-600" },
-  { value: "AT_RISK", label: "En riesgo", color: "bg-yellow-500", textColor: "text-yellow-600" },
-  { value: "OFF_TRACK", label: "Con retraso", color: "bg-red-500", textColor: "text-red-600" },
-  { value: "ACHIEVED", label: "Logrado", color: "bg-blue-500", textColor: "text-blue-600" },
-  { value: "PARTIAL", label: "Parcial", color: "bg-slate-400", textColor: "text-slate-600" },
-  { value: "MISSED", label: "No alcanzado", color: "bg-red-500", textColor: "text-red-600" },
-  { value: "DROPPED", label: "Descartado", color: "bg-slate-400", textColor: "text-slate-600" },
-  { value: null, label: "Sin estado", color: "bg-gray-300", textColor: "text-gray-500" },
+  { value: "ON_TRACK", label: "En camino", color: "bg-black", textColor: "text-black" },
+  { value: "AT_RISK", label: "En riesgo", color: "bg-white0", textColor: "text-black" },
+  { value: "OFF_TRACK", label: "Con retraso", color: "bg-gray-300", textColor: "text-black" },
+  { value: "ACHIEVED", label: "Logrado", color: "bg-black", textColor: "text-black" },
+  { value: "PARTIAL", label: "Parcial", color: "bg-gray-400", textColor: "text-black" },
+  { value: "MISSED", label: "No alcanzado", color: "bg-gray-300", textColor: "text-black" },
+  { value: "DROPPED", label: "Descartado", color: "bg-gray-400", textColor: "text-black" },
+  { value: null, label: "Sin estado", color: "bg-gray-400", textColor: "text-black" },
 ];
 
 function getInitials(name: string | null): string {
@@ -335,7 +335,7 @@ export default function GoalDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-black" />
       </div>
     );
   }
@@ -343,7 +343,7 @@ export default function GoalDetailPage() {
   if (!objective) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
-        <p className="text-slate-500">Objetivo no encontrado</p>
+        <p className="text-black">Objetivo no encontrado</p>
         <Button variant="link" onClick={() => router.push("/goals")}>
           Volver a objetivos
         </Button>
@@ -362,13 +362,13 @@ export default function GoalDetailPage() {
           Objetivos de {objective.workspace?.name || "Mi espacio de trabajo"}
         </span>
         <div className="flex items-center gap-2">
-          <Avatar className="h-8 w-8 border-2 border-yellow-400">
+          <Avatar className="h-8 w-8 border-2 border-black">
             <AvatarImage src={objective.owner.image || ""} />
-            <AvatarFallback className="text-xs bg-yellow-100 text-yellow-700">
+            <AvatarFallback className="text-xs bg-white text-black">
               {getInitials(objective.owner.name)}
             </AvatarFallback>
           </Avatar>
-          <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+          <Button size="sm" className="bg-black hover:bg-black">
             Compartir
           </Button>
           <Button variant="outline" size="sm">
@@ -381,7 +381,7 @@ export default function GoalDetailPage() {
       {/* ========== HEADER ========== */}
       <div className="border-b px-6 py-3 flex items-center gap-3 bg-white">
         {/* Goal icon */}
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+        <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center">
           <Flag className="h-4 w-4 text-white" />
         </div>
 
@@ -396,7 +396,7 @@ export default function GoalDetailPage() {
           <DropdownMenuContent>
             <DropdownMenuItem>Editar objetivo</DropdownMenuItem>
             <DropdownMenuItem>Duplicar</DropdownMenuItem>
-            <DropdownMenuItem className="text-red-600" onClick={handleDeleteObjective}>
+            <DropdownMenuItem className="text-black" onClick={handleDeleteObjective}>
               <Trash2 className="h-4 w-4 mr-2" />
               Eliminar
             </DropdownMenuItem>
@@ -408,7 +408,7 @@ export default function GoalDetailPage() {
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8", isLiked && "text-blue-600")}
+            className={cn("h-8 w-8", isLiked && "text-black")}
             onClick={() => setIsLiked(!isLiked)}
           >
             <ThumbsUp className={cn("h-4 w-4", isLiked && "fill-current")} />
@@ -416,7 +416,7 @@ export default function GoalDetailPage() {
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8", isStarred && "text-yellow-500")}
+            className={cn("h-8 w-8", isStarred && "text-black")}
             onClick={() => setIsStarred(!isStarred)}
           >
             <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
@@ -457,9 +457,9 @@ export default function GoalDetailPage() {
             <div className="flex items-center">
               <span className="w-44 text-sm text-gray-500">Encargado del objetivo</span>
               <div className="flex items-center gap-2">
-                <Avatar className="h-6 w-6 border border-yellow-400">
+                <Avatar className="h-6 w-6 border border-black">
                   <AvatarImage src={objective.owner.image || ""} />
-                  <AvatarFallback className="text-xs bg-yellow-100 text-yellow-700">
+                  <AvatarFallback className="text-xs bg-white text-black">
                     {getInitials(objective.owner.name)}
                   </AvatarFallback>
                 </Avatar>
@@ -503,7 +503,7 @@ export default function GoalDetailPage() {
           </div>
 
           {/* Enviar comentarios link */}
-          <button className="text-sm text-blue-600 hover:underline mb-8 block">
+          <button className="text-sm text-black hover:underline mb-8 block">
             Enviar comentarios
           </button>
 
@@ -527,7 +527,7 @@ export default function GoalDetailPage() {
                   {currentStatus.label}
                 </span>
               </div>
-              <button className="text-xs text-blue-600 hover:underline">
+              <button className="text-xs text-black hover:underline">
                 Configurar el estado
               </button>
             </div>
@@ -539,9 +539,9 @@ export default function GoalDetailPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-gray-900">Progreso</h3>
-                <Zap className="h-4 w-4 text-yellow-500" />
+                <Zap className="h-4 w-4 text-black" />
                 {hasNoSubgoals && (
-                  <span className="text-sm text-yellow-600 flex items-center gap-1">
+                  <span className="text-sm text-black flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" />
                     No hay subobjetivos conectados
                   </span>
@@ -566,7 +566,7 @@ export default function GoalDetailPage() {
               Usa los subobjetivos para actualizar automáticamente el progreso de este objetivo.
             </p>
             <div className="flex justify-center">
-              <Button className="bg-blue-600 hover:bg-blue-700 gap-2">
+              <Button className="bg-black hover:bg-black gap-2">
                 <Plus className="h-4 w-4" />
                 Conectar un subobjetivo
               </Button>
@@ -608,7 +608,7 @@ export default function GoalDetailPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
-                                className="text-red-600"
+                                className="text-black"
                                 onClick={() => handleDeleteKeyResult(kr.id)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -636,9 +636,9 @@ export default function GoalDetailPage() {
           )}
 
           {/* ========== AI BANNER ========== */}
-          <div className="border rounded-xl p-4 mb-8 flex items-center justify-between bg-gray-50">
+          <div className="border rounded-xl p-4 mb-8 flex items-center justify-between bg-white">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-purple-500" />
+              <Sparkles className="h-5 w-5 text-black" />
               <span className="text-sm">Mejora tu objetivo con Asana Intelligence</span>
             </div>
             <Button variant="outline" size="sm">
@@ -675,7 +675,7 @@ export default function GoalDetailPage() {
                 {objective.projects.map((op) => (
                   <div
                     key={op.id}
-                    className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-gray-50"
+                    className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-white"
                     onClick={() => router.push(`/projects/${op.project.id}`)}
                   >
                     <div
@@ -700,9 +700,9 @@ export default function GoalDetailPage() {
             <div className="space-y-4 mb-6">
               {/* Default activity */}
               <div className="flex items-start gap-3">
-                <Avatar className="h-8 w-8 border border-yellow-400">
+                <Avatar className="h-8 w-8 border border-black">
                   <AvatarImage src={objective.owner.image || ""} />
-                  <AvatarFallback className="text-xs bg-yellow-100 text-yellow-700">
+                  <AvatarFallback className="text-xs bg-white text-black">
                     {getInitials(objective.owner.name)}
                   </AvatarFallback>
                 </Avatar>
@@ -721,8 +721,8 @@ export default function GoalDetailPage() {
 
             {/* Comment input */}
             <div className="flex items-start gap-3">
-              <Avatar className="h-8 w-8 border border-yellow-400">
-                <AvatarFallback className="text-xs bg-yellow-100 text-yellow-700">
+              <Avatar className="h-8 w-8 border border-black">
+                <AvatarFallback className="text-xs bg-white text-black">
                   {getInitials(objective.owner.name)}
                 </AvatarFallback>
               </Avatar>

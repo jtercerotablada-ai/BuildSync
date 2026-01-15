@@ -66,7 +66,7 @@ export function AIAssistantWidget() {
       {messages.length === 0 ? (
         <div className="space-y-4">
           <div className="text-center py-4">
-            <Sparkles className="h-10 w-10 mx-auto mb-2 text-purple-400" />
+            <Sparkles className="h-10 w-10 mx-auto mb-2 text-black" />
             <p className="text-sm text-slate-600">
               Ask me anything about your projects, tasks, or goals
             </p>
@@ -92,7 +92,7 @@ export function AIAssistantWidget() {
               className={cn(
                 "p-3 rounded-lg text-sm",
                 message.role === 'user'
-                  ? "bg-blue-50 text-blue-900 ml-8"
+                  ? "bg-white text-black border border-black ml-8"
                   : "bg-slate-100 text-slate-700 mr-8"
               )}
             >

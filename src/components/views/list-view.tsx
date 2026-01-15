@@ -57,9 +57,9 @@ interface ListViewProps {
 
 const PRIORITY_COLORS = {
   NONE: "",
-  LOW: "bg-blue-100 text-blue-700",
-  MEDIUM: "bg-yellow-100 text-yellow-700",
-  HIGH: "bg-orange-100 text-orange-700",
+  LOW: "bg-white text-black border border-black",
+  MEDIUM: "bg-white text-black border border-black",
+  HIGH: "bg-white text-black border border-black",
 };
 
 const PRIORITY_LABELS = {
@@ -407,7 +407,7 @@ function DueDateBadge({
     <div
       className={cn(
         "flex items-center gap-1 text-sm",
-        isOverdue ? "text-red-600" : "text-slate-600",
+        isOverdue ? "text-black" : "text-slate-600",
         completed && "text-slate-400"
       )}
     >

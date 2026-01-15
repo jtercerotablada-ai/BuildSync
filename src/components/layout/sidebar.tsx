@@ -85,13 +85,13 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
   }, []);
 
   return (
-    <aside className="flex h-full w-[240px] flex-col border-r bg-slate-50">
+    <aside className="flex h-full w-[240px] flex-col border-r bg-white">
       {/* Logo & User */}
       <div className="flex items-center gap-2 p-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900 text-white font-semibold text-sm">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-black text-white font-semibold text-sm">
           <span>B<span className="text-xs">s</span><span className="text-[8px] ml-[1px]">.</span></span>
         </div>
-        <span className="font-semibold text-slate-900">BuildSync</span>
+        <span className="font-semibold text-black">BuildSync</span>
       </div>
 
       <ScrollArea className="flex-1 px-2">
@@ -106,8 +106,8 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
                   className={cn(
                     "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-slate-200 text-slate-900"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      ? "bg-black text-white"
+                      : "text-black hover:bg-black hover:text-white"
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -121,7 +121,7 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
         <Separator className="my-4" />
 
         {/* Insights */}
-        <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-black">
           Insights
         </div>
         <nav className="space-y-1">
@@ -134,8 +134,8 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
                   className={cn(
                     "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-slate-200 text-slate-900"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      ? "bg-black text-white"
+                      : "text-black hover:bg-black hover:text-white"
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -152,7 +152,7 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
         {mounted ? (
         <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen}>
           <div className="flex items-center justify-between px-3 mb-2">
-            <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-900">
+            <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-black hover:text-white">
               <ChevronDown
                 className={cn(
                   "h-3 w-3 transition-transform",
@@ -173,23 +173,23 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
               {projectsDropdownOpen && (
                 <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
                   <button
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-black hover:bg-black hover:text-white"
                     onClick={() => {
                       setProjectsDropdownOpen(false);
                       onCreateProject?.();
                     }}
                   >
-                    <Folder className="w-4 h-4 text-slate-500" />
+                    <Folder className="w-4 h-4 text-black" />
                     New project
                   </button>
                   <button
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-black hover:bg-black hover:text-white"
                     onClick={() => {
                       setProjectsDropdownOpen(false);
                       onCreatePortfolio?.();
                     }}
                   >
-                    <FolderOpen className="w-4 h-4 text-slate-500" />
+                    <FolderOpen className="w-4 h-4 text-black" />
                     New portfolio
                   </button>
                 </div>
@@ -199,7 +199,7 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
           <CollapsibleContent>
             <nav className="space-y-1">
               {projects.length === 0 ? (
-                <p className="px-3 py-2 text-sm text-slate-500">
+                <p className="px-3 py-2 text-sm text-black">
                   No projects yet
                 </p>
               ) : (
@@ -212,7 +212,7 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
                           "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                           isActive
                             ? "bg-slate-200 text-slate-900"
-                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                            : "text-black hover:bg-black hover:text-white hover:text-white"
                         )}
                       >
                         <div
@@ -229,7 +229,7 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
           </CollapsibleContent>
         </Collapsible>
         ) : (
-          <div className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-black">
             Projects
           </div>
         )}
@@ -240,7 +240,7 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
         {mounted ? (
         <Collapsible open={teamsOpen} onOpenChange={setTeamsOpen}>
           <div className="flex items-center justify-between px-3 mb-2">
-            <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-900">
+            <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-black hover:text-white">
               <ChevronDown
                 className={cn(
                   "h-3 w-3 transition-transform",
@@ -256,7 +256,7 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
           <CollapsibleContent>
             <nav className="space-y-1">
               <Link href="/team">
-                <span className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+                <span className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-black hover:bg-black hover:text-white hover:text-white">
                   <Users className="h-4 w-4" />
                   My Team
                 </span>
@@ -265,7 +265,7 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
           </CollapsibleContent>
         </Collapsible>
         ) : (
-          <div className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-black">
             Teams
           </div>
         )}
@@ -274,7 +274,7 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
       {/* Bottom Actions */}
       <div className="border-t p-2">
         <Link href="/settings">
-          <span className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+          <span className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-black hover:bg-black hover:text-white hover:text-white">
             <Settings className="h-4 w-4" />
             Settings
           </span>

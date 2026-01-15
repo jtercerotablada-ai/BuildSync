@@ -86,7 +86,7 @@ export function DraftCommentsWidget() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 text-slate-400 hover:text-red-500"
+                  className="h-7 w-7 p-0 text-slate-400 hover:text-black"
                   onClick={() => deleteDraft(draft.id)}
                 >
                   <Trash2 className="h-4 w-4" />

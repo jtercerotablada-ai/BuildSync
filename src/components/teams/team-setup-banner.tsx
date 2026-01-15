@@ -72,12 +72,12 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
               className={cn(
                 "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors",
                 completedCount === steps.length
-                  ? "border-green-500 bg-green-50"
+                  ? "border-black bg-white"
                   : "border-gray-300"
               )}
             >
               {completedCount === steps.length && (
-                <Check className="h-3 w-3 text-green-600" />
+                <Check className="h-3 w-3 text-black" />
               )}
             </div>
             <span className="text-sm text-gray-500">
@@ -107,7 +107,7 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
               className={cn(
                 "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
                 step.completed
-                  ? "bg-green-50 border-green-200"
+                  ? "bg-white border-black"
                   : "bg-white border-gray-200"
               )}
             >
@@ -115,11 +115,11 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
                 <div
                   className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    step.completed ? "bg-green-100" : "bg-gray-100"
+                    step.completed ? "bg-white border border-black" : "bg-gray-100"
                   )}
                 >
                   {step.completed ? (
-                    <Check className="h-4 w-4 text-green-600" />
+                    <Check className="h-4 w-4 text-black" />
                   ) : (
                     <Icon className="h-4 w-4 text-gray-500" />
                   )}
@@ -129,7 +129,7 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
                   <h4
                     className={cn(
                       "font-medium text-sm mb-1",
-                      step.completed ? "text-green-700" : "text-gray-900"
+                      step.completed ? "text-black" : "text-gray-900"
                     )}
                   >
                     {step.title}

@@ -559,8 +559,8 @@ export function TimelineView({
                         <div
                           key={task.id}
                           className={cn(
-                            "flex items-center gap-2 px-4 border-b hover:bg-blue-50 cursor-pointer group",
-                            selectedTaskId === task.id && "bg-blue-50"
+                            "flex items-center gap-2 px-4 border-b hover:bg-white cursor-pointer group",
+                            selectedTaskId === task.id && "bg-white"
                           )}
                           style={{ height: rowHeight }}
                           onClick={() => {
@@ -571,7 +571,7 @@ export function TimelineView({
                           <GripVertical className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100" />
 
                           {isMilestone ? (
-                            <Diamond className="w-4 h-4 text-purple-500" />
+                            <Diamond className="w-4 h-4 text-black" />
                           ) : (
                             <div
                               className="w-3 h-3 rounded-sm"
@@ -592,7 +592,7 @@ export function TimelineView({
                           </span>
 
                           {isCritical && showCriticalPath && (
-                            <AlertTriangle className="w-3 h-3 text-red-500" />
+                            <AlertTriangle className="w-3 h-3 text-black" />
                           )}
 
                           {progress > 0 && progress < 100 && (
@@ -652,7 +652,7 @@ export function TimelineView({
                     className={cn(
                       "flex flex-col items-center justify-center text-xs border-r",
                       col.isWeekend && "bg-slate-50",
-                      col.isToday && "bg-blue-50"
+                      col.isToday && "bg-white"
                     )}
                     style={{ width: config.columnWidth }}
                   >
@@ -668,10 +668,10 @@ export function TimelineView({
               {/* Today Line */}
               {todayPosition !== null && (
                 <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
+                  className="absolute top-0 bottom-0 w-0.5 bg-black z-10 pointer-events-none"
                   style={{ left: todayPosition }}
                 >
-                  <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-500 rounded-full" />
+                  <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-black rounded-full" />
                 </div>
               )}
 

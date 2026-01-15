@@ -96,7 +96,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
           onCreatePortfolio={() => setShowCreatePortfolio(true)}
           onCreateGoal={() => setShowCreateGoal(true)}
         />
-        <main className="flex-1 overflow-auto bg-slate-50">
+        <main className="flex-1 overflow-auto bg-white">
           {children}
         </main>
       </div>
@@ -153,7 +153,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
               />
             </div>
             <Button
-              className="w-full bg-slate-900 hover:bg-slate-800"
+              className="w-full bg-black hover:bg-black"
               onClick={handleCreatePortfolio}
               disabled={creatingPortfolio || !newPortfolio.name.trim()}
             >

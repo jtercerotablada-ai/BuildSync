@@ -214,7 +214,7 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
           <Plus className="w-4 h-4 mr-2" />
           Add widget
         </Button>
-        <button className="text-sm text-blue-600 hover:text-blue-700">
+        <button className="text-sm text-black hover:text-black">
           Invite comments
         </button>
       </div>
@@ -224,27 +224,27 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
         <KPICard
           title="Completed tasks"
           value={kpis.completed}
-          icon={<CheckCircle2 className="w-5 h-5 text-green-500" />}
+          icon={<CheckCircle2 className="w-5 h-5 text-black" />}
           trend={kpis.completed > 0 ? { value: 12, isPositive: true } : undefined}
           filterCount={1}
         />
         <KPICard
           title="Incomplete tasks"
           value={kpis.incomplete}
-          icon={<Clock className="w-5 h-5 text-purple-500" />}
+          icon={<Clock className="w-5 h-5 text-black" />}
           filterCount={1}
         />
         <KPICard
           title="Overdue tasks"
           value={kpis.overdue}
-          icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
+          icon={<AlertTriangle className="w-5 h-5 text-black" />}
           filterCount={1}
           highlight={kpis.overdue > 0 ? "danger" : undefined}
         />
         <KPICard
           title="Total tasks"
           value={kpis.total}
-          icon={<BarChart3 className="w-5 h-5 text-blue-500" />}
+          icon={<BarChart3 className="w-5 h-5 text-black" />}
         />
       </div>
 
@@ -468,9 +468,9 @@ function KPICard({ title, value, icon, trend, filterCount, highlight }: KPICardP
     <div
       className={cn(
         "bg-white rounded-xl border p-4 hover:shadow-md transition-shadow",
-        highlight === "danger" && "border-red-200 bg-red-50",
-        highlight === "warning" && "border-yellow-200 bg-yellow-50",
-        highlight === "success" && "border-green-200 bg-green-50"
+        highlight === "danger" && "border-black bg-white",
+        highlight === "warning" && "border-black bg-white",
+        highlight === "success" && "border-black bg-white"
       )}
     >
       <div className="flex items-start justify-between mb-2">
@@ -483,7 +483,7 @@ function KPICard({ title, value, icon, trend, filterCount, highlight }: KPICardP
           <p
             className={cn(
               "text-4xl font-bold",
-              highlight === "danger" && "text-red-600",
+              highlight === "danger" && "text-black",
               !highlight && "text-slate-900"
             )}
           >
@@ -494,7 +494,7 @@ function KPICard({ title, value, icon, trend, filterCount, highlight }: KPICardP
             <div
               className={cn(
                 "flex items-center gap-1 text-xs mt-1",
-                trend.isPositive ? "text-green-600" : "text-red-600"
+                trend.isPositive ? "text-black" : "text-black"
               )}
             >
               {trend.isPositive ? (
@@ -545,7 +545,7 @@ function ChartCard({ title, children, filterCount }: ChartCardProps) {
           <Filter className="w-3 h-3 mr-1" />
           {filterCount !== undefined ? `${filterCount} filters` : "No filters"}
         </div>
-        <button className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
+        <button className="text-xs text-black hover:text-black flex items-center gap-1">
           View all
           <ExternalLink className="w-3 h-3" />
         </button>

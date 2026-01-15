@@ -34,6 +34,10 @@ import {
   User,
   Send,
   Pin,
+  Circle,
+  CheckSquare,
+  Type,
+  Hash,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -45,6 +49,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,7 +70,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { TeamSettingsModal } from "@/components/teams";
+import { TeamSettingsModal, LinkWorkPopover, AddFieldFlow } from "@/components/teams";
 
 interface Member {
   id: string;
@@ -195,7 +204,7 @@ export default function TeamPage() {
     );
   }
 
-  const teamName = workspace?.name || "Mi Equipo";
+  const teamName = workspace?.name || "My Team";
   const teamInitial = teamName.charAt(0).toUpperCase();
 
   return (
@@ -205,11 +214,11 @@ export default function TeamPage() {
         <div className="px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Team Avatar */}
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-white border border-black flex items-center justify-center">
               {workspace?.avatar ? (
                 <img src={workspace.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
               ) : (
-                <span className="text-sm font-medium text-purple-700">{teamInitial}</span>
+                <span className="text-sm font-medium text-black">{teamInitial}</span>
               )}
             </div>
 
@@ -228,7 +237,7 @@ export default function TeamPage() {
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600" onClick={() => setShowSettingsModal(true)}>
+                <DropdownMenuItem className="text-black" onClick={() => setShowSettingsModal(true)}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete team
                 </DropdownMenuItem>
@@ -252,7 +261,7 @@ export default function TeamPage() {
               {members.slice(0, 3).map((member) => (
                 <Avatar key={member.id} className="h-8 w-8 border-2 border-white">
                   <AvatarImage src={member.user.image || undefined} />
-                  <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
+                  <AvatarFallback className="text-xs bg-white text-black border border-black">
                     {member.user.name?.charAt(0).toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
@@ -264,7 +273,7 @@ export default function TeamPage() {
               )}
             </div>
             <Button
-              className="bg-green-600 hover:bg-green-700 gap-2"
+              className="bg-black hover:bg-black gap-2"
               onClick={() => setShowInviteModal(true)}
             >
               <Users className="h-4 w-4" />
@@ -415,7 +424,7 @@ function OverviewContent({
       <div className="bg-gradient-to-b from-gray-100 to-gray-50 py-12">
         <div className="flex flex-col items-center text-center">
           {/* Large Avatar */}
-          <div className="w-32 h-32 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border-4 border-white shadow-lg flex items-center justify-center mb-6">
+          <div className="w-32 h-32 rounded-full bg-white border-4 border-black shadow-lg flex items-center justify-center mb-6">
             {workspace?.avatar ? (
               <img src={workspace.avatar} alt={teamName} className="w-full h-full rounded-full object-cover" />
             ) : (
@@ -462,7 +471,7 @@ function OverviewContent({
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full p-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full p-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-black resize-none"
                 rows={3}
                 placeholder="Describe the purpose and responsibilities of the team..."
                 autoFocus
@@ -505,9 +514,9 @@ function OverviewContent({
                 <div className="flex items-center gap-2">
                   <div className={cn(
                     "w-6 h-6 rounded-full border-2 flex items-center justify-center",
-                    completedSteps === 3 ? "border-green-500 bg-green-50" : "border-gray-300"
+                    completedSteps === 3 ? "border-black bg-white" : "border-gray-300"
                   )}>
-                    {completedSteps === 3 && <span className="text-green-600 text-xs">✓</span>}
+                    {completedSteps === 3 && <span className="text-black text-xs">✓</span>}
                   </div>
                   <span className="text-sm text-gray-500">{completedSteps} of 3 steps completed</span>
                 </div>
@@ -526,16 +535,16 @@ function OverviewContent({
                 onClick={() => setShowSettingsModal(true)}
                 className={cn(
                   "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
-                  setupSteps.description ? "bg-green-50 border-green-200" : "bg-white"
+                  setupSteps.description ? "bg-white border-black" : "bg-white"
                 )}
               >
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    setupSteps.description ? "bg-green-100" : "bg-gray-100"
+                    setupSteps.description ? "bg-white border border-black" : "bg-gray-100"
                   )}>
                     {setupSteps.description ? (
-                      <span className="text-green-600 text-sm">✓</span>
+                      <span className="text-black text-sm">✓</span>
                     ) : (
                       <FileText className="h-4 w-4 text-gray-500" />
                     )}
@@ -543,7 +552,7 @@ function OverviewContent({
                   <div>
                     <h4 className={cn(
                       "font-medium text-sm",
-                      setupSteps.description ? "text-green-700" : "text-gray-900"
+                      setupSteps.description ? "text-black" : "text-gray-900"
                     )}>
                       Add team description
                     </h4>
@@ -555,53 +564,55 @@ function OverviewContent({
               </button>
 
               {/* Step 2: Work */}
-              <button
-                onClick={() => setActiveTab("work")}
-                className={cn(
-                  "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
-                  setupSteps.work ? "bg-green-50 border-green-200" : "bg-white"
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    setupSteps.work ? "bg-green-100" : "bg-gray-100"
-                  )}>
-                    {setupSteps.work ? (
-                      <span className="text-green-600 text-sm">✓</span>
-                    ) : (
-                      <FolderPlus className="h-4 w-4 text-gray-500" />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className={cn(
-                      "font-medium text-sm",
-                      setupSteps.work ? "text-green-700" : "text-gray-900"
+              <LinkWorkPopover teamId={workspace?.id || ""}>
+                <button
+                  type="button"
+                  className={cn(
+                    "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all w-full",
+                    setupSteps.work ? "bg-white border-black" : "bg-white"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+                      setupSteps.work ? "bg-white border border-black" : "bg-gray-100"
                     )}>
-                      Add work
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Link existing projects, portfolios, or templates
-                    </p>
+                      {setupSteps.work ? (
+                        <span className="text-black text-sm">✓</span>
+                      ) : (
+                        <FolderPlus className="h-4 w-4 text-gray-500" />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className={cn(
+                        "font-medium text-sm",
+                        setupSteps.work ? "text-black" : "text-gray-900"
+                      )}>
+                        Add work
+                      </h4>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Link existing projects, portfolios, or templates
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </button>
+                </button>
+              </LinkWorkPopover>
 
               {/* Step 3: Members */}
               <button
                 onClick={() => setShowInviteModal(true)}
                 className={cn(
                   "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
-                  setupSteps.members ? "bg-green-50 border-green-200" : "bg-white"
+                  setupSteps.members ? "bg-white border-black" : "bg-white"
                 )}
               >
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    setupSteps.members ? "bg-green-100" : "bg-gray-100"
+                    setupSteps.members ? "bg-white border border-black" : "bg-gray-100"
                   )}>
                     {setupSteps.members ? (
-                      <span className="text-green-600 text-sm">✓</span>
+                      <span className="text-black text-sm">✓</span>
                     ) : (
                       <UserPlus className="h-4 w-4 text-gray-500" />
                     )}
@@ -609,7 +620,7 @@ function OverviewContent({
                   <div>
                     <h4 className={cn(
                       "font-medium text-sm",
-                      setupSteps.members ? "text-green-700" : "text-gray-900"
+                      setupSteps.members ? "text-black" : "text-gray-900"
                     )}>
                       Add teammates
                     </h4>
@@ -631,7 +642,7 @@ function OverviewContent({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">Work selection</h3>
                 <button
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-black hover:underline"
                   onClick={() => setActiveTab("work")}
                 >
                   View all work
@@ -655,6 +666,14 @@ function OverviewContent({
                       <span className="text-sm font-medium text-gray-900">{project.name}</span>
                     </button>
                   ))}
+                  <div className="flex justify-center pt-4">
+                    <LinkWorkPopover teamId={workspace?.id || ""}>
+                      <Button variant="outline" className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Add work
+                      </Button>
+                    </LinkWorkPopover>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -680,12 +699,11 @@ function OverviewContent({
                   </p>
 
                   <div className="flex justify-center">
-                    <Button
-                      className="bg-blue-600 hover:bg-blue-700"
-                      onClick={() => router.push("/projects/new")}
-                    >
-                      Add work
-                    </Button>
+                    <LinkWorkPopover teamId={workspace?.id || ""}>
+                      <Button className="bg-black hover:bg-black">
+                        Add work
+                      </Button>
+                    </LinkWorkPopover>
                   </div>
                 </>
               )}
@@ -699,7 +717,7 @@ function OverviewContent({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">Members</h3>
                 <button
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-black hover:underline"
                   onClick={() => setActiveTab("members")}
                 >
                   View list of {members.length} item{members.length !== 1 ? "s" : ""}
@@ -713,7 +731,7 @@ function OverviewContent({
                     title={member.user.name || member.user.email || "Member"}
                   >
                     <AvatarImage src={member.user.image || undefined} />
-                    <AvatarFallback className="bg-purple-100 text-purple-700 text-sm">
+                    <AvatarFallback className="bg-white text-black border border-black text-sm">
                       {member.user.name?.charAt(0).toUpperCase() || "?"}
                     </AvatarFallback>
                   </Avatar>
@@ -793,6 +811,17 @@ function OverviewContent({
   );
 }
 
+// Field types for add field dropdown
+const fieldTypes = [
+  { id: "single_select", label: "Single select", icon: Circle },
+  { id: "multi_select", label: "Multi select", icon: CheckSquare },
+  { id: "date", label: "Date", icon: Calendar },
+  { id: "people", label: "People", icon: User },
+  { id: "reference", label: "Reference", icon: Link2 },
+  { id: "text", label: "Text", icon: Type },
+  { id: "number", label: "Number", icon: Hash },
+];
+
 // ========== MEMBERS CONTENT ==========
 function MembersContent({
   members,
@@ -805,6 +834,12 @@ function MembersContent({
 }) {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [customFields, setCustomFields] = useState<Array<{
+    id: string;
+    name: string;
+    type: string;
+    options?: Array<{ id: string; name: string; color: string }>;
+  }>>([]);
 
   const filteredMembers = members.filter((member) => {
     if (!searchQuery) return true;
@@ -822,14 +857,29 @@ function MembersContent({
   };
 
   const roleColors: Record<string, string> = {
-    OWNER: "text-purple-600",
-    ADMIN: "text-blue-600",
+    OWNER: "text-black",
+    ADMIN: "text-black",
     MEMBER: "text-gray-600",
+  };
+
+  const handleCreateField = (field: {
+    title: string;
+    type: string;
+    description?: string;
+    options?: Array<{ id: string; name: string; color: string }>;
+  }) => {
+    setCustomFields([...customFields, {
+      id: Date.now().toString(),
+      name: field.title,
+      type: field.type,
+      options: field.options,
+    }]);
+    toast.success(`Field "${field.title}" added`);
   };
 
   return (
     <div className="bg-white min-h-[calc(100vh-120px)]">
-      <div className="max-w-5xl mx-auto px-6 py-6">
+      <div className="px-6 py-6">
         {/* Top bar - Asana style */}
         <div className="flex items-center justify-between mb-6">
           <Button variant="outline" className="gap-2" onClick={onInvite}>
@@ -838,7 +888,7 @@ function MembersContent({
           </Button>
 
           <div className="flex items-center gap-4">
-            <button className="text-sm text-blue-600 hover:underline">
+            <button className="text-sm text-black hover:underline">
               Send feedback
             </button>
             <button
@@ -863,16 +913,39 @@ function MembersContent({
           </div>
         )}
 
-        {/* Members Table - Asana style */}
-        <div className="border rounded-lg overflow-hidden">
+        {/* Members Table - Full width with gray header */}
+        <div className="w-full border rounded-lg overflow-hidden overflow-x-auto">
           {/* Header */}
-          <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 border-b text-sm font-medium text-gray-500">
-            <div className="col-span-6">Name</div>
-            <div className="col-span-5">Job title</div>
-            <div className="col-span-1 flex justify-center">
-              <button className="p-1 hover:bg-gray-200 rounded">
-                <Plus className="h-4 w-4" />
-              </button>
+          <div className="flex items-center bg-gray-50 border-b text-sm font-medium text-gray-500">
+            {/* Name column - fixed initially, flex when fields added */}
+            <div className={cn(
+              "px-4 py-3",
+              customFields.length > 0 ? "flex-1 min-w-[250px]" : "w-[300px]"
+            )}>
+              Name
+            </div>
+
+            {/* Job title column - fixed initially, flex when fields added */}
+            <div className={cn(
+              "px-4 py-3 border-l",
+              customFields.length > 0 ? "flex-1 min-w-[180px]" : "w-[200px]"
+            )}>
+              Job title
+            </div>
+
+            {/* Custom field columns - all flex-1 to distribute evenly */}
+            {customFields.map((field) => (
+              <div key={field.id} className="flex-1 min-w-[150px] px-4 py-3 border-l">
+                {field.name}
+              </div>
+            ))}
+
+            {/* Add field button */}
+            <div className="w-12 px-2 py-3 border-l flex justify-center">
+              <AddFieldFlow
+                onCreateField={handleCreateField}
+                organizationName="your workspace"
+              />
             </div>
           </div>
 
@@ -881,13 +954,16 @@ function MembersContent({
             {filteredMembers.map((member) => (
               <div
                 key={member.id}
-                className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-gray-50 group"
+                className="flex items-center hover:bg-gray-50 group"
               >
                 {/* Name + Avatar + Role Dropdown */}
-                <div className="col-span-6 flex items-center gap-3">
+                <div className={cn(
+                  "px-4 py-3 flex items-center gap-3",
+                  customFields.length > 0 ? "flex-1 min-w-[250px]" : "w-[300px]"
+                )}>
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={member.user.image || undefined} />
-                    <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
+                    <AvatarFallback className="text-xs bg-white text-black border border-black">
                       {member.user.name?.charAt(0).toUpperCase() || "?"}
                     </AvatarFallback>
                   </Avatar>
@@ -917,7 +993,7 @@ function MembersContent({
                       {member.role !== "OWNER" && (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">
+                          <DropdownMenuItem className="text-black">
                             <Trash2 className="h-4 w-4 mr-2" />
                             Remove from team
                           </DropdownMenuItem>
@@ -927,17 +1003,32 @@ function MembersContent({
                   </DropdownMenu>
                 </div>
 
-                {/* Job Title */}
-                <div className="col-span-5">
-                  <span className="text-sm text-gray-500">
-                    {member.user.jobTitle || (
-                      <span className="text-gray-400 italic">Add job title...</span>
-                    )}
-                  </span>
+                {/* Job Title - Editable */}
+                <div className={cn(
+                  "px-4 py-3 border-l",
+                  customFields.length > 0 ? "flex-1 min-w-[180px]" : "w-[200px]"
+                )}>
+                  <input
+                    type="text"
+                    placeholder="Add job title..."
+                    defaultValue={member.user.jobTitle || ""}
+                    className="w-full bg-transparent text-sm text-gray-500 placeholder:text-gray-400 focus:outline-none"
+                  />
                 </div>
 
+                {/* Custom field values - all flex-1 to distribute evenly */}
+                {customFields.map((field) => (
+                  <div key={field.id} className="flex-1 min-w-[150px] px-4 py-3 border-l">
+                    <input
+                      type="text"
+                      placeholder="—"
+                      className="w-full bg-transparent text-sm text-gray-500 placeholder:text-gray-400 focus:outline-none"
+                    />
+                  </div>
+                ))}
+
                 {/* Actions */}
-                <div className="col-span-1 flex justify-center opacity-0 group-hover:opacity-100">
+                <div className="w-12 px-2 py-3 border-l flex justify-center opacity-0 group-hover:opacity-100">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className="p-1 hover:bg-gray-200 rounded">
@@ -953,7 +1044,7 @@ function MembersContent({
                       {member.role !== "OWNER" && (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">
+                          <DropdownMenuItem className="text-black">
                             <Trash2 className="h-4 w-4 mr-2" />
                             Remove from team
                           </DropdownMenuItem>
@@ -975,79 +1066,163 @@ function MembersContent({
 function WorkContent({ projects }: { projects: Project[] }) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  const filteredProjects = projects.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const statusColors: Record<string, string> = {
-    ON_TRACK: "bg-green-500",
-    AT_RISK: "bg-yellow-500",
-    OFF_TRACK: "bg-red-500",
-    ON_HOLD: "bg-gray-500",
-    COMPLETE: "bg-blue-500",
-  };
+  const filteredProjects = projects
+    .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      if (sortOrder === "asc") {
+        return a.name.localeCompare(b.name);
+      }
+      return b.name.localeCompare(a.name);
+    });
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">All work</h2>
-          <p className="text-sm text-gray-500">{projects.length} project{projects.length !== 1 ? "s" : ""}</p>
-        </div>
-        <Button onClick={() => router.push("/projects/new")} className="gap-2">
-          <Plus className="h-4 w-4" />
-          New project
-        </Button>
-      </div>
-
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search projects..."
-          className="pl-10"
-        />
-      </div>
-
-      {filteredProjects.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProjects.map((project) => (
-            <button
-              key={project.id}
-              onClick={() => router.push(`/projects/${project.id}`)}
-              className="bg-white border rounded-xl p-4 text-left hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: project.color || "#4573D2" }}
+    <div className="bg-white min-h-[calc(100vh-120px)]">
+      <div className="p-6">
+        <div className="flex gap-6">
+          {/* ===== LEFT COLUMN: PROJECTS ===== */}
+          <div className="flex-1 border rounded-lg">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Projects</h2>
+              <div className="flex items-center gap-2">
+                {showSearch ? (
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search projects..."
+                    className="w-48 h-8"
+                    autoFocus
+                    onBlur={() => {
+                      if (!searchQuery) setShowSearch(false);
+                    }}
+                  />
+                ) : (
+                  <button
+                    onClick={() => setShowSearch(true)}
+                    className="p-2 hover:bg-gray-100 rounded"
+                  >
+                    <Search className="h-4 w-4 text-gray-500" />
+                  </button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push("/projects/new")}
                 >
-                  <FolderKanban className="h-5 w-5 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-gray-900 truncate">{project.name}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className={cn("w-2 h-2 rounded-full", statusColors[project.status] || "bg-gray-400")} />
-                    <span className="text-xs text-gray-500">{project.status.replace("_", " ")}</span>
-                  </div>
-                </div>
+                  New project
+                </Button>
               </div>
-            </button>
-          ))}
+            </div>
+
+            {/* Table Header */}
+            <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 border-b text-sm text-gray-500">
+              <div className="col-span-8">Name</div>
+              <div className="col-span-4 flex items-center justify-end">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-1 hover:text-gray-700">
+                      <ChevronDown className="h-3 w-3" />
+                      {sortOrder === "asc" ? "A to Z" : "Z to A"}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSortOrder("asc")}>
+                      A to Z
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortOrder("desc")}>
+                      Z to A
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+
+            {/* Projects List */}
+            <div className="divide-y">
+              {filteredProjects.length === 0 ? (
+                <div className="p-8 text-center">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                    <FolderKanban className="h-6 w-6 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 mb-3">
+                    {searchQuery
+                      ? `No projects found for "${searchQuery}"`
+                      : "No projects in this team yet"}
+                  </p>
+                  {!searchQuery && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push("/projects/new")}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Create project
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                filteredProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    onClick={() => router.push(`/projects/${project.id}`)}
+                    className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer"
+                  >
+                    {/* Name */}
+                    <div className="col-span-8 flex items-center gap-3">
+                      <div
+                        className="w-8 h-8 rounded flex items-center justify-center"
+                        style={{ backgroundColor: project.color || "#6b7280" }}
+                      >
+                        <Settings className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{project.name}</p>
+                        <p className="text-xs text-black">You joined</p>
+                      </div>
+                    </div>
+
+                    {/* Space for sort column */}
+                    <div className="col-span-4" />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* ===== RIGHT COLUMN: TEMPLATES ===== */}
+          <div className="w-72">
+            <h2 className="text-lg font-semibold mb-4">Templates</h2>
+
+            <div className="space-y-3">
+              {/* New template */}
+              <button className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2">
+                <div className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
+                  <Plus className="h-5 w-5 text-gray-400" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">
+                  New template
+                </span>
+              </button>
+
+              {/* Explore all templates */}
+              <button
+                onClick={() => router.push("/templates")}
+                className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2"
+              >
+                <div className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-gray-400" />
+                </div>
+                <span className="text-sm font-medium text-gray-700 text-center">
+                  Explore all templates
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="bg-white border rounded-xl p-12 text-center">
-          <FolderKanban className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No projects yet</h3>
-          <p className="text-sm text-gray-500 mb-4">Create your first project to get started</p>
-          <Button onClick={() => router.push("/projects/new")} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Create project
-          </Button>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1098,7 +1273,7 @@ function MessagesContent({
               <div key={message.id} className="flex items-start gap-3">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={message.author.image || undefined} />
-                  <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">
+                  <AvatarFallback className="bg-white text-black border border-black text-xs">
                     {message.author.name?.charAt(0).toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
@@ -1128,7 +1303,7 @@ function MessagesContent({
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Write a message..."
-            className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-black"
             disabled={isSending}
           />
           <Button type="submit" size="icon" className="h-10 w-10 rounded-full" disabled={!newMessage.trim() || isSending}>
@@ -1276,7 +1451,7 @@ function InviteModal({
                 <Input value={inviteLink} readOnly className="pl-10 bg-gray-50 text-gray-600" />
               </div>
               <Button variant="outline" onClick={handleCopyLink} className="px-3">
-                {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                {copied ? <Check className="h-4 w-4 text-black" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>

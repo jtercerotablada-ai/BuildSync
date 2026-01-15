@@ -528,11 +528,11 @@ function PromotionalCard() {
           <div className="w-14 h-14 bg-amber-100 rounded-xl flex items-center justify-center">
             <MessageSquare className="w-7 h-7 text-amber-600" />
           </div>
-          <div className="absolute -top-2 -right-3 w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center rotate-12">
-            <MessageSquare className="w-5 h-5 text-red-500" />
+          <div className="absolute -top-2 -right-3 w-10 h-10 bg-white border border-black rounded-lg flex items-center justify-center rotate-12">
+            <MessageSquare className="w-5 h-5 text-black" />
           </div>
-          <div className="absolute -bottom-1 -left-2 w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center -rotate-12">
-            <MessageSquare className="w-4 h-4 text-blue-500" />
+          <div className="absolute -bottom-1 -left-2 w-8 h-8 bg-white border border-black rounded-lg flex items-center justify-center -rotate-12">
+            <MessageSquare className="w-4 h-4 text-black" />
           </div>
         </div>
       </div>

@@ -29,21 +29,21 @@ type TabType = 'my' | 'team';
 type FilterType = 'open' | 'closed' | 'all';
 
 const statusConfig: Record<string, { label: string; color: string }> = {
-  ON_TRACK: { label: 'On track', color: 'text-green-600' },
-  AT_RISK: { label: 'At risk', color: 'text-yellow-600' },
-  OFF_TRACK: { label: 'Off track', color: 'text-red-600' },
-  ACHIEVED: { label: 'Achieved', color: 'text-blue-600' },
+  ON_TRACK: { label: 'On track', color: 'text-black' },
+  AT_RISK: { label: 'At risk', color: 'text-black' },
+  OFF_TRACK: { label: 'Off track', color: 'text-black' },
+  ACHIEVED: { label: 'Achieved', color: 'text-black' },
   PARTIAL: { label: 'Partial', color: 'text-gray-600' },
-  MISSED: { label: 'Missed', color: 'text-red-600' },
+  MISSED: { label: 'Missed', color: 'text-black' },
   DROPPED: { label: 'Dropped', color: 'text-gray-400' },
 };
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'ON_TRACK': return 'bg-green-500';
-    case 'AT_RISK': return 'bg-yellow-500';
-    case 'OFF_TRACK': return 'bg-red-500';
-    case 'ACHIEVED': return 'bg-blue-500';
+    case 'ON_TRACK': return 'bg-black';
+    case 'AT_RISK': return 'bg-gray-500';
+    case 'OFF_TRACK': return 'bg-gray-300';
+    case 'ACHIEVED': return 'bg-black';
     default: return 'bg-gray-400';
   }
 };
@@ -115,7 +115,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
         <Button
           variant="link"
           size="sm"
-          className="text-blue-600 hover:text-blue-700 p-0 h-auto gap-1"
+          className="text-black hover:text-black p-0 h-auto gap-1"
           onClick={() => router.push('/goals')}
         >
           View all <ArrowRight className="h-3 w-3" />

@@ -2,6 +2,54 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
+// POST /api/teams/:teamId/work - Link work to team
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
+  try {
+    const userId = await getCurrentUserId();
+    const { teamId } = await params;
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { workId, workType, customName, description } = body;
+
+    // Verify team exists
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+    });
+
+    if (!team) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+
+    // Link the project to the team
+    if (workType === "project") {
+      const project = await prisma.project.update({
+        where: { id: workId },
+        data: {
+          teamId: teamId,
+          name: customName || undefined,
+          description: description || undefined,
+        },
+      });
+      return NextResponse.json(project);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error linking work to team:", error);
+    return NextResponse.json(
+      { error: "Failed to link work" },
+      { status: 500 }
+    );
+  }
+}
+
 // GET /api/teams/:teamId/work - Get team's work items (projects, etc.)
 export async function GET(
   req: Request,

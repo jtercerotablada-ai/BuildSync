@@ -71,9 +71,9 @@ interface BoardViewProps {
 
 const PRIORITY_COLORS = {
   NONE: { bg: "", text: "", label: "" },
-  LOW: { bg: "bg-blue-100", text: "text-blue-700", label: "Low" },
-  MEDIUM: { bg: "bg-yellow-100", text: "text-yellow-700", label: "Medium" },
-  HIGH: { bg: "bg-orange-100", text: "text-orange-700", label: "High" },
+  LOW: { bg: "bg-white border border-black", text: "text-black", label: "Low" },
+  MEDIUM: { bg: "bg-white border border-black", text: "text-black", label: "Medium" },
+  HIGH: { bg: "bg-white border border-black", text: "text-black", label: "High" },
 };
 
 export function BoardView({
@@ -397,7 +397,7 @@ function SortableTaskCard({
           className={cn(
             "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
             task.completed
-              ? "bg-green-500 border-green-500"
+              ? "bg-black border-black"
               : "border-slate-300 hover:border-slate-400"
           )}
         >
@@ -475,7 +475,7 @@ function TaskCardOverlay({ task }: { task: Task }) {
         <div
           className={cn(
             "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
-            task.completed ? "bg-green-500 border-green-500" : "border-slate-300"
+            task.completed ? "bg-black border-black" : "border-slate-300"
           )}
         >
           {task.completed && <Check className="w-3 h-3 text-white" />}
@@ -514,7 +514,7 @@ function DueDateBadge({
     <div
       className={cn(
         "flex items-center gap-1 text-xs",
-        isOverdue ? "text-red-600" : "text-slate-500",
+        isOverdue ? "text-black" : "text-slate-500",
         completed && "text-slate-400"
       )}
     >

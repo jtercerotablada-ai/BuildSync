@@ -59,7 +59,7 @@ export default function InboxPage() {
     {
       id: "1",
       title: "Welcome to BuildSync! Your tools are ready.",
-      sender: { name: "BuildSync", color: "#3B82F6" },
+      sender: { name: "BuildSync", color: "#000000" },
       preview:
         "Integrate your favorite tools for your workflow. Get started with project management, task tracking, and team collaboration.",
       createdAt: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000),
@@ -69,7 +69,7 @@ export default function InboxPage() {
     {
       id: "2",
       title: "New task assigned: Review documentation",
-      sender: { name: "Juan Tercero", color: "#8B5CF6" },
+      sender: { name: "Juan Tercero", color: "#000000" },
       preview:
         'You have been assigned a new task in the project "Website Redesign". Please review the documentation and provide feedback.',
       createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
@@ -79,7 +79,7 @@ export default function InboxPage() {
     {
       id: "3",
       title: "Comment on: Setup project structure",
-      sender: { name: "Maria Garcia", color: "#EC4899" },
+      sender: { name: "Maria Garcia", color: "#000000" },
       preview:
         "Great work on the initial setup! I have a few suggestions for the folder structure that might help with scalability.",
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
@@ -144,8 +144,8 @@ export default function InboxPage() {
     <div className="flex-1 flex flex-col h-full bg-white">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b">
-        <h1 className="text-xl font-semibold text-slate-900">Inbox</h1>
-        <Button variant="ghost" size="sm" className="text-slate-600">
+        <h1 className="text-xl font-semibold text-black">Inbox</h1>
+        <Button variant="ghost" size="sm" className="text-black">
           Manage notifications
         </Button>
       </div>
@@ -161,21 +161,21 @@ export default function InboxPage() {
               className={cn(
                 "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
                 activeTab === tab.id
-                  ? "bg-slate-100 text-slate-900 font-medium"
-                  : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-white text-black font-medium"
+                  : "text-black hover:bg-white"
               )}
             >
               <Icon className="w-4 h-4" />
               {tab.label}
               {tab.id === "activity" && unreadCount > 0 && (
-                <span className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                <span className="bg-black text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                   {unreadCount}
                 </span>
               )}
             </button>
           );
         })}
-        <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md ml-1">
+        <button className="p-2 text-slate-400 hover:text-black hover:bg-white rounded-md ml-1">
           <Plus className="w-4 h-4" />
         </button>
       </div>
@@ -183,11 +183,11 @@ export default function InboxPage() {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-6 py-2 border-b bg-slate-50">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="text-slate-600">
+          <Button variant="ghost" size="sm" className="text-black">
             <Filter className="w-4 h-4 mr-2" />
             Filter
           </Button>
-          <Button variant="ghost" size="sm" className="text-slate-600">
+          <Button variant="ghost" size="sm" className="text-black">
             <ArrowUpDown className="w-4 h-4 mr-2" />
             Sort: {sortOrder === "recent" ? "Most recent" : "Oldest"}
             <ChevronDown className="w-4 h-4 ml-1" />
@@ -208,23 +208,23 @@ export default function InboxPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-violet-600" />
-                    <span className="font-medium text-slate-900">
+                    <span className="font-medium text-black">
                       Inbox summary
                     </span>
                   </div>
                   <button
                     onClick={() => setShowAISummary(false)}
-                    className="text-slate-400 hover:text-slate-600"
+                    className="text-slate-400 hover:text-black"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <p className="text-sm text-slate-600 mt-2">
+                <p className="text-sm text-black mt-2">
                   Get a summary of your most important notifications with AI.
                 </p>
                 <div className="flex items-center justify-between mt-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-500">Period:</span>
+                    <span className="text-sm text-black">Period:</span>
                     <Button variant="outline" size="sm" className="h-8">
                       Last week
                       <ChevronDown className="w-4 h-4 ml-1" />
@@ -246,7 +246,7 @@ export default function InboxPage() {
                   ([period, notifs]) =>
                     notifs.length > 0 && (
                       <div key={period} className="mb-6">
-                        <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                        <h3 className="text-xs font-medium text-black uppercase tracking-wide mb-2">
                           {period}
                         </h3>
                         <div className="border-t border-slate-200 pt-2">
@@ -267,7 +267,7 @@ export default function InboxPage() {
                 {/* Archive all link */}
                 <button
                   onClick={archiveAll}
-                  className="text-sm text-blue-600 hover:text-blue-700 hover:underline mt-4"
+                  className="text-sm text-black hover:text-blue-700 hover:underline mt-4"
                 >
                   Archive all notifications
                 </button>
@@ -297,8 +297,8 @@ function NotificationItem({
   return (
     <div
       className={cn(
-        "flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer group transition-colors",
-        !notification.read && "bg-blue-50/50"
+        "flex items-start gap-3 p-3 rounded-lg hover:bg-white cursor-pointer group transition-colors",
+        !notification.read && "bg-white"
       )}
       onClick={onMarkAsRead}
     >
@@ -331,7 +331,7 @@ function NotificationItem({
         <div className="flex items-start justify-between gap-2">
           <p
             className={cn(
-              "text-sm text-slate-900",
+              "text-sm text-black",
               !notification.read && "font-medium"
             )}
           >
@@ -339,12 +339,12 @@ function NotificationItem({
           </p>
           {/* Unread indicator */}
           {!notification.read && (
-            <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1.5" />
+            <div className="w-2 h-2 bg-black rounded-full flex-shrink-0 mt-1.5" />
           )}
         </div>
 
         <div className="flex items-center gap-1 mt-0.5">
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-black">
             {notification.sender.name}
           </span>
           <span className="text-xs text-slate-400">·</span>
@@ -355,7 +355,7 @@ function NotificationItem({
 
         <p
           className={cn(
-            "text-sm text-slate-600 mt-1",
+            "text-sm text-black mt-1",
             !expanded && "line-clamp-2"
           )}
         >
@@ -368,7 +368,7 @@ function NotificationItem({
               e.stopPropagation();
               setExpanded(!expanded);
             }}
-            className="text-xs text-blue-600 hover:text-blue-700 mt-1"
+            className="text-xs text-black hover:text-blue-700 mt-1"
           >
             {expanded ? "Show less" : "See more"}
           </button>
@@ -382,13 +382,13 @@ function NotificationItem({
 function EmptyInbox() {
   return (
     <div className="flex flex-col items-center justify-center h-full py-16">
-      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4">
         <Bell className="w-8 h-8 text-slate-400" />
       </div>
-      <h3 className="text-lg font-medium text-slate-900 mb-2">
+      <h3 className="text-lg font-medium text-black mb-2">
         You&apos;re all caught up!
       </h3>
-      <p className="text-sm text-slate-500 text-center max-w-sm">
+      <p className="text-sm text-black text-center max-w-sm">
         Notifications about tasks assigned to you, comments, and mentions will
         appear here.
       </p>
@@ -399,13 +399,13 @@ function EmptyInbox() {
 function EmptyFavorites() {
   return (
     <div className="flex flex-col items-center justify-center h-full py-16">
-      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4">
         <Star className="w-8 h-8 text-slate-400" />
       </div>
-      <h3 className="text-lg font-medium text-slate-900 mb-2">
+      <h3 className="text-lg font-medium text-black mb-2">
         No favorites yet
       </h3>
-      <p className="text-sm text-slate-500 text-center max-w-sm">
+      <p className="text-sm text-black text-center max-w-sm">
         Star important notifications to find them quickly here.
       </p>
     </div>
@@ -415,13 +415,13 @@ function EmptyFavorites() {
 function EmptyArchive() {
   return (
     <div className="flex flex-col items-center justify-center h-full py-16">
-      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4">
         <Archive className="w-8 h-8 text-slate-400" />
       </div>
-      <h3 className="text-lg font-medium text-slate-900 mb-2">
+      <h3 className="text-lg font-medium text-black mb-2">
         No archived notifications
       </h3>
-      <p className="text-sm text-slate-500 text-center max-w-sm">
+      <p className="text-sm text-black text-center max-w-sm">
         When you archive notifications, they&apos;ll appear here.
       </p>
     </div>

@@ -46,7 +46,7 @@ export function FormsWidget() {
         <Button
           variant="link"
           size="sm"
-          className="text-blue-600 hover:text-blue-700 p-0 h-auto"
+          className="text-black hover:text-black p-0 h-auto"
           onClick={() => router.push('/forms')}
         >
           View all <ArrowRight className="ml-1 h-3 w-3" />
@@ -87,7 +87,7 @@ export function FormsWidget() {
                   </p>
                 </div>
                 {submission.status === 'pending' && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-white text-black border border-black">
                     Pending
                   </span>
                 )}

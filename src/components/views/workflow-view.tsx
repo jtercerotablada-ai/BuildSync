@@ -73,21 +73,21 @@ const TASK_SOURCES: TaskSource[] = [
     id: "forms",
     name: "Form submissions",
     description: "Create a form that converts submissions into tasks",
-    icon: <FileText className="w-4 h-4 text-blue-500" />,
+    icon: <FileText className="w-4 h-4 text-black" />,
     enabled: false,
   },
   {
     id: "templates",
     name: "Task templates",
     description: "Create a template to standardize tasks easily",
-    icon: <CheckCircle className="w-4 h-4 text-green-500" />,
+    icon: <CheckCircle className="w-4 h-4 text-black" />,
     enabled: false,
   },
   {
     id: "integrations",
     name: "From other apps",
     description: "Choose apps your team uses to create tasks for this project",
-    icon: <Link2 className="w-4 h-4 text-purple-500" />,
+    icon: <Link2 className="w-4 h-4 text-black" />,
     enabled: false,
   },
 ];
@@ -186,7 +186,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                     {TASK_SOURCES.map((source) => (
                       <button
                         key={source.id}
-                        className="w-full flex items-start gap-2 p-2 rounded-lg border hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                        className="w-full flex items-start gap-2 p-2 rounded-lg border hover:border-black hover:bg-white transition-colors text-left"
                       >
                         <div className="p-1.5 bg-slate-100 rounded">
                           {source.icon}
@@ -295,7 +295,7 @@ function SectionCard({ section, actions, onAddAction, onRemoveAction }: SectionC
         </div>
         <h3 className="font-semibold text-slate-900 text-sm">{section.name}</h3>
         <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+          <span className="w-1.5 h-1.5 rounded-full bg-black" />
           {incompleteCount} incomplete {incompleteCount === 1 ? "task" : "tasks"}
         </p>
       </div>

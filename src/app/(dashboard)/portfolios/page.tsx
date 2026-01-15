@@ -89,22 +89,22 @@ export default function PortfoliosPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-green-500";
+        return "bg-black";
       case "AT_RISK":
-        return "bg-yellow-500";
+        return "bg-gray-500";
       case "OFF_TRACK":
-        return "bg-red-500";
+        return "bg-gray-300";
       case "COMPLETE":
-        return "bg-blue-500";
+        return "bg-black";
       default:
-        return "bg-slate-400";
+        return "bg-gray-400";
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-black" />
       </div>
     );
   }
@@ -114,14 +114,14 @@ export default function PortfoliosPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Portfolios</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-2xl font-semibold text-black">Portfolios</h1>
+          <p className="text-sm text-black mt-1">
             Organize and track multiple projects together
           </p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-slate-900 hover:bg-slate-800">
+            <Button className="bg-black hover:bg-black">
               <Plus className="h-4 w-4 mr-2" />
               Create portfolio
             </Button>
@@ -157,7 +157,7 @@ export default function PortfoliosPage() {
                 />
               </div>
               <Button
-                className="w-full bg-slate-900 hover:bg-slate-800"
+                className="w-full bg-black hover:bg-black"
                 onClick={handleCreate}
                 disabled={creating || !newPortfolio.name.trim()}
               >
@@ -181,16 +181,16 @@ export default function PortfoliosPage() {
           <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
             <Folder className="h-8 w-8 text-purple-600" />
           </div>
-          <h2 className="text-lg font-medium text-slate-900 mb-2">
+          <h2 className="text-lg font-medium text-black mb-2">
             No portfolios yet
           </h2>
-          <p className="text-sm text-slate-500 max-w-md mb-4">
+          <p className="text-sm text-black max-w-md mb-4">
             Create a portfolio to group related projects and track their
             progress together.
           </p>
           <Button
             onClick={() => setCreateOpen(true)}
-            className="bg-slate-900 hover:bg-slate-800"
+            className="bg-black hover:bg-black"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create your first portfolio
@@ -230,7 +230,7 @@ export default function PortfoliosPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-slate-900 truncate">
+                    <h3 className="font-medium text-black truncate">
                       {portfolio.name}
                     </h3>
                     <div
@@ -239,14 +239,14 @@ export default function PortfoliosPage() {
                       )}`}
                     />
                   </div>
-                  <p className="text-sm text-slate-500 mt-1">
+                  <p className="text-sm text-black mt-1">
                     {portfolio._count.projects}{" "}
                     {portfolio._count.projects === 1 ? "project" : "projects"}
                   </p>
                 </div>
               </div>
               {portfolio.description && (
-                <p className="text-sm text-slate-500 mt-3 line-clamp-2">
+                <p className="text-sm text-black mt-3 line-clamp-2">
                   {portfolio.description}
                 </p>
               )}

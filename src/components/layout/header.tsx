@@ -38,11 +38,11 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
       {/* Center - Search */}
       <div className="flex-1 flex justify-center max-w-xl">
         <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black" />
           <Input
             type="search"
             placeholder="Search..."
-            className="pl-9 bg-slate-50 border-slate-200 focus:bg-white"
+            className="pl-9 bg-white border-black focus:bg-white"
           />
         </div>
       </div>
@@ -53,7 +53,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           <DropdownMenuTrigger asChild>
             <Button
               size="sm"
-              className="gap-2 bg-slate-900 hover:bg-slate-800"
+              className="gap-2 bg-black hover:bg-black"
             >
               <Plus className="h-4 w-4" />
               Create
@@ -61,29 +61,29 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onClick={onCreateTask} className="cursor-pointer">
-              <CheckSquare className="mr-2 h-4 w-4 text-blue-500" />
+              <CheckSquare className="mr-2 h-4 w-4 text-black" />
               Task
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateProject} className="cursor-pointer">
-              <FolderKanban className="mr-2 h-4 w-4 text-green-500" />
+              <FolderKanban className="mr-2 h-4 w-4 text-black" />
               Project
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreatePortfolio} className="cursor-pointer">
-              <Briefcase className="mr-2 h-4 w-4 text-purple-500" />
+              <Briefcase className="mr-2 h-4 w-4 text-black" />
               Portfolio
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateGoal} className="cursor-pointer">
-              <Target className="mr-2 h-4 w-4 text-orange-500" />
+              <Target className="mr-2 h-4 w-4 text-black" />
               Goal
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="ghost" size="icon" className="text-slate-600">
+        <Button variant="ghost" size="icon" className="text-black">
           <Bell className="h-5 w-5" />
         </Button>
 
-        <Button variant="ghost" size="icon" className="text-slate-600">
+        <Button variant="ghost" size="icon" className="text-black">
           <HelpCircle className="h-5 w-5" />
         </Button>
 
@@ -92,7 +92,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={session?.user?.image || ""} />
-                <AvatarFallback className="bg-slate-900 text-white text-xs">
+                <AvatarFallback className="bg-black text-white text-xs">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
@@ -102,7 +102,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
             <DropdownMenuLabel>
               <div className="flex flex-col">
                 <span>{session?.user?.name}</span>
-                <span className="text-xs font-normal text-slate-500">
+                <span className="text-xs font-normal text-black">
                   {session?.user?.email}
                 </span>
               </div>
@@ -118,7 +118,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-red-600"
+              className="text-black"
               onClick={() => signOut({ callbackUrl: "/login" })}
             >
               <LogOut className="mr-2 h-4 w-4" />

@@ -24,9 +24,9 @@ interface TeamGoalsWidgetProps {
 }
 
 const statusColors: Record<string, string> = {
-  ON_TRACK: "bg-green-500",
-  AT_RISK: "bg-yellow-500",
-  OFF_TRACK: "bg-red-500",
+  ON_TRACK: "bg-black",
+  AT_RISK: "bg-gray-500",
+  OFF_TRACK: "bg-gray-300",
 };
 
 export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
@@ -71,14 +71,14 @@ export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
-                    statusColors[goal.status || "ON_TRACK"] || "bg-blue-500"
+                    statusColors[goal.status || "ON_TRACK"] || "bg-black"
                   )}
                   style={{ width: `${goal.progress}%` }}
                 />
               </div>
 
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-900 group-hover:text-blue-600 transition-colors">
+                <span className="text-gray-900 group-hover:text-black transition-colors">
                   {goal.name}
                 </span>
                 <span className="text-gray-500">{goal.progress}%</span>
@@ -101,7 +101,7 @@ export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
             <div className="w-full h-2 bg-gray-200 rounded-full mb-2" />
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                <div className="w-2 h-2 rounded-full bg-black" />
                 <span className="text-gray-400">En curso (0%)</span>
               </div>
               <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-300" />

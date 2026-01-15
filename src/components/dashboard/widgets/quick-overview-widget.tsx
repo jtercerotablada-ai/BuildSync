@@ -74,29 +74,29 @@ export function QuickOverviewWidget() {
           icon={<Clock className="h-5 w-5" />}
           value={stats?.dueToday ?? 0}
           label="Tasks due today"
-          iconBgColor="bg-blue-50"
-          iconColor="text-blue-600"
+          iconBgColor="bg-white border border-black"
+          iconColor="text-black"
         />
         <StatCard
           icon={<AlertCircle className="h-5 w-5" />}
           value={stats?.overdue ?? 0}
           label="Overdue tasks"
-          iconBgColor="bg-red-50"
-          iconColor="text-red-600"
+          iconBgColor="bg-white border border-black"
+          iconColor="text-black"
         />
         <StatCard
           icon={<CheckCircle2 className="h-5 w-5" />}
           value={stats?.completedThisWeek ?? 0}
           label="Completed this week"
-          iconBgColor="bg-green-50"
-          iconColor="text-green-600"
+          iconBgColor="bg-white border border-black"
+          iconColor="text-black"
         />
         <StatCard
           icon={<FolderKanban className="h-5 w-5" />}
           value={stats?.activeProjects ?? 0}
           label="Active projects"
-          iconBgColor="bg-purple-50"
-          iconColor="text-purple-600"
+          iconBgColor="bg-white border border-black"
+          iconColor="text-black"
         />
       </div>
     </div>

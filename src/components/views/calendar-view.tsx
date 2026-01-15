@@ -354,7 +354,7 @@ export function CalendarView({
                 className={cn(
                   "min-h-[120px] border-b border-r p-1 group relative transition-colors",
                   !isCurrentMonth && "bg-slate-50",
-                  isHovered && isCurrentMonth && "bg-blue-50/50"
+                  isHovered && isCurrentMonth && "bg-white"
                 )}
                 onMouseEnter={() => setHoveredDay(dateStr)}
                 onMouseLeave={() => setHoveredDay(null)}
@@ -364,7 +364,7 @@ export function CalendarView({
                   <span
                     className={cn(
                       "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full transition-colors",
-                      isCurrentDay && "bg-blue-600 text-white",
+                      isCurrentDay && "bg-black text-white",
                       !isCurrentDay && isCurrentMonth && "text-slate-900",
                       !isCurrentDay && !isCurrentMonth && "text-slate-400"
                     )}

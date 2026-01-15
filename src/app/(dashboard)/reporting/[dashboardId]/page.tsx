@@ -194,12 +194,12 @@ const dashboardConfigs: Record<
 > = {
   "my-organization": {
     name: "My organization",
-    iconColor: "#3B82F6",
+    iconColor: "#000000",
     prefix: "",
   },
   "my-impact": {
     name: "My impact",
-    iconColor: "#8B5CF6",
+    iconColor: "#000000",
     prefix: "My ",
   },
 };
@@ -219,7 +219,7 @@ export default function DashboardPage() {
 
   const config = dashboardConfigs[dashboardId] || {
     name: "Dashboard",
-    iconColor: "#8B5CF6",
+    iconColor: "#000000",
     prefix: "",
   };
 
@@ -371,10 +371,10 @@ export default function DashboardPage() {
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center text-sm text-white font-medium">
+          <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-sm text-white font-medium">
             JT
           </div>
-          <Button className="bg-yellow-500 hover:bg-yellow-600 text-white">
+          <Button className="bg-black hover:bg-black text-white">
             <Share2 className="w-4 h-4 mr-2" />
             Share
           </Button>
@@ -391,7 +391,7 @@ export default function DashboardPage() {
           <Plus className="w-4 h-4 mr-2" />
           Add widget
         </Button>
-        <button className="text-sm text-blue-600 hover:text-blue-700">
+        <button className="text-sm text-black hover:text-black">
           Send feedback
         </button>
       </div>
@@ -417,7 +417,7 @@ export default function DashboardPage() {
                   className={cn(
                     "text-4xl font-light text-center mt-4",
                     widget.title.includes("Overdue") && widget.config.value! > 0
-                      ? "text-red-600"
+                      ? "text-black"
                       : "text-slate-900"
                   )}
                 >
@@ -599,10 +599,10 @@ export default function DashboardPage() {
                       <button
                         key={widget.id}
                         onClick={() => handleAddWidget(widget.id, widget.name)}
-                        className="border rounded-xl p-4 hover:border-blue-400 hover:shadow-lg transition-all text-left bg-white group"
+                        className="border rounded-xl p-4 hover:border-black hover:shadow-lg transition-all text-left bg-white group"
                       >
                         {/* Chart Icon Preview */}
-                        <div className="flex items-center justify-center mb-4 p-2 bg-slate-50 rounded-lg group-hover:bg-blue-50 transition-colors">
+                        <div className="flex items-center justify-center mb-4 p-2 bg-slate-50 rounded-lg group-hover:bg-white transition-colors">
                           {IconComponent && <IconComponent />}
                         </div>
 
@@ -612,7 +612,7 @@ export default function DashboardPage() {
                             {widget.name}
                           </span>
                           {"isNew" in widget && widget.isNew && (
-                            <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium shrink-0">
+                            <span className="text-[10px] bg-white text-black border border-black px-1.5 py-0.5 rounded font-medium shrink-0">
                               New
                             </span>
                           )}

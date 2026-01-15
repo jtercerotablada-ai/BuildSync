@@ -25,10 +25,10 @@ export default function ReportingPage() {
       id: "my-organization",
       name: "My organization",
       description: "Organization-wide metrics",
-      iconColor: "#3B82F6",
+      iconColor: "#000000",
       ownerId: "current-user",
       ownerName: "You",
-      ownerColor: "#FBBF24",
+      ownerColor: "#000000",
       isDefault: true,
       createdAt: new Date(),
     },
@@ -36,10 +36,10 @@ export default function ReportingPage() {
       id: "my-impact",
       name: "My impact",
       description: "See your work impact here",
-      iconColor: "#8B5CF6",
+      iconColor: "#000000",
       ownerId: "current-user",
       ownerName: "You",
-      ownerColor: "#FBBF24",
+      ownerColor: "#000000",
       isDefault: true,
       createdAt: new Date(),
     },
@@ -50,10 +50,10 @@ export default function ReportingPage() {
     const newDashboard: Dashboard = {
       id: `dashboard-${Date.now()}`,
       name: "New dashboard",
-      iconColor: "#8B5CF6",
+      iconColor: "#000000",
       ownerId: "current-user",
       ownerName: "You",
-      ownerColor: "#FBBF24",
+      ownerColor: "#000000",
       createdAt: new Date(),
     };
     setDashboards([newDashboard, ...dashboards]);
@@ -169,7 +169,7 @@ export default function ReportingPage() {
                           </svg>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+                          <h3 className="font-medium text-slate-900 truncate group-hover:text-black transition-colors">
                             {dashboard.name}
                           </h3>
                         </div>
