@@ -24,9 +24,12 @@ export interface WidgetConfig {
   defaultOrder: number;
 }
 
+export type WidgetSize = 'half' | 'full';
+
 export interface UserWidgetPreferences {
   visibleWidgets: WidgetType[];
   widgetOrder: WidgetType[];
+  widgetSizes: Partial<Record<WidgetType, WidgetSize>>;
 }
 
 // IMPORTANTE: TODOS los widgets son del MISMO TAMAÑO

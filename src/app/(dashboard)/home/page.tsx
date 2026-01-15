@@ -62,6 +62,8 @@ export default function HomePage() {
     toggleWidget,
     reorderWidgets,
     resetToDefaults,
+    setWidgetSize,
+    getWidgetSize,
   } = useWidgetPreferences();
 
   const sensors = useSensors(
@@ -94,7 +96,13 @@ export default function HomePage() {
       case 'quick-overview':
         return <QuickOverviewWidget />;
       case 'my-tasks':
-        return <MyTasksWidget />;
+        return (
+          <MyTasksWidget
+            size={getWidgetSize('my-tasks')}
+            onSizeChange={(size) => setWidgetSize('my-tasks', size)}
+            onRemove={() => toggleWidget('my-tasks')}
+          />
+        );
       case 'projects':
         return <ProjectsWidget onCreateProject={() => setShowCreateProject(true)} />;
       case 'goals':
@@ -174,11 +182,17 @@ export default function HomePage() {
               {preferences.widgetOrder.map((widgetId) => {
                 if (!preferences.visibleWidgets.includes(widgetId)) return null;
 
+                // MyTasks widget has its own header with dropdown
+                const hideHeader = widgetId === 'my-tasks';
+                const widgetSize = getWidgetSize(widgetId);
+
                 return (
                   <WidgetContainer
                     key={widgetId}
                     id={widgetId}
                     onHide={toggleWidget}
+                    size={widgetSize}
+                    hideHeader={hideHeader}
                   >
                     {renderWidget(widgetId)}
                   </WidgetContainer>

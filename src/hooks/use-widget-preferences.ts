@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { WidgetType, UserWidgetPreferences, AVAILABLE_WIDGETS } from '@/types/dashboard';
+import { WidgetType, WidgetSize, UserWidgetPreferences, AVAILABLE_WIDGETS } from '@/types/dashboard';
 
 const STORAGE_KEY = 'buildsync-widget-preferences';
 
@@ -14,6 +14,7 @@ const getDefaultPreferences = (): UserWidgetPreferences => {
   return {
     visibleWidgets: enabledWidgets,
     widgetOrder: enabledWidgets,
+    widgetSizes: {}, // All widgets default to 'half' size
   };
 };
 
@@ -46,11 +47,13 @@ export function useWidgetPreferences() {
 
       if (isVisible) {
         return {
+          ...prev,
           visibleWidgets: prev.visibleWidgets.filter(id => id !== widgetId),
           widgetOrder: prev.widgetOrder.filter(id => id !== widgetId),
         };
       } else {
         return {
+          ...prev,
           visibleWidgets: [...prev.visibleWidgets, widgetId],
           widgetOrder: [...prev.widgetOrder, widgetId],
         };
@@ -69,11 +72,27 @@ export function useWidgetPreferences() {
     setPreferences(getDefaultPreferences());
   }, []);
 
+  const setWidgetSize = useCallback((widgetId: WidgetType, size: WidgetSize) => {
+    setPreferences(prev => ({
+      ...prev,
+      widgetSizes: {
+        ...prev.widgetSizes,
+        [widgetId]: size,
+      },
+    }));
+  }, []);
+
+  const getWidgetSize = useCallback((widgetId: WidgetType): WidgetSize => {
+    return preferences.widgetSizes[widgetId] || 'half';
+  }, [preferences.widgetSizes]);
+
   return {
     preferences,
     isLoaded,
     toggleWidget,
     reorderWidgets,
     resetToDefaults,
+    setWidgetSize,
+    getWidgetSize,
   };
 }

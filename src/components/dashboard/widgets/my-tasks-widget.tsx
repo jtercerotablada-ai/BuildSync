@@ -3,13 +3,21 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Check, Plus, Lock } from 'lucide-react';
+import { Check, Plus, Lock, MoreHorizontal, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
+import { WidgetSize } from '@/types/dashboard';
 
 interface Task {
   id: string;
@@ -57,7 +65,13 @@ function formatDueDate(date: string): { text: string; isSpecial: boolean } {
   };
 }
 
-export function MyTasksWidget() {
+interface MyTasksWidgetProps {
+  size?: WidgetSize;
+  onSizeChange?: (size: WidgetSize) => void;
+  onRemove?: () => void;
+}
+
+export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasksWidgetProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState<TabType>('upcoming');
@@ -174,7 +188,7 @@ export function MyTasksWidget() {
     <div className="h-full flex flex-col">
       {/* ========== HEADER CON AVATAR ========== */}
       <div className="flex items-center gap-3 mb-3">
-        {/* Avatar con BORDE amarillo (no fondo) - Estilo Asana */}
+        {/* Avatar */}
         <Avatar className="h-10 w-10">
           <AvatarImage src={user.image || undefined} />
           <AvatarFallback className="bg-gray-900 text-white font-bold text-sm">
@@ -190,15 +204,66 @@ export function MyTasksWidget() {
           </div>
         </div>
 
-        {/* View all link */}
-        <Button
-          variant="link"
-          size="sm"
-          className="text-black hover:text-black p-0 h-auto font-normal"
-          onClick={() => router.push('/my-tasks')}
-        >
-          View all →
-        </Button>
+        {/* Dropdown Menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-2 hover:bg-gray-100 rounded-lg">
+              <MoreHorizontal className="h-5 w-5 text-gray-500" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {/* Create task */}
+            <DropdownMenuItem
+              onClick={() => setIsCreating(true)}
+              className="cursor-pointer"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create task
+            </DropdownMenuItem>
+
+            {/* View all my tasks */}
+            <DropdownMenuItem
+              onClick={() => router.push('/my-tasks')}
+              className="cursor-pointer"
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              View all my tasks
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            {/* Half size */}
+            <DropdownMenuItem
+              onClick={() => onSizeChange?.('half')}
+              className="cursor-pointer"
+            >
+              {size === 'half' && <Check className="h-4 w-4 mr-2" />}
+              {size !== 'half' && <span className="w-4 mr-2" />}
+              Half size
+            </DropdownMenuItem>
+
+            {/* Full size */}
+            <DropdownMenuItem
+              onClick={() => onSizeChange?.('full')}
+              className="cursor-pointer"
+            >
+              {size === 'full' && <Check className="h-4 w-4 mr-2" />}
+              {size !== 'full' && <span className="w-4 mr-2" />}
+              Full size
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            {/* Remove widget */}
+            <DropdownMenuItem
+              onClick={onRemove}
+              className="cursor-pointer text-red-600 focus:text-red-600"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Remove widget
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* ========== TABS CON UNDERLINE ========== */}
