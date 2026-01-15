@@ -267,7 +267,7 @@ export default function TemplatesGalleryPage() {
               >
                 {/* Preview - Asana style */}
                 <div className="rounded-2xl overflow-hidden border border-gray-200 hover:border-gray-300 hover:shadow-xl transition-all duration-200 bg-white">
-                  <TemplatePreview type={template.preview} color={template.color} />
+                  <TemplatePreview type={template.preview} />
                 </div>
 
                 {/* Info - Below preview like Asana */}
