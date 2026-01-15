@@ -56,37 +56,60 @@ const moreCategories = [
   { id: "sales", label: "Sales & Customer Experience" },
 ];
 
-// Preview images by type
-function TemplatePreview({ type }: { type: string }) {
-  const baseClasses = "w-full h-40 rounded-t-lg bg-gradient-to-br from-gray-50 to-gray-100 p-4 border-b overflow-hidden";
+// Preview images by type - Asana style
+function TemplatePreview({ type, color = "#000000" }: { type: string; color?: string }) {
+  const baseClasses = "w-full h-48 rounded-xl bg-gray-100 p-4 relative";
+
+  // Icon component for top-left
+  const PreviewIcon = () => {
+    const Icon = type === "list" ? List : type === "board" ? LayoutGrid : type === "calendar" ? Calendar : Clock;
+    return (
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm"
+        style={{ backgroundColor: color }}
+      >
+        <Icon className="w-4 h-4 text-white" />
+      </div>
+    );
+  };
 
   if (type === "list") {
     return (
       <div className={baseClasses}>
-        <div className="bg-white rounded-lg shadow-sm h-full p-3 border border-gray-200">
-          {/* Header row */}
-          <div className="flex items-center gap-3 pb-2 mb-2 border-b border-gray-100">
-            <div className="w-4 h-4" />
-            <div className="h-2 bg-gray-300 rounded w-20" />
-            <div className="h-2 bg-gray-200 rounded w-14" />
-            <div className="h-2 bg-gray-200 rounded w-14" />
-          </div>
-          {/* Task rows */}
-          <div className="space-y-2">
-            {[85, 70, 55, 90].map((width, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
-                <div className="h-2.5 bg-gray-200 rounded" style={{ width: `${width}%` }} />
-                <div className={cn(
-                  "h-5 w-14 rounded-full flex-shrink-0",
-                  i === 0 && "bg-black",
-                  i === 1 && "bg-gray-400",
-                  i === 2 && "bg-gray-300",
-                  i === 3 && "bg-black"
-                )} />
+        {/* Header with icon */}
+        <div className="flex items-center gap-2 mb-3">
+          <PreviewIcon />
+          <div className="h-2.5 bg-gray-300 rounded w-24" />
+        </div>
+        {/* Subheader lines */}
+        <div className="flex gap-8 mb-4 ml-1">
+          <div className="h-2 bg-gray-300 rounded w-16" />
+          <div className="h-2 bg-gray-200 rounded w-12" />
+          <div className="h-2 bg-gray-200 rounded w-12" />
+        </div>
+        {/* Task rows */}
+        <div className="space-y-3 ml-1">
+          {[
+            { checked: true, width: 100, tag: "bg-black" },
+            { checked: true, width: 85, tag: "bg-gray-500" },
+            { checked: false, width: 70, tag: "bg-gray-400" },
+            { checked: false, width: 90, tag: "bg-gray-300" },
+            { checked: false, width: 65, tag: "bg-black" },
+          ].map((task, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className={cn(
+                "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                task.checked ? "bg-gray-400 border-gray-400" : "border-gray-300 bg-white"
+              )}>
+                {task.checked && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
               </div>
-            ))}
-          </div>
+              <div className="h-2 bg-gray-300 rounded flex-1" style={{ maxWidth: `${task.width}px` }} />
+              <div className="flex items-center gap-2 ml-auto">
+                <div className={cn("h-5 w-5 rounded", task.tag)} />
+                <div className="w-5 h-5 rounded-full bg-gray-300" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -95,23 +118,31 @@ function TemplatePreview({ type }: { type: string }) {
   if (type === "board") {
     return (
       <div className={baseClasses}>
-        <div className="flex gap-2 h-full">
-          {[{ title: "To Do", cards: 3 }, { title: "In Progress", cards: 2 }, { title: "Done", cards: 1 }].map((col, colIdx) => (
-            <div key={col.title} className="flex-1 bg-white rounded-lg shadow-sm p-2 border border-gray-200">
-              <div className="flex items-center gap-1 mb-2">
-                <div className={cn(
-                  "w-2 h-2 rounded-full",
-                  colIdx === 0 && "bg-gray-400",
-                  colIdx === 1 && "bg-black",
-                  colIdx === 2 && "bg-gray-300"
-                )} />
+        {/* Header with icon */}
+        <div className="flex items-center gap-2 mb-4">
+          <PreviewIcon />
+          <div className="h-2.5 bg-gray-300 rounded w-24" />
+        </div>
+        {/* Kanban columns - simplified */}
+        <div className="flex gap-3 h-28">
+          {[
+            { dots: 3, colors: ["bg-gray-400", "bg-gray-500", "bg-black"] },
+            { dots: 2, colors: ["bg-gray-300", "bg-gray-400"] },
+            { dots: 1, colors: ["bg-black"] },
+          ].map((col, colIdx) => (
+            <div key={colIdx} className="flex-1">
+              <div className="flex items-center gap-1.5 mb-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                 <div className="h-2 bg-gray-300 rounded w-10" />
               </div>
-              <div className="space-y-1.5">
-                {Array.from({ length: col.cards }).map((_, cardIdx) => (
-                  <div key={cardIdx} className="bg-gray-50 rounded p-1.5 border border-gray-100">
-                    <div className="h-1.5 bg-gray-300 rounded w-full mb-1" />
-                    <div className="h-1.5 bg-gray-200 rounded w-3/4" />
+              <div className="space-y-2">
+                {col.colors.map((color, i) => (
+                  <div key={i} className="bg-white rounded-lg p-2 shadow-sm">
+                    <div className="h-1.5 bg-gray-200 rounded w-full mb-1.5" />
+                    <div className="flex items-center justify-between">
+                      <div className={cn("h-4 w-4 rounded", color)} />
+                      <div className="w-4 h-4 rounded-full bg-gray-200" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -125,28 +156,30 @@ function TemplatePreview({ type }: { type: string }) {
   if (type === "calendar") {
     return (
       <div className={baseClasses}>
-        <div className="bg-white rounded-lg shadow-sm h-full p-2 border border-gray-200">
-          {/* Month header */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="h-2 bg-gray-300 rounded w-16" />
-            <div className="flex gap-1">
-              <div className="w-4 h-4 bg-gray-100 rounded" />
-              <div className="w-4 h-4 bg-gray-100 rounded" />
+        {/* Header with icon */}
+        <div className="flex items-center gap-2 mb-3">
+          <PreviewIcon />
+          <div className="h-2.5 bg-gray-300 rounded w-24" />
+        </div>
+        {/* Calendar grid - Asana style with colored bars */}
+        <div className="bg-white rounded-lg p-3 shadow-sm">
+          <div className="space-y-2">
+            {/* Row 1 */}
+            <div className="flex gap-1 h-6 items-center">
+              <div className="w-8" />
+              <div className="flex-1 h-5 bg-black rounded" style={{ marginLeft: '10%', width: '60%' }} />
             </div>
-          </div>
-          {/* Days grid */}
-          <div className="grid grid-cols-7 gap-0.5">
-            {Array.from({ length: 28 }).map((_, i) => (
-              <div key={i} className="aspect-square bg-gray-50 rounded-sm p-0.5 flex flex-col">
-                <span className="text-[6px] text-gray-400">{i + 1}</span>
-                {[3, 8, 12, 17, 22].includes(i) && (
-                  <div className="h-1 bg-black rounded-sm mt-auto" />
-                )}
-                {[5, 15, 25].includes(i) && (
-                  <div className="h-1 bg-gray-400 rounded-sm mt-auto" />
-                )}
-              </div>
-            ))}
+            {/* Row 2 */}
+            <div className="flex gap-1 h-6 items-center">
+              <div className="w-8" />
+              <div className="flex-1 h-5 bg-gray-500 rounded" style={{ marginLeft: '30%', width: '45%' }} />
+            </div>
+            {/* Row 3 */}
+            <div className="flex gap-1 h-6 items-center">
+              <div className="w-8" />
+              <div className="flex-1 h-5 bg-gray-400 rounded" style={{ marginLeft: '5%', width: '35%' }} />
+              <div className="flex-1 h-5 bg-gray-300 rounded" style={{ marginLeft: '50%', width: '30%' }} />
+            </div>
           </div>
         </div>
       </div>
@@ -156,29 +189,38 @@ function TemplatePreview({ type }: { type: string }) {
   if (type === "timeline") {
     return (
       <div className={baseClasses}>
-        <div className="bg-white rounded-lg shadow-sm h-full p-3 border border-gray-200">
-          {/* Timeline header */}
-          <div className="flex gap-4 mb-3 text-[8px] text-gray-400 border-b border-gray-100 pb-1">
-            <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span>
+        {/* Header with icon */}
+        <div className="flex items-center gap-2 mb-3">
+          <PreviewIcon />
+          <div className="h-2.5 bg-gray-300 rounded w-24" />
+        </div>
+        {/* Subheader */}
+        <div className="flex gap-6 mb-3 ml-1">
+          <div className="h-2 bg-gray-300 rounded w-14" />
+          <div className="h-2 bg-gray-200 rounded w-10" />
+        </div>
+        {/* Timeline - Gantt style with connecting lines */}
+        <div className="relative ml-1">
+          {/* Vertical grid lines */}
+          <div className="absolute inset-0 flex">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex-1 border-l border-gray-200 first:border-l-0" />
+            ))}
           </div>
           {/* Timeline bars */}
-          <div className="space-y-2">
-            {[
-              { start: 5, width: 30, color: "bg-black" },
-              { start: 25, width: 35, color: "bg-gray-500" },
-              { start: 45, width: 40, color: "bg-gray-400" },
-              { start: 10, width: 25, color: "bg-gray-300" },
-            ].map((bar, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <div className="w-12 h-2 bg-gray-200 rounded flex-shrink-0" />
-                <div className="flex-1 h-5 bg-gray-100 rounded relative">
-                  <div
-                    className={cn("absolute h-full rounded", bar.color)}
-                    style={{ left: `${bar.start}%`, width: `${bar.width}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+          <div className="relative space-y-2 py-1">
+            <div className="h-6 relative">
+              <div className="absolute h-full bg-gray-600 rounded" style={{ left: '5%', width: '25%' }} />
+              <div className="absolute h-full bg-gray-400 rounded" style={{ left: '35%', width: '30%' }} />
+              {/* Diamond milestone */}
+              <div className="absolute w-4 h-4 bg-gray-300 rotate-45 top-1" style={{ left: '68%' }} />
+            </div>
+            <div className="h-6 relative">
+              <div className="absolute h-full bg-black rounded" style={{ left: '20%', width: '50%' }} />
+            </div>
+            <div className="h-6 relative">
+              <div className="absolute h-full bg-gray-500 rounded" style={{ left: '10%', width: '35%' }} />
+            </div>
           </div>
         </div>
       </div>
@@ -579,51 +621,49 @@ export default function TemplatesGalleryPage() {
 
         {/* Templates Grid */}
         {currentTemplates.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {currentTemplates.map((template) => (
               <div
                 key={template.id}
                 onClick={() => setSelectedTemplate(template)}
-                className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+                className="group cursor-pointer"
               >
-                {/* Preview */}
-                <TemplatePreview type={template.preview} />
+                {/* Preview - Asana style */}
+                <div className="rounded-2xl overflow-hidden border border-gray-200 hover:border-gray-300 hover:shadow-xl transition-all duration-200 bg-white">
+                  <TemplatePreview type={template.preview} color={template.color} />
+                </div>
 
-                {/* Info */}
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
-                    <h3 className="font-semibold text-gray-900 group-hover:text-black">
-                      {template.name}
-                    </h3>
-                    {template.isNew && (
-                      <Badge
-                        variant="secondary"
-                        className="bg-gray-200 text-black text-xs"
-                      >
-                        New
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2 line-clamp-3">
+                {/* Info - Below preview like Asana */}
+                <div className="pt-4 px-1">
+                  <h3 className="font-semibold text-lg text-gray-900 group-hover:text-black leading-tight">
+                    {template.name}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-2 line-clamp-3 leading-relaxed">
                     {template.description}
                   </p>
+
+                  {/* Footer - Asana style */}
                   <div className="flex items-center justify-between mt-4">
-                    {template.isTrusted && (
-                      <span className="text-xs text-gray-500">
-                        Trusted by top teams
-                      </span>
-                    )}
-                    {template.company && (
-                      <span className="text-xs font-medium text-gray-700">
-                        {template.company.toUpperCase()}
-                      </span>
-                    )}
-                    <div className="ml-auto flex items-center gap-2">
-                      <span className="text-xs text-gray-500">
-                        {template.sections.length} sections
-                      </span>
-                      <Users className="h-4 w-4 text-gray-400" />
+                    <div className="flex items-center gap-2">
+                      {template.isNew ? (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-gray-300 text-xs text-gray-600">
+                          <Sparkles className="h-3 w-3" />
+                          <span>New</span>
+                        </div>
+                      ) : template.isTrusted ? (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                          <Users className="h-3.5 w-3.5" />
+                          <span>Trusted by top teams</span>
+                        </div>
+                      ) : null}
                     </div>
+                    {template.company && (
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                        <span className="text-xs font-bold text-gray-500">
+                          {template.company.charAt(0)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
