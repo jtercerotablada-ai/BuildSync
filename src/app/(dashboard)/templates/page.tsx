@@ -58,128 +58,32 @@ const moreCategories = [
 
 // Preview images by type
 function TemplatePreview({ type }: { type: string }) {
-  const baseClasses = "w-full h-32 rounded-t-lg bg-white p-3 border-b";
+  const baseClasses = "w-full h-40 rounded-t-lg bg-gradient-to-br from-gray-50 to-gray-100 p-4 border-b overflow-hidden";
 
   if (type === "list") {
     return (
       <div className={baseClasses}>
-        <div className="space-y-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
-              <div
-                className="h-2 bg-gray-200 rounded flex-1"
-                style={{ width: `${60 + Math.random() * 30}%` }}
-              />
-              <div
-                className={cn(
-                  "h-4 w-12 rounded text-xs",
-                  i === 1 && "bg-red-100",
-                  i === 2 && "bg-green-100",
-                  i === 3 && "bg-yellow-100",
-                  i === 4 && "bg-green-100"
-                )}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (type === "board") {
-    return (
-      <div className={baseClasses}>
-        <div className="flex gap-2 h-full">
-          {[1, 2, 3].map((col) => (
-            <div key={col} className="flex-1 bg-gray-50 rounded p-1 space-y-1">
-              <div className="h-2 bg-gray-300 rounded w-12 mb-2" />
-              {[1, 2].map((card) => (
-                <div key={card} className="bg-white rounded p-1 shadow-sm">
-                  <div className="h-1.5 bg-gray-200 rounded w-full mb-1" />
-                  <div className="h-1.5 bg-gray-200 rounded w-2/3" />
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (type === "calendar") {
-    return (
-      <div className={baseClasses}>
-        <div className="grid grid-cols-7 gap-1 h-full">
-          {Array.from({ length: 21 }).map((_, i) => (
-            <div key={i} className="bg-gray-50 rounded p-0.5">
-              {Math.random() > 0.7 && (
-                <div
-                  className={cn(
-                    "h-2 rounded text-xs",
-                    Math.random() > 0.5 ? "bg-blue-200" : "bg-green-200"
-                  )}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (type === "timeline") {
-    return (
-      <div className={baseClasses}>
-        <div className="space-y-2 pt-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className="w-16 h-2 bg-gray-200 rounded" />
-              <div
-                className={cn(
-                  "h-4 rounded",
-                  i === 1 && "bg-purple-300 w-24",
-                  i === 2 && "bg-blue-300 w-32 ml-8",
-                  i === 3 && "bg-green-300 w-20 ml-16"
-                )}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-// Large preview for modal
-function LargeTemplatePreview({ type }: { type: string }) {
-  const baseClasses = "w-full h-64 bg-gray-50 rounded-lg p-4";
-
-  if (type === "list") {
-    return (
-      <div className={baseClasses}>
-        <div className="bg-white rounded-lg shadow-sm h-full p-4">
-          <div className="flex items-center gap-2 mb-4 pb-2 border-b">
-            <div className="h-3 w-20 bg-gray-200 rounded" />
-            <div className="h-3 w-16 bg-gray-100 rounded" />
-            <div className="h-3 w-16 bg-gray-100 rounded" />
+        <div className="bg-white rounded-lg shadow-sm h-full p-3 border border-gray-200">
+          {/* Header row */}
+          <div className="flex items-center gap-3 pb-2 mb-2 border-b border-gray-100">
+            <div className="w-4 h-4" />
+            <div className="h-2 bg-gray-300 rounded w-20" />
+            <div className="h-2 bg-gray-200 rounded w-14" />
+            <div className="h-2 bg-gray-200 rounded w-14" />
           </div>
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
+          {/* Task rows */}
+          <div className="space-y-2">
+            {[85, 70, 55, 90].map((width, i) => (
               <div key={i} className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
-                <div className="h-3 bg-gray-200 rounded flex-1" style={{ width: `${50 + Math.random() * 40}%` }} />
+                <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                <div className="h-2.5 bg-gray-200 rounded" style={{ width: `${width}%` }} />
                 <div className={cn(
-                  "h-5 w-16 rounded text-xs",
-                  i === 1 && "bg-red-100",
-                  i === 2 && "bg-green-100",
-                  i === 3 && "bg-yellow-100",
-                  i === 4 && "bg-blue-100",
-                  i === 5 && "bg-purple-100",
+                  "h-5 w-14 rounded-full flex-shrink-0",
+                  i === 0 && "bg-black",
+                  i === 1 && "bg-gray-400",
+                  i === 2 && "bg-gray-300",
+                  i === 3 && "bg-black"
                 )} />
-                <div className="w-6 h-6 rounded-full bg-gray-200" />
               </div>
             ))}
           </div>
@@ -191,26 +95,166 @@ function LargeTemplatePreview({ type }: { type: string }) {
   if (type === "board") {
     return (
       <div className={baseClasses}>
-        <div className="flex gap-3 h-full">
-          {["To do", "In progress", "Done"].map((col, colIndex) => (
-            <div key={col} className="flex-1 bg-white rounded-lg shadow-sm p-3">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-gray-600">{col}</span>
-                <span className="text-xs text-gray-400">{3 - colIndex}</span>
+        <div className="flex gap-2 h-full">
+          {[{ title: "To Do", cards: 3 }, { title: "In Progress", cards: 2 }, { title: "Done", cards: 1 }].map((col, colIdx) => (
+            <div key={col.title} className="flex-1 bg-white rounded-lg shadow-sm p-2 border border-gray-200">
+              <div className="flex items-center gap-1 mb-2">
+                <div className={cn(
+                  "w-2 h-2 rounded-full",
+                  colIdx === 0 && "bg-gray-400",
+                  colIdx === 1 && "bg-black",
+                  colIdx === 2 && "bg-gray-300"
+                )} />
+                <div className="h-2 bg-gray-300 rounded w-10" />
               </div>
-              <div className="space-y-2">
-                {Array.from({ length: 3 - colIndex }).map((_, cardIndex) => (
-                  <div key={cardIndex} className="bg-gray-50 rounded p-2 border">
-                    <div className="h-2 bg-gray-200 rounded w-full mb-2" />
-                    <div className="h-2 bg-gray-200 rounded w-2/3 mb-2" />
+              <div className="space-y-1.5">
+                {Array.from({ length: col.cards }).map((_, cardIdx) => (
+                  <div key={cardIdx} className="bg-gray-50 rounded p-1.5 border border-gray-100">
+                    <div className="h-1.5 bg-gray-300 rounded w-full mb-1" />
+                    <div className="h-1.5 bg-gray-200 rounded w-3/4" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "calendar") {
+    return (
+      <div className={baseClasses}>
+        <div className="bg-white rounded-lg shadow-sm h-full p-2 border border-gray-200">
+          {/* Month header */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="h-2 bg-gray-300 rounded w-16" />
+            <div className="flex gap-1">
+              <div className="w-4 h-4 bg-gray-100 rounded" />
+              <div className="w-4 h-4 bg-gray-100 rounded" />
+            </div>
+          </div>
+          {/* Days grid */}
+          <div className="grid grid-cols-7 gap-0.5">
+            {Array.from({ length: 28 }).map((_, i) => (
+              <div key={i} className="aspect-square bg-gray-50 rounded-sm p-0.5 flex flex-col">
+                <span className="text-[6px] text-gray-400">{i + 1}</span>
+                {[3, 8, 12, 17, 22].includes(i) && (
+                  <div className="h-1 bg-black rounded-sm mt-auto" />
+                )}
+                {[5, 15, 25].includes(i) && (
+                  <div className="h-1 bg-gray-400 rounded-sm mt-auto" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "timeline") {
+    return (
+      <div className={baseClasses}>
+        <div className="bg-white rounded-lg shadow-sm h-full p-3 border border-gray-200">
+          {/* Timeline header */}
+          <div className="flex gap-4 mb-3 text-[8px] text-gray-400 border-b border-gray-100 pb-1">
+            <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span>
+          </div>
+          {/* Timeline bars */}
+          <div className="space-y-2">
+            {[
+              { start: 5, width: 30, color: "bg-black" },
+              { start: 25, width: 35, color: "bg-gray-500" },
+              { start: 45, width: 40, color: "bg-gray-400" },
+              { start: 10, width: 25, color: "bg-gray-300" },
+            ].map((bar, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className="w-12 h-2 bg-gray-200 rounded flex-shrink-0" />
+                <div className="flex-1 h-5 bg-gray-100 rounded relative">
+                  <div
+                    className={cn("absolute h-full rounded", bar.color)}
+                    style={{ left: `${bar.start}%`, width: `${bar.width}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// Large preview for modal
+function LargeTemplatePreview({ type }: { type: string }) {
+  const baseClasses = "w-full h-72 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-6";
+
+  if (type === "list") {
+    return (
+      <div className={baseClasses}>
+        <div className="bg-white rounded-xl shadow-lg h-full p-5 border border-gray-200">
+          <div className="flex items-center gap-4 mb-4 pb-3 border-b border-gray-100">
+            <div className="w-5 h-5" />
+            <div className="h-3 w-24 bg-gray-300 rounded" />
+            <div className="h-3 w-20 bg-gray-200 rounded" />
+            <div className="h-3 w-20 bg-gray-200 rounded" />
+            <div className="h-3 w-16 bg-gray-200 rounded" />
+          </div>
+          <div className="space-y-3">
+            {[90, 75, 60, 85, 70].map((width, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                <div className="h-3 bg-gray-200 rounded" style={{ width: `${width}%` }} />
+                <div className={cn(
+                  "h-6 w-20 rounded-full flex-shrink-0",
+                  i === 0 && "bg-black",
+                  i === 1 && "bg-gray-500",
+                  i === 2 && "bg-gray-300",
+                  i === 3 && "bg-black",
+                  i === 4 && "bg-gray-400",
+                )} />
+                <div className="w-7 h-7 rounded-full bg-gray-200 flex-shrink-0" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "board") {
+    return (
+      <div className={baseClasses}>
+        <div className="flex gap-4 h-full">
+          {[
+            { title: "To do", count: 3, color: "bg-gray-400" },
+            { title: "In progress", count: 2, color: "bg-black" },
+            { title: "Done", count: 1, color: "bg-gray-300" }
+          ].map((col) => (
+            <div key={col.title} className="flex-1 bg-white rounded-xl shadow-lg p-4 border border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className={cn("w-3 h-3 rounded-full", col.color)} />
+                  <span className="text-sm font-medium text-gray-700">{col.title}</span>
+                </div>
+                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{col.count}</span>
+              </div>
+              <div className="space-y-3">
+                {Array.from({ length: col.count }).map((_, cardIdx) => (
+                  <div key={cardIdx} className="bg-gray-50 rounded-lg p-3 border border-gray-100 shadow-sm">
+                    <div className="h-2.5 bg-gray-300 rounded w-full mb-2" />
+                    <div className="h-2 bg-gray-200 rounded w-3/4 mb-3" />
                     <div className="flex items-center justify-between">
                       <div className={cn(
-                        "h-4 w-12 rounded text-xs",
-                        cardIndex === 0 && "bg-red-100",
-                        cardIndex === 1 && "bg-yellow-100",
-                        cardIndex === 2 && "bg-green-100",
+                        "h-5 w-14 rounded-full",
+                        cardIdx === 0 && "bg-black",
+                        cardIdx === 1 && "bg-gray-400",
+                        cardIdx === 2 && "bg-gray-300",
                       )} />
-                      <div className="w-5 h-5 rounded-full bg-gray-200" />
+                      <div className="w-6 h-6 rounded-full bg-gray-200" />
                     </div>
                   </div>
                 ))}
@@ -225,30 +269,30 @@ function LargeTemplatePreview({ type }: { type: string }) {
   if (type === "calendar") {
     return (
       <div className={baseClasses}>
-        <div className="bg-white rounded-lg shadow-sm h-full p-4">
+        <div className="bg-white rounded-xl shadow-lg h-full p-5 border border-gray-200">
           <div className="flex items-center justify-between mb-4">
-            <span className="font-medium text-gray-700">January 2026</span>
-            <div className="flex gap-1">
-              <div className="w-6 h-6 rounded bg-gray-100" />
-              <div className="w-6 h-6 rounded bg-gray-100" />
+            <span className="font-semibold text-gray-800">January 2026</span>
+            <div className="flex gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gray-100 border border-gray-200" />
+              <div className="w-7 h-7 rounded-lg bg-gray-100 border border-gray-200" />
             </div>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-xs text-center mb-2">
+          <div className="grid grid-cols-7 gap-1 text-xs text-center mb-3">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="text-gray-400 py-1">{d}</div>
+              <div key={d} className="text-gray-500 font-medium py-1">{d}</div>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: 35 }).map((_, i) => (
-              <div key={i} className="aspect-square bg-gray-50 rounded p-0.5 text-xs">
+              <div key={i} className="aspect-square bg-gray-50 rounded-lg p-1 text-xs border border-gray-100">
                 {i >= 3 && i <= 33 && (
                   <>
-                    <span className="text-gray-400">{i - 2}</span>
-                    {Math.random() > 0.7 && (
-                      <div className={cn(
-                        "h-1 rounded mt-0.5",
-                        Math.random() > 0.5 ? "bg-blue-300" : "bg-green-300"
-                      )} />
+                    <span className="text-gray-500 font-medium">{i - 2}</span>
+                    {[5, 10, 15, 20, 25].includes(i) && (
+                      <div className="h-1.5 bg-black rounded mt-0.5" />
+                    )}
+                    {[8, 18, 28].includes(i) && (
+                      <div className="h-1.5 bg-gray-400 rounded mt-0.5" />
                     )}
                   </>
                 )}
@@ -263,8 +307,8 @@ function LargeTemplatePreview({ type }: { type: string }) {
   if (type === "timeline") {
     return (
       <div className={baseClasses}>
-        <div className="bg-white rounded-lg shadow-sm h-full p-4">
-          <div className="flex items-center gap-4 mb-4 text-xs text-gray-400">
+        <div className="bg-white rounded-xl shadow-lg h-full p-5 border border-gray-200">
+          <div className="flex items-center gap-8 mb-5 text-sm text-gray-500 font-medium border-b border-gray-100 pb-3">
             <span>Jan</span>
             <span>Feb</span>
             <span>Mar</span>
@@ -274,17 +318,17 @@ function LargeTemplatePreview({ type }: { type: string }) {
           </div>
           <div className="space-y-4">
             {[
-              { name: "Planning", color: "bg-purple-400", start: 0, width: 25 },
-              { name: "Design", color: "bg-blue-400", start: 20, width: 30 },
-              { name: "Development", color: "bg-green-400", start: 35, width: 40 },
-              { name: "Testing", color: "bg-yellow-400", start: 60, width: 25 },
-              { name: "Launch", color: "bg-red-400", start: 80, width: 15 },
+              { name: "Planning", color: "bg-black", start: 0, width: 25 },
+              { name: "Design", color: "bg-gray-600", start: 20, width: 30 },
+              { name: "Development", color: "bg-gray-500", start: 35, width: 40 },
+              { name: "Testing", color: "bg-gray-400", start: 60, width: 25 },
+              { name: "Launch", color: "bg-gray-300", start: 80, width: 15 },
             ].map((task) => (
-              <div key={task.name} className="flex items-center gap-3">
-                <div className="w-24 text-sm text-gray-600 truncate">{task.name}</div>
-                <div className="flex-1 h-6 bg-gray-100 rounded relative">
+              <div key={task.name} className="flex items-center gap-4">
+                <div className="w-28 text-sm text-gray-700 font-medium truncate">{task.name}</div>
+                <div className="flex-1 h-7 bg-gray-100 rounded-lg relative">
                   <div
-                    className={cn("absolute h-full rounded", task.color)}
+                    className={cn("absolute h-full rounded-lg shadow-sm", task.color)}
                     style={{ left: `${task.start}%`, width: `${task.width}%` }}
                   />
                 </div>
@@ -358,7 +402,7 @@ export default function TemplatesGalleryPage() {
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">Workflow gallery</h1>
-            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+            <Badge variant="secondary" className="bg-gray-200 text-black">
               New
             </Badge>
           </div>
@@ -376,7 +420,7 @@ export default function TemplatesGalleryPage() {
             </Button>
             <Button
               size="sm"
-              className="gap-2 bg-blue-600 hover:bg-blue-700"
+              className="gap-2 bg-black hover:bg-black"
               onClick={() => router.push("/projects/new")}
             >
               <Plus className="h-4 w-4" />
@@ -470,13 +514,13 @@ export default function TemplatesGalleryPage() {
                 {/* Info */}
                 <div className="p-4">
                   <div className="flex items-start justify-between">
-                    <h3 className="font-semibold text-gray-900 group-hover:text-blue-600">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-black">
                       {template.name}
                     </h3>
                     {template.isNew && (
                       <Badge
                         variant="secondary"
-                        className="bg-blue-100 text-blue-700 text-xs"
+                        className="bg-gray-200 text-black text-xs"
                       >
                         New
                       </Badge>
@@ -544,7 +588,7 @@ export default function TemplatesGalleryPage() {
                     <div className="flex items-center gap-2 text-sm text-gray-500">
                       <span className="capitalize">{selectedTemplate.preview} view</span>
                       {selectedTemplate.isNew && (
-                        <Badge className="bg-blue-100 text-blue-700 text-xs">New</Badge>
+                        <Badge className="bg-gray-200 text-black text-xs">New</Badge>
                       )}
                     </div>
                   </div>
@@ -576,19 +620,19 @@ export default function TemplatesGalleryPage() {
                     {/* What's included */}
                     <div className="mt-4 space-y-2">
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <CheckCircle2 className="h-4 w-4 text-black" />
                         <span>{selectedTemplate.sections.length} sections: {selectedTemplate.sections.map(s => s.name).join(", ")}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <CheckCircle2 className="h-4 w-4 text-black" />
                         <span>{selectedTemplate.tasks.length} pre-built tasks</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <CheckCircle2 className="h-4 w-4 text-black" />
                         <span>Customizable fields and views</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <CheckCircle2 className="h-4 w-4 text-black" />
                         <span>Ready to use immediately</span>
                       </div>
                     </div>
@@ -603,7 +647,7 @@ export default function TemplatesGalleryPage() {
 
                   <div className="space-y-3">
                     <Button
-                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      className="w-full bg-black hover:bg-black"
                       onClick={() => handleUseTemplate(selectedTemplate)}
                     >
                       Use template
