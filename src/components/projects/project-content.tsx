@@ -222,7 +222,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </div>
 
             {/* Share Button */}
-            <Button className="bg-amber-500 hover:bg-amber-600 text-white">
+            <Button className="bg-black hover:bg-black text-white">
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
