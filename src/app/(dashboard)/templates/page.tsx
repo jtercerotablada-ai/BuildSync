@@ -56,44 +56,112 @@ const moreCategories = [
   { id: "sales", label: "Sales & Customer Experience" },
 ];
 
-// Preview images using Storyset illustrations
-function TemplatePreview({ type }: { type: string }) {
+// Preview images using Storyset illustrations - mapped by template ID
+function TemplatePreview({ templateId }: { templateId: string }) {
   const imageMap: Record<string, string> = {
-    list: "/templates/list.svg",
-    board: "/templates/board.svg",
-    calendar: "/templates/calendar.svg",
-    timeline: "/templates/timeline.svg",
+    // Marketing
+    "campaign-management": "/templates/campaign-management.svg",
+    "creative-requests": "/templates/creative-requests.svg",
+    "content-calendar": "/templates/content-calendar.svg",
+    "social-media-calendar": "/templates/social-media-calendar.svg",
+    "event-planning": "/templates/event-planning.svg",
+    "product-launch": "/templates/product-launch.svg",
+    // Operations
+    "goal-setting-operations": "/templates/goal-setting-operations.svg",
+    "cross-functional-project": "/templates/cross-functional-project.svg",
+    "work-intake": "/templates/work-intake.svg",
+    "kanban-board": "/templates/kanban-board.svg",
+    "project-timeline": "/templates/project-timeline.svg",
+    // Productivity
+    "project-management": "/templates/project-management.svg",
+    "meeting-agenda": "/templates/meeting-agenda.svg",
+    "request-tracking": "/templates/request-tracking.svg",
+    "new-employee-checklist": "/templates/new-employee-checklist.svg",
+    "one-on-one-meeting": "/templates/one-on-one-meeting.svg",
+    // Design
+    "web-design-process": "/templates/web-design-process.svg",
+    "creative-asset-approval": "/templates/creative-asset-approval.svg",
+    "design-project-plan": "/templates/design-project-plan.svg",
+    "user-research-sessions": "/templates/user-research-sessions.svg",
+    // Engineering
+    "engineering-project-plan": "/templates/engineering-project-plan.svg",
+    "bug-tracking": "/templates/bug-tracking.svg",
+    "sprint-planning": "/templates/sprint-planning.svg",
+    "sprint-retrospective": "/templates/sprint-retrospective.svg",
+    // IT
+    "software-implementation": "/templates/software-implementation.svg",
+    "ticketing": "/templates/ticketing.svg",
+    // HR
+    "candidate-tracking": "/templates/candidate-tracking.svg",
+    // Sales
+    "customer-onboarding": "/templates/customer-onboarding.svg",
+    "sales-pipeline": "/templates/sales-pipeline.svg",
+    "digital-fundraising": "/templates/digital-fundraising.svg",
   };
 
-  const image = imageMap[type] || imageMap.list;
+  const image = imageMap[templateId] || "/templates/list.svg";
 
   return (
     <div className="w-full h-52 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex items-center justify-center p-4 overflow-hidden">
       <img
         src={image}
-        alt={`${type} template preview`}
+        alt={`${templateId} template preview`}
         className="w-full h-full object-contain grayscale hover:grayscale-0 transition-all duration-300"
       />
     </div>
   );
 }
 
-// Large preview for modal - using Storyset illustrations
-function LargeTemplatePreview({ type }: { type: string }) {
+// Large preview for modal - using Storyset illustrations mapped by template ID
+function LargeTemplatePreview({ templateId }: { templateId: string }) {
   const imageMap: Record<string, string> = {
-    list: "/templates/list.svg",
-    board: "/templates/board.svg",
-    calendar: "/templates/calendar.svg",
-    timeline: "/templates/timeline.svg",
+    // Marketing
+    "campaign-management": "/templates/campaign-management.svg",
+    "creative-requests": "/templates/creative-requests.svg",
+    "content-calendar": "/templates/content-calendar.svg",
+    "social-media-calendar": "/templates/social-media-calendar.svg",
+    "event-planning": "/templates/event-planning.svg",
+    "product-launch": "/templates/product-launch.svg",
+    // Operations
+    "goal-setting-operations": "/templates/goal-setting-operations.svg",
+    "cross-functional-project": "/templates/cross-functional-project.svg",
+    "work-intake": "/templates/work-intake.svg",
+    "kanban-board": "/templates/kanban-board.svg",
+    "project-timeline": "/templates/project-timeline.svg",
+    // Productivity
+    "project-management": "/templates/project-management.svg",
+    "meeting-agenda": "/templates/meeting-agenda.svg",
+    "request-tracking": "/templates/request-tracking.svg",
+    "new-employee-checklist": "/templates/new-employee-checklist.svg",
+    "one-on-one-meeting": "/templates/one-on-one-meeting.svg",
+    // Design
+    "web-design-process": "/templates/web-design-process.svg",
+    "creative-asset-approval": "/templates/creative-asset-approval.svg",
+    "design-project-plan": "/templates/design-project-plan.svg",
+    "user-research-sessions": "/templates/user-research-sessions.svg",
+    // Engineering
+    "engineering-project-plan": "/templates/engineering-project-plan.svg",
+    "bug-tracking": "/templates/bug-tracking.svg",
+    "sprint-planning": "/templates/sprint-planning.svg",
+    "sprint-retrospective": "/templates/sprint-retrospective.svg",
+    // IT
+    "software-implementation": "/templates/software-implementation.svg",
+    "ticketing": "/templates/ticketing.svg",
+    // HR
+    "candidate-tracking": "/templates/candidate-tracking.svg",
+    // Sales
+    "customer-onboarding": "/templates/customer-onboarding.svg",
+    "sales-pipeline": "/templates/sales-pipeline.svg",
+    "digital-fundraising": "/templates/digital-fundraising.svg",
   };
 
-  const image = imageMap[type] || imageMap.list;
+  const image = imageMap[templateId] || "/templates/list.svg";
 
   return (
     <div className="w-full h-72 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center p-8 border border-gray-200">
       <img
         src={image}
-        alt={`${type} template preview`}
+        alt={`${templateId} template preview`}
         className="w-full h-full object-contain"
       />
     </div>
@@ -267,7 +335,7 @@ export default function TemplatesGalleryPage() {
               >
                 {/* Preview - Asana style */}
                 <div className="rounded-2xl overflow-hidden border border-gray-200 hover:border-gray-300 hover:shadow-xl transition-all duration-200 bg-white">
-                  <TemplatePreview type={template.preview} />
+                  <TemplatePreview templateId={template.id} />
                 </div>
 
                 {/* Info - Below preview like Asana */}
@@ -363,7 +431,7 @@ export default function TemplatesGalleryPage() {
               {/* Modal Content */}
               <div className="px-6 py-5">
                 {/* Large Preview */}
-                <LargeTemplatePreview type={selectedTemplate.preview} />
+                <LargeTemplatePreview templateId={selectedTemplate.id} />
 
                 {/* Template Info */}
                 <div className="mt-8 grid grid-cols-3 gap-8">
