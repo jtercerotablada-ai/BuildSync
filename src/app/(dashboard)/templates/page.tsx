@@ -188,35 +188,53 @@ function TemplatePreview({ type }: { type: string }) {
   return null;
 }
 
-// Large preview for modal
+// Large preview for modal - looks like real app screenshot
 function LargeTemplatePreview({ type }: { type: string }) {
-  const baseClasses = "w-full h-72 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl p-6";
+  const baseClasses = "w-full h-80 bg-gradient-to-br from-gray-50 via-gray-100 to-gray-150 rounded-2xl p-5 shadow-inner";
 
   if (type === "list") {
     return (
       <div className={baseClasses}>
-        <div className="bg-white rounded-xl shadow-lg h-full p-5 border border-gray-200">
-          <div className="flex items-center gap-4 mb-4 pb-3 border-b border-gray-100">
-            <div className="w-5 h-5" />
-            <div className="h-3 w-24 bg-gray-300 rounded" />
-            <div className="h-3 w-20 bg-gray-200 rounded" />
-            <div className="h-3 w-20 bg-gray-200 rounded" />
-            <div className="h-3 w-16 bg-gray-200 rounded" />
+        <div className="bg-white rounded-xl shadow-xl h-full overflow-hidden border border-gray-200">
+          {/* App header bar */}
+          <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-3">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+            </div>
+            <div className="flex-1 flex justify-center">
+              <div className="h-5 w-48 bg-gray-200 rounded-md" />
+            </div>
           </div>
-          <div className="space-y-3">
-            {[90, 75, 60, 85, 70].map((width, i) => (
-              <div key={i} className="flex items-center gap-4">
-                <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
-                <div className="h-3 bg-gray-200 rounded" style={{ width: `${width}%` }} />
+          {/* Table header */}
+          <div className="flex items-center gap-4 px-5 py-3 border-b border-gray-100 bg-gray-50/50">
+            <div className="w-6" />
+            <div className="flex-1 text-xs font-semibold text-gray-500">Task name</div>
+            <div className="w-24 text-xs font-semibold text-gray-500 text-center">Status</div>
+            <div className="w-20 text-xs font-semibold text-gray-500 text-center">Priority</div>
+            <div className="w-10 text-xs font-semibold text-gray-500 text-center">Owner</div>
+          </div>
+          {/* Task rows */}
+          <div className="divide-y divide-gray-50">
+            {[
+              { name: "Review project requirements", status: "Done", statusColor: "bg-black text-white", priority: "High" },
+              { name: "Create wireframes for homepage", status: "In Progress", statusColor: "bg-gray-600 text-white", priority: "High" },
+              { name: "Set up development environment", status: "In Progress", statusColor: "bg-gray-600 text-white", priority: "Medium" },
+              { name: "Design system components", status: "To Do", statusColor: "bg-gray-200 text-gray-700", priority: "Medium" },
+              { name: "Write technical documentation", status: "To Do", statusColor: "bg-gray-200 text-gray-700", priority: "Low" },
+            ].map((task, i) => (
+              <div key={i} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50/50">
                 <div className={cn(
-                  "h-6 w-20 rounded-full flex-shrink-0",
-                  i === 0 && "bg-black",
-                  i === 1 && "bg-gray-500",
-                  i === 2 && "bg-gray-300",
-                  i === 3 && "bg-black",
-                  i === 4 && "bg-gray-400",
-                )} />
-                <div className="w-7 h-7 rounded-full bg-gray-200 flex-shrink-0" />
+                  "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                  task.status === "Done" ? "bg-black border-black" : "border-gray-300"
+                )}>
+                  {task.status === "Done" && <CheckCircle2 className="w-3 h-3 text-white" />}
+                </div>
+                <div className={cn("flex-1 text-sm", task.status === "Done" && "line-through text-gray-400")}>{task.name}</div>
+                <div className={cn("w-24 text-xs font-medium px-2 py-1 rounded-full text-center", task.statusColor)}>{task.status}</div>
+                <div className="w-20 text-xs text-gray-600 text-center">{task.priority}</div>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex-shrink-0" />
               </div>
             ))}
           </div>
@@ -228,39 +246,59 @@ function LargeTemplatePreview({ type }: { type: string }) {
   if (type === "board") {
     return (
       <div className={baseClasses}>
-        <div className="flex gap-4 h-full">
-          {[
-            { title: "To do", count: 3, color: "bg-gray-400" },
-            { title: "In progress", count: 2, color: "bg-black" },
-            { title: "Done", count: 1, color: "bg-gray-300" }
-          ].map((col) => (
-            <div key={col.title} className="flex-1 bg-white rounded-xl shadow-lg p-4 border border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className={cn("w-3 h-3 rounded-full", col.color)} />
-                  <span className="text-sm font-medium text-gray-700">{col.title}</span>
-                </div>
-                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{col.count}</span>
-              </div>
-              <div className="space-y-3">
-                {Array.from({ length: col.count }).map((_, cardIdx) => (
-                  <div key={cardIdx} className="bg-gray-50 rounded-lg p-3 border border-gray-100 shadow-sm">
-                    <div className="h-2.5 bg-gray-300 rounded w-full mb-2" />
-                    <div className="h-2 bg-gray-200 rounded w-3/4 mb-3" />
-                    <div className="flex items-center justify-between">
-                      <div className={cn(
-                        "h-5 w-14 rounded-full",
-                        cardIdx === 0 && "bg-black",
-                        cardIdx === 1 && "bg-gray-400",
-                        cardIdx === 2 && "bg-gray-300",
-                      )} />
-                      <div className="w-6 h-6 rounded-full bg-gray-200" />
-                    </div>
-                  </div>
-                ))}
-              </div>
+        <div className="bg-white rounded-xl shadow-xl h-full overflow-hidden border border-gray-200">
+          {/* App header bar */}
+          <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-3">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
             </div>
-          ))}
+            <div className="flex-1 flex justify-center">
+              <div className="h-5 w-48 bg-gray-200 rounded-md" />
+            </div>
+          </div>
+          {/* Board columns */}
+          <div className="flex gap-4 p-4 h-[calc(100%-40px)] bg-gray-50/30">
+            {[
+              { title: "To Do", cards: [
+                { title: "Research competitors", tag: "Research" },
+                { title: "Define user personas", tag: "Planning" },
+                { title: "Create mood board", tag: "Design" },
+              ]},
+              { title: "In Progress", cards: [
+                { title: "Build landing page", tag: "Development" },
+                { title: "Design mobile views", tag: "Design" },
+              ]},
+              { title: "Done", cards: [
+                { title: "Project kickoff", tag: "Meeting" },
+              ]},
+            ].map((col, colIdx) => (
+              <div key={col.title} className="flex-1 flex flex-col min-w-0">
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <div className={cn(
+                    "w-2.5 h-2.5 rounded-full",
+                    colIdx === 0 && "bg-gray-400",
+                    colIdx === 1 && "bg-black",
+                    colIdx === 2 && "bg-gray-300"
+                  )} />
+                  <span className="text-sm font-semibold text-gray-700">{col.title}</span>
+                  <span className="text-xs text-gray-400 ml-auto">{col.cards.length}</span>
+                </div>
+                <div className="flex-1 space-y-2 overflow-hidden">
+                  {col.cards.map((card, cardIdx) => (
+                    <div key={cardIdx} className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                      <p className="text-sm font-medium text-gray-800 mb-2">{card.title}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">{card.tag}</span>
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-gray-200 to-gray-300" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -269,35 +307,57 @@ function LargeTemplatePreview({ type }: { type: string }) {
   if (type === "calendar") {
     return (
       <div className={baseClasses}>
-        <div className="bg-white rounded-xl shadow-lg h-full p-5 border border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <span className="font-semibold text-gray-800">January 2026</span>
-            <div className="flex gap-2">
-              <div className="w-7 h-7 rounded-lg bg-gray-100 border border-gray-200" />
-              <div className="w-7 h-7 rounded-lg bg-gray-100 border border-gray-200" />
+        <div className="bg-white rounded-xl shadow-xl h-full overflow-hidden border border-gray-200">
+          {/* App header bar */}
+          <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-3">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+            </div>
+            <div className="flex-1 flex justify-center">
+              <div className="h-5 w-48 bg-gray-200 rounded-md" />
             </div>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-xs text-center mb-3">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="text-gray-500 font-medium py-1">{d}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: 35 }).map((_, i) => (
-              <div key={i} className="aspect-square bg-gray-50 rounded-lg p-1 text-xs border border-gray-100">
-                {i >= 3 && i <= 33 && (
-                  <>
-                    <span className="text-gray-500 font-medium">{i - 2}</span>
-                    {[5, 10, 15, 20, 25].includes(i) && (
-                      <div className="h-1.5 bg-black rounded mt-0.5" />
-                    )}
-                    {[8, 18, 28].includes(i) && (
-                      <div className="h-1.5 bg-gray-400 rounded mt-0.5" />
-                    )}
-                  </>
-                )}
+          {/* Calendar */}
+          <div className="p-4 h-[calc(100%-40px)]">
+            <div className="flex items-center justify-between mb-4">
+              <span className="font-bold text-gray-900">January 2026</span>
+              <div className="flex gap-1">
+                <button className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600">‹</button>
+                <button className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600">›</button>
               </div>
-            ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-xs text-center mb-2">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                <div key={d} className="text-gray-400 font-semibold py-2">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1 flex-1">
+              {Array.from({ length: 35 }).map((_, i) => {
+                const day = i - 3;
+                const hasEvent1 = [2, 8, 15, 22].includes(day);
+                const hasEvent2 = [5, 12, 19].includes(day);
+                const isToday = day === 15;
+                return (
+                  <div key={i} className={cn(
+                    "aspect-[4/3] rounded-lg p-1 text-xs flex flex-col",
+                    isToday ? "bg-black text-white" : "bg-gray-50 hover:bg-gray-100",
+                    day < 1 || day > 31 ? "opacity-30" : ""
+                  )}>
+                    {day >= 1 && day <= 31 && (
+                      <>
+                        <span className={cn("font-semibold", isToday ? "text-white" : "text-gray-700")}>{day}</span>
+                        <div className="mt-auto space-y-0.5">
+                          {hasEvent1 && <div className={cn("h-1 rounded-full", isToday ? "bg-white/60" : "bg-black")} />}
+                          {hasEvent2 && <div className={cn("h-1 rounded-full", isToday ? "bg-white/40" : "bg-gray-400")} />}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -307,33 +367,51 @@ function LargeTemplatePreview({ type }: { type: string }) {
   if (type === "timeline") {
     return (
       <div className={baseClasses}>
-        <div className="bg-white rounded-xl shadow-lg h-full p-5 border border-gray-200">
-          <div className="flex items-center gap-8 mb-5 text-sm text-gray-500 font-medium border-b border-gray-100 pb-3">
-            <span>Jan</span>
-            <span>Feb</span>
-            <span>Mar</span>
-            <span>Apr</span>
-            <span>May</span>
-            <span>Jun</span>
+        <div className="bg-white rounded-xl shadow-xl h-full overflow-hidden border border-gray-200">
+          {/* App header bar */}
+          <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-3">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+              <div className="w-3 h-3 rounded-full bg-gray-300" />
+            </div>
+            <div className="flex-1 flex justify-center">
+              <div className="h-5 w-48 bg-gray-200 rounded-md" />
+            </div>
           </div>
-          <div className="space-y-4">
-            {[
-              { name: "Planning", color: "bg-black", start: 0, width: 25 },
-              { name: "Design", color: "bg-gray-600", start: 20, width: 30 },
-              { name: "Development", color: "bg-gray-500", start: 35, width: 40 },
-              { name: "Testing", color: "bg-gray-400", start: 60, width: 25 },
-              { name: "Launch", color: "bg-gray-300", start: 80, width: 15 },
-            ].map((task) => (
-              <div key={task.name} className="flex items-center gap-4">
-                <div className="w-28 text-sm text-gray-700 font-medium truncate">{task.name}</div>
-                <div className="flex-1 h-7 bg-gray-100 rounded-lg relative">
-                  <div
-                    className={cn("absolute h-full rounded-lg shadow-sm", task.color)}
-                    style={{ left: `${task.start}%`, width: `${task.width}%` }}
-                  />
-                </div>
+          {/* Timeline */}
+          <div className="p-4 h-[calc(100%-40px)]">
+            {/* Month headers */}
+            <div className="flex mb-4 pl-32">
+              <div className="flex-1 grid grid-cols-6 text-xs font-semibold text-gray-500">
+                {["Jan", "Feb", "Mar", "Apr", "May", "Jun"].map((m) => (
+                  <div key={m} className="text-center border-l border-gray-200 first:border-l-0">{m}</div>
+                ))}
               </div>
-            ))}
+            </div>
+            {/* Timeline rows */}
+            <div className="space-y-3">
+              {[
+                { name: "Discovery & Research", color: "bg-black", start: 0, width: 20 },
+                { name: "UX Design", color: "bg-gray-700", start: 15, width: 25 },
+                { name: "UI Design", color: "bg-gray-600", start: 30, width: 25 },
+                { name: "Development", color: "bg-gray-500", start: 40, width: 40 },
+                { name: "Testing & QA", color: "bg-gray-400", start: 70, width: 20 },
+                { name: "Launch", color: "bg-gray-300", start: 88, width: 10 },
+              ].map((task) => (
+                <div key={task.name} className="flex items-center gap-3">
+                  <div className="w-32 text-sm text-gray-700 font-medium truncate flex-shrink-0">{task.name}</div>
+                  <div className="flex-1 h-8 bg-gray-100 rounded-lg relative">
+                    <div
+                      className={cn("absolute h-full rounded-lg shadow-sm flex items-center px-2", task.color)}
+                      style={{ left: `${task.start}%`, width: `${task.width}%` }}
+                    >
+                      {task.width > 15 && <span className="text-xs text-white font-medium truncate">{task.name}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -572,91 +650,99 @@ export default function TemplatesGalleryPage() {
           {selectedTemplate && (
             <>
               {/* Modal Header */}
-              <div className="flex items-center justify-between p-4 border-b">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: selectedTemplate.color }}
-                  >
+              <div className="flex items-center justify-between px-6 py-5 border-b">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-black flex items-center justify-center shadow-sm">
                     {(() => {
                       const ViewIcon = getViewIcon(selectedTemplate.preview);
-                      return <ViewIcon className="h-5 w-5 text-white" />;
+                      return <ViewIcon className="h-6 w-6 text-white" />;
                     })()}
                   </div>
                   <div>
-                    <h2 className="font-semibold text-lg">{selectedTemplate.name}</h2>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <span className="capitalize">{selectedTemplate.preview} view</span>
+                    <div className="flex items-center gap-3">
+                      <h2 className="font-semibold text-xl">{selectedTemplate.name}</h2>
                       {selectedTemplate.isNew && (
-                        <Badge className="bg-gray-200 text-black text-xs">New</Badge>
+                        <span className="px-2 py-0.5 text-xs font-medium border border-black rounded-full">
+                          New
+                        </span>
                       )}
                     </div>
+                    <p className="text-sm text-gray-500 mt-0.5 capitalize">{selectedTemplate.preview} view</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon">
-                    <Star className="h-4 w-4" />
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="hover:bg-gray-100">
+                    <Star className="h-5 w-5" />
                   </Button>
-                  <Button variant="ghost" size="icon">
-                    <Share2 className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" className="hover:bg-gray-100">
+                    <Share2 className="h-5 w-5" />
                   </Button>
-                  <Button variant="ghost" size="icon">
-                    <MoreHorizontal className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" className="hover:bg-gray-100">
+                    <MoreHorizontal className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
 
               {/* Modal Content */}
-              <div className="p-6">
+              <div className="px-6 py-5">
                 {/* Large Preview */}
                 <LargeTemplatePreview type={selectedTemplate.preview} />
 
                 {/* Template Info */}
-                <div className="mt-6 grid grid-cols-3 gap-6">
-                  <div className="col-span-2">
-                    <h3 className="font-medium text-gray-900 mb-2">About this template</h3>
-                    <p className="text-gray-600">{selectedTemplate.description}</p>
+                <div className="mt-8 grid grid-cols-3 gap-8">
+                  <div className="col-span-2 pr-4">
+                    <h3 className="font-semibold text-gray-900 mb-3">About this template</h3>
+                    <p className="text-gray-600 leading-relaxed">{selectedTemplate.description}</p>
 
                     {/* What's included */}
-                    <div className="mt-4 space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="h-4 w-4 text-black" />
+                    <div className="mt-6 space-y-3">
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">What's included</p>
+                      <div className="flex items-start gap-3 text-sm text-gray-700">
+                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <CheckCircle2 className="h-3 w-3 text-white" />
+                        </div>
                         <span>{selectedTemplate.sections.length} sections: {selectedTemplate.sections.map(s => s.name).join(", ")}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="h-4 w-4 text-black" />
-                        <span>{selectedTemplate.tasks.length} pre-built tasks</span>
+                      <div className="flex items-start gap-3 text-sm text-gray-700">
+                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <CheckCircle2 className="h-3 w-3 text-white" />
+                        </div>
+                        <span>{selectedTemplate.tasks.length} pre-built tasks ready to assign</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="h-4 w-4 text-black" />
-                        <span>Customizable fields and views</span>
+                      <div className="flex items-start gap-3 text-sm text-gray-700">
+                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <CheckCircle2 className="h-3 w-3 text-white" />
+                        </div>
+                        <span>Customizable fields and multiple views</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="h-4 w-4 text-black" />
+                      <div className="flex items-start gap-3 text-sm text-gray-700">
+                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <CheckCircle2 className="h-3 w-3 text-white" />
+                        </div>
                         <span>Ready to use immediately</span>
                       </div>
                     </div>
 
                     {selectedTemplate.company && (
-                      <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-gray-500">Trusted by</p>
-                        <p className="font-medium text-gray-700">{selectedTemplate.company}</p>
+                      <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <p className="text-xs text-gray-500 mb-1">Trusted by</p>
+                        <p className="font-semibold text-gray-900">{selectedTemplate.company}</p>
                       </div>
                     )}
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-4 pl-4 border-l border-gray-100">
                     <Button
-                      className="w-full bg-black hover:bg-black"
+                      className="w-full bg-black hover:bg-gray-900 h-11 text-base font-medium"
                       onClick={() => handleUseTemplate(selectedTemplate)}
                     >
                       Use template
                     </Button>
-                    <Button variant="outline" className="w-full">
+                    <Button variant="outline" className="w-full h-11 text-base font-medium border-gray-300">
                       Preview
                     </Button>
-                    <div className="text-center">
-                      <button className="text-sm text-gray-500 hover:text-gray-700">
+                    <div className="text-center pt-2">
+                      <button className="text-sm text-gray-500 hover:text-black transition-colors">
                         Learn more about templates
                       </button>
                     </div>
