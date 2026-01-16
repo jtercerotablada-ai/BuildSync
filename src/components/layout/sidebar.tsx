@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,12 @@ interface Project {
   color: string;
 }
 
+interface Team {
+  id: string;
+  name: string;
+  color?: string;
+}
+
 interface SidebarProps {
   projects?: Project[];
   onCreateProject?: () => void;
@@ -55,17 +61,35 @@ const insightsNavItems = [
 
 export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = useSession();
   const [mounted, setMounted] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [teamsOpen, setTeamsOpen] = useState(true);
   const [projectsDropdownOpen, setProjectsDropdownOpen] = useState(false);
   const projectsDropdownRef = useRef<HTMLDivElement>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
 
   // Prevent hydration mismatch with Radix components
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Fetch teams
+  useEffect(() => {
+    async function fetchTeams() {
+      try {
+        const res = await fetch('/api/teams/list');
+        if (res.ok) {
+          const data = await res.json();
+          setTeams(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch teams:', error);
+      }
+    }
+    if (session) fetchTeams();
+  }, [session]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -249,18 +273,46 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
               />
               Teams
             </CollapsibleTrigger>
-            <Button variant="ghost" size="icon" className="h-5 w-5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5"
+              onClick={() => router.push('/teams/new')}
+            >
               <Plus className="h-3 w-3" />
             </Button>
           </div>
           <CollapsibleContent>
             <nav className="space-y-1">
-              <Link href="/team">
-                <span className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-black hover:bg-black hover:text-white hover:text-white">
-                  <Users className="h-4 w-4" />
-                  My Team
-                </span>
-              </Link>
+              {teams.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-black">
+                  No teams yet
+                </p>
+              ) : (
+                teams.map((team) => {
+                  const isActive = pathname === `/teams/${team.id}`;
+                  return (
+                    <Link key={team.id} href={`/teams/${team.id}`}>
+                      <span
+                        className={cn(
+                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-slate-200 text-slate-900"
+                            : "text-black hover:bg-black hover:text-white"
+                        )}
+                      >
+                        <div
+                          className="h-4 w-4 rounded flex items-center justify-center"
+                          style={{ backgroundColor: team.color || '#6366F1' }}
+                        >
+                          <Users className="h-2.5 w-2.5 text-white" />
+                        </div>
+                        <span className="truncate">{team.name}</span>
+                      </span>
+                    </Link>
+                  );
+                })
+              )}
             </nav>
           </CollapsibleContent>
         </Collapsible>
