@@ -649,7 +649,8 @@ export function PrivateNotepadWidget({
                     key={index}
                     onSelect={(e) => {
                       e.preventDefault();
-                      item.action?.();
+                      // Defer action to avoid blocking UI (INP optimization)
+                      setTimeout(() => item.action?.(), 0);
                     }}
                     className="cursor-pointer"
                   >
@@ -675,7 +676,10 @@ export function PrivateNotepadWidget({
                 <TooltipTrigger asChild>
                   <button
                     onMouseDown={saveSelection}
-                    onClick={() => handleToolbarClick(button)}
+                    onClick={() => {
+                      // Defer action to avoid blocking UI (INP optimization)
+                      setTimeout(() => handleToolbarClick(button), 0);
+                    }}
                     className="p-1.5 hover:bg-gray-100 rounded"
                   >
                     <Icon className="h-4 w-4 text-gray-500" />
