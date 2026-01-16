@@ -13,15 +13,21 @@ import {
   Strikethrough,
   List,
   ListOrdered,
-  IndentDecrease,
   Link2,
   Code,
-  ClipboardList,
+  FileCode,
   Sparkles,
   TextQuote,
   Smile,
   AtSign,
   Pilcrow,
+  Loader2,
+  Wand2,
+  Minimize2,
+  Maximize2,
+  CheckCircle,
+  Languages,
+  X,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -80,8 +86,21 @@ export function PrivateNotepadWidget({
   const [mentionSearch, setMentionSearch] = useState('');
   const [insertMenuOpen, setInsertMenuOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [showAIAssist, setShowAIAssist] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [selectedText, setSelectedText] = useState('');
+  const [aiResult, setAiResult] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
   const savedSelectionRef = useRef<Range | null>(null);
+
+  // AI Assist options
+  const aiOptions = [
+    { id: 'improve', icon: Wand2, label: 'Improve writing', prompt: 'Improve the following text, making it clearer and more professional:' },
+    { id: 'summarize', icon: Minimize2, label: 'Summarize', prompt: 'Summarize the following text concisely:' },
+    { id: 'expand', icon: Maximize2, label: 'Expand & detail', prompt: 'Expand and add more detail to the following text:' },
+    { id: 'fix', icon: CheckCircle, label: 'Fix grammar', prompt: 'Fix any grammar and spelling errors in the following text:' },
+    { id: 'translate', icon: Languages, label: 'Translate to Spanish', prompt: 'Translate the following text to Spanish:' },
+  ];
 
   // Mock users for mentions
   const users = [
@@ -383,7 +402,7 @@ export function PrivateNotepadWidget({
     },
   ];
 
-  // Toolbar buttons
+  // Toolbar buttons - ordered: Bold, Italic, Underline, Strikethrough, Bullet, Numbered, Quote, Link, Code, Code block, AI
   const toolbarButtons = [
     { icon: Bold, command: 'bold', tooltip: 'Bold (Ctrl+B)' },
     { icon: Italic, command: 'italic', tooltip: 'Italic (Ctrl+I)' },
@@ -391,15 +410,72 @@ export function PrivateNotepadWidget({
     { icon: Strikethrough, command: 'strikeThrough', tooltip: 'Strikethrough' },
     { type: 'separator' as const },
     { icon: List, tooltip: 'Bullet list', action: 'bulletList' },
-    { icon: IndentDecrease, command: 'outdent', tooltip: 'Decrease indent' },
     { icon: ListOrdered, tooltip: 'Numbered list', action: 'numberedList' },
+    { icon: TextQuote, tooltip: 'Quote', action: 'quote' },
     { type: 'separator' as const },
     { icon: Link2, tooltip: 'Insert link', action: 'link' },
+    { icon: Code, tooltip: 'Inline code', action: 'inlineCode' },
+    { icon: FileCode, tooltip: 'Code block', action: 'code' },
     { type: 'separator' as const },
-    { icon: Code, tooltip: 'Code block', action: 'code' },
-    { icon: ClipboardList, tooltip: 'Insert template', action: 'template' },
-    { icon: Sparkles, tooltip: 'AI assist', action: 'ai' },
+    { icon: Sparkles, tooltip: 'AI assist (select text)', action: 'ai' },
   ];
+
+  // AI Assist function
+  const handleAIAssist = useCallback(async (option: typeof aiOptions[0]) => {
+    if (!selectedText.trim()) return;
+
+    setAiLoading(true);
+    setAiResult('');
+
+    try {
+      const response = await fetch('/api/ai/assist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: option.prompt,
+          text: selectedText,
+        }),
+      });
+
+      if (!response.ok) throw new Error('AI request failed');
+
+      const data = await response.json();
+      setAiResult(data.result);
+    } catch (error) {
+      console.error('AI assist error:', error);
+      setAiResult('Error: Could not process your request. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [selectedText]);
+
+  // Apply AI result to editor
+  const applyAIResult = useCallback(() => {
+    if (!aiResult || !editorRef.current) return;
+
+    restoreSelection();
+    document.execCommand('insertText', false, aiResult);
+    handleContentChange();
+    setShowAIAssist(false);
+    setAiResult('');
+    setSelectedText('');
+  }, [aiResult, restoreSelection, handleContentChange]);
+
+  // Open AI assist modal
+  const openAIAssist = useCallback(() => {
+    const selection = window.getSelection();
+    const text = selection?.toString() || '';
+
+    if (!text.trim()) {
+      // If no selection, use all content
+      setSelectedText(editorRef.current?.textContent || '');
+    } else {
+      setSelectedText(text);
+      saveSelection();
+    }
+    setAiResult('');
+    setShowAIAssist(true);
+  }, [saveSelection]);
 
   const handleToolbarClick = useCallback((button: any) => {
     if (!editorRef.current) return;
@@ -413,6 +489,10 @@ export function PrivateNotepadWidget({
       insertNumberedList();
       return;
     }
+    if (button.action === 'quote') {
+      insertQuote();
+      return;
+    }
     if (button.action === 'link') {
       const url = prompt('Enter URL:');
       if (url) {
@@ -421,23 +501,29 @@ export function PrivateNotepadWidget({
       }
       return;
     }
+    if (button.action === 'inlineCode') {
+      // Wrap selection in <code> tags
+      const selection = window.getSelection();
+      if (selection && selection.toString()) {
+        const text = selection.toString();
+        document.execCommand('insertHTML', false, `<code style="background-color: #f3f4f6; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em;">${text}</code>`);
+        handleContentChange();
+      }
+      return;
+    }
     if (button.action === 'code') {
       insertCodeBlock();
       return;
     }
-    if (button.action === 'template') {
-      // TODO: Open template modal
-      return;
-    }
     if (button.action === 'ai') {
-      // TODO: Open AI assist
+      openAIAssist();
       return;
     }
     if (button.command) {
       document.execCommand(button.command, false);
       handleContentChange();
     }
-  }, [handleContentChange, insertCodeBlock, insertBulletedList, insertNumberedList]);
+  }, [handleContentChange, insertCodeBlock, insertBulletedList, insertNumberedList, insertQuote, openAIAssist]);
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -758,6 +844,101 @@ export function PrivateNotepadWidget({
                     </div>
                   </button>
                 ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI ASSIST MODAL */}
+      {showAIAssist && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setShowAIAssist(false)}>
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+                <h3 className="font-semibold">AI Assist</h3>
+              </div>
+              <button
+                onClick={() => setShowAIAssist(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4">
+              {/* Selected text preview */}
+              <div className="mb-4">
+                <p className="text-xs text-gray-500 mb-1">Selected text:</p>
+                <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 max-h-24 overflow-y-auto">
+                  {selectedText || 'No text selected'}
+                </div>
+              </div>
+
+              {/* AI Options */}
+              {!aiResult && (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500 mb-2">What would you like to do?</p>
+                  {aiOptions.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => handleAIAssist(option)}
+                        disabled={aiLoading || !selectedText.trim()}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
+                      >
+                        <Icon className="h-5 w-5 text-purple-600" />
+                        <span className="font-medium text-sm">{option.label}</span>
+                        {aiLoading && (
+                          <Loader2 className="h-4 w-4 animate-spin ml-auto text-gray-400" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* AI Result */}
+              {aiResult && (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500">Result:</p>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-gray-700 max-h-48 overflow-y-auto">
+                    {aiResult}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={applyAIResult}
+                      className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm"
+                    >
+                      Replace text
+                    </button>
+                    <button
+                      onClick={() => {
+                        restoreSelection();
+                        document.execCommand('insertText', false, '\n\n' + aiResult);
+                        handleContentChange();
+                        setShowAIAssist(false);
+                        setAiResult('');
+                      }}
+                      className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm"
+                    >
+                      Insert below
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setAiResult('')}
+                    className="w-full text-gray-500 text-sm hover:text-gray-700"
+                  >
+                    Try another option
+                  </button>
+                </div>
               )}
             </div>
           </div>
