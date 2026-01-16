@@ -35,7 +35,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { InviteTeamModal, LinkWorkPopover } from "@/components/teams";
+import { InviteTeamModal, LinkWorkPopover, TeamSettingsModal } from "@/components/teams";
 import { toast } from "sonner";
 
 interface TeamMember {
@@ -62,6 +62,7 @@ interface Team {
   description: string | null;
   avatar: string | null;
   color: string | null;
+  privacy: "PUBLIC" | "REQUEST_TO_JOIN" | "PRIVATE";
   members: TeamMember[];
   objectives: TeamObjective[];
   _count: {
@@ -89,8 +90,7 @@ export default function TeamPage() {
   const [isStarred, setIsStarred] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [description, setDescription] = useState("");
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -103,7 +103,6 @@ export default function TeamPage() {
         if (teamRes.ok) {
           const teamData = await teamRes.json();
           setTeam(teamData);
-          setDescription(teamData.description || "");
         }
 
         if (workRes.ok) {
@@ -120,23 +119,16 @@ export default function TeamPage() {
     fetchData();
   }, [teamId]);
 
-  const handleSaveDescription = async () => {
+  const refreshTeam = async () => {
     try {
-      const res = await fetch(`/api/teams/${teamId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
-      });
-
+      const res = await fetch(`/api/teams/${teamId}`);
       if (res.ok) {
-        const updatedTeam = await res.json();
-        setTeam(updatedTeam);
-        toast.success("Description updated");
+        const data = await res.json();
+        setTeam(data);
       }
     } catch (error) {
-      toast.error("Error updating description");
+      console.error("Error refreshing team:", error);
     }
-    setIsEditingDescription(false);
   };
 
   // Calculate setup steps completion
@@ -205,13 +197,12 @@ export default function TeamPage() {
                 <ChevronDown className="h-4 w-4 text-gray-400" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowSettingsModal(true)}>
                   <Settings className="h-4 w-4 mr-2" />
-                  Edit team
+                  Team settings
                 </DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600">
+                <DropdownMenuItem className="text-red-600" onClick={() => setShowSettingsModal(true)}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete team
                 </DropdownMenuItem>
@@ -329,40 +320,12 @@ export default function TeamPage() {
           </div>
 
           {/* Description */}
-          {isEditingDescription ? (
-            <div className="mt-4 w-full max-w-md">
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full p-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                rows={3}
-                placeholder="Describe the purpose and responsibilities of the team..."
-                autoFocus
-              />
-              <div className="flex justify-end gap-2 mt-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setDescription(team.description || "");
-                    setIsEditingDescription(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={handleSaveDescription}>
-                  Save
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <button
-              className="mt-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              onClick={() => setIsEditingDescription(true)}
-            >
-              {team.description || "Click to add team description..."}
-            </button>
-          )}
+          <button
+            className="mt-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            onClick={() => setShowSettingsModal(true)}
+          >
+            {team.description || "Click to add team description..."}
+          </button>
         </div>
       </div>
 
@@ -395,7 +358,7 @@ export default function TeamPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Step 1: Description */}
               <button
-                onClick={() => setIsEditingDescription(true)}
+                onClick={() => setShowSettingsModal(true)}
                 className={cn(
                   "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
                   setupSteps.description ? "bg-green-50 border-green-200" : "bg-white"
@@ -714,12 +677,20 @@ export default function TeamPage() {
         teamId={teamId}
         open={showInviteModal}
         onClose={() => setShowInviteModal(false)}
-        onInviteSent={() => {
-          // Refresh team data
-          fetch(`/api/teams/${teamId}`)
-            .then((res) => res.json())
-            .then((data) => setTeam(data));
+        onInviteSent={refreshTeam}
+      />
+
+      {/* Settings Modal */}
+      <TeamSettingsModal
+        team={{
+          id: team.id,
+          name: team.name,
+          description: team.description,
+          privacy: team.privacy,
         }}
+        open={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onSave={refreshTeam}
       />
     </div>
   );
