@@ -2,100 +2,205 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, ArrowRight, Plus, Inbox } from 'lucide-react';
+import {
+  FileText,
+  Plus,
+  MoreHorizontal,
+  Check,
+  Trash2,
+  ChevronDown,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { WidgetSize } from '@/types/dashboard';
 
-interface FormSubmission {
+interface Form {
   id: string;
-  formName: string;
-  submittedBy: string;
+  name: string;
+  projectName: string;
+  responsesCount: number;
   createdAt: string;
-  status: 'pending' | 'reviewed';
 }
 
-export function FormsWidget() {
+interface FormsWidgetProps {
+  size?: WidgetSize;
+  onSizeChange?: (size: WidgetSize) => void;
+  onRemove?: () => void;
+  onCreateForm?: () => void;
+}
+
+export function FormsWidget({ size = 'half', onSizeChange, onRemove, onCreateForm }: FormsWidgetProps) {
   const router = useRouter();
-  const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [forms, setForms] = useState<Form[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'recents' | 'all'>('recents');
 
   useEffect(() => {
-    async function fetchSubmissions() {
+    async function fetchForms() {
       try {
-        const res = await fetch('/api/forms/submissions?limit=5');
+        const res = await fetch('/api/forms?limit=5');
         if (res.ok) {
           const data = await res.json();
-          setSubmissions(data);
+          setForms(data);
         }
       } catch (error) {
-        console.error('Failed to fetch form submissions:', error);
+        console.error('Failed to fetch forms:', error);
       } finally {
         setLoading(false);
       }
     }
-    fetchSubmissions();
+    fetchForms();
   }, []);
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const handleCreateForm = () => {
+    if (onCreateForm) {
+      onCreateForm();
+    } else {
+      router.push('/forms/new');
+    }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between -mt-1">
-        <span className="text-sm text-slate-500">Manage work request submissions</span>
-        <Button
-          variant="link"
-          size="sm"
-          className="text-black hover:text-black p-0 h-auto"
-          onClick={() => router.push('/forms')}
-        >
-          View all <ArrowRight className="ml-1 h-3 w-3" />
-        </Button>
+    <div className="h-full flex flex-col">
+      {/* ========== HEADER ========== */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold text-gray-900">Forms</h3>
+
+          {/* Filter dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+                {filter === 'recents' ? 'Recents' : 'All'}
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setFilter('recents')}>
+                Recents
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilter('all')}>
+                All
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* ===== DROPDOWN 3 PUNTOS ===== */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-2 hover:bg-gray-100 rounded-lg">
+              <MoreHorizontal className="h-5 w-5 text-gray-500" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            {/* New form */}
+            <DropdownMenuItem
+              onClick={handleCreateForm}
+              className="cursor-pointer"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New form
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            {/* Half size */}
+            <DropdownMenuItem
+              onClick={() => onSizeChange?.('half')}
+              className="cursor-pointer"
+            >
+              {size === 'half' && <Check className="h-4 w-4 mr-2" />}
+              {size !== 'half' && <span className="w-4 mr-2" />}
+              Half size
+            </DropdownMenuItem>
+
+            {/* Full size */}
+            <DropdownMenuItem
+              onClick={() => onSizeChange?.('full')}
+              className="cursor-pointer"
+            >
+              {size === 'full' && <Check className="h-4 w-4 mr-2" />}
+              {size !== 'full' && <span className="w-4 mr-2" />}
+              Full size
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            {/* Remove widget */}
+            <DropdownMenuItem
+              onClick={onRemove}
+              className="cursor-pointer text-red-600 focus:text-red-600"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Remove widget
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-14 bg-slate-100 animate-pulse rounded-lg" />
-          ))}
-        </div>
-      ) : submissions.length === 0 ? (
-        <div className="text-center py-8">
-          <Inbox className="h-12 w-12 mx-auto mb-2 text-slate-300" />
-          <p className="font-medium text-slate-900 mb-1">No submissions yet</p>
-          <p className="text-sm text-slate-500 mb-4">
-            Create forms to collect work requests from your team
-          </p>
-          <Button variant="outline" className="gap-2" onClick={() => router.push('/forms/new')}>
-            <Plus className="h-4 w-4" />
-            Create form
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {submissions.map((submission) => (
-            <button
-              key={submission.id}
-              className="w-full p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
-              onClick={() => router.push(`/forms/submissions/${submission.id}`)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-900 truncate">{submission.formName}</p>
-                  <p className="text-xs text-slate-500">
-                    {submission.submittedBy} · {formatDate(submission.createdAt)}
-                  </p>
-                </div>
-                {submission.status === 'pending' && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-white text-black border border-black">
-                    Pending
-                  </span>
-                )}
+      {/* ========== CONTENT ========== */}
+      <div className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-14 bg-gray-100 animate-pulse rounded-lg" />
+            ))}
+          </div>
+        ) : forms.length === 0 ? (
+          /* Empty state */
+          <div className="flex flex-col items-center justify-center h-full text-center py-8">
+            {/* Form icon */}
+            <div className="relative mb-4">
+              <div className="w-16 h-20 border-2 border-gray-200 rounded-lg flex items-end justify-center pb-2">
+                <div className="w-8 h-2 bg-gray-200 rounded" />
               </div>
-            </button>
-          ))}
-        </div>
-      )}
+              <div className="absolute -top-1 -right-1 w-6 h-6 border-2 border-gray-200 rounded bg-white" />
+            </div>
+
+            <p className="text-gray-500 text-sm max-w-xs mb-4">
+              Simplify how you manage work requests. Create a form to prioritize and track incoming work.
+            </p>
+
+            <Button
+              variant="outline"
+              onClick={handleCreateForm}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add new form
+            </Button>
+          </div>
+        ) : (
+          /* Lista de forms */
+          <div className="space-y-2">
+            {forms.map((form) => (
+              <button
+                key={form.id}
+                className="w-full p-3 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center justify-between"
+                onClick={() => router.push(`/forms/${form.id}`)}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="font-medium text-sm">{form.name}</p>
+                    <p className="text-xs text-gray-500">{form.projectName}</p>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-500">
+                  {form.responsesCount} responses
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

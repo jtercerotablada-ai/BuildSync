@@ -1,5 +1,4 @@
 export type WidgetType =
-  | 'quick-overview'
   | 'my-tasks'
   | 'projects'
   | 'goals'
@@ -61,14 +60,6 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     icon: 'Target',
     defaultEnabled: true,
     defaultOrder: 3,
-  },
-  {
-    id: 'quick-overview',
-    title: 'Quick overview',
-    description: 'Task and project statistics at a glance',
-    icon: 'BarChart3',
-    defaultEnabled: true,
-    defaultOrder: 4,
   },
   // === WIDGETS OPCIONALES ===
   {

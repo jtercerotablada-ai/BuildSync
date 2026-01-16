@@ -27,7 +27,6 @@ import { QuickCreateTaskModal } from '@/components/tasks/quick-create-task-modal
 import {
   MyTasksWidget,
   ProjectsWidget,
-  QuickOverviewWidget,
   GoalsWidget,
   AssignedTasksWidget,
   PeopleWidget,
@@ -93,8 +92,6 @@ export default function HomePage() {
   // Widget components map
   const renderWidget = (widgetId: WidgetType) => {
     switch (widgetId) {
-      case 'quick-overview':
-        return <QuickOverviewWidget />;
       case 'my-tasks':
         return (
           <MyTasksWidget
@@ -112,19 +109,43 @@ export default function HomePage() {
       case 'assigned-tasks':
         return <AssignedTasksWidget onAssignTask={() => setShowQuickCreateTask(true)} />;
       case 'people':
-        return <PeopleWidget />;
+        return (
+          <PeopleWidget
+            size={getWidgetSize('people')}
+            onSizeChange={(size) => setWidgetSize('people', size)}
+            onRemove={() => toggleWidget('people')}
+          />
+        );
       case 'status-updates':
         return <StatusUpdatesWidget />;
       case 'portfolios':
         return <PortfoliosWidget />;
       case 'private-notepad':
-        return <PrivateNotepadWidget />;
+        return (
+          <PrivateNotepadWidget
+            size={getWidgetSize('private-notepad')}
+            onSizeChange={(size) => setWidgetSize('private-notepad', size)}
+            onRemove={() => toggleWidget('private-notepad')}
+          />
+        );
       case 'draft-comments':
         return <DraftCommentsWidget />;
       case 'forms':
-        return <FormsWidget />;
+        return (
+          <FormsWidget
+            size={getWidgetSize('forms')}
+            onSizeChange={(size) => setWidgetSize('forms', size)}
+            onRemove={() => toggleWidget('forms')}
+          />
+        );
       case 'mentions':
-        return <MentionsWidget />;
+        return (
+          <MentionsWidget
+            size={getWidgetSize('mentions')}
+            onSizeChange={(size) => setWidgetSize('mentions', size)}
+            onRemove={() => toggleWidget('mentions')}
+          />
+        );
       case 'ai-assistant':
         return <AIAssistantWidget />;
       default:
@@ -182,8 +203,12 @@ export default function HomePage() {
               {(preferences.widgetOrder || []).map((widgetId) => {
                 if (!(preferences.visibleWidgets || []).includes(widgetId)) return null;
 
-                // MyTasks widget has its own header with dropdown
-                const hideHeader = widgetId === 'my-tasks';
+                // Skip widgets that no longer exist (e.g., quick-overview from old localStorage)
+                const widgetContent = renderWidget(widgetId);
+                if (!widgetContent) return null;
+
+                // Widgets with custom headers that manage their own dropdown
+                const hideHeader = widgetId === 'my-tasks' || widgetId === 'mentions' || widgetId === 'forms' || widgetId === 'people' || widgetId === 'private-notepad';
                 const widgetSize = getWidgetSize(widgetId);
 
                 return (
@@ -194,7 +219,7 @@ export default function HomePage() {
                     size={widgetSize}
                     hideHeader={hideHeader}
                   >
-                    {renderWidget(widgetId)}
+                    {widgetContent}
                   </WidgetContainer>
                 );
               })}

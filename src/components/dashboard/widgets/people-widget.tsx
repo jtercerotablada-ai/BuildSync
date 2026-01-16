@@ -2,15 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, ChevronDown } from 'lucide-react';
+import {
+  Users,
+  ChevronDown,
+  MoreHorizontal,
+  Check,
+  Trash2,
+  Plus,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { WidgetSize } from '@/types/dashboard';
 
 interface Person {
   id: string;
@@ -20,10 +29,18 @@ interface Person {
   role?: string;
 }
 
-export function PeopleWidget() {
+interface PeopleWidgetProps {
+  size?: WidgetSize;
+  onSizeChange?: (size: WidgetSize) => void;
+  onRemove?: () => void;
+  onInvite?: () => void;
+}
+
+export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }: PeopleWidgetProps) {
   const router = useRouter();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'frequent' | 'all'>('frequent');
 
   useEffect(() => {
     async function fetchPeople() {
@@ -42,60 +59,152 @@ export function PeopleWidget() {
     fetchPeople();
   }, []);
 
+  const handleInvite = () => {
+    if (onInvite) {
+      onInvite();
+    } else {
+      router.push('/team?invite=true');
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
-      {/* Header con dropdown */}
-      <div className="flex items-center gap-2 mb-4 flex-shrink-0">
+      {/* ========== HEADER ========== */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold text-gray-900">People</h3>
+
+          {/* Filter dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+                {filter === 'frequent' ? 'Frequent collaborators' : 'All'}
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setFilter('frequent')}>
+                Frequent collaborators
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilter('all')}>
+                All
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* ===== DROPDOWN 3 PUNTOS ===== */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="text-gray-500 h-7 px-2">
-              Frequent collaborators
-              <ChevronDown className="h-3 w-3 ml-1" />
-            </Button>
+            <button className="p-2 hover:bg-gray-100 rounded-lg">
+              <MoreHorizontal className="h-5 w-5 text-gray-500" />
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem>Frequent collaborators</DropdownMenuItem>
-            <DropdownMenuItem>All team members</DropdownMenuItem>
+          <DropdownMenuContent align="end" className="w-44">
+            {/* Invite */}
+            <DropdownMenuItem
+              onClick={handleInvite}
+              className="cursor-pointer"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Invite
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            {/* Half size */}
+            <DropdownMenuItem
+              onClick={() => onSizeChange?.('half')}
+              className="cursor-pointer"
+            >
+              {size === 'half' && <Check className="h-4 w-4 mr-2" />}
+              {size !== 'half' && <span className="w-4 mr-2" />}
+              Half size
+            </DropdownMenuItem>
+
+            {/* Full size */}
+            <DropdownMenuItem
+              onClick={() => onSizeChange?.('full')}
+              className="cursor-pointer"
+            >
+              {size === 'full' && <Check className="h-4 w-4 mr-2" />}
+              {size !== 'full' && <span className="w-4 mr-2" />}
+              Full size
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            {/* Remove widget */}
+            <DropdownMenuItem
+              onClick={onRemove}
+              className="cursor-pointer text-red-600 focus:text-red-600"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Remove widget
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex items-center justify-center min-h-0">
+      {/* ========== CONTENT ========== */}
+      <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <div className="flex gap-2">
+          <div className="flex gap-4 justify-center py-8">
             {[1, 2, 3].map(i => (
-              <div key={i} className="w-10 h-10 rounded-full bg-gray-100 animate-pulse" />
+              <div key={i} className="w-12 h-12 rounded-full bg-gray-100 animate-pulse" />
             ))}
           </div>
         ) : people.length === 0 ? (
-          <div className="text-center">
-            <div className="flex justify-center mb-4">
-              <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-gray-200" />
-                <div className="w-10 h-10 rounded-full bg-gray-300 absolute -right-2 top-1" />
+          /* Empty state */
+          <div className="flex flex-col items-center justify-center h-full text-center py-8">
+            {/* People icon */}
+            <div className="relative mb-4">
+              <div className="flex items-end">
+                {/* Person outline (back) */}
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full border-2 border-gray-300 bg-white" />
+                  <div
+                    className="w-8 h-4 border-2 border-gray-300 border-t-0 rounded-b-full bg-white mx-auto -mt-1"
+                    style={{ marginLeft: '4px' }}
+                  />
+                </div>
+                {/* Person filled (front) */}
+                <div className="relative -ml-4">
+                  <div className="w-12 h-12 rounded-full bg-gray-300" />
+                  <div className="w-12 h-5 bg-gray-300 rounded-b-full -mt-1" />
+                </div>
               </div>
             </div>
+
             <p className="text-gray-500 text-sm mb-4">
-              Invite your team members to collaborate
+              Invite your teammates to collaborate in BuildSync
             </p>
-            <Button variant="outline" size="sm">
-              Invite team members
+
+            <Button
+              variant="outline"
+              onClick={handleInvite}
+            >
+              Invite teammates
             </Button>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-4 justify-center">
+          /* Lista de personas */
+          <div className="flex flex-wrap gap-4 justify-center py-4">
             {people.map((person) => (
               <button
                 key={person.id}
-                className="flex flex-col items-center gap-1 hover:opacity-80 transition-opacity"
+                className="flex flex-col items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors"
                 onClick={() => router.push(`/team/${person.id}`)}
               >
                 <Avatar className="h-12 w-12">
                   <AvatarImage src={person.image || undefined} />
-                  <AvatarFallback>{person.name?.charAt(0)}</AvatarFallback>
+                  <AvatarFallback className="bg-gray-900 text-white">
+                    {person.name?.slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
                 </Avatar>
-                <span className="text-xs text-gray-600">{person.name?.split(' ')[0]}</span>
+                <span className="text-xs text-gray-600 max-w-[60px] truncate">
+                  {person.name?.split(' ')[0]}
+                </span>
               </button>
             ))}
           </div>
