@@ -39,10 +39,15 @@ export async function GET() {
           },
         },
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        privacy: true,
         _count: {
           select: {
             objectives: true,
+            members: true,
           },
         },
       },

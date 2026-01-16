@@ -154,25 +154,33 @@ export default function CreateTeamPage() {
     setLoading(true);
 
     try {
+      const payload = {
+        name: teamName,
+        privacy,
+        memberIds: selectedMembers.map((m) => m.id),
+      };
+
+      console.log('Creating team with payload:', payload);
+
       const response = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: teamName,
-          privacy,
-          memberIds: selectedMembers.map((m) => m.id),
-        }),
+        body: JSON.stringify(payload),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to create team');
+        console.error('Team creation failed:', data);
+        throw new Error(data.error || 'Failed to create team');
       }
 
-      const team = await response.json();
+      console.log('Team created successfully:', data);
       toast.success('Team created successfully');
-      router.push(`/teams/${team.id}`);
+      router.push(`/teams/${data.id}`);
     } catch (error) {
-      toast.error('Failed to create team');
+      console.error('Error creating team:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create team');
     } finally {
       setLoading(false);
     }
