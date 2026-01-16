@@ -106,11 +106,16 @@ interface Message {
   };
 }
 
-interface Workspace {
+interface Team {
   id: string;
   name: string;
   description: string | null;
-  avatar: string | null;
+  color: string | null;
+  privacy: "PUBLIC" | "REQUEST_TO_JOIN" | "PRIVATE";
+  _count?: {
+    members: number;
+    projects: number;
+  };
 }
 
 type TabType = "overview" | "members" | "work" | "messages" | "calendar";
@@ -118,7 +123,8 @@ type TabType = "overview" | "members" | "work" | "messages" | "calendar";
 export default function TeamPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -137,6 +143,18 @@ export default function TeamPage() {
   async function fetchData() {
     setIsLoading(true);
     try {
+      // First, fetch teams to get the real team data
+      const teamsRes = await fetch("/api/teams/list");
+      if (teamsRes.ok) {
+        const teamsData = await teamsRes.json();
+        setTeams(teamsData);
+
+        // Set the first team as current if available
+        if (teamsData.length > 0) {
+          setCurrentTeam(teamsData[0]);
+        }
+      }
+
       const [membersRes, projectsRes, messagesRes] = await Promise.all([
         fetch("/api/workspace/members"),
         fetch("/api/projects"),
@@ -155,14 +173,6 @@ export default function TeamPage() {
         const data = await messagesRes.json();
         setMessages(data.messages || []);
       }
-
-      // Mock workspace data since we don't have a separate endpoint
-      setWorkspace({
-        id: "workspace-1",
-        name: "My Team",
-        description: null,
-        avatar: null,
-      });
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -172,8 +182,8 @@ export default function TeamPage() {
 
   const handleSaveDescription = async () => {
     // In a real app, save to API
-    if (workspace) {
-      setWorkspace({ ...workspace, description });
+    if (currentTeam) {
+      setCurrentTeam({ ...currentTeam, description });
       toast.success("Description updated");
     }
     setIsEditingDescription(false);
@@ -181,7 +191,7 @@ export default function TeamPage() {
 
   // Calculate setup steps completion
   const setupSteps = {
-    description: !!workspace?.description,
+    description: !!currentTeam?.description,
     work: projects.length > 0,
     members: members.length > 1,
   };
@@ -204,8 +214,33 @@ export default function TeamPage() {
     );
   }
 
-  const teamName = workspace?.name || "My Team";
+  // If no teams exist, show empty state
+  if (!currentTeam) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
+            <Users className="h-8 w-8 text-gray-400" />
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">No teams yet</h1>
+          <p className="text-gray-500 mb-6">
+            Create your first team to collaborate with your teammates on projects, goals, and more.
+          </p>
+          <Button
+            onClick={() => router.push("/teams/new")}
+            className="bg-black hover:bg-gray-800 gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Create a team
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const teamName = currentTeam.name;
   const teamInitial = teamName.charAt(0).toUpperCase();
+  const teamColor = currentTeam.color || "#000000";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -214,12 +249,11 @@ export default function TeamPage() {
         <div className="px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Team Avatar */}
-            <div className="w-8 h-8 rounded-lg bg-white border border-black flex items-center justify-center">
-              {workspace?.avatar ? (
-                <img src={workspace.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
-              ) : (
-                <span className="text-sm font-medium text-black">{teamInitial}</span>
-              )}
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ backgroundColor: teamColor }}
+            >
+              <span className="text-sm font-medium text-white">{teamInitial}</span>
             </div>
 
             {/* Team Name Dropdown */}
@@ -228,16 +262,42 @@ export default function TeamPage() {
                 {teamName}
                 <ChevronDown className="h-4 w-4 text-gray-400" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuContent align="start" className="w-56">
+                {/* Show all teams for switching */}
+                {teams.length > 1 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs text-gray-500 font-medium">Switch team</div>
+                    {teams.map((team) => (
+                      <DropdownMenuItem
+                        key={team.id}
+                        onClick={() => setCurrentTeam(team)}
+                        className={cn(
+                          "flex items-center gap-2",
+                          team.id === currentTeam.id && "bg-gray-100"
+                        )}
+                      >
+                        <div
+                          className="w-5 h-5 rounded flex items-center justify-center text-xs text-white"
+                          style={{ backgroundColor: team.color || "#000" }}
+                        >
+                          {team.name.charAt(0).toUpperCase()}
+                        </div>
+                        {team.name}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem onClick={() => setShowSettingsModal(true)}>
                   <Settings className="h-4 w-4 mr-2" />
                   Edit team
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowSettingsModal(true)}>
-                  Settings
+                <DropdownMenuItem onClick={() => router.push("/teams/new")}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create new team
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-black" onClick={() => setShowSettingsModal(true)}>
+                <DropdownMenuItem className="text-red-600" onClick={() => setShowSettingsModal(true)}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete team
                 </DropdownMenuItem>
@@ -312,11 +372,12 @@ export default function TeamPage() {
       {/* ========== CONTENT ========== */}
       {activeTab === "overview" && (
         <OverviewContent
-          workspace={workspace}
+          team={currentTeam}
           members={members}
           projects={projects}
           teamName={teamName}
           teamInitial={teamInitial}
+          teamColor={teamColor}
           isEditingDescription={isEditingDescription}
           setIsEditingDescription={setIsEditingDescription}
           description={description}
@@ -360,14 +421,14 @@ export default function TeamPage() {
       />
 
       {/* Settings Modal */}
-      {workspace && (
+      {currentTeam && (
         <TeamSettingsModal
           team={{
-            id: workspace.id,
-            name: workspace.name,
-            description: workspace.description,
-            privacy: "PUBLIC",
-            workspace: { name: workspace.name },
+            id: currentTeam.id,
+            name: currentTeam.name,
+            description: currentTeam.description,
+            privacy: currentTeam.privacy,
+            workspace: { name: currentTeam.name },
           }}
           open={showSettingsModal}
           onClose={() => setShowSettingsModal(false)}
@@ -380,11 +441,12 @@ export default function TeamPage() {
 
 // ========== OVERVIEW CONTENT ==========
 function OverviewContent({
-  workspace,
+  team,
   members,
   projects,
   teamName,
   teamInitial,
+  teamColor,
   isEditingDescription,
   setIsEditingDescription,
   description,
@@ -398,11 +460,12 @@ function OverviewContent({
   setShowSettingsModal,
   setActiveTab,
 }: {
-  workspace: Workspace | null;
+  team: Team;
   members: Member[];
   projects: Project[];
   teamName: string;
   teamInitial: string;
+  teamColor: string;
   isEditingDescription: boolean;
   setIsEditingDescription: (v: boolean) => void;
   description: string;
@@ -424,12 +487,11 @@ function OverviewContent({
       <div className="bg-gradient-to-b from-gray-100 to-gray-50 py-12">
         <div className="flex flex-col items-center text-center">
           {/* Large Avatar */}
-          <div className="w-32 h-32 rounded-full bg-white border-4 border-black shadow-lg flex items-center justify-center mb-6">
-            {workspace?.avatar ? (
-              <img src={workspace.avatar} alt={teamName} className="w-full h-full rounded-full object-cover" />
-            ) : (
-              <span className="text-5xl font-light text-gray-600">{teamInitial}</span>
-            )}
+          <div
+            className="w-32 h-32 rounded-full shadow-lg flex items-center justify-center mb-6"
+            style={{ backgroundColor: teamColor }}
+          >
+            <span className="text-5xl font-light text-white">{teamInitial}</span>
           </div>
 
           {/* Name + Create Work */}
@@ -481,7 +543,7 @@ function OverviewContent({
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setDescription(workspace?.description || "");
+                    setDescription(team?.description || "");
                     setIsEditingDescription(false);
                   }}
                 >
@@ -497,7 +559,7 @@ function OverviewContent({
               className="mt-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
               onClick={() => setIsEditingDescription(true)}
             >
-              {workspace?.description || "Click to add team description..."}
+              {team?.description || "Click to add team description..."}
             </button>
           )}
         </div>
@@ -564,7 +626,7 @@ function OverviewContent({
               </button>
 
               {/* Step 2: Work */}
-              <LinkWorkPopover teamId={workspace?.id || ""}>
+              <LinkWorkPopover teamId={team?.id || ""}>
                 <button
                   type="button"
                   className={cn(
@@ -667,7 +729,7 @@ function OverviewContent({
                     </button>
                   ))}
                   <div className="flex justify-center pt-4">
-                    <LinkWorkPopover teamId={workspace?.id || ""}>
+                    <LinkWorkPopover teamId={team?.id || ""}>
                       <Button variant="outline" className="gap-2">
                         <Plus className="h-4 w-4" />
                         Add work
@@ -699,7 +761,7 @@ function OverviewContent({
                   </p>
 
                   <div className="flex justify-center">
-                    <LinkWorkPopover teamId={workspace?.id || ""}>
+                    <LinkWorkPopover teamId={team?.id || ""}>
                       <Button className="bg-black hover:bg-black">
                         Add work
                       </Button>
