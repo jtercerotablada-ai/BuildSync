@@ -2,7 +2,7 @@
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { MoreHorizontal, X, Settings, Lock, Info, Sparkles } from 'lucide-react';
+import { MoreHorizontal, X, Lock, Info, Sparkles, Check, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,12 +14,21 @@ import {
 import { cn } from '@/lib/utils';
 import { WidgetType, WidgetSize, AVAILABLE_WIDGETS } from '@/types/dashboard';
 
+// Custom action for widget menu
+export interface WidgetMenuAction {
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+}
+
 interface WidgetContainerProps {
   id: WidgetType;
   children: React.ReactNode;
   onHide: (id: WidgetType) => void;
   size?: WidgetSize;
+  onSizeChange?: (size: WidgetSize) => void;
   hideHeader?: boolean; // For widgets with custom headers (like MyTasksWidget)
+  menuActions?: WidgetMenuAction[]; // Custom actions to show at top of menu
 }
 
 // Overlay component for drag preview
@@ -55,7 +64,7 @@ export function WidgetOverlay({ id, size = 'half' }: WidgetOverlayProps) {
   );
 }
 
-export function WidgetContainer({ id, children, onHide, size = 'half', hideHeader = false }: WidgetContainerProps) {
+export function WidgetContainer({ id, children, onHide, size = 'half', onSizeChange, hideHeader = false, menuActions }: WidgetContainerProps) {
   const {
     attributes,
     listeners,
@@ -134,21 +143,64 @@ export function WidgetContainer({ id, children, onHide, size = 'half', hideHeade
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-gray-400 hover:text-gray-600"
+                onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem disabled>
-                <Settings className="h-4 w-4 mr-2" />
-                Widget settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              {/* Custom actions */}
+              {menuActions && menuActions.length > 0 && (
+                <>
+                  {menuActions.map((action, index) => (
+                    <DropdownMenuItem
+                      key={index}
+                      onClick={action.onClick}
+                      className="cursor-pointer"
+                    >
+                      {action.icon}
+                      {action.label}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
+              {/* Size options - only show if onSizeChange is provided */}
+              {onSizeChange && (
+                <>
+                  <DropdownMenuItem
+                    onClick={() => onSizeChange('half')}
+                    className="cursor-pointer"
+                  >
+                    {size === 'half' ? (
+                      <Check className="h-4 w-4 mr-2" />
+                    ) : (
+                      <span className="w-4 mr-2" />
+                    )}
+                    Half size
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => onSizeChange('full')}
+                    className="cursor-pointer"
+                  >
+                    {size === 'full' ? (
+                      <Check className="h-4 w-4 mr-2" />
+                    ) : (
+                      <span className="w-4 mr-2" />
+                    )}
+                    Full size
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
+              {/* Remove widget */}
               <DropdownMenuItem
                 onClick={() => onHide(id)}
-                className="text-red-600 focus:text-red-600"
+                className="text-red-500 focus:text-red-500 focus:bg-red-50 cursor-pointer"
               >
-                <X className="h-4 w-4 mr-2" />
+                <Trash2 className="h-4 w-4 mr-2" />
                 Remove widget
               </DropdownMenuItem>
             </DropdownMenuContent>

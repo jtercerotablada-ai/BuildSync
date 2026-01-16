@@ -21,8 +21,9 @@ import {
 } from '@dnd-kit/sortable';
 
 import { useWidgetPreferences } from '@/hooks/use-widget-preferences';
-import { WidgetContainer, WidgetOverlay } from '@/components/dashboard/widget-container';
+import { WidgetContainer, WidgetOverlay, WidgetMenuAction } from '@/components/dashboard/widget-container';
 import { CustomizeWidgetsModal } from '@/components/dashboard/customize-widgets-modal';
+import { Plus, Target } from 'lucide-react';
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
 import { CreateObjectiveDialog } from '@/components/goals/create-objective-dialog';
 import { QuickCreateTaskModal } from '@/components/tasks/quick-create-task-modal';
@@ -96,6 +97,26 @@ export default function HomePage() {
   };
 
   const userName = session?.user?.name?.split(' ')[0] || 'there';
+
+  // Get menu actions for each widget type
+  const getMenuActions = (widgetId: WidgetType): WidgetMenuAction[] => {
+    switch (widgetId) {
+      case 'projects':
+        return [{
+          label: 'New project',
+          icon: <Plus className="h-4 w-4 mr-2" />,
+          onClick: () => setShowCreateProject(true),
+        }];
+      case 'goals':
+        return [{
+          label: 'New goal',
+          icon: <Target className="h-4 w-4 mr-2" />,
+          onClick: () => setShowCreateGoal(true),
+        }];
+      default:
+        return [];
+    }
+  };
 
   // Widget components map
   const renderWidget = (widgetId: WidgetType) => {
@@ -232,7 +253,9 @@ export default function HomePage() {
                     id={widgetId}
                     onHide={toggleWidget}
                     size={widgetSize}
+                    onSizeChange={!hideHeader ? (size) => setWidgetSize(widgetId, size) : undefined}
                     hideHeader={hideHeader}
+                    menuActions={!hideHeader ? getMenuActions(widgetId) : undefined}
                   >
                     {widgetContent}
                   </WidgetContainer>
