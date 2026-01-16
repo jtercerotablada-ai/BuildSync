@@ -2,7 +2,7 @@
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { MoreHorizontal, GripVertical, X, Settings, Lock, Info, Sparkles } from 'lucide-react';
+import { MoreHorizontal, X, Settings, Lock, Info, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -60,7 +60,7 @@ export function WidgetContainer({ id, children, onHide, size = 'half', hideHeade
       ref={setNodeRef}
       style={style}
       className={cn(
-        'bg-white rounded-lg border border-gray-200 shadow-sm group',
+        'bg-white rounded-lg border border-gray-200 shadow-sm group relative',
         'transition-all duration-200 hover:shadow-md',
         'h-[320px] flex flex-col',
         // Size determines column span
@@ -69,18 +69,13 @@ export function WidgetContainer({ id, children, onHide, size = 'half', hideHeade
       )}
     >
       {/* Widget Header - Only show if hideHeader is false */}
-      {!hideHeader && (
-        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0">
+      {!hideHeader ? (
+        <div
+          {...attributes}
+          {...listeners}
+          className="flex items-center justify-between px-4 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
+        >
           <div className="flex items-center gap-2">
-            {/* Drag Handle - visible solo en hover */}
-            <button
-              {...attributes}
-              {...listeners}
-              className="cursor-grab active:cursor-grabbing p-1 -ml-2 rounded hover:bg-gray-100 text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity touch-none"
-            >
-              <GripVertical className="h-4 w-4" />
-            </button>
-
             {/* Título con icono opcional */}
             <h3 className="font-semibold text-gray-900 flex items-center gap-1.5">
               {widget?.title}
@@ -115,6 +110,13 @@ export function WidgetContainer({ id, children, onHide, size = 'half', hideHeade
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      ) : (
+        /* Drag handle bar for widgets with custom headers */
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute top-0 left-0 right-12 h-14 cursor-grab active:cursor-grabbing touch-none z-[5]"
+        />
       )}
 
       {/* Widget Content */}
