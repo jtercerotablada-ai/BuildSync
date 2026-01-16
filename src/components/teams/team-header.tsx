@@ -52,12 +52,12 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
   const [isStarred, setIsStarred] = useState(false);
 
   const tabs = [
-    { id: "overview", label: "Resumen", icon: LayoutGrid, href: `/teams/${team.id}` },
-    { id: "members", label: "Miembros", icon: Users, href: `/teams/${team.id}/members` },
-    { id: "work", label: "Todo el trabajo", icon: LayoutGrid, href: `/teams/${team.id}/work` },
-    { id: "messages", label: "Mensajes", icon: MessageSquare, href: `/teams/${team.id}/messages` },
-    { id: "calendar", label: "Calendario", icon: Calendar, href: `/teams/${team.id}/calendar` },
-    { id: "knowledge", label: "Conocimientos", icon: BookOpen, href: `/teams/${team.id}/knowledge` },
+    { id: "overview", label: "Overview", icon: LayoutGrid, href: `/teams/${team.id}` },
+    { id: "members", label: "Members", icon: Users, href: `/teams/${team.id}/members` },
+    { id: "work", label: "All work", icon: LayoutGrid, href: `/teams/${team.id}/work` },
+    { id: "messages", label: "Messages", icon: MessageSquare, href: `/teams/${team.id}/messages` },
+    { id: "calendar", label: "Calendar", icon: Calendar, href: `/teams/${team.id}/calendar` },
+    { id: "knowledge", label: "Knowledge", icon: BookOpen, href: `/teams/${team.id}/knowledge` },
   ];
 
   const memberCount = team.members?.length || 0;
@@ -90,16 +90,16 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
               <DropdownMenuContent align="start" className="w-48">
                 <DropdownMenuItem>
                   <Settings className="h-4 w-4 mr-2" />
-                  Editar equipo
+                  Edit team
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Users className="h-4 w-4 mr-2" />
-                  Configuración
+                  Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-black">
+                <DropdownMenuItem className="text-red-600">
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar equipo
+                  Delete team
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -140,7 +140,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
               onClick={() => setShowInviteModal(true)}
             >
               <Users className="h-4 w-4" />
-              Invitar
+              Invite
             </Button>
           </div>
         </div>

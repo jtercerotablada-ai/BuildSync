@@ -38,16 +38,16 @@ export function InviteTeamModal({
     try {
       await navigator.clipboard.writeText(inviteLink);
       setCopied(true);
-      toast.success("Enlace copiado");
+      toast.success("Link copied");
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      toast.error("Error al copiar el enlace");
+      toast.error("Error copying link");
     }
   };
 
   const handleInvite = async () => {
     if (!email.trim()) {
-      toast.error("Ingresa un correo electronico");
+      toast.error("Enter an email address");
       return;
     }
 
@@ -64,11 +64,11 @@ export function InviteTeamModal({
         throw new Error("Failed to invite");
       }
 
-      toast.success("Invitacion enviada");
+      toast.success("Invitation sent");
       setEmail("");
       onInviteSent?.();
     } catch (error) {
-      toast.error("Error al enviar invitacion");
+      toast.error("Error sending invitation");
     } finally {
       setIsLoading(false);
     }
@@ -84,14 +84,14 @@ export function InviteTeamModal({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Invitar al equipo</DialogTitle>
+          <DialogTitle>Invite to team</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Email invite */}
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 block">
-              Invitar por correo electronico
+              Invite by email
             </label>
             <div className="flex gap-2">
               <div className="flex-1 relative">
@@ -100,7 +100,7 @@ export function InviteTeamModal({
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="correo@ejemplo.com"
+                  placeholder="email@example.com"
                   className="pl-10"
                   onKeyDown={handleKeyDown}
                   disabled={isLoading}
@@ -110,7 +110,7 @@ export function InviteTeamModal({
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  "Invitar"
+                  "Invite"
                 )}
               </Button>
             </div>
@@ -122,14 +122,14 @@ export function InviteTeamModal({
               <div className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">o</span>
+              <span className="bg-white px-2 text-gray-500">or</span>
             </div>
           </div>
 
           {/* Copy link */}
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 block">
-              Compartir enlace de invitacion
+              Share invite link
             </label>
             <div className="flex gap-2">
               <div className="flex-1 relative">
@@ -149,7 +149,7 @@ export function InviteTeamModal({
               </Button>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              Cualquier persona con este enlace podra unirse al equipo
+              Anyone with this link can join the team
             </p>
           </div>
         </div>

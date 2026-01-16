@@ -131,10 +131,10 @@ export default function TeamPage() {
       if (res.ok) {
         const updatedTeam = await res.json();
         setTeam(updatedTeam);
-        toast.success("Descripcion actualizada");
+        toast.success("Description updated");
       }
     } catch (error) {
-      toast.error("Error al actualizar descripcion");
+      toast.error("Error updating description");
     }
     setIsEditingDescription(false);
   };
@@ -151,11 +151,11 @@ export default function TeamPage() {
   const shouldShowBanner = showSetupBanner && completedSteps < 3;
 
   const tabs = [
-    { id: "overview", label: "Resumen", icon: LayoutGrid, href: `/teams/${teamId}` },
-    { id: "members", label: "Miembros", icon: Users, href: `/teams/${teamId}/members` },
-    { id: "work", label: "Todo el trabajo", icon: FolderKanban, href: `/teams/${teamId}/work` },
-    { id: "messages", label: "Mensajes", icon: MessageSquare, href: `/teams/${teamId}/messages` },
-    { id: "calendar", label: "Calendario", icon: Calendar, href: `/teams/${teamId}/calendar` },
+    { id: "overview", label: "Overview", icon: LayoutGrid, href: `/teams/${teamId}` },
+    { id: "members", label: "Members", icon: Users, href: `/teams/${teamId}/members` },
+    { id: "work", label: "All work", icon: FolderKanban, href: `/teams/${teamId}/work` },
+    { id: "messages", label: "Messages", icon: MessageSquare, href: `/teams/${teamId}/messages` },
+    { id: "calendar", label: "Calendar", icon: Calendar, href: `/teams/${teamId}/calendar` },
   ];
 
   if (isLoading) {
@@ -170,12 +170,12 @@ export default function TeamPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          Equipo no encontrado
+          Team not found
         </h2>
         <p className="text-gray-500 mb-4">
-          El equipo que buscas no existe o no tienes acceso.
+          The team you're looking for doesn't exist or you don't have access.
         </p>
-        <Button onClick={() => router.push("/")}>Volver al inicio</Button>
+        <Button onClick={() => router.push("/")}>Go back home</Button>
       </div>
     );
   }
@@ -207,13 +207,13 @@ export default function TeamPage() {
               <DropdownMenuContent align="start" className="w-48">
                 <DropdownMenuItem>
                   <Settings className="h-4 w-4 mr-2" />
-                  Editar equipo
+                  Edit team
                 </DropdownMenuItem>
-                <DropdownMenuItem>Configuracion</DropdownMenuItem>
+                <DropdownMenuItem>Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600">
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar equipo
+                  Delete team
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -251,7 +251,7 @@ export default function TeamPage() {
               onClick={() => setShowInviteModal(true)}
             >
               <Users className="h-4 w-4" />
-              Invitar
+              Invite
             </Button>
           </div>
         </div>
@@ -302,27 +302,27 @@ export default function TeamPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="gap-2">
-                  Crear trabajo
+                  Create work
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onClick={() => router.push(`/projects/new?teamId=${teamId}`)}>
                   <FolderKanban className="h-4 w-4 mr-2" />
-                  Proyecto
+                  Project
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push(`/portfolios/new?teamId=${teamId}`)}>
                   <Briefcase className="h-4 w-4 mr-2" />
-                  Portafolio
+                  Portfolio
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push(`/goals/new?teamId=${teamId}`)}>
                   <Target className="h-4 w-4 mr-2" />
-                  Objetivo
+                  Goal
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <FileText className="h-4 w-4 mr-2" />
-                  Plantilla
+                  Template
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -336,7 +336,7 @@ export default function TeamPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full p-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 rows={3}
-                placeholder="Describe el proposito y responsabilidades del equipo..."
+                placeholder="Describe the purpose and responsibilities of the team..."
                 autoFocus
               />
               <div className="flex justify-end gap-2 mt-2">
@@ -348,10 +348,10 @@ export default function TeamPage() {
                     setIsEditingDescription(false);
                   }}
                 >
-                  Cancelar
+                  Cancel
                 </Button>
                 <Button size="sm" onClick={handleSaveDescription}>
-                  Guardar
+                  Save
                 </Button>
               </div>
             </div>
@@ -360,7 +360,7 @@ export default function TeamPage() {
               className="mt-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
               onClick={() => setIsEditingDescription(true)}
             >
-              {team.description || "Haz clic para agregar la descripcion del equipo..."}
+              {team.description || "Click to add team description..."}
             </button>
           )}
         </div>
@@ -373,7 +373,7 @@ export default function TeamPage() {
           <div className="bg-white border rounded-xl p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
-                <span className="font-medium text-gray-900">Termina de configurar tu equipo</span>
+                <span className="font-medium text-gray-900">Finish setting up your team</span>
                 <div className="flex items-center gap-2">
                   <div className={cn(
                     "w-6 h-6 rounded-full border-2 flex items-center justify-center",
@@ -381,7 +381,7 @@ export default function TeamPage() {
                   )}>
                     {completedSteps === 3 && <span className="text-green-600 text-xs">✓</span>}
                   </div>
-                  <span className="text-sm text-gray-500">{completedSteps} de 3 pasos finalizados</span>
+                  <span className="text-sm text-gray-500">{completedSteps} of 3 steps completed</span>
                 </div>
               </div>
               <button
@@ -417,10 +417,10 @@ export default function TeamPage() {
                       "font-medium text-sm",
                       setupSteps.description ? "text-green-700" : "text-gray-900"
                     )}>
-                      Agregar descripcion del equipo
+                      Add team description
                     </h4>
                     <p className="text-xs text-gray-500 mt-1">
-                      Describe el proposito y las responsabilidades de tu equipo
+                      Describe the purpose and responsibilities of your team
                     </p>
                   </div>
                 </div>
@@ -457,10 +457,10 @@ export default function TeamPage() {
                         "font-medium text-sm",
                         setupSteps.work ? "text-green-700" : "text-gray-900"
                       )}>
-                        Agregar trabajo
+                        Add work
                       </h4>
                       <p className="text-xs text-gray-500 mt-1">
-                        Vincula proyectos, portafolios o plantillas existentes
+                        Link existing projects, portfolios, or templates
                       </p>
                     </div>
                   </div>
@@ -491,10 +491,10 @@ export default function TeamPage() {
                       "font-medium text-sm",
                       setupSteps.members ? "text-green-700" : "text-gray-900"
                     )}>
-                      Agregar companeros de equipo
+                      Add teammates
                     </h4>
                     <p className="text-xs text-gray-500 mt-1">
-                      Invita companeros a tu nuevo equipo para colaborar
+                      Invite teammates to your new team to collaborate
                     </p>
                   </div>
                 </div>
@@ -509,12 +509,12 @@ export default function TeamPage() {
           <div className="lg:col-span-2">
             <div className="bg-white border rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Seleccion de trabajo</h3>
+                <h3 className="font-semibold text-gray-900">Work selection</h3>
                 <button
                   className="text-sm text-blue-600 hover:underline"
                   onClick={() => router.push(`/teams/${teamId}/work`)}
                 >
-                  Ver todo el trabajo
+                  View all work
                 </button>
               </div>
 
@@ -555,8 +555,8 @@ export default function TeamPage() {
                   </div>
 
                   <p className="text-sm text-gray-500 text-center mb-4">
-                    Organiza enlaces a trabajos importantes, como portafolios, proyectos, plantillas, etc.,
-                    para que los miembros de tu equipo los encuentren facilmente.
+                    Organize links to important work, like portfolios, projects, templates, etc.,
+                    so your team members can easily find them.
                   </p>
 
                   <div className="flex justify-center">
@@ -570,7 +570,7 @@ export default function TeamPage() {
                       }}
                     >
                       <Button className="bg-blue-600 hover:bg-blue-700">
-                        Agregar trabajo
+                        Add work
                       </Button>
                     </LinkWorkPopover>
                   </div>
@@ -584,12 +584,12 @@ export default function TeamPage() {
             {/* Members Widget */}
             <div className="bg-white border rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Miembros</h3>
+                <h3 className="font-semibold text-gray-900">Members</h3>
                 <button
                   className="text-sm text-blue-600 hover:underline"
                   onClick={() => router.push(`/teams/${teamId}/members`)}
                 >
-                  Ver la lista de {team.members.length} elemento{team.members.length !== 1 ? "s" : ""}
+                  View list of {team.members.length} item{team.members.length !== 1 ? "s" : ""}
                 </button>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -597,7 +597,7 @@ export default function TeamPage() {
                   <Avatar
                     key={member.id}
                     className="h-10 w-10 border-2 border-white shadow-sm cursor-pointer hover:scale-105 transition-transform"
-                    title={member.user.name || member.user.email || "Miembro"}
+                    title={member.user.name || member.user.email || "Member"}
                   >
                     <AvatarImage src={member.user.image || undefined} />
                     <AvatarFallback className="bg-purple-100 text-purple-700 text-sm">
@@ -620,11 +620,11 @@ export default function TeamPage() {
             {/* Goals Widget */}
             <div className="bg-white border rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Objetivos</h3>
+                <h3 className="font-semibold text-gray-900">Goals</h3>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="gap-1">
-                      Crear objetivo
+                      Create goal
                       <ChevronDown className="h-3 w-3" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -634,18 +634,18 @@ export default function TeamPage() {
                       onClick={() => router.push(`/goals/new?teamId=${teamId}`)}
                     >
                       <Target className="h-4 w-4 mr-2" />
-                      Objetivo en blanco
+                      Blank goal
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="cursor-pointer py-3">
                       <div className="flex items-start gap-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">Usar plantillas de objetivos</span>
+                            <span className="font-medium">Use goal templates</span>
                             <ExternalLink className="h-3 w-3 text-gray-400" />
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
-                            Estandariza como se crean los objetivos en tu organizacion.
+                            Standardize how goals are created in your organization.
                           </p>
                         </div>
                       </div>
@@ -685,10 +685,10 @@ export default function TeamPage() {
               ) : (
                 <>
                   <p className="text-sm font-medium text-gray-900 mb-1">
-                    Este equipo aun no ha creado ningun objetivo
+                    This team hasn't created any goals yet
                   </p>
                   <p className="text-xs text-gray-500 mb-4">
-                    Agrega un objetivo para que el equipo pueda ver lo que quieres lograr.
+                    Add a goal so the team can see what you want to achieve.
                   </p>
 
                   {/* Placeholder progress */}
@@ -697,7 +697,7 @@ export default function TeamPage() {
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-blue-500" />
-                        <span className="text-gray-400">En curso (0%)</span>
+                        <span className="text-gray-400">In progress (0%)</span>
                       </div>
                       <div className="w-6 h-6 rounded-full border-2 border-dashed border-gray-300" />
                     </div>

@@ -57,7 +57,7 @@ function getInitials(name: string | null): string {
 }
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("es-ES", {
+  return new Date(dateString).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -98,13 +98,13 @@ export default function TeamMembersPage() {
       });
 
       if (res.ok) {
-        toast.success("Miembro eliminado del equipo");
+        toast.success("Member removed from team");
         fetchTeam();
       } else {
-        toast.error("Error al eliminar miembro");
+        toast.error("Error removing member");
       }
     } catch (error) {
-      toast.error("Error al eliminar miembro");
+      toast.error("Error removing member");
     }
   };
 
@@ -117,13 +117,13 @@ export default function TeamMembersPage() {
       });
 
       if (res.ok) {
-        toast.success("Rol actualizado");
+        toast.success("Role updated");
         fetchTeam();
       } else {
-        toast.error("Error al actualizar rol");
+        toast.error("Error updating role");
       }
     } catch (error) {
-      toast.error("Error al actualizar rol");
+      toast.error("Error updating role");
     }
   };
 
@@ -145,7 +145,7 @@ export default function TeamMembersPage() {
   }
 
   if (!team) {
-    return <div>Equipo no encontrado</div>;
+    return <div>Team not found</div>;
   }
 
   return (
@@ -156,10 +156,10 @@ export default function TeamMembersPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Miembros</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Members</h2>
             <p className="text-sm text-gray-500">
-              {team.members.length} miembro{team.members.length !== 1 ? "s" : ""}{" "}
-              en este equipo
+              {team.members.length} member{team.members.length !== 1 ? "s" : ""}{" "}
+              in this team
             </p>
           </div>
 
@@ -168,7 +168,7 @@ export default function TeamMembersPage() {
             className="bg-green-600 hover:bg-green-700 gap-2"
           >
             <UserPlus className="h-4 w-4" />
-            Invitar miembros
+            Invite members
           </Button>
         </div>
 
@@ -178,7 +178,7 @@ export default function TeamMembersPage() {
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar miembros..."
+            placeholder="Search members..."
             className="pl-10"
           />
         </div>
@@ -201,13 +201,13 @@ export default function TeamMembersPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-gray-900">
-                      {member.user.name || "Sin nombre"}
+                      {member.user.name || "No name"}
                     </span>
                     <Badge
                       variant={member.role === "LEAD" ? "default" : "secondary"}
                       className="text-xs"
                     >
-                      {member.role === "LEAD" ? "Lider" : "Miembro"}
+                      {member.role === "LEAD" ? "Lead" : "Member"}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -224,7 +224,7 @@ export default function TeamMembersPage() {
 
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400">
-                  Se unio {formatDate(member.joinedAt)}
+                  Joined {formatDate(member.joinedAt)}
                 </span>
 
                 <DropdownMenu>
@@ -236,7 +236,7 @@ export default function TeamMembersPage() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem>
                       <Mail className="h-4 w-4 mr-2" />
-                      Enviar mensaje
+                      Send message
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     {member.role === "MEMBER" ? (
@@ -244,14 +244,14 @@ export default function TeamMembersPage() {
                         onClick={() => handleChangeRole(member.id, "LEAD")}
                       >
                         <Shield className="h-4 w-4 mr-2" />
-                        Hacer lider
+                        Make lead
                       </DropdownMenuItem>
                     ) : (
                       <DropdownMenuItem
                         onClick={() => handleChangeRole(member.id, "MEMBER")}
                       >
                         <Shield className="h-4 w-4 mr-2" />
-                        Quitar como lider
+                        Remove as lead
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
@@ -260,7 +260,7 @@ export default function TeamMembersPage() {
                       onClick={() => handleRemoveMember(member.id)}
                     >
                       <UserMinus className="h-4 w-4 mr-2" />
-                      Eliminar del equipo
+                      Remove from team
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -271,8 +271,8 @@ export default function TeamMembersPage() {
           {filteredMembers.length === 0 && (
             <div className="p-8 text-center text-gray-500">
               {searchQuery
-                ? "No se encontraron miembros"
-                : "No hay miembros en este equipo"}
+                ? "No members found"
+                : "No members in this team"}
             </div>
           )}
         </div>
