@@ -22,6 +22,45 @@ interface WidgetContainerProps {
   hideHeader?: boolean; // For widgets with custom headers (like MyTasksWidget)
 }
 
+// Overlay component for drag preview
+interface WidgetOverlayProps {
+  id: WidgetType;
+  children: React.ReactNode;
+  size?: WidgetSize;
+}
+
+export function WidgetOverlay({ id, children, size = 'half' }: WidgetOverlayProps) {
+  const widget = AVAILABLE_WIDGETS.find(w => w.id === id);
+  const hideHeader = id === 'my-tasks' || id === 'mentions' || id === 'forms' || id === 'people' || id === 'private-notepad' || id === 'ai-assistant';
+
+  return (
+    <div
+      className={cn(
+        'bg-white rounded-lg border-2 border-black shadow-2xl',
+        'h-[320px] flex flex-col opacity-95',
+        size === 'full' ? 'w-full' : 'w-[calc(50%-12px)]',
+      )}
+      style={{
+        transform: 'rotate(2deg) scale(1.02)',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+      }}
+    >
+      {/* Header for overlay */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 border-b border-gray-100">
+          <h3 className="font-semibold text-gray-900">{widget?.title}</h3>
+        </div>
+      )}
+      <div className={cn(
+        'flex-1 overflow-hidden pointer-events-none',
+        hideHeader ? 'px-4 py-4' : 'px-4 pb-4'
+      )}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function WidgetContainer({ id, children, onHide, size = 'half', hideHeader = false }: WidgetContainerProps) {
   const {
     attributes,
@@ -30,11 +69,18 @@ export function WidgetContainer({ id, children, onHide, size = 'half', hideHeade
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+    isOver,
+  } = useSortable({
+    id,
+    transition: {
+      duration: 250,
+      easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+    },
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: transition || 'transform 250ms cubic-bezier(0.25, 1, 0.5, 1)',
   };
 
   const widget = AVAILABLE_WIDGETS.find(w => w.id === id);
@@ -61,11 +107,15 @@ export function WidgetContainer({ id, children, onHide, size = 'half', hideHeade
       style={style}
       className={cn(
         'bg-white rounded-lg border border-gray-200 shadow-sm group relative',
-        'transition-all duration-200 hover:shadow-md',
         'h-[320px] flex flex-col',
         // Size determines column span
         size === 'full' ? 'col-span-2' : 'col-span-1',
-        isDragging && 'opacity-50 shadow-lg ring-2 ring-black z-50',
+        // Dragging state - placeholder style
+        isDragging && 'opacity-40 border-2 border-dashed border-gray-400 bg-gray-50 shadow-inner',
+        // Hover indicator when another widget is being dragged over this one
+        isOver && !isDragging && 'ring-2 ring-black ring-offset-2 scale-[1.02]',
+        // Normal hover state (only when not dragging)
+        !isDragging && 'transition-all duration-200 hover:shadow-md',
       )}
     >
       {/* Widget Header - Only show if hideHeader is false */}

@@ -10,6 +10,8 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -19,7 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 
 import { useWidgetPreferences } from '@/hooks/use-widget-preferences';
-import { WidgetContainer } from '@/components/dashboard/widget-container';
+import { WidgetContainer, WidgetOverlay } from '@/components/dashboard/widget-container';
 import { CustomizeWidgetsModal } from '@/components/dashboard/customize-widgets-modal';
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
 import { CreateObjectiveDialog } from '@/components/goals/create-objective-dialog';
@@ -54,6 +56,7 @@ export default function HomePage() {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateGoal, setShowCreateGoal] = useState(false);
   const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
+  const [activeId, setActiveId] = useState<WidgetType | null>(null);
 
   const {
     preferences,
@@ -68,7 +71,7 @@ export default function HomePage() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px de movimiento antes de activar drag
+        distance: 5, // Reduced for more responsive feel
       },
     }),
     useSensor(KeyboardSensor, {
@@ -76,8 +79,13 @@ export default function HomePage() {
     })
   );
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as WidgetType);
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveId(null);
 
     if (over && active.id !== over.id) {
       const oldIndex = preferences.widgetOrder.indexOf(active.id as WidgetType);
@@ -147,7 +155,13 @@ export default function HomePage() {
           />
         );
       case 'ai-assistant':
-        return <AIAssistantWidget />;
+        return (
+          <AIAssistantWidget
+            size={getWidgetSize('ai-assistant')}
+            onSizeChange={(size) => setWidgetSize('ai-assistant', size)}
+            onRemove={() => toggleWidget('ai-assistant')}
+          />
+        );
       default:
         return null;
     }
@@ -193,6 +207,7 @@ export default function HomePage() {
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
           <SortableContext
@@ -208,7 +223,7 @@ export default function HomePage() {
                 if (!widgetContent) return null;
 
                 // Widgets with custom headers that manage their own dropdown
-                const hideHeader = widgetId === 'my-tasks' || widgetId === 'mentions' || widgetId === 'forms' || widgetId === 'people' || widgetId === 'private-notepad';
+                const hideHeader = widgetId === 'my-tasks' || widgetId === 'mentions' || widgetId === 'forms' || widgetId === 'people' || widgetId === 'private-notepad' || widgetId === 'ai-assistant';
                 const widgetSize = getWidgetSize(widgetId);
 
                 return (
@@ -225,6 +240,18 @@ export default function HomePage() {
               })}
             </div>
           </SortableContext>
+
+          {/* Drag Overlay - Shows a preview of the dragged widget */}
+          <DragOverlay adjustScale={false} dropAnimation={{
+            duration: 250,
+            easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+          }}>
+            {activeId ? (
+              <WidgetOverlay id={activeId} size={getWidgetSize(activeId)}>
+                {renderWidget(activeId)}
+              </WidgetOverlay>
+            ) : null}
+          </DragOverlay>
         </DndContext>
 
         {/* Empty state if no widgets */}
