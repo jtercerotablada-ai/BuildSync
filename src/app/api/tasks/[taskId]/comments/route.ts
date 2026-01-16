@@ -1,7 +1,34 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, getCurrentUser } from "@/lib/auth-utils";
+
+// Helper function to extract mentioned user IDs from HTML content
+function extractMentionedUserIds(content: string): string[] {
+  const mentionRegex = /data-user-id="([^"]+)"/g;
+  const userIds: string[] = [];
+  let match;
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    if (match[1] && !userIds.includes(match[1])) {
+      userIds.push(match[1]);
+    }
+  }
+
+  return userIds;
+}
+
+// Helper function to strip HTML for notification preview
+function getTextPreview(html: string, maxLength: number = 100): string {
+  let text = html.replace(/<span[^>]*data-user-id="[^"]*"[^>]*>([^<]*)<\/span>/gi, "$1");
+  text = text.replace(/<[^>]*>/g, "");
+  text = text.replace(/&nbsp;/g, " ");
+  text = text.replace(/\s+/g, " ").trim();
+  if (text.length > maxLength) {
+    text = text.substring(0, maxLength) + "...";
+  }
+  return text;
+}
 
 const createCommentSchema = z.object({
   content: z.string().min(1, "Comment content is required"),
@@ -73,20 +100,20 @@ export async function POST(
   { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
-    const userId = await getCurrentUserId();
+    const currentUser = await getCurrentUser();
     const { taskId } = await params;
 
-    if (!userId) {
+    if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await req.json();
     const { content, parentId } = createCommentSchema.parse(body);
 
-    // Verify task exists
+    // Verify task exists and get task name for notifications
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      select: { id: true },
+      select: { id: true, name: true, projectId: true },
     });
 
     if (!task) {
@@ -97,7 +124,7 @@ export async function POST(
       data: {
         content,
         taskId,
-        authorId: userId,
+        authorId: currentUser.id,
         parentId,
       },
       include: {
@@ -117,10 +144,40 @@ export async function POST(
       data: {
         type: "COMMENT_ADDED",
         taskId,
-        userId,
+        userId: currentUser.id,
         data: {},
       },
     });
+
+    // Extract mentioned users and create notifications
+    const mentionedUserIds = extractMentionedUserIds(content);
+
+    if (mentionedUserIds.length > 0) {
+      // Filter out the comment author (don't notify yourself)
+      const usersToNotify = mentionedUserIds.filter(id => id !== currentUser.id);
+
+      if (usersToNotify.length > 0) {
+        const textPreview = getTextPreview(content);
+
+        // Create notifications for each mentioned user
+        await prisma.notification.createMany({
+          data: usersToNotify.map(userId => ({
+            type: "MENTIONED",
+            title: `${currentUser.name || "Someone"} mentioned you in a comment`,
+            message: textPreview,
+            userId,
+            data: {
+              taskId: task.id,
+              taskName: task.name,
+              projectId: task.projectId,
+              commentId: comment.id,
+              authorId: currentUser.id,
+              authorName: currentUser.name,
+            },
+          })),
+        });
+      }
+    }
 
     return NextResponse.json(comment, { status: 201 });
   } catch (error) {

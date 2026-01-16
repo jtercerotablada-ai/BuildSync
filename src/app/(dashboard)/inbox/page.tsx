@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Bell,
@@ -13,6 +14,7 @@ import {
   X,
   ChevronDown,
   MoreHorizontal,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -54,41 +56,35 @@ function formatRelativeTime(date: Date): string {
 }
 
 export default function InboxPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("activity");
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "1",
-      title: "Welcome to BuildSync! Your tools are ready.",
-      sender: { name: "BuildSync", color: "#000000" },
-      preview:
-        "Integrate your favorite tools for your workflow. Get started with project management, task tracking, and team collaboration.",
-      createdAt: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000),
-      read: false,
-      type: "system",
-    },
-    {
-      id: "2",
-      title: "New task assigned: Review documentation",
-      sender: { name: "Juan Tercero", color: "#000000" },
-      preview:
-        'You have been assigned a new task in the project "Website Redesign". Please review the documentation and provide feedback.',
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      read: false,
-      type: "task_assigned",
-    },
-    {
-      id: "3",
-      title: "Comment on: Setup project structure",
-      sender: { name: "Maria Garcia", color: "#000000" },
-      preview:
-        "Great work on the initial setup! I have a few suggestions for the folder structure that might help with scalability.",
-      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      read: true,
-      type: "comment",
-    },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sortOrder, setSortOrder] = useState<"recent" | "oldest">("recent");
   const [showAISummary, setShowAISummary] = useState(true);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const archived = activeTab === "archive";
+      const res = await fetch(`/api/notifications?archived=${archived}`);
+      if (res.ok) {
+        const data = await res.json();
+        const formattedData = data.map((n: Notification & { createdAt: string }) => ({
+          ...n,
+          createdAt: new Date(n.createdAt),
+        }));
+        setNotifications(formattedData);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   const tabs = [
     { id: "activity", label: "Activity", icon: Bell },
@@ -128,14 +124,43 @@ export default function InboxPage() {
 
   const groupedNotifications = groupNotificationsByTime(notifications);
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+  const markAsRead = async (id: string) => {
+    try {
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id], read: true }),
+      });
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      );
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
   };
 
-  const archiveAll = () => {
-    setNotifications([]);
+  const archiveAll = async () => {
+    try {
+      const ids = notifications.map((n) => n.id);
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, archived: true }),
+      });
+      setNotifications([]);
+    } catch (error) {
+      console.error("Error archiving notifications:", error);
+    }
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    markAsRead(notification.id);
+    // Navigate to the task if available
+    if (notification.taskId && notification.projectId) {
+      router.push(`/projects/${notification.projectId}?task=${notification.taskId}`);
+    } else if (notification.taskId) {
+      router.push(`/my-tasks?task=${notification.taskId}`);
+    }
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -238,7 +263,11 @@ export default function InboxPage() {
             )}
 
             {/* Notifications grouped by time */}
-            {notifications.length === 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+              </div>
+            ) : notifications.length === 0 ? (
               <EmptyInbox />
             ) : (
               <div className="px-6 py-4">
@@ -255,7 +284,7 @@ export default function InboxPage() {
                               <NotificationItem
                                 key={notification.id}
                                 notification={notification}
-                                onMarkAsRead={() => markAsRead(notification.id)}
+                                onClick={() => handleNotificationClick(notification)}
                               />
                             ))}
                           </div>
@@ -287,20 +316,20 @@ export default function InboxPage() {
 // Notification Item Component
 function NotificationItem({
   notification,
-  onMarkAsRead,
+  onClick,
 }: {
   notification: Notification;
-  onMarkAsRead: () => void;
+  onClick: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
     <div
       className={cn(
-        "flex items-start gap-3 p-3 rounded-lg hover:bg-white cursor-pointer group transition-colors",
-        !notification.read && "bg-white"
+        "flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer group transition-colors",
+        !notification.read && "bg-blue-50/50"
       )}
-      onClick={onMarkAsRead}
+      onClick={onClick}
     >
       {/* Checkbox on hover */}
       <button

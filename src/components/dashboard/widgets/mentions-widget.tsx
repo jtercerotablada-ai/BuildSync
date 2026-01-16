@@ -30,6 +30,7 @@ interface Mention {
   content: string;
   taskId: string;
   taskName: string;
+  projectId: string | null;
   createdAt: string;
   author: {
     name: string;
@@ -158,7 +159,13 @@ export function MentionsWidget({ size = 'half', onSizeChange, onRemove }: Mentio
               <button
                 key={mention.id}
                 className="w-full p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
-                onClick={() => router.push(`/tasks/${mention.taskId}`)}
+                onClick={() => {
+                  if (mention.projectId) {
+                    router.push(`/projects/${mention.projectId}?task=${mention.taskId}`);
+                  } else {
+                    router.push(`/my-tasks?task=${mention.taskId}`);
+                  }
+                }}
               >
                 <div className="flex items-start gap-3">
                   <Avatar className="h-8 w-8 flex-shrink-0">
