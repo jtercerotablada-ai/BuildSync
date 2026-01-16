@@ -26,7 +26,6 @@ import {
   Minimize2,
   Maximize2,
   CheckCircle,
-  Languages,
   X,
 } from 'lucide-react';
 import {
@@ -87,7 +86,7 @@ export function PrivateNotepadWidget({
   const [insertMenuOpen, setInsertMenuOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [showAIAssist, setShowAIAssist] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [selectedText, setSelectedText] = useState('');
   const [aiResult, setAiResult] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
@@ -99,7 +98,6 @@ export function PrivateNotepadWidget({
     { id: 'summarize', icon: Minimize2, label: 'Summarize', prompt: 'Summarize the following text concisely:' },
     { id: 'expand', icon: Maximize2, label: 'Expand & detail', prompt: 'Expand and add more detail to the following text:' },
     { id: 'fix', icon: CheckCircle, label: 'Fix grammar', prompt: 'Fix any grammar and spelling errors in the following text:' },
-    { id: 'translate', icon: Languages, label: 'Translate to Spanish', prompt: 'Translate the following text to Spanish:' },
   ];
 
   // Mock users for mentions
@@ -424,7 +422,7 @@ export function PrivateNotepadWidget({
   const handleAIAssist = useCallback(async (option: typeof aiOptions[0]) => {
     if (!selectedText.trim()) return;
 
-    setAiLoading(true);
+    setAiLoading(option.id);
     setAiResult('');
 
     try {
@@ -445,7 +443,7 @@ export function PrivateNotepadWidget({
       console.error('AI assist error:', error);
       setAiResult('Error: Could not process your request. Please try again.');
     } finally {
-      setAiLoading(false);
+      setAiLoading(null);
     }
   }, [selectedText]);
 
@@ -502,13 +500,37 @@ export function PrivateNotepadWidget({
       return;
     }
     if (button.action === 'inlineCode') {
-      // Wrap selection in <code> tags
       const selection = window.getSelection();
       if (selection && selection.toString()) {
+        // Wrap selection in <code> tags
         const text = selection.toString();
         document.execCommand('insertHTML', false, `<code style="background-color: #f3f4f6; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em;">${text}</code>`);
-        handleContentChange();
+      } else {
+        // Create empty code element and place cursor inside
+        const code = document.createElement('code');
+        code.style.backgroundColor = '#f3f4f6';
+        code.style.padding = '2px 4px';
+        code.style.borderRadius = '3px';
+        code.style.fontFamily = 'monospace';
+        code.style.fontSize = '0.9em';
+        code.innerHTML = '\u200B'; // Zero-width space to keep cursor visible
+
+        document.execCommand('insertHTML', false, code.outerHTML);
+
+        // Move cursor inside the code element
+        setTimeout(() => {
+          const codeElements = editorRef.current?.querySelectorAll('code');
+          if (codeElements && codeElements.length > 0) {
+            const lastCode = codeElements[codeElements.length - 1];
+            const range = document.createRange();
+            range.selectNodeContents(lastCode);
+            range.collapse(false);
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+          }
+        }, 0);
       }
+      handleContentChange();
       return;
     }
     if (button.action === 'code') {
@@ -887,17 +909,26 @@ export function PrivateNotepadWidget({
                   <p className="text-xs text-gray-500 mb-2">What would you like to do?</p>
                   {aiOptions.map((option) => {
                     const Icon = option.icon;
+                    const isLoading = aiLoading === option.id;
+
+                    // If loading another option, hide this one
+                    if (aiLoading && aiLoading !== option.id) return null;
+
                     return (
                       <button
                         key={option.id}
                         onClick={() => handleAIAssist(option)}
-                        disabled={aiLoading || !selectedText.trim()}
+                        disabled={!!aiLoading || !selectedText.trim()}
                         className="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
                       >
-                        <Icon className="h-5 w-5 text-purple-600" />
+                        {isLoading ? (
+                          <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
+                        ) : (
+                          <Icon className="h-5 w-5 text-purple-600" />
+                        )}
                         <span className="font-medium text-sm">{option.label}</span>
-                        {aiLoading && (
-                          <Loader2 className="h-4 w-4 animate-spin ml-auto text-gray-400" />
+                        {isLoading && (
+                          <span className="ml-auto text-xs text-gray-400">Processing...</span>
                         )}
                       </button>
                     );

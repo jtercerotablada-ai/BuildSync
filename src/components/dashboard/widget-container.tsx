@@ -25,19 +25,17 @@ interface WidgetContainerProps {
 // Overlay component for drag preview
 interface WidgetOverlayProps {
   id: WidgetType;
-  children: React.ReactNode;
   size?: WidgetSize;
 }
 
-export function WidgetOverlay({ id, children, size = 'half' }: WidgetOverlayProps) {
+export function WidgetOverlay({ id, size = 'half' }: WidgetOverlayProps) {
   const widget = AVAILABLE_WIDGETS.find(w => w.id === id);
-  const hideHeader = id === 'my-tasks' || id === 'mentions' || id === 'forms' || id === 'people' || id === 'private-notepad' || id === 'ai-assistant';
 
   return (
     <div
       className={cn(
         'bg-white rounded-lg border-2 border-black shadow-2xl',
-        'h-[320px] flex flex-col opacity-95',
+        'h-[320px] flex flex-col',
         size === 'full' ? 'w-full' : 'w-[calc(50%-12px)]',
       )}
       style={{
@@ -45,17 +43,13 @@ export function WidgetOverlay({ id, children, size = 'half' }: WidgetOverlayProp
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
       }}
     >
-      {/* Header for overlay */}
-      {!hideHeader && (
-        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">{widget?.title}</h3>
-        </div>
-      )}
-      <div className={cn(
-        'flex-1 overflow-hidden pointer-events-none',
-        hideHeader ? 'px-4 py-4' : 'px-4 pb-4'
-      )}>
-        {children}
+      {/* Header */}
+      <div className="flex items-center px-4 py-3 flex-shrink-0 border-b border-gray-100">
+        <h3 className="font-semibold text-gray-900">{widget?.title}</h3>
+      </div>
+      {/* Placeholder content */}
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-gray-300 text-sm">Moving widget...</div>
       </div>
     </div>
   );

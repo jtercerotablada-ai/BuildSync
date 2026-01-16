@@ -19,6 +19,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { WidgetSize } from '@/types/dashboard';
+import { AddFormModal } from '@/components/forms/add-form-modal';
+import { FormBuilderModal } from '@/components/forms/form-builder-modal';
 
 interface Form {
   id: string;
@@ -28,42 +30,84 @@ interface Form {
   createdAt: string;
 }
 
+interface Project {
+  id: string;
+  name: string;
+  color?: string;
+}
+
 interface FormsWidgetProps {
   size?: WidgetSize;
   onSizeChange?: (size: WidgetSize) => void;
   onRemove?: () => void;
-  onCreateForm?: () => void;
 }
 
-export function FormsWidget({ size = 'half', onSizeChange, onRemove, onCreateForm }: FormsWidgetProps) {
+export function FormsWidget({ size = 'half', onSizeChange, onRemove }: FormsWidgetProps) {
   const router = useRouter();
   const [forms, setForms] = useState<Form[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'recents' | 'all'>('recents');
+  const [showAddFormModal, setShowAddFormModal] = useState(false);
+  const [showFormBuilder, setShowFormBuilder] = useState(false);
+  const [formBuilderData, setFormBuilderData] = useState<{
+    projectId: string;
+    projectName: string;
+    visibility: 'anyone' | 'organization';
+  } | null>(null);
 
   useEffect(() => {
-    async function fetchForms() {
+    async function fetchData() {
       try {
-        const res = await fetch('/api/forms?limit=5');
-        if (res.ok) {
-          const data = await res.json();
-          setForms(data);
+        // Fetch forms and projects in parallel
+        const [formsRes, projectsRes] = await Promise.all([
+          fetch('/api/forms?limit=5'),
+          fetch('/api/projects'),
+        ]);
+
+        if (formsRes.ok) {
+          const formsData = await formsRes.json();
+          setForms(formsData);
+        }
+
+        if (projectsRes.ok) {
+          const projectsData = await projectsRes.json();
+          setProjects(projectsData);
         }
       } catch (error) {
-        console.error('Failed to fetch forms:', error);
+        console.error('Failed to fetch data:', error);
       } finally {
         setLoading(false);
       }
     }
-    fetchForms();
+    fetchData();
   }, []);
 
   const handleCreateForm = () => {
-    if (onCreateForm) {
-      onCreateForm();
-    } else {
-      router.push('/forms/new');
-    }
+    setShowAddFormModal(true);
+  };
+
+  const handleFormCreated = (data: { projectId: string; projectName: string; visibility: string }) => {
+    // Open form builder modal instead of navigating
+    setFormBuilderData({
+      projectId: data.projectId,
+      projectName: data.projectName,
+      visibility: data.visibility as 'anyone' | 'organization',
+    });
+    setShowFormBuilder(true);
+  };
+
+  const handleFormPublished = (formData: {
+    name: string;
+    description: string;
+    visibility: 'anyone' | 'organization';
+    fields: unknown[];
+    projectId?: string;
+  }) => {
+    console.log('Form published:', formData);
+    // TODO: Save form to API and refresh list
+    setShowFormBuilder(false);
+    setFormBuilderData(null);
   };
 
   return (
@@ -201,6 +245,28 @@ export function FormsWidget({ size = 'half', onSizeChange, onRemove, onCreateFor
           </div>
         )}
       </div>
+
+      {/* Add Form Modal */}
+      <AddFormModal
+        open={showAddFormModal}
+        onClose={() => setShowAddFormModal(false)}
+        onCreateForm={handleFormCreated}
+        projects={projects}
+      />
+
+      {/* Form Builder Modal */}
+      <FormBuilderModal
+        open={showFormBuilder}
+        onClose={() => {
+          setShowFormBuilder(false);
+          setFormBuilderData(null);
+        }}
+        initialFormName={formBuilderData?.projectName}
+        projectId={formBuilderData?.projectId}
+        projectName={formBuilderData?.projectName}
+        visibility={formBuilderData?.visibility}
+        onPublish={handleFormPublished}
+      />
     </div>
   );
 }

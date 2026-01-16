@@ -12,7 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, Bell, HelpCircle, Settings, LogOut, User, CheckSquare, FolderKanban, Briefcase, Target } from "lucide-react";
+import { Search, Plus, Bell, HelpCircle, Settings, LogOut, User, CheckSquare, FolderKanban, Briefcase, Target, Sparkles } from "lucide-react";
+import { useAIPanel } from "@/contexts/ai-panel-context";
 
 interface HeaderProps {
   onCreateTask?: () => void;
@@ -23,6 +24,7 @@ interface HeaderProps {
 
 export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCreateGoal }: HeaderProps) {
   const { data: session } = useSession();
+  const { openPanel } = useAIPanel();
 
   const userInitials = session?.user?.name
     ?.split(" ")
@@ -78,6 +80,16 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* AI Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hover:bg-orange-50"
+          onClick={openPanel}
+        >
+          <Sparkles className="h-5 w-5" style={{ color: '#D97757' }} />
+        </Button>
 
         <Button variant="ghost" size="icon" className="text-black">
           <Bell className="h-5 w-5" />

@@ -19,6 +19,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { AIPanelProvider, useAIPanel } from "@/contexts/ai-panel-context";
+import { AIPanel } from "@/components/ai/ai-panel";
 
 interface Project {
   id: string;
@@ -30,8 +32,9 @@ interface DashboardShellProps {
   children: ReactNode;
 }
 
-export function DashboardShell({ children }: DashboardShellProps) {
+function DashboardShellContent({ children }: DashboardShellProps) {
   const router = useRouter();
+  const { isOpen: isAIPanelOpen, closePanel: closeAIPanel } = useAIPanel();
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
@@ -169,6 +172,17 @@ export function DashboardShell({ children }: DashboardShellProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AI Panel */}
+      <AIPanel isOpen={isAIPanelOpen} onClose={closeAIPanel} />
     </div>
+  );
+}
+
+export function DashboardShell({ children }: DashboardShellProps) {
+  return (
+    <AIPanelProvider>
+      <DashboardShellContent>{children}</DashboardShellContent>
+    </AIPanelProvider>
   );
 }

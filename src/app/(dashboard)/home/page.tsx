@@ -247,9 +247,7 @@ export default function HomePage() {
             easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
           }}>
             {activeId ? (
-              <WidgetOverlay id={activeId} size={getWidgetSize(activeId)}>
-                {renderWidget(activeId)}
-              </WidgetOverlay>
+              <WidgetOverlay id={activeId} size={getWidgetSize(activeId)} />
             ) : null}
           </DragOverlay>
         </DndContext>
