@@ -237,7 +237,7 @@ export default function CreateTeamPage() {
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
                   placeholder='For example: "Marketing" or "Design"'
-                  className="focus-visible:ring-purple-500"
+                  className="focus-visible:ring-blue-500"
                   autoFocus
                 />
               </div>
@@ -251,27 +251,24 @@ export default function CreateTeamPage() {
                     {selectedMembers.map((member) => (
                       <div
                         key={member.id}
-                        className={cn(
-                          'flex items-center gap-2 bg-gray-100 rounded-full pl-1 pr-2 py-1',
-                          member.id === currentUser?.id && 'bg-purple-100'
-                        )}
+                        className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-md text-sm"
                       >
-                        <Avatar className="h-6 w-6">
+                        <Avatar className="h-5 w-5">
                           <AvatarImage src={member.image || undefined} />
-                          <AvatarFallback className="bg-purple-500 text-white text-xs">
+                          <AvatarFallback className="bg-blue-500 text-white text-[10px]">
                             {getInitials(member.name, member.email)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-sm truncate max-w-[120px]">
+                        <span className="text-gray-700 truncate max-w-[150px]">
                           {member.name || member.email}
                         </span>
                         {member.id !== currentUser?.id && (
                           <button
                             type="button"
                             onClick={() => handleRemoveMember(member.id)}
-                            className="hover:bg-gray-200 rounded-full p-0.5"
+                            className="text-gray-400 hover:text-gray-600"
                           >
-                            <X className="h-3 w-3" />
+                            <X className="h-3.5 w-3.5" />
                           </button>
                         )}
                       </div>
@@ -288,7 +285,7 @@ export default function CreateTeamPage() {
                     }}
                     onFocus={() => setShowDropdown(true)}
                     placeholder="Add team members by name or email..."
-                    className="focus-visible:ring-purple-500"
+                    className="focus-visible:ring-blue-500"
                   />
 
                   {/* Dropdown */}
@@ -308,7 +305,7 @@ export default function CreateTeamPage() {
                           >
                             <Avatar className="h-8 w-8">
                               <AvatarImage src={user.image || undefined} />
-                              <AvatarFallback className="bg-purple-500 text-white text-sm">
+                              <AvatarFallback className="bg-blue-500 text-white text-sm">
                                 {getInitials(user.name, user.email)}
                               </AvatarFallback>
                             </Avatar>
@@ -362,18 +359,13 @@ export default function CreateTeamPage() {
               {/* Team privacy */}
               <div className="space-y-3">
                 <Label className="text-sm font-medium">Team privacy</Label>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {PRIVACY_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     return (
                       <label
                         key={option.value}
-                        className={cn(
-                          'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
-                          privacy === option.value
-                            ? 'border-purple-500 bg-purple-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        )}
+                        className="flex items-start gap-3 p-3 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
                       >
                         <input
                           type="radio"
@@ -381,11 +373,11 @@ export default function CreateTeamPage() {
                           value={option.value}
                           checked={privacy === option.value}
                           onChange={() => setPrivacy(option.value)}
-                          className="mt-1 accent-purple-500"
+                          className="mt-1 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                         />
                         <Icon className="h-4 w-4 mt-0.5 text-gray-500 flex-shrink-0" />
                         <div>
-                          <div className="text-sm font-medium">{option.label}</div>
+                          <div className="text-sm font-medium text-gray-900">{option.label}</div>
                           <div className="text-xs text-gray-500">{option.description}</div>
                         </div>
                       </label>
@@ -398,7 +390,7 @@ export default function CreateTeamPage() {
               <Button
                 type="submit"
                 disabled={loading || !teamName.trim()}
-                className="w-full bg-gray-900 hover:bg-gray-800"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-200 disabled:text-gray-400"
               >
                 {loading ? 'Creating...' : 'Create new team'}
               </Button>
@@ -432,11 +424,11 @@ export default function CreateTeamPage() {
                     <div key={member.id} className="flex items-center gap-2">
                       <Avatar className="h-8 w-8">
                         <AvatarImage src={member.image || undefined} />
-                        <AvatarFallback className="bg-purple-500 text-white text-xs">
+                        <AvatarFallback className="bg-blue-500 text-white text-xs">
                           {getInitials(member.name, member.email)}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="text-sm truncate">
+                      <span className="text-sm text-gray-900 truncate">
                         {member.name || member.email}
                       </span>
                     </div>
@@ -460,9 +452,9 @@ export default function CreateTeamPage() {
                 <div className="space-y-3">
                   {/* Placeholder project 1 */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded bg-blue-100 flex items-center justify-center">
-                        <LayoutGrid className="h-4 w-4 text-blue-500" />
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded bg-gray-100 flex items-center justify-center">
+                        <LayoutGrid className="h-4 w-4 text-gray-400" />
                       </div>
                       <div className="h-3 w-24 bg-gray-200 rounded" />
                     </div>
@@ -478,9 +470,9 @@ export default function CreateTeamPage() {
 
                   {/* Placeholder project 2 */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded bg-green-100 flex items-center justify-center">
-                        <Calendar className="h-4 w-4 text-green-500" />
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded bg-gray-100 flex items-center justify-center">
+                        <Calendar className="h-4 w-4 text-gray-400" />
                       </div>
                       <div className="h-3 w-28 bg-gray-200 rounded" />
                     </div>
