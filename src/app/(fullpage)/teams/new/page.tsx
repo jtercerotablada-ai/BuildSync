@@ -18,6 +18,7 @@ import {
   Check,
   LayoutGrid,
   Calendar,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -186,7 +187,16 @@ export default function CreateTeamPage() {
         .toUpperCase()
         .slice(0, 2);
     }
-    return email.slice(0, 2).toUpperCase();
+    // Generate initials from email (e.g., "juantercero766" -> "JU")
+    const emailName = email.split('@')[0];
+    return emailName.substring(0, 2).toUpperCase();
+  };
+
+  // Generate consistent color based on email/name
+  const getAvatarColor = (identifier: string) => {
+    const colors = ['#EC4899', '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4'];
+    const index = identifier.charCodeAt(0) % colors.length;
+    return colors[index];
   };
 
   const goBack = () => {
@@ -246,47 +256,55 @@ export default function CreateTeamPage() {
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Members</Label>
                 <div className="relative" ref={dropdownRef}>
-                  {/* Selected members chips */}
-                  <div className="flex flex-wrap gap-2 mb-2">
+                  {/* Input container with chips inside */}
+                  <div
+                    className={cn(
+                      'flex flex-wrap items-center gap-2 p-2 border rounded-md bg-white min-h-[42px] cursor-text',
+                      'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500'
+                    )}
+                    onClick={() => inputRef.current?.focus()}
+                  >
+                    {/* Selected members chips */}
                     {selectedMembers.map((member) => (
                       <div
                         key={member.id}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-md text-sm"
+                        className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded text-sm"
                       >
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={member.image || undefined} />
-                          <AvatarFallback className="bg-blue-500 text-white text-[10px]">
-                            {getInitials(member.name, member.email)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-gray-700 truncate max-w-[150px]">
+                        <span className="text-gray-700 truncate max-w-[140px]">
                           {member.name || member.email}
                         </span>
+                        {!member.name && (
+                          <Globe className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                        )}
                         {member.id !== currentUser?.id && (
                           <button
                             type="button"
-                            onClick={() => handleRemoveMember(member.id)}
-                            className="text-gray-400 hover:text-gray-600"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveMember(member.id);
+                            }}
+                            className="text-gray-400 hover:text-gray-600 ml-0.5"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
                         )}
                       </div>
                     ))}
-                  </div>
 
-                  {/* Search input */}
-                  <Input
-                    ref={inputRef}
-                    value={memberSearch}
-                    onChange={(e) => {
-                      setMemberSearch(e.target.value);
-                      setShowDropdown(true);
-                    }}
-                    onFocus={() => setShowDropdown(true)}
-                    placeholder="Add team members by name or email..."
-                    className="focus-visible:ring-blue-500"
-                  />
+                    {/* Text input */}
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={memberSearch}
+                      onChange={(e) => {
+                        setMemberSearch(e.target.value);
+                        setShowDropdown(true);
+                      }}
+                      onFocus={() => setShowDropdown(true)}
+                      placeholder={selectedMembers.length === 0 ? 'Add team members by name or email...' : ''}
+                      className="flex-1 min-w-[150px] outline-none text-sm bg-transparent"
+                    />
+                  </div>
 
                   {/* Dropdown */}
                   {showDropdown && (memberSearch.trim() || searchLoading) && (
@@ -424,12 +442,15 @@ export default function CreateTeamPage() {
                     <div key={member.id} className="flex items-center gap-2">
                       <Avatar className="h-8 w-8">
                         <AvatarImage src={member.image || undefined} />
-                        <AvatarFallback className="bg-blue-500 text-white text-xs">
+                        <AvatarFallback
+                          className="text-white text-xs"
+                          style={{ backgroundColor: getAvatarColor(member.email) }}
+                        >
                           {getInitials(member.name, member.email)}
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-sm text-gray-900 truncate">
-                        {member.name || member.email}
+                        {member.name || member.email.split('@')[0]}
                       </span>
                     </div>
                   ))}
