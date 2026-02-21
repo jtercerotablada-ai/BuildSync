@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera } from "lucide-react";
+import { Camera, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface ProfileData {
@@ -16,6 +16,7 @@ interface ProfileData {
   image: string | null;
   jobTitle: string | null;
   bio: string | null;
+  emailVerified: string | null;
   hasOAuth: boolean;
   hasPassword: boolean;
   createdAt: string;
@@ -32,6 +33,7 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
   const [bio, setBio] = useState(profile?.bio || "");
   const [image, setImage] = useState(profile?.image || "");
   const [saving, setSaving] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const initials =
     name
@@ -80,6 +82,23 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
     input.click();
   }
 
+  async function handleResendVerification() {
+    setResending(true);
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      toast.success(data.message || "Verification email sent");
+    } catch {
+      toast.error("Failed to send verification email");
+    } finally {
+      setResending(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -88,6 +107,30 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
           Manage your personal information
         </p>
       </div>
+
+      {/* Email verification banner */}
+      {profile && !profile.emailVerified && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-900">
+              Your email is not verified
+            </p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              Check your inbox for a verification link, or request a new one.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResendVerification}
+            disabled={resending}
+            className="shrink-0 border-amber-300 text-amber-900 hover:bg-amber-100"
+          >
+            {resending ? "Sending..." : "Resend"}
+          </Button>
+        </div>
+      )}
 
       {/* Avatar */}
       <div className="flex items-center gap-4">
@@ -123,7 +166,15 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="email">Email</Label>
+            {profile?.emailVerified && (
+              <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                <CheckCircle className="h-3 w-3" />
+                Verified
+              </span>
+            )}
+          </div>
           <Input
             id="email"
             value={profile?.email || ""}

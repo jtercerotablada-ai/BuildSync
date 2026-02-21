@@ -67,6 +67,15 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google" && user.email) {
+        await prisma.user.updateMany({
+          where: { email: user.email, emailVerified: null },
+          data: { emailVerified: new Date() },
+        });
+      }
+      return true;
+    },
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;

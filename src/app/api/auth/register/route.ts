@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { createToken } from "@/lib/tokens";
+import { sendVerificationEmail } from "@/lib/email";
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -44,6 +46,14 @@ export async function POST(req: Request) {
         email: normalizedEmail,
       },
     });
+
+    // Send verification email (non-blocking)
+    try {
+      const token = await createToken(`email-verify:${normalizedEmail}`);
+      await sendVerificationEmail(normalizedEmail, token);
+    } catch (emailError) {
+      console.error("Failed to send verification email:", emailError);
+    }
 
     return NextResponse.json(
       {

@@ -19,6 +19,7 @@ export async function GET() {
         image: true,
         jobTitle: true,
         bio: true,
+        emailVerified: true,
         createdAt: true,
         accounts: {
           select: { provider: true },
