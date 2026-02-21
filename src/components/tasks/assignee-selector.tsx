@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface User {
   id: string;
@@ -92,14 +93,12 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
   };
 
   const handleInviteByEmail = () => {
-    // TODO: Abrir modal de invitación por email
-    console.log('Invite by email');
+    toast.info('Email invitation coming soon');
     setOpen(false);
   };
 
   const handleAssignMultiple = () => {
-    // TODO: Abrir selector de múltiples personas
-    console.log('Assign to multiple');
+    toast.info('Multiple assignees coming soon');
     setOpen(false);
   };
 

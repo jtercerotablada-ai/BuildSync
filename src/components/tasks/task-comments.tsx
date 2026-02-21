@@ -123,13 +123,13 @@ export function TaskComments({
             />
             <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100">
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Attachments coming soon")}>
                   <Paperclip className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Mentions coming soon")}>
                   <AtSign className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Emoji reactions coming soon")}>
                   <Smile className="h-4 w-4" />
                 </Button>
               </div>
@@ -180,11 +180,11 @@ export function TaskComments({
                 </p>
                 {/* Comment Actions */}
                 <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-gray-500">
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-gray-500" onClick={() => toast.info("Likes coming soon")}>
                     <ThumbsUp className="h-3 w-3 mr-1" />
                     Like
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-gray-500">
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-gray-500" onClick={() => toast.info("Replies coming soon")}>
                     Reply
                   </Button>
                   <DropdownMenu>

@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   List,
   LayoutGrid,
@@ -34,7 +35,12 @@ import {
   ChevronDown,
   Rows3,
   Search,
+  Edit2,
+  Copy,
+  Archive,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { ListView } from "@/components/views/list-view";
 import { BoardView } from "@/components/views/board-view";
 import { TimelineView } from "@/components/views/timeline-view";
@@ -131,6 +137,9 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [isStarred, setIsStarred] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleViewChange = (view: string) => {
     router.push(`/projects/${project.id}?view=${view}`);
@@ -185,14 +194,75 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </div>
 
             {/* Project Name with Dropdown */}
-            <button className="flex items-center gap-1 text-xl font-semibold text-slate-900 hover:text-slate-700">
-              {project.name}
-              <ChevronDown className="h-4 w-4 text-slate-400" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1 text-xl font-semibold text-slate-900 hover:text-slate-700">
+                  {project.name}
+                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => {
+                  const newName = prompt('Project name:', project.name);
+                  if (newName && newName !== project.name) {
+                    fetch(`/api/projects/${project.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name: newName }),
+                    }).then(res => {
+                      if (res.ok) { toast.success('Project renamed'); window.location.reload(); }
+                    });
+                  }
+                }}>
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  fetch(`/api/projects`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: `${project.name} (copy)`, color: project.color, description: project.description }),
+                  }).then(async res => {
+                    if (res.ok) { const data = await res.json(); toast.success('Project duplicated'); router.push(`/projects/${data.id}`); }
+                  });
+                }}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => {
+                  fetch(`/api/projects/${project.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'ARCHIVED' }),
+                  }).then(res => {
+                    if (res.ok) { toast.success('Project archived'); router.push('/'); }
+                  });
+                }}>
+                  <Archive className="h-4 w-4 mr-2" />
+                  Archive
+                </DropdownMenuItem>
+                <DropdownMenuItem className="text-red-600" onClick={() => {
+                  if (confirm('Delete this project? This cannot be undone.')) {
+                    fetch(`/api/projects/${project.id}`, { method: 'DELETE' }).then(res => {
+                      if (res.ok) { toast.success('Project deleted'); router.push('/'); }
+                    });
+                  }
+                }}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Favorite */}
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <Star className="h-4 w-4" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-8 w-8", isStarred && "text-yellow-500")}
+              onClick={() => { setIsStarred(!isStarred); toast.success(isStarred ? 'Removed from favorites' : 'Added to favorites'); }}
+            >
+              <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
             </Button>
 
             {/* Status Badge */}
@@ -222,15 +292,33 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </div>
 
             {/* Share Button */}
-            <Button className="bg-black hover:bg-black text-white">
+            <Button className="bg-black hover:bg-black text-white" onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              toast.success('Project link copied to clipboard');
+            }}>
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
 
             {/* Customize Button */}
-            <Button variant="outline">
-              Customize
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  Customize
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => toast.info('Fields customization coming soon')}>
+                  Fields
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info('Rules customization coming soon')}>
+                  Rules
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info('Color & icon customization coming soon')}>
+                  Color & Icon
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -336,33 +424,101 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               <FolderOpen className="h-4 w-4" />
               Files
             </button>
-            <button className="p-2 text-slate-400 hover:text-slate-600">
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-2 text-slate-400 hover:text-slate-600">
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => handleViewChange("workflow")}>
+                  <GitBranch className="h-4 w-4 mr-2" />
+                  Workflow
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleViewChange("messages")}>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Messages
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleViewChange("files")}>
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  Files
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Toolbar - only show for task views */}
           {showToolbar && (
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm">
-                <Filter className="mr-2 h-4 w-4" />
-                Filter
-              </Button>
-              <Button variant="ghost" size="sm">
-                <SortAsc className="mr-2 h-4 w-4" />
-                Sort
-              </Button>
-              <Button variant="ghost" size="sm">
-                <Rows3 className="mr-2 h-4 w-4" />
-                Group
-              </Button>
-              <Button variant="ghost" size="sm">
-                <Settings className="mr-2 h-4 w-4" />
-                Options
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Search className="h-4 w-4" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <Filter className="mr-2 h-4 w-4" />
+                    Filter
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => toast.info('Filter: Incomplete tasks')}>Incomplete tasks</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Filter: Completed tasks')}>Completed tasks</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Filter: Due this week')}>Due this week</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Filter: Assigned to me')}>Assigned to me</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <SortAsc className="mr-2 h-4 w-4" />
+                    Sort
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => toast.info('Sorted by due date')}>Due date</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Sorted by creation date')}>Created on</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Sorted alphabetically')}>Alphabetical</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Sorted by priority')}>Priority</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <Rows3 className="mr-2 h-4 w-4" />
+                    Group
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => toast.info('Grouped by section')}>Section</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Grouped by assignee')}>Assignee</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Grouped by due date')}>Due date</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Grouped by priority')}>Priority</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Options
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => toast.info('Show subtasks enabled')}>Show subtasks</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Show completed tasks')}>Show completed</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Compact mode enabled')}>Compact mode</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {showSearch ? (
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search tasks..."
+                  className="w-40 h-8"
+                  autoFocus
+                  onBlur={() => { if (!searchQuery) setShowSearch(false); }}
+                />
+              ) : (
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSearch(true)}>
+                  <Search className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -461,7 +617,7 @@ function ComingSoon({ view }: { view: string }) {
           <GanttChart className="h-8 w-8 text-slate-400" />
         </div>
         <h3 className="font-medium text-slate-900">{view} view</h3>
-        <p className="text-sm text-slate-500 mt-1">Coming soon</p>
+        <p className="text-sm text-slate-500 mt-1">This view is under development</p>
       </div>
     </div>
   );

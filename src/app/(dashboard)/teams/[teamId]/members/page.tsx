@@ -234,7 +234,7 @@ export default function TeamMembersPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => window.location.href = `/teams/${teamId}/messages`}>
                       <Mail className="h-4 w-4 mr-2" />
                       Send message
                     </DropdownMenuItem>

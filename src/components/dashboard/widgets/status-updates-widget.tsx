@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText } from 'lucide-react';
+import { FileText, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface StatusUpdate {
   id: string;
@@ -43,9 +44,10 @@ export function StatusUpdatesWidget() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ON_TRACK': return 'bg-black';
-      case 'AT_RISK': return 'bg-gray-500';
-      case 'OFF_TRACK': return 'bg-gray-300';
+      case 'ON_TRACK': return 'bg-green-500';
+      case 'AT_RISK': return 'bg-yellow-500';
+      case 'OFF_TRACK': return 'bg-red-500';
+      case 'COMPLETE': return 'bg-blue-500';
       default: return 'bg-gray-400';
     }
   };
@@ -64,7 +66,7 @@ export function StatusUpdatesWidget() {
         </div>
       ) : updates.length === 0 ? (
         <div className="text-center">
-          {/* Icono estilo Asana - documento con círculo */}
+          {/* Icon - document with circle */}
           <div className="relative w-16 h-16 mx-auto mb-4">
             <div className="w-12 h-14 border-2 border-gray-300 rounded-sm mx-auto">
               <div className="mt-3 mx-2 space-y-1.5">
@@ -74,15 +76,21 @@ export function StatusUpdatesWidget() {
             </div>
             <div className="absolute -top-1 -right-1 w-4 h-4 bg-black rounded-full" />
           </div>
-          <p className="text-gray-500 text-sm">
-            Status updates let you track progress.
+          <p className="text-gray-500 text-sm mb-1">
+            Status updates let you share progress on your projects.
           </p>
-          <p className="text-gray-500 text-sm">
-            You can request updates from any project.{' '}
-            <a href="#" className="text-black hover:underline">
-              Learn more
-            </a>
+          <p className="text-gray-400 text-xs mb-4">
+            Go to any project and create a status update to see it here.
           </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => router.push('/projects')}
+          >
+            Go to projects
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
         </div>
       ) : (
         <div className="space-y-2 w-full overflow-y-auto h-full">

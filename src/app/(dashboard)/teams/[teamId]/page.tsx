@@ -268,9 +268,23 @@ export default function TeamPage() {
               </button>
             );
           })}
-          <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-            <Plus className="h-4 w-4" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                <Plus className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => router.push(`/teams/${teamId}/work`)}>
+                <FolderKanban className="h-4 w-4 mr-2" />
+                All work
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(`/teams/${teamId}/calendar`)}>
+                <Calendar className="h-4 w-4 mr-2" />
+                Calendar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -311,7 +325,7 @@ export default function TeamPage() {
                   Goal
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/templates")}>
                   <FileText className="h-4 w-4 mr-2" />
                   Template
                 </DropdownMenuItem>

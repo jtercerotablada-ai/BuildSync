@@ -22,7 +22,14 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   addDays,
   addWeeks,
@@ -492,14 +499,37 @@ export function TimelineView({
 
           <div className="h-6 w-px bg-slate-200 mx-2" />
 
-          <Button variant="ghost" size="sm">
-            <Filter className="w-4 h-4 mr-1" />
-            Filter
-          </Button>
-          <Button variant="ghost" size="sm">
-            <Settings className="w-4 h-4 mr-1" />
-            Options
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <Filter className="w-4 h-4 mr-1" />
+                Filter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => toast.info("Filtering incomplete tasks")}>Incomplete tasks</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Filtering completed tasks")}>Completed tasks</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Filtering tasks due this week")}>Due this week</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Filtering tasks with dependencies")}>Has dependencies</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <Settings className="w-4 h-4 mr-1" />
+                Options
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowDependencies(!showDependencies)}>
+                {showDependencies ? "Hide" : "Show"} dependencies
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowCriticalPath(!showCriticalPath)}>
+                {showCriticalPath ? "Hide" : "Show"} critical path
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Compact mode coming soon")}>Compact mode</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

@@ -31,22 +31,22 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
   const steps: SetupStep[] = [
     {
       id: "description",
-      title: "Agregar descripcion del equipo",
-      description: "Describe el proposito y las responsabilidades de tu equipo",
+      title: "Add team description",
+      description: "Describe the purpose and responsibilities of your team",
       icon: FileText,
       completed: !!team.description,
     },
     {
       id: "work",
-      title: "Agregar trabajo",
-      description: "Vincula proyectos, portafolios o plantillas existentes que tu equipo pueda encontrar utiles",
+      title: "Add work",
+      description: "Link existing projects, portfolios, or templates your team may find useful",
       icon: FolderPlus,
       completed: (team._count?.projects || 0) > 0,
     },
     {
       id: "members",
-      title: "Agregar companeros de equipo",
-      description: "Invita companeros a tu nuevo equipo para empezar a colaborar",
+      title: "Add teammates",
+      description: "Invite teammates to your new team to start collaborating",
       icon: UserPlus,
       completed: (team._count?.members || 0) > 1,
     },
@@ -64,7 +64,7 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
-          <h3 className="font-medium text-gray-900">Termina de configurar tu equipo</h3>
+          <h3 className="font-medium text-gray-900">Finish setting up your team</h3>
 
           {/* Progress indicator */}
           <div className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export function TeamSetupBanner({ team, onStepClick }: TeamSetupBannerProps) {
               )}
             </div>
             <span className="text-sm text-gray-500">
-              {completedCount} de {steps.length} pasos finalizados
+              {completedCount} of {steps.length} steps completed
             </span>
           </div>
         </div>

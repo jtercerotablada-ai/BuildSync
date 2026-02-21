@@ -44,7 +44,7 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-// Formatear fecha como Asana
+// Format due date
 function formatDueDate(date: string): { text: string; isSpecial: boolean } {
   const d = new Date(date);
   const today = new Date();

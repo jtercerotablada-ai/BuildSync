@@ -41,7 +41,7 @@ export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1">
-              Crear objetivo
+              Create objective
               <ChevronDown className="h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
@@ -50,9 +50,9 @@ export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
               onClick={() => router.push(`/goals/new?teamId=${teamId}`)}
             >
               <Target className="h-4 w-4 mr-2" />
-              Nuevo objetivo
+              New objective
             </DropdownMenuItem>
-            <DropdownMenuItem>Conectar objetivo existente</DropdownMenuItem>
+            <DropdownMenuItem>Connect existing objective</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -89,11 +89,10 @@ export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
       ) : (
         <div className="text-center">
           <p className="text-sm font-medium text-gray-900 mb-1">
-            Este equipo aun no ha creado ningun objetivo
+            This team hasn't created any objectives yet
           </p>
           <p className="text-xs text-gray-500 mb-4">
-            Agrega un objetivo para que el equipo pueda ver lo que quieres
-            lograr.
+            Add an objective so the team can see what you want to achieve.
           </p>
 
           {/* Placeholder goal */}

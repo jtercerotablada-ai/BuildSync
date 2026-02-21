@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import {
   Plus,
@@ -14,6 +15,13 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   BarChart,
   Bar,
@@ -206,6 +214,7 @@ const dashboardConfigs: Record<
 
 export default function DashboardPage() {
   const params = useParams();
+  const { data: session } = useSession();
   const dashboardId = params.dashboardId as string;
   const [isAddWidgetOpen, setIsAddWidgetOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState("recommended");
@@ -372,7 +381,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center text-sm text-white font-medium">
-            JT
+            {session?.user?.name?.split(" ").map((n: string) => n[0]).join("").toUpperCase() || "U"}
           </div>
           <Button className="bg-black hover:bg-black text-white">
             <Share2 className="w-4 h-4 mr-2" />
@@ -391,7 +400,7 @@ export default function DashboardPage() {
           <Plus className="w-4 h-4 mr-2" />
           Add widget
         </Button>
-        <button className="text-sm text-black hover:text-black">
+        <button className="text-sm text-black hover:text-black" onClick={() => toast.info("Send feedback coming soon")}>
           Send feedback
         </button>
       </div>
@@ -409,9 +418,18 @@ export default function DashboardPage() {
               >
                 <div className="flex items-start justify-between">
                   <h3 className="text-sm text-slate-600">{widget.title}</h3>
-                  <button className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => toast.info("Edit coming soon")}>Edit</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Duplicate coming soon")}>Duplicate</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Remove coming soon")}>Remove</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <p
                   className={cn(
@@ -444,9 +462,18 @@ export default function DashboardPage() {
                   <h3 className="text-sm font-medium text-slate-900">
                     {widget.title}
                   </h3>
-                  <button className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => toast.info("Edit coming soon")}>Edit</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Duplicate coming soon")}>Duplicate</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Remove coming soon")}>Remove</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {widget.type === "bar-chart" && (
@@ -544,7 +571,7 @@ export default function DashboardPage() {
                     <span className="mx-1">.</span>
                     <span>Tasks in My workspace</span>
                   </div>
-                  <button className="text-slate-600 hover:text-slate-900">
+                  <button className="text-slate-600 hover:text-slate-900" onClick={() => toast.info("View all coming soon")}>
                     View all
                   </button>
                 </div>

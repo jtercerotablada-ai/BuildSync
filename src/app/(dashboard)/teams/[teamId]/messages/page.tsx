@@ -66,14 +66,14 @@ function formatMessageTime(dateString: string): string {
   const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
 
   if (diffInHours < 24) {
-    return date.toLocaleTimeString("es-ES", {
+    return date.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
     });
   } else if (diffInHours < 48) {
-    return "Ayer";
+    return "Yesterday";
   } else {
-    return date.toLocaleDateString("es-ES", {
+    return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
     });
@@ -90,6 +90,8 @@ export default function TeamMessagesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchData();
@@ -316,37 +318,77 @@ export default function TeamMessagesPage() {
           {/* Message input */}
           <form
             onSubmit={handleSendMessage}
-            className="border-t p-4 flex items-center gap-2"
+            className="border-t p-4 relative"
           >
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-              <Paperclip className="h-4 w-4" />
-            </Button>
+            {/* Emoji Picker */}
+            {showEmojiPicker && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowEmojiPicker(false)} />
+                <div className="absolute bottom-full right-16 mb-2 bg-white border rounded-lg shadow-lg z-20 p-3">
+                  <div className="grid grid-cols-8 gap-1">
+                    {['😀','😂','😍','🎉','👍','👏','🔥','💪','✅','❤️','🚀','💡','⭐','🎯','📌','💬','👋','🙌','😊','🤔','😎','🥳','💯','✨'].map(emoji => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded text-lg"
+                        onClick={() => {
+                          setNewMessage(prev => prev + emoji);
+                          setShowEmojiPicker(false);
+                          inputRef.current?.focus();
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Escribe un mensaje..."
-              className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isSending}
-            />
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => toast.info('Attachments coming soon')}
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
 
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8">
-              <Smile className="h-4 w-4" />
-            </Button>
+              <input
+                ref={inputRef}
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Write a message..."
+                className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isSending}
+              />
 
-            <Button
-              type="submit"
-              size="icon"
-              className="h-8 w-8 rounded-full"
-              disabled={!newMessage.trim() || isSending}
-            >
-              {isSending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn("h-8 w-8", showEmojiPicker && "bg-gray-100")}
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              >
+                <Smile className="h-4 w-4" />
+              </Button>
+
+              <Button
+                type="submit"
+                size="icon"
+                className="h-8 w-8 rounded-full"
+                disabled={!newMessage.trim() || isSending}
+              >
+                {isSending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </form>
         </div>
       </div>

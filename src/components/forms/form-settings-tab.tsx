@@ -22,24 +22,24 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-// Mock data
-const MOCK_SECTIONS = [
+// Default fallback data
+const DEFAULT_SECTIONS = [
   { id: '1', name: 'To do' },
   { id: '2', name: 'In progress' },
   { id: '3', name: 'Done' },
   { id: '4', name: 'Backlog' },
 ];
 
-const MOCK_TITLE_FIELDS = [
+const DEFAULT_TITLE_FIELDS = [
   { id: '1', name: 'Form name' },
   { id: '2', name: 'Task name' },
   { id: '3', name: 'Title' },
   { id: '4', name: 'Subject' },
 ];
 
-const MOCK_USERS = [
+const DEFAULT_USERS = [
   { id: 'none', name: 'No assignee', initials: '' },
-  { id: '1', name: 'Juan Tercero', initials: 'JT' },
+  { id: '1', name: 'Workspace Admin', initials: 'WA' },
   { id: '2', name: 'Maria Garcia', initials: 'MG' },
 ];
 
@@ -131,14 +131,14 @@ export function FormSettingsTab({
                 <div className="flex items-center gap-2">
                   <List className="h-4 w-4 text-gray-500" />
                   <span>
-                    {MOCK_SECTIONS.find((s) => s.id === settings.selectedSection)?.name ||
+                    {DEFAULT_SECTIONS.find((s) => s.id === settings.selectedSection)?.name ||
                       'First project section'}
                   </span>
                 </div>
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {MOCK_SECTIONS.map((section) => (
+              {DEFAULT_SECTIONS.map((section) => (
                 <SelectItem key={section.id} value={section.id}>
                   <div className="flex items-center gap-2">
                     <List className="h-4 w-4 text-gray-500" />
@@ -162,14 +162,14 @@ export function FormSettingsTab({
                 <div className="flex items-center gap-2">
                   <Type className="h-4 w-4 text-gray-500" />
                   <span>
-                    {MOCK_TITLE_FIELDS.find((f) => f.id === settings.selectedTitleField)
+                    {DEFAULT_TITLE_FIELDS.find((f) => f.id === settings.selectedTitleField)
                       ?.name || 'Form name'}
                   </span>
                 </div>
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {MOCK_TITLE_FIELDS.map((field) => (
+              {DEFAULT_TITLE_FIELDS.map((field) => (
                 <SelectItem key={field.id} value={field.id}>
                   <div className="flex items-center gap-2">
                     <Type className="h-4 w-4 text-gray-500" />
@@ -193,10 +193,10 @@ export function FormSettingsTab({
                 {settings.defaultAssignee && settings.defaultAssignee !== 'none' ? (
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-gray-900 flex items-center justify-center text-white text-[10px] font-medium">
-                      {MOCK_USERS.find((u) => u.id === settings.defaultAssignee)?.initials}
+                      {DEFAULT_USERS.find((u) => u.id === settings.defaultAssignee)?.initials}
                     </div>
                     <span>
-                      {MOCK_USERS.find((u) => u.id === settings.defaultAssignee)?.name}
+                      {DEFAULT_USERS.find((u) => u.id === settings.defaultAssignee)?.name}
                     </span>
                   </div>
                 ) : (
@@ -208,7 +208,7 @@ export function FormSettingsTab({
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {MOCK_USERS.map((user) => (
+              {DEFAULT_USERS.map((user) => (
                 <SelectItem key={user.id} value={user.id}>
                   <div className="flex items-center gap-2">
                     {user.id !== 'none' ? (

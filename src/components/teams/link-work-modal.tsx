@@ -43,7 +43,6 @@ export function LinkWorkModal({
   const [searchResults, setSearchResults] = useState<WorkItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Mock search results - in real implementation, this would fetch from API
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (query.length < 2) {
@@ -52,22 +51,19 @@ export function LinkWorkModal({
     }
 
     setIsSearching(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    // Mock results
-    const allResults: WorkItem[] = [
-      { id: "1", name: "Marketing Campaign", type: "project" as const, color: "#4CAF50" },
-      { id: "2", name: "Product Launch", type: "project" as const, color: "#2196F3" },
-      { id: "3", name: "Q4 Portfolio", type: "portfolio" as const, color: "#9C27B0" },
-      { id: "4", name: "Sprint Template", type: "template" as const, color: "#FF9800" },
-    ];
-    const mockResults = allResults.filter((item) =>
-      item.name.toLowerCase().includes(query.toLowerCase())
-    );
-
-    setSearchResults(mockResults);
-    setIsSearching(false);
+    try {
+      const res = await fetch(`/api/work/search?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResults(data);
+      } else {
+        setSearchResults([]);
+      }
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleSelectWork = (work: WorkItem) => {

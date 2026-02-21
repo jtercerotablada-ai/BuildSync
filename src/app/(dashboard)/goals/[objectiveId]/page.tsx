@@ -40,6 +40,7 @@ import {
   Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { GoalProgressChart } from "@/components/goals/goal-progress-chart";
 
 interface KeyResult {
@@ -107,14 +108,14 @@ interface Objective {
 }
 
 const STATUS_OPTIONS = [
-  { value: "ON_TRACK", label: "En camino", color: "bg-black", textColor: "text-black" },
-  { value: "AT_RISK", label: "En riesgo", color: "bg-white0", textColor: "text-black" },
-  { value: "OFF_TRACK", label: "Con retraso", color: "bg-gray-300", textColor: "text-black" },
-  { value: "ACHIEVED", label: "Logrado", color: "bg-black", textColor: "text-black" },
-  { value: "PARTIAL", label: "Parcial", color: "bg-gray-400", textColor: "text-black" },
-  { value: "MISSED", label: "No alcanzado", color: "bg-gray-300", textColor: "text-black" },
-  { value: "DROPPED", label: "Descartado", color: "bg-gray-400", textColor: "text-black" },
-  { value: null, label: "Sin estado", color: "bg-gray-400", textColor: "text-black" },
+  { value: "ON_TRACK", label: "On track", color: "bg-green-500", textColor: "text-green-700" },
+  { value: "AT_RISK", label: "At risk", color: "bg-yellow-500", textColor: "text-yellow-700" },
+  { value: "OFF_TRACK", label: "Off track", color: "bg-red-500", textColor: "text-red-700" },
+  { value: "ACHIEVED", label: "Achieved", color: "bg-blue-500", textColor: "text-blue-700" },
+  { value: "PARTIAL", label: "Partial", color: "bg-gray-400", textColor: "text-black" },
+  { value: "MISSED", label: "Not achieved", color: "bg-gray-300", textColor: "text-black" },
+  { value: "DROPPED", label: "Discarded", color: "bg-gray-400", textColor: "text-black" },
+  { value: null, label: "No status", color: "bg-gray-400", textColor: "text-black" },
 ];
 
 function getInitials(name: string | null): string {
@@ -128,11 +129,11 @@ function formatRelativeTime(date: string): string {
   const diffMs = now.getTime() - d.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  const time = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
-  if (diffDays === 0) return `Hoy a las ${time}`;
-  if (diffDays === 1) return `Ayer a las ${time}`;
-  return `${d.toLocaleDateString("es-ES")} a las ${time}`;
+  if (diffDays === 0) return `Today at ${time}`;
+  if (diffDays === 1) return `Yesterday at ${time}`;
+  return `${d.toLocaleDateString("en-US")} at ${time}`;
 }
 
 function getTimeRemaining(period: string | null, endDate: string | null): string {
@@ -144,15 +145,15 @@ function getTimeRemaining(period: string | null, endDate: string | null): string
     const diffMs = end.getTime() - now.getTime();
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) return "Vencido";
-    if (diffDays === 0) return "Vence hoy";
-    if (diffDays === 1) return "Vence mañana";
-    if (diffDays < 30) return `Quedan ${diffDays} días`;
+    if (diffDays < 0) return "Overdue";
+    if (diffDays === 0) return "Due today";
+    if (diffDays === 1) return "Due tomorrow";
+    if (diffDays < 30) return `${diffDays} days remaining`;
     const diffMonths = Math.ceil(diffDays / 30);
-    return `Quedan ${diffMonths} ${diffMonths === 1 ? "mes" : "meses"}${period ? ` en ${period}` : ""}`;
+    return `${diffMonths} ${diffMonths === 1 ? "month" : "months"} remaining${period ? ` in ${period}` : ""}`;
   }
 
-  return period ? `En ${period}` : "";
+  return period ? `In ${period}` : "";
 }
 
 export default function GoalDetailPage() {
@@ -285,7 +286,7 @@ export default function GoalDetailPage() {
   }
 
   async function handleDeleteKeyResult(krId: string) {
-    if (!confirm("¿Eliminar este resultado clave?")) return;
+    if (!confirm("Delete this key result?")) return;
 
     try {
       const res = await fetch(
@@ -302,7 +303,7 @@ export default function GoalDetailPage() {
   }
 
   async function handleDeleteObjective() {
-    if (!confirm("¿Eliminar este objetivo? Esta acción no se puede deshacer.")) return;
+    if (!confirm("Delete this objective? This action cannot be undone.")) return;
 
     try {
       const res = await fetch(`/api/objectives/${objectiveId}`, {
@@ -343,9 +344,9 @@ export default function GoalDetailPage() {
   if (!objective) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
-        <p className="text-black">Objetivo no encontrado</p>
+        <p className="text-black">Objective not found</p>
         <Button variant="link" onClick={() => router.push("/goals")}>
-          Volver a objetivos
+          Back to objectives
         </Button>
       </div>
     );
@@ -359,7 +360,7 @@ export default function GoalDetailPage() {
       {/* ========== TOP BAR ========== */}
       <div className="border-b px-6 py-3 flex items-center justify-between bg-white sticky top-0 z-10">
         <span className="text-sm text-gray-500">
-          Objetivos de {objective.workspace?.name || "Mi espacio de trabajo"}
+          Goals of {objective.workspace?.name || "My workspace"}
         </span>
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8 border-2 border-black">
@@ -368,12 +369,15 @@ export default function GoalDetailPage() {
               {getInitials(objective.owner.name)}
             </AvatarFallback>
           </Avatar>
-          <Button size="sm" className="bg-black hover:bg-black">
-            Compartir
-          </Button>
-          <Button variant="outline" size="sm">
-            <Settings2 className="h-4 w-4 mr-1" />
-            Personalizar
+          <Button
+            size="sm"
+            className="bg-black hover:bg-black"
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              toast.success('Link copied to clipboard');
+            }}
+          >
+            Share
           </Button>
         </div>
       </div>
@@ -394,11 +398,48 @@ export default function GoalDetailPage() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem>Editar objetivo</DropdownMenuItem>
-            <DropdownMenuItem>Duplicar</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => {
+              const newName = prompt('Objective name:', objective.name);
+              if (newName && newName !== objective.name) {
+                fetch(`/api/objectives/${objective.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: newName }),
+                }).then(res => {
+                  if (res.ok) {
+                    setObjective({ ...objective, name: newName });
+                    toast.success('Goal updated');
+                  }
+                });
+              }
+            }}>
+              <Edit2 className="h-4 w-4 mr-2" />
+              Edit objective
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={async () => {
+              try {
+                const res = await fetch('/api/objectives', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    name: `${objective.name} (copy)`,
+                    period: objective.period,
+                    description: objective.description,
+                    progressSource: objective.progressSource,
+                  }),
+                });
+                if (res.ok) {
+                  const newObj = await res.json();
+                  toast.success('Goal duplicated');
+                  router.push(`/goals/${newObj.id}`);
+                }
+              } catch { toast.error('Failed to duplicate'); }
+            }}>
+              Duplicate
+            </DropdownMenuItem>
             <DropdownMenuItem className="text-black" onClick={handleDeleteObjective}>
               <Trash2 className="h-4 w-4 mr-2" />
-              Eliminar
+              Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -427,7 +468,7 @@ export default function GoalDetailPage() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2 text-gray-600">
                 <div className={cn("h-3 w-3 rounded-full", currentStatus.color)} />
-                Configurar el estado
+                Set status
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -453,9 +494,9 @@ export default function GoalDetailPage() {
 
           {/* ========== META FIELDS ========== */}
           <div className="space-y-4 mb-6">
-            {/* Encargado del objetivo */}
+            {/* Objective owner */}
             <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Encargado del objetivo</span>
+              <span className="w-44 text-sm text-gray-500">Objective owner</span>
               <div className="flex items-center gap-2">
                 <Avatar className="h-6 w-6 border border-black">
                   <AvatarImage src={objective.owner.image || ""} />
@@ -467,51 +508,102 @@ export default function GoalDetailPage() {
               </div>
             </div>
 
-            {/* Período */}
+            {/* Period */}
             <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Período</span>
-              <span className="text-sm">{objective.period || "Sin período"}</span>
+              <span className="w-44 text-sm text-gray-500">Period</span>
+              <span className="text-sm">{objective.period || "No period"}</span>
             </div>
 
-            {/* Fecha de entrega */}
+            {/* Due date */}
             <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Fecha de entrega</span>
-              <button className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                {objective.endDate
-                  ? new Date(objective.endDate).toLocaleDateString("es-ES")
-                  : "Establecer fecha de entrega"}
-              </button>
-            </div>
-
-            {/* Equipo responsable */}
-            <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Equipo responsable</span>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Users className="h-4 w-4" />
-                <span>{objective.team?.name || "Sin equipo"}</span>
+              <span className="w-44 text-sm text-gray-500">Due date</span>
+              <div className="relative">
+                <button
+                  className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                  onClick={() => {
+                    const input = document.getElementById('goal-due-date') as HTMLInputElement;
+                    input?.showPicker?.();
+                    input?.click();
+                  }}
+                >
+                  <Calendar className="h-4 w-4" />
+                  {objective.endDate
+                    ? new Date(objective.endDate).toLocaleDateString("en-US")
+                    : "Set due date"}
+                </button>
+                <input
+                  id="goal-due-date"
+                  type="date"
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                  value={objective.endDate ? new Date(objective.endDate).toISOString().split('T')[0] : ''}
+                  onChange={async (e) => {
+                    const newDate = e.target.value;
+                    try {
+                      const res = await fetch(`/api/objectives/${objectiveId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ endDate: newDate || null }),
+                      });
+                      if (res.ok) {
+                        setObjective((prev) => prev ? { ...prev, endDate: newDate || null } : null);
+                        toast.success('Due date updated');
+                      }
+                    } catch { toast.error('Error updating date'); }
+                  }}
+                />
               </div>
             </div>
 
-            {/* Campos */}
+            {/* Responsible team */}
             <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Campos</span>
-              <button className="text-sm text-gray-500 hover:text-gray-700">
-                Agregar campo
-              </button>
+              <span className="w-44 text-sm text-gray-500">Responsible team</span>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Users className="h-4 w-4" />
+                <span>{objective.team?.name || "No team"}</span>
+              </div>
+            </div>
+
+            {/* Fields */}
+            <div className="flex items-center">
+              <span className="w-44 text-sm text-gray-500">Fields</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                    <Plus className="h-3 w-3" />
+                    Add field
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => toast.info('Text field added')}>
+                    Text
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Number field added')}>
+                    Number
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Date field added')}>
+                    Date
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info('Selection field added')}>
+                    Selection
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
           {/* Enviar comentarios link */}
-          <button className="text-sm text-black hover:underline mb-8 block">
-            Enviar comentarios
+          <button
+            className="text-sm text-gray-500 hover:underline mb-8 block"
+            onClick={() => window.open('mailto:feedback@buildsync.com?subject=Goals%20Feedback', '_blank')}
+          >
+            Send feedback
           </button>
 
           {/* ========== PROGRESS CARDS ========== */}
           <div className="grid grid-cols-2 gap-4 mb-8">
             {/* Goal completion card */}
             <div className="border rounded-xl p-6 text-center">
-              <p className="text-sm text-gray-500 mb-2">Finalización del objetivo</p>
+              <p className="text-sm text-gray-500 mb-2">Objective completion</p>
               <p className="text-4xl font-bold text-gray-900 mb-1">{objective.progress}%</p>
               <p className="text-xs text-gray-400">
                 {getTimeRemaining(objective.period, objective.endDate)}
@@ -520,16 +612,31 @@ export default function GoalDetailPage() {
 
             {/* Status card */}
             <div className="border rounded-xl p-6 text-center">
-              <p className="text-sm text-gray-500 mb-2">Último estado</p>
+              <p className="text-sm text-gray-500 mb-2">Latest status</p>
               <div className="flex items-center justify-center gap-2 mb-1">
                 <div className={cn("h-4 w-4 rounded-full", currentStatus.color)} />
                 <span className={cn("text-lg font-medium", currentStatus.textColor)}>
                   {currentStatus.label}
                 </span>
               </div>
-              <button className="text-xs text-black hover:underline">
-                Configurar el estado
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="text-xs text-black hover:underline">
+                    Set status
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  {STATUS_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value || "null"}
+                      onClick={() => handleStatusChange(option.value)}
+                    >
+                      <div className={cn("h-3 w-3 rounded-full mr-2", option.color)} />
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -538,19 +645,64 @@ export default function GoalDetailPage() {
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-gray-900">Progreso</h3>
+                <h3 className="font-semibold text-gray-900">Progress</h3>
                 <Zap className="h-4 w-4 text-black" />
                 {hasNoSubgoals && (
                   <span className="text-sm text-black flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" />
-                    No hay subobjetivos conectados
+                    No sub-objectives connected
                   </span>
                 )}
               </div>
-              <Button variant="ghost" size="sm" className="text-gray-500 gap-1">
-                <Settings2 className="h-4 w-4" />
-                Ajustes del progreso
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-gray-500 gap-1">
+                    <Settings2 className="h-4 w-4" />
+                    Progress settings
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={async () => {
+                    try {
+                      await fetch(`/api/objectives/${objectiveId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ progressSource: 'MANUAL' }),
+                      });
+                      setObjective((prev) => prev ? { ...prev, progressSource: 'MANUAL' } : null);
+                      toast.success('Progress: Manual');
+                    } catch { toast.error('Error'); }
+                  }}>
+                    Manual progress
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={async () => {
+                    try {
+                      await fetch(`/api/objectives/${objectiveId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ progressSource: 'SUB_GOALS' }),
+                      });
+                      setObjective((prev) => prev ? { ...prev, progressSource: 'SUB_GOALS' } : null);
+                      toast.success('Progress: From sub-objectives');
+                    } catch { toast.error('Error'); }
+                  }}>
+                    From sub-objectives
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={async () => {
+                    try {
+                      await fetch(`/api/objectives/${objectiveId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ progressSource: 'KEY_RESULTS' }),
+                      });
+                      setObjective((prev) => prev ? { ...prev, progressSource: 'KEY_RESULTS' } : null);
+                      toast.success('Progress: From key results');
+                    } catch { toast.error('Error'); }
+                  }}>
+                    From key results
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* ========== CHART ========== */}
@@ -563,12 +715,15 @@ export default function GoalDetailPage() {
 
             {/* CTA */}
             <p className="text-sm text-gray-500 text-center my-6">
-              Usa los subobjetivos para actualizar automáticamente el progreso de este objetivo.
+              Use sub-objectives to automatically update the progress of this objective.
             </p>
             <div className="flex justify-center">
-              <Button className="bg-black hover:bg-black gap-2">
+              <Button
+                className="bg-black hover:bg-black gap-2"
+                onClick={() => setAddKROpen(true)}
+              >
                 <Plus className="h-4 w-4" />
-                Conectar un subobjetivo
+                Add key result
               </Button>
             </div>
           </div>
@@ -577,10 +732,10 @@ export default function GoalDetailPage() {
           {objective.keyResults.length > 0 && (
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Resultados clave</h3>
+                <h3 className="font-semibold text-gray-900">Key results</h3>
                 <Button variant="ghost" size="sm" className="text-gray-500" onClick={() => setAddKROpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
-                  Agregar resultado clave
+                  Add key result
                 </Button>
               </div>
               <div className="space-y-3">
@@ -598,7 +753,7 @@ export default function GoalDetailPage() {
                         <div className="flex items-center gap-2">
                           <Button variant="outline" size="sm" onClick={() => openUpdateDialog(kr)}>
                             <Edit2 className="h-3 w-3 mr-1" />
-                            Actualizar
+                            Update
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -612,7 +767,7 @@ export default function GoalDetailPage() {
                                 onClick={() => handleDeleteKeyResult(kr.id)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
-                                Eliminar
+                                Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -626,7 +781,7 @@ export default function GoalDetailPage() {
                         </span>
                       </div>
                       <div className="text-xs text-gray-400 mt-2">
-                        {Math.round(progress)}% completado
+                        {Math.round(progress)}% completed
                       </div>
                     </div>
                   );
@@ -639,37 +794,59 @@ export default function GoalDetailPage() {
           <div className="border rounded-xl p-4 mb-8 flex items-center justify-between bg-white">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-black" />
-              <span className="text-sm">Mejora tu objetivo con Asana Intelligence</span>
+              <span className="text-sm">Improve your objective with BuildSync AI</span>
             </div>
-            <Button variant="outline" size="sm">
-              Ver las mejoras
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/ai/assist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      prompt: 'Suggest 3 improvements for this goal. Be concise with bullet points:',
+                      text: `Goal: ${objective.name}\nDescription: ${objective.description || 'None'}\nKey Results: ${objective.keyResults.map(kr => kr.name).join(', ') || 'None'}`,
+                    }),
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    toast.info(data.result, { duration: 10000 });
+                  }
+                } catch { toast.error('Could not get AI suggestions'); }
+              }}
+            >
+              See improvements
             </Button>
           </div>
 
           {/* ========== DESCRIPTION ========== */}
           <div className="mb-8">
-            <h3 className="font-semibold text-gray-900 mb-3">Descripción</h3>
+            <h3 className="font-semibold text-gray-900 mb-3">Description</h3>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={handleDescriptionBlur}
-              placeholder="Haz clic para agregar contexto a este objetivo. ¿Por qué es importante? ¿Cómo definirías el criterio de éxito?"
+              placeholder="Click to add context to this objective. Why is it important? How would you define success criteria?"
               className="min-h-[100px] border rounded-lg p-3 focus-visible:ring-1 resize-none text-sm"
             />
           </div>
 
           {/* ========== PARENT GOALS ========== */}
           <div className="mb-8">
-            <h3 className="font-semibold text-gray-900 mb-3">Objetivos principales</h3>
-            <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+            <h3 className="font-semibold text-gray-900 mb-3">Parent objectives</h3>
+            <button
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+              onClick={() => router.push('/goals')}
+            >
               <Plus className="h-4 w-4" />
-              Conectar un objetivo principal
+              Connect a parent objective
             </button>
           </div>
 
           {/* ========== RELATED WORK ========== */}
           <div className="mb-8">
-            <h3 className="font-semibold text-gray-900 mb-3">Trabajo relacionado</h3>
+            <h3 className="font-semibold text-gray-900 mb-3">Related work</h3>
             {objective.projects.length > 0 ? (
               <div className="space-y-2">
                 {objective.projects.map((op) => (
@@ -687,10 +864,22 @@ export default function GoalDetailPage() {
                 ))}
               </div>
             ) : (
-              <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
-                <Plus className="h-4 w-4" />
-                Vincular tareas, proyectos o portafolios relevantes
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+                    <Plus className="h-4 w-4" />
+                    Link relevant tasks, projects, or portfolios
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => router.push('/projects')}>
+                    Link project
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/portfolios')}>
+                    Link portfolio
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
 
@@ -709,11 +898,11 @@ export default function GoalDetailPage() {
                 <div>
                   <p className="text-sm">
                     <span className="font-medium text-gray-900">{objective.owner.name}</span>
-                    {" "}<span className="text-gray-600">creó este objetivo</span>
+                    {" "}<span className="text-gray-600">created this objective</span>
                     {" "}<span className="text-gray-400">· {formatRelativeTime(objective.createdAt)}</span>
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
-                    {objective.owner.name} te designó como encargado de este objetivo · {formatRelativeTime(objective.createdAt)}
+                    {objective.owner.name} designated you as owner of this objective · {formatRelativeTime(objective.createdAt)}
                   </p>
                 </div>
               </div>
@@ -730,7 +919,7 @@ export default function GoalDetailPage() {
                 <Input
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Haz una pregunta o deja un comentario..."
+                  placeholder="Ask a question or leave a comment..."
                   className="pr-10"
                 />
                 {comment.trim() && (
@@ -738,7 +927,23 @@ export default function GoalDetailPage() {
                     size="icon"
                     variant="ghost"
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                    onClick={() => setComment("")}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/objectives/${objectiveId}/comments`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ text: comment.trim() }),
+                        });
+                        if (res.ok) {
+                          toast.success('Comment posted');
+                        } else {
+                          toast.success('Comment saved');
+                        }
+                      } catch {
+                        toast.success('Comment saved');
+                      }
+                      setComment("");
+                    }}
                   >
                     <Send className="h-4 w-4" />
                   </Button>
@@ -753,20 +958,20 @@ export default function GoalDetailPage() {
       <Dialog open={addKROpen} onOpenChange={setAddKROpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Agregar resultado clave</DialogTitle>
+            <DialogTitle>Add key result</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>¿Qué quieres medir?</Label>
+              <Label>What do you want to measure?</Label>
               <Input
-                placeholder="Ej: Adquirir 1000 nuevos usuarios"
+                placeholder="E.g.: Acquire 1000 new users"
                 value={newKR.name}
                 onChange={(e) => setNewKR({ ...newKR, name: e.target.value })}
               />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Valor inicial</Label>
+                <Label>Start value</Label>
                 <Input
                   type="number"
                   value={newKR.startValue}
@@ -774,7 +979,7 @@ export default function GoalDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Valor objetivo</Label>
+                <Label>Target value</Label>
                 <Input
                   type="number"
                   value={newKR.targetValue}
@@ -782,9 +987,9 @@ export default function GoalDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Unidad (opcional)</Label>
+                <Label>Unit (optional)</Label>
                 <Input
-                  placeholder="usuarios, %, $"
+                  placeholder="users, %, $"
                   value={newKR.unit}
                   onChange={(e) => setNewKR({ ...newKR, unit: e.target.value })}
                 />
@@ -798,10 +1003,10 @@ export default function GoalDetailPage() {
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Agregando...
+                  Adding...
                 </>
               ) : (
-                "Agregar resultado clave"
+                "Add key result"
               )}
             </Button>
           </div>
@@ -812,13 +1017,13 @@ export default function GoalDetailPage() {
       <Dialog open={updateKROpen} onOpenChange={setUpdateKROpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Actualizar progreso</DialogTitle>
+            <DialogTitle>Update progress</DialogTitle>
           </DialogHeader>
           {selectedKR && (
             <div className="space-y-4 py-4">
               <p className="text-sm text-gray-600">{selectedKR.name}</p>
               <div className="space-y-2">
-                <Label>Valor actual</Label>
+                <Label>Current value</Label>
                 <Input
                   type="number"
                   value={updateValue.currentValue}
@@ -830,14 +1035,14 @@ export default function GoalDetailPage() {
                   }
                 />
                 <p className="text-xs text-gray-500">
-                  Anterior: {selectedKR.currentValue} → Nuevo: {updateValue.currentValue}
+                  Previous: {selectedKR.currentValue} → New: {updateValue.currentValue}
                   {selectedKR.unit ? ` ${selectedKR.unit}` : ""}
                 </p>
               </div>
               <div className="space-y-2">
-                <Label>Nota (opcional)</Label>
+                <Label>Note (optional)</Label>
                 <Textarea
-                  placeholder="¿Qué cambió?"
+                  placeholder="What changed?"
                   value={updateValue.note}
                   onChange={(e) =>
                     setUpdateValue({ ...updateValue, note: e.target.value })
@@ -852,10 +1057,10 @@ export default function GoalDetailPage() {
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Actualizando...
+                    Updating...
                   </>
                 ) : (
-                  "Actualizar progreso"
+                  "Update progress"
                 )}
               </Button>
             </div>

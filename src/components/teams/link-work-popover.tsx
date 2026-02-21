@@ -120,11 +120,11 @@ export function LinkWorkPopover({ teamId, children, onSuccess }: LinkWorkPopover
           {/* Title */}
           <div>
             <h3 className="font-medium text-gray-900">
-              Work in Asana <span className="text-black">*</span>
+              Work in BuildSync <span className="text-black">*</span>
             </h3>
             <p className="text-xs text-gray-500 mt-1">
               Team members won&apos;t automatically have access to work linked in this space.{" "}
-              <button type="button" className="text-black hover:underline">
+              <button type="button" className="text-black hover:underline" onClick={() => toast.info('Linked work appears in the team overview. Members need separate access to view the linked projects or portfolios.')}>
                 Learn more
               </button>
             </p>

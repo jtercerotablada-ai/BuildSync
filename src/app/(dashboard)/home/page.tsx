@@ -64,6 +64,7 @@ export default function HomePage() {
     isLoaded,
     toggleWidget,
     reorderWidgets,
+    recalculateWidgetSizes,
     resetToDefaults,
     setWidgetSize,
     getWidgetSize,
@@ -93,6 +94,11 @@ export default function HomePage() {
       const newIndex = preferences.widgetOrder.indexOf(over.id as WidgetType);
       const newOrder = arrayMove(preferences.widgetOrder, oldIndex, newIndex);
       reorderWidgets(newOrder);
+
+      // Recalculate auto sizes after the drop animation settles
+      setTimeout(() => {
+        recalculateWidgetSizes();
+      }, 300);
     }
   };
 
@@ -270,7 +276,7 @@ export default function HomePage() {
             easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
           }}>
             {activeId ? (
-              <WidgetOverlay id={activeId} size={getWidgetSize(activeId)} />
+              <WidgetOverlay id={activeId} size="half" />
             ) : null}
           </DragOverlay>
         </DndContext>

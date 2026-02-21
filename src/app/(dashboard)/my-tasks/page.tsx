@@ -61,6 +61,7 @@ import {
   Legend,
 } from "recharts";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 // Types
 interface Task {
@@ -96,6 +97,13 @@ export default function MyTasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   const [sections, setSections] = useState<SmartSection[]>([]);
+  const [filterType, setFilterType] = useState<string>("none");
+  const [sortType, setSortType] = useState<string>("none");
+  const [groupType, setGroupType] = useState<string>("due_date");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isStarred, setIsStarred] = useState(false);
+  const [isAddingSection, setIsAddingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState("");
 
   useEffect(() => {
     fetchTasks();
@@ -152,6 +160,60 @@ export default function MyTasksPage() {
       { id: "do-later", name: "Do later", collapsed: false, tasks: doLater },
     ]);
   }
+
+  function handleAddSection() {
+    if (!newSectionName.trim()) return;
+    const newSection: SmartSection = {
+      id: `custom-${Date.now()}`,
+      name: newSectionName.trim(),
+      collapsed: false,
+      tasks: [],
+    };
+    setSections((prev) => [...prev, newSection]);
+    setNewSectionName("");
+    setIsAddingSection(false);
+    toast.success(`Section "${newSection.name}" added`);
+  }
+
+  // Apply filtering to sections
+  const getFilteredSections = () => {
+    return sections.map((section) => ({
+      ...section,
+      tasks: section.tasks.filter((task) => {
+        // Search filter
+        if (searchQuery && !task.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+          return false;
+        }
+        // Type filter
+        if (filterType === "incomplete" && task.completed) return false;
+        if (filterType === "completed" && !task.completed) return false;
+        if (filterType === "has_due_date" && !task.dueDate) return false;
+        return true;
+      }).sort((a, b) => {
+        if (sortType === "due_date_asc") {
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        }
+        if (sortType === "due_date_desc") {
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
+          return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+        }
+        if (sortType === "alphabetical") return a.name.localeCompare(b.name);
+        if (sortType === "priority") {
+          const order = { HIGH: 0, MEDIUM: 1, LOW: 2, NONE: 3 };
+          return (order[a.priority] || 3) - (order[b.priority] || 3);
+        }
+        if (sortType === "created_newest") {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        }
+        return 0;
+      }),
+    }));
+  };
+
+  const filteredSections = getFilteredSections();
 
   function toggleSection(sectionId: string) {
     setSections((prev) =>
@@ -273,19 +335,37 @@ export default function MyTasksPage() {
               <DropdownMenuItem className="text-black">Delete view</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button className="text-black hover:text-black">
-            <Star className="h-5 w-5" />
+          <button
+            className={cn("hover:text-yellow-500", isStarred && "text-yellow-500")}
+            onClick={() => { setIsStarred(!isStarred); toast.success(isStarred ? "Removed from favorites" : "Added to favorites"); }}
+          >
+            <Star className={cn("h-5 w-5", isStarred && "fill-current")} />
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied to clipboard"); }}>
             <Share2 className="w-4 h-4 mr-2" />
             Share
           </Button>
-          <Button variant="outline" size="sm">
-            <Settings className="w-4 h-4 mr-2" />
-            Customize
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Settings className="w-4 h-4 mr-2" />
+                Customize
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => toast.success("Fields customization coming soon")}>
+                Custom fields
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.success("Rules customization coming soon")}>
+                Rules
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.success("Color customization coming soon")}>
+                Color & icon
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -309,9 +389,31 @@ export default function MyTasksPage() {
             </button>
           );
         })}
-        <button className="p-2 text-black hover:text-black hover:bg-white rounded-md ml-1">
-          <Plus className="w-4 h-4" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md ml-1">
+              <Plus className="w-4 h-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => setView("list")}>
+              <List className="w-4 h-4 mr-2" />
+              List view
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("board")}>
+              <Columns className="w-4 h-4 mr-2" />
+              Board view
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("calendar")}>
+              <Calendar className="w-4 h-4 mr-2" />
+              Calendar view
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("dashboard")}>
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Dashboard view
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* TOOLBAR */}
@@ -342,22 +444,72 @@ export default function MyTasksPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="ghost" size="sm">
-            <Filter className="w-4 h-4 mr-1" />
-            Filter
-          </Button>
-          <Button variant="ghost" size="sm">
-            <ArrowUpDown className="w-4 h-4 mr-1" />
-            Sort
-          </Button>
-          <Button variant="ghost" size="sm">
-            <LayoutGrid className="w-4 h-4 mr-1" />
-            Group
-          </Button>
-          <Button variant="ghost" size="sm">
-            <Settings className="w-4 h-4 mr-1" />
-            Options
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className={filterType !== "none" ? "text-blue-600" : ""}>
+                <Filter className="w-4 h-4 mr-1" />
+                Filter{filterType !== "none" ? " (1)" : ""}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setFilterType("none")}>All tasks</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setFilterType("incomplete")}>Incomplete only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilterType("completed")}>Completed only</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilterType("has_due_date")}>Has due date</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className={sortType !== "none" ? "text-blue-600" : ""}>
+                <ArrowUpDown className="w-4 h-4 mr-1" />
+                Sort{sortType !== "none" ? " (1)" : ""}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setSortType("none")}>Default</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setSortType("due_date_asc")}>Due date (earliest first)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortType("due_date_desc")}>Due date (latest first)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortType("alphabetical")}>Alphabetical</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortType("priority")}>Priority</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortType("created_newest")}>Created (newest first)</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <LayoutGrid className="w-4 h-4 mr-1" />
+                Group
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => { setGroupType("due_date"); toast.success("Grouped by due date"); }}>Due date</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setGroupType("project"); toast.success("Grouped by project"); }}>Project</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setGroupType("priority"); toast.success("Grouped by priority"); }}>Priority</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setGroupType("none"); toast.success("Grouping removed"); }}>None</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <Settings className="w-4 h-4 mr-1" />
+                Options
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => { setSections((prev) => prev.map((s) => ({ ...s, collapsed: false }))); toast.success("All sections expanded"); }}>
+                Expand all sections
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSections((prev) => prev.map((s) => ({ ...s, collapsed: true }))); toast.success("All sections collapsed"); }}>
+                Collapse all sections
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => toast.success("Show completed tasks toggled")}>
+                Show completed tasks
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-black" />
@@ -365,6 +517,8 @@ export default function MyTasksPage() {
             type="text"
             placeholder="Search tasks..."
             className="pl-9 w-48 h-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
       </div>
@@ -378,9 +532,24 @@ export default function MyTasksPage() {
           <div className="w-[100px]">Collaborators</div>
           <div className="w-[180px]">Projects</div>
           <div className="w-[140px]">Visibility</div>
-          <button className="w-8 text-black hover:text-black">
-            <Plus className="w-4 h-4" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-8 text-gray-400 hover:text-gray-600">
+                <Plus className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => toast.success("Custom field coming soon")}>
+                Custom field
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.success("Tags column coming soon")}>
+                Tags
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.success("Priority column coming soon")}>
+                Priority
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
 
@@ -393,7 +562,7 @@ export default function MyTasksPage() {
             </div>
           ) : view === "list" ? (
             <div>
-              {sections.map((section) => (
+              {filteredSections.map((section) => (
                 <TaskSection
                   key={section.id}
                   section={section}
@@ -406,10 +575,31 @@ export default function MyTasksPage() {
               ))}
 
               {/* Add section button */}
-              <button className="flex items-center gap-2 px-6 py-3 text-black hover:text-slate-700 hover:bg-white w-full text-left">
-                <Plus className="w-4 h-4" />
-                <span className="text-sm">Add section</span>
-              </button>
+              {isAddingSection ? (
+                <div className="flex items-center gap-2 px-6 py-3">
+                  <input
+                    type="text"
+                    value={newSectionName}
+                    onChange={(e) => setNewSectionName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddSection();
+                      if (e.key === "Escape") { setIsAddingSection(false); setNewSectionName(""); }
+                    }}
+                    onBlur={() => { if (newSectionName.trim()) handleAddSection(); else setIsAddingSection(false); }}
+                    placeholder="Section name..."
+                    className="flex-1 text-sm outline-none border-b border-slate-300 pb-1"
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsAddingSection(true)}
+                  className="flex items-center gap-2 px-6 py-3 text-gray-500 hover:text-slate-700 hover:bg-gray-50 w-full text-left"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="text-sm">Add section</span>
+                </button>
+              )}
             </div>
           ) : view === "board" ? (
             <BoardView
@@ -417,6 +607,13 @@ export default function MyTasksPage() {
               onToggleComplete={handleToggleComplete}
               onTaskClick={openTaskDetail}
               onAddTask={handleAddTask}
+              onAddSection={() => {
+                const name = prompt('Section name:', 'New section');
+                if (!name?.trim()) return;
+                const newSection: SmartSection = { id: `custom-${Date.now()}`, name: name.trim(), collapsed: false, tasks: [] };
+                setSections((prev) => [...prev, newSection]);
+                toast.success(`Section "${name.trim()}" added`);
+              }}
               formatDueDate={formatDueDate}
             />
           ) : view === "calendar" ? (
@@ -674,12 +871,14 @@ function BoardView({
   onToggleComplete,
   onTaskClick,
   onAddTask,
+  onAddSection,
   formatDueDate,
 }: {
   sections: SmartSection[];
   onToggleComplete: (task: Task) => void;
   onTaskClick: (task: Task) => void;
   onAddTask: (name: string, sectionId: string) => Promise<boolean>;
+  onAddSection: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
 }) {
   return (
@@ -697,7 +896,7 @@ function BoardView({
 
       {/* Add section column */}
       <div className="flex-shrink-0 w-72">
-        <button className="flex items-center gap-2 px-4 py-2 text-black hover:text-slate-700 hover:bg-white rounded-lg w-full">
+        <button className="flex items-center gap-2 px-4 py-2 text-black hover:text-slate-700 hover:bg-white rounded-lg w-full" onClick={onAddSection}>
           <Plus className="w-4 h-4" />
           <span className="text-sm font-medium">Add section</span>
         </button>
@@ -754,7 +953,7 @@ function BoardColumn({
               </span>
             )}
           </div>
-          <button className="p-1 hover:bg-white border border-black rounded">
+          <button className="p-1 hover:bg-white border border-black rounded" onClick={() => toast.info("Section options coming soon")}>
             <MoreHorizontal className="w-4 h-4 text-black" />
           </button>
         </div>
@@ -888,7 +1087,7 @@ function BoardColumn({
   );
 }
 
-// Calendar View - Asana style
+// Calendar View
 function CalendarView({ tasks }: { tasks: Task[] }) {
   const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -948,7 +1147,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Navigation toolbar - Asana style */}
+      {/* Navigation toolbar */}
       <div className="flex items-center justify-center gap-2 px-4 py-3 border-b">
         <Button
           variant="ghost"
@@ -1050,7 +1249,16 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
               </div>
 
               {/* Add task on hover */}
-              <button className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 text-xs text-black hover:text-black flex items-center gap-0.5 transition-opacity">
+              <button
+                className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 text-xs text-black hover:text-black flex items-center gap-0.5 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const name = prompt('Task name:');
+                  if (name?.trim()) {
+                    toast.success(`Task "${name.trim()}" added for ${date.toLocaleDateString()}`);
+                  }
+                }}
+              >
                 <Plus className="w-3 h-3" />
                 Add
               </button>
@@ -1062,7 +1270,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
   );
 }
 
-// Dashboard View - Asana style with charts
+// Dashboard View with charts
 function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSection[] }) {
   const completed = tasks.filter((t) => t.completed).length;
   const incomplete = tasks.filter((t) => !t.completed).length;
@@ -1133,11 +1341,21 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
     <div className="p-6 space-y-6 overflow-auto">
       {/* Header with Add widget button */}
       <div className="flex items-center justify-between">
-        <Button variant="outline" size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          Add widget
-        </Button>
-        <Button variant="ghost" size="sm" className="text-black">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Add widget
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => toast.info('Tasks by section widget added')}>Tasks by section</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info('Completion chart widget added')}>Completion chart</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info('Tasks by project widget added')}>Tasks by project</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info('Completion timeline widget added')}>Completion timeline</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button variant="ghost" size="sm" className="text-gray-500" onClick={() => window.open("mailto:feedback@buildsync.com", "_blank")}>
           Send feedback
         </Button>
       </div>

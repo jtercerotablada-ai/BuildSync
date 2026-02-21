@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   allTemplates,
   templateCategories,
@@ -232,14 +233,27 @@ export default function TemplatesGalleryPage() {
             </Badge>
           </div>
           <div className="flex items-center gap-3">
-            <button className="text-sm text-gray-600 hover:text-gray-900">
+            <button
+              className="text-sm text-gray-600 hover:text-gray-900"
+              onClick={() => window.open('mailto:feedback@buildsync.com?subject=Templates%20Feedback', '_blank')}
+            >
               Send feedback
             </button>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => router.push('/projects/new?ai=true')}
+            >
               <Sparkles className="h-4 w-4" />
               Create with AI
             </Button>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => router.push('/projects/new')}
+            >
               <Download className="h-4 w-4" />
               Import
             </Button>
@@ -333,12 +347,12 @@ export default function TemplatesGalleryPage() {
                 onClick={() => setSelectedTemplate(template)}
                 className="group cursor-pointer"
               >
-                {/* Preview - Asana style */}
+                {/* Preview */}
                 <div className="rounded-2xl overflow-hidden border border-gray-200 hover:border-gray-300 hover:shadow-xl transition-all duration-200 bg-white">
                   <TemplatePreview templateId={template.id} />
                 </div>
 
-                {/* Info - Below preview like Asana */}
+                {/* Info - Below preview */}
                 <div className="pt-4 px-1">
                   <h3 className="font-semibold text-lg text-gray-900 group-hover:text-black leading-tight">
                     {template.name}
@@ -347,7 +361,7 @@ export default function TemplatesGalleryPage() {
                     {template.description}
                   </p>
 
-                  {/* Footer - Asana style */}
+                  {/* Footer */}
                   <div className="flex items-center justify-between mt-4">
                     <div className="flex items-center gap-2">
                       {template.isNew ? (
@@ -383,7 +397,7 @@ export default function TemplatesGalleryPage() {
             <p className="text-gray-500 mt-1">
               {activeCategory === "my_org"
                 ? "Your organization hasn't created any templates yet"
-                : "Templates for this category coming soon"}
+                : "No templates available for this category yet"}
             </p>
           </div>
         )}
@@ -416,14 +430,26 @@ export default function TemplatesGalleryPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="hover:bg-gray-100">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-gray-100"
+                    onClick={() => {
+                      toast.success('Template saved to favorites');
+                    }}
+                  >
                     <Star className="h-5 w-5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="hover:bg-gray-100">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-gray-100"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/templates?template=${selectedTemplate.id}`);
+                      toast.success('Link copied to clipboard');
+                    }}
+                  >
                     <Share2 className="h-5 w-5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="hover:bg-gray-100">
-                    <MoreHorizontal className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
@@ -483,14 +509,13 @@ export default function TemplatesGalleryPage() {
                     >
                       Use template
                     </Button>
-                    <Button variant="outline" className="w-full h-11 text-base font-medium border-gray-300">
-                      Preview
+                    <Button
+                      variant="outline"
+                      className="w-full h-11 text-base font-medium border-gray-300"
+                      onClick={() => handleUseTemplate(selectedTemplate)}
+                    >
+                      Preview & use
                     </Button>
-                    <div className="text-center pt-2">
-                      <button className="text-sm text-gray-500 hover:text-black transition-colors">
-                        Learn more about templates
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>

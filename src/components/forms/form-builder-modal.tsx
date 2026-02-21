@@ -62,6 +62,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import {
   DndContext,
   closestCenter,
@@ -108,12 +109,7 @@ const aiOptions = [
   { id: 'fix', icon: CheckCircle, label: 'Fix grammar', prompt: 'Fix any grammar and spelling errors in the following text:' },
 ];
 
-// Mock users for mentions
-const mockUsers = [
-  { id: '1', name: 'John Doe', email: 'john@example.com' },
-  { id: '2', name: 'Jane Smith', email: 'jane@example.com' },
-  { id: '3', name: 'Bob Wilson', email: 'bob@example.com' },
-];
+// Users for mentions (fetched from API)
 
 // Types
 interface FormField {
@@ -227,6 +223,15 @@ export function FormBuilderModal({
     getDefaultFormSettings(projectId)
   );
 
+  // Mention users (fetched from API)
+  const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+  useEffect(() => {
+    fetch('/api/users?limit=20')
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setMentionUsers)
+      .catch(() => {});
+  }, []);
+
   // Rich text editor state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
@@ -255,7 +260,7 @@ export function FormBuilderModal({
   );
 
   // Filter users for mentions
-  const filteredUsers = mockUsers.filter(user =>
+  const filteredUsers = mentionUsers.filter(user =>
     user.name.toLowerCase().includes(mentionSearch.toLowerCase()) ||
     user.email.toLowerCase().includes(mentionSearch.toLowerCase())
   );
@@ -961,22 +966,22 @@ export function FormBuilderModal({
               )} />
             </button>
 
-            <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600">
+            <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" onClick={() => toast.info("Form preview coming soon")}>
               <Eye className="h-4 w-4" />
               View form
             </button>
 
-            <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600">
+            <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" onClick={() => toast.info("Share form coming soon")}>
               <Share2 className="h-4 w-4" />
               Share form
             </button>
 
-            <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600">
+            <button className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied"); }}>
               <Link2 className="h-4 w-4" />
               Copy link
             </button>
 
-            <button className="p-2 hover:bg-gray-100 rounded transition-colors">
+            <button className="p-2 hover:bg-gray-100 rounded transition-colors" onClick={() => toast.info("More options coming soon")}>
               <MoreHorizontal className="h-4 w-4 text-gray-400" />
             </button>
           </div>
@@ -1161,7 +1166,7 @@ export function FormBuilderModal({
               {activeTab === 'questions' ? (
                 <div className="space-y-2">
                   {/* Fields from project */}
-                  <button className="w-full flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <button className="w-full flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors" onClick={() => toast.info("Project fields coming soon")}>
                     <div className="flex items-center gap-3">
                       <AlignLeft className="h-5 w-5 text-gray-400" />
                       <span className="text-sm">Fields</span>
@@ -1229,7 +1234,7 @@ export function FormBuilderModal({
             >
               Discard form
             </Button>
-            <button className="text-sm text-gray-500 hover:text-gray-700 hover:underline">
+            <button className="text-sm text-gray-500 hover:text-gray-700 hover:underline" onClick={() => toast.info("Send feedback coming soon")}>
               Send feedback
             </button>
           </div>

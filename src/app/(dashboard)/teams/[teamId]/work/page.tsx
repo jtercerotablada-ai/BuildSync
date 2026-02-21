@@ -256,7 +256,10 @@ export default function TeamAllWorkPage() {
 
             <div className="space-y-3">
               {/* New template */}
-              <button className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2">
+              <button
+                onClick={() => router.push("/templates")}
+                className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2"
+              >
                 <div className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
                   <Plus className="h-5 w-5 text-gray-400" />
                 </div>

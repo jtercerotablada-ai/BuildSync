@@ -248,13 +248,13 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={() => toast.info("Likes coming soon")}>
             <ThumbsUp className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied"); }}>
             <Link2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={() => toast.info("More options coming soon")}>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -377,7 +377,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
               <h4 className="text-sm font-medium">
                 Subtasks ({task._count.subtasks})
               </h4>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={() => toast.info("Add subtask coming soon")}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add subtask
               </Button>

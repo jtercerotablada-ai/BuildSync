@@ -160,8 +160,6 @@ export default function CreateTeamPage() {
         memberIds: selectedMembers.map((m) => m.id),
       };
 
-      console.log('Creating team with payload:', payload);
-
       const response = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -175,7 +173,6 @@ export default function CreateTeamPage() {
         throw new Error(data.error || 'Failed to create team');
       }
 
-      console.log('Team created successfully:', data);
       toast.success('Team created successfully');
       router.push(`/teams/${data.id}`);
     } catch (error) {

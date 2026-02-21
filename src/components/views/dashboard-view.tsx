@@ -14,7 +14,14 @@ import {
   BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   BarChart,
   Bar,
@@ -210,11 +217,21 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
     <div className="flex-1 overflow-auto bg-slate-50 p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <Button variant="outline" size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          Add widget
-        </Button>
-        <button className="text-sm text-black hover:text-black">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Add widget
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => toast.info("Chart widget coming soon")}>Chart</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("KPI card coming soon")}>KPI card</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Task list widget coming soon")}>Task list</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Custom widget coming soon")}>Custom</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <button className="text-sm text-black hover:text-black" onClick={() => toast.info("Invite comments coming soon")}>
           Invite comments
         </button>
       </div>
@@ -533,9 +550,18 @@ function ChartCard({ title, children, filterCount }: ChartCardProps) {
     <div className="bg-white rounded-xl border p-4 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-900">{title}</h3>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => toast.info("Edit widget coming soon")}>Edit</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Duplicate widget coming soon")}>Duplicate</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Remove widget coming soon")}>Remove</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {children}

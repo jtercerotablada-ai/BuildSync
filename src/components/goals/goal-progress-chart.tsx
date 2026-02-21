@@ -143,7 +143,7 @@ export function GoalProgressChart({
                 stroke="#9CA3AF"
                 strokeDasharray="3 3"
                 label={{
-                  value: "Hoy",
+                  value: "Today",
                   position: "top",
                   fill: "#6B7280",
                   fontSize: 12,

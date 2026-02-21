@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MoreHorizontal,
   Check,
@@ -41,6 +41,12 @@ interface PastTopic {
   timestamp: number;
 }
 
+interface MentionItem {
+  id: string;
+  name: string;
+  type: 'person' | 'project';
+}
+
 interface AIAssistantWidgetProps {
   size?: WidgetSize;
   onSizeChange?: (size: WidgetSize) => void;
@@ -53,7 +59,7 @@ const defaultSuggestions: Suggestion[] = [
   { id: '3', icon: 'docs', text: 'How to create and manage projects' },
 ];
 
-// Helper to format relative date like Asana
+// Helper to format relative date like BuildSync
 function formatRelativeDate(timestamp: number): string {
   const now = new Date();
   const date = new Date(timestamp);
@@ -93,6 +99,56 @@ export function AIAssistantWidget({
   const [pastTopics, setPastTopics] = useState<PastTopic[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
+  const [mentionSearch, setMentionSearch] = useState('');
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  // Fetch people and projects for @ mentions
+  useEffect(() => {
+    async function fetchMentionData() {
+      try {
+        const [usersRes, projectsRes] = await Promise.all([
+          fetch('/api/users?limit=20'),
+          fetch('/api/projects?limit=20'),
+        ]);
+        const items: MentionItem[] = [];
+        if (usersRes.ok) {
+          const users = await usersRes.json();
+          users.forEach((u: { id: string; name?: string }) => {
+            if (u.name) items.push({ id: u.id, name: u.name, type: 'person' });
+          });
+        }
+        if (projectsRes.ok) {
+          const projects = await projectsRes.json();
+          projects.forEach((p: { id: string; name?: string }) => {
+            if (p.name) items.push({ id: p.id, name: p.name, type: 'project' });
+          });
+        }
+        setMentionItems(items);
+      } catch {
+        // silently fail
+      }
+    }
+    fetchMentionData();
+  }, []);
+
+  const handleMentionClick = () => {
+    setShowMentionPicker(true);
+    setMentionSearch('');
+  };
+
+  const handleMentionSelect = (item: MentionItem) => {
+    const mention = `@${item.name}`;
+    setQuestion(prev => prev ? `${prev} ${mention} ` : `${mention} `);
+    setShowMentionPicker(false);
+    setMentionSearch('');
+    inputRef.current?.focus();
+  };
+
+  const filteredMentionItems = mentionItems.filter(item =>
+    item.name.toLowerCase().includes(mentionSearch.toLowerCase())
+  );
 
   // Load past topics from localStorage
   useEffect(() => {
@@ -342,18 +398,75 @@ export function AIAssistantWidget({
       </div>
 
       {/* Input */}
-      <div className="pt-3 mt-auto">
+      <div className="pt-3 mt-auto relative">
+        {/* Mention Picker Dropdown */}
+        {showMentionPicker && (
+          <>
+            {/* Backdrop to close */}
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setShowMentionPicker(false)}
+            />
+            <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-48 overflow-hidden flex flex-col">
+              <div className="p-2 border-b border-gray-100">
+                <input
+                  type="text"
+                  value={mentionSearch}
+                  onChange={(e) => setMentionSearch(e.target.value)}
+                  placeholder="Search people or projects..."
+                  className="w-full text-sm outline-none bg-transparent"
+                  autoFocus
+                />
+              </div>
+              <div className="overflow-y-auto">
+                {filteredMentionItems.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-3">No results</p>
+                ) : (
+                  filteredMentionItems.slice(0, 8).map((item) => (
+                    <button
+                      key={`${item.type}-${item.id}`}
+                      onClick={() => handleMentionSelect(item)}
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-left text-sm"
+                    >
+                      {item.type === 'person' ? (
+                        <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600">
+                          {item.name.charAt(0).toUpperCase()}
+                        </span>
+                      ) : (
+                        <FileText className="h-4 w-4 text-gray-400" />
+                      )}
+                      <span className="truncate">{item.name}</span>
+                      <span className="text-xs text-gray-400 ml-auto flex-shrink-0">
+                        {item.type === 'person' ? 'Person' : 'Project'}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
         <div className="flex items-center gap-2 border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-black focus-within:border-transparent">
           <input
+            ref={inputRef}
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder="Ask me anything"
+            placeholder="Ask about @projects or @people"
             className="flex-1 text-sm outline-none bg-transparent"
             disabled={isLoading}
           />
-          <button className="p-1 text-gray-400 hover:text-gray-600">
+          <button
+            onClick={handleMentionClick}
+            className={cn(
+              'p-1 rounded transition-colors',
+              showMentionPicker
+                ? 'text-gray-900 bg-gray-100'
+                : 'text-gray-400 hover:text-gray-600'
+            )}
+          >
             <AtSign className="h-4 w-4" />
           </button>
           <button

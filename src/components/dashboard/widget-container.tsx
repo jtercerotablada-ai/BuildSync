@@ -81,9 +81,10 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
     },
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition: transition || 'transform 250ms cubic-bezier(0.25, 1, 0.5, 1)',
+  // CSS.Translate prevents scale distortion with variable-sized grid items
+  const style: React.CSSProperties = {
+    transform: transform ? CSS.Translate.toString(transform) : undefined,
+    transition: isDragging ? 'none' : transition,
   };
 
   const widget = AVAILABLE_WIDGETS.find(w => w.id === id);
@@ -116,7 +117,7 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
         // Dragging state - placeholder style
         isDragging && 'opacity-40 border-2 border-dashed border-gray-400 bg-gray-50 shadow-inner',
         // Hover indicator when another widget is being dragged over this one
-        isOver && !isDragging && 'ring-2 ring-black ring-offset-2 scale-[1.02]',
+        isOver && !isDragging && 'ring-2 ring-black ring-offset-2',
         // Normal hover state (only when not dragging)
         !isDragging && 'transition-all duration-200 hover:shadow-md',
       )}

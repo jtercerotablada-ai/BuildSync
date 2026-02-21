@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 
 interface Project {
   id: string;
@@ -252,25 +253,25 @@ export function QuickCreateTaskModal({ open, onOpenChange, projects = [] }: Quic
 
           {/* Toolbar */}
           <div className="flex items-center gap-1 pt-2 border-t">
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
+            <button onClick={() => toast.info("Add field coming soon")} className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
               <Plus className="h-4 w-4" />
             </button>
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
+            <button onClick={() => toast.info("Text formatting coming soon")} className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
               <Type className="h-4 w-4" />
             </button>
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
+            <button onClick={() => toast.info("Emoji coming soon")} className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
               <Smile className="h-4 w-4" />
             </button>
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
+            <button onClick={() => toast.info("Mentions coming soon")} className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
               <AtSign className="h-4 w-4" />
             </button>
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
+            <button onClick={() => toast.info("Attachments coming soon")} className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
               <Paperclip className="h-4 w-4" />
             </button>
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
+            <button onClick={() => toast.info("AI assist coming soon")} className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
               <Sparkles className="h-4 w-4" />
             </button>
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
+            <button onClick={() => toast.info("Schedule coming soon")} className="p-1.5 hover:bg-slate-100 rounded transition-colors text-slate-500">
               <Calendar className="h-4 w-4" />
             </button>
           </div>

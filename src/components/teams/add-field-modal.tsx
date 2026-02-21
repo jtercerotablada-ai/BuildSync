@@ -29,6 +29,7 @@ import {
   Type,
   Hash,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface AddFieldModalProps {
   open: boolean;
@@ -137,7 +138,7 @@ export function AddFieldModal({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <DialogTitle>Add field</DialogTitle>
-          <Button variant="outline" size="sm" className="gap-2 h-8">
+          <Button variant="outline" size="sm" className="gap-2 h-8" onClick={() => toast.info('Access management: This field is visible to everyone in the organization.')}>
             <Settings className="h-4 w-4" />
             Manage access
           </Button>
@@ -148,7 +149,7 @@ export function AddFieldModal({
           <span className="text-gray-600">
             This field is visible to everyone in {organizationName}.
           </span>
-          <Button variant="link" size="sm" className="text-black h-auto p-0">
+          <Button variant="link" size="sm" className="text-black h-auto p-0" onClick={() => toast.info('Access settings: Currently visible to everyone. Contact admin to change.')}>
             Change access
           </Button>
         </div>

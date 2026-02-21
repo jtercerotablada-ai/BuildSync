@@ -14,6 +14,7 @@ import {
   Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 // ============================================
 // TYPES
@@ -187,6 +188,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                       <button
                         key={source.id}
                         className="w-full flex items-start gap-2 p-2 rounded-lg border hover:border-black hover:bg-white transition-colors text-left"
+                        onClick={() => toast.info(source.name + " coming soon")}
                       >
                         <div className="p-1.5 bg-slate-100 rounded">
                           {source.icon}
@@ -223,7 +225,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
               {/* Horizontal line from config card */}
               <div className="w-4 h-px bg-slate-300" />
               {/* Circular + button as connector */}
-              <button className="w-7 h-7 rounded-full border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 hover:border-slate-400 hover:text-slate-500 hover:bg-slate-50 transition-colors flex-shrink-0">
+              <button className="w-7 h-7 rounded-full border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 hover:border-slate-400 hover:text-slate-500 hover:bg-slate-50 transition-colors flex-shrink-0" onClick={() => toast.info("Add section coming soon")}>
                 <Plus className="w-4 h-4" />
               </button>
               {/* Horizontal line to sections */}
@@ -256,7 +258,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
             </div>
 
             {/* Add Section Card */}
-            <button className="w-44 min-h-[200px] flex-shrink-0 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center text-slate-400 hover:border-slate-300 hover:text-slate-500 transition-colors gap-2">
+            <button className="w-44 min-h-[200px] flex-shrink-0 border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center text-slate-400 hover:border-slate-300 hover:text-slate-500 transition-colors gap-2" onClick={() => toast.info("Add section coming soon")}>
               <Plus className="w-5 h-5" />
               <span className="text-xs">Add section</span>
             </button>
@@ -289,7 +291,7 @@ function SectionCard({ section, actions, onAddAction, onRemoveAction }: SectionC
       <div className="p-3 border-b">
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs text-slate-400">Section</span>
-          <button className="p-1 hover:bg-slate-100 rounded">
+          <button className="p-1 hover:bg-slate-100 rounded" onClick={() => toast.info("Section options coming soon")}>
             <MoreHorizontal className="w-3 h-3 text-slate-400" />
           </button>
         </div>

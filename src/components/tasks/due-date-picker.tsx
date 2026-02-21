@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface DueDatePickerProps {
   value: Date | null;
@@ -257,6 +258,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
               size="icon"
               className="h-8 w-8 text-gray-500"
               title="Add time"
+              onClick={() => toast.info("Add time coming soon")}
             >
               <Clock className="h-4 w-4" />
             </Button>
@@ -265,6 +267,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
               size="icon"
               className="h-8 w-8 text-gray-500"
               title="Set to repeat"
+              onClick={() => toast.info("Recurring tasks coming soon")}
             >
               <Repeat className="h-4 w-4" />
             </Button>

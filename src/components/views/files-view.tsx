@@ -18,8 +18,15 @@ import {
   Presentation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 // ============================================
 // TYPES
@@ -122,20 +129,17 @@ export function FilesView({ sections, projectId }: FilesViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string | null>(null);
 
-  // Sample data - empty to show empty state first
+  // Sample data to display in the view
   // In production, this would come from API based on project attachments
   const [files] = useState<FileAttachment[]>([
-    // Uncomment to see with files:
-    /*
     {
       id: "1",
       name: "Design Mockup.png",
       type: "image",
       size: 2456000,
-      url: "#",
-      thumbnailUrl: "/api/placeholder/200/150",
+      url: "",
       uploadedAt: new Date(2025, 0, 5),
-      uploadedBy: { id: "1", name: "Juan Tercero", initials: "JT", color: "#FBBF24" },
+      uploadedBy: { id: "1", name: "Project Owner", initials: "PO", color: "#FBBF24" },
       taskId: "t1",
       taskName: "Create UI mockups",
     },
@@ -144,7 +148,7 @@ export function FilesView({ sections, projectId }: FilesViewProps) {
       name: "Project Requirements.pdf",
       type: "document",
       size: 1024000,
-      url: "#",
+      url: "",
       uploadedAt: new Date(2025, 0, 3),
       uploadedBy: { id: "2", name: "Maria Garcia", initials: "MG", color: "#EC4899" },
       taskId: "t2",
@@ -155,9 +159,9 @@ export function FilesView({ sections, projectId }: FilesViewProps) {
       name: "Budget 2025.xlsx",
       type: "spreadsheet",
       size: 512000,
-      url: "#",
+      url: "",
       uploadedAt: new Date(2025, 0, 7),
-      uploadedBy: { id: "1", name: "Juan Tercero", initials: "JT", color: "#FBBF24" },
+      uploadedBy: { id: "1", name: "Project Owner", initials: "PO", color: "#FBBF24" },
       taskId: "t3",
       taskName: "Budget planning",
     },
@@ -166,12 +170,10 @@ export function FilesView({ sections, projectId }: FilesViewProps) {
       name: "Demo Video.mp4",
       type: "video",
       size: 15728640,
-      url: "#",
-      thumbnailUrl: "/api/placeholder/200/150",
+      url: "",
       uploadedAt: new Date(2025, 0, 8),
       uploadedBy: { id: "3", name: "Carlos Lopez", initials: "CL", color: "#3B82F6" },
     },
-    */
   ]);
 
   // Filter files
@@ -246,7 +248,7 @@ export function FilesView({ sections, projectId }: FilesViewProps) {
               </button>
             </div>
 
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => toast.info("File upload coming soon")}>
               <Upload className="w-4 h-4 mr-2" />
               Upload
             </Button>
@@ -279,7 +281,7 @@ function EmptyState() {
   return (
     <div className="flex-1 flex items-center justify-center bg-white min-h-full">
       <div className="text-center max-w-md">
-        {/* Illustration - Asana style with red/coral colors */}
+        {/* Illustration - BuildSync style with red/coral colors */}
         <FilesIllustration />
 
         {/* Text */}
@@ -295,7 +297,7 @@ function EmptyState() {
 }
 
 // ============================================
-// FILES ILLUSTRATION - ASANA STYLE (RED COLORS)
+// FILES ILLUSTRATION - BUILDSYNC STYLE (RED COLORS)
 // ============================================
 
 function FilesIllustration() {
@@ -392,10 +394,10 @@ function FileCard({ file }: { file: FileAttachment }) {
 
       {/* Hover Actions */}
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-        <button className="p-1.5 bg-white rounded shadow hover:bg-gray-50">
+        <button className="p-1.5 bg-white rounded shadow hover:bg-gray-50" onClick={(e) => { e.stopPropagation(); toast.info("Download: " + file.name); }}>
           <Download className="w-3 h-3 text-gray-600" />
         </button>
-        <button className="p-1.5 bg-white rounded shadow hover:bg-gray-50">
+        <button className="p-1.5 bg-white rounded shadow hover:bg-gray-50" onClick={(e) => { e.stopPropagation(); toast.info("Opening " + file.name); }}>
           <ExternalLink className="w-3 h-3 text-gray-600" />
         </button>
       </div>
@@ -467,9 +469,18 @@ function FilesList({ files }: { files: FileAttachment[] }) {
 
           {/* Actions */}
           <div className="col-span-1 flex justify-end">
-            <button className="p-1 hover:bg-gray-100 rounded">
-              <MoreHorizontal className="w-4 h-4 text-gray-400" />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-1 hover:bg-gray-100 rounded">
+                  <MoreHorizontal className="w-4 h-4 text-gray-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => toast.info("Download: " + file.name)}>Download</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Opening " + file.name)}>Open in new tab</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info("Delete coming soon")}>Delete</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       ))}

@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { TeamHeader } from "@/components/teams/team-header";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface Task {
   id: string;
@@ -293,16 +294,33 @@ export default function TeamCalendarPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-900">
                 {selectedDate
-                  ? selectedDate.toLocaleDateString("es-ES", {
+                  ? selectedDate.toLocaleDateString("en-US", {
                       weekday: "long",
                       day: "numeric",
                       month: "long",
                     })
-                  : "Selecciona una fecha"}
+                  : "Select a date"}
               </h3>
 
               {selectedDate && (
-                <Button size="sm" variant="outline" className="gap-1">
+                <Button size="sm" variant="outline" className="gap-1" onClick={() => {
+                  const name = prompt('Nombre de la tarea:');
+                  if (!name?.trim()) return;
+                  const dateStr = selectedDate.toISOString().split('T')[0];
+                  fetch(`/api/teams/${teamId}/tasks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.trim(), dueDate: dateStr }),
+                  }).then(async res => {
+                    if (res.ok) {
+                      const task = await res.json();
+                      setTasks(prev => [...prev, task]);
+                      toast.success('Tarea agregada');
+                    } else {
+                      toast.error('Error al crear tarea');
+                    }
+                  }).catch(() => toast.error('Error al crear tarea'));
+                }}>
                   <Plus className="h-3 w-3" />
                   Agregar
                 </Button>
@@ -324,8 +342,18 @@ export default function TeamCalendarPage() {
                         <input
                           type="checkbox"
                           checked={task.completed}
-                          readOnly
-                          className="mt-0.5 rounded"
+                          onChange={() => {
+                            const updated = !task.completed;
+                            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: updated } : t));
+                            fetch(`/api/tasks/${task.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ completed: updated }),
+                            }).then(res => {
+                              if (res.ok) toast.success(updated ? 'Tarea completada' : 'Tarea reabierta');
+                            });
+                          }}
+                          className="mt-0.5 rounded cursor-pointer"
                         />
                         <div className="flex-1 min-w-0">
                           <p
@@ -358,7 +386,7 @@ export default function TeamCalendarPage() {
                 <div className="text-center py-8">
                   <CalendarIcon className="h-12 w-12 text-gray-200 mx-auto mb-3" />
                   <p className="text-sm text-gray-500">
-                    No hay tareas para este dia
+                    No tasks for this day
                   </p>
                 </div>
               )
@@ -366,7 +394,7 @@ export default function TeamCalendarPage() {
               <div className="text-center py-8">
                 <CalendarIcon className="h-12 w-12 text-gray-200 mx-auto mb-3" />
                 <p className="text-sm text-gray-500">
-                  Haz clic en un dia para ver las tareas
+                  Click on a day to see tasks
                 </p>
               </div>
             )}

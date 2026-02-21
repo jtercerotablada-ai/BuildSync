@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Info, Users, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 
 interface FieldMember {
   id: string;
@@ -89,13 +90,14 @@ export function FieldMembersModal({
           <div className="flex items-center gap-2 text-black">
             <AlertTriangle className="h-4 w-4" />
             <span className="text-sm">
-              Upgrade to Asana Enterprise to edit access permissions.
+              Upgrade to BuildSync Enterprise to edit access permissions.
             </span>
           </div>
           <Button
             variant="outline"
             size="sm"
             className="bg-white border-black text-black hover:bg-gray-100"
+            onClick={() => window.open('mailto:sales@buildsync.com?subject=Enterprise%20Inquiry', '_blank')}
           >
             Contact Sales
           </Button>
@@ -112,7 +114,7 @@ export function FieldMembersModal({
                 placeholder="Add members by name or email..."
                 className="pr-10"
               />
-              <button className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <button className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" onClick={() => toast.info('Add members by entering their name or email address')}>
                 <Info className="h-4 w-4" />
               </button>
             </div>

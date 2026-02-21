@@ -77,7 +77,7 @@ export function DraftCommentsWidget() {
               <div className="flex items-start justify-between gap-2">
                 <button
                   className="text-left flex-1 min-w-0"
-                  onClick={() => router.push(`/tasks/${draft.taskId}`)}
+                  onClick={() => router.push(`/my-tasks`)}
                 >
                   <p className="text-xs text-slate-500 truncate">On: {draft.taskName}</p>
                   <p className="text-sm text-slate-700 line-clamp-2">{draft.content}</p>

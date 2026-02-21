@@ -44,8 +44,10 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
 
   useEffect(() => {
     async function fetchPeople() {
+      setLoading(true);
       try {
-        const res = await fetch('/api/users?limit=6');
+        const limit = filter === 'all' ? 12 : 6;
+        const res = await fetch(`/api/users?limit=${limit}&filter=${filter}`);
         if (res.ok) {
           const data = await res.json();
           setPeople(data);
@@ -57,7 +59,7 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
       }
     }
     fetchPeople();
-  }, []);
+  }, [filter]);
 
   const handleInvite = () => {
     if (onInvite) {
@@ -194,7 +196,7 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
               <button
                 key={person.id}
                 className="flex flex-col items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors"
-                onClick={() => router.push(`/team/${person.id}`)}
+                onClick={() => router.push(`/team`)}
               >
                 <Avatar className="h-12 w-12">
                   <AvatarImage src={person.image || undefined} />

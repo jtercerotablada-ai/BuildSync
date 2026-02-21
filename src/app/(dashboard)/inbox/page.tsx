@@ -7,7 +7,6 @@ import {
   Bell,
   Archive,
   Star,
-  Plus,
   Filter,
   ArrowUpDown,
   Sparkles,
@@ -15,7 +14,16 @@ import {
   ChevronDown,
   MoreHorizontal,
   Loader2,
+  Check,
+  Settings,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 // Types
@@ -62,6 +70,8 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [sortOrder, setSortOrder] = useState<"recent" | "oldest">("recent");
   const [showAISummary, setShowAISummary] = useState(true);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -170,9 +180,27 @@ export default function InboxPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b">
         <h1 className="text-xl font-semibold text-black">Inbox</h1>
-        <Button variant="ghost" size="sm" className="text-black">
-          Manage notifications
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-black gap-2">
+              <Settings className="w-4 h-4" />
+              Manage notifications
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem onClick={() => {
+              // Mark all as read
+              notifications.forEach(n => { if (!n.read) markAsRead(n.id); });
+            }}>
+              <Check className="w-4 h-4 mr-2" />
+              Mark all as read
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={archiveAll}>
+              <Archive className="w-4 h-4 mr-2" />
+              Archive all
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Tabs */}
@@ -200,27 +228,93 @@ export default function InboxPage() {
             </button>
           );
         })}
-        <button className="p-2 text-slate-400 hover:text-black hover:bg-white rounded-md ml-1">
-          <Plus className="w-4 h-4" />
-        </button>
       </div>
 
       {/* Toolbar */}
       <div className="flex items-center justify-between px-6 py-2 border-b bg-slate-50">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="text-black">
-            <Filter className="w-4 h-4 mr-2" />
-            Filter
-          </Button>
-          <Button variant="ghost" size="sm" className="text-black">
-            <ArrowUpDown className="w-4 h-4 mr-2" />
-            Sort: {sortOrder === "recent" ? "Most recent" : "Oldest"}
-            <ChevronDown className="w-4 h-4 ml-1" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-black">
+                <Filter className="w-4 h-4 mr-2" />
+                Filter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuItem onClick={() => setActiveTab("activity")}>
+                All activity
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => {
+                setNotifications(prev => prev.filter(n => !n.read));
+              }}>
+                Unread only
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                setNotifications(prev => prev.filter(n => n.type === "mention"));
+              }}>
+                Mentions only
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                setNotifications(prev => prev.filter(n => n.type === "task_assigned"));
+              }}>
+                Assignments only
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={fetchNotifications}>
+                Clear filters
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-black">
+                <ArrowUpDown className="w-4 h-4 mr-2" />
+                Sort: {sortOrder === "recent" ? "Most recent" : "Oldest"}
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44">
+              <DropdownMenuItem onClick={() => {
+                setSortOrder("recent");
+                setNotifications(prev => [...prev].sort((a, b) =>
+                  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                ));
+              }}>
+                {sortOrder === "recent" && <Check className="w-4 h-4 mr-2" />}
+                {sortOrder !== "recent" && <span className="w-4 mr-2" />}
+                Most recent
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                setSortOrder("oldest");
+                setNotifications(prev => [...prev].sort((a, b) =>
+                  new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                ));
+              }}>
+                {sortOrder === "oldest" && <Check className="w-4 h-4 mr-2" />}
+                {sortOrder !== "oldest" && <span className="w-4 mr-2" />}
+                Oldest first
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <Button variant="ghost" size="icon" className="text-slate-400">
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="text-slate-400">
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => {
+              notifications.forEach(n => { if (!n.read) markAsRead(n.id); });
+            }}>
+              Mark all as read
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={archiveAll}>
+              Archive all
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Content */}
@@ -247,16 +341,49 @@ export default function InboxPage() {
                 <p className="text-sm text-black mt-2">
                   Get a summary of your most important notifications with AI.
                 </p>
-                <div className="flex items-center justify-between mt-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-black">Period:</span>
-                    <Button variant="outline" size="sm" className="h-8">
-                      Last week
-                      <ChevronDown className="w-4 h-4 ml-1" />
-                    </Button>
+                {aiSummary && (
+                  <div className="mt-3 p-3 bg-white rounded-lg border text-sm text-slate-700">
+                    {aiSummary}
                   </div>
-                  <Button size="sm" className="bg-slate-900 hover:bg-slate-800">
-                    View summary
+                )}
+                <div className="flex items-center justify-end mt-3">
+                  <Button
+                    size="sm"
+                    className="bg-slate-900 hover:bg-slate-800"
+                    disabled={aiSummaryLoading || notifications.length === 0}
+                    onClick={async () => {
+                      setAiSummaryLoading(true);
+                      try {
+                        const summaryText = notifications.slice(0, 10).map(n =>
+                          `${n.sender.name}: ${n.title} - ${n.preview}`
+                        ).join('\n');
+                        const res = await fetch('/api/ai/assist', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            prompt: 'Summarize these notifications concisely in 2-3 bullet points. Focus on what needs attention:',
+                            text: summaryText,
+                          }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setAiSummary(data.result);
+                        }
+                      } catch {
+                        setAiSummary('Could not generate summary. Please try again.');
+                      } finally {
+                        setAiSummaryLoading(false);
+                      }
+                    }}
+                  >
+                    {aiSummaryLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      'View summary'
+                    )}
                   </Button>
                 </div>
               </div>
@@ -331,12 +458,21 @@ function NotificationItem({
       )}
       onClick={onClick}
     >
-      {/* Checkbox on hover */}
+      {/* Archive on hover */}
       <button
-        className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-        onClick={(e) => e.stopPropagation()}
+        className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 hover:text-black"
+        onClick={(e) => {
+          e.stopPropagation();
+          // Archive this notification
+          fetch("/api/notifications", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: [notification.id], archived: true }),
+          });
+        }}
+        title="Archive"
       >
-        <div className="w-4 h-4 rounded border-2 border-slate-300 hover:border-slate-400" />
+        <Archive className="w-4 h-4 text-slate-400 hover:text-slate-600" />
       </button>
 
       {/* Avatar */}

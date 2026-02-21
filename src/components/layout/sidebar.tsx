@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -325,12 +326,13 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
 
       {/* Bottom Actions */}
       <div className="border-t p-2">
-        <Link href="/settings">
-          <span className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-black hover:bg-black hover:text-white hover:text-white">
-            <Settings className="h-4 w-4" />
-            Settings
-          </span>
-        </Link>
+        <button
+          onClick={() => toast.info("Settings coming soon")}
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-black hover:bg-black hover:text-white"
+        >
+          <Settings className="h-4 w-4" />
+          Settings
+        </button>
       </div>
     </aside>
   );

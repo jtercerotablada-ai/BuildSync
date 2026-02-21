@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { GraduationCap, PlayCircle, ChevronRight, X, CheckCircle2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { GraduationCap, ChevronRight, X, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +12,7 @@ interface Tutorial {
   description: string;
   duration: string;
   completed: boolean;
+  url: string;
 }
 
 const STORAGE_KEY = 'buildsync-completed-tutorials';
@@ -22,6 +24,7 @@ const TUTORIALS: Tutorial[] = [
     description: 'Learn the basics of navigating and using BuildSync',
     duration: '3 min',
     completed: false,
+    url: '/home',
   },
   {
     id: 'create-project',
@@ -29,6 +32,7 @@ const TUTORIALS: Tutorial[] = [
     description: 'Set up a project and invite your team',
     duration: '2 min',
     completed: false,
+    url: '/projects?create=true',
   },
   {
     id: 'manage-tasks',
@@ -36,6 +40,7 @@ const TUTORIALS: Tutorial[] = [
     description: 'Learn to create, assign, and track tasks',
     duration: '4 min',
     completed: false,
+    url: '/inbox',
   },
   {
     id: 'goals-okrs',
@@ -43,10 +48,12 @@ const TUTORIALS: Tutorial[] = [
     description: 'Track your team\'s objectives and key results',
     duration: '3 min',
     completed: false,
+    url: '/goals',
   },
 ];
 
 export function LearningWidget() {
+  const router = useRouter();
   const [tutorials, setTutorials] = useState<Tutorial[]>(TUTORIALS);
   const [dismissed, setDismissed] = useState(false);
 
@@ -70,12 +77,16 @@ export function LearningWidget() {
     }
   }, []);
 
-  const markCompleted = (id: string) => {
+  const toggleCompleted = (id: string) => {
     const updated = tutorials.map(t =>
-      t.id === id ? { ...t, completed: true } : t
+      t.id === id ? { ...t, completed: !t.completed } : t
     );
     setTutorials(updated);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated.filter(t => t.completed).map(t => t.id)));
+  };
+
+  const handleNavigate = (tutorial: Tutorial) => {
+    router.push(tutorial.url);
   };
 
   const dismissWidget = () => {
@@ -132,7 +143,7 @@ export function LearningWidget() {
 
       <div className="space-y-2">
         {tutorials.map((tutorial) => (
-          <button
+          <div
             key={tutorial.id}
             className={cn(
               "w-full p-3 rounded-lg border transition-colors text-left flex items-center gap-3",
@@ -140,27 +151,45 @@ export function LearningWidget() {
                 ? "border-black bg-white"
                 : "border-slate-200 hover:bg-slate-50"
             )}
-            onClick={() => !tutorial.completed && markCompleted(tutorial.id)}
           >
-            {tutorial.completed ? (
-              <CheckCircle2 className="h-8 w-8 text-black flex-shrink-0" />
-            ) : (
-              <PlayCircle className="h-8 w-8 text-black flex-shrink-0" />
-            )}
-            <div className="min-w-0 flex-1">
+            {/* Completion checkbox */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleCompleted(tutorial.id);
+              }}
+              className="flex-shrink-0"
+              aria-label={tutorial.completed ? 'Mark as incomplete' : 'Mark as complete'}
+            >
+              {tutorial.completed ? (
+                <CheckCircle2 className="h-8 w-8 text-black" />
+              ) : (
+                <div className="h-8 w-8 rounded-full border-2 border-slate-300 hover:border-black transition-colors" />
+              )}
+            </button>
+
+            {/* Clickable content — navigates to tutorial URL */}
+            <button
+              className="min-w-0 flex-1 text-left"
+              onClick={() => handleNavigate(tutorial)}
+            >
               <p className={cn(
                 "text-sm font-medium",
-                tutorial.completed ? "text-black" : "text-slate-900"
+                tutorial.completed ? "text-black line-through" : "text-slate-900"
               )}>
                 {tutorial.title}
               </p>
               <p className="text-xs text-slate-500">{tutorial.description}</p>
-            </div>
-            <div className="flex items-center gap-1 text-slate-400">
+            </button>
+
+            <button
+              onClick={() => handleNavigate(tutorial)}
+              className="flex items-center gap-1 text-slate-400 hover:text-slate-600 flex-shrink-0"
+            >
               <span className="text-xs">{tutorial.duration}</span>
               <ChevronRight className="h-4 w-4" />
-            </div>
-          </button>
+            </button>
+          </div>
         ))}
       </div>
     </div>

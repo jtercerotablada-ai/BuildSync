@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -19,6 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Plus,
   Target,
@@ -87,6 +94,7 @@ const PERIODS = [
 
 export default function GoalsPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -172,13 +180,13 @@ export default function GoalsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-black";
+        return "bg-green-500";
       case "AT_RISK":
-        return "bg-gray-500";
+        return "bg-yellow-500";
       case "OFF_TRACK":
-        return "bg-gray-300";
+        return "bg-red-500";
       case "ACHIEVED":
-        return "bg-black";
+        return "bg-blue-500";
       default:
         return "bg-gray-400";
     }
@@ -206,9 +214,14 @@ export default function GoalsPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b">
         <h1 className="text-xl font-semibold text-black">Goals</h1>
-        <button className="text-sm text-black hover:text-black">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-black"
+          onClick={() => window.open('mailto:feedback@buildsync.com?subject=Goals%20Feedback', '_blank')}
+        >
           Send feedback
-        </button>
+        </Button>
       </div>
 
       {/* Tabs */}
@@ -227,7 +240,10 @@ export default function GoalsPage() {
             {tab.label}
           </button>
         ))}
-        <button className="p-2 text-black hover:text-black hover:bg-white rounded-md ml-1">
+        <button
+          className="p-2 text-black hover:text-black hover:bg-slate-100 rounded-md ml-1"
+          onClick={() => setCreateOpen(true)}
+        >
           <Plus className="w-4 h-4" />
         </button>
       </div>
@@ -278,7 +294,7 @@ export default function GoalsPage() {
           {activeTab === "my-goals" && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-black rounded-full text-sm">
               <User className="w-4 h-4 text-black" />
-              <span className="text-black">Owner: Juan Tercero</span>
+              <span className="text-black">Owner: {session?.user?.name || "Me"}</span>
             </div>
           )}
           {activeTab === "team-goals" && (
@@ -289,14 +305,43 @@ export default function GoalsPage() {
           )}
 
           {/* Filter & Options */}
-          <Button variant="ghost" size="sm" className="text-black">
-            <Filter className="w-4 h-4 mr-2" />
-            Filter
-          </Button>
-          <Button variant="ghost" size="sm" className="text-black">
-            <Settings className="w-4 h-4 mr-2" />
-            Options
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-black">
+                <Filter className="w-4 h-4 mr-2" />
+                Filter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => { setSelectedPeriod("All"); }}>
+                All periods
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setActiveTab("my-goals"); }}>
+                My goals only
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setActiveTab("team-goals"); }}>
+                Team goals only
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-black">
+                <Settings className="w-4 h-4 mr-2" />
+                Options
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => {
+                setExpandedIds(new Set(objectives.map(o => o.id)));
+              }}>
+                Expand all
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExpandedIds(new Set())}>
+                Collapse all
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -306,7 +351,32 @@ export default function GoalsPage() {
           <StrategyMapView
             objectives={objectives}
             showOnboarding={showStrategyOnboarding && objectives.length === 0}
-            onCreateGoal={() => setCreateOpen(true)}
+            onCreateGoal={async (name?: string) => {
+              if (name) {
+                // Direct create from strategy map onboarding
+                try {
+                  const res = await fetch("/api/objectives", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      name,
+                      period: "Q1 FY26",
+                      progressSource: "KEY_RESULTS",
+                    }),
+                  });
+                  if (res.ok) {
+                    const objective = await res.json();
+                    setObjectives([objective, ...objectives]);
+                    setShowStrategyOnboarding(false);
+                    router.push(`/goals/${objective.id}`);
+                  }
+                } catch (error) {
+                  console.error("Error creating goal:", error);
+                }
+              } else {
+                setCreateOpen(true);
+              }
+            }}
             onSkipOnboarding={() => setShowStrategyOnboarding(false)}
           />
         ) : (
@@ -597,7 +667,7 @@ function StrategyMapView({
 }: {
   objectives: Objective[];
   showOnboarding: boolean;
-  onCreateGoal: () => void;
+  onCreateGoal: (name?: string) => void;
   onSkipOnboarding: () => void;
 }) {
   const [newGoalName, setNewGoalName] = useState("");
@@ -649,7 +719,7 @@ function StrategyMapView({
               </Button>
               <Button
                 disabled={!newGoalName.trim()}
-                onClick={onCreateGoal}
+                onClick={() => onCreateGoal(newGoalName)}
                 className="bg-black hover:bg-black"
               >
                 Continue
@@ -678,7 +748,7 @@ function StrategyMapView({
         <p className="text-sm text-black text-center max-w-sm mb-4">
           Create goals to visualize your strategy hierarchy.
         </p>
-        <Button onClick={onCreateGoal} className="bg-black hover:bg-black">
+        <Button onClick={() => onCreateGoal()} className="bg-black hover:bg-black">
           <Plus className="w-4 h-4 mr-2" />
           Create your first goal
         </Button>
@@ -754,7 +824,7 @@ function GoalCard({ highlight = false }: { highlight?: boolean }) {
       <div className="h-2 bg-white border border-black rounded w-2/3" />
       {highlight && (
         <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center text-xs text-white font-medium">
-          JT
+          You
         </div>
       )}
     </div>
@@ -768,13 +838,13 @@ function StrategyMapTree({ objectives }: { objectives: Objective[] }) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-black";
+        return "bg-green-500";
       case "AT_RISK":
-        return "bg-gray-500";
+        return "bg-yellow-500";
       case "OFF_TRACK":
-        return "bg-gray-300";
+        return "bg-red-500";
       case "ACHIEVED":
-        return "bg-black";
+        return "bg-blue-500";
       default:
         return "bg-gray-400";
     }

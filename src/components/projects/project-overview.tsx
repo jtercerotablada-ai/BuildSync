@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   Sparkles,
   Lock,
@@ -70,7 +71,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
       id: "1",
       title: "The project has started!",
       summary:
-        "This is a sample status update for a project. Use status updates to communicate project progress with your team and stakeholders.",
+        "Use status updates to communicate project progress with your team and stakeholders.",
       author: { name: project.owner.name || "Project Owner" },
       createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
       status: "on-track",
@@ -236,7 +237,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-3">Project roles</h2>
           <div className="flex items-center gap-4 flex-wrap">
-            <button className="flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg text-sm text-slate-500 hover:bg-slate-50">
+            <button className="flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg text-sm text-slate-500 hover:bg-slate-50" onClick={() => toast.info("Add member coming soon")}>
               <Plus className="w-4 h-4" />
               Add member
             </button>

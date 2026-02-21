@@ -14,6 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search, Plus, Bell, HelpCircle, Settings, LogOut, User, CheckSquare, FolderKanban, Briefcase, Target, Sparkles } from "lucide-react";
 import { useAIPanel } from "@/contexts/ai-panel-context";
+import { toast } from "sonner";
 
 interface HeaderProps {
   onCreateTask?: () => void;
@@ -91,11 +92,11 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           <Sparkles className="h-5 w-5" style={{ color: '#D97757' }} />
         </Button>
 
-        <Button variant="ghost" size="icon" className="text-black">
+        <Button variant="ghost" size="icon" className="text-black" onClick={() => toast.info("Notifications coming soon")}>
           <Bell className="h-5 w-5" />
         </Button>
 
-        <Button variant="ghost" size="icon" className="text-black">
+        <Button variant="ghost" size="icon" className="text-black" onClick={() => toast.info("Help center coming soon")}>
           <HelpCircle className="h-5 w-5" />
         </Button>
 
@@ -120,11 +121,11 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Profile settings coming soon")}>
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Settings coming soon")}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>

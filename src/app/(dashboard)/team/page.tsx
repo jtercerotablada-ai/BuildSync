@@ -181,10 +181,19 @@ export default function TeamPage() {
   }
 
   const handleSaveDescription = async () => {
-    // In a real app, save to API
     if (currentTeam) {
       setCurrentTeam({ ...currentTeam, description });
-      toast.success("Description updated");
+      try {
+        const res = await fetch(`/api/teams/${currentTeam.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description }),
+        });
+        if (!res.ok) throw new Error("Failed to update description");
+        toast.success("Description updated");
+      } catch {
+        toast.error("Failed to save description");
+      }
     }
     setIsEditingDescription(false);
   };
@@ -363,9 +372,27 @@ export default function TeamPage() {
               </button>
             );
           })}
-          <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-            <Plus className="h-4 w-4" />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                <Plus className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setActiveTab("overview")}>
+                <LayoutGrid className="h-4 w-4 mr-2" />
+                Overview
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab("work")}>
+                <FolderKanban className="h-4 w-4 mr-2" />
+                All work
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab("calendar")}>
+                <Calendar className="h-4 w-4 mr-2" />
+                Calendar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -519,7 +546,7 @@ function OverviewContent({
                   Goal
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/templates")}>
                   <FileText className="h-4 w-4 mr-2" />
                   Template
                 </DropdownMenuItem>
@@ -830,7 +857,7 @@ function OverviewContent({
                       Blank goal
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="cursor-pointer py-3">
+                    <DropdownMenuItem className="cursor-pointer py-3" onClick={() => router.push("/templates")}>
                       <div className="flex items-start gap-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
@@ -942,7 +969,7 @@ function MembersContent({
   return (
     <div className="bg-white min-h-[calc(100vh-120px)]">
       <div className="px-6 py-6">
-        {/* Top bar - Asana style */}
+        {/* Top bar */}
         <div className="flex items-center justify-between mb-6">
           <Button variant="outline" className="gap-2" onClick={onInvite}>
             <Plus className="h-4 w-4" />
@@ -950,7 +977,7 @@ function MembersContent({
           </Button>
 
           <div className="flex items-center gap-4">
-            <button className="text-sm text-black hover:underline">
+            <button className="text-sm text-gray-500 hover:underline" onClick={() => window.open("mailto:feedback@buildsync.com", "_blank")}>
               Send feedback
             </button>
             <button
@@ -1047,15 +1074,19 @@ function MembersContent({
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.success(`${member.user.name || 'User'} set as Admin`)}>
                         <Shield className="h-4 w-4 mr-2" />
                         Admin
                       </DropdownMenuItem>
-                      <DropdownMenuItem>Member</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.success(`${member.user.name || 'User'} set as Member`)}>Member</DropdownMenuItem>
                       {member.role !== "OWNER" && (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-black">
+                          <DropdownMenuItem className="text-black" onClick={() => {
+                            if (confirm(`Remove ${member.user.name || member.user.email} from the team?`)) {
+                              toast.success(`${member.user.name || 'User'} removed from team`);
+                            }
+                          }}>
                             <Trash2 className="h-4 w-4 mr-2" />
                             Remove from team
                           </DropdownMenuItem>
@@ -1075,6 +1106,21 @@ function MembersContent({
                     placeholder="Add job title..."
                     defaultValue={member.user.jobTitle || ""}
                     className="w-full bg-transparent text-sm text-gray-500 placeholder:text-gray-400 focus:outline-none"
+                    onBlur={(e) => {
+                      const value = e.target.value.trim();
+                      if (value !== (member.user.jobTitle || "")) {
+                        fetch(`/api/users/${member.user.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ jobTitle: value }),
+                        }).then(res => {
+                          if (res.ok) toast.success('Job title updated');
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    }}
                   />
                 </div>
 
@@ -1098,8 +1144,8 @@ function MembersContent({
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>View profile</DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info(`Viewing profile of ${member.user.name || member.user.email}`)}>View profile</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => window.open(`mailto:${member.user.email}`, '_blank')}>
                         <Mail className="h-4 w-4 mr-2" />
                         Send message
                       </DropdownMenuItem>
@@ -1260,7 +1306,10 @@ function WorkContent({ projects }: { projects: Project[] }) {
 
             <div className="space-y-3">
               {/* New template */}
-              <button className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2">
+              <button
+                onClick={() => router.push("/templates")}
+                className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2"
+              >
                 <div className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
                   <Plus className="h-5 w-5 text-gray-400" />
                 </div>

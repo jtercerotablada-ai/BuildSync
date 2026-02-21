@@ -15,6 +15,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface Message {
   id: string;
@@ -169,7 +170,7 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
 
           <div className="flex items-center gap-1">
             {messages.length > 0 && (
-              <button className="p-2 hover:bg-gray-100 rounded">
+              <button className="p-2 hover:bg-gray-100 rounded" onClick={() => { setMessages([]); setInput(''); }}>
                 <Edit3 className="h-4 w-4 text-gray-500" />
               </button>
             )}
@@ -269,7 +270,7 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
               className="flex-1 text-sm outline-none bg-transparent"
               disabled={isLoading}
             />
-            <button className="p-1 text-gray-400 hover:text-gray-600">
+            <button className="p-1 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Mentions coming soon")}>
               <AtSign className="h-4 w-4" />
             </button>
             <button

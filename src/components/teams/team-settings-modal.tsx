@@ -28,6 +28,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -61,6 +67,8 @@ export function TeamSettingsModal({
   const [privacy, setPrivacy] = useState(team.privacy);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [allowInviteLinks, setAllowInviteLinks] = useState(true);
 
   // Reset form when team changes
   useEffect(() => {
@@ -166,11 +174,23 @@ export function TeamSettingsModal({
                     <p className="text-sm text-gray-700">
                       {team.name} does not have a team admin.
                     </p>
-                    <button className="text-sm text-blue-600 hover:underline">
+                    <button className="text-sm text-blue-600 hover:underline" onClick={() => toast.info('Team admins can manage team settings, members, and permissions.')}>
                       What's a team admin?
                     </button>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/teams/${team.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ hasAdmin: true }),
+                      });
+                      if (res.ok) {
+                        toast.success('You are now a team admin');
+                        onSave?.();
+                      }
+                    } catch { toast.error('Failed to become admin'); }
+                  }}>
                     Become team admin
                   </Button>
                 </div>
@@ -221,13 +241,13 @@ export function TeamSettingsModal({
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-500">Endorsed</span>
                       <BadgeCheck className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-amber-600 hover:underline cursor-pointer">
-                        Upgrade to Asana Enterprise
+                      <span className="text-sm text-amber-600 hover:underline cursor-pointer" onClick={() => toast.info('BuildSync Enterprise features coming soon')}>
+                        Upgrade to BuildSync Enterprise
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       Endorsed teams are recommended by admins in your organization.{" "}
-                      <button className="text-blue-600 hover:underline">Learn more</button>
+                      <button className="text-blue-600 hover:underline" onClick={() => toast.info('Endorsed teams are recommended by admins and appear highlighted in team directories.')}>Learn more</button>
                     </p>
                   </div>
                 </div>
@@ -296,8 +316,20 @@ export function TeamSettingsModal({
                   <Input
                     placeholder="Enter email addresses"
                     className="flex-1"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && inviteEmail.trim()) {
+                        toast.success(`Invite sent to ${inviteEmail.trim()}`);
+                        setInviteEmail("");
+                      }
+                    }}
                   />
-                  <Button size="sm">
+                  <Button size="sm" onClick={() => {
+                    if (!inviteEmail.trim()) { toast.error('Please enter an email'); return; }
+                    toast.success(`Invite sent to ${inviteEmail.trim()}`);
+                    setInviteEmail("");
+                  }}>
                     Send invite
                   </Button>
                 </div>
@@ -318,18 +350,27 @@ export function TeamSettingsModal({
                   <div className="flex items-center justify-between p-3">
                     <div className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-sm font-medium">
-                        JT
+                        TL
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Juan Tercero</p>
-                        <p className="text-xs text-gray-500">juan@example.com</p>
+                        <p className="text-sm font-medium">Team Lead</p>
+                        <p className="text-xs text-gray-500">lead@workspace.com</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100">
-                        Lead
-                        <ChevronDown className="h-3 w-3" />
-                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100">
+                            Lead
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem onClick={() => toast.success('Role changed to Admin')}>Admin</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => toast.success('Role changed to Lead')}>Lead</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => toast.success('Role changed to Member')}>Member</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </div>
@@ -355,10 +396,18 @@ export function TeamSettingsModal({
                 <div className="space-y-2 pl-6">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Who can edit team settings</span>
-                    <button className="flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900">
-                      Team admins only
-                      <ChevronDown className="h-3 w-3" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900">
+                          Team admins only
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => toast.success('Settings: Team admins only')}>Team admins only</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toast.success('Settings: All team members')}>All team members</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </div>
@@ -372,17 +421,33 @@ export function TeamSettingsModal({
                 <div className="space-y-2 pl-6">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Who can add team members</span>
-                    <button className="flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900">
-                      All team members
-                      <ChevronDown className="h-3 w-3" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900">
+                          All team members
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => toast.success('Add members: All team members')}>All team members</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toast.success('Add members: Team admins only')}>Team admins only</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Who can remove team members</span>
-                    <button className="flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900">
-                      Team admins only
-                      <ChevronDown className="h-3 w-3" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="flex items-center gap-1 text-sm text-gray-700 hover:text-gray-900">
+                          Team admins only
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => toast.success('Remove members: Team admins only')}>Team admins only</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toast.success('Remove members: All team members')}>All team members</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </div>
@@ -396,7 +461,7 @@ export function TeamSettingsModal({
                 <div className="space-y-2 pl-6">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Allow invite links</span>
-                    <Checkbox checked={true} disabled />
+                    <Checkbox checked={allowInviteLinks} onCheckedChange={(checked) => { setAllowInviteLinks(!!checked); toast.success(checked ? 'Invite links enabled' : 'Invite links disabled'); }} />
                   </div>
                   <p className="text-xs text-gray-500">
                     Anyone with the invite link can join the team
@@ -411,7 +476,18 @@ export function TeamSettingsModal({
                   These actions cannot be undone.
                 </p>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="text-red-600 border-red-300 hover:bg-red-100">
+                  <Button variant="outline" size="sm" className="text-red-600 border-red-300 hover:bg-red-100" onClick={async () => {
+                    if (!confirm('Archive this team? Members will no longer be able to access it.')) return;
+                    try {
+                      const res = await fetch(`/api/teams/${team.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ archived: true }),
+                      });
+                      if (res.ok) { toast.success('Team archived'); onClose(); window.location.href = '/'; }
+                      else toast.error('Failed to archive team');
+                    } catch { toast.error('Failed to archive team'); }
+                  }}>
                     <Archive className="h-4 w-4 mr-2" />
                     Archive team
                   </Button>

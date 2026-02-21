@@ -11,6 +11,12 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
   startOfMonth,
@@ -310,18 +316,46 @@ export function CalendarView({
             </button>
           </div>
 
-          <Button variant="ghost" size="sm">
-            <Filter className="w-4 h-4 mr-1" />
-            Filter
-          </Button>
-          <Button variant="ghost" size="sm">
-            <Settings className="w-4 h-4 mr-1" />
-            Options
-          </Button>
-          <Button variant="outline" size="sm">
-            Save view
-            <ChevronDown className="w-3 h-3 ml-1" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <Filter className="w-4 h-4 mr-1" />
+                Filter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => toast.info("Filtering incomplete tasks")}>Incomplete tasks</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Filtering completed tasks")}>Completed tasks</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Filtering tasks due this week")}>Due this week</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Filtering tasks assigned to me")}>Assigned to me</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm">
+                <Settings className="w-4 h-4 mr-1" />
+                Options
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => toast.info("Show weekends toggled")}>Show weekends</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Compact mode coming soon")}>Compact mode</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Color by project coming soon")}>Color by project</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                Save view
+                <ChevronDown className="w-3 h-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => toast.success("View saved")}>Save current view</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Save as new view coming soon")}>Save as new view</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("View reset to default")}>Reset to default</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

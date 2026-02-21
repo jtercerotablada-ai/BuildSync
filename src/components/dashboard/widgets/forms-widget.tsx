@@ -21,6 +21,7 @@ import {
 import { WidgetSize } from '@/types/dashboard';
 import { AddFormModal } from '@/components/forms/add-form-modal';
 import { FormBuilderModal } from '@/components/forms/form-builder-modal';
+import { toast } from 'sonner';
 
 interface Form {
   id: string;
@@ -56,32 +57,41 @@ export function FormsWidget({ size = 'half', onSizeChange, onRemove }: FormsWidg
     visibility: 'anyone' | 'organization';
   } | null>(null);
 
+  // Fetch projects once on mount
   useEffect(() => {
-    async function fetchData() {
+    async function fetchProjects() {
       try {
-        // Fetch forms and projects in parallel
-        const [formsRes, projectsRes] = await Promise.all([
-          fetch('/api/forms?limit=5'),
-          fetch('/api/projects'),
-        ]);
-
-        if (formsRes.ok) {
-          const formsData = await formsRes.json();
-          setForms(formsData);
-        }
-
-        if (projectsRes.ok) {
-          const projectsData = await projectsRes.json();
-          setProjects(projectsData);
+        const res = await fetch('/api/projects');
+        if (res.ok) {
+          const data = await res.json();
+          setProjects(data);
         }
       } catch (error) {
-        console.error('Failed to fetch data:', error);
+        console.error('Failed to fetch projects:', error);
+      }
+    }
+    fetchProjects();
+  }, []);
+
+  // Fetch forms whenever filter changes
+  useEffect(() => {
+    async function fetchForms() {
+      setLoading(true);
+      try {
+        const limit = filter === 'recents' ? 5 : 50;
+        const res = await fetch(`/api/forms?limit=${limit}`);
+        if (res.ok) {
+          const data = await res.json();
+          setForms(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch forms:', error);
       } finally {
         setLoading(false);
       }
     }
-    fetchData();
-  }, []);
+    fetchForms();
+  }, [filter]);
 
   const handleCreateForm = () => {
     setShowAddFormModal(true);
@@ -97,17 +107,47 @@ export function FormsWidget({ size = 'half', onSizeChange, onRemove }: FormsWidg
     setShowFormBuilder(true);
   };
 
-  const handleFormPublished = (formData: {
+  const handleFormPublished = async (formData: {
     name: string;
     description: string;
     visibility: 'anyone' | 'organization';
     fields: unknown[];
     projectId?: string;
   }) => {
-    console.log('Form published:', formData);
-    // TODO: Save form to API and refresh list
-    setShowFormBuilder(false);
-    setFormBuilderData(null);
+    try {
+      const res = await fetch('/api/forms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          description: formData.description,
+          fields: formData.fields,
+          projectId: formData.projectId,
+          visibility: formData.visibility,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to create form');
+      }
+
+      toast.success('Form created successfully');
+
+      // Refresh forms list
+      const refreshLimit = filter === 'recents' ? 5 : 50;
+      const formsRes = await fetch(`/api/forms?limit=${refreshLimit}`);
+      if (formsRes.ok) {
+        const formsData = await formsRes.json();
+        setForms(formsData);
+      }
+    } catch (error) {
+      console.error('Failed to save form:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create form');
+    } finally {
+      setShowFormBuilder(false);
+      setFormBuilderData(null);
+    }
   };
 
   return (
@@ -228,7 +268,7 @@ export function FormsWidget({ size = 'half', onSizeChange, onRemove }: FormsWidg
               <button
                 key={form.id}
                 className="w-full p-3 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center justify-between"
-                onClick={() => router.push(`/forms/${form.id}`)}
+                onClick={() => toast.info("Form details coming soon")}
               >
                 <div className="flex items-center gap-3">
                   <FileText className="h-5 w-5 text-gray-400" />

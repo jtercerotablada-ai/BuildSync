@@ -100,12 +100,27 @@ export function PrivateNotepadWidget({
     { id: 'fix', icon: CheckCircle, label: 'Fix grammar', prompt: 'Fix any grammar and spelling errors in the following text:' },
   ];
 
-  // Mock users for mentions
-  const users = [
-    { id: '1', name: 'John Doe', email: 'john@example.com' },
-    { id: '2', name: 'Jane Smith', email: 'jane@example.com' },
-    { id: '3', name: 'Bob Wilson', email: 'bob@example.com' },
-  ];
+  // Real users for mentions
+  const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const res = await fetch('/api/users?limit=20');
+        if (res.ok) {
+          const data = await res.json();
+          setUsers(data.map((u: { id: string; name?: string; email?: string }) => ({
+            id: u.id,
+            name: u.name || '',
+            email: u.email || '',
+          })));
+        }
+      } catch (error) {
+        console.error('Failed to fetch users for mentions:', error);
+      }
+    }
+    fetchUsers();
+  }, []);
 
   // Load saved content
   useEffect(() => {

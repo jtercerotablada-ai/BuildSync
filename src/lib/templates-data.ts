@@ -1,5 +1,5 @@
 // Template data with real sections and tasks for project creation
-// Based on Asana's template structure
+// Based on BuildSync's template structure
 
 export interface TemplateTask {
   name: string;

@@ -13,7 +13,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "BuildSync - Project Management",
-  description: "Modern project management app inspired by Asana",
+  description: "Modern project management app for teams",
 };
 
 export default function RootLayout({

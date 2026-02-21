@@ -36,6 +36,7 @@ import {
   List,
   LayoutGrid,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Project {
   id: string;
@@ -99,6 +100,7 @@ export default function PortfolioDetailPage() {
   const [availableProjects, setAvailableProjects] = useState<AvailableProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [adding, setAdding] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   useEffect(() => {
     fetchPortfolio();
@@ -310,10 +312,20 @@ export default function PortfolioDetailPage() {
             Add project
           </Button>
           <div className="flex items-center border rounded-md ml-auto">
-            <Button variant="ghost" size="sm" className="rounded-r-none">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn("rounded-r-none", viewMode === 'list' && "bg-slate-100")}
+              onClick={() => setViewMode('list')}
+            >
               <List className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" className="rounded-l-none">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn("rounded-l-none", viewMode === 'grid' && "bg-slate-100")}
+              onClick={() => setViewMode('grid')}
+            >
               <LayoutGrid className="h-4 w-4" />
             </Button>
           </div>
@@ -343,6 +355,36 @@ export default function PortfolioDetailPage() {
               <Plus className="h-4 w-4 mr-2" />
               Add project
             </Button>
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {portfolio.projects.map((pp) => (
+              <div
+                key={pp.id}
+                className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-white"
+                onClick={() => router.push(`/projects/${pp.project.id}`)}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded" style={{ backgroundColor: pp.project.color }} />
+                  <span className="font-medium text-sm truncate">{pp.project.name}</span>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Progress value={pp.project.stats.progress} className="h-2 flex-1" />
+                  <span className="text-xs text-slate-500">{pp.project.stats.progress}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Badge className={getStatusColor(pp.project.status)}>
+                    {getStatusLabel(pp.project.status)}
+                  </Badge>
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage src={pp.project.owner.image || ""} />
+                    <AvatarFallback className="text-xs bg-slate-200">
+                      {pp.project.owner.name?.charAt(0) || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="bg-white rounded-lg border">

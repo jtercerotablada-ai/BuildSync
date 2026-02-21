@@ -774,13 +774,13 @@ export function TaskDetailModal({
                       </Avatar>
                     ))}
                 </div>
-                <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
+                <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={() => toast.info("Add collaborator coming soon")}>
                   <Plus className="h-3 w-3" />
                 </Button>
               </div>
 
               {/* Leave task */}
-              <Button variant="ghost" size="sm" className="text-gray-500 gap-2">
+              <Button variant="ghost" size="sm" className="text-gray-500 gap-2" onClick={() => toast.info("Leave task coming soon")}>
                 <LogOut className="h-4 w-4" />
                 Leave task
               </Button>

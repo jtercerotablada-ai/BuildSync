@@ -288,13 +288,13 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
             {/* Toolbar visible siempre */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Attachments coming soon")}>
                   <Paperclip className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Mentions coming soon")}>
                   <AtSign className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Emoji reactions coming soon")}>
                   <Smile className="h-4 w-4" />
                 </Button>
               </div>
