@@ -80,6 +80,27 @@ model User {
   teamMessages      TeamMessage[]     @relation("TeamMessageAuthor")
   workspaceNotes    WorkspaceNote[]   @relation("NoteAuthor")
   noteCollaborators NoteCollaborator[]
+  preferences       UserPreferences?
+}
+
+// ============ PREFERENCIAS DE USUARIO ============
+
+model UserPreferences {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  notifyTaskAssigned   Boolean @default(true)
+  notifyTaskCompleted  Boolean @default(true)
+  notifyCommentAdded   Boolean @default(true)
+  notifyMentioned      Boolean @default(true)
+  notifyProjectUpdates Boolean @default(true)
+  notifyWeeklyDigest   Boolean @default(false)
+
+  theme String @default("system")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ============ WORKSPACE (ESPACIO DE TRABAJO) ============
