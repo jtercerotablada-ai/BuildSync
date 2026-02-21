@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -10,6 +10,22 @@ import {
   Calendar as CalendarIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TeamHeader } from "@/components/teams/team-header";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -24,6 +40,17 @@ interface Task {
     name: string;
     color: string;
   };
+  assignee?: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
+}
+
+interface TeamProject {
+  id: string;
+  name: string;
+  color: string;
 }
 
 interface Team {
@@ -41,20 +68,20 @@ interface Team {
   }>;
 }
 
-const WEEKDAYS = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 function getDaysInMonth(year: number, month: number): Date[] {
@@ -62,20 +89,17 @@ function getDaysInMonth(year: number, month: number): Date[] {
   const lastDay = new Date(year, month + 1, 0);
   const days: Date[] = [];
 
-  // Add days from previous month to fill the first week
   const firstDayOfWeek = firstDay.getDay();
   for (let i = firstDayOfWeek - 1; i >= 0; i--) {
     const date = new Date(year, month, -i);
     days.push(date);
   }
 
-  // Add days of current month
   for (let i = 1; i <= lastDay.getDate(); i++) {
     days.push(new Date(year, month, i));
   }
 
-  // Add days from next month to complete the last week
-  const remainingDays = 42 - days.length; // 6 weeks * 7 days
+  const remainingDays = 42 - days.length;
   for (let i = 1; i <= remainingDays; i++) {
     days.push(new Date(year, month + 1, i));
   }
@@ -98,15 +122,32 @@ function isSameMonth(date1: Date, date2: Date): boolean {
   );
 }
 
+function getInitials(name: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
 export default function TeamCalendarPage() {
   const params = useParams();
   const teamId = params.teamId as string;
 
   const [team, setTeam] = useState<Team | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [teamProjects, setTeamProjects] = useState<TeamProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  // Create task dialog state
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newTaskName, setNewTaskName] = useState("");
+  const [newTaskProjectId, setNewTaskProjectId] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
   const today = new Date();
   const days = getDaysInMonth(
@@ -114,12 +155,25 @@ export default function TeamCalendarPage() {
     currentDate.getMonth()
   );
 
+  const fetchTasks = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/tasks`);
+      if (res.ok) {
+        const data = await res.json();
+        setTasks(data);
+      }
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+    }
+  }, [teamId]);
+
   useEffect(() => {
     async function fetchData() {
       try {
-        const [teamRes, tasksRes] = await Promise.all([
+        const [teamRes, tasksRes, projectsRes] = await Promise.all([
           fetch(`/api/teams/${teamId}`),
           fetch(`/api/teams/${teamId}/tasks`),
+          fetch(`/api/teams/${teamId}/projects`),
         ]);
 
         if (teamRes.ok) {
@@ -130,6 +184,11 @@ export default function TeamCalendarPage() {
         if (tasksRes.ok) {
           const tasksData = await tasksRes.json();
           setTasks(tasksData);
+        }
+
+        if (projectsRes.ok) {
+          const projectsData = await projectsRes.json();
+          setTeamProjects(projectsData);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -160,6 +219,41 @@ export default function TeamCalendarPage() {
     });
   };
 
+  async function handleCreateTask(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTaskName.trim() || !selectedDate || isCreating) return;
+
+    setIsCreating(true);
+    try {
+      const dateStr = selectedDate.toISOString().split("T")[0];
+      const res = await fetch(`/api/teams/${teamId}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newTaskName.trim(),
+          dueDate: dateStr,
+          ...(newTaskProjectId ? { projectId: newTaskProjectId } : {}),
+        }),
+      });
+
+      if (res.ok) {
+        const task = await res.json();
+        setTasks((prev) => [...prev, task]);
+        setShowCreateDialog(false);
+        setNewTaskName("");
+        setNewTaskProjectId("");
+        toast.success("Task created");
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to create task");
+      }
+    } catch {
+      toast.error("Failed to create task");
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
   const selectedDateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
 
   if (isLoading) {
@@ -171,7 +265,7 @@ export default function TeamCalendarPage() {
   }
 
   if (!team) {
-    return <div>Equipo no encontrado</div>;
+    return <div>Team not found</div>;
   }
 
   return (
@@ -194,7 +288,7 @@ export default function TeamCalendarPage() {
                   size="sm"
                   onClick={() => setCurrentDate(new Date())}
                 >
-                  Hoy
+                  Today
                 </Button>
                 <Button
                   variant="ghost"
@@ -230,7 +324,8 @@ export default function TeamCalendarPage() {
               {days.map((date, index) => {
                 const isCurrentMonth = isSameMonth(date, currentDate);
                 const isToday = isSameDay(date, today);
-                const isSelected = selectedDate && isSameDay(date, selectedDate);
+                const isSelected =
+                  selectedDate && isSameDay(date, selectedDate);
                 const dateTasks = getTasksForDate(date);
 
                 return (
@@ -270,7 +365,7 @@ export default function TeamCalendarPage() {
                                 : "bg-blue-500"
                             )}
                             style={
-                              task.project?.color
+                              !task.completed && task.project?.color
                                 ? { backgroundColor: task.project.color }
                                 : undefined
                             }
@@ -303,26 +398,14 @@ export default function TeamCalendarPage() {
               </h3>
 
               {selectedDate && (
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => {
-                  const name = prompt('Nombre de la tarea:');
-                  if (!name?.trim()) return;
-                  const dateStr = selectedDate.toISOString().split('T')[0];
-                  fetch(`/api/teams/${teamId}/tasks`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name.trim(), dueDate: dateStr }),
-                  }).then(async res => {
-                    if (res.ok) {
-                      const task = await res.json();
-                      setTasks(prev => [...prev, task]);
-                      toast.success('Tarea agregada');
-                    } else {
-                      toast.error('Error al crear tarea');
-                    }
-                  }).catch(() => toast.error('Error al crear tarea'));
-                }}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  onClick={() => setShowCreateDialog(true)}
+                >
                   <Plus className="h-3 w-3" />
-                  Agregar
+                  Add task
                 </Button>
               )}
             </div>
@@ -344,13 +427,24 @@ export default function TeamCalendarPage() {
                           checked={task.completed}
                           onChange={() => {
                             const updated = !task.completed;
-                            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: updated } : t));
+                            setTasks((prev) =>
+                              prev.map((t) =>
+                                t.id === task.id
+                                  ? { ...t, completed: updated }
+                                  : t
+                              )
+                            );
                             fetch(`/api/tasks/${task.id}`, {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ completed: updated }),
-                            }).then(res => {
-                              if (res.ok) toast.success(updated ? 'Tarea completada' : 'Tarea reabierta');
+                            }).then((res) => {
+                              if (res.ok)
+                                toast.success(
+                                  updated
+                                    ? "Task completed"
+                                    : "Task reopened"
+                                );
                             });
                           }}
                           className="mt-0.5 rounded cursor-pointer"
@@ -364,19 +458,36 @@ export default function TeamCalendarPage() {
                           >
                             {task.name}
                           </p>
-                          {task.project && (
-                            <div className="flex items-center gap-1.5 mt-1">
-                              <div
-                                className="w-2 h-2 rounded"
-                                style={{
-                                  backgroundColor: task.project.color,
-                                }}
-                              />
-                              <span className="text-xs text-gray-500">
-                                {task.project.name}
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            {task.project && (
+                              <div className="flex items-center gap-1.5">
+                                <div
+                                  className="w-2 h-2 rounded"
+                                  style={{
+                                    backgroundColor: task.project.color,
+                                  }}
+                                />
+                                <span className="text-xs text-gray-500">
+                                  {task.project.name}
+                                </span>
+                              </div>
+                            )}
+                            {task.assignee && (
+                              <div className="flex items-center gap-1">
+                                <Avatar className="h-4 w-4">
+                                  <AvatarImage
+                                    src={task.assignee.image || undefined}
+                                  />
+                                  <AvatarFallback className="text-[8px] bg-gray-100">
+                                    {getInitials(task.assignee.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs text-gray-500">
+                                  {task.assignee.name}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -401,6 +512,84 @@ export default function TeamCalendarPage() {
           </div>
         </div>
       </div>
+
+      {/* Create Task Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add task</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateTask} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="taskName">Task name</Label>
+              <Input
+                id="taskName"
+                value={newTaskName}
+                onChange={(e) => setNewTaskName(e.target.value)}
+                placeholder="Enter task name..."
+                autoFocus
+              />
+            </div>
+
+            {teamProjects.length > 0 && (
+              <div className="space-y-2">
+                <Label>Project</Label>
+                <Select
+                  value={newTaskProjectId}
+                  onValueChange={setNewTaskProjectId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select project (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teamProjects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-2 h-2 rounded"
+                            style={{ backgroundColor: project.color }}
+                          />
+                          {project.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {selectedDate && (
+              <p className="text-sm text-muted-foreground">
+                Due:{" "}
+                {selectedDate.toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCreateDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!newTaskName.trim() || isCreating}
+              >
+                {isCreating ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Create task
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

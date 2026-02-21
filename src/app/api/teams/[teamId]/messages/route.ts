@@ -39,13 +39,42 @@ export async function GET(
             image: true,
           },
         },
+        reactions: {
+          select: {
+            emoji: true,
+            userId: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "asc",
       },
     });
 
-    return NextResponse.json(messages);
+    // Group reactions by emoji per message
+    const formatted = messages.map((msg) => {
+      const grouped: Record<string, { count: number; hasReacted: boolean }> = {};
+      for (const r of msg.reactions) {
+        if (!grouped[r.emoji]) {
+          grouped[r.emoji] = { count: 0, hasReacted: false };
+        }
+        grouped[r.emoji].count++;
+        if (r.userId === userId) {
+          grouped[r.emoji].hasReacted = true;
+        }
+      }
+
+      return {
+        ...msg,
+        reactions: Object.entries(grouped).map(([emoji, data]) => ({
+          emoji,
+          count: data.count,
+          hasReacted: data.hasReacted,
+        })),
+      };
+    });
+
+    return NextResponse.json(formatted);
   } catch (error) {
     console.error("Error fetching team messages:", error);
     return NextResponse.json(
@@ -105,7 +134,7 @@ export async function POST(
       },
     });
 
-    return NextResponse.json(message);
+    return NextResponse.json({ ...message, reactions: [] });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

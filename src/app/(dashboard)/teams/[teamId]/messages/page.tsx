@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Send,
   Paperclip,
@@ -10,6 +11,9 @@ import {
   Pin,
   Trash2,
   Loader2,
+  Pencil,
+  X,
+  Check,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -23,16 +27,24 @@ import { TeamHeader } from "@/components/teams/team-header";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+interface Reaction {
+  emoji: string;
+  count: number;
+  hasReacted: boolean;
+}
+
 interface Message {
   id: string;
   content: string;
   isPinned: boolean;
   createdAt: string;
+  updatedAt: string;
   author: {
     id: string;
     name: string | null;
     image: string | null;
   };
+  reactions: Reaction[];
 }
 
 interface Team {
@@ -49,6 +61,23 @@ interface Team {
     };
   }>;
 }
+
+const QUICK_EMOJIS = [
+  "👍",
+  "❤️",
+  "😂",
+  "🎉",
+  "🔥",
+  "👏",
+  "🚀",
+  "✅",
+];
+
+const FULL_EMOJIS = [
+  "😀","😂","😍","🎉","👍","👏","🔥","💪",
+  "✅","❤️","🚀","💡","⭐","🎯","📌","💬",
+  "👋","🙌","😊","🤔","😎","🥳","💯","✨",
+];
 
 function getInitials(name: string | null): string {
   if (!name) return "?";
@@ -80,10 +109,36 @@ function formatMessageTime(dateString: string): string {
   }
 }
 
+function getDateLabel(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round(
+    (today.getTime() - msgDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function isEdited(msg: Message): boolean {
+  if (!msg.updatedAt || !msg.createdAt) return false;
+  return new Date(msg.updatedAt).getTime() - new Date(msg.createdAt).getTime() > 1000;
+}
+
 export default function TeamMessagesPage() {
   const params = useParams();
   const teamId = params.teamId as string;
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as { id?: string })?.id;
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const [team, setTeam] = useState<Team | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -91,42 +146,77 @@ export default function TeamMessagesPage() {
   const [newMessage, setNewMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const isAtBottomRef = useRef(true);
 
-  useEffect(() => {
-    fetchData();
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/messages`);
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data);
+      }
+    } catch {
+      // Silently fail for polling
+    }
   }, [teamId]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    async function fetchData() {
+      try {
+        const [teamRes, messagesRes] = await Promise.all([
+          fetch(`/api/teams/${teamId}`),
+          fetch(`/api/teams/${teamId}/messages`),
+        ]);
 
-  async function fetchData() {
-    try {
-      const [teamRes, messagesRes] = await Promise.all([
-        fetch(`/api/teams/${teamId}`),
-        fetch(`/api/teams/${teamId}/messages`),
-      ]);
+        if (teamRes.ok) {
+          const teamData = await teamRes.json();
+          setTeam(teamData);
+        }
 
-      if (teamRes.ok) {
-        const teamData = await teamRes.json();
-        setTeam(teamData);
+        if (messagesRes.ok) {
+          const messagesData = await messagesRes.json();
+          setMessages(messagesData);
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setIsLoading(false);
       }
-
-      if (messagesRes.ok) {
-        const messagesData = await messagesRes.json();
-        setMessages(messagesData);
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    } finally {
-      setIsLoading(false);
     }
-  }
 
-  function scrollToBottom() {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }
+    fetchData();
+  }, [teamId]);
+
+  // Auto-polling every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchMessages, 5000);
+    return () => clearInterval(interval);
+  }, [fetchMessages]);
+
+  // Track scroll position
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      isAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50;
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Auto-scroll only if at bottom
+  useEffect(() => {
+    if (isAtBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
@@ -146,11 +236,12 @@ export default function TeamMessagesPage() {
         const message = await res.json();
         setMessages((prev) => [...prev, message]);
         setNewMessage("");
+        isAtBottomRef.current = true;
       } else {
-        toast.error("Error al enviar mensaje");
+        toast.error("Failed to send message");
       }
-    } catch (error) {
-      toast.error("Error al enviar mensaje");
+    } catch {
+      toast.error("Failed to send message");
     } finally {
       setIsSending(false);
     }
@@ -164,12 +255,12 @@ export default function TeamMessagesPage() {
 
       if (res.ok) {
         setMessages((prev) => prev.filter((m) => m.id !== messageId));
-        toast.success("Mensaje eliminado");
+        toast.success("Message deleted");
       } else {
-        toast.error("Error al eliminar mensaje");
+        toast.error("Failed to delete message");
       }
-    } catch (error) {
-      toast.error("Error al eliminar mensaje");
+    } catch {
+      toast.error("Failed to delete message");
     }
   }
 
@@ -183,13 +274,71 @@ export default function TeamMessagesPage() {
 
       if (res.ok) {
         setMessages((prev) =>
-          prev.map((m) => (m.id === messageId ? { ...m, isPinned: !isPinned } : m))
+          prev.map((m) =>
+            m.id === messageId ? { ...m, isPinned: !isPinned } : m
+          )
         );
-        toast.success(isPinned ? "Mensaje desanclado" : "Mensaje anclado");
+        toast.success(isPinned ? "Message unpinned" : "Message pinned");
       }
-    } catch (error) {
-      toast.error("Error al actualizar mensaje");
+    } catch {
+      toast.error("Failed to update message");
     }
+  }
+
+  async function handleEditMessage(messageId: string) {
+    if (!editContent.trim()) return;
+
+    try {
+      const res = await fetch(`/api/teams/${teamId}/messages/${messageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editContent }),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId
+              ? { ...m, content: editContent, updatedAt: updated.updatedAt }
+              : m
+          )
+        );
+        setEditingMessageId(null);
+        setEditContent("");
+        toast.success("Message edited");
+      } else {
+        toast.error("Failed to edit message");
+      }
+    } catch {
+      toast.error("Failed to edit message");
+    }
+  }
+
+  async function handleToggleReaction(messageId: string, emoji: string) {
+    try {
+      const res = await fetch(
+        `/api/teams/${teamId}/messages/${messageId}/reactions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emoji }),
+        }
+      );
+
+      if (res.ok) {
+        const updatedReactions = await res.json();
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId ? { ...m, reactions: updatedReactions } : m
+          )
+        );
+      }
+    } catch {
+      toast.error("Failed to update reaction");
+    }
+
+    setReactionPickerMessageId(null);
   }
 
   if (isLoading) {
@@ -201,10 +350,13 @@ export default function TeamMessagesPage() {
   }
 
   if (!team) {
-    return <div>Equipo no encontrado</div>;
+    return <div>Team not found</div>;
   }
 
   const pinnedMessages = messages.filter((m) => m.isPinned);
+
+  // Compute date separators
+  let lastDateLabel = "";
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -216,7 +368,7 @@ export default function TeamMessagesPage() {
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="flex items-center gap-2 text-sm font-medium text-yellow-800 mb-2">
               <Pin className="h-4 w-4" />
-              Mensajes anclados
+              Pinned messages
             </div>
             <div className="space-y-2">
               {pinnedMessages.map((message) => (
@@ -235,80 +387,238 @@ export default function TeamMessagesPage() {
         {/* Messages container */}
         <div className="flex-1 bg-white border rounded-xl overflow-hidden flex flex-col">
           {/* Messages list */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto p-4 space-y-1"
+          >
             {messages.length > 0 ? (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex items-start gap-3 group",
-                    message.isPinned && "bg-yellow-50 -mx-4 px-4 py-2"
-                  )}
-                >
-                  <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarImage src={message.author.image || undefined} />
-                    <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">
-                      {getInitials(message.author.name)}
-                    </AvatarFallback>
-                  </Avatar>
+              messages.map((message) => {
+                const dateLabel = getDateLabel(message.createdAt);
+                const showSeparator = dateLabel !== lastDateLabel;
+                lastDateLabel = dateLabel;
+                const isOwnMessage = message.author.id === currentUserId;
+                const isEditing = editingMessageId === message.id;
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm text-gray-900">
-                        {message.author.name}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {formatMessageTime(message.createdAt)}
-                      </span>
-                      {message.isPinned && (
-                        <Pin className="h-3 w-3 text-yellow-600" />
+                return (
+                  <div key={message.id}>
+                    {/* Date separator */}
+                    {showSeparator && (
+                      <div className="flex items-center gap-3 my-4">
+                        <div className="flex-1 border-t border-gray-200" />
+                        <span className="text-xs font-medium text-gray-400">
+                          {dateLabel}
+                        </span>
+                        <div className="flex-1 border-t border-gray-200" />
+                      </div>
+                    )}
+
+                    <div
+                      className={cn(
+                        "flex items-start gap-3 group py-1.5",
+                        message.isPinned && "bg-yellow-50 -mx-4 px-4 py-2"
                       )}
-                    </div>
-                    <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">
-                      {message.content}
-                    </p>
-                  </div>
+                    >
+                      <Avatar className="h-8 w-8 flex-shrink-0">
+                        <AvatarImage
+                          src={message.author.image || undefined}
+                        />
+                        <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">
+                          {getInitials(message.author.name)}
+                        </AvatarFallback>
+                      </Avatar>
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() =>
-                          handlePinMessage(message.id, message.isPinned)
-                        }
-                      >
-                        <Pin className="h-4 w-4 mr-2" />
-                        {message.isPinned ? "Desanclar" : "Anclar"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-red-600"
-                        onClick={() => handleDeleteMessage(message.id)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm text-gray-900">
+                            {message.author.name}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {formatMessageTime(message.createdAt)}
+                          </span>
+                          {message.isPinned && (
+                            <Pin className="h-3 w-3 text-yellow-600" />
+                          )}
+                          {isEdited(message) && (
+                            <span className="text-xs text-gray-400 italic">
+                              (edited)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Message content or edit mode */}
+                        {isEditing ? (
+                          <div className="flex items-center gap-2 mt-1">
+                            <input
+                              type="text"
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleEditMessage(message.id);
+                                } else if (e.key === "Escape") {
+                                  setEditingMessageId(null);
+                                  setEditContent("");
+                                }
+                              }}
+                              className="flex-1 px-3 py-1 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              autoFocus
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => handleEditMessage(message.id)}
+                            >
+                              <Check className="h-3.5 w-3.5 text-green-600" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                setEditingMessageId(null);
+                                setEditContent("");
+                              }}
+                            >
+                              <X className="h-3.5 w-3.5 text-gray-400" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap">
+                            {message.content}
+                          </p>
+                        )}
+
+                        {/* Reactions */}
+                        {message.reactions && message.reactions.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {message.reactions.map((reaction) => (
+                              <button
+                                key={reaction.emoji}
+                                onClick={() =>
+                                  handleToggleReaction(
+                                    message.id,
+                                    reaction.emoji
+                                  )
+                                }
+                                className={cn(
+                                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors",
+                                  reaction.hasReacted
+                                    ? "bg-blue-50 border-blue-200 text-blue-700"
+                                    : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
+                                )}
+                              >
+                                <span>{reaction.emoji}</span>
+                                <span>{reaction.count}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Message actions */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Quick react */}
+                        <div className="relative">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() =>
+                              setReactionPickerMessageId(
+                                reactionPickerMessageId === message.id
+                                  ? null
+                                  : message.id
+                              )
+                            }
+                          >
+                            <Smile className="h-3.5 w-3.5" />
+                          </Button>
+
+                          {reactionPickerMessageId === message.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                onClick={() =>
+                                  setReactionPickerMessageId(null)
+                                }
+                              />
+                              <div className="absolute bottom-full right-0 mb-1 bg-white border rounded-lg shadow-lg z-20 p-2">
+                                <div className="flex gap-0.5">
+                                  {QUICK_EMOJIS.map((emoji) => (
+                                    <button
+                                      key={emoji}
+                                      className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-sm"
+                                      onClick={() =>
+                                        handleToggleReaction(
+                                          message.id,
+                                          emoji
+                                        )
+                                      }
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                            >
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {isOwnMessage && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setEditingMessageId(message.id);
+                                  setEditContent(message.content);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() =>
+                                handlePinMessage(message.id, message.isPinned)
+                              }
+                            >
+                              <Pin className="h-4 w-4 mr-2" />
+                              {message.isPinned ? "Unpin" : "Pin"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => handleDeleteMessage(message.id)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center py-12">
                 <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
                   <Send className="h-8 w-8 text-gray-400" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  No hay mensajes aun
+                  No messages yet
                 </h3>
                 <p className="text-sm text-gray-500">
-                  Se el primero en enviar un mensaje al equipo
+                  Be the first to send a message to the team
                 </p>
               </div>
             )}
@@ -316,23 +626,23 @@ export default function TeamMessagesPage() {
           </div>
 
           {/* Message input */}
-          <form
-            onSubmit={handleSendMessage}
-            className="border-t p-4 relative"
-          >
+          <form onSubmit={handleSendMessage} className="border-t p-4 relative">
             {/* Emoji Picker */}
             {showEmojiPicker && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowEmojiPicker(false)} />
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowEmojiPicker(false)}
+                />
                 <div className="absolute bottom-full right-16 mb-2 bg-white border rounded-lg shadow-lg z-20 p-3">
                   <div className="grid grid-cols-8 gap-1">
-                    {['😀','😂','😍','🎉','👍','👏','🔥','💪','✅','❤️','🚀','💡','⭐','🎯','📌','💬','👋','🙌','😊','🤔','😎','🥳','💯','✨'].map(emoji => (
+                    {FULL_EMOJIS.map((emoji) => (
                       <button
                         key={emoji}
                         type="button"
                         className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded text-lg"
                         onClick={() => {
-                          setNewMessage(prev => prev + emoji);
+                          setNewMessage((prev) => prev + emoji);
                           setShowEmojiPicker(false);
                           inputRef.current?.focus();
                         }}
@@ -351,7 +661,7 @@ export default function TeamMessagesPage() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
-                onClick={() => toast.info('Attachments coming soon')}
+                onClick={() => toast.info("Attachments coming soon")}
               >
                 <Paperclip className="h-4 w-4" />
               </Button>
