@@ -82,6 +82,8 @@ import { FilterPanel, type QuickFilterKey, type ActiveFilter } from "@/component
 import { SortPanel, type SortState } from "@/components/tasks/sort-panel";
 import { GroupPanel, type GroupConfig } from "@/components/tasks/group-panel";
 import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
+import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
+import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
 import { ColumnHeader, COLUMN_CONFIGS, type ColumnConfig } from "@/components/tasks/column-header-dropdown";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -146,6 +148,9 @@ export default function MyTasksPage() {
   const [workflowPanelOpen, setWorkflowPanelOpen] = useState(false);
   const [optionsDrawerOpen, setOptionsDrawerOpen] = useState(false);
   const [showCustomFieldModal, setShowCustomFieldModal] = useState(false);
+  const [preselectedFieldType, setPreselectedFieldType] = useState<string | null>(null);
+  const [preselectedFieldName, setPreselectedFieldName] = useState("");
+  const [initialTab, setInitialTab] = useState<"create" | "library">("create");
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
 
@@ -1023,24 +1028,22 @@ export default function MyTasksPage() {
           />
 
           {/* Add column (+) button */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="w-8 flex-shrink-0 flex items-center justify-center text-gray-300 hover:text-gray-500 border-l border-gray-300/40">
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowCustomFieldModal(true)}>
-                Campo personalizado
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Columna de etiquetas próximamente")}>
-                Etiquetas
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Columna de prioridad próximamente")}>
-                Prioridad
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex-shrink-0 border-l border-gray-300/40">
+            <AddColumnDropdown
+              onSelectType={(ft: FieldTypeConfig, name: string) => {
+                setPreselectedFieldType(ft.id);
+                setPreselectedFieldName(name);
+                setInitialTab("create");
+                setShowCustomFieldModal(true);
+              }}
+              onFromLibrary={() => {
+                setPreselectedFieldType(null);
+                setPreselectedFieldName("");
+                setInitialTab("library");
+                setShowCustomFieldModal(true);
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -1207,6 +1210,9 @@ export default function MyTasksPage() {
       <CustomFieldModal
         open={showCustomFieldModal}
         onOpenChange={setShowCustomFieldModal}
+        initialFieldType={preselectedFieldType ?? undefined}
+        initialFieldName={preselectedFieldName}
+        initialTab={initialTab}
       />
 
       {/* Advanced Search Modal */}
