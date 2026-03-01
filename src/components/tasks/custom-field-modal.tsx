@@ -46,12 +46,19 @@ interface AIFieldCard {
   badge?: string;
 }
 
+export interface CreatedFieldInfo {
+  name: string;
+  type: string;
+  color: string;
+}
+
 interface CustomFieldModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialFieldType?: string;
   initialFieldName?: string;
   initialTab?: TabId;
+  onFieldCreated?: (field: CreatedFieldInfo) => void;
 }
 
 // ─── Field type options ──────────────────────────────────
@@ -142,6 +149,7 @@ export function CustomFieldModal({
   initialFieldType,
   initialFieldName,
   initialTab,
+  onFieldCreated,
 }: CustomFieldModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>("create");
   const [fieldTitle, setFieldTitle] = useState("");
@@ -169,11 +177,13 @@ export function CustomFieldModal({
       toast.error("El nombre del campo es obligatorio");
       return;
     }
+    onFieldCreated?.({ name: fieldTitle.trim(), type: fieldType, color: fieldColor });
     toast.success(`Campo "${fieldTitle}" creado`);
     resetAndClose();
   }
 
   function handleAddFromLibrary(fieldName: string) {
+    onFieldCreated?.({ name: fieldName, type: "text", color: "none" });
     toast.success(`Campo "${fieldName}" agregado desde la biblioteca`);
     resetAndClose();
   }
@@ -199,7 +209,7 @@ export function CustomFieldModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px] p-0 gap-0 rounded-xl border-0 shadow-[0_16px_48px_rgba(0,0,0,0.16)] overflow-hidden">
+      <DialogContent showCloseButton={false} className="sm:max-w-[520px] p-0 gap-0 rounded-xl border-0 shadow-[0_16px_48px_rgba(0,0,0,0.16)] overflow-hidden">
         <DialogTitle className="sr-only">Agregar campo personalizado</DialogTitle>
 
         {/* Header */}

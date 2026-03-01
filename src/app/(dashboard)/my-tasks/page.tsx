@@ -81,7 +81,7 @@ import { OptionsDrawer } from "@/components/tasks/options-drawer";
 import { FilterPanel, type QuickFilterKey, type ActiveFilter } from "@/components/tasks/filter-panel";
 import { SortPanel, type SortState } from "@/components/tasks/sort-panel";
 import { GroupPanel, type GroupConfig } from "@/components/tasks/group-panel";
-import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
+import { CustomFieldModal, type CreatedFieldInfo } from "@/components/tasks/custom-field-modal";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
@@ -151,6 +151,7 @@ export default function MyTasksPage() {
   const [preselectedFieldType, setPreselectedFieldType] = useState<string | null>(null);
   const [preselectedFieldName, setPreselectedFieldName] = useState("");
   const [initialTab, setInitialTab] = useState<"create" | "library">("create");
+  const [customColumns, setCustomColumns] = useState<{ id: string; name: string; type: string; color: string }[]>([]);
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
 
@@ -459,6 +460,13 @@ export default function MyTasksPage() {
     setSections((prev) =>
       prev.map((s) => (s.id === sectionId ? { ...s, collapsed: !s.collapsed } : s))
     );
+  }
+
+  function handleFieldCreated(field: CreatedFieldInfo) {
+    setCustomColumns((prev) => [
+      ...prev,
+      { id: `cf-${Date.now()}`, name: field.name, type: field.type, color: field.color },
+    ]);
   }
 
   async function handleToggleComplete(task: Task) {
@@ -1027,6 +1035,17 @@ export default function MyTasksPage() {
             }}
           />
 
+          {/* Dynamic custom columns */}
+          {customColumns.map((col) => (
+            <div
+              key={col.id}
+              className="flex items-center gap-1 border-l border-gray-300/40 pl-2.5 pr-1"
+              style={{ width: "110px", minWidth: "110px", flexShrink: 0 }}
+            >
+              <span className="text-[11px] font-medium text-gray-500 truncate">{col.name}</span>
+            </div>
+          ))}
+
           {/* Add column (+) button */}
           <div className="flex-shrink-0 border-l border-gray-300/40">
             <AddColumnDropdown
@@ -1065,6 +1084,7 @@ export default function MyTasksPage() {
                   onTaskClick={openTaskDetail}
                   onAddTask={handleAddTask}
                   formatDueDate={formatDueDate}
+                  customColumnCount={customColumns.length}
                 />
               ))}
 
@@ -1213,6 +1233,7 @@ export default function MyTasksPage() {
         initialFieldType={preselectedFieldType ?? undefined}
         initialFieldName={preselectedFieldName}
         initialTab={initialTab}
+        onFieldCreated={handleFieldCreated}
       />
 
       {/* Advanced Search Modal */}
@@ -1269,6 +1290,7 @@ function TaskSection({
   onTaskClick,
   onAddTask,
   formatDueDate,
+  customColumnCount = 0,
 }: {
   section: SmartSection;
   onToggleSection: () => void;
@@ -1276,6 +1298,7 @@ function TaskSection({
   onTaskClick: (task: Task) => void;
   onAddTask: (name: string, sectionId: string, taskType?: "TASK" | "MILESTONE" | "APPROVAL") => Promise<boolean>;
   formatDueDate: (date: string | null) => { text: string; className: string };
+  customColumnCount?: number;
 }) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
@@ -1408,6 +1431,10 @@ function TaskSection({
                   Solo yo
                 </span>
               </div>
+              {/* Custom column placeholders */}
+              {Array.from({ length: customColumnCount }).map((_, i) => (
+                <div key={i} className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5" />
+              ))}
               {/* Spinner / spacer */}
               <div className="w-8 flex-shrink-0 flex items-center justify-center">
                 {isCreating && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
@@ -1422,6 +1449,7 @@ function TaskSection({
               onToggleComplete={() => onToggleComplete(task)}
               onClick={() => onTaskClick(task)}
               formatDueDate={formatDueDate}
+              customColumnCount={customColumnCount}
             />
           ))}
 
@@ -1440,6 +1468,9 @@ function TaskSection({
               <div className="w-[110px] min-w-[110px] flex-shrink-0" />
               <div className="w-[160px] min-w-[160px] flex-shrink-0" />
               <div className="w-[110px] min-w-[110px] flex-shrink-0" />
+              {Array.from({ length: customColumnCount }).map((_, i) => (
+                <div key={i} className="w-[110px] min-w-[110px] flex-shrink-0" />
+              ))}
               <div className="w-8 flex-shrink-0" />
             </button>
           )}
@@ -1455,11 +1486,13 @@ function TaskRow({
   onToggleComplete,
   onClick,
   formatDueDate,
+  customColumnCount = 0,
 }: {
   task: Task;
   onToggleComplete: () => void;
   onClick: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
+  customColumnCount?: number;
 }) {
   const dueDateInfo = formatDueDate(task.dueDate);
 
@@ -1566,6 +1599,13 @@ function TaskRow({
           Mi espacio de trabajo
         </span>
       </div>
+
+      {/* Custom column cells */}
+      {Array.from({ length: customColumnCount }).map((_, i) => (
+        <div key={i} className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+          <span className="text-[13px] text-gray-300">—</span>
+        </div>
+      ))}
 
       {/* Spacer for + button column */}
       <div className="w-8 flex-shrink-0" />
