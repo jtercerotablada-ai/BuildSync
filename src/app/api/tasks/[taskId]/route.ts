@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { GoalProgressService } from "@/lib/goal-progress";
+import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const updateTaskSchema = z.object({
   name: z.string().min(1).optional(),
@@ -29,6 +30,9 @@ export async function GET(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to this task's workspace
+    await verifyTaskAccess(userId, taskId);
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -128,6 +132,7 @@ export async function GET(
         },
         collaborators: {
           select: {
+            id: true,
             userId: true,
           },
         },
@@ -154,14 +159,27 @@ export async function GET(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    // Add isLiked field
+    // Resolve collaborator user details
+    const collaboratorUserIds = task.collaborators.map((c) => c.userId);
+    const collaboratorUsers = collaboratorUserIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: collaboratorUserIds } },
+          select: { id: true, name: true, image: true },
+        })
+      : [];
+
     const taskWithLiked = {
       ...task,
       isLiked: task.likes.length > 0,
+      collaborators: collaboratorUsers,
     };
 
     return NextResponse.json(taskWithLiked);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching task:", error);
     return NextResponse.json(
       { error: "Failed to fetch task" },
@@ -182,6 +200,9 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to this task's workspace
+    await verifyTaskAccess(userId, taskId);
 
     const body = await req.json();
     const data = updateTaskSchema.parse(body);
@@ -341,6 +362,10 @@ export async function PATCH(
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error updating task:", error);
     return NextResponse.json(
       { error: "Failed to update task" },
@@ -362,14 +387,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { creatorId: true },
-    });
-
-    if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
-    }
+    // Verify user has access to this task's workspace
+    await verifyTaskAccess(userId, taskId);
 
     await prisma.task.delete({
       where: { id: taskId },
@@ -377,6 +396,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting task:", error);
     return NextResponse.json(
       { error: "Failed to delete task" },

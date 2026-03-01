@@ -70,12 +70,20 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Prevent changing owner role
+    // Prevent changing owner role and verify same workspace
     const targetMember = await prisma.workspaceMember.findUnique({
       where: { id: memberId },
     });
 
-    if (targetMember?.role === "OWNER") {
+    if (!targetMember) {
+      return NextResponse.json({ error: "Member not found" }, { status: 404 });
+    }
+
+    if (targetMember.workspaceId !== currentMember.workspaceId) {
+      return NextResponse.json({ error: "Member not in your workspace" }, { status: 403 });
+    }
+
+    if (targetMember.role === "OWNER") {
       return NextResponse.json(
         { error: "Cannot change owner role" },
         { status: 400 }
@@ -133,12 +141,20 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Prevent removing owner
+    // Prevent removing owner and verify same workspace
     const targetMember = await prisma.workspaceMember.findUnique({
       where: { id: memberId },
     });
 
-    if (targetMember?.role === "OWNER") {
+    if (!targetMember) {
+      return NextResponse.json({ error: "Member not found" }, { status: 404 });
+    }
+
+    if (targetMember.workspaceId !== currentMember.workspaceId) {
+      return NextResponse.json({ error: "Member not in your workspace" }, { status: 403 });
+    }
+
+    if (targetMember.role === "OWNER") {
       return NextResponse.json(
         { error: "Cannot remove workspace owner" },
         { status: 400 }

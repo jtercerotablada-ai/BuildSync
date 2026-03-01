@@ -224,6 +224,8 @@ export default function DashboardPage() {
     kpis: { completed: number; incomplete: number; overdue: number; total: number };
     tasksByProject: { name: string; value: number; color: string }[];
     tasksByStatus: { name: string; value: number; color: string }[];
+    projectsByStatus: { name: string; value: number; color: string }[];
+    upcomingByAssignee: { name: string; value: number; color: string }[];
   } | null>(null);
 
   const config = dashboardConfigs[dashboardId] || {
@@ -298,13 +300,13 @@ export default function DashboardPage() {
           id: "7",
           type: "bar-chart",
           title: `Upcoming tasks this week by assignee`,
-          config: { data: [] },
+          config: { data: reportData.upcomingByAssignee || [] },
         },
         {
           id: "8",
           type: "donut",
           title: `Projects by status`,
-          config: { data: [] },
+          config: { data: reportData.projectsByStatus || [] },
         },
       ]);
     }

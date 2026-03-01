@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const createSubtaskSchema = z.object({
   name: z.string().min(1, "Subtask name is required"),
@@ -22,6 +23,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user has access to parent task
+    await verifyTaskAccess(userId, taskId);
+
     const subtasks = await prisma.task.findMany({
       where: {
         parentTaskId: taskId,
@@ -41,6 +45,10 @@ export async function GET(
 
     return NextResponse.json(subtasks);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching subtasks:", error);
     return NextResponse.json(
       { error: "Failed to fetch subtasks" },
@@ -62,10 +70,13 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user has access to parent task
+    await verifyTaskAccess(userId, taskId);
+
     const body = await req.json();
     const { name, assigneeId, dueDate } = createSubtaskSchema.parse(body);
 
-    // Verify parent task exists
+    // Get parent task details for inheriting project/section
     const parentTask = await prisma.task.findUnique({
       where: { id: taskId },
       select: { id: true, projectId: true, sectionId: true },
@@ -127,6 +138,10 @@ export async function POST(
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error creating subtask:", error);
     return NextResponse.json(
       { error: "Failed to create subtask" },

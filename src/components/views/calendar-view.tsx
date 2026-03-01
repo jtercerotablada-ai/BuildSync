@@ -29,6 +29,8 @@ import {
   isSameDay,
   addMonths,
   subMonths,
+  addWeeks,
+  subWeeks,
   isToday,
   parseISO,
   differenceInDays,
@@ -114,13 +116,17 @@ export function CalendarView({
   // ============================================
 
   const calendarDays = useMemo(() => {
+    if (viewMode === "week") {
+      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+      return eachDayOfInterval({ start: weekStart, end: weekEnd });
+    }
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 }); // Monday start
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
     const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-
     return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-  }, [currentDate]);
+  }, [currentDate, viewMode]);
 
   // ============================================
   // GET TASKS FOR A DAY
@@ -135,13 +141,17 @@ export function CalendarView({
         ? parseISO(task.startDate)
         : taskEnd;
 
-      // Task starts on this day
+      // Week view: show task on every day it spans
+      if (viewMode === "week") {
+        return day >= taskStart && day <= taskEnd;
+      }
+
+      // Month view: Task starts on this day
       if (isSameDay(taskStart, day)) return true;
 
       // Multi-day task continues on this day (only show at start of week)
       if (taskStart < day && taskEnd >= day) {
         const dayOfWeek = day.getDay();
-        // Monday = 1, or if it's the first day of the visible calendar
         return dayOfWeek === 1;
       }
 
@@ -192,8 +202,10 @@ export function CalendarView({
   // NAVIGATION
   // ============================================
 
-  const goToPrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
-  const goToNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
+  const goToPrev = () =>
+    setCurrentDate(viewMode === "week" ? subWeeks(currentDate, 1) : subMonths(currentDate, 1));
+  const goToNext = () =>
+    setCurrentDate(viewMode === "week" ? addWeeks(currentDate, 1) : addMonths(currentDate, 1));
   const goToToday = () => setCurrentDate(new Date());
 
   // ============================================
@@ -265,7 +277,7 @@ export function CalendarView({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              onClick={goToPrevMonth}
+              onClick={goToPrev}
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -276,15 +288,17 @@ export function CalendarView({
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              onClick={goToNextMonth}
+              onClick={goToNext}
             >
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
 
-          {/* Current Month/Year */}
+          {/* Current Month/Year or Week Range */}
           <h2 className="text-lg font-semibold ml-4">
-            {format(currentDate, "MMMM yyyy")}
+            {viewMode === "week"
+              ? `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d")} – ${format(endOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d, yyyy")}`
+              : format(currentDate, "MMMM yyyy")}
           </h2>
         </div>
 
@@ -381,33 +395,43 @@ export function CalendarView({
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isCurrentDay = isToday(day);
             const isHovered = hoveredDay === dateStr;
+            const isWeek = viewMode === "week";
+            const maxVisible = isWeek ? 20 : 3;
 
             return (
               <div
                 key={dateStr}
                 className={cn(
-                  "min-h-[120px] border-b border-r p-1 group relative transition-colors",
-                  !isCurrentMonth && "bg-slate-50",
-                  isHovered && isCurrentMonth && "bg-white"
+                  "border-b border-r p-1 group relative transition-colors",
+                  isWeek ? "min-h-[400px]" : "min-h-[120px]",
+                  !isCurrentMonth && !isWeek && "bg-slate-50",
+                  isHovered && "bg-white"
                 )}
                 onMouseEnter={() => setHoveredDay(dateStr)}
                 onMouseLeave={() => setHoveredDay(null)}
               >
                 {/* Day Number */}
                 <div className="flex items-center justify-between mb-1">
-                  <span
-                    className={cn(
-                      "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full transition-colors",
-                      isCurrentDay && "bg-black text-white",
-                      !isCurrentDay && isCurrentMonth && "text-slate-900",
-                      !isCurrentDay && !isCurrentMonth && "text-slate-400"
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={cn(
+                        "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full transition-colors",
+                        isCurrentDay && "bg-black text-white",
+                        !isCurrentDay && isCurrentMonth && "text-slate-900",
+                        !isCurrentDay && !isCurrentMonth && "text-slate-400"
+                      )}
+                    >
+                      {format(day, "d")}
+                    </span>
+                    {isWeek && (
+                      <span className="text-xs text-slate-500">
+                        {format(day, "MMM")}
+                      </span>
                     )}
-                  >
-                    {format(day, "d")}
-                  </span>
+                  </div>
 
-                  {/* Show month name on 1st day */}
-                  {day.getDate() === 1 && (
+                  {/* Show month name on 1st day (month view only) */}
+                  {!isWeek && day.getDate() === 1 && (
                     <span className="text-xs text-slate-500 font-medium">
                       {format(day, "MMM")}
                     </span>
@@ -416,21 +440,22 @@ export function CalendarView({
 
                 {/* Tasks */}
                 <div className="space-y-1">
-                  {dayTasks.slice(0, 3).map((task) => {
+                  {dayTasks.slice(0, maxVisible).map((task) => {
                     const isMilestone = isTaskMilestone(task);
                     const taskColor =
                       PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.NONE;
 
-                    if (isMilestone) {
-                      // Single-day task - show as chip
+                    if (isMilestone || isWeek) {
+                      // Single-day task or week view - show as chip
                       return (
                         <div
                           key={task.id}
                           className={cn(
-                            "flex items-center gap-1 text-xs cursor-pointer hover:opacity-80 transition-opacity px-1.5 py-0.5 rounded truncate",
+                            "flex items-center gap-1.5 text-xs cursor-pointer hover:opacity-80 transition-opacity px-2 rounded truncate",
+                            isWeek ? "py-1.5" : "py-0.5",
                             task.completed && "opacity-60"
                           )}
-                          style={{ backgroundColor: `${taskColor}20` }}
+                          style={{ backgroundColor: `${taskColor}15` }}
                           onClick={(e) => {
                             e.stopPropagation();
                             onTaskClick(task.id);
@@ -443,17 +468,21 @@ export function CalendarView({
                           <span
                             className={cn(
                               "truncate",
-                              task.completed && "line-through"
+                              task.completed && "line-through text-slate-400"
                             )}
-                            style={{ color: taskColor }}
                           >
                             {task.name}
                           </span>
+                          {isWeek && task.assignee?.name && (
+                            <span className="text-slate-400 ml-auto text-[10px] flex-shrink-0">
+                              {task.assignee.name.split(" ")[0]}
+                            </span>
+                          )}
                         </div>
                       );
                     }
 
-                    // Multi-day task bar
+                    // Multi-day task bar (month view only)
                     const barWidth = getTaskBarWidth(task, day);
                     const taskStart = task.startDate
                       ? parseISO(task.startDate)
@@ -485,9 +514,9 @@ export function CalendarView({
                   })}
 
                   {/* Show "+N more" if there are more tasks */}
-                  {dayTasks.length > 3 && (
+                  {dayTasks.length > maxVisible && (
                     <div className="text-xs text-slate-500 px-1">
-                      +{dayTasks.length - 3} more
+                      +{dayTasks.length - maxVisible} more
                     </div>
                   )}
                 </div>

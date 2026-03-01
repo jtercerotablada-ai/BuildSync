@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { uploadFile } from "@/lib/storage";
+import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 // GET /api/tasks/:taskId/attachments - Get task attachments
 export async function GET(
@@ -15,6 +17,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user has access to this task
+    await verifyTaskAccess(userId, taskId);
+
     const attachments = await prisma.attachment.findMany({
       where: { taskId },
       orderBy: { createdAt: "desc" },
@@ -22,6 +27,10 @@ export async function GET(
 
     return NextResponse.json(attachments);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching attachments:", error);
     return NextResponse.json(
       { error: "Failed to fetch attachments" },
@@ -43,15 +52,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify task exists
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { id: true },
-    });
-
-    if (!task) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
-    }
+    // Verify user has access to this task
+    await verifyTaskAccess(userId, taskId);
 
     const formData = await req.formData();
     const file = formData.get('file') as File;
@@ -60,22 +62,21 @@ export async function POST(
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Get file extension
     const fileName = file.name;
-    const fileType = fileName.split('.').pop()?.toLowerCase() || 'unknown';
     const fileSize = file.size;
 
-    // TODO: Upload to storage (S3, Cloudinary, etc.)
-    // For now, we'll create a placeholder URL
-    // In production, you would upload the file and get the real URL
-    const fileUrl = `/uploads/${taskId}/${Date.now()}-${fileName}`;
+    if (fileSize > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: "File size exceeds 10MB limit" }, { status: 400 });
+    }
+
+    const { url: fileUrl } = await uploadFile(file, `tasks/${taskId}`);
 
     // Create attachment record
     const attachment = await prisma.attachment.create({
       data: {
         name: fileName,
         url: fileUrl,
-        mimeType: file.type || fileType,
+        mimeType: file.type || "application/octet-stream",
         size: fileSize,
         taskId,
         uploaderId: userId,
@@ -94,6 +95,10 @@ export async function POST(
 
     return NextResponse.json(attachment, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error uploading attachment:", error);
     return NextResponse.json(
       { error: "Failed to upload attachment" },

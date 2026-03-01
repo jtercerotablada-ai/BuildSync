@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyWorkspaceAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const updateObjectiveSchema = z.object({
   name: z.string().min(1).optional(),
@@ -109,6 +110,9 @@ export async function GET(
       return NextResponse.json({ error: "Objective not found" }, { status: 404 });
     }
 
+    // Verify user belongs to objective's workspace
+    await verifyWorkspaceAccess(userId, objective.workspace.id);
+
     // Calculate progress based on source
     let calculatedProgress = objective.progress;
 
@@ -130,6 +134,10 @@ export async function GET(
       progress: calculatedProgress,
     });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching objective:", error);
     return NextResponse.json(
       { error: "Failed to fetch objective" },
@@ -150,6 +158,16 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to this objective's workspace
+    const existingObj = await prisma.objective.findUnique({
+      where: { id: objectiveId },
+      select: { workspaceId: true },
+    });
+    if (!existingObj) {
+      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
+    }
+    await verifyWorkspaceAccess(userId, existingObj.workspaceId);
 
     const body = await req.json();
     const data = updateObjectiveSchema.parse(body);
@@ -201,6 +219,10 @@ export async function PATCH(
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error updating objective:", error);
     return NextResponse.json(
       { error: "Failed to update objective" },
@@ -222,12 +244,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user has access to this objective's workspace
+    const obj = await prisma.objective.findUnique({
+      where: { id: objectiveId },
+      select: { workspaceId: true },
+    });
+    if (!obj) {
+      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
+    }
+    await verifyWorkspaceAccess(userId, obj.workspaceId);
+
     await prisma.objective.delete({
       where: { id: objectiveId },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting objective:", error);
     return NextResponse.json(
       { error: "Failed to delete objective" },

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const updateSubtaskSchema = z.object({
   name: z.string().min(1).optional(),
@@ -23,6 +24,9 @@ export async function GET(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to parent task
+    await verifyTaskAccess(userId, taskId);
 
     const subtask = await prisma.task.findFirst({
       where: {
@@ -47,6 +51,10 @@ export async function GET(
 
     return NextResponse.json(subtask);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching subtask:", error);
     return NextResponse.json(
       { error: "Failed to fetch subtask" },
@@ -67,6 +75,9 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to parent task
+    await verifyTaskAccess(userId, taskId);
 
     const body = await req.json();
     const data = updateSubtaskSchema.parse(body);
@@ -133,6 +144,10 @@ export async function PATCH(
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error updating subtask:", error);
     return NextResponse.json(
       { error: "Failed to update subtask" },
@@ -154,6 +169,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user has access to parent task
+    await verifyTaskAccess(userId, taskId);
+
     // Verify subtask exists and belongs to parent task
     const subtask = await prisma.task.findFirst({
       where: {
@@ -173,6 +191,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting subtask:", error);
     return NextResponse.json(
       { error: "Failed to delete subtask" },

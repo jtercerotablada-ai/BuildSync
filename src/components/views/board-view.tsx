@@ -23,12 +23,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Plus,
   Calendar,
   MessageSquare,
   Paperclip,
   User,
   Check,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, isToday, isTomorrow, isPast, parseISO } from "date-fns";
@@ -112,44 +122,60 @@ export function BoardView({
     const { active, over } = event;
     setActiveTask(null);
 
-    if (!over) return;
+    if (!over || active.id === over.id) return;
 
     const taskId = active.id as string;
     const overId = over.id as string;
 
     let sourceSection: Section | null = null;
-    let destinationSectionId: string | null = null;
+    let destinationSection: Section | null = null;
 
     for (const section of sections) {
       if (section.tasks.find((t) => t.id === taskId)) {
         sourceSection = section;
       }
       if (section.id === overId) {
-        destinationSectionId = section.id;
+        destinationSection = section;
       } else if (section.tasks.find((t) => t.id === overId)) {
-        destinationSectionId = section.id;
+        destinationSection = section;
       }
     }
 
-    if (!destinationSectionId || sourceSection?.id === destinationSectionId) {
-      return;
-    }
+    if (!destinationSection) return;
 
-    try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectionId: destinationSectionId }),
-      });
+    const isSameSection = sourceSection?.id === destinationSection.id;
 
-      if (!response.ok) {
-        throw new Error("Failed to move task");
+    if (isSameSection) {
+      // Same-column reorder: calculate new position
+      const overTaskIndex = destinationSection.tasks.findIndex((t) => t.id === overId);
+      if (overTaskIndex === -1) return;
+      // Set position to place it at the target index
+      const newPosition = overTaskIndex;
+      try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: newPosition }),
+        });
+        if (!response.ok) throw new Error("Failed to reorder task");
+        router.refresh();
+      } catch {
+        toast.error("Failed to reorder task");
       }
-
-      toast.success("Task moved");
-      router.refresh();
-    } catch {
-      toast.error("Failed to move task");
+    } else {
+      // Cross-column move: update sectionId
+      try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sectionId: destinationSection.id }),
+        });
+        if (!response.ok) throw new Error("Failed to move task");
+        toast.success("Task moved");
+        router.refresh();
+      } catch {
+        toast.error("Failed to move task");
+      }
     }
   };
 
@@ -271,14 +297,93 @@ function Column({
   onSubmitTask: () => void;
   onCancelAddTask: () => void;
 }) {
+  const router = useRouter();
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(section.name);
+
+  const handleRename = async () => {
+    if (!renameValue.trim() || renameValue === section.name) {
+      setIsRenaming(false);
+      setRenameValue(section.name);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/sections/${section.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Section renamed");
+      setIsRenaming(false);
+      router.refresh();
+    } catch {
+      toast.error("Failed to rename section");
+    }
+  };
+
+  const handleDelete = async () => {
+    const msg = section.tasks.length > 0
+      ? `Delete "${section.name}" and its ${section.tasks.length} task${section.tasks.length > 1 ? "s" : ""}?`
+      : `Delete "${section.name}"?`;
+    if (!confirm(msg)) return;
+    try {
+      const res = await fetch(`/api/sections/${section.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Section deleted");
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete section");
+    }
+  };
+
   return (
     <div className="flex-shrink-0 w-72 flex flex-col bg-slate-100 rounded-lg max-h-full">
       {/* Column Header */}
-      <div className="p-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-slate-900">{section.name}</h3>
-          <span className="text-sm text-slate-500">{section.tasks.length}</span>
+      <div className="p-3 flex items-center justify-between group">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {isRenaming ? (
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRename();
+                if (e.key === "Escape") { setIsRenaming(false); setRenameValue(section.name); }
+              }}
+              onBlur={handleRename}
+              className="font-semibold text-slate-900 bg-white border rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 w-full"
+              autoFocus
+            />
+          ) : (
+            <>
+              <h3 className="font-semibold text-slate-900 truncate">{section.name}</h3>
+              <span className="text-sm text-slate-500">{section.tasks.length}</span>
+            </>
+          )}
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+              <MoreHorizontal className="w-4 h-4 text-slate-400" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => { setIsRenaming(true); setRenameValue(section.name); }}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onStartAddTask}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add task
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete section
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Cards Container */}

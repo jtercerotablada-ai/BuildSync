@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTeamAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const createMessageSchema = z.object({
   content: z.string().min(1),
@@ -20,14 +21,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify team exists
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-    });
-
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 });
-    }
+    // Verify user is a team member
+    await verifyTeamAccess(userId, teamId);
 
     const messages = await prisma.teamMessage.findMany({
       where: { teamId },
@@ -43,6 +38,15 @@ export async function GET(
           select: {
             emoji: true,
             userId: true,
+          },
+        },
+        attachments: {
+          select: {
+            id: true,
+            name: true,
+            url: true,
+            size: true,
+            mimeType: true,
           },
         },
       },
@@ -76,6 +80,10 @@ export async function GET(
 
     return NextResponse.json(formatted);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching team messages:", error);
     return NextResponse.json(
       { error: "Failed to fetch messages" },
@@ -143,6 +151,10 @@ export async function POST(
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error creating message:", error);
     return NextResponse.json(
       { error: "Failed to create message" },

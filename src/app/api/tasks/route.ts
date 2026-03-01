@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId, verifyProjectAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const createTaskSchema = z.object({
   name: z.string().min(1, "Task name is required"),
@@ -13,6 +14,7 @@ const createTaskSchema = z.object({
   startDate: z.string().optional().nullable(),
   priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional(),
   parentTaskId: z.string().optional().nullable(),
+  taskType: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional(),
 });
 
 // GET /api/tasks - Get tasks
@@ -31,8 +33,12 @@ export async function GET(req: Request) {
     const completed = searchParams.get("completed");
     const myTasks = searchParams.get("myTasks") === "true";
 
+    // Scope to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+
     const whereClause: Record<string, unknown> = {
       parentTaskId: null, // Only get top-level tasks
+      project: { workspaceId },
     };
 
     if (projectId) {
@@ -107,6 +113,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json(tasks);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching tasks:", error);
     return NextResponse.json(
       { error: "Failed to fetch tasks" },
@@ -126,6 +136,11 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const data = createTaskSchema.parse(body);
+
+    // Verify user has access to the target project
+    if (data.projectId) {
+      await verifyProjectAccess(userId, data.projectId);
+    }
 
     // Get the next position for the task
     let position = 0;
@@ -159,6 +174,7 @@ export async function POST(req: Request) {
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         startDate: data.startDate ? new Date(data.startDate) : null,
         priority: data.priority || "NONE",
+        taskType: data.taskType || "TASK",
         parentTaskId: data.parentTaskId,
         position,
       },
@@ -215,6 +231,10 @@ export async function POST(req: Request) {
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error creating task:", error);
     return NextResponse.json(
       { error: "Failed to create task" },

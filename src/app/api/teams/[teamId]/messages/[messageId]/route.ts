@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTeamAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const updateMessageSchema = z.object({
   content: z.string().min(1).optional(),
@@ -20,6 +21,9 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user is a team member
+    await verifyTeamAccess(userId, teamId);
 
     const body = await req.json();
     const data = updateMessageSchema.parse(body);
@@ -64,6 +68,10 @@ export async function PATCH(
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error updating message:", error);
     return NextResponse.json(
       { error: "Failed to update message" },
@@ -84,6 +92,9 @@ export async function DELETE(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user is a team member
+    await verifyTeamAccess(userId, teamId);
 
     // Get the message
     const message = await prisma.teamMessage.findUnique({
@@ -120,6 +131,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting message:", error);
     return NextResponse.json(
       { error: "Failed to delete message" },

@@ -35,6 +35,7 @@ import { ProjectSelector } from './project-selector';
 import { PrioritySelector, StatusSelector } from './field-selector';
 import { TaskDetailToolbar } from './task-detail-toolbar';
 import { TaskAttachments } from './task-attachments';
+import { DependencySelector } from './dependency-selector';
 
 interface TaskDetail {
   id: string;
@@ -104,6 +105,24 @@ interface TaskDetail {
     mimeType: string;
     size: number;
     createdAt: string;
+  }[];
+  dependencies: {
+    id: string;
+    type: string;
+    blockingTask: {
+      id: string;
+      name: string;
+      completed: boolean;
+    };
+  }[];
+  dependents: {
+    id: string;
+    type: string;
+    dependentTask: {
+      id: string;
+      name: string;
+      completed: boolean;
+    };
   }[];
   collaborators?: {
     id: string;
@@ -318,6 +337,105 @@ export function TaskDetailModal({
     } catch (error) {
       toast.error('Failed to add comment');
     }
+  };
+
+  const handleCommentEdit = async (commentId: string, content: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/comments/${commentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) throw new Error('Failed to edit comment');
+      toast.success('Comment updated');
+      fetchTask();
+    } catch (error) {
+      toast.error('Failed to edit comment');
+    }
+  };
+
+  const handleCommentDelete = async (commentId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/comments/${commentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to delete comment');
+      toast.success('Comment deleted');
+      fetchTask();
+    } catch (error) {
+      toast.error('Failed to delete comment');
+    }
+  };
+
+  const handleAddDependency = async (blockingTaskId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/dependencies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blockingTaskId }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to add dependency');
+      }
+      toast.success('Dependency added');
+      fetchTask();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to add dependency');
+      throw error;
+    }
+  };
+
+  const handleRemoveDependency = async (dependencyId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/dependencies?id=${dependencyId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to remove dependency');
+      toast.success('Dependency removed');
+      fetchTask();
+    } catch (error) {
+      toast.error('Failed to remove dependency');
+    }
+  };
+
+  const handleAddCollaborator = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/collaborators`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) throw new Error('Failed to add collaborator');
+      toast.success('Collaborator added');
+      fetchTask();
+    } catch (error) {
+      toast.error('Failed to add collaborator');
+    }
+  };
+
+  const handleRemoveCollaborator = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/collaborators?userId=${userId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to remove collaborator');
+      fetchTask();
+    } catch (error) {
+      toast.error('Failed to remove collaborator');
+    }
+  };
+
+  const handleLeaveTask = async () => {
+    if (!session?.user?.id) return;
+    await handleRemoveCollaborator(session.user.id);
+    toast.success('You left this task');
   };
 
   const handleDeleteTask = async () => {
@@ -606,15 +724,18 @@ export function TaskDetailModal({
                   </div>
 
                   {/* Dependencies */}
-                  <div className="flex items-center min-h-9">
-                    <div className="w-28 flex items-center gap-2 text-sm text-gray-500 flex-shrink-0">
+                  <div className="flex items-start min-h-9">
+                    <div className="w-28 flex items-center gap-2 text-sm text-gray-500 pt-1.5 flex-shrink-0">
                       <Link className="h-4 w-4" />
                       <span>Dependencies</span>
                     </div>
-                    <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 px-2 py-1">
-                      <Plus className="h-4 w-4" />
-                      Add dependency
-                    </button>
+                    <DependencySelector
+                      taskId={task.id}
+                      dependencies={task.dependencies || []}
+                      dependents={task.dependents || []}
+                      onAdd={handleAddDependency}
+                      onRemove={handleRemoveDependency}
+                    />
                   </div>
 
                   {/* Custom Fields */}
@@ -753,6 +874,8 @@ export function TaskDetailModal({
                 comments={task.comments || []}
                 activities={task.activities || []}
                 onCommentAdd={handleCommentAdd}
+                onCommentEdit={handleCommentEdit}
+                onCommentDelete={handleCommentDelete}
               />
             </div>
 
@@ -762,9 +885,12 @@ export function TaskDetailModal({
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-500">Collaborators</span>
                 <div className="flex -space-x-2">
-                  {(task.collaborators || [task.assignee, task.creator])
+                  {(task.collaborators && task.collaborators.length > 0
+                    ? task.collaborators
+                    : [task.assignee, task.creator].filter(Boolean)
+                  )
                     .filter(Boolean)
-                    .slice(0, 3)
+                    .slice(0, 5)
                     .map((collab: any, i: number) => (
                       <Avatar key={collab?.id || i} className="h-6 w-6 border-2 border-white">
                         <AvatarImage src={collab?.image || undefined} />
@@ -774,13 +900,21 @@ export function TaskDetailModal({
                       </Avatar>
                     ))}
                 </div>
-                <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={() => toast.info("Add collaborator coming soon")}>
-                  <Plus className="h-3 w-3" />
-                </Button>
+                <AssigneeSelector
+                  value={null}
+                  onChange={(user) => {
+                    if (user) handleAddCollaborator(user.id);
+                  }}
+                  trigger={
+                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full">
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  }
+                />
               </div>
 
               {/* Leave task */}
-              <Button variant="ghost" size="sm" className="text-gray-500 gap-2" onClick={() => toast.info("Leave task coming soon")}>
+              <Button variant="ghost" size="sm" className="text-gray-500 gap-2" onClick={handleLeaveTask}>
                 <LogOut className="h-4 w-4" />
                 Leave task
               </Button>

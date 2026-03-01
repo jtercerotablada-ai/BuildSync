@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId, getCurrentUser } from "@/lib/auth-utils";
+import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 // Helper function to extract mentioned user IDs from HTML content
 function extractMentionedUserIds(content: string): string[] {
@@ -48,6 +49,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user has access to this task
+    await verifyTaskAccess(userId, taskId);
+
     const comments = await prisma.comment.findMany({
       where: {
         taskId,
@@ -86,6 +90,10 @@ export async function GET(
 
     return NextResponse.json(comments);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching comments:", error);
     return NextResponse.json(
       { error: "Failed to fetch comments" },
@@ -106,6 +114,9 @@ export async function POST(
     if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to this task
+    await verifyTaskAccess(currentUser.id, taskId);
 
     const body = await req.json();
     const { content, parentId } = createCommentSchema.parse(body);
@@ -189,6 +200,10 @@ export async function POST(
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error creating comment:", error);
     return NextResponse.json(
       { error: "Failed to create comment" },

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Paperclip, AtSign, Smile, Send, ArrowUpDown } from 'lucide-react';
+import { Paperclip, AtSign, Smile, Send, ArrowUpDown, MoreHorizontal, Pencil, Trash2, X, Check } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,6 +43,8 @@ interface TaskCommentsSectionProps {
   comments: Comment[];
   activities: Activity[];
   onCommentAdd: (content: string) => void;
+  onCommentEdit?: (commentId: string, content: string) => void;
+  onCommentDelete?: (commentId: string) => void;
 }
 
 function getInitials(name: string): string {
@@ -108,13 +110,15 @@ function renderActivityText(activity: Activity): React.ReactNode {
   }
 }
 
-export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd }: TaskCommentsSectionProps) {
+export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd, onCommentEdit, onCommentDelete }: TaskCommentsSectionProps) {
   const { data: session } = useSession();
   const [activeTab, setActiveTab] = useState<'comments' | 'activity'>('activity');
   const [newComment, setNewComment] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('oldest');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAllActivity, setShowAllActivity] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
 
   const currentUser = {
     name: session?.user?.name || 'User',
@@ -227,33 +231,112 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
         ) : (
           <>
             {/* Show first 2 items or all if expanded */}
-            {(showAllActivity ? sortedItems : sortedItems.slice(0, 2)).map((item, index) => (
-              <div key={item.id} className="flex items-start gap-3">
-                {(index === 0 || item.type === 'comment') ? (
-                  <Avatar className="h-7 w-7 flex-shrink-0">
-                    <AvatarImage src={item.user.image || undefined} />
-                    <AvatarFallback className="text-xs bg-blue-600 text-white">
-                      {getInitials(item.user.name || 'U')}
-                    </AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <div className="w-7 flex-shrink-0" />
-                )}
-                <div className="flex-1 text-sm">
-                  <span className="font-medium text-gray-900">{item.user.name}</span>
-                  {' '}
-                  {item.type === 'comment' ? (
-                    <span className="text-gray-700">{item.content}</span>
+            {(showAllActivity ? sortedItems : sortedItems.slice(0, 2)).map((item, index) => {
+              const isOwnComment = item.type === 'comment' && item.user.id === session?.user?.id;
+              const isEditing = editingCommentId === item.id;
+
+              return (
+                <div key={item.id} className="flex items-start gap-3 group/comment">
+                  {(index === 0 || item.type === 'comment') ? (
+                    <Avatar className="h-7 w-7 flex-shrink-0">
+                      <AvatarImage src={item.user.image || undefined} />
+                      <AvatarFallback className="text-xs bg-blue-600 text-white">
+                        {getInitials(item.user.name || 'U')}
+                      </AvatarFallback>
+                    </Avatar>
                   ) : (
-                    <span className="text-gray-600">
-                      {renderActivityText({ ...item, data: ("data" in item ? item.data : undefined) } as Activity)}
-                    </span>
+                    <div className="w-7 flex-shrink-0" />
                   )}
-                  {' · '}
-                  <span className="text-gray-400">{formatActivityDate(item.createdAt)}</span>
+                  <div className="flex-1 text-sm">
+                    <span className="font-medium text-gray-900">{item.user.name}</span>
+                    {' '}
+                    {item.type === 'comment' ? (
+                      isEditing ? (
+                        <div className="mt-1">
+                          <textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            className="w-full border rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-1 focus:ring-blue-500"
+                            rows={2}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && e.ctrlKey) {
+                                onCommentEdit?.(item.id, editingContent);
+                                setEditingCommentId(null);
+                              }
+                              if (e.key === 'Escape') setEditingCommentId(null);
+                            }}
+                          />
+                          <div className="flex items-center gap-2 mt-1">
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs bg-blue-600 hover:bg-blue-700"
+                              onClick={() => {
+                                onCommentEdit?.(item.id, editingContent);
+                                setEditingCommentId(null);
+                              }}
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Save
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => setEditingCommentId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-700">{item.content}</span>
+                      )
+                    ) : (
+                      <span className="text-gray-600">
+                        {renderActivityText({ ...item, data: ("data" in item ? item.data : undefined) } as Activity)}
+                      </span>
+                    )}
+                    {!isEditing && (
+                      <>
+                        {' · '}
+                        <span className="text-gray-400">{formatActivityDate(item.createdAt)}</span>
+                      </>
+                    )}
+                  </div>
+                  {/* Edit/Delete menu for own comments */}
+                  {isOwnComment && !isEditing && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-1 hover:bg-gray-100 rounded opacity-0 group-hover/comment:opacity-100 transition-opacity flex-shrink-0">
+                          <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => {
+                          setEditingCommentId(item.id);
+                          setEditingContent(item.content || '');
+                        }}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (confirm('Delete this comment?')) {
+                              onCommentDelete?.(item.id);
+                            }
+                          }}
+                          className="text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {/* Show "Show X previous updates" button */}
             {!showAllActivity && sortedItems.length > 2 && (
               <button

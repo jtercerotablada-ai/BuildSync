@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyWorkspaceAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const updatePortfolioSchema = z.object({
   name: z.string().min(1).optional(),
@@ -83,6 +84,9 @@ export async function GET(
       return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
     }
 
+    // Verify user belongs to portfolio's workspace
+    await verifyWorkspaceAccess(userId, portfolio.workspaceId);
+
     // Calculate stats for each project
     const projectsWithStats = portfolio.projects.map((pp) => {
       const project = pp.project;
@@ -113,6 +117,10 @@ export async function GET(
       projects: projectsWithStats,
     });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching portfolio:", error);
     return NextResponse.json(
       { error: "Failed to fetch portfolio" },
@@ -133,6 +141,16 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user belongs to portfolio's workspace
+    const existingPortfolio = await prisma.portfolio.findUnique({
+      where: { id: portfolioId },
+      select: { workspaceId: true, ownerId: true },
+    });
+    if (!existingPortfolio) {
+      return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
+    }
+    await verifyWorkspaceAccess(userId, existingPortfolio.workspaceId);
 
     const body = await req.json();
     const data = updatePortfolioSchema.parse(body);
@@ -180,6 +198,10 @@ export async function PATCH(
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error updating portfolio:", error);
     return NextResponse.json(
       { error: "Failed to update portfolio" },
@@ -201,12 +223,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user belongs to portfolio's workspace
+    const portToDelete = await prisma.portfolio.findUnique({
+      where: { id: portfolioId },
+      select: { workspaceId: true },
+    });
+    if (!portToDelete) {
+      return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
+    }
+    await verifyWorkspaceAccess(userId, portToDelete.workspaceId);
+
     await prisma.portfolio.delete({
       where: { id: portfolioId },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting portfolio:", error);
     return NextResponse.json(
       { error: "Failed to delete portfolio" },

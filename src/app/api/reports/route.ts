@@ -117,6 +117,30 @@ export async function GET(req: Request) {
       }),
     ]);
 
+    // Additional: Upcoming tasks this week by assignee
+    const upcomingByAssignee = await prisma.task.groupBy({
+      by: ["assigneeId"],
+      where: {
+        ...baseWhere,
+        completed: false,
+        dueDate: {
+          gte: startOfWeek,
+          lte: endOfWeek,
+        },
+        assigneeId: { not: null },
+      },
+      _count: true,
+    });
+
+    const assigneeIds = upcomingByAssignee.map((t) => t.assigneeId).filter(Boolean) as string[];
+    const assignees = assigneeIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: assigneeIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const assigneeMap = new Map(assignees.map((a) => [a.id, a.name || "Unknown"]));
+
     // Get project names for the tasks by project
     const projectIds = tasksByProject.map((t) => t.projectId).filter(Boolean) as string[];
     const projects = await prisma.project.findMany({
@@ -171,6 +195,14 @@ export async function GET(req: Request) {
             ? "#3b82f6"
             : "#94a3b8",
       })),
+      upcomingByAssignee: upcomingByAssignee
+        .map((t) => ({
+          name: assigneeMap.get(t.assigneeId!) || "Unassigned",
+          value: t._count,
+          color: "#3b82f6",
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8),
     });
   } catch (error) {
     console.error("Error fetching report data:", error);

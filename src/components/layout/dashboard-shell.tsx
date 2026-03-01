@@ -21,6 +21,18 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { AIPanelProvider, useAIPanel } from "@/contexts/ai-panel-context";
 import { AIPanel } from "@/components/ai/ai-panel";
+import { SearchDialog } from "./search-dialog";
+
+const SIDEBAR_STORAGE_KEY = "buildsync.sidebarCollapsed";
+
+function getInitialCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 interface Project {
   id: string;
@@ -40,11 +52,36 @@ function DashboardShellContent({ children }: DashboardShellProps) {
   const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
   const [showCreatePortfolio, setShowCreatePortfolio] = useState(false);
   const [showCreateGoal, setShowCreateGoal] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
-  
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialCollapsed);
+
   // Portfolio creation state
   const [creatingPortfolio, setCreatingPortfolio] = useState(false);
   const [newPortfolio, setNewPortfolio] = useState({ name: "", description: "" });
+
+  // Persist sidebar state
+  function toggleSidebar() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  }
+
+  // Cmd+K / Ctrl+K to open search
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setShowSearch(true);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -87,19 +124,24 @@ function DashboardShellContent({ children }: DashboardShellProps) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-      <Sidebar
-        projects={projects}
+    <div className="flex flex-col h-screen overflow-hidden bg-white">
+      {/* Full-width topbar strip */}
+      <Header
+        onCreateTask={() => setShowQuickCreateTask(true)}
         onCreateProject={() => setShowCreateProject(true)}
+        onCreatePortfolio={() => setShowCreatePortfolio(true)}
+        onCreateGoal={() => setShowCreateGoal(true)}
+        onSearchOpen={() => setShowSearch(true)}
+        onToggleSidebar={toggleSidebar}
       />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header 
-          onCreateTask={() => setShowQuickCreateTask(true)} 
+      {/* Sidebar + main below topbar */}
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          projects={projects}
+          collapsed={sidebarCollapsed}
           onCreateProject={() => setShowCreateProject(true)}
-          onCreatePortfolio={() => setShowCreatePortfolio(true)}
-          onCreateGoal={() => setShowCreateGoal(true)}
         />
-        <main className="flex-1 overflow-auto bg-white">
+        <main className="flex-1 overflow-auto bg-white transition-[margin] duration-200 ease-out">
           {children}
         </main>
       </div>
@@ -122,7 +164,7 @@ function DashboardShellContent({ children }: DashboardShellProps) {
         open={showCreateGoal}
         onOpenChange={setShowCreateGoal}
       />
-      
+
       {/* Portfolio Creation Dialog */}
       <Dialog open={showCreatePortfolio} onOpenChange={setShowCreatePortfolio}>
         <DialogContent>
@@ -172,6 +214,9 @@ function DashboardShellContent({ children }: DashboardShellProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Search Dialog */}
+      <SearchDialog open={showSearch} onOpenChange={setShowSearch} />
 
       {/* AI Panel */}
       <AIPanel isOpen={isAIPanelOpen} onClose={closeAIPanel} />

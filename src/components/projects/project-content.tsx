@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,6 +29,7 @@ import {
   Share2,
   Filter,
   SortAsc,
+  SortDesc,
   FileText,
   GitBranch,
   MessageSquare,
@@ -38,9 +40,12 @@ import {
   Edit2,
   Copy,
   Archive,
+  Check,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { isThisWeek, parseISO } from "date-fns";
 import { ListView } from "@/components/views/list-view";
 import { BoardView } from "@/components/views/board-view";
 import { TimelineView } from "@/components/views/timeline-view";
@@ -132,14 +137,141 @@ const STATUS_LABELS = {
   COMPLETE: "Complete",
 };
 
+const PRIORITY_ORDER: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2, NONE: 3 };
+
 export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const router = useRouter();
+  const { data: session } = useSession();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [isStarred, setIsStarred] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Filter/Sort state
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [showCompleted, setShowCompleted] = useState(true);
+
+  const toggleFilter = (filter: string) => {
+    setActiveFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(filter)) {
+        next.delete(filter);
+      } else {
+        if (filter === "incomplete") next.delete("completed");
+        if (filter === "completed") next.delete("incomplete");
+        next.add(filter);
+      }
+      return next;
+    });
+  };
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else {
+        setSortBy(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortBy(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const clearAllFilters = () => {
+    setActiveFilters(new Set());
+    setSortBy(null);
+    setSortDirection("asc");
+    setSearchQuery("");
+    setShowCompleted(true);
+  };
+
+  const hasActiveFilters = activeFilters.size > 0 || sortBy || searchQuery || !showCompleted;
+
+  // Compute filtered & sorted sections
+  const filteredSections = useMemo(() => {
+    let sections = project.sections.map(section => ({
+      ...section,
+      tasks: [...section.tasks],
+    }));
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      sections = sections.map(section => ({
+        ...section,
+        tasks: section.tasks.filter(task =>
+          task.name.toLowerCase().includes(q)
+        ),
+      }));
+    }
+
+    // Active filters
+    if (activeFilters.size > 0) {
+      sections = sections.map(section => ({
+        ...section,
+        tasks: section.tasks.filter(task => {
+          if (activeFilters.has("incomplete") && task.completed) return false;
+          if (activeFilters.has("completed") && !task.completed) return false;
+          if (activeFilters.has("due_this_week")) {
+            if (!task.dueDate) return false;
+            try {
+              if (!isThisWeek(parseISO(task.dueDate), { weekStartsOn: 1 })) return false;
+            } catch {
+              return false;
+            }
+          }
+          if (activeFilters.has("assigned_to_me")) {
+            if (!task.assignee || task.assignee.email !== session?.user?.email) return false;
+          }
+          return true;
+        }),
+      }));
+    }
+
+    // Show/hide completed
+    if (!showCompleted) {
+      sections = sections.map(section => ({
+        ...section,
+        tasks: section.tasks.filter(task => !task.completed),
+      }));
+    }
+
+    // Sorting
+    if (sortBy) {
+      sections = sections.map(section => ({
+        ...section,
+        tasks: [...section.tasks].sort((a, b) => {
+          let cmp = 0;
+          switch (sortBy) {
+            case "due_date": {
+              const da = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+              const db = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+              cmp = da - db;
+              break;
+            }
+            case "alphabetical":
+              cmp = a.name.localeCompare(b.name);
+              break;
+            case "priority":
+              cmp = (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3);
+              break;
+            case "created":
+              cmp = a.id.localeCompare(b.id);
+              break;
+          }
+          return sortDirection === "desc" ? -cmp : cmp;
+        }),
+      }));
+    }
+
+    return sections;
+  }, [project.sections, searchQuery, activeFilters, sortBy, sortDirection, showCompleted, session?.user?.email]);
 
   const handleViewChange = (view: string) => {
     router.push(`/projects/${project.id}?view=${view}`);
@@ -450,73 +582,137 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           {/* Toolbar - only show for task views */}
           {showToolbar && (
             <div className="flex items-center gap-1">
+              {/* Filter */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" className={cn(activeFilters.size > 0 && "text-blue-600 bg-blue-50")}>
                     <Filter className="mr-2 h-4 w-4" />
                     Filter
+                    {activeFilters.size > 0 && (
+                      <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1 text-xs bg-blue-100 text-blue-700">
+                        {activeFilters.size}
+                      </Badge>
+                    )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => toast.info('Filter: Incomplete tasks')}>Incomplete tasks</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Filter: Completed tasks')}>Completed tasks</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Filter: Due this week')}>Due this week</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Filter: Assigned to me')}>Assigned to me</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toggleFilter("incomplete")}>
+                    {activeFilters.has("incomplete") && <Check className="mr-2 h-4 w-4" />}
+                    <span className={cn(!activeFilters.has("incomplete") && "ml-6")}>Incomplete tasks</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toggleFilter("completed")}>
+                    {activeFilters.has("completed") && <Check className="mr-2 h-4 w-4" />}
+                    <span className={cn(!activeFilters.has("completed") && "ml-6")}>Completed tasks</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toggleFilter("due_this_week")}>
+                    {activeFilters.has("due_this_week") && <Check className="mr-2 h-4 w-4" />}
+                    <span className={cn(!activeFilters.has("due_this_week") && "ml-6")}>Due this week</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toggleFilter("assigned_to_me")}>
+                    {activeFilters.has("assigned_to_me") && <Check className="mr-2 h-4 w-4" />}
+                    <span className={cn(!activeFilters.has("assigned_to_me") && "ml-6")}>Assigned to me</span>
+                  </DropdownMenuItem>
+                  {activeFilters.size > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setActiveFilters(new Set())} className="text-red-600">
+                        <X className="mr-2 h-4 w-4" />
+                        Clear filters
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {/* Sort */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <SortAsc className="mr-2 h-4 w-4" />
+                  <Button variant="ghost" size="sm" className={cn(sortBy && "text-blue-600 bg-blue-50")}>
+                    {sortDirection === "desc" ? <SortDesc className="mr-2 h-4 w-4" /> : <SortAsc className="mr-2 h-4 w-4" />}
                     Sort
+                    {sortBy && <span className="ml-1 text-xs text-blue-600">({sortBy === "due_date" ? "date" : sortBy === "alphabetical" ? "A-Z" : sortBy})</span>}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => toast.info('Sorted by due date')}>Due date</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Sorted by creation date')}>Created on</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Sorted alphabetically')}>Alphabetical</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Sorted by priority')}>Priority</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSort("due_date")}>
+                    {sortBy === "due_date" && <Check className="mr-2 h-4 w-4" />}
+                    <span className={cn(sortBy !== "due_date" && "ml-6")}>Due date</span>
+                    {sortBy === "due_date" && <span className="ml-auto text-xs text-slate-400">{sortDirection === "asc" ? "earliest" : "latest"}</span>}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSort("created")}>
+                    {sortBy === "created" && <Check className="mr-2 h-4 w-4" />}
+                    <span className={cn(sortBy !== "created" && "ml-6")}>Created on</span>
+                    {sortBy === "created" && <span className="ml-auto text-xs text-slate-400">{sortDirection === "asc" ? "oldest" : "newest"}</span>}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSort("alphabetical")}>
+                    {sortBy === "alphabetical" && <Check className="mr-2 h-4 w-4" />}
+                    <span className={cn(sortBy !== "alphabetical" && "ml-6")}>Alphabetical</span>
+                    {sortBy === "alphabetical" && <span className="ml-auto text-xs text-slate-400">{sortDirection === "asc" ? "A-Z" : "Z-A"}</span>}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSort("priority")}>
+                    {sortBy === "priority" && <Check className="mr-2 h-4 w-4" />}
+                    <span className={cn(sortBy !== "priority" && "ml-6")}>Priority</span>
+                    {sortBy === "priority" && <span className="ml-auto text-xs text-slate-400">{sortDirection === "asc" ? "high first" : "low first"}</span>}
+                  </DropdownMenuItem>
+                  {sortBy && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => { setSortBy(null); setSortDirection("asc"); }} className="text-red-600">
+                        <X className="mr-2 h-4 w-4" />
+                        Clear sort
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {/* Options */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <Rows3 className="mr-2 h-4 w-4" />
-                    Group
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => toast.info('Grouped by section')}>Section</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Grouped by assignee')}>Assignee</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Grouped by due date')}>Due date</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Grouped by priority')}>Priority</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" className={cn(!showCompleted && "text-blue-600 bg-blue-50")}>
                     <Settings className="mr-2 h-4 w-4" />
                     Options
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => toast.info('Show subtasks enabled')}>Show subtasks</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Show completed tasks')}>Show completed</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Compact mode enabled')}>Compact mode</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowCompleted(!showCompleted)}>
+                    {showCompleted && <Check className="mr-2 h-4 w-4" />}
+                    <span className={cn(!showCompleted && "ml-6")}>Show completed</span>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {/* Search */}
               {showSearch ? (
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search tasks..."
-                  className="w-40 h-8"
-                  autoFocus
-                  onBlur={() => { if (!searchQuery) setShowSearch(false); }}
-                />
+                <div className="relative">
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search tasks..."
+                    className="w-44 h-8 pr-7"
+                    autoFocus
+                    onBlur={() => { if (!searchQuery) setShowSearch(false); }}
+                  />
+                  {searchQuery && (
+                    <button
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      onMouseDown={(e) => { e.preventDefault(); setSearchQuery(""); }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               ) : (
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSearch(true)}>
                   <Search className="h-4 w-4" />
+                </Button>
+              )}
+
+              {/* Clear all indicator */}
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={clearAllFilters}>
+                  <X className="mr-1 h-3.5 w-3.5" />
+                  Clear all
                 </Button>
               )}
             </div>
@@ -532,7 +728,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           )}
           {currentView === "list" && (
             <ListView
-              sections={project.sections}
+              sections={filteredSections}
               onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
               projectId={project.id}
@@ -540,7 +736,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           )}
           {currentView === "board" && (
             <BoardView
-              sections={project.sections}
+              sections={filteredSections}
               onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
               projectId={project.id}
@@ -548,21 +744,21 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           )}
           {currentView === "timeline" && (
             <TimelineView
-              sections={project.sections}
+              sections={filteredSections}
               onTaskClick={handleTaskClick}
               projectId={project.id}
             />
           )}
           {currentView === "calendar" && (
             <CalendarView
-              sections={project.sections}
+              sections={filteredSections}
               onTaskClick={handleTaskClick}
               projectId={project.id}
             />
           )}
           {currentView === "dashboard" && (
             <DashboardView
-              sections={project.sections}
+              sections={filteredSections}
               projectId={project.id}
             />
           )}

@@ -14,6 +14,8 @@ import {
   Pencil,
   X,
   Check,
+  FileIcon,
+  Download,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -33,6 +35,14 @@ interface Reaction {
   hasReacted: boolean;
 }
 
+interface MessageAttachment {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  mimeType: string;
+}
+
 interface Message {
   id: string;
   content: string;
@@ -45,6 +55,7 @@ interface Message {
     image: string | null;
   };
   reactions: Reaction[];
+  attachments?: MessageAttachment[];
 }
 
 interface Team {
@@ -149,7 +160,9 @@ export default function TeamMessagesPage() {
   const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isAtBottomRef = useRef(true);
 
   const fetchMessages = useCallback(async () => {
@@ -221,19 +234,39 @@ export default function TeamMessagesPage() {
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!newMessage.trim() || isSending) return;
+    if ((!newMessage.trim() && !pendingFile) || isSending) return;
 
     setIsSending(true);
 
     try {
+      const content = newMessage.trim() || (pendingFile ? `Shared a file: ${pendingFile.name}` : "");
       const res = await fetch(`/api/teams/${teamId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newMessage }),
+        body: JSON.stringify({ content }),
       });
 
       if (res.ok) {
         const message = await res.json();
+
+        // Upload attachment if pending
+        if (pendingFile) {
+          const formData = new FormData();
+          formData.append("file", pendingFile);
+
+          const attachRes = await fetch(
+            `/api/teams/${teamId}/messages/${message.id}/attachments`,
+            { method: "POST", body: formData }
+          );
+
+          if (attachRes.ok) {
+            const attachment = await attachRes.json();
+            message.attachments = [attachment];
+          }
+
+          setPendingFile(null);
+        }
+
         setMessages((prev) => [...prev, message]);
         setNewMessage("");
         isAtBottomRef.current = true;
@@ -489,6 +522,27 @@ export default function TeamMessagesPage() {
                           </p>
                         )}
 
+                        {/* Attachments */}
+                        {message.attachments && message.attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {message.attachments.map((att) => (
+                              <a
+                                key={att.id}
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-3 py-2 bg-gray-50 border rounded-lg hover:bg-gray-100 transition-colors max-w-[260px]"
+                              >
+                                <FileIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                                <span className="text-xs text-gray-700 truncate flex-1">
+                                  {att.name}
+                                </span>
+                                <Download className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
                         {/* Reactions */}
                         {message.reactions && message.reactions.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
@@ -655,13 +709,48 @@ export default function TeamMessagesPage() {
               </>
             )}
 
+            {/* Pending file preview */}
+            {pendingFile && (
+              <div className="flex items-center gap-2 mb-2 px-2 py-1.5 bg-gray-50 border rounded-lg text-sm">
+                <FileIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="truncate flex-1 text-gray-700">{pendingFile.name}</span>
+                <span className="text-xs text-gray-400 flex-shrink-0">
+                  {(pendingFile.size / 1024).toFixed(0)} KB
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPendingFile(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (file.size > 10 * 1024 * 1024) {
+                      toast.error("File size exceeds 10MB limit");
+                      return;
+                    }
+                    setPendingFile(file);
+                  }
+                  e.target.value = "";
+                }}
+              />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
-                onClick={() => toast.info("Attachments coming soon")}
+                className={cn("h-8 w-8", pendingFile && "text-blue-600")}
+                onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-4 w-4" />
               </Button>
@@ -690,7 +779,7 @@ export default function TeamMessagesPage() {
                 type="submit"
                 size="icon"
                 className="h-8 w-8 rounded-full"
-                disabled={!newMessage.trim() || isSending}
+                disabled={(!newMessage.trim() && !pendingFile) || isSending}
               >
                 {isSending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

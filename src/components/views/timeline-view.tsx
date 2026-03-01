@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -128,6 +128,13 @@ export function TimelineView({
   const [showCriticalPath, setShowCriticalPath] = useState(true);
   const [showBaseline, setShowBaseline] = useState(false);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<{
+    taskId: string;
+    handle: "left" | "right";
+    startX: number;
+    originalStart: string | null;
+    originalDue: string;
+  } | null>(null);
 
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -308,6 +315,86 @@ export function TimelineView({
 
     return (daysFromStart / totalDays) * totalWidth;
   }, [columns, config.columnWidth, zoomLevel, currentDate]);
+
+  // ============================================
+  // DRAG-TO-RESIZE
+  // ============================================
+
+  const pixelsToDays = useCallback((px: number) => {
+    const totalWidth = columns.length * config.columnWidth;
+    const sd = zoomLevel === "week"
+      ? startOfWeek(currentDate, { weekStartsOn: 1 })
+      : startOfMonth(currentDate);
+    const timelineStart = columns[0]?.date || sd;
+    const timelineEnd = addDays(
+      columns[columns.length - 1]?.date || sd,
+      zoomLevel === "day" ? 1 : zoomLevel === "week" ? 7 : 30
+    );
+    const totalDays = differenceInDays(timelineEnd, timelineStart);
+    return (px / totalWidth) * totalDays;
+  }, [columns, config.columnWidth, zoomLevel, currentDate]);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent, taskId: string, handle: "left" | "right", task: Task) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!task.dueDate) return;
+    setDragState({
+      taskId,
+      handle,
+      startX: e.clientX,
+      originalStart: task.startDate || null,
+      originalDue: task.dueDate,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Visual feedback is handled by position recalculation on refresh
+    };
+
+    const handleMouseUp = async (e: MouseEvent) => {
+      const deltaX = e.clientX - dragState.startX;
+      const deltaDays = Math.round(pixelsToDays(deltaX));
+      if (deltaDays === 0) {
+        setDragState(null);
+        return;
+      }
+
+      const body: Record<string, string | null> = {};
+      if (dragState.handle === "left") {
+        const origStart = dragState.originalStart
+          ? parseISO(dragState.originalStart)
+          : addDays(parseISO(dragState.originalDue), -7);
+        const newStart = addDays(origStart, deltaDays);
+        body.startDate = format(newStart, "yyyy-MM-dd");
+      } else {
+        const newDue = addDays(parseISO(dragState.originalDue), deltaDays);
+        body.dueDate = format(newDue, "yyyy-MM-dd");
+      }
+
+      try {
+        const res = await fetch(`/api/tasks/${dragState.taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error();
+        router.refresh();
+      } catch {
+        toast.error("Failed to update dates");
+      }
+      setDragState(null);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragState, pixelsToDays, router]);
 
   // ============================================
   // NAVIGATION
@@ -820,8 +907,14 @@ export function TimelineView({
                                   </div>
 
                                   {/* Resize Handles */}
-                                  <div className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-white/30 rounded-l" />
-                                  <div className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-white/30 rounded-r" />
+                                  <div
+                                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-white/30 rounded-l z-10"
+                                    onMouseDown={(e) => handleResizeStart(e, task.id, "left", task)}
+                                  />
+                                  <div
+                                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-white/30 rounded-r z-10"
+                                    onMouseDown={(e) => handleResizeStart(e, task.id, "right", task)}
+                                  />
                                 </div>
                               ))}
 

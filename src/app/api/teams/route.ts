@@ -98,6 +98,32 @@ export async function POST(req: Request) {
       },
     });
 
+    // Ensure all added members are also workspace members
+    const addedMemberIds = (data.memberIds || []).filter((id) => id !== userId);
+    if (addedMemberIds.length > 0) {
+      const existingWorkspaceMembers = await prisma.workspaceMember.findMany({
+        where: {
+          workspaceId,
+          userId: { in: addedMemberIds },
+        },
+        select: { userId: true },
+      });
+
+      const existingIds = new Set(existingWorkspaceMembers.map((m) => m.userId));
+      const missingIds = addedMemberIds.filter((id) => !existingIds.has(id));
+
+      if (missingIds.length > 0) {
+        await prisma.workspaceMember.createMany({
+          data: missingIds.map((id) => ({
+            userId: id,
+            workspaceId,
+            role: "MEMBER" as const,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
     return NextResponse.json(team, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {

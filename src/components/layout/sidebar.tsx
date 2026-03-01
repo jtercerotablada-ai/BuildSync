@@ -6,7 +6,12 @@ import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 import {
   Home,
   CheckSquare,
@@ -16,7 +21,6 @@ import {
   Target,
   Plus,
   ChevronDown,
-  Hash,
   Settings,
   Users,
   Folder,
@@ -43,23 +47,79 @@ interface Team {
 
 interface SidebarProps {
   projects?: Project[];
+  collapsed?: boolean;
   onCreateProject?: () => void;
   onCreatePortfolio?: () => void;
 }
 
 const mainNavItems = [
-  { href: "/home", label: "Home", icon: Home },
-  { href: "/my-tasks", label: "My tasks", icon: CheckSquare },
-  { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/home", label: "Inicio", icon: Home },
+  { href: "/my-tasks", label: "Mis tareas", icon: CheckSquare },
+  { href: "/inbox", label: "Bandeja de entrada", icon: Inbox },
 ];
 
 const insightsNavItems = [
-  { href: "/reporting", label: "Reporting", icon: BarChart3 },
-  { href: "/portfolios", label: "Portfolios", icon: Briefcase },
-  { href: "/goals", label: "Goals", icon: Target },
+  { href: "/reporting", label: "Informes", icon: BarChart3 },
+  { href: "/portfolios", label: "Portafolios", icon: Briefcase },
+  { href: "/goals", label: "Objetivos", icon: Target },
 ];
 
-export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: SidebarProps) {
+function NavItem({
+  href,
+  label,
+  icon: Icon,
+  isActive,
+  collapsed,
+}: {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isActive: boolean;
+  collapsed: boolean;
+}) {
+  const inner = (
+    <Link href={href}>
+      <span
+        className={cn(
+          "flex items-center rounded-lg text-[13px] font-medium transition-colors",
+          collapsed
+            ? "justify-center h-9 w-9 mx-auto"
+            : "gap-2.5 px-3 py-1.5",
+          isActive
+            ? "bg-gray-200/80 text-gray-900"
+            : "text-gray-600 hover:bg-black/[0.04] hover:text-gray-900"
+        )}
+      >
+        <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+        {!collapsed && label}
+      </span>
+    </Link>
+  );
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{inner}</TooltipTrigger>
+        <TooltipContent
+          side="right"
+          sideOffset={8}
+          className="bg-[#111827] text-white text-[12px] rounded-lg px-2.5 py-1.5 shadow-md border-0"
+        >
+          {label}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return inner;
+}
+
+export function Sidebar({
+  projects = [],
+  collapsed = false,
+  onCreateProject,
+  onCreatePortfolio,
+}: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
@@ -70,28 +130,25 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
   const projectsDropdownRef = useRef<HTMLDivElement>(null);
   const [teams, setTeams] = useState<Team[]>([]);
 
-  // Prevent hydration mismatch with Radix components
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Fetch teams
   useEffect(() => {
     async function fetchTeams() {
       try {
-        const res = await fetch('/api/teams/list');
+        const res = await fetch("/api/teams/list");
         if (res.ok) {
           const data = await res.json();
           setTeams(data);
         }
       } catch (error) {
-        console.error('Failed to fetch teams:', error);
+        console.error("Failed to fetch teams:", error);
       }
     }
     if (session) fetchTeams();
   }, [session]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -101,244 +158,279 @@ export function Sidebar({ projects = [], onCreateProject, onCreatePortfolio }: S
         setProjectsDropdownOpen(false);
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
-    <aside className="flex h-full w-[240px] flex-col border-r bg-white">
-      {/* Logo & User */}
-      <div className="flex items-center gap-2 p-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-black text-white font-semibold text-sm">
-          <span>B<span className="text-xs">s</span><span className="text-[8px] ml-[1px]">.</span></span>
-        </div>
-        <span className="font-semibold text-black">BuildSync</span>
-      </div>
-
-      <ScrollArea className="flex-1 px-2">
-        {/* Main Navigation */}
-        <nav className="space-y-1">
-          {mainNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link key={item.href} href={item.href}>
-                <span
-                  className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-black text-white"
-                      : "text-black hover:bg-black hover:text-white"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <Separator className="my-4" />
-
-        {/* Insights */}
-        <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-black">
-          Insights
-        </div>
-        <nav className="space-y-1">
-          {insightsNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link key={item.href} href={item.href}>
-                <span
-                  className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-black text-white"
-                      : "text-black hover:bg-black hover:text-white"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <Separator className="my-4" />
-
-        {/* Projects */}
-        {mounted ? (
-        <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen}>
-          <div className="flex items-center justify-between px-3 mb-2">
-            <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-black hover:text-white">
-              <ChevronDown
-                className={cn(
-                  "h-3 w-3 transition-transform",
-                  !projectsOpen && "-rotate-90"
-                )}
-              />
-              Projects
-            </CollapsibleTrigger>
-            <div className="relative" ref={projectsDropdownRef}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5"
-                onClick={() => setProjectsDropdownOpen(!projectsDropdownOpen)}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-              {projectsDropdownOpen && (
-                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
-                  <button
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-black hover:bg-black hover:text-white"
-                    onClick={() => {
-                      setProjectsDropdownOpen(false);
-                      onCreateProject?.();
-                    }}
-                  >
-                    <Folder className="w-4 h-4 text-black" />
-                    New project
-                  </button>
-                  <button
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-black hover:bg-black hover:text-white"
-                    onClick={() => {
-                      setProjectsDropdownOpen(false);
-                      onCreatePortfolio?.();
-                    }}
-                  >
-                    <FolderOpen className="w-4 h-4 text-black" />
-                    New portfolio
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          <CollapsibleContent>
-            <nav className="space-y-1">
-              {projects.length === 0 ? (
-                <p className="px-3 py-2 text-sm text-black">
-                  No projects yet
-                </p>
-              ) : (
-                projects.map((project) => {
-                  const isActive = pathname === `/projects/${project.id}`;
-                  return (
-                    <Link key={project.id} href={`/projects/${project.id}`}>
-                      <span
-                        className={cn(
-                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                          isActive
-                            ? "bg-slate-200 text-slate-900"
-                            : "text-black hover:bg-black hover:text-white hover:text-white"
-                        )}
-                      >
-                        <div
-                          className="h-2 w-2 rounded-sm"
-                          style={{ backgroundColor: project.color }}
-                        />
-                        <span className="truncate">{project.name}</span>
-                      </span>
-                    </Link>
-                  );
-                })
-              )}
-            </nav>
-          </CollapsibleContent>
-        </Collapsible>
-        ) : (
-          <div className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-black">
-            Projects
-          </div>
+    <TooltipProvider delayDuration={300}>
+      <aside
+        className={cn(
+          "flex h-full flex-col border-r border-gray-200/80 bg-[#fafafa] transition-[width] duration-200 ease-out overflow-hidden",
+          collapsed ? "w-16" : "w-[240px]"
         )}
-
-        <Separator className="my-4" />
-
-        {/* Teams */}
-        {mounted ? (
-        <Collapsible open={teamsOpen} onOpenChange={setTeamsOpen}>
-          <div className="flex items-center justify-between px-3 mb-2">
-            <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-black hover:text-white">
-              <ChevronDown
-                className={cn(
-                  "h-3 w-3 transition-transform",
-                  !teamsOpen && "-rotate-90"
-                )}
-              />
-              Teams
-            </CollapsibleTrigger>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5"
-              onClick={() => router.push('/teams/new')}
-            >
-              <Plus className="h-3 w-3" />
-            </Button>
-          </div>
-          <CollapsibleContent>
-            <nav className="space-y-1">
-              {teams.length === 0 ? (
-                <p className="px-3 py-2 text-sm text-black">
-                  No teams yet
-                </p>
-              ) : (
-                teams.map((team) => {
-                  const isActive = pathname === `/teams/${team.id}`;
-                  return (
-                    <Link key={team.id} href={`/teams/${team.id}`}>
-                      <span
-                        className={cn(
-                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                          isActive
-                            ? "bg-slate-200 text-slate-900"
-                            : "text-black hover:bg-black hover:text-white"
-                        )}
-                      >
-                        <div
-                          className="h-4 w-4 rounded flex items-center justify-center"
-                          style={{ backgroundColor: team.color || '#6366F1' }}
-                        >
-                          <Users className="h-2.5 w-2.5 text-white" />
-                        </div>
-                        <span className="truncate">{team.name}</span>
-                      </span>
-                    </Link>
-                  );
-                })
-              )}
+      >
+        <ScrollArea className="flex-1 pt-2" style={{ paddingLeft: collapsed ? 0 : undefined, paddingRight: collapsed ? 0 : undefined }}>
+          <div className={collapsed ? "px-[10px]" : "px-2"}>
+            {/* Main Navigation */}
+            <nav className="space-y-0.5">
+              {mainNavItems.map((item) => (
+                <NavItem
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={pathname === item.href}
+                  collapsed={collapsed}
+                />
+              ))}
             </nav>
-          </CollapsibleContent>
-        </Collapsible>
-        ) : (
-          <div className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-black">
-            Teams
-          </div>
-        )}
-      </ScrollArea>
 
-      {/* Bottom Actions */}
-      <div className="border-t p-2">
-        <Link href="/settings">
-          <span
-            className={cn(
-              "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              pathname === "/settings"
-                ? "bg-black text-white"
-                : "text-black hover:bg-black hover:text-white"
+            <div className="h-5" />
+
+            {/* Insights */}
+            {!collapsed && (
+              <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                Información
+              </div>
             )}
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </span>
-        </Link>
-      </div>
-    </aside>
+            <nav className="space-y-0.5">
+              {insightsNavItems.map((item) => (
+                <NavItem
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={pathname === item.href}
+                  collapsed={collapsed}
+                />
+              ))}
+            </nav>
+
+            {/* Collapsed mode: stop here (no Projects/Teams lists) */}
+            {!collapsed && (
+              <>
+                <div className="h-5" />
+
+                {/* Projects */}
+                {mounted ? (
+                  <Collapsible
+                    open={projectsOpen}
+                    onOpenChange={setProjectsOpen}
+                  >
+                    <div className="flex items-center justify-between px-3 mb-1">
+                      <CollapsibleTrigger className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
+                        <ChevronDown
+                          className={cn(
+                            "h-3 w-3 transition-transform",
+                            !projectsOpen && "-rotate-90"
+                          )}
+                        />
+                        Proyectos
+                      </CollapsibleTrigger>
+                      <div className="relative" ref={projectsDropdownRef}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() =>
+                            setProjectsDropdownOpen(!projectsDropdownOpen)
+                          }
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                        {projectsDropdownOpen && (
+                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
+                            <button
+                              className="w-full flex items-center gap-3 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+                              onClick={() => {
+                                setProjectsDropdownOpen(false);
+                                onCreateProject?.();
+                              }}
+                            >
+                              <Folder className="w-4 h-4 text-gray-500" />
+                              Nuevo proyecto
+                            </button>
+                            <button
+                              className="w-full flex items-center gap-3 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+                              onClick={() => {
+                                setProjectsDropdownOpen(false);
+                                onCreatePortfolio?.();
+                              }}
+                            >
+                              <FolderOpen className="w-4 h-4 text-gray-500" />
+                              Nuevo portafolio
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <CollapsibleContent>
+                      <nav className="space-y-0.5">
+                        {projects.length === 0 ? (
+                          <p className="px-3 py-1.5 text-[13px] text-gray-400">
+                            Aún no hay proyectos
+                          </p>
+                        ) : (
+                          projects.map((project) => {
+                            const isActive =
+                              pathname === `/projects/${project.id}`;
+                            return (
+                              <Link
+                                key={project.id}
+                                href={`/projects/${project.id}`}
+                              >
+                                <span
+                                  className={cn(
+                                    "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
+                                    isActive
+                                      ? "bg-gray-200/80 text-gray-900"
+                                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                                  )}
+                                >
+                                  <div
+                                    className="h-2 w-2 rounded-sm flex-shrink-0"
+                                    style={{
+                                      backgroundColor: project.color,
+                                    }}
+                                  />
+                                  <span className="truncate">
+                                    {project.name}
+                                  </span>
+                                </span>
+                              </Link>
+                            );
+                          })
+                        )}
+                      </nav>
+                    </CollapsibleContent>
+                  </Collapsible>
+                ) : (
+                  <div className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Proyectos
+                  </div>
+                )}
+
+                <div className="h-5" />
+
+                {/* Teams */}
+                {mounted ? (
+                  <Collapsible open={teamsOpen} onOpenChange={setTeamsOpen}>
+                    <div className="flex items-center justify-between px-3 mb-1">
+                      <CollapsibleTrigger className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
+                        <ChevronDown
+                          className={cn(
+                            "h-3 w-3 transition-transform",
+                            !teamsOpen && "-rotate-90"
+                          )}
+                        />
+                        Equipos
+                      </CollapsibleTrigger>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        onClick={() => router.push("/teams/new")}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <CollapsibleContent>
+                      <nav className="space-y-0.5">
+                        {teams.length === 0 ? (
+                          <p className="px-3 py-1.5 text-[13px] text-gray-400">
+                            Aún no hay equipos
+                          </p>
+                        ) : (
+                          teams.map((team) => {
+                            const isActive =
+                              pathname === `/teams/${team.id}`;
+                            return (
+                              <Link
+                                key={team.id}
+                                href={`/teams/${team.id}`}
+                              >
+                                <span
+                                  className={cn(
+                                    "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
+                                    isActive
+                                      ? "bg-gray-200/80 text-gray-900"
+                                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                                  )}
+                                >
+                                  <div
+                                    className="h-4 w-4 rounded flex items-center justify-center"
+                                    style={{
+                                      backgroundColor:
+                                        team.color || "#6366F1",
+                                    }}
+                                  >
+                                    <Users className="h-2.5 w-2.5 text-white" />
+                                  </div>
+                                  <span className="truncate">
+                                    {team.name}
+                                  </span>
+                                </span>
+                              </Link>
+                            );
+                          })
+                        )}
+                      </nav>
+                    </CollapsibleContent>
+                  </Collapsible>
+                ) : (
+                  <div className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    Equipos
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </ScrollArea>
+
+        {/* Bottom Actions — Settings */}
+        <div className="border-t border-gray-200/80 p-2">
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/settings">
+                  <span
+                    className={cn(
+                      "flex items-center justify-center rounded-lg h-9 w-9 mx-auto transition-colors",
+                      pathname === "/settings"
+                        ? "bg-gray-200/80 text-gray-900"
+                        : "text-gray-600 hover:bg-black/[0.04] hover:text-gray-900"
+                    )}
+                  >
+                    <Settings className="h-[18px] w-[18px]" />
+                  </span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent
+                side="right"
+                sideOffset={8}
+                className="bg-[#111827] text-white text-[12px] rounded-lg px-2.5 py-1.5 shadow-md border-0"
+              >
+                Configuración
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Link href="/settings">
+              <span
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                  pathname === "/settings"
+                    ? "bg-gray-200/80 text-gray-900"
+                    : "text-gray-600 hover:bg-black/[0.04] hover:text-gray-900"
+                )}
+              >
+                <Settings className="h-[18px] w-[18px]" />
+                Configuración
+              </span>
+            </Link>
+          )}
+        </div>
+      </aside>
+    </TooltipProvider>
   );
 }

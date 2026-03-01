@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import {
   Calendar,
@@ -25,7 +28,6 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
-  Star,
   Share2,
   MoreHorizontal,
   Check,
@@ -45,7 +47,18 @@ import {
   Flag,
   FolderPlus,
   ChevronLeft,
+  Sparkles,
+  Mail,
+  Printer,
+  Diamond,
+  ThumbsUp,
 } from "lucide-react";
+import {
+  GoogleCalendarIcon,
+  OutlookCalendarIcon,
+  GoogleSheetsIcon,
+  ICalIcon,
+} from "@/components/icons/brand-icons";
 import {
   BarChart,
   Bar,
@@ -60,6 +73,18 @@ import {
   Line,
   Legend,
 } from "recharts";
+import { AddTasksAIModal } from "@/components/tasks/add-tasks-ai-modal";
+import { AddTasksEmailModal } from "@/components/tasks/add-tasks-email-modal";
+import { ManagePrivacyModal } from "@/components/tasks/manage-privacy-modal";
+import { WorkflowPanel } from "@/components/tasks/workflow-panel";
+import { OptionsDrawer } from "@/components/tasks/options-drawer";
+import { FilterPanel, type QuickFilterKey, type ActiveFilter } from "@/components/tasks/filter-panel";
+import { SortPanel, type SortState } from "@/components/tasks/sort-panel";
+import { GroupPanel, type GroupConfig } from "@/components/tasks/group-panel";
+import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
+import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
+import { ColumnHeader, COLUMN_CONFIGS, type ColumnConfig } from "@/components/tasks/column-header-dropdown";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -72,6 +97,7 @@ interface Task {
   completedAt: string | null;
   dueDate: string | null;
   priority: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+  taskType?: "TASK" | "MILESTONE" | "APPROVAL";
   createdAt: string;
   assignee: { id: string; name: string | null; email: string | null; image: string | null } | null;
   project: { id: string; name: string; color: string } | null;
@@ -97,17 +123,61 @@ export default function MyTasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   const [sections, setSections] = useState<SmartSection[]>([]);
-  const [filterType, setFilterType] = useState<string>("none");
-  const [sortType, setSortType] = useState<string>("none");
+  const [quickFilters, setQuickFilters] = useState<QuickFilterKey[]>([]);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const [sortState, setSortState] = useState<SortState>({ field: "none", direction: "asc" });
+  const [sortPanelOpen, setSortPanelOpen] = useState(false);
+  const sortButtonRef = useRef<HTMLButtonElement>(null);
   const [groupType, setGroupType] = useState<string>("due_date");
+  const [groupConfigs, setGroupConfigs] = useState<GroupConfig[]>([
+    { id: "group-default", field: "sections", order: "custom", hideEmpty: false },
+  ]);
+  const [groupPanelOpen, setGroupPanelOpen] = useState(false);
+  const groupButtonRef = useRef<HTMLButtonElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isStarred, setIsStarred] = useState(false);
+  const [showToolbarSearch, setShowToolbarSearch] = useState(false);
   const [isAddingSection, setIsAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
+  const [showAddTasksAI, setShowAddTasksAI] = useState(false);
+  const [showAddTasksEmail, setShowAddTasksEmail] = useState(false);
+  const [showManagePrivacy, setShowManagePrivacy] = useState(false);
+  const [workflowPanelOpen, setWorkflowPanelOpen] = useState(false);
+  const [optionsDrawerOpen, setOptionsDrawerOpen] = useState(false);
+  const [showCustomFieldModal, setShowCustomFieldModal] = useState(false);
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTasks();
   }, []);
+
+  // Sync group configs → existing organizeTasks groupType
+  function handleGroupConfigsChange(newConfigs: GroupConfig[]) {
+    setGroupConfigs(newConfigs);
+    const primary = newConfigs[0];
+    if (!primary || primary.field === "none") {
+      setGroupType("none");
+      organizeTasks(tasks, "none");
+    } else if (primary.field === "sections" || primary.field === "due_date") {
+      setGroupType("due_date");
+      organizeTasks(tasks, "due_date");
+    } else if (primary.field === "project") {
+      setGroupType("project");
+      organizeTasks(tasks, "project");
+    } else if (primary.field === "priority") {
+      setGroupType("priority");
+      organizeTasks(tasks, "priority");
+    } else if (primary.field === "creator") {
+      // Group by assignee (closest mapping)
+      setGroupType("none");
+      organizeTasks(tasks, "none");
+    } else {
+      setGroupType("due_date");
+      organizeTasks(tasks, "due_date");
+    }
+  }
 
   async function fetchTasks() {
     setLoading(true);
@@ -125,7 +195,47 @@ export default function MyTasksPage() {
     }
   }
 
-  function organizeTasks(taskList: Task[]) {
+  function organizeTasks(taskList: Task[], group?: string) {
+    const activeGroup = group || groupType;
+    const activeTasks = taskList.filter((t) => !t.completed);
+
+    if (activeGroup === "project") {
+      const byProject = new Map<string, Task[]>();
+      byProject.set("no-project", []);
+      activeTasks.forEach((task) => {
+        const key = task.project?.id || "no-project";
+        if (!byProject.has(key)) byProject.set(key, []);
+        byProject.get(key)!.push(task);
+      });
+      const result: SmartSection[] = [];
+      byProject.forEach((tasks, key) => {
+        if (tasks.length === 0) return;
+        const name = key === "no-project" ? "Sin proyecto" : tasks[0].project?.name || "Desconocido";
+        result.push({ id: key, name, collapsed: false, tasks });
+      });
+      setSections(result);
+      return;
+    }
+
+    if (activeGroup === "priority") {
+      const priorities = ["HIGH", "MEDIUM", "LOW", "NONE"] as const;
+      const labels = { HIGH: "Prioridad alta", MEDIUM: "Prioridad media", LOW: "Prioridad baja", NONE: "Sin prioridad" };
+      const result: SmartSection[] = priorities.map((p) => ({
+        id: p,
+        name: labels[p],
+        collapsed: false,
+        tasks: activeTasks.filter((t) => (t.priority || "NONE") === p),
+      })).filter((s) => s.tasks.length > 0);
+      setSections(result);
+      return;
+    }
+
+    if (activeGroup === "none") {
+      setSections([{ id: "all", name: "Todas las tareas", collapsed: false, tasks: activeTasks }]);
+      return;
+    }
+
+    // Default: group by due date
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const nextWeek = new Date(today);
@@ -136,9 +246,7 @@ export default function MyTasksPage() {
     const doNextWeek: Task[] = [];
     const doLater: Task[] = [];
 
-    taskList.forEach((task) => {
-      if (task.completed) return;
-
+    activeTasks.forEach((task) => {
       if (!task.dueDate) {
         recentlyAssigned.push(task);
       } else {
@@ -154,10 +262,10 @@ export default function MyTasksPage() {
     });
 
     setSections([
-      { id: "recently-assigned", name: "Recently assigned", collapsed: false, tasks: recentlyAssigned },
-      { id: "do-today", name: "Do today", collapsed: false, tasks: doToday },
-      { id: "do-next-week", name: "Do next week", collapsed: false, tasks: doNextWeek },
-      { id: "do-later", name: "Do later", collapsed: false, tasks: doLater },
+      { id: "recently-assigned", name: "Asignadas recientemente", collapsed: false, tasks: recentlyAssigned },
+      { id: "do-today", name: "Para hacer hoy", collapsed: false, tasks: doToday },
+      { id: "do-next-week", name: "Para hacer la próxima semana", collapsed: false, tasks: doNextWeek },
+      { id: "do-later", name: "Para hacer más tarde", collapsed: false, tasks: doLater },
     ]);
   }
 
@@ -172,11 +280,70 @@ export default function MyTasksPage() {
     setSections((prev) => [...prev, newSection]);
     setNewSectionName("");
     setIsAddingSection(false);
-    toast.success(`Section "${newSection.name}" added`);
+    toast.success(`Sección "${newSection.name}" agregada`);
+  }
+
+  // Helper: check if a date is within a given range label
+  function isDateInRange(dateStr: string | null, range: string): boolean {
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const dayOfWeek = today.getDay(); // 0=Sun
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const thisWeekStart = new Date(today);
+    thisWeekStart.setDate(today.getDate() + mondayOffset);
+    const thisWeekEnd = new Date(thisWeekStart);
+    thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+    thisWeekEnd.setHours(23, 59, 59, 999);
+
+    const nextWeekStart = new Date(thisWeekEnd);
+    nextWeekStart.setDate(thisWeekEnd.getDate() + 1);
+    nextWeekStart.setHours(0, 0, 0, 0);
+    const nextWeekEnd = new Date(nextWeekStart);
+    nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
+    nextWeekEnd.setHours(23, 59, 59, 999);
+
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+
+    const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0, 23, 59, 59, 999);
+
+    const lastWeekStart = new Date(thisWeekStart);
+    lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+    const lastWeekEnd = new Date(thisWeekStart);
+    lastWeekEnd.setDate(thisWeekStart.getDate() - 1);
+    lastWeekEnd.setHours(23, 59, 59, 999);
+
+    switch (range) {
+      case "today": return date >= today && date < tomorrow;
+      case "yesterday": return date >= yesterday && date < today;
+      case "tomorrow": return date >= tomorrow && date < new Date(tomorrow.getTime() + 86400000);
+      case "this_week": return date >= thisWeekStart && date <= thisWeekEnd;
+      case "last_week": return date >= lastWeekStart && date <= lastWeekEnd;
+      case "next_week": return date >= nextWeekStart && date <= nextWeekEnd;
+      case "this_month": return date >= thisMonthStart && date <= thisMonthEnd;
+      case "last_month": return date >= lastMonthStart && date <= lastMonthEnd;
+      case "next_month": return date >= nextMonthStart && date <= nextMonthEnd;
+      default: return false;
+    }
   }
 
   // Apply filtering to sections
   const getFilteredSections = () => {
+    const hasFilters = quickFilters.length > 0 || activeFilters.length > 0;
+
     return sections.map((section) => ({
       ...section,
       tasks: section.tasks.filter((task) => {
@@ -184,31 +351,99 @@ export default function MyTasksPage() {
         if (searchQuery && !task.name.toLowerCase().includes(searchQuery.toLowerCase())) {
           return false;
         }
-        // Type filter
-        if (filterType === "incomplete" && task.completed) return false;
-        if (filterType === "completed" && !task.completed) return false;
-        if (filterType === "has_due_date" && !task.dueDate) return false;
+
+        // Quick filters (OR logic between quick filters)
+        if (quickFilters.length > 0) {
+          const passesQuick = quickFilters.some((qf) => {
+            switch (qf) {
+              case "incomplete": return !task.completed;
+              case "completed": return task.completed;
+              case "due_this_week": return isDateInRange(task.dueDate, "this_week");
+              case "due_next_week": return isDateInRange(task.dueDate, "next_week");
+              default: return true;
+            }
+          });
+          if (!passesQuick) return false;
+        }
+
+        // Active builder filters (AND logic)
+        for (const f of activeFilters) {
+          if (!f.value && !["is_set", "is_not_set"].includes(f.operator)) continue; // skip incomplete filters
+
+          switch (f.field) {
+            case "completion":
+              if (f.operator === "is" && f.value === "incomplete" && task.completed) return false;
+              if (f.operator === "is" && f.value === "complete" && !task.completed) return false;
+              if (f.operator === "is_not" && f.value === "incomplete" && !task.completed) return false;
+              if (f.operator === "is_not" && f.value === "complete" && task.completed) return false;
+              break;
+            case "due_date":
+              if (f.operator === "is_set" && !task.dueDate) return false;
+              if (f.operator === "is_not_set" && task.dueDate) return false;
+              if (f.operator === "is_within" && !isDateInRange(task.dueDate, f.value)) return false;
+              if (f.operator === "is_before" && task.dueDate) {
+                // "is before today" etc — simplified
+                if (!isDateInRange(task.dueDate, f.value)) {
+                  const targetDate = new Date(task.dueDate);
+                  const now = new Date();
+                  if (f.value === "today" && targetDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) return false;
+                }
+              }
+              if (f.operator === "is_after" && task.dueDate) {
+                const targetDate = new Date(task.dueDate);
+                const now = new Date();
+                if (f.value === "today" && targetDate <= new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)) return false;
+              }
+              break;
+            case "start_date":
+              if (f.operator === "is_set") return false; // start date not in current model — skip
+              if (f.operator === "is_not_set") break; // pass through
+              break;
+            case "creation_date":
+              if (f.operator === "is_within" && !isDateInRange(task.createdAt, f.value)) return false;
+              break;
+            case "task_type":
+              if (f.operator === "is" && (task.taskType || "TASK") !== f.value) return false;
+              if (f.operator === "is_not" && (task.taskType || "TASK") === f.value) return false;
+              break;
+            // creator, last_modified, completion_date — pass through for now
+          }
+        }
+
         return true;
       }).sort((a, b) => {
-        if (sortType === "due_date_asc") {
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        if (sortState.field === "none") return 0;
+        const dir = sortState.direction === "asc" ? 1 : -1;
+
+        function cmpDate(dateA: string | null, dateB: string | null): number {
+          if (!dateA && !dateB) return 0;
+          if (!dateA) return 1;
+          if (!dateB) return -1;
+          return (new Date(dateA).getTime() - new Date(dateB).getTime()) * dir;
         }
-        if (sortType === "due_date_desc") {
-          if (!a.dueDate) return 1;
-          if (!b.dueDate) return -1;
-          return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+
+        switch (sortState.field) {
+          case "due_date":
+            return cmpDate(a.dueDate, b.dueDate);
+          case "start_date":
+            return cmpDate(a.dueDate, b.dueDate); // fallback to due date since start date not in Task interface
+          case "created_at":
+            return cmpDate(a.createdAt, b.createdAt);
+          case "updated_at":
+            return cmpDate(a.createdAt, b.createdAt); // fallback
+          case "completed_at":
+            return cmpDate(a.completedAt, b.completedAt);
+          case "alphabetical":
+            return a.name.localeCompare(b.name) * dir;
+          case "project":
+            return (a.project?.name || "").localeCompare(b.project?.name || "") * dir;
+          case "creator":
+            return ((a.assignee?.name || "").localeCompare(b.assignee?.name || "")) * dir;
+          case "likes":
+            return 0; // likes not in current model
+          default:
+            return 0;
         }
-        if (sortType === "alphabetical") return a.name.localeCompare(b.name);
-        if (sortType === "priority") {
-          const order = { HIGH: 0, MEDIUM: 1, LOW: 2, NONE: 3 };
-          return (order[a.priority] || 3) - (order[b.priority] || 3);
-        }
-        if (sortType === "created_newest") {
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }
-        return 0;
       }),
     }));
   };
@@ -236,7 +471,7 @@ export default function MyTasksPage() {
     }
   }
 
-  async function handleAddTask(name: string, sectionId: string): Promise<boolean> {
+  async function handleAddTask(name: string, sectionId: string, taskType: "TASK" | "MILESTONE" | "APPROVAL" = "TASK"): Promise<boolean> {
     if (!name.trim()) return false;
 
     try {
@@ -259,7 +494,7 @@ export default function MyTasksPage() {
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, dueDate }),
+        body: JSON.stringify({ name, dueDate, taskType }),
       });
 
       if (res.ok) {
@@ -279,7 +514,7 @@ export default function MyTasksPage() {
   }
 
   function formatDueDate(dateStr: string | null): { text: string; className: string } {
-    if (!dateStr) return { text: "", className: "text-black" };
+    if (!dateStr) return { text: "", className: "text-gray-500" };
 
     const date = new Date(dateStr);
     const now = new Date();
@@ -290,263 +525,519 @@ export default function MyTasksPage() {
     thisWeekEnd.setDate(thisWeekEnd.getDate() + (7 - today.getDay()));
 
     if (date < today) {
-      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-black" };
+      return { text: date.toLocaleDateString("es-ES", { month: "short", day: "numeric" }), className: "text-red-600" };
     } else if (date.toDateString() === today.toDateString()) {
-      return { text: "Today", className: "text-black" };
+      return { text: "Hoy", className: "text-green-600" };
     } else if (date.toDateString() === tomorrow.toDateString()) {
-      return { text: "Tomorrow", className: "text-black" };
+      return { text: "Mañana", className: "text-yellow-600" };
     } else if (date <= thisWeekEnd) {
-      return { text: date.toLocaleDateString("en-US", { weekday: "long" }), className: "text-black" };
+      return { text: date.toLocaleDateString("es-ES", { weekday: "long" }), className: "text-gray-700" };
     } else {
-      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-black" };
+      return { text: date.toLocaleDateString("es-ES", { month: "short", day: "numeric" }), className: "text-gray-500" };
     }
   }
 
-  const viewTabs = [
-    { id: "list", label: "List", icon: List },
-    { id: "board", label: "Board", icon: Columns },
-    { id: "calendar", label: "Calendar", icon: Calendar },
-    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "files", label: "Files", icon: FileText },
-  ];
+  function handleExportCSV() {
+    const rows = [["Nombre", "Fecha de entrega", "Prioridad", "Estado", "Proyecto"]];
+    tasks.forEach((t) => {
+      rows.push([
+        t.name,
+        t.dueDate ? new Date(t.dueDate).toLocaleDateString("es-ES") : "",
+        t.priority,
+        t.completed ? "Completada" : "Sin completar",
+        t.project?.name || "",
+      ]);
+    });
+    const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `my-tasks-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
-  const userInitial = session?.user?.name?.charAt(0) || session?.user?.email?.charAt(0) || "U";
+  function handlePrint() {
+    window.print();
+  }
+
+  const viewTabs = [
+    { id: "list", label: "Lista", icon: List },
+    { id: "board", label: "Tablero", icon: Columns },
+    { id: "calendar", label: "Calendario", icon: Calendar },
+    { id: "dashboard", label: "Panel", icon: BarChart3 },
+    { id: "files", label: "Archivos", icon: FileText },
+  ];
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* HEADER */}
-      <div className="flex items-center justify-between px-6 py-4 border-b">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={session?.user?.image || undefined} />
-            <AvatarFallback className="bg-black text-white text-sm">{userInitial}</AvatarFallback>
-          </Avatar>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1 text-xl font-semibold hover:bg-white px-2 py-1 rounded">
-                My tasks
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem>Rename view</DropdownMenuItem>
-              <DropdownMenuItem>Duplicate view</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-black">Delete view</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <button
-            className={cn("hover:text-yellow-500", isStarred && "text-yellow-500")}
-            onClick={() => { setIsStarred(!isStarred); toast.success(isStarred ? "Removed from favorites" : "Added to favorites"); }}
+      {/* TITLE ROW — no bottom border (Asana pattern) */}
+      <div className="flex items-center justify-between px-6" style={{ height: "var(--page-header-h, 44px)" }}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="inline-flex items-center gap-1.5 h-8 px-2 -ml-2 rounded-md hover:bg-black/[0.04] transition-colors cursor-pointer focus:outline-none">
+              <Avatar className="h-7 w-7">
+                <AvatarImage src={session?.user?.image || ""} />
+                <AvatarFallback className="bg-black text-white text-[10px] font-medium">
+                  {session?.user?.name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-xl font-semibold text-gray-900 leading-none">Mis tareas</span>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            sideOffset={4}
+            className="min-w-[240px] rounded-[10px] border-0 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
           >
-            <Star className={cn("h-5 w-5", isStarred && "fill-current")} />
+            <DropdownMenuItem
+              onClick={() => setShowAddTasksAI(true)}
+              className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-gray-500 flex-shrink-0" />
+              Agregar tareas por IA
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setShowAddTasksEmail(true)}
+              className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+            >
+              <Mail className="w-4 h-4 text-gray-500 flex-shrink-0" />
+              Agregar tareas por email...
+            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] data-[state=open]:bg-black/[0.04] cursor-pointer [&>svg:last-child]:w-3.5 [&>svg:last-child]:h-3.5 [&>svg:last-child]:text-gray-400">
+                <ArrowLeftRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                Sincronizar/exportar
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent
+                sideOffset={6}
+                className="min-w-[320px] rounded-[10px] border-0 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+              >
+                <DropdownMenuItem
+                  onClick={() => toast.info("Sincronización con el calendario de Outlook próximamente")}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                >
+                  <span className="w-6 flex items-center justify-center flex-shrink-0"><OutlookCalendarIcon /></span>
+                  Sincronizar con el calendario de Outlook
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => toast.info("Sincronización con Google Calendar próximamente")}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                >
+                  <span className="w-6 flex items-center justify-center flex-shrink-0"><GoogleCalendarIcon /></span>
+                  Google Calendar
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => toast.info("Exportar a iCal próximamente")}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                >
+                  <span className="w-6 flex items-center justify-center flex-shrink-0"><ICalIcon className="text-gray-500" /></span>
+                  iCal y otros calendarios
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => toast.info("Exportar a Google Sheets próximamente")}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                >
+                  <span className="w-6 flex items-center justify-center flex-shrink-0"><GoogleSheetsIcon /></span>
+                  Google Sheets
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleExportCSV}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                >
+                  <span className="w-6 flex items-center justify-center flex-shrink-0"><FileText className="w-4 h-4 text-gray-500" /></span>
+                  CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handlePrint}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                >
+                  <span className="w-6 flex items-center justify-center flex-shrink-0"><Printer className="w-4 h-4 text-gray-500" /></span>
+                  Imprimir
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowManagePrivacy(true)}
+            className="flex items-center gap-1.5 px-3 h-8 text-[13px] font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            Compartir
           </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied to clipboard"); }}>
-            <Share2 className="w-4 h-4 mr-2" />
-            Share
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Settings className="w-4 h-4 mr-2" />
-                Customize
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => toast.success("Fields customization coming soon")}>
-                Custom fields
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Rules customization coming soon")}>
-                Rules
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Color customization coming soon")}>
-                Color & icon
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <button
+            onClick={() => {
+              setWorkflowPanelOpen((prev) => {
+                if (!prev) setOptionsDrawerOpen(false);
+                return !prev;
+              });
+            }}
+            className={cn(
+              "flex items-center gap-1.5 px-3 h-8 text-[13px] font-medium border rounded-md transition-colors",
+              workflowPanelOpen
+                ? "text-gray-900 border-gray-300 bg-gray-100"
+                : "text-gray-600 border-gray-200 hover:bg-gray-50"
+            )}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            Flujo de trabajo
+          </button>
         </div>
       </div>
 
-      {/* VIEW TABS */}
-      <div className="flex items-center gap-1 px-6 border-b">
-        {viewTabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setView(tab.id as ViewType)}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-3 text-sm border-b-2 -mb-px transition-colors",
-                view === tab.id
-                  ? "text-black border-black"
-                  : "text-black border-transparent hover:text-slate-700"
-              )}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          );
-        })}
+      {/* TABS ROW — single border below separating from toolbar */}
+      <div className="flex items-center px-6 border-b border-gray-200" style={{ height: "var(--tabs-h, 34px)" }}>
+        {viewTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setView(tab.id as ViewType)}
+            className={cn(
+              "px-3 h-full text-[13px] border-b-2 -mb-px transition-colors",
+              view === tab.id
+                ? "text-gray-900 border-gray-900 font-medium"
+                : "text-gray-500 border-transparent hover:text-gray-700"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md ml-1">
-              <Plus className="w-4 h-4" />
+            <button className="ml-1 h-6 w-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors">
+              <Plus className="w-3.5 h-3.5" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => setView("list")}>
-              <List className="w-4 h-4 mr-2" />
-              List view
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView("board")}>
-              <Columns className="w-4 h-4 mr-2" />
-              Board view
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView("calendar")}>
-              <Calendar className="w-4 h-4 mr-2" />
-              Calendar view
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView("dashboard")}>
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Dashboard view
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("list")}><List className="w-4 h-4 mr-2" />Vista de lista</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("board")}><Columns className="w-4 h-4 mr-2" />Vista de tablero</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("calendar")}><Calendar className="w-4 h-4 mr-2" />Vista de calendario</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("dashboard")}><BarChart3 className="w-4 h-4 mr-2" />Vista de panel</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* TOOLBAR */}
-      <div className="flex items-center justify-between px-6 py-3 border-b">
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="bg-black hover:bg-slate-800" size="sm">
-                <Plus className="w-4 h-4 mr-1" />
-                Add task
-                <ChevronDown className="w-4 h-4 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem>
-                <Plus className="w-4 h-4 mr-2" />
-                Add task
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <FolderPlus className="w-4 h-4 mr-2" />
-                Add section
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Flag className="w-4 h-4 mr-2" />
-                Add milestone
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+      {/* TOOLBAR — no bottom border; gray band below provides separation */}
+      <div className="flex items-center justify-between px-6" style={{ height: "var(--toolbar-h, 42px)" }}>
+        {/* LEFT: Filled Add task split button (Asana-style) */}
+        <div className="flex items-center">
+          <div className="inline-flex items-center h-8 rounded-md overflow-hidden bg-black text-white">
+            <button
+              onClick={() => {
+                // Activate inline creation on the first section
+                const firstSection = filteredSections[0];
+                if (firstSection) {
+                  // Dispatch a custom event to open inline creation
+                  window.dispatchEvent(new CustomEvent("buildsync:add-task", { detail: { sectionId: firstSection.id, taskType: "TASK" } }));
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 h-full text-[13px] font-medium hover:bg-gray-800 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Agregar tarea
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center justify-center w-7 h-full border-l border-white/20 hover:bg-gray-800 transition-colors">
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                sideOffset={4}
+                className="min-w-[260px] rounded-[10px] border-0 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+              >
+                {/* Task (Default) */}
+                <DropdownMenuItem
+                  onClick={() => {
+                    const firstSection = filteredSections[0];
+                    if (firstSection) window.dispatchEvent(new CustomEvent("buildsync:add-task", { detail: { sectionId: firstSection.id, taskType: "TASK" } }));
+                  }}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer justify-between"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Check className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    Tarea
+                  </span>
+                  <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">Predeterminado</span>
+                </DropdownMenuItem>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className={filterType !== "none" ? "text-blue-600" : ""}>
-                <Filter className="w-4 h-4 mr-1" />
-                Filter{filterType !== "none" ? " (1)" : ""}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setFilterType("none")}>All tasks</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setFilterType("incomplete")}>Incomplete only</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setFilterType("completed")}>Completed only</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setFilterType("has_due_date")}>Has due date</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className={sortType !== "none" ? "text-blue-600" : ""}>
-                <ArrowUpDown className="w-4 h-4 mr-1" />
-                Sort{sortType !== "none" ? " (1)" : ""}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setSortType("none")}>Default</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setSortType("due_date_asc")}>Due date (earliest first)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortType("due_date_desc")}>Due date (latest first)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortType("alphabetical")}>Alphabetical</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortType("priority")}>Priority</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSortType("created_newest")}>Created (newest first)</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <LayoutGrid className="w-4 h-4 mr-1" />
-                Group
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => { setGroupType("due_date"); toast.success("Grouped by due date"); }}>Due date</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setGroupType("project"); toast.success("Grouped by project"); }}>Project</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setGroupType("priority"); toast.success("Grouped by priority"); }}>Priority</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setGroupType("none"); toast.success("Grouping removed"); }}>None</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Settings className="w-4 h-4 mr-1" />
-                Options
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => { setSections((prev) => prev.map((s) => ({ ...s, collapsed: false }))); toast.success("All sections expanded"); }}>
-                Expand all sections
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setSections((prev) => prev.map((s) => ({ ...s, collapsed: true }))); toast.success("All sections collapsed"); }}>
-                Collapse all sections
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => toast.success("Show completed tasks toggled")}>
-                Show completed tasks
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {/* Approval */}
+                <DropdownMenuItem
+                  onClick={() => {
+                    const firstSection = filteredSections[0];
+                    if (firstSection) window.dispatchEvent(new CustomEvent("buildsync:add-task", { detail: { sectionId: firstSection.id, taskType: "APPROVAL" } }));
+                  }}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                >
+                  <ThumbsUp className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                  Aprobación
+                </DropdownMenuItem>
+
+                {/* Milestone */}
+                <DropdownMenuItem
+                  onClick={() => {
+                    const firstSection = filteredSections[0];
+                    if (firstSection) window.dispatchEvent(new CustomEvent("buildsync:add-task", { detail: { sectionId: firstSection.id, taskType: "MILESTONE" } }));
+                  }}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer justify-between"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Diamond className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    Hito
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <kbd className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded min-w-[20px] text-center">Shift</kbd>
+                    <kbd className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded min-w-[20px] text-center">Tab</kbd>
+                    <kbd className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded min-w-[20px] text-center">M</kbd>
+                  </span>
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator className="my-1" />
+
+                {/* Section */}
+                <DropdownMenuItem
+                  onClick={() => setIsAddingSection(true)}
+                  className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer justify-between"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <FolderPlus className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    Sección
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <kbd className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded min-w-[20px] text-center">Tab</kbd>
+                    <kbd className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded min-w-[20px] text-center">N</kbd>
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-black" />
-          <Input
-            type="text"
-            placeholder="Search tasks..."
-            className="pl-9 w-48 h-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+
+        {/* RIGHT: Filter / Sort / Group / Options + Search icon */}
+        <div className="flex items-center gap-0.5">
+          {/* Filter button — toggles floating FilterPanel */}
+          {(() => {
+            const filterCount = quickFilters.length + activeFilters.filter((f) => f.value || ["is_set", "is_not_set"].includes(f.operator)).length;
+            return (
+              <button
+                ref={filterButtonRef}
+                onClick={() => setFilterPanelOpen((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
+                  filterCount > 0
+                    ? "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                )}
+              >
+                <Filter className="w-4 h-4" />
+                Filtrar{filterCount > 0 ? ` (${filterCount})` : ""}
+              </button>
+            );
+          })()}
+          {/* Sort button — toggles floating SortPanel */}
+          <button
+            ref={sortButtonRef}
+            onClick={() => setSortPanelOpen((v) => !v)}
+            className={cn(
+              "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
+              sortState.field !== "none"
+                ? "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            )}
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            Ordenar{sortState.field !== "none" ? " (1)" : ""}
+          </button>
+          {/* Group button — toggles floating GroupPanel */}
+          <button
+            ref={groupButtonRef}
+            onClick={() => setGroupPanelOpen((v) => !v)}
+            className={cn(
+              "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
+              groupConfigs.some((g) => g.field !== "none" && g.field !== "sections")
+                ? "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            )}
+          >
+            <LayoutGrid className="w-4 h-4" />
+            Agrupar
+          </button>
+          <button
+            onClick={() => {
+              setOptionsDrawerOpen((prev) => {
+                if (!prev) setWorkflowPanelOpen(false);
+                return !prev;
+              });
+            }}
+            className={cn(
+              "flex items-center justify-center h-7 w-7 rounded transition-colors",
+              optionsDrawerOpen
+                ? "text-gray-900 bg-gray-200"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            )}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+
+          {/* Search: magnifier icon → expands to input on click (like Asana) */}
+          {showToolbarSearch ? (
+            <div className="flex items-center gap-0.5 ml-1">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar nombres de tareas"
+                  className="pl-7 pr-2 w-48 h-8 text-[13px] border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-black/10 placeholder:text-gray-400"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onBlur={() => { if (!searchQuery) setShowToolbarSearch(false); }}
+                  autoFocus
+                />
+              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    className="flex items-center justify-center h-7 w-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-auto p-1.5">
+                  <button
+                    onClick={() => setAdvancedSearchOpen(true)}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-gray-700 hover:bg-gray-100 rounded-md transition-colors whitespace-nowrap"
+                  >
+                    <Search className="w-3.5 h-3.5 text-gray-400" />
+                    Ir a la búsqueda avanzada
+                  </button>
+                </PopoverContent>
+              </Popover>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowToolbarSearch(true)}
+              className="flex items-center justify-center h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors ml-1"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
       {/* COLUMN HEADERS - Only show in List view */}
       {view === "list" && (
-        <div className="flex items-center px-6 py-2 border-b bg-white text-sm text-black">
-          <div className="w-8" />
-          <div className="flex-1">Task name</div>
-          <div className="w-[120px]">Due date</div>
-          <div className="w-[100px]">Collaborators</div>
-          <div className="w-[180px]">Projects</div>
-          <div className="w-[140px]">Visibility</div>
+        <div
+          className="flex items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 sticky top-0 z-10"
+          style={{ height: "var(--col-header-h, 32px)" }}
+        >
+          {/* Checkbox spacer */}
+          <div className="w-8 flex-shrink-0" />
+
+          {/* Nombre de la tarea */}
+          <ColumnHeader
+            config={{ id: "name", ...COLUMN_CONFIGS.name }}
+            isDropdownOpen={openColumnDropdown === "name"}
+            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "name" ? null : "name")}
+            callbacks={{
+              onSortAsc: () => setSortState({ field: "alphabetical", direction: "asc" }),
+              onSortDesc: () => setSortState({ field: "alphabetical", direction: "desc" }),
+              onFilter: () => setFilterPanelOpen(true),
+              onGroupBy: (field) => {
+                handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
+              },
+              onAddColumn: () => setShowCustomFieldModal(true),
+              onMoveLeft: () => toast("Ya es la primera columna"),
+              onMoveRight: () => toast.success("Columna movida a la derecha"),
+              onHideColumn: () => toast("No se puede ocultar la columna Nombre"),
+              onOpenCustomField: () => setShowCustomFieldModal(true),
+            }}
+          />
+
+          {/* Fecha de entrega */}
+          <ColumnHeader
+            config={{ id: "dueDate", ...COLUMN_CONFIGS.dueDate }}
+            isDropdownOpen={openColumnDropdown === "dueDate"}
+            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "dueDate" ? null : "dueDate")}
+            callbacks={{
+              onSortAsc: () => setSortState({ field: "due_date", direction: "asc" }),
+              onSortDesc: () => setSortState({ field: "due_date", direction: "desc" }),
+              onFilter: () => setFilterPanelOpen(true),
+              onGroupBy: (field) => {
+                handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
+              },
+              onAddColumn: () => setShowCustomFieldModal(true),
+              onMoveLeft: () => toast.success("Columna movida a la izquierda"),
+              onMoveRight: () => toast.success("Columna movida a la derecha"),
+              onHideColumn: () => toast.success("Columna ocultada"),
+              onOpenCustomField: () => setShowCustomFieldModal(true),
+            }}
+          />
+
+          {/* Colaboradores */}
+          <ColumnHeader
+            config={{ id: "collaborators", ...COLUMN_CONFIGS.collaborators }}
+            isDropdownOpen={openColumnDropdown === "collaborators"}
+            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "collaborators" ? null : "collaborators")}
+            callbacks={{
+              onAddColumn: () => setShowCustomFieldModal(true),
+              onMoveLeft: () => toast.success("Columna movida a la izquierda"),
+              onMoveRight: () => toast.success("Columna movida a la derecha"),
+              onHideColumn: () => toast.success("Columna ocultada"),
+            }}
+          />
+
+          {/* Proyectos */}
+          <ColumnHeader
+            config={{ id: "projects", ...COLUMN_CONFIGS.projects }}
+            isDropdownOpen={openColumnDropdown === "projects"}
+            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "projects" ? null : "projects")}
+            callbacks={{
+              onSortAsc: () => setSortState({ field: "project", direction: "asc" }),
+              onSortDesc: () => setSortState({ field: "project", direction: "desc" }),
+              onGroupBy: (field) => {
+                handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
+              },
+              onAddColumn: () => setShowCustomFieldModal(true),
+              onMoveLeft: () => toast.success("Columna movida a la izquierda"),
+              onMoveRight: () => toast.success("Columna movida a la derecha"),
+              onHideColumn: () => toast.success("Columna ocultada"),
+              onOpenCustomField: () => setShowCustomFieldModal(true),
+            }}
+          />
+
+          {/* Visibilidad */}
+          <ColumnHeader
+            config={{ id: "visibility", ...COLUMN_CONFIGS.visibility }}
+            isDropdownOpen={openColumnDropdown === "visibility"}
+            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "visibility" ? null : "visibility")}
+            callbacks={{
+              onAddColumn: () => setShowCustomFieldModal(true),
+              onMoveLeft: () => toast.success("Columna movida a la izquierda"),
+              onMoveRight: () => toast("Ya es la última columna"),
+              onHideColumn: () => toast.success("Columna ocultada"),
+            }}
+          />
+
+          {/* Add column (+) button */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="w-8 text-gray-400 hover:text-gray-600">
-                <Plus className="w-4 h-4" />
+              <button className="w-8 flex-shrink-0 flex items-center justify-center text-gray-300 hover:text-gray-500 border-l border-gray-300/40">
+                <Plus className="w-3.5 h-3.5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => toast.success("Custom field coming soon")}>
-                Custom field
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowCustomFieldModal(true)}>
+                Campo personalizado
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Tags column coming soon")}>
-                Tags
+              <DropdownMenuItem onClick={() => toast.success("Columna de etiquetas próximamente")}>
+                Etiquetas
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.success("Priority column coming soon")}>
-                Priority
+              <DropdownMenuItem onClick={() => toast.success("Columna de prioridad próximamente")}>
+                Prioridad
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -586,7 +1077,7 @@ export default function MyTasksPage() {
                       if (e.key === "Escape") { setIsAddingSection(false); setNewSectionName(""); }
                     }}
                     onBlur={() => { if (newSectionName.trim()) handleAddSection(); else setIsAddingSection(false); }}
-                    placeholder="Section name..."
+                    placeholder="Nombre de la sección..."
                     className="flex-1 text-sm outline-none border-b border-slate-300 pb-1"
                     autoFocus
                   />
@@ -594,10 +1085,9 @@ export default function MyTasksPage() {
               ) : (
                 <button
                   onClick={() => setIsAddingSection(true)}
-                  className="flex items-center gap-2 px-6 py-3 text-gray-500 hover:text-slate-700 hover:bg-gray-50 w-full text-left"
+                  className="px-6 py-3 text-gray-400 hover:text-gray-600 text-sm w-full text-left"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span className="text-sm">Add section</span>
+                  Agregar sección
                 </button>
               )}
             </div>
@@ -608,11 +1098,11 @@ export default function MyTasksPage() {
               onTaskClick={openTaskDetail}
               onAddTask={handleAddTask}
               onAddSection={() => {
-                const name = prompt('Section name:', 'New section');
+                const name = prompt('Nombre de la sección:', 'Nueva sección');
                 if (!name?.trim()) return;
                 const newSection: SmartSection = { id: `custom-${Date.now()}`, name: name.trim(), collapsed: false, tasks: [] };
                 setSections((prev) => [...prev, newSection]);
-                toast.success(`Section "${name.trim()}" added`);
+                toast.success(`Sección "${name.trim()}" agregada`);
               }}
               formatDueDate={formatDueDate}
             />
@@ -634,7 +1124,133 @@ export default function MyTasksPage() {
             formatDueDate={formatDueDate}
           />
         )}
+
+        {/* Workflow Panel */}
+        <WorkflowPanel
+          open={workflowPanelOpen}
+          onClose={() => setWorkflowPanelOpen(false)}
+        />
+
+        {/* Options Drawer */}
+        <OptionsDrawer
+          open={optionsDrawerOpen}
+          onClose={() => setOptionsDrawerOpen(false)}
+          onOpenFilters={() => {
+            setOptionsDrawerOpen(false);
+            setFilterPanelOpen(true);
+          }}
+          onOpenSort={() => {
+            setOptionsDrawerOpen(false);
+            setSortPanelOpen(true);
+          }}
+          onOpenGroups={() => {
+            setOptionsDrawerOpen(false);
+            setGroupPanelOpen(true);
+          }}
+          hiddenColumnsCount={7}
+        />
       </div>
+
+      {/* Add Tasks with AI Modal */}
+      <AddTasksAIModal
+        open={showAddTasksAI}
+        onOpenChange={setShowAddTasksAI}
+        onTasksCreated={fetchTasks}
+      />
+
+      {/* Add Tasks by Email Modal */}
+      <AddTasksEmailModal
+        open={showAddTasksEmail}
+        onOpenChange={setShowAddTasksEmail}
+      />
+
+      {/* Manage Privacy Modal */}
+      <ManagePrivacyModal
+        open={showManagePrivacy}
+        onOpenChange={setShowManagePrivacy}
+      />
+
+      {/* Filter Panel (floating) */}
+      <FilterPanel
+        open={filterPanelOpen}
+        onClose={() => setFilterPanelOpen(false)}
+        anchorRef={filterButtonRef}
+        quickFilters={quickFilters}
+        onQuickFiltersChange={setQuickFilters}
+        activeFilters={activeFilters}
+        onActiveFiltersChange={setActiveFilters}
+      />
+
+      {/* Sort Panel (floating) */}
+      <SortPanel
+        open={sortPanelOpen}
+        onClose={() => setSortPanelOpen(false)}
+        anchorRef={sortButtonRef}
+        sort={sortState}
+        onSortChange={setSortState}
+      />
+
+      {/* Group Panel (floating) */}
+      <GroupPanel
+        open={groupPanelOpen}
+        onClose={() => setGroupPanelOpen(false)}
+        anchorRef={groupButtonRef}
+        groups={groupConfigs}
+        onGroupsChange={handleGroupConfigsChange}
+        onOpenCustomField={() => {
+          setGroupPanelOpen(false);
+          setShowCustomFieldModal(true);
+        }}
+      />
+
+      {/* Custom Field Modal */}
+      <CustomFieldModal
+        open={showCustomFieldModal}
+        onOpenChange={setShowCustomFieldModal}
+      />
+
+      {/* Advanced Search Modal */}
+      <AdvancedSearchModal
+        open={advancedSearchOpen}
+        onOpenChange={setAdvancedSearchOpen}
+        onSearch={(criteria) => {
+          if (criteria.words) {
+            setSearchQuery(criteria.words);
+            setShowToolbarSearch(true);
+          }
+          if (criteria.status === "incomplete") {
+            setActiveFilters((prev) => [
+              ...prev.filter((f) => f.field !== "completion"),
+              { id: `filter-${Date.now()}`, field: "completion", operator: "is", value: "incomplete" },
+            ]);
+          } else if (criteria.status === "complete") {
+            setActiveFilters((prev) => [
+              ...prev.filter((f) => f.field !== "completion"),
+              { id: `filter-${Date.now()}`, field: "completion", operator: "is", value: "complete" },
+            ]);
+          }
+          if (criteria.dueDate !== "any") {
+            const dueDateMap: Record<string, string> = {
+              today: "today",
+              this_week: "this_week",
+              next_week: "next_week",
+              overdue: "today",
+              no_date: "",
+            };
+            if (criteria.dueDate === "no_date") {
+              setActiveFilters((prev) => [
+                ...prev.filter((f) => f.field !== "due_date"),
+                { id: `filter-${Date.now()}`, field: "due_date", operator: "is_not_set", value: "" },
+              ]);
+            } else {
+              setActiveFilters((prev) => [
+                ...prev.filter((f) => f.field !== "due_date"),
+                { id: `filter-${Date.now()}`, field: "due_date", operator: "is_within", value: dueDateMap[criteria.dueDate] || "" },
+              ]);
+            }
+          }
+        }}
+      />
     </div>
   );
 }
@@ -652,22 +1268,44 @@ function TaskSection({
   onToggleSection: () => void;
   onToggleComplete: (task: Task) => void;
   onTaskClick: (task: Task) => void;
-  onAddTask: (name: string, sectionId: string) => Promise<boolean>;
+  onAddTask: (name: string, sectionId: string, taskType?: "TASK" | "MILESTONE" | "APPROVAL") => Promise<boolean>;
   formatDueDate: (date: string | null) => { text: string; className: string };
 }) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [activeTaskType, setActiveTaskType] = useState<"TASK" | "MILESTONE" | "APPROVAL">("TASK");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Listen for custom add-task events from the toolbar split button
+  useEffect(() => {
+    function handleAddTaskEvent(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail.sectionId === section.id) {
+        setActiveTaskType(detail.taskType || "TASK");
+        setIsAddingTask(true);
+      }
+    }
+    window.addEventListener("buildsync:add-task", handleAddTaskEvent);
+    return () => window.removeEventListener("buildsync:add-task", handleAddTaskEvent);
+  }, [section.id]);
+
+  // Re-focus input after a save so consecutive creation works
+  useEffect(() => {
+    if (isAddingTask && !isCreating && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isAddingTask, isCreating]);
 
   const handleSubmit = async () => {
     if (!newTaskName.trim() || isCreating) return;
 
     setIsCreating(true);
     try {
-      const success = await onAddTask(newTaskName.trim(), section.id);
+      const success = await onAddTask(newTaskName.trim(), section.id, activeTaskType);
       if (success) {
         setNewTaskName("");
-        // Keep input open for adding more tasks
+        // Keep isAddingTask true for consecutive entry
       }
     } finally {
       setIsCreating(false);
@@ -685,27 +1323,92 @@ function TaskSection({
     }
   };
 
+  const handleBlur = () => {
+    // Small delay so we don't close before a click on the same row registers
+    setTimeout(() => {
+      if (newTaskName.trim()) {
+        handleSubmit();
+      } else {
+        setIsAddingTask(false);
+      }
+    }, 120);
+  };
+
   return (
-    <div className="border-b">
+    <div>
       {/* Section header */}
       <button
         onClick={onToggleSection}
-        className="flex items-center gap-2 px-6 py-2 w-full hover:bg-white text-left"
+        className="flex items-center px-6 w-full hover:bg-[var(--surface-hover)] text-left border-b border-[var(--border-subtle)]"
+        style={{ height: "var(--row-h)" }}
       >
-        {section.collapsed ? (
-          <ChevronRight className="w-4 h-4 text-black" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-black" />
-        )}
-        <span className="font-medium text-black">{section.name}</span>
+        <div className="w-8 flex-shrink-0 flex items-center">
+          {section.collapsed ? (
+            <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+          )}
+        </div>
+        <span className="text-[13px] font-semibold text-gray-900">{section.name}</span>
         {section.tasks.length > 0 && (
-          <span className="text-black text-sm">{section.tasks.length}</span>
+          <span className="text-gray-400 text-[11px] ml-2">{section.tasks.length}</span>
         )}
       </button>
 
       {/* Tasks */}
       {!section.collapsed && (
         <div>
+          {/* Inline input row — appears at TOP of section (Asana behavior) */}
+          {isAddingTask && (
+            <div
+              className="flex items-center px-6 border-b border-[var(--border-subtle)] bg-blue-50/60"
+              style={{ height: "var(--row-h)" }}
+            >
+              <div className="w-8 flex-shrink-0 flex items-center">
+                {activeTaskType === "MILESTONE" ? (
+                  <Diamond className="w-4 h-4 text-green-600 flex-shrink-0" />
+                ) : activeTaskType === "APPROVAL" ? (
+                  <ThumbsUp className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border-2 border-gray-200 flex-shrink-0" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={newTaskName}
+                  onChange={(e) => setNewTaskName(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleBlur}
+                  placeholder={activeTaskType === "MILESTONE" ? "Escribe el nombre del hito" : activeTaskType === "APPROVAL" ? "Escribe el nombre de la aprobación" : "Escribe el nombre de la tarea"}
+                  className="w-full bg-transparent outline-none text-[13px] text-gray-900 placeholder:text-gray-400"
+                  autoFocus
+                  disabled={isCreating}
+                />
+              </div>
+              {/* Due date placeholder */}
+              <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5 group/due">
+                <Calendar className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover/due:opacity-100 transition-opacity" />
+              </div>
+              {/* Collaborators placeholder */}
+              <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5" />
+              {/* Projects placeholder */}
+              <div className="w-[160px] min-w-[160px] flex-shrink-0 pl-2.5" />
+              {/* Visibility placeholder */}
+              <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+                <span className="text-[13px] text-gray-300 flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  Solo yo
+                </span>
+              </div>
+              {/* Spinner / spacer */}
+              <div className="w-8 flex-shrink-0 flex items-center justify-center">
+                {isCreating && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
+              </div>
+            </div>
+          )}
+
           {section.tasks.map((task) => (
             <TaskRow
               key={task.id}
@@ -716,39 +1419,22 @@ function TaskSection({
             />
           ))}
 
-          {/* Add task input - always at the end */}
-          {isAddingTask ? (
-            <div className="flex items-center px-6 py-2 group">
-              <button
-                className="w-4 h-4 rounded-full border-2 border-slate-300 mr-3 flex-shrink-0"
-                disabled
-              />
-              <input
-                type="text"
-                value={newTaskName}
-                onChange={(e) => setNewTaskName(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={() => {
-                  if (newTaskName.trim()) {
-                    handleSubmit();
-                  } else {
-                    setIsAddingTask(false);
-                  }
-                }}
-                placeholder="Write a task name..."
-                className="flex-1 bg-transparent outline-none text-sm"
-                autoFocus
-                disabled={isCreating}
-              />
-              {isCreating && <Loader2 className="w-4 h-4 animate-spin text-black ml-2" />}
-            </div>
-          ) : (
+          {/* "+ Add task" trigger row */}
+          {!isAddingTask && (
             <button
-              onClick={() => setIsAddingTask(true)}
-              className="flex items-center gap-2 px-6 py-2 text-black hover:text-black w-full text-left hover:bg-white"
+              onClick={() => { setActiveTaskType("TASK"); setIsAddingTask(true); }}
+              className="flex items-center px-6 w-full text-left border-b border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] transition-colors"
+              style={{ height: "var(--row-h)" }}
             >
-              <Plus className="w-4 h-4" />
-              <span className="text-sm">Add a task...</span>
+              <div className="w-8 flex-shrink-0 flex items-center">
+                <Plus className="w-3.5 h-3.5 text-gray-300" />
+              </div>
+              <span className="flex-1 text-[13px] text-gray-400">Agregar tarea</span>
+              <div className="w-[110px] min-w-[110px] flex-shrink-0" />
+              <div className="w-[110px] min-w-[110px] flex-shrink-0" />
+              <div className="w-[160px] min-w-[160px] flex-shrink-0" />
+              <div className="w-[110px] min-w-[110px] flex-shrink-0" />
+              <div className="w-8 flex-shrink-0" />
             </button>
           )}
         </div>
@@ -774,43 +1460,59 @@ function TaskRow({
   return (
     <div
       onClick={onClick}
-      className="flex items-center px-6 py-2 hover:bg-white cursor-pointer group"
+      className="flex items-center px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors"
+      style={{ height: 'var(--row-h)' }}
     >
-      {/* Checkbox */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleComplete();
-        }}
-        className={cn(
-          "w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 flex-shrink-0",
-          task.completed
-            ? "bg-green-500 border-green-500"
-            : "border-slate-300 hover:border-slate-400"
+      {/* Checkbox / type icon */}
+      <div className="w-8 flex-shrink-0 flex items-center">
+        {task.taskType === "MILESTONE" ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
+            className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-green-500" : "text-green-600 hover:text-green-700")}
+          >
+            <Diamond className="w-4 h-4" />
+          </button>
+        ) : task.taskType === "APPROVAL" ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
+            className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-green-500" : "text-orange-500 hover:text-orange-600")}
+          >
+            <ThumbsUp className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
+            className={cn(
+              "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+              task.completed
+                ? "bg-green-500 border-green-500"
+                : "border-gray-300 hover:border-gray-400"
+            )}
+          >
+            {task.completed && <Check className="w-3 h-3 text-white" />}
+          </button>
         )}
-      >
-        {task.completed && <Check className="w-3 h-3 text-white" />}
-      </button>
+      </div>
 
       {/* Task name + indicators */}
       <div className="flex-1 flex items-center gap-2 min-w-0">
         <span className={cn(
-          "text-sm truncate",
-          task.completed && "line-through text-black"
+          "text-[13px] truncate",
+          task.completed ? "line-through text-gray-400" : "text-gray-900"
         )}>
           {task.name}
         </span>
         {task._count.subtasks > 0 && (
-          <span className="text-xs text-black flex items-center flex-shrink-0">
+          <span className="text-[11px] text-gray-400 flex items-center flex-shrink-0">
             <Layers className="w-3 h-3 mr-0.5" />
             {task._count.subtasks}
           </span>
         )}
         {task._count.attachments > 0 && (
-          <Paperclip className="w-3 h-3 text-black flex-shrink-0" />
+          <Paperclip className="w-3 h-3 text-gray-400 flex-shrink-0" />
         )}
         {task._count.comments > 0 && (
-          <span className="text-xs text-black flex items-center flex-shrink-0">
+          <span className="text-[11px] text-gray-400 flex items-center flex-shrink-0">
             <MessageSquare className="w-3 h-3 mr-0.5" />
             {task._count.comments}
           </span>
@@ -818,18 +1520,18 @@ function TaskRow({
       </div>
 
       {/* Due date */}
-      <div className="w-[120px] flex-shrink-0">
-        <span className={cn("text-sm", dueDateInfo.className)}>
+      <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+        <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
       </div>
 
       {/* Collaborators */}
-      <div className="w-[100px] flex-shrink-0">
+      <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
         {task.assignee && (
-          <Avatar className="w-6 h-6">
+          <Avatar className="w-5 h-5">
             <AvatarImage src={task.assignee.image || undefined} />
-            <AvatarFallback className="text-xs bg-white border border-black">
+            <AvatarFallback className="text-[10px] bg-gray-100 text-gray-600">
               {task.assignee.name?.charAt(0) || "?"}
             </AvatarFallback>
           </Avatar>
@@ -837,14 +1539,14 @@ function TaskRow({
       </div>
 
       {/* Projects */}
-      <div className="w-[180px] flex-shrink-0">
+      <div className="w-[160px] min-w-[160px] flex-shrink-0 pl-2.5">
         {task.project && (
           <div className="flex items-center gap-1.5">
             <div
               className="w-2 h-2 rounded-sm flex-shrink-0"
               style={{ backgroundColor: task.project.color }}
             />
-            <span className="text-sm text-black truncate">
+            <span className="text-[13px] text-gray-600 truncate">
               {task.project.name}
             </span>
           </div>
@@ -852,10 +1554,10 @@ function TaskRow({
       </div>
 
       {/* Visibility */}
-      <div className="w-[140px] flex-shrink-0">
-        <span className="text-sm text-black flex items-center gap-1">
+      <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+        <span className="text-[13px] text-gray-400 flex items-center gap-1">
           <Globe className="w-3 h-3" />
-          My workspace
+          Mi espacio de trabajo
         </span>
       </div>
 
@@ -898,7 +1600,7 @@ function BoardView({
       <div className="flex-shrink-0 w-72">
         <button className="flex items-center gap-2 px-4 py-2 text-black hover:text-slate-700 hover:bg-white rounded-lg w-full" onClick={onAddSection}>
           <Plus className="w-4 h-4" />
-          <span className="text-sm font-medium">Add section</span>
+          <span className="text-sm font-medium">Agregar sección</span>
         </button>
       </div>
     </div>
@@ -953,7 +1655,7 @@ function BoardColumn({
               </span>
             )}
           </div>
-          <button className="p-1 hover:bg-white border border-black rounded" onClick={() => toast.info("Section options coming soon")}>
+          <button className="p-1 hover:bg-white border border-black rounded" onClick={() => toast.info("Opciones de sección próximamente")}>
             <MoreHorizontal className="w-4 h-4 text-black" />
           </button>
         </div>
@@ -988,7 +1690,7 @@ function BoardColumn({
                 if (newTaskName.trim()) handleSubmit();
                 else setIsAddingTask(false);
               }}
-              placeholder="Write a task name..."
+              placeholder="Escribe el nombre de la tarea..."
               className="w-full text-sm outline-none"
               autoFocus
               disabled={isCreating}
@@ -1000,7 +1702,7 @@ function BoardColumn({
             className="flex items-center gap-2 text-black hover:text-slate-700 py-1 w-full"
           >
             <Plus className="w-4 h-4" />
-            <span className="text-sm">Add task</span>
+            <span className="text-sm">Agregar tarea</span>
           </button>
         )}
       </div>
@@ -1079,7 +1781,7 @@ function BoardColumn({
             className="flex items-center gap-2 text-black hover:text-black py-1 w-full"
           >
             <Plus className="w-4 h-4" />
-            <span className="text-sm">Add task</span>
+            <span className="text-sm">Agregar tarea</span>
           </button>
         </div>
       )}
@@ -1126,7 +1828,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
   };
 
   const calendarDays = getCalendarDays();
-  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const weekDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
   const tasksByDate = tasks.reduce((acc, task) => {
     if (task.dueDate) {
@@ -1142,7 +1844,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
   const goToToday = () => setCurrentDate(new Date());
 
   const formatMonthYear = (date: Date) => {
-    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    return date.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
   };
 
   return (
@@ -1163,7 +1865,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
           onClick={goToToday}
           className="px-3"
         >
-          Today
+          Hoy
         </Button>
         <Button
           variant="ghost"
@@ -1222,7 +1924,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                   )}
                 >
                   {isFirstOfMonth && isCurrentMonth
-                    ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                    ? date.toLocaleDateString("es-ES", { month: "short", day: "numeric" })
                     : dayNum}
                 </span>
                 {dayTasks.length > 2 && (
@@ -1243,7 +1945,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                 ))}
                 {dayTasks.length > 2 && (
                   <span className="text-xs text-black pl-1">
-                    +{dayTasks.length - 2} more
+                    +{dayTasks.length - 2} más
                   </span>
                 )}
               </div>
@@ -1253,14 +1955,14 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                 className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 text-xs text-black hover:text-black flex items-center gap-0.5 transition-opacity"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const name = prompt('Task name:');
+                  const name = prompt('Nombre de la tarea:');
                   if (name?.trim()) {
-                    toast.success(`Task "${name.trim()}" added for ${date.toLocaleDateString()}`);
+                    toast.success(`Tarea "${name.trim()}" agregada para ${date.toLocaleDateString("es-ES")}`);
                   }
                 }}
               >
                 <Plus className="w-3 h-3" />
-                Add
+                Agregar
               </button>
             </div>
           );
@@ -1286,8 +1988,8 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
 
   // Data for donut chart - completion status (minimalistic colors)
   const completionData = [
-    { name: "Incomplete", value: incomplete, color: "#94A3B8" }, // slate-400
-    { name: "Completed", value: completed, color: "#CBD5E1" }, // slate-300
+    { name: "Sin completar", value: incomplete, color: "#94A3B8" }, // slate-400
+    { name: "Completadas", value: completed, color: "#CBD5E1" }, // slate-300
   ].filter((item) => item.value > 0);
 
   // Data for projects chart
@@ -1345,53 +2047,53 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
               <Plus className="w-4 h-4 mr-2" />
-              Add widget
+              Agregar widget
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => toast.info('Tasks by section widget added')}>Tasks by section</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info('Completion chart widget added')}>Completion chart</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info('Tasks by project widget added')}>Tasks by project</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info('Completion timeline widget added')}>Completion timeline</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info('Widget de tareas por sección agregado')}>Tareas por sección</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info('Widget de gráfico de finalización agregado')}>Gráfico de finalización</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info('Widget de tareas por proyecto agregado')}>Tareas por proyecto</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info('Widget de línea de tiempo agregado')}>Línea de tiempo de finalización</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <Button variant="ghost" size="sm" className="text-gray-500" onClick={() => window.open("mailto:feedback@buildsync.com", "_blank")}>
-          Send feedback
+          Enviar comentarios
         </Button>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-4 gap-4">
         <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-black">Completed tasks</p>
+          <p className="text-sm text-black">Tareas completadas</p>
           <p className="text-4xl font-light text-black mt-2">{completed}</p>
           <div className="flex items-center justify-center mt-3 text-xs text-black">
             <Filter className="w-3 h-3 mr-1" />
-            1 filter
+            1 filtro
           </div>
         </Card>
         <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-black">Incomplete tasks</p>
+          <p className="text-sm text-black">Tareas sin completar</p>
           <p className="text-4xl font-light text-black mt-2">{incomplete}</p>
           <div className="flex items-center justify-center mt-3 text-xs text-black">
             <Filter className="w-3 h-3 mr-1" />
-            1 filter
+            1 filtro
           </div>
         </Card>
         <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-black">Overdue tasks</p>
+          <p className="text-sm text-black">Tareas atrasadas</p>
           <p className="text-4xl font-light text-black mt-2">{overdue}</p>
           <div className="flex items-center justify-center mt-3 text-xs text-black">
             <Filter className="w-3 h-3 mr-1" />
-            1 filter
+            1 filtro
           </div>
         </Card>
         <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-black">Total tasks</p>
+          <p className="text-sm text-black">Total de tareas</p>
           <p className="text-4xl font-light text-black mt-2">{total}</p>
           <div className="flex items-center justify-center mt-3 text-xs text-black">
             <Filter className="w-3 h-3 mr-1" />
-            No filters
+            Sin filtros
           </div>
         </Card>
       </div>
@@ -1400,7 +2102,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
       <div className="grid grid-cols-2 gap-4">
         {/* Tasks by Section */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium text-black mb-4">Tasks by section</h3>
+          <h3 className="text-sm font-medium text-black mb-4">Tareas por sección</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={tasksBySectionData}>
               <XAxis
@@ -1422,10 +2124,10 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
           <div className="flex items-center justify-between mt-4 pt-3 border-t">
             <div className="flex items-center text-xs text-black">
               <Filter className="w-3 h-3 mr-1" />
-              1 filter
+              1 filtro
             </div>
             <Button variant="ghost" size="sm" className="text-xs h-6">
-              View all
+              Ver todo
               <ChevronRight className="w-3 h-3 ml-1" />
             </Button>
           </div>
@@ -1433,7 +2135,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
 
         {/* Tasks by Completion Status (Donut) */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium text-black mb-4">Tasks by completion status</h3>
+          <h3 className="text-sm font-medium text-black mb-4">Tareas por estado de finalización</h3>
           <div className="flex items-center justify-center">
             <div className="relative">
               <ResponsiveContainer width={180} height={180}>
@@ -1473,10 +2175,10 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
           <div className="flex items-center justify-between mt-4 pt-3 border-t">
             <div className="flex items-center text-xs text-black">
               <Filter className="w-3 h-3 mr-1" />
-              2 filters
+              2 filtros
             </div>
             <Button variant="ghost" size="sm" className="text-xs h-6">
-              View all
+              Ver todo
               <ChevronRight className="w-3 h-3 ml-1" />
             </Button>
           </div>
@@ -1487,7 +2189,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
       <div className="grid grid-cols-2 gap-4">
         {/* Tasks by Project */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium text-black mb-4">Tasks by project</h3>
+          <h3 className="text-sm font-medium text-black mb-4">Tareas por proyecto</h3>
           {tasksByProjectData.length > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={tasksByProjectData}>
@@ -1509,16 +2211,16 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
             </ResponsiveContainer>
           ) : (
             <div className="h-[200px] flex items-center justify-center text-sm text-black">
-              No tasks assigned to projects yet
+              Aún no hay tareas asignadas a proyectos
             </div>
           )}
           <div className="flex items-center justify-between mt-4 pt-3 border-t">
             <div className="flex items-center text-xs text-black">
               <Filter className="w-3 h-3 mr-1" />
-              1 filter
+              1 filtro
             </div>
             <Button variant="ghost" size="sm" className="text-xs h-6">
-              View all
+              Ver todo
               <ChevronRight className="w-3 h-3 ml-1" />
             </Button>
           </div>
@@ -1526,7 +2228,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
 
         {/* Task Completion Over Time */}
         <Card className="p-4">
-          <h3 className="text-sm font-medium text-black mb-4">Task completion over time</h3>
+          <h3 className="text-sm font-medium text-black mb-4">Finalización de tareas a lo largo del tiempo</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={completionOverTimeData}>
               <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={2} />
@@ -1539,7 +2241,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
                 stroke="#64748B"
                 strokeWidth={2}
                 dot={{ r: 2 }}
-                name="Total"
+                name="Total de tareas"
               />
               <Line
                 type="monotone"
@@ -1547,17 +2249,17 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
                 stroke="#CBD5E1"
                 strokeWidth={2}
                 dot={{ r: 2 }}
-                name="Completed"
+                name="Completadas"
               />
             </LineChart>
           </ResponsiveContainer>
           <div className="flex items-center justify-between mt-4 pt-3 border-t">
             <div className="flex items-center text-xs text-black">
               <Filter className="w-3 h-3 mr-1" />
-              2 filters
+              2 filtros
             </div>
             <Button variant="ghost" size="sm" className="text-xs h-6">
-              View all
+              Ver todo
               <ChevronRight className="w-3 h-3 ml-1" />
             </Button>
           </div>
@@ -1572,8 +2274,8 @@ function FilesView() {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-center">
       <FileText className="h-12 w-12 text-slate-300 mb-4" />
-      <h3 className="font-medium text-black">No files yet</h3>
-      <p className="text-sm text-black mt-1">Files attached to your tasks will appear here</p>
+      <h3 className="font-medium text-black">Aún no hay archivos</h3>
+      <p className="text-sm text-black mt-1">Los archivos adjuntos a tus tareas aparecerán aquí</p>
     </div>
   );
 }
@@ -1695,13 +2397,13 @@ function TaskDetailPanel({
           {/* Visibility */}
           <div className="px-4 py-2 bg-white text-xs text-black flex items-center gap-1">
             <Globe className="h-3 w-3" />
-            This task is visible to everyone in My Workspace
+            Esta tarea es visible para todos en Mi espacio de trabajo
           </div>
 
           {/* Metadata */}
           <div className="p-4 space-y-4 border-b">
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Assignee</span>
+              <span className="w-24 text-sm text-black">Responsable</span>
               <div className="flex items-center gap-2">
                 {taskDetail?.assignee ? (
                   <>
@@ -1713,32 +2415,32 @@ function TaskDetailPanel({
                     <span className="text-sm">{taskDetail.assignee.name}</span>
                   </>
                 ) : (
-                  <span className="text-sm text-black">No assignee</span>
+                  <span className="text-sm text-black">Sin responsable</span>
                 )}
               </div>
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Due date</span>
+              <span className="w-24 text-sm text-black">Fecha de entrega</span>
               <span className={cn("text-sm", dueDateInfo.className)}>
-                {dueDateInfo.text || "No due date"}
+                {dueDateInfo.text || "Sin fecha de entrega"}
               </span>
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Projects</span>
+              <span className="w-24 text-sm text-black">Proyectos</span>
               {taskDetail?.project ? (
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded" style={{ backgroundColor: taskDetail.project.color }} />
                   <span className="text-sm">{taskDetail.project.name}</span>
                 </div>
               ) : (
-                <Button variant="ghost" size="sm" className="text-black h-auto p-0">+ Add to project</Button>
+                <Button variant="ghost" size="sm" className="text-black h-auto p-0">+ Agregar a proyecto</Button>
               )}
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Priority</span>
+              <span className="w-24 text-sm text-black">Prioridad</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-auto p-0">
@@ -1753,16 +2455,16 @@ function TaskDetailPanel({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "HIGH")}>
-                    <span className="text-black">High</span>
+                    <span className="text-black">Alta</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "MEDIUM")}>
-                    <span className="text-amber-600">Medium</span>
+                    <span className="text-amber-600">Media</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "LOW")}>
-                    <span className="text-black">Low</span>
+                    <span className="text-black">Baja</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "NONE")}>
-                    <span className="text-black">None</span>
+                    <span className="text-black">Ninguna</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1771,12 +2473,12 @@ function TaskDetailPanel({
 
           {/* Description */}
           <div className="p-4 border-b">
-            <h4 className="text-sm font-medium text-slate-700 mb-2">Description</h4>
+            <h4 className="text-sm font-medium text-slate-700 mb-2">Descripción</h4>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={() => description !== taskDetail?.description && handleUpdate("description", description)}
-              placeholder="What is this task about?"
+              placeholder="¿De qué se trata esta tarea?"
               className="w-full p-2 text-sm border rounded-md resize-none min-h-[80px] outline-none focus:ring-2 focus:ring-slate-200"
             />
           </div>
@@ -1784,7 +2486,7 @@ function TaskDetailPanel({
           {/* Subtasks */}
           <div className="p-4 border-b">
             <h4 className="text-sm font-medium text-slate-700 mb-2">
-              Subtasks ({taskDetail?.subtasks?.length || 0})
+              Subtareas ({taskDetail?.subtasks?.length || 0})
             </h4>
             <div className="space-y-2">
               {taskDetail?.subtasks?.map((subtask: any) => (
@@ -1802,7 +2504,7 @@ function TaskDetailPanel({
               ))}
               <Button variant="ghost" size="sm" className="text-black w-full justify-start">
                 <Plus className="h-4 w-4 mr-2" />
-                Add subtask
+                Agregar subtarea
               </Button>
             </div>
           </div>
@@ -1817,7 +2519,7 @@ function TaskDetailPanel({
                   activeTab === "comments" ? "text-black border-black" : "text-black border-transparent"
                 )}
               >
-                Comments
+                Comentarios
               </button>
               <button
                 onClick={() => setActiveTab("activity")}
@@ -1826,7 +2528,7 @@ function TaskDetailPanel({
                   activeTab === "activity" ? "text-black border-black" : "text-black border-transparent"
                 )}
               >
-                All activity
+                Toda la actividad
               </button>
             </div>
           </div>
@@ -1854,7 +2556,7 @@ function TaskDetailPanel({
                   </div>
                 ))}
                 {(!taskDetail?.comments || taskDetail.comments.length === 0) && (
-                  <p className="text-sm text-black text-center py-4">No comments yet</p>
+                  <p className="text-sm text-black text-center py-4">Aún no hay comentarios</p>
                 )}
               </>
             ) : (
@@ -1888,7 +2590,7 @@ function TaskDetailPanel({
             <AvatarFallback className="text-xs bg-black text-white">U</AvatarFallback>
           </Avatar>
           <Input
-            placeholder="Add a comment..."
+            placeholder="Agregar un comentario..."
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
@@ -1900,7 +2602,7 @@ function TaskDetailPanel({
       {/* Footer */}
       <div className="p-4 border-t flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
-          <span className="text-black">Collaborators:</span>
+          <span className="text-black">Colaboradores:</span>
           <Avatar className="h-6 w-6">
             <AvatarFallback className="text-[10px] bg-black text-white">U</AvatarFallback>
           </Avatar>
@@ -1908,7 +2610,7 @@ function TaskDetailPanel({
             <Plus className="h-3 w-3" />
           </Button>
         </div>
-        <Button variant="ghost" size="sm" className="text-black">Leave task</Button>
+        <Button variant="ghost" size="sm" className="text-black">Abandonar tarea</Button>
       </div>
     </div>
   );

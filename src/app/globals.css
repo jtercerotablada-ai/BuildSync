@@ -48,6 +48,28 @@
 
 :root {
   --radius: 0.625rem;
+
+  /* Asana-density layout tokens */
+  --topbar-h: 52px;
+  --page-header-h: 44px;
+  --tabs-h: 34px;
+  --toolbar-h: 42px;
+  --row-h: 38px;
+  --col-header-h: 32px;
+  --container-px: 24px;
+
+  /* Surface & interaction tokens */
+  --surface-hover: #f9f9f8;
+  --border-subtle: #eee;
+  --border-row: #f0f0f0;
+  --text-muted-custom: #6b7280;
+  --text-secondary-custom: #9ca3af;
+  --header-band: #f6f8f9;
+
+  /* Search capsule */
+  --search-bg: #f1f2f4;
+  --search-bg-hover: #e8e9eb;
+  --search-h: 36px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);

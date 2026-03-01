@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyProjectAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const createSectionSchema = z.object({
   name: z.string().min(1, "Section name is required"),
@@ -19,6 +20,9 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const data = createSectionSchema.parse(body);
+
+    // Verify user has access to the project
+    await verifyProjectAccess(userId, data.projectId);
 
     // Get the next position for the section within this project
     const lastSection = await prisma.section.findFirst({
@@ -49,6 +53,10 @@ export async function POST(req: Request) {
       );
     }
 
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error creating section:", error);
     return NextResponse.json(
       { error: "Failed to create section" },
