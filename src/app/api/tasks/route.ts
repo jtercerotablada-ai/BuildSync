@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { canAccessProjectForTasks } from "@/lib/task-access";
 
 const createTaskSchema = z.object({
   name: z.string().min(1, "Task name is required"),
@@ -33,6 +34,19 @@ export async function GET(req: Request) {
 
     const whereClause: Record<string, unknown> = {
       parentTaskId: null, // Only get top-level tasks
+      OR: [
+        { creatorId: userId },
+        { assigneeId: userId },
+        { collaborators: { some: { userId } } },
+        { project: { ownerId: userId } },
+        { project: { members: { some: { userId } } } },
+        {
+          project: {
+            workspace: { members: { some: { userId } } },
+            visibility: { in: ["WORKSPACE", "PUBLIC"] },
+          },
+        },
+      ],
     };
 
     if (projectId) {
@@ -126,6 +140,16 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const data = createTaskSchema.parse(body);
+
+    if (data.projectId) {
+      const canAccessProject = await canAccessProjectForTasks(userId, data.projectId);
+      if (!canAccessProject) {
+        return NextResponse.json(
+          { error: "You don't have access to this project" },
+          { status: 403 }
+        );
+      }
+    }
 
     // Get the next position for the task
     let position = 0;

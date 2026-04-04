@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { WidgetType, WidgetSize, UserWidgetPreferences, AVAILABLE_WIDGETS } from '@/types/dashboard';
 
 const STORAGE_KEY = 'buildsync-widget-preferences';
@@ -72,33 +72,39 @@ const getDefaultPreferences = (): UserWidgetPreferences => {
 };
 
 export function useWidgetPreferences() {
-  const [preferences, setPreferences] = useState<UserWidgetPreferences>(getDefaultPreferences);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [preferences, setPreferences] = useState<UserWidgetPreferences>(() => {
+    const defaults = getDefaultPreferences();
 
-  useEffect(() => {
+    if (typeof window === "undefined") {
+      return defaults;
+    }
+
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Migrate legacy data that doesn't have widgetSizes
-        const migratedPreferences: UserWidgetPreferences = {
-          visibleWidgets: parsed.visibleWidgets || [],
-          widgetOrder: parsed.widgetOrder || [],
-          widgetSizes: parsed.widgetSizes || {},
-        };
-        setPreferences(migratedPreferences);
-      } catch (e) {
-        console.error('Failed to parse widget preferences:', e);
-      }
+    if (!stored) {
+      return defaults;
     }
-    setIsLoaded(true);
-  }, []);
+
+    try {
+      const parsed = JSON.parse(stored);
+      return {
+        visibleWidgets: parsed.visibleWidgets || [],
+        widgetOrder: parsed.widgetOrder || [],
+        widgetSizes: parsed.widgetSizes || {},
+      };
+    } catch (e) {
+      console.error("Failed to parse widget preferences:", e);
+      return defaults;
+    }
+  });
+  const hasMounted = useRef(false);
 
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
     }
-  }, [preferences, isLoaded]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+  }, [preferences]);
 
   const toggleWidget = useCallback((widgetId: WidgetType) => {
     setPreferences(prev => {
@@ -169,7 +175,7 @@ export function useWidgetPreferences() {
 
   return {
     preferences,
-    isLoaded,
+    isLoaded: true,
     toggleWidget,
     reorderWidgets,
     recalculateWidgetSizes,

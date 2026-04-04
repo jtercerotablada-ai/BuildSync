@@ -15,7 +15,7 @@ A modern project management application inspired by Asana, built with Next.js 16
 
 ## Tech Stack
 
-- **Frontend**: Next.js 16, React 18, TypeScript
+- **Frontend**: Next.js 16, React 19, TypeScript
 - **Styling**: Tailwind CSS, shadcn/ui
 - **State/DnD**: Zustand, @dnd-kit
 - **Backend**: Next.js API Routes
