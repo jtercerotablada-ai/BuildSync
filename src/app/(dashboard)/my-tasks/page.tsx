@@ -1693,7 +1693,7 @@ function TaskDetailPanel({
     }
   }
 
-  const dueDateInfo = formatDueDate(taskDetail?.dueDate);
+  const dueDateInfo = formatDueDate(taskDetail?.dueDate ?? null);
 
   return (
     <div className="w-[500px] border-l bg-white h-full flex flex-col">
