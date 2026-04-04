@@ -1590,7 +1590,45 @@ function TaskDetailPanel({
   onUpdate: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
 }) {
-  const [taskDetail, setTaskDetail] = useState<any>(null);
+  type TaskDetailSubtask = {
+    id: string;
+    name: string;
+    completed: boolean;
+  };
+
+  type TaskDetailComment = {
+    id: string;
+    content: string;
+    createdAt: string;
+    author?: {
+      name?: string | null;
+    } | null;
+  };
+
+  type TaskDetailActivity = {
+    id: string;
+    type: string;
+    createdAt: string;
+    user?: {
+      name?: string | null;
+    } | null;
+  };
+
+  type TaskDetailData = {
+    id: string;
+    name: string;
+    description: string | null;
+    completed: boolean;
+    dueDate: string | null;
+    assignee?: { name?: string | null } | null;
+    project?: { name: string; color: string } | null;
+    priority?: "NONE" | "LOW" | "MEDIUM" | "HIGH" | null;
+    subtasks?: TaskDetailSubtask[];
+    comments?: TaskDetailComment[];
+    activities?: TaskDetailActivity[];
+  };
+
+  const [taskDetail, setTaskDetail] = useState<TaskDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState(task.name);
   const [description, setDescription] = useState(task.description || "");
@@ -1618,7 +1656,7 @@ function TaskDetailPanel({
     }
   }
 
-  async function handleUpdate(field: string, value: any) {
+  async function handleUpdate(field: string, value: unknown) {
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
@@ -1655,7 +1693,7 @@ function TaskDetailPanel({
     }
   }
 
-  const dueDateInfo = formatDueDate(taskDetail?.dueDate);
+  const dueDateInfo = formatDueDate(taskDetail?.dueDate ?? null);
 
   return (
     <div className="w-[500px] border-l bg-white h-full flex flex-col">
@@ -1787,7 +1825,7 @@ function TaskDetailPanel({
               Subtasks ({taskDetail?.subtasks?.length || 0})
             </h4>
             <div className="space-y-2">
-              {taskDetail?.subtasks?.map((subtask: any) => (
+              {taskDetail?.subtasks?.map((subtask: TaskDetailSubtask) => (
                 <div key={subtask.id} className="flex items-center gap-2">
                   <div className={cn(
                     "w-4 h-4 rounded-full border-2 flex items-center justify-center",
@@ -1835,7 +1873,7 @@ function TaskDetailPanel({
           <div className="p-4 space-y-4">
             {activeTab === "comments" ? (
               <>
-                {taskDetail?.comments?.map((comment: any) => (
+                {taskDetail?.comments?.map((comment: TaskDetailComment) => (
                   <div key={comment.id} className="flex gap-3">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="text-xs bg-white border border-black">
@@ -1859,7 +1897,7 @@ function TaskDetailPanel({
               </>
             ) : (
               <>
-                {taskDetail?.activities?.map((activity: any) => (
+                {taskDetail?.activities?.map((activity: TaskDetailActivity) => (
                   <div key={activity.id} className="flex gap-3 text-sm">
                     <Avatar className="h-6 w-6">
                       <AvatarFallback className="text-[10px] bg-white border border-black">

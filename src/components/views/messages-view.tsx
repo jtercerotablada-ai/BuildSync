@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import {
   Send,
   Smile,
@@ -18,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -104,16 +102,17 @@ const statusConfig = {
 
 export function MessagesView({
   sections,
-  projectId,
+  projectId: _projectId,
   projectName = "Project",
   projectColor = "#3B82F6",
   projectStatus = "ON_TRACK",
   currentUser: currentUserProp,
 }: MessagesViewProps) {
-  const router = useRouter();
+  void _projectId;
   const [newMessage, setNewMessage] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const localIdCounter = useRef(0);
 
   // Current user from prop with fallback
   const currentUser: User = currentUserProp
@@ -179,12 +178,20 @@ export function MessagesView({
     },
   ]);
 
+  const buildUniqueId = (prefix: string): string => {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return `${prefix}-${crypto.randomUUID()}`;
+    }
+    localIdCounter.current += 1;
+    return `${prefix}-${localIdCounter.current}`;
+  };
+
   // Send new message
   const handleSendMessage = () => {
     if (!newMessage.trim()) return;
 
     const newUpdate: StatusUpdate = {
-      id: `update-${Date.now()}`,
+      id: buildUniqueId("update"),
       title: newMessage,
       author: currentUser,
       createdAt: new Date(),
@@ -206,7 +213,7 @@ export function MessagesView({
     if (!replyText.trim()) return;
 
     const newReply: Reply = {
-      id: `reply-${Date.now()}`,
+      id: buildUniqueId("reply"),
       author: currentUser,
       content: replyText,
       createdAt: new Date(),
@@ -395,7 +402,7 @@ function StatusUpdateCard({
         {/* Upcoming Tasks */}
         {update.upcomingTasks && update.upcomingTasks.length > 0 && (
           <div className="mt-4">
-            <h4 className="font-semibold text-slate-900 mb-2">What's next?</h4>
+            <h4 className="font-semibold text-slate-900 mb-2">What&apos;s next?</h4>
             <div className="flex items-center gap-2 text-sm text-slate-500 mb-2">
               <span className="w-2 h-2 rounded-full bg-slate-400" />
               <span>Upcoming tasks in 2 weeks</span>

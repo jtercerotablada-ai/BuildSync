@@ -10,15 +10,15 @@ import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<"loading" | "success" | "error">(
+    token ? "loading" : "error"
+  );
+  const [message, setMessage] = useState(
+    token ? "" : "No verification token provided"
+  );
 
   useEffect(() => {
-    if (!token) {
-      setStatus("error");
-      setMessage("No verification token provided");
-      return;
-    }
+    if (!token) return;
 
     async function verify() {
       try {
@@ -43,7 +43,7 @@ function VerifyEmailContent() {
       }
     }
 
-    verify();
+    void verify();
   }, [token]);
 
   return (
