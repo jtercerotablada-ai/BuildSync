@@ -175,7 +175,7 @@ export function TTCFooter() {
             >
               {t('footer.connect')}
             </h3>
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', justifyContent: 'center' }}>
               <a
                 href="#"
                 aria-label="Instagram"
