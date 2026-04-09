@@ -60,9 +60,13 @@ export async function POST(req: Request) {
         if (!value) {
           return NextResponse.json({ error: "Priority required" }, { status: 400 });
         }
+        const validPriorities = ["NONE", "LOW", "MEDIUM", "HIGH"];
+        if (!validPriorities.includes(value)) {
+          return NextResponse.json({ error: "Invalid priority value" }, { status: 400 });
+        }
         await prisma.task.updateMany({
           where: { id: { in: taskIds } },
-          data: { priority: value as any },
+          data: { priority: value as "NONE" | "LOW" | "MEDIUM" | "HIGH" },
         });
         return NextResponse.json({ success: true, count: taskIds.length });
 

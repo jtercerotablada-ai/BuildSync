@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId, AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
 import { GoalProgressService } from "@/lib/goal-progress";
 
 const connectProjectSchema = z.object({
@@ -30,6 +31,16 @@ export async function GET(
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify objective belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+    const objective = await prisma.objective.findUnique({
+      where: { id: objectiveId },
+      select: { workspaceId: true },
+    });
+    if (!objective || objective.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
     }
 
     const [projects, tasks] = await Promise.all([
@@ -110,6 +121,10 @@ export async function GET(
       tasks: tasksFormatted,
     });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching connections:", error);
     return NextResponse.json(
       { error: "Failed to fetch connections" },
@@ -129,6 +144,16 @@ export async function POST(
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify objective belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+    const objective = await prisma.objective.findUnique({
+      where: { id: objectiveId },
+      select: { workspaceId: true },
+    });
+    if (!objective || objective.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
     }
 
     const body = await req.json();
@@ -212,6 +237,10 @@ export async function POST(
       return NextResponse.json(connection, { status: 201 });
     }
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: error.issues[0]?.message || "Validation error" },
@@ -238,6 +267,16 @@ export async function DELETE(
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify objective belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+    const objective = await prisma.objective.findUnique({
+      where: { id: objectiveId },
+      select: { workspaceId: true },
+    });
+    if (!objective || objective.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -271,6 +310,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting connection:", error);
     return NextResponse.json(
       { error: "Failed to delete connection" },

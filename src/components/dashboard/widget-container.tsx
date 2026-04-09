@@ -89,7 +89,7 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
 
   const widget = AVAILABLE_WIDGETS.find(w => w.id === id);
 
-  // Renderizar icono del título si existe
+  // Render title icon if it exists
   const renderTitleIcon = () => {
     if (!widget?.titleIcon) return null;
 
@@ -130,14 +130,14 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
           className="flex items-center justify-between px-4 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
         >
           <div className="flex items-center gap-2">
-            {/* Título con icono opcional */}
+            {/* Title with optional icon */}
             <h3 className="font-semibold text-gray-900 flex items-center gap-1.5">
               {widget?.title}
               {renderTitleIcon()}
             </h3>
           </div>
 
-          {/* Widget Menu - Tres puntos */}
+          {/* Widget Menu - Three dots */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

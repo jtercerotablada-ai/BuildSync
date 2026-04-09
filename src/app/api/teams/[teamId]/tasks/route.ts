@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
 
 const createTaskSchema = z.object({
   name: z.string().min(1),
@@ -22,14 +23,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify team exists
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-    });
-
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 });
-    }
+    // Verify user has access to this team
+    await verifyTeamAccess(userId, teamId);
 
     // Get all tasks from projects belonging to this team
     const tasks = await prisma.task.findMany({
@@ -68,6 +63,10 @@ export async function GET(
 
     return NextResponse.json(tasks);
   } catch (error) {
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching team tasks:", error);
     return NextResponse.json(
       { error: "Failed to fetch tasks" },

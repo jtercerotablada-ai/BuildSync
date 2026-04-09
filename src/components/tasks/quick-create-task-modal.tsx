@@ -98,16 +98,18 @@ export function QuickCreateTaskModal({ open, onOpenChange, projects = [] }: Quic
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: taskData.title,
+          name: taskData.title,
           description: taskData.description || null,
           assigneeId: taskData.assigneeId || null,
           projectId: taskData.projectId,
-          status: "TODO",
         }),
       });
 
       if (res.ok) {
+        toast.success("Task created");
         handleClose();
+      } else {
+        toast.error("Failed to create task");
       }
     } catch (error) {
       console.error("Error creating task:", error);
@@ -132,7 +134,7 @@ export function QuickCreateTaskModal({ open, onOpenChange, projects = [] }: Quic
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-slate-800 text-white rounded-t-lg">
-        <span className="text-sm font-medium">Nueva tarea</span>
+        <span className="text-sm font-medium">New task</span>
         <div className="flex items-center gap-1">
           <button
             onClick={handleMinimize}
@@ -154,7 +156,7 @@ export function QuickCreateTaskModal({ open, onOpenChange, projects = [] }: Quic
         <div className="p-4 space-y-3">
           {/* Task Name */}
           <Input
-            placeholder="Nombre de la tarea"
+            placeholder="Task name"
             value={taskData.title}
             onChange={(e) => setTaskData({ ...taskData, title: e.target.value })}
             className="border-0 border-b rounded-none px-0 focus-visible:ring-0 focus-visible:border-slate-400"
@@ -179,7 +181,7 @@ export function QuickCreateTaskModal({ open, onOpenChange, projects = [] }: Quic
                   ) : (
                     <>
                       <AtSign className="h-3 w-3" />
-                      <span>Asignar</span>
+                      <span>Assign</span>
                     </>
                   )}
                   <ChevronDown className="h-3 w-3" />
@@ -219,7 +221,7 @@ export function QuickCreateTaskModal({ open, onOpenChange, projects = [] }: Quic
                   ) : (
                     <>
                       <Plus className="h-3 w-3" />
-                      <span>Proyecto</span>
+                      <span>Project</span>
                     </>
                   )}
                   <ChevronDown className="h-3 w-3" />
@@ -245,7 +247,7 @@ export function QuickCreateTaskModal({ open, onOpenChange, projects = [] }: Quic
 
           {/* Description */}
           <Textarea
-            placeholder="Descripcion (opcional)"
+            placeholder="Description (optional)"
             value={taskData.description}
             onChange={(e) => setTaskData({ ...taskData, description: e.target.value })}
             className="min-h-[80px] resize-none border-slate-200"
@@ -293,10 +295,10 @@ export function QuickCreateTaskModal({ open, onOpenChange, projects = [] }: Quic
               {creating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  Creando...
+                  Creating...
                 </>
               ) : (
-                "Crear tarea"
+                "Create task"
               )}
             </Button>
           </div>

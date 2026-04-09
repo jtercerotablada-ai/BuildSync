@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId } from "@/lib/auth-guards";
 
 // GET /api/mentions - Get comments mentioning the current user
 export async function GET(req: Request) {
@@ -12,7 +13,8 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "10") || 10, 1), 100);
+    const workspaceId = await getUserWorkspaceId(userId);
 
     // Search for comments that contain the user's ID in a data-user-id attribute
     // The mention format is: <span data-user-id="userId">@Name</span>
@@ -24,6 +26,13 @@ export async function GET(req: Request) {
         // Don't show user's own comments
         authorId: {
           not: userId,
+        },
+        // Scope to user's workspace
+        task: {
+          OR: [
+            { project: { workspaceId } },
+            { projectId: null, creatorId: userId },
+          ],
         },
       },
       include: {
@@ -58,8 +67,8 @@ export async function GET(req: Request) {
       projectId: comment.task.projectId,
       createdAt: comment.createdAt.toISOString(),
       author: {
-        name: comment.author.name || "Unknown",
-        image: comment.author.image,
+        name: comment.author?.name || "Unknown",
+        image: comment.author?.image || null,
       },
     }));
 

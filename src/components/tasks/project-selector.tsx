@@ -98,7 +98,7 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
 
   return (
     <div className="space-y-2">
-      {/* Proyecto asignado */}
+      {/* Assigned project */}
       {value && (
         <div className="flex items-center justify-between py-1.5 hover:bg-gray-50 rounded group">
           <div className="flex items-center gap-2">
@@ -136,8 +136,8 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
         </div>
       )}
 
-      {/* Sin proyecto: mostrar link "+ Add to projects" */}
-      {/* Con proyecto: mostrar input para agregar más */}
+      {/* No project: show "+ Add to projects" link */}
+      {/* With project: show input to add more */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           {value ? (
@@ -160,7 +160,7 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
           align="start"
           sideOffset={4}
         >
-          {/* Lista de proyectos disponibles */}
+          {/* Available projects list */}
           <div className="max-h-[240px] overflow-y-auto py-1">
             {loading && (
               <div className="px-3 py-4 text-sm text-gray-500 text-center">

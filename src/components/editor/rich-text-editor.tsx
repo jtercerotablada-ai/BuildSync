@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useCallback, useRef, useState } from 'react';
+import DOMPurify from 'dompurify';
 import {
   Plus,
   Bold,
@@ -223,7 +224,7 @@ export function RichTextEditor({
   // Load initial content
   useEffect(() => {
     if (editorRef.current && initialContent) {
-      editorRef.current.innerHTML = initialContent;
+      editorRef.current.innerHTML = DOMPurify.sanitize(initialContent);
       contentRef.current = initialContent;
       setIsEmpty(!initialContent || initialContent === '<br>');
     }
@@ -678,7 +679,7 @@ export function RichTextEditor({
     return (
       <div
         className={cn('rich-text-editor-readonly', className)}
-        dangerouslySetInnerHTML={{ __html: initialContent }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(initialContent) }}
       />
     );
   }

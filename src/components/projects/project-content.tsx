@@ -99,7 +99,7 @@ interface Project {
     name: string | null;
     email: string | null;
     image: string | null;
-  };
+  } | null;
   members: {
     userId: string;
     role: string;
@@ -296,14 +296,14 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
 
   const status = statusConfig[project.status as keyof typeof statusConfig] || statusConfig.ON_TRACK;
 
-  // Show toolbar only for task views
-  const showToolbar = ["list", "board", "timeline", "calendar"].includes(currentView);
+  // Show toolbar only for task views (not calendar - it has its own)
+  const showToolbar = ["list", "board", "timeline"].includes(currentView);
 
   return (
     <div className="h-full flex flex-col">
       {/* Portfolio Breadcrumb */}
       {project.portfolio && (
-        <div className="px-6 py-2 text-sm text-slate-500 border-b bg-slate-50">
+        <div className="px-6 py-1.5 text-xs text-slate-500 border-b bg-slate-50">
           <Link
             href={`/portfolios/${project.portfolio.id}`}
             className="hover:text-slate-700 hover:underline"
@@ -314,8 +314,8 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
       )}
 
       {/* Project Header */}
-      <div className="border-b bg-white px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
+      <div className="border-b bg-white px-6 py-2">
+        <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-3">
             {/* Project Icon */}
             <div
@@ -328,7 +328,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             {/* Project Name with Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-1 text-xl font-semibold text-slate-900 hover:text-slate-700">
+                <button className="flex items-center gap-1 text-base font-semibold text-slate-900 hover:text-slate-700">
                   {project.name}
                   <ChevronDown className="h-4 w-4 text-slate-400" />
                 </button>
@@ -343,7 +343,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                       body: JSON.stringify({ name: newName }),
                     }).then(res => {
                       if (res.ok) { toast.success('Project renamed'); window.location.reload(); }
-                    });
+                    }).catch(() => toast.error("Operation failed"));
                   }
                 }}>
                   <Edit2 className="h-4 w-4 mr-2" />
@@ -356,7 +356,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                     body: JSON.stringify({ name: `${project.name} (copy)`, color: project.color, description: project.description }),
                   }).then(async res => {
                     if (res.ok) { const data = await res.json(); toast.success('Project duplicated'); router.push(`/projects/${data.id}`); }
-                  });
+                  }).catch(() => toast.error("Operation failed"));
                 }}>
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicate
@@ -368,8 +368,8 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'ARCHIVED' }),
                   }).then(res => {
-                    if (res.ok) { toast.success('Project archived'); router.push('/'); }
-                  });
+                    if (res.ok) { toast.success('Project archived'); router.push('/home'); }
+                  }).catch(() => toast.error("Operation failed"));
                 }}>
                   <Archive className="h-4 w-4 mr-2" />
                   Archive
@@ -377,8 +377,8 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                 <DropdownMenuItem className="text-red-600" onClick={() => {
                   if (confirm('Delete this project? This cannot be undone.')) {
                     fetch(`/api/projects/${project.id}`, { method: 'DELETE' }).then(res => {
-                      if (res.ok) { toast.success('Project deleted'); router.push('/'); }
-                    });
+                      if (res.ok) { toast.success('Project deleted'); router.push('/home'); }
+                    }).catch(() => toast.error("Operation failed"));
                   }
                 }}>
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -418,7 +418,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               ))}
               {project.members.length === 0 && (
                 <div className="w-8 h-8 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center text-sm font-medium text-white">
-                  {project.owner.name?.[0] || "?"}
+                  {project.owner?.name?.[0] || "?"}
                 </div>
               )}
             </div>
@@ -459,7 +459,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           <div className="flex items-center gap-1 overflow-x-auto">
             <button
               onClick={() => handleViewChange("overview")}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "overview"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -470,7 +470,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("list")}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "list"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -481,7 +481,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("board")}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "board"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -492,7 +492,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("timeline")}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "timeline"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -503,7 +503,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("dashboard")}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "dashboard"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -514,7 +514,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("calendar")}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "calendar"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -525,7 +525,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("workflow")}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "workflow"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -536,7 +536,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("messages")}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "messages"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -547,7 +547,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("files")}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "files"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -721,8 +721,8 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
       </div>
 
       {/* View Content */}
-      <div className="flex-1 overflow-hidden flex bg-white">
-        <div className="flex-1 overflow-auto bg-white">
+      <div className="flex-1 overflow-hidden flex">
+        <div className={cn("flex-1 flex flex-col", currentView !== "calendar" && currentView !== "board" && "overflow-auto")}>
           {currentView === "overview" && (
             <ProjectOverview project={project} />
           )}
@@ -801,20 +801,6 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
         projectId={project.id}
         sectionId={selectedSectionId || undefined}
       />
-    </div>
-  );
-}
-
-function ComingSoon({ view }: { view: string }) {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <div className="text-center">
-        <div className="rounded-full bg-slate-100 p-4 mx-auto w-fit mb-4">
-          <GanttChart className="h-8 w-8 text-slate-400" />
-        </div>
-        <h3 className="font-medium text-slate-900">{view} view</h3>
-        <p className="text-sm text-slate-500 mt-1">This view is under development</p>
-      </div>
     </div>
   );
 }

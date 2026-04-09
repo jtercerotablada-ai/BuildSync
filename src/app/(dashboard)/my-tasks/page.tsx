@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,9 @@ import {
   Printer,
   Diamond,
   ThumbsUp,
+  GripVertical,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   GoogleCalendarIcon,
@@ -85,8 +88,32 @@ import { CustomFieldModal, type CreatedFieldInfo } from "@/components/tasks/cust
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ColumnHeader, COLUMN_CONFIGS, type ColumnConfig } from "@/components/tasks/column-header-dropdown";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { AssigneeSelector } from "@/components/tasks/assignee-selector";
+import { DueDatePicker } from "@/components/tasks/due-date-picker";
+import { ProjectSelector } from "@/components/tasks/project-selector";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  MeasuringStrategy,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { kanbanCollisionDetection } from "@/lib/kanban-collision-detection";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -105,6 +132,7 @@ interface Task {
   project: { id: string; name: string; color: string } | null;
   section: { id: string; name: string } | null;
   subtasks?: { id: string; name: string; completed: boolean }[];
+  myTaskSection: "DO_TODAY" | "DO_NEXT_WEEK" | "DO_LATER" | null;
   _count: { subtasks: number; comments: number; attachments: number };
 }
 
@@ -153,11 +181,121 @@ export default function MyTasksPage() {
   const [initialTab, setInitialTab] = useState<"create" | "library">("create");
   const [customColumns, setCustomColumns] = useState<{ id: string; name: string; type: string; color: string }[]>([]);
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [showCalendarSync, setShowCalendarSync] = useState(false);
+  const [calendarSyncType, setCalendarSyncType] = useState<"outlook" | "google" | "ical">("outlook");
+  const [showGoogleSheetsHelp, setShowGoogleSheetsHelp] = useState(false);
+  const [calendarFeedUrl, setCalendarFeedUrl] = useState("");
+  const [calendarFeedLoading, setCalendarFeedLoading] = useState(false);
   const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+    dueDate: 110,
+    collaborators: 110,
+    projects: 160,
+    visibility: 110,
+  });
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+
+  // Sync CSS variables from React state
+  useEffect(() => {
+    const el = listContainerRef.current;
+    if (!el) return;
+    el.style.setProperty("--col-dueDate", `${columnWidths.dueDate}px`);
+    el.style.setProperty("--col-collaborators", `${columnWidths.collaborators}px`);
+    el.style.setProperty("--col-projects", `${columnWidths.projects}px`);
+    el.style.setProperty("--col-visibility", `${columnWidths.visibility}px`);
+  }, [columnWidths]);
+
+  // Double-click on any resize handle → reset all columns to defaults
+  const handleResizeReset = useCallback(() => {
+    const defaults = { dueDate: 110, collaborators: 110, projects: 160, visibility: 110 };
+    setColumnWidths(defaults);
+    const el = listContainerRef.current;
+    if (el) {
+      el.style.setProperty("--col-dueDate", "110px");
+      el.style.setProperty("--col-collaborators", "110px");
+      el.style.setProperty("--col-projects", "160px");
+      el.style.setProperty("--col-visibility", "110px");
+    }
+  }, []);
+
+  // Paired column resize: dragging a border adjusts the column on the LEFT and the column on the RIGHT inversely
+  // leftColId = column to the left of the border (gets wider when dragging right)
+  // rightColId = column to the right of the border (gets narrower when dragging right)
+  // Either can be null (e.g. leftmost border has no left col, rightmost has no right col)
+  const handleResizeStart = useCallback((e: React.MouseEvent, leftColId: string | null, rightColId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const el = listContainerRef.current;
+
+    const leftStart = leftColId && el
+      ? parseFloat(getComputedStyle(el).getPropertyValue(`--col-${leftColId}`)) || 110
+      : null;
+    const rightStart = rightColId && el
+      ? parseFloat(getComputedStyle(el).getPropertyValue(`--col-${rightColId}`)) || 110
+      : null;
+
+    setResizingColumn(leftColId || rightColId);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startX;
+      if (!el) return;
+      // Left column grows with positive delta, right column shrinks
+      if (leftColId && leftStart !== null) {
+        el.style.setProperty(`--col-${leftColId}`, `${Math.max(60, leftStart + delta)}px`);
+      }
+      if (rightColId && rightStart !== null) {
+        el.style.setProperty(`--col-${rightColId}`, `${Math.max(60, rightStart - delta)}px`);
+      }
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      setResizingColumn(null);
+      const delta = upEvent.clientX - startX;
+      setColumnWidths(prev => {
+        const next = { ...prev };
+        if (leftColId && leftStart !== null) next[leftColId] = Math.max(60, leftStart + delta);
+        if (rightColId && rightStart !== null) next[rightColId] = Math.max(60, rightStart - delta);
+        return next;
+      });
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, []);
 
   useEffect(() => {
     fetchTasks();
   }, []);
+
+  // Calendar feed URL helpers
+  async function fetchCalendarFeedUrl() {
+    setCalendarFeedLoading(true);
+    try {
+      const res = await fetch("/api/my-tasks/calendar-feed/url");
+      if (res.ok) {
+        const data = await res.json();
+        setCalendarFeedUrl(data.url);
+      }
+    } catch {
+      toast.error("Failed to generate calendar feed URL");
+    } finally {
+      setCalendarFeedLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (showCalendarSync && !calendarFeedUrl) {
+      fetchCalendarFeedUrl();
+    }
+  }, [showCalendarSync]);
 
   // Sync group configs → existing organizeTasks groupType
   function handleGroupConfigsChange(newConfigs: GroupConfig[]) {
@@ -185,14 +323,20 @@ export default function MyTasksPage() {
     }
   }
 
-  async function fetchTasks() {
-    setLoading(true);
+  const initialLoadDoneRef = useRef(false);
+
+  async function fetchTasks(silent = false) {
+    // Only show loading spinner on initial load, not re-fetches
+    if (!silent && !initialLoadDoneRef.current) {
+      setLoading(true);
+    }
     try {
       const res = await fetch("/api/tasks?myTasks=true");
       if (res.ok) {
         const data = await res.json();
         setTasks(data);
         organizeTasks(data);
+        initialLoadDoneRef.current = true;
       }
     } catch (error) {
       console.error("Error fetching tasks:", error);
@@ -203,7 +347,8 @@ export default function MyTasksPage() {
 
   function organizeTasks(taskList: Task[], group?: string) {
     const activeGroup = group || groupType;
-    const activeTasks = taskList.filter((t) => !t.completed);
+    // Don't filter out completed tasks here - let the filter system handle visibility
+    const activeTasks = taskList;
 
     if (activeGroup === "project") {
       const byProject = new Map<string, Task[]>();
@@ -216,7 +361,7 @@ export default function MyTasksPage() {
       const result: SmartSection[] = [];
       byProject.forEach((tasks, key) => {
         if (tasks.length === 0) return;
-        const name = key === "no-project" ? "Sin proyecto" : tasks[0].project?.name || "Desconocido";
+        const name = key === "no-project" ? "No project" : tasks[0].project?.name || "Unknown";
         result.push({ id: key, name, collapsed: false, tasks });
       });
       setSections(result);
@@ -225,7 +370,7 @@ export default function MyTasksPage() {
 
     if (activeGroup === "priority") {
       const priorities = ["HIGH", "MEDIUM", "LOW", "NONE"] as const;
-      const labels = { HIGH: "Prioridad alta", MEDIUM: "Prioridad media", LOW: "Prioridad baja", NONE: "Sin prioridad" };
+      const labels = { HIGH: "High priority", MEDIUM: "Medium priority", LOW: "Low priority", NONE: "No priority" };
       const result: SmartSection[] = priorities.map((p) => ({
         id: p,
         name: labels[p],
@@ -237,15 +382,16 @@ export default function MyTasksPage() {
     }
 
     if (activeGroup === "none") {
-      setSections([{ id: "all", name: "Todas las tareas", collapsed: false, tasks: activeTasks }]);
+      setSections([{ id: "all", name: "All tasks", collapsed: false, tasks: activeTasks }]);
       return;
     }
 
-    // Default: group by due date
+    // Default: group by myTaskSection (explicit override) or fall back to due date
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const nextWeekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
+    nextWeekEnd.setHours(23, 59, 59, 999);
 
     const recentlyAssigned: Task[] = [];
     const doToday: Task[] = [];
@@ -253,13 +399,21 @@ export default function MyTasksPage() {
     const doLater: Task[] = [];
 
     activeTasks.forEach((task) => {
+      // If myTaskSection is explicitly set, use it (user manually moved the task)
+      if (task.myTaskSection) {
+        if (task.myTaskSection === "DO_TODAY") doToday.push(task);
+        else if (task.myTaskSection === "DO_NEXT_WEEK") doNextWeek.push(task);
+        else if (task.myTaskSection === "DO_LATER") doLater.push(task);
+        return;
+      }
+      // Fall back to due date classification for tasks without explicit section
       if (!task.dueDate) {
         recentlyAssigned.push(task);
       } else {
         const dueDate = new Date(task.dueDate);
-        if (dueDate <= today) {
+        if (dueDate <= todayEnd) {
           doToday.push(task);
-        } else if (dueDate <= nextWeek) {
+        } else if (dueDate <= nextWeekEnd) {
           doNextWeek.push(task);
         } else {
           doLater.push(task);
@@ -267,11 +421,14 @@ export default function MyTasksPage() {
       }
     });
 
+    // Keep sections that were empty in previous state (don't collapse them)
+    // This prevents sections from disappearing and reappearing during moves
+
     setSections([
-      { id: "recently-assigned", name: "Asignadas recientemente", collapsed: false, tasks: recentlyAssigned },
-      { id: "do-today", name: "Para hacer hoy", collapsed: false, tasks: doToday },
-      { id: "do-next-week", name: "Para hacer la próxima semana", collapsed: false, tasks: doNextWeek },
-      { id: "do-later", name: "Para hacer más tarde", collapsed: false, tasks: doLater },
+      { id: "recently-assigned", name: "Recently assigned", collapsed: false, tasks: recentlyAssigned },
+      { id: "do-today", name: "Do today", collapsed: false, tasks: doToday },
+      { id: "do-next-week", name: "Do next week", collapsed: false, tasks: doNextWeek },
+      { id: "do-later", name: "Do later", collapsed: false, tasks: doLater },
     ]);
   }
 
@@ -286,7 +443,7 @@ export default function MyTasksPage() {
     setSections((prev) => [...prev, newSection]);
     setNewSectionName("");
     setIsAddingSection(false);
-    toast.success(`Sección "${newSection.name}" agregada`);
+    toast.success(`Section "${newSection.name}" added`);
   }
 
   // Helper: check if a date is within a given range label
@@ -477,7 +634,7 @@ export default function MyTasksPage() {
         body: JSON.stringify({ completed: !task.completed }),
       });
       if (res.ok) {
-        fetchTasks();
+        fetchTasks(true);
       }
     } catch (error) {
       console.error("Error toggling task:", error);
@@ -488,30 +645,24 @@ export default function MyTasksPage() {
     if (!name.trim()) return false;
 
     try {
-      let dueDate: string | null = null;
-      const now = new Date();
-
-      if (sectionId === "do-today") {
-        dueDate = now.toISOString();
-      } else if (sectionId === "do-next-week") {
-        const nextWeek = new Date(now);
-        nextWeek.setDate(nextWeek.getDate() + 7);
-        dueDate = nextWeek.toISOString();
-      } else if (sectionId === "do-later") {
-        const later = new Date(now);
-        later.setDate(later.getDate() + 14);
-        dueDate = later.toISOString();
-      }
+      // Map virtual section IDs to myTaskSection enum values
+      // This creates tasks WITHOUT fake due dates — the section is stored independently
+      const sectionMap: Record<string, string | null> = {
+        "do-today": "DO_TODAY",
+        "do-next-week": "DO_NEXT_WEEK",
+        "do-later": "DO_LATER",
+      };
+      const myTaskSection = sectionMap[sectionId] ?? null;
 
       // API auto-assigns to current user when no assigneeId provided
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, dueDate, taskType }),
+        body: JSON.stringify({ name, taskType, myTaskSection }),
       });
 
       if (res.ok) {
-        await fetchTasks();
+        await fetchTasks(true);
         return true;
       }
       return false;
@@ -538,26 +689,26 @@ export default function MyTasksPage() {
     thisWeekEnd.setDate(thisWeekEnd.getDate() + (7 - today.getDay()));
 
     if (date < today) {
-      return { text: date.toLocaleDateString("es-ES", { month: "short", day: "numeric" }), className: "text-red-600" };
+      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-red-600" };
     } else if (date.toDateString() === today.toDateString()) {
-      return { text: "Hoy", className: "text-green-600" };
+      return { text: "Today", className: "text-green-600" };
     } else if (date.toDateString() === tomorrow.toDateString()) {
-      return { text: "Mañana", className: "text-yellow-600" };
+      return { text: "Tomorrow", className: "text-yellow-600" };
     } else if (date <= thisWeekEnd) {
-      return { text: date.toLocaleDateString("es-ES", { weekday: "long" }), className: "text-gray-700" };
+      return { text: date.toLocaleDateString("en-US", { weekday: "long" }), className: "text-gray-700" };
     } else {
-      return { text: date.toLocaleDateString("es-ES", { month: "short", day: "numeric" }), className: "text-gray-500" };
+      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-gray-500" };
     }
   }
 
   function handleExportCSV() {
-    const rows = [["Nombre", "Fecha de entrega", "Prioridad", "Estado", "Proyecto"]];
+    const rows = [["Name", "Due date", "Priority", "Status", "Project"]];
     tasks.forEach((t) => {
       rows.push([
         t.name,
-        t.dueDate ? new Date(t.dueDate).toLocaleDateString("es-ES") : "",
+        t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-US") : "",
         t.priority,
-        t.completed ? "Completada" : "Sin completar",
+        t.completed ? "Completed" : "Incomplete",
         t.project?.name || "",
       ]);
     });
@@ -576,11 +727,11 @@ export default function MyTasksPage() {
   }
 
   const viewTabs = [
-    { id: "list", label: "Lista", icon: List },
-    { id: "board", label: "Tablero", icon: Columns },
-    { id: "calendar", label: "Calendario", icon: Calendar },
-    { id: "dashboard", label: "Panel", icon: BarChart3 },
-    { id: "files", label: "Archivos", icon: FileText },
+    { id: "list", label: "List", icon: List },
+    { id: "board", label: "Board", icon: Columns },
+    { id: "calendar", label: "Calendar", icon: Calendar },
+    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "files", label: "Files", icon: FileText },
   ];
 
   return (
@@ -596,7 +747,7 @@ export default function MyTasksPage() {
                   {session?.user?.name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-xl font-semibold text-gray-900 leading-none">Mis tareas</span>
+              <span className="text-xl font-semibold text-gray-900 leading-none">My tasks</span>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
             </button>
           </DropdownMenuTrigger>
@@ -610,47 +761,50 @@ export default function MyTasksPage() {
               className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-gray-500 flex-shrink-0" />
-              Agregar tareas por IA
+              Add tasks with AI
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setShowAddTasksEmail(true)}
               className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
             >
               <Mail className="w-4 h-4 text-gray-500 flex-shrink-0" />
-              Agregar tareas por email...
+              Add tasks by email...
             </DropdownMenuItem>
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] data-[state=open]:bg-black/[0.04] cursor-pointer [&>svg:last-child]:w-3.5 [&>svg:last-child]:h-3.5 [&>svg:last-child]:text-gray-400">
                 <ArrowLeftRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                Sincronizar/exportar
+                Sync/export
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent
                 sideOffset={6}
                 className="min-w-[320px] rounded-[10px] border-0 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
               >
                 <DropdownMenuItem
-                  onClick={() => toast.info("Sincronización con el calendario de Outlook próximamente")}
+                  onClick={() => { setCalendarSyncType("outlook"); setShowCalendarSync(true); }}
                   className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
                 >
                   <span className="w-6 flex items-center justify-center flex-shrink-0"><OutlookCalendarIcon /></span>
-                  Sincronizar con el calendario de Outlook
+                  Sync with Outlook calendar
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => toast.info("Sincronización con Google Calendar próximamente")}
+                  onClick={() => { setCalendarSyncType("google"); setShowCalendarSync(true); }}
                   className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
                 >
                   <span className="w-6 flex items-center justify-center flex-shrink-0"><GoogleCalendarIcon /></span>
                   Google Calendar
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => toast.info("Exportar a iCal próximamente")}
+                  onClick={() => { setCalendarSyncType("ical"); setShowCalendarSync(true); }}
                   className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
                 >
                   <span className="w-6 flex items-center justify-center flex-shrink-0"><ICalIcon className="text-gray-500" /></span>
-                  iCal y otros calendarios
+                  iCal and other calendars
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => toast.info("Exportar a Google Sheets próximamente")}
+                  onClick={() => {
+                    handleExportCSV();
+                    setShowGoogleSheetsHelp(true);
+                  }}
                   className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
                 >
                   <span className="w-6 flex items-center justify-center flex-shrink-0"><GoogleSheetsIcon /></span>
@@ -668,7 +822,7 @@ export default function MyTasksPage() {
                   className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
                 >
                   <span className="w-6 flex items-center justify-center flex-shrink-0"><Printer className="w-4 h-4 text-gray-500" /></span>
-                  Imprimir
+                  Print
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -680,7 +834,7 @@ export default function MyTasksPage() {
             className="flex items-center gap-1.5 px-3 h-8 text-[13px] font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
           >
             <Share2 className="w-3.5 h-3.5" />
-            Compartir
+            Share
           </button>
           <button
             onClick={() => {
@@ -697,7 +851,7 @@ export default function MyTasksPage() {
             )}
           >
             <Settings className="w-3.5 h-3.5" />
-            Flujo de trabajo
+            Workflow
           </button>
         </div>
       </div>
@@ -725,19 +879,19 @@ export default function MyTasksPage() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => setView("list")}><List className="w-4 h-4 mr-2" />Vista de lista</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView("board")}><Columns className="w-4 h-4 mr-2" />Vista de tablero</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView("calendar")}><Calendar className="w-4 h-4 mr-2" />Vista de calendario</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView("dashboard")}><BarChart3 className="w-4 h-4 mr-2" />Vista de panel</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("list")}><List className="w-4 h-4 mr-2" />List view</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("board")}><Columns className="w-4 h-4 mr-2" />Board view</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("calendar")}><Calendar className="w-4 h-4 mr-2" />Calendar view</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setView("dashboard")}><BarChart3 className="w-4 h-4 mr-2" />Dashboard view</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       {/* TOOLBAR — no bottom border; gray band below provides separation */}
       <div className="flex items-center justify-between px-6" style={{ height: "var(--toolbar-h, 42px)" }}>
-        {/* LEFT: Filled Add task split button (Asana-style) */}
+        {/* LEFT: Filled Add task split button (Asana-style) — hidden on dashboard/files views */}
         <div className="flex items-center">
-          <div className="inline-flex items-center h-8 rounded-md overflow-hidden bg-black text-white">
+          {(view === "list" || view === "board" || view === "calendar") && <div className="inline-flex items-center h-8 rounded-md overflow-hidden bg-black text-white">
             <button
               onClick={() => {
                 // Activate inline creation on the first section
@@ -750,7 +904,7 @@ export default function MyTasksPage() {
               className="flex items-center gap-1.5 px-3 h-full text-[13px] font-medium hover:bg-gray-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              Agregar tarea
+              Add task
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -773,9 +927,9 @@ export default function MyTasksPage() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Check className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    Tarea
+                    Task
                   </span>
-                  <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">Predeterminado</span>
+                  <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">Default</span>
                 </DropdownMenuItem>
 
                 {/* Approval */}
@@ -787,7 +941,7 @@ export default function MyTasksPage() {
                   className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
                 >
                   <ThumbsUp className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                  Aprobación
+                  Approval
                 </DropdownMenuItem>
 
                 {/* Milestone */}
@@ -800,7 +954,7 @@ export default function MyTasksPage() {
                 >
                   <span className="flex items-center gap-2.5">
                     <Diamond className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    Hito
+                    Milestone
                   </span>
                   <span className="flex items-center gap-1">
                     <kbd className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded min-w-[20px] text-center">Shift</kbd>
@@ -818,7 +972,7 @@ export default function MyTasksPage() {
                 >
                   <span className="flex items-center gap-2.5">
                     <FolderPlus className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                    Sección
+                    Section
                   </span>
                   <span className="flex items-center gap-1">
                     <kbd className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded min-w-[20px] text-center">Tab</kbd>
@@ -827,11 +981,42 @@ export default function MyTasksPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </div>}
         </div>
 
-        {/* RIGHT: Filter / Sort / Group / Options + Search icon */}
+        {/* RIGHT: Filter / Sort / Group / Options + Search — only for list/board/calendar */}
         <div className="flex items-center gap-0.5">
+          {(view === "dashboard") ? (
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-1 px-2 h-7 text-[13px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors">
+                    <Plus className="w-3.5 h-3.5" />
+                    Add widget
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={4}>
+                  <DropdownMenuItem onClick={() => toast.info("Tasks by section widget added")}>Tasks by section</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info("Completion chart widget added")}>Completion chart</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info("Tasks by project widget added")}>Tasks by project</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => toast.info("Completion timeline widget added")}>Completion timeline</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <button
+                onClick={() => toast.info("Send us feedback at feedback@buildsync.com")}
+                className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors px-2 h-7"
+              >
+                Send feedback
+              </button>
+            </div>
+          ) : (view === "files") ? (
+            <button
+              onClick={() => toast.info("Send us feedback at feedback@buildsync.com")}
+              className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors px-2 h-7"
+            >
+              Send feedback
+            </button>
+          ) : <>
           {/* Filter button — toggles floating FilterPanel */}
           {(() => {
             const filterCount = quickFilters.length + activeFilters.filter((f) => f.value || ["is_set", "is_not_set"].includes(f.operator)).length;
@@ -847,7 +1032,7 @@ export default function MyTasksPage() {
                 )}
               >
                 <Filter className="w-4 h-4" />
-                Filtrar{filterCount > 0 ? ` (${filterCount})` : ""}
+                Filter{filterCount > 0 ? ` (${filterCount})` : ""}
               </button>
             );
           })()}
@@ -863,7 +1048,7 @@ export default function MyTasksPage() {
             )}
           >
             <ArrowUpDown className="w-4 h-4" />
-            Ordenar{sortState.field !== "none" ? " (1)" : ""}
+            Sort{sortState.field !== "none" ? " (1)" : ""}
           </button>
           {/* Group button — toggles floating GroupPanel */}
           <button
@@ -877,7 +1062,7 @@ export default function MyTasksPage() {
             )}
           >
             <LayoutGrid className="w-4 h-4" />
-            Agrupar
+            Group
           </button>
           <button
             onClick={() => {
@@ -903,7 +1088,7 @@ export default function MyTasksPage() {
                 <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Buscar nombres de tareas"
+                  placeholder="Search task names"
                   className="pl-7 pr-2 w-48 h-8 text-[13px] border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-black/10 placeholder:text-gray-400"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -925,7 +1110,7 @@ export default function MyTasksPage() {
                     className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-gray-700 hover:bg-gray-100 rounded-md transition-colors whitespace-nowrap"
                   >
                     <Search className="w-3.5 h-3.5 text-gray-400" />
-                    Ir a la búsqueda avanzada
+                    Go to advanced search
                   </button>
                 </PopoverContent>
               </Popover>
@@ -938,19 +1123,32 @@ export default function MyTasksPage() {
               <Search className="w-4 h-4" />
             </button>
           )}
+          </>}
         </div>
       </div>
 
-      {/* COLUMN HEADERS - Only show in List view */}
-      {view === "list" && (
+      {/* CONTENT */}
+      <div className="flex-1 overflow-hidden flex">
         <div
-          className="flex items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 sticky top-0 z-10"
-          style={{ height: "var(--col-header-h, 32px)" }}
+          ref={listContainerRef}
+          className="flex-1 overflow-hidden flex flex-col min-w-0"
+          style={{
+            "--col-dueDate": `${columnWidths.dueDate}px`,
+            "--col-collaborators": `${columnWidths.collaborators}px`,
+            "--col-projects": `${columnWidths.projects}px`,
+            "--col-visibility": `${columnWidths.visibility}px`,
+          } as React.CSSProperties}
         >
+          {/* COLUMN HEADERS - Only show in List view */}
+          {view === "list" && (
+            <div
+              className="flex items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0"
+              style={{ height: "var(--col-header-h, 32px)" }}
+            >
           {/* Checkbox spacer */}
           <div className="w-8 flex-shrink-0" />
 
-          {/* Nombre de la tarea */}
+          {/* Task name */}
           <ColumnHeader
             config={{ id: "name", ...COLUMN_CONFIGS.name }}
             isDropdownOpen={openColumnDropdown === "name"}
@@ -963,77 +1161,128 @@ export default function MyTasksPage() {
                 handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
               },
               onAddColumn: () => setShowCustomFieldModal(true),
-              onMoveLeft: () => toast("Ya es la primera columna"),
-              onMoveRight: () => toast.success("Columna movida a la derecha"),
-              onHideColumn: () => toast("No se puede ocultar la columna Nombre"),
+              onMoveLeft: () => toast("Already the first column"),
+              onMoveRight: () => toast.success("Column moved right"),
+              onHideColumn: () => toast("Cannot hide the Name column"),
               onOpenCustomField: () => setShowCustomFieldModal(true),
             }}
           />
 
-          {/* Fecha de entrega */}
-          <ColumnHeader
-            config={{ id: "dueDate", ...COLUMN_CONFIGS.dueDate }}
-            isDropdownOpen={openColumnDropdown === "dueDate"}
-            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "dueDate" ? null : "dueDate")}
-            callbacks={{
-              onSortAsc: () => setSortState({ field: "due_date", direction: "asc" }),
-              onSortDesc: () => setSortState({ field: "due_date", direction: "desc" }),
-              onFilter: () => setFilterPanelOpen(true),
-              onGroupBy: (field) => {
-                handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
-              },
-              onAddColumn: () => setShowCustomFieldModal(true),
-              onMoveLeft: () => toast.success("Columna movida a la izquierda"),
-              onMoveRight: () => toast.success("Columna movida a la derecha"),
-              onHideColumn: () => toast.success("Columna ocultada"),
-              onOpenCustomField: () => setShowCustomFieldModal(true),
-            }}
-          />
+          {/* Due date — left handle: border with Task name, right handle: border with Collaborators */}
+          <div className="relative flex-shrink-0" style={{ width: "var(--col-dueDate)", minWidth: 60 }}>
+            {/* Left border handle: drag to resize Due date (Task name auto-adjusts via flex) */}
+            <div
+              onMouseDown={(e) => handleResizeStart(e, null, "dueDate")}
+              onDoubleClick={handleResizeReset}
+              className={cn(
+                "absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30 transition-colors",
+                resizingColumn === "dueDate" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
+              )}
+            />
+            <ColumnHeader
+              config={{ id: "dueDate", ...COLUMN_CONFIGS.dueDate, width: "100%", minWidth: "100%" }}
+              isDropdownOpen={openColumnDropdown === "dueDate"}
+              onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "dueDate" ? null : "dueDate")}
+              callbacks={{
+                onSortAsc: () => setSortState({ field: "due_date", direction: "asc" }),
+                onSortDesc: () => setSortState({ field: "due_date", direction: "desc" }),
+                onFilter: () => setFilterPanelOpen(true),
+                onGroupBy: (field) => {
+                  handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
+                },
+                onAddColumn: () => setShowCustomFieldModal(true),
+                onMoveLeft: () => toast.success("Column moved left"),
+                onMoveRight: () => toast.success("Column moved right"),
+                onHideColumn: () => toast.success("Column hidden"),
+                onOpenCustomField: () => setShowCustomFieldModal(true),
+              }}
+            />
+          </div>
 
-          {/* Colaboradores */}
-          <ColumnHeader
-            config={{ id: "collaborators", ...COLUMN_CONFIGS.collaborators }}
-            isDropdownOpen={openColumnDropdown === "collaborators"}
-            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "collaborators" ? null : "collaborators")}
-            callbacks={{
-              onAddColumn: () => setShowCustomFieldModal(true),
-              onMoveLeft: () => toast.success("Columna movida a la izquierda"),
-              onMoveRight: () => toast.success("Columna movida a la derecha"),
-              onHideColumn: () => toast.success("Columna ocultada"),
-            }}
-          />
+          {/* Collaborators — left handle: border with Due date */}
+          <div className="relative flex-shrink-0" style={{ width: "var(--col-collaborators)", minWidth: 60 }}>
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "dueDate", "collaborators")}
+              onDoubleClick={handleResizeReset}
+              className={cn(
+                "absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30 transition-colors",
+                resizingColumn === "dueDate" || resizingColumn === "collaborators" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
+              )}
+            />
+            <ColumnHeader
+              config={{ id: "collaborators", ...COLUMN_CONFIGS.collaborators, width: "100%", minWidth: "100%" }}
+              isDropdownOpen={openColumnDropdown === "collaborators"}
+              onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "collaborators" ? null : "collaborators")}
+              callbacks={{
+                onAddColumn: () => setShowCustomFieldModal(true),
+                onMoveLeft: () => toast.success("Column moved left"),
+                onMoveRight: () => toast.success("Column moved right"),
+                onHideColumn: () => toast.success("Column hidden"),
+              }}
+            />
+          </div>
 
-          {/* Proyectos */}
-          <ColumnHeader
-            config={{ id: "projects", ...COLUMN_CONFIGS.projects }}
-            isDropdownOpen={openColumnDropdown === "projects"}
-            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "projects" ? null : "projects")}
-            callbacks={{
-              onSortAsc: () => setSortState({ field: "project", direction: "asc" }),
-              onSortDesc: () => setSortState({ field: "project", direction: "desc" }),
-              onGroupBy: (field) => {
-                handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
-              },
-              onAddColumn: () => setShowCustomFieldModal(true),
-              onMoveLeft: () => toast.success("Columna movida a la izquierda"),
-              onMoveRight: () => toast.success("Columna movida a la derecha"),
-              onHideColumn: () => toast.success("Columna ocultada"),
-              onOpenCustomField: () => setShowCustomFieldModal(true),
-            }}
-          />
+          {/* Projects — left handle: border with Collaborators */}
+          <div className="relative flex-shrink-0" style={{ width: "var(--col-projects)", minWidth: 60 }}>
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "collaborators", "projects")}
+              onDoubleClick={handleResizeReset}
+              className={cn(
+                "absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30 transition-colors",
+                resizingColumn === "collaborators" || resizingColumn === "projects" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
+              )}
+            />
+            <ColumnHeader
+              config={{ id: "projects", ...COLUMN_CONFIGS.projects, width: "100%", minWidth: "100%" }}
+              isDropdownOpen={openColumnDropdown === "projects"}
+              onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "projects" ? null : "projects")}
+              callbacks={{
+                onSortAsc: () => setSortState({ field: "project", direction: "asc" }),
+                onSortDesc: () => setSortState({ field: "project", direction: "desc" }),
+                onGroupBy: (field) => {
+                  handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
+                },
+                onAddColumn: () => setShowCustomFieldModal(true),
+                onMoveLeft: () => toast.success("Column moved left"),
+                onMoveRight: () => toast.success("Column moved right"),
+                onHideColumn: () => toast.success("Column hidden"),
+                onOpenCustomField: () => setShowCustomFieldModal(true),
+              }}
+            />
+          </div>
 
-          {/* Visibilidad */}
-          <ColumnHeader
-            config={{ id: "visibility", ...COLUMN_CONFIGS.visibility }}
-            isDropdownOpen={openColumnDropdown === "visibility"}
-            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "visibility" ? null : "visibility")}
-            callbacks={{
-              onAddColumn: () => setShowCustomFieldModal(true),
-              onMoveLeft: () => toast.success("Columna movida a la izquierda"),
-              onMoveRight: () => toast("Ya es la última columna"),
-              onHideColumn: () => toast.success("Columna ocultada"),
-            }}
-          />
+          {/* Visibility — left handle: border with Projects, right handle: right edge */}
+          <div className="relative flex-shrink-0" style={{ width: "var(--col-visibility)", minWidth: 60 }}>
+            {/* Left border: Projects ↔ Visibility */}
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "projects", "visibility")}
+              onDoubleClick={handleResizeReset}
+              className={cn(
+                "absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30 transition-colors",
+                resizingColumn === "projects" || resizingColumn === "visibility" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
+              )}
+            />
+            <ColumnHeader
+              config={{ id: "visibility", ...COLUMN_CONFIGS.visibility, width: "100%", minWidth: "100%" }}
+              isDropdownOpen={openColumnDropdown === "visibility"}
+              onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "visibility" ? null : "visibility")}
+              callbacks={{
+                onAddColumn: () => setShowCustomFieldModal(true),
+                onMoveLeft: () => toast.success("Column moved left"),
+                onMoveRight: () => toast("Already the last column"),
+                onHideColumn: () => toast.success("Column hidden"),
+              }}
+            />
+            {/* Right edge: resize only Visibility */}
+            <div
+              onMouseDown={(e) => handleResizeStart(e, "visibility", null)}
+              onDoubleClick={handleResizeReset}
+              className={cn(
+                "absolute right-0 top-0 bottom-0 w-[6px] -mr-[3px] cursor-col-resize z-30 transition-colors",
+                resizingColumn === "visibility" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
+              )}
+            />
+          </div>
 
           {/* Dynamic custom columns */}
           {customColumns.map((col) => (
@@ -1062,13 +1311,10 @@ export default function MyTasksPage() {
                 setShowCustomFieldModal(true);
               }}
             />
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* CONTENT */}
-      <div className="flex-1 overflow-hidden flex">
-        <div className={cn("flex-1 overflow-auto", taskPanelOpen && "pr-0")}>
+          )}
+          <div className="flex-1 overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-black" />
@@ -1100,7 +1346,7 @@ export default function MyTasksPage() {
                       if (e.key === "Escape") { setIsAddingSection(false); setNewSectionName(""); }
                     }}
                     onBlur={() => { if (newSectionName.trim()) handleAddSection(); else setIsAddingSection(false); }}
-                    placeholder="Nombre de la sección..."
+                    placeholder="Section name..."
                     className="flex-1 text-sm outline-none border-b border-slate-300 pb-1"
                     autoFocus
                   />
@@ -1110,22 +1356,64 @@ export default function MyTasksPage() {
                   onClick={() => setIsAddingSection(true)}
                   className="px-6 py-3 text-gray-400 hover:text-gray-600 text-sm w-full text-left"
                 >
-                  Agregar sección
+                  Add section
                 </button>
               )}
             </div>
           ) : view === "board" ? (
             <BoardView
-              sections={sections}
+              sections={filteredSections}
               onToggleComplete={handleToggleComplete}
               onTaskClick={openTaskDetail}
               onAddTask={handleAddTask}
+              onMoveTask={async (taskId: string, destSectionId: string) => {
+                // Map virtual section ID to myTaskSection enum value
+                const sectionMap: Record<string, string | null> = {
+                  "do-today": "DO_TODAY",
+                  "do-next-week": "DO_NEXT_WEEK",
+                  "do-later": "DO_LATER",
+                  "recently-assigned": null,
+                };
+                const myTaskSection = sectionMap[destSectionId] ?? null;
+
+                // 1. Optimistic update — update tasks + re-derive sections for ALL views
+                const updatedTasks = tasks.map(t =>
+                  t.id === taskId ? { ...t, myTaskSection: myTaskSection as Task["myTaskSection"] } : t
+                );
+                setTasks(updatedTasks);
+                organizeTasks(updatedTasks);
+
+                // 2. Persist to database
+                try {
+                  const res = await fetch(`/api/tasks/${taskId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ myTaskSection }),
+                  });
+                  if (!res.ok) {
+                    const errorBody = await res.text().catch(() => "Unknown error");
+                    console.error("[MoveTask] API error:", res.status, errorBody);
+                    toast.error("Error saving task move");
+                    // Revert by re-fetching from server
+                    await fetchTasks(true);
+                    return;
+                  }
+                } catch (err) {
+                  console.error("[MoveTask] Network error:", err);
+                  toast.error("Network error — task move not saved");
+                  await fetchTasks(true);
+                  return;
+                }
+
+                // 3. Silent re-sync from server to ensure consistency
+                await fetchTasks(true);
+              }}
               onAddSection={() => {
-                const name = prompt('Nombre de la sección:', 'Nueva sección');
+                const name = prompt('Section name:', 'New section');
                 if (!name?.trim()) return;
                 const newSection: SmartSection = { id: `custom-${Date.now()}`, name: name.trim(), collapsed: false, tasks: [] };
                 setSections((prev) => [...prev, newSection]);
-                toast.success(`Sección "${name.trim()}" agregada`);
+                toast.success(`Section "${name.trim()}" added`);
               }}
               formatDueDate={formatDueDate}
             />
@@ -1136,6 +1424,7 @@ export default function MyTasksPage() {
           ) : (
             <FilesView />
           )}
+          </div>
         </div>
 
         {/* Task Detail Panel */}
@@ -1143,7 +1432,7 @@ export default function MyTasksPage() {
           <TaskDetailPanel
             task={selectedTask}
             onClose={() => setTaskPanelOpen(false)}
-            onUpdate={fetchTasks}
+            onUpdate={() => fetchTasks(true)}
             formatDueDate={formatDueDate}
           />
         )}
@@ -1278,6 +1567,142 @@ export default function MyTasksPage() {
           }
         }}
       />
+
+      {/* Calendar Sync Dialog */}
+      <Dialog open={showCalendarSync} onOpenChange={setShowCalendarSync}>
+        <DialogContent className="sm:max-w-[520px]">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-10 h-10 rounded-lg flex items-center justify-center",
+                calendarSyncType === "google" ? "bg-green-50" : calendarSyncType === "ical" ? "bg-orange-50" : "bg-blue-50"
+              )}>
+                <Calendar className={cn(
+                  "w-5 h-5",
+                  calendarSyncType === "google" ? "text-green-600" : calendarSyncType === "ical" ? "text-orange-600" : "text-blue-600"
+                )} />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-semibold text-gray-900">
+                  {calendarSyncType === "google" ? "Sync with Google Calendar" : calendarSyncType === "ical" ? "iCal Calendar Subscription" : "Sync with Outlook Calendar"}
+                </h3>
+                <p className="text-[13px] text-gray-500">Subscribe to your tasks as calendar events</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <p className="text-[13px] text-gray-700">
+                Copy this URL and add it as a calendar subscription. Your tasks with due dates will appear as all-day events that stay in sync automatically.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={calendarFeedLoading ? "Generating..." : calendarFeedUrl}
+                  className="flex-1 text-[12px] bg-white border border-gray-200 rounded-md px-3 py-2 text-gray-600 font-mono select-all"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(calendarFeedUrl);
+                    toast.success("URL copied to clipboard");
+                  }}
+                  disabled={!calendarFeedUrl}
+                  className="px-3 py-2 text-[13px] font-medium bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {calendarSyncType === "google" ? (
+                <>
+                  <h4 className="text-[13px] font-medium text-gray-900">How to subscribe in Google Calendar:</h4>
+                  <ol className="text-[12px] text-gray-600 space-y-1.5 list-decimal list-inside">
+                    <li>Open <strong>Google Calendar</strong> (calendar.google.com)</li>
+                    <li>On the left sidebar, click <strong>+</strong> next to &quot;Other calendars&quot;</li>
+                    <li>Select <strong>From URL</strong></li>
+                    <li>Paste the URL above and click <strong>Add calendar</strong></li>
+                    <li>Your BuildSync tasks will appear as events</li>
+                  </ol>
+                </>
+              ) : calendarSyncType === "ical" ? (
+                <>
+                  <h4 className="text-[13px] font-medium text-gray-900">How to use this iCal feed:</h4>
+                  <ol className="text-[12px] text-gray-600 space-y-1.5 list-decimal list-inside">
+                    <li>Copy the URL above</li>
+                    <li>Open your calendar app (Apple Calendar, Thunderbird, etc.)</li>
+                    <li>Look for <strong>Subscribe to calendar</strong> or <strong>Add calendar by URL</strong></li>
+                    <li>Paste the URL and confirm</li>
+                    <li>Your BuildSync tasks will sync automatically</li>
+                  </ol>
+                </>
+              ) : (
+                <>
+                  <h4 className="text-[13px] font-medium text-gray-900">How to subscribe in Outlook:</h4>
+                  <ol className="text-[12px] text-gray-600 space-y-1.5 list-decimal list-inside">
+                    <li>Open <strong>Outlook</strong> and go to Calendar</li>
+                    <li>Click <strong>Add calendar</strong> &rarr; <strong>Subscribe from web</strong></li>
+                    <li>Paste the URL above and click <strong>Import</strong></li>
+                    <li>Your BuildSync tasks will appear as calendar events</li>
+                  </ol>
+                </>
+              )}
+            </div>
+
+            <p className="text-[11px] text-gray-400">
+              This URL is private to your account. Your calendar app will automatically check for updates periodically.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Google Sheets Export Dialog */}
+      <Dialog open={showGoogleSheetsHelp} onOpenChange={setShowGoogleSheetsHelp}>
+        <DialogContent className="sm:max-w-[480px]">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
+                <FileText className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-semibold text-gray-900">Export to Google Sheets</h3>
+                <p className="text-[13px] text-gray-500">Your CSV file has been downloaded ({tasks.length} tasks)</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <h4 className="text-[13px] font-medium text-gray-900">Next steps:</h4>
+              <ol className="text-[13px] text-gray-600 space-y-2 list-decimal list-inside">
+                <li>Click the button below to open a new Google Sheet</li>
+                <li>In Google Sheets, go to <strong>File</strong> → <strong>Import</strong></li>
+                <li>Click the <strong>Upload</strong> tab</li>
+                <li>Select the CSV file that just downloaded</li>
+                <li>Click <strong>Import data</strong></li>
+              </ol>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  window.open("https://sheets.new", "_blank");
+                  setShowGoogleSheetsHelp(false);
+                }}
+                className="flex-1 px-4 py-2.5 text-[13px] font-medium bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors"
+              >
+                Open Google Sheets
+              </button>
+              <button
+                onClick={() => setShowGoogleSheetsHelp(false)}
+                className="px-4 py-2.5 text-[13px] font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1410,25 +1835,25 @@ function TaskSection({
                   onChange={(e) => setNewTaskName(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onBlur={handleBlur}
-                  placeholder={activeTaskType === "MILESTONE" ? "Escribe el nombre del hito" : activeTaskType === "APPROVAL" ? "Escribe el nombre de la aprobación" : "Escribe el nombre de la tarea"}
+                  placeholder={activeTaskType === "MILESTONE" ? "Type the milestone name" : activeTaskType === "APPROVAL" ? "Type the approval name" : "Type the task name"}
                   className="w-full bg-transparent outline-none text-[13px] text-gray-900 placeholder:text-gray-400"
                   autoFocus
                   disabled={isCreating}
                 />
               </div>
               {/* Due date placeholder */}
-              <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5 group/due">
-                <Calendar className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover/due:opacity-100 transition-opacity" />
+              <div className="flex-shrink-0 pl-2.5" style={{ width: "var(--col-dueDate)" }}>
+                <Calendar className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               {/* Collaborators placeholder */}
-              <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5" />
+              <div className="flex-shrink-0 pl-2.5" style={{ width: "var(--col-collaborators)" }} />
               {/* Projects placeholder */}
-              <div className="w-[160px] min-w-[160px] flex-shrink-0 pl-2.5" />
+              <div className="flex-shrink-0 pl-2.5" style={{ width: "var(--col-projects)" }} />
               {/* Visibility placeholder */}
-              <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+              <div className="flex-shrink-0 pl-2.5" style={{ width: "var(--col-visibility)" }}>
                 <span className="text-[13px] text-gray-300 flex items-center gap-1">
                   <Lock className="w-3 h-3" />
-                  Solo yo
+                  Only me
                 </span>
               </div>
               {/* Custom column placeholders */}
@@ -1463,11 +1888,11 @@ function TaskSection({
               <div className="w-8 flex-shrink-0 flex items-center">
                 <Plus className="w-3.5 h-3.5 text-gray-300" />
               </div>
-              <span className="flex-1 text-[13px] text-gray-400">Agregar tarea</span>
-              <div className="w-[110px] min-w-[110px] flex-shrink-0" />
-              <div className="w-[110px] min-w-[110px] flex-shrink-0" />
-              <div className="w-[160px] min-w-[160px] flex-shrink-0" />
-              <div className="w-[110px] min-w-[110px] flex-shrink-0" />
+              <span className="flex-1 text-[13px] text-gray-400">Add task</span>
+              <div className="flex-shrink-0" style={{ width: "var(--col-dueDate)" }} />
+              <div className="flex-shrink-0" style={{ width: "var(--col-collaborators)" }} />
+              <div className="flex-shrink-0" style={{ width: "var(--col-projects)" }} />
+              <div className="flex-shrink-0" style={{ width: "var(--col-visibility)" }} />
               {Array.from({ length: customColumnCount }).map((_, i) => (
                 <div key={i} className="w-[110px] min-w-[110px] flex-shrink-0" />
               ))}
@@ -1559,14 +1984,14 @@ function TaskRow({
       </div>
 
       {/* Due date */}
-      <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+      <div className="flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-dueDate)" }}>
         <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
       </div>
 
       {/* Collaborators */}
-      <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+      <div className="flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-collaborators)" }}>
         {task.assignee && (
           <Avatar className="w-5 h-5">
             <AvatarImage src={task.assignee.image || undefined} />
@@ -1578,7 +2003,7 @@ function TaskRow({
       </div>
 
       {/* Projects */}
-      <div className="w-[160px] min-w-[160px] flex-shrink-0 pl-2.5">
+      <div className="flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-projects)" }}>
         {task.project && (
           <div className="flex items-center gap-1.5">
             <div
@@ -1593,10 +2018,10 @@ function TaskRow({
       </div>
 
       {/* Visibility */}
-      <div className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+      <div className="flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-visibility)" }}>
         <span className="text-[13px] text-gray-400 flex items-center gap-1">
           <Globe className="w-3 h-3" />
-          Mi espacio de trabajo
+          My workspace
         </span>
       </div>
 
@@ -1613,12 +2038,23 @@ function TaskRow({
   );
 }
 
-// Board View Component
+// ============================================
+// BOARD VIEW - Asana-style Kanban with drag & drop
+// ============================================
+
+const BOARD_PRIORITY_CONFIG: Record<string, { dot: string; label: string }> = {
+  HIGH: { dot: "bg-red-500", label: "High" },
+  MEDIUM: { dot: "bg-amber-500", label: "Medium" },
+  LOW: { dot: "bg-blue-500", label: "Low" },
+  NONE: { dot: "", label: "" },
+};
+
 function BoardView({
   sections,
   onToggleComplete,
   onTaskClick,
   onAddTask,
+  onMoveTask,
   onAddSection,
   formatDueDate,
 }: {
@@ -1626,209 +2062,429 @@ function BoardView({
   onToggleComplete: (task: Task) => void;
   onTaskClick: (task: Task) => void;
   onAddTask: (name: string, sectionId: string) => Promise<boolean>;
+  onMoveTask: (taskId: string, destSectionId: string) => Promise<void>;
   onAddSection: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
 }) {
-  return (
-    <div className="flex gap-3 p-4 overflow-x-auto h-full">
-      {sections.map((section) => (
-        <BoardColumn
-          key={section.id}
-          section={section}
-          onToggleComplete={onToggleComplete}
-          onTaskClick={onTaskClick}
-          onAddTask={onAddTask}
-          formatDueDate={formatDueDate}
-        />
-      ))}
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [localSections, setLocalSections] = useState(sections);
+  const [addingInSection, setAddingInSection] = useState<string | null>(null);
+  const [newTaskName, setNewTaskName] = useState("");
+  const dragSourceSectionRef = useRef<string | null>(null);
 
-      {/* Add section column */}
-      <div className="flex-shrink-0 w-72">
-        <button className="flex items-center gap-2 px-4 py-2 text-black hover:text-slate-700 hover:bg-white rounded-lg w-full" onClick={onAddSection}>
-          <Plus className="w-4 h-4" />
-          <span className="text-sm font-medium">Agregar sección</span>
-        </button>
+  // Sync from props
+  useEffect(() => {
+    setLocalSections(sections);
+  }, [sections]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const id = event.active.id as string;
+    for (const section of localSections) {
+      const task = section.tasks.find((t) => t.id === id);
+      if (task) {
+        setActiveTask(task);
+        dragSourceSectionRef.current = section.id;
+        break;
+      }
+    }
+  }, [localSections]);
+
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // All logic inside updater to avoid stale closure issues
+    setLocalSections((prev) => {
+      const srcSection = prev.find((s) => s.tasks.some((t) => t.id === activeId));
+      if (!srcSection) return prev;
+
+      let destSection = prev.find((s) => s.id === overId);
+      if (!destSection) destSection = prev.find((s) => s.tasks.some((t) => t.id === overId));
+      if (!destSection || srcSection.id === destSection.id) return prev;
+
+      const task = srcSection.tasks.find((t) => t.id === activeId);
+      if (!task) return prev;
+
+      return prev.map((s) => {
+        if (s.id === srcSection.id) return { ...s, tasks: s.tasks.filter((t) => t.id !== activeId) };
+        if (s.id === destSection!.id) {
+          const idx = s.tasks.findIndex((t) => t.id === overId);
+          const newTasks = [...s.tasks];
+          if (idx >= 0) newTasks.splice(idx, 0, task);
+          else newTasks.push(task);
+          return { ...s, tasks: newTasks };
+        }
+        return s;
+      });
+    });
+  }, []);
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTask(null);
+    const originalSourceId = dragSourceSectionRef.current;
+    dragSourceSectionRef.current = null;
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Determine destination section from the drop target
+    let destSectionId: string | undefined;
+    // Check if overId is a section/column ID
+    if (localSections.some((s) => s.id === overId)) {
+      destSectionId = overId;
+    } else {
+      // overId is a task ID — find which section contains it
+      for (const s of localSections) {
+        if (s.tasks.some((t) => t.id === overId)) {
+          destSectionId = s.id;
+          break;
+        }
+      }
+    }
+
+    if (!destSectionId) return;
+
+    // Same section → reorder only (no API call needed)
+    if (destSectionId === originalSourceId) {
+      if (activeId !== overId) {
+        setLocalSections((prev) => {
+          const section = prev.find((s) => s.id === destSectionId);
+          if (!section) return prev;
+          const oldIdx = section.tasks.findIndex((t) => t.id === activeId);
+          const newIdx = section.tasks.findIndex((t) => t.id === overId);
+          if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return prev;
+          return prev.map((s) =>
+            s.id === section.id ? { ...s, tasks: arrayMove(s.tasks, oldIdx, newIdx) } : s
+          );
+        });
+      }
+      return;
+    }
+
+    // Cross-column move: persist to API
+    // (handleDragOver already moved the task visually in localSections)
+    await onMoveTask(activeId, destSectionId);
+  }, [localSections, onMoveTask]);
+
+  const handleAddTaskSubmit = async (sectionId: string) => {
+    if (!newTaskName.trim()) {
+      setAddingInSection(null);
+      setNewTaskName("");
+      return;
+    }
+    const success = await onAddTask(newTaskName.trim(), sectionId);
+    if (success) {
+      setNewTaskName("");
+      // Keep the input open for consecutive creation
+    } else {
+      setAddingInSection(null);
+      setNewTaskName("");
+    }
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={kanbanCollisionDetection}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+    >
+      <div className="flex gap-3 px-6 py-4 h-full overflow-x-auto">
+        {localSections.map((section) => (
+          <BoardColumn
+            key={section.id}
+            section={section}
+            onToggleComplete={onToggleComplete}
+            onTaskClick={onTaskClick}
+            formatDueDate={formatDueDate}
+            isAddingTask={addingInSection === section.id}
+            newTaskName={addingInSection === section.id ? newTaskName : ""}
+            onStartAddTask={() => { setAddingInSection(section.id); setNewTaskName(""); }}
+            onNewTaskNameChange={setNewTaskName}
+            onSubmitTask={() => handleAddTaskSubmit(section.id)}
+            onCancelAddTask={() => { setAddingInSection(null); setNewTaskName(""); }}
+          />
+        ))}
+
+        {/* + Add section */}
+        <div className="flex-shrink-0">
+          <button
+            onClick={onAddSection}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            Add section
+          </button>
+        </div>
       </div>
-    </div>
+
+      <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+        {activeTask && <BoardTaskOverlay task={activeTask} formatDueDate={formatDueDate} />}
+      </DragOverlay>
+    </DndContext>
   );
 }
+
+// ============================================
+// BOARD COLUMN
+// ============================================
 
 function BoardColumn({
   section,
   onToggleComplete,
   onTaskClick,
-  onAddTask,
   formatDueDate,
+  isAddingTask,
+  newTaskName,
+  onStartAddTask,
+  onNewTaskNameChange,
+  onSubmitTask,
+  onCancelAddTask,
 }: {
   section: SmartSection;
   onToggleComplete: (task: Task) => void;
   onTaskClick: (task: Task) => void;
-  onAddTask: (name: string, sectionId: string) => Promise<boolean>;
   formatDueDate: (date: string | null) => { text: string; className: string };
+  isAddingTask: boolean;
+  newTaskName: string;
+  onStartAddTask: () => void;
+  onNewTaskNameChange: (v: string) => void;
+  onSubmitTask: () => void;
+  onCancelAddTask: () => void;
 }) {
-  const [isAddingTask, setIsAddingTask] = useState(false);
-  const [newTaskName, setNewTaskName] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-
-  const taskCount = section.tasks.length;
-  const completedCount = section.tasks.filter(t => t.completed).length;
-  const progressPercent = taskCount > 0 ? (completedCount / taskCount) * 100 : 0;
-
-  const handleSubmit = async () => {
-    if (!newTaskName.trim() || isCreating) return;
-    setIsCreating(true);
-    try {
-      const success = await onAddTask(newTaskName.trim(), section.id);
-      if (success) {
-        setNewTaskName("");
-      }
-    } finally {
-      setIsCreating(false);
-      setIsAddingTask(false);
-    }
-  };
+  const { setNodeRef, isOver } = useDroppable({ id: section.id });
 
   return (
-    <div className="flex-shrink-0 w-72 bg-slate-100 rounded-lg flex flex-col max-h-full">
-      {/* Column header */}
-      <div className="p-3">
-        <div className="flex items-center justify-between">
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex-shrink-0 w-[280px] flex flex-col rounded-xl max-h-full transition-colors",
+        isOver ? "bg-slate-200/80" : "bg-slate-100/80"
+      )}
+    >
+      {/* Header */}
+      <div className="px-3 pt-3 pb-2 flex items-center justify-between group">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <h3 className="font-medium text-sm text-slate-900 truncate">{section.name}</h3>
+          <span className="text-xs text-slate-400 tabular-nums">{section.tasks.length}</span>
+        </div>
+        <button
+          onClick={onStartAddTask}
+          className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <Plus className="w-4 h-4 text-slate-400" />
+        </button>
+      </div>
+
+      {/* Cards */}
+      <div className="flex-1 px-2 pb-2 overflow-y-auto min-h-[60px]">
+        <SortableContext id={section.id} items={section.tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-1.5">
+            {section.tasks.map((task) => (
+              <SortableBoardCard
+                key={task.id}
+                task={task}
+                onToggleComplete={onToggleComplete}
+                onClick={() => onTaskClick(task)}
+                formatDueDate={formatDueDate}
+              />
+            ))}
+          </div>
+        </SortableContext>
+
+        {section.tasks.length === 0 && !isAddingTask && (
+          <div className="py-8 text-center">
+            <p className="text-xs text-slate-400">No tasks</p>
+          </div>
+        )}
+
+        {isAddingTask && (
+          <div className="mt-1.5">
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-2.5">
+              <input
+                type="text"
+                value={newTaskName}
+                onChange={(e) => onNewTaskNameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onSubmitTask();
+                  if (e.key === "Escape") onCancelAddTask();
+                }}
+                onBlur={() => { if (!newTaskName.trim()) onCancelAddTask(); }}
+                placeholder="Write a task name"
+                className="w-full text-sm outline-none placeholder:text-slate-400"
+                autoFocus
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom add task */}
+      {!isAddingTask && (
+        <button
+          onClick={onStartAddTask}
+          className="flex items-center gap-1.5 w-full px-3 py-2 text-sm text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-b-xl transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Add task
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// SORTABLE BOARD CARD
+// ============================================
+
+function SortableBoardCard({
+  task,
+  onToggleComplete,
+  onClick,
+  formatDueDate,
+}: {
+  task: Task;
+  onToggleComplete: (task: Task) => void;
+  onClick: () => void;
+  formatDueDate: (date: string | null) => { text: string; className: string };
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const dueDateInfo = formatDueDate(task.dueDate);
+  const priority = BOARD_PRIORITY_CONFIG[task.priority] || BOARD_PRIORITY_CONFIG.NONE;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "bg-white rounded-lg border border-slate-200 p-3 cursor-grab active:cursor-grabbing transition-all",
+        isDragging ? "opacity-40 shadow-none" : "hover:shadow-md hover:border-slate-300 shadow-sm"
+      )}
+      onClick={onClick}
+    >
+      {/* Top: checkbox + name */}
+      <div className="flex items-start gap-2">
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleComplete(task); }}
+          className={cn(
+            "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
+            task.completed ? "bg-green-500 border-green-500" : "border-slate-300 hover:border-slate-400"
+          )}
+        >
+          {task.completed && <Check className="w-3 h-3 text-white" />}
+        </button>
+        <span className={cn("text-[13px] leading-snug flex-1 min-w-0", task.completed ? "line-through text-slate-400" : "text-slate-800")}>
+          {task.name}
+        </span>
+      </div>
+
+      {/* Priority */}
+      {task.priority && task.priority !== "NONE" && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className={cn("w-2 h-2 rounded-full", priority.dot)} />
+          <span className="text-[11px] text-slate-500">{priority.label}</span>
+        </div>
+      )}
+
+      {/* Project tag */}
+      {task.project && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: task.project.color }} />
+          <span className="text-[11px] text-slate-500 truncate">{task.project.name}</span>
+        </div>
+      )}
+
+      {/* Bottom: date + meta */}
+      {(dueDateInfo.text || task._count.subtasks > 0 || task._count.comments > 0 || task._count.attachments > 0 || task.assignee) && (
+        <div className="flex items-center justify-between mt-2 pt-1.5">
+          {/* Due date */}
+          <span className={cn("text-[11px]", dueDateInfo.className)}>
+            {dueDateInfo.text}
+          </span>
+
+          {/* Right side: meta + avatar */}
           <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-700">{section.name}</span>
-            {taskCount > 0 && (
-              <span className="text-xs text-black bg-white px-2 py-0.5 rounded-full">
-                {taskCount}
+            {task._count.subtasks > 0 && (
+              <span className="text-[11px] text-slate-400 tabular-nums flex items-center gap-0.5">
+                <Layers className="w-3 h-3" />
+                {task._count.subtasks}
               </span>
             )}
+            {task._count.comments > 0 && <MessageSquare className="h-3 w-3 text-slate-400" />}
+            {task._count.attachments > 0 && <Paperclip className="h-3 w-3 text-slate-400" />}
+            {task.assignee && (
+              <Avatar className="h-5 w-5">
+                <AvatarImage src={task.assignee.image || ""} />
+                <AvatarFallback className="text-[10px] bg-blue-600 text-white">
+                  {task.assignee.name?.[0]?.toUpperCase() || "?"}
+                </AvatarFallback>
+              </Avatar>
+            )}
           </div>
-          <button className="p-1 hover:bg-white border border-black rounded" onClick={() => toast.info("Opciones de sección próximamente")}>
-            <MoreHorizontal className="w-4 h-4 text-black" />
-          </button>
         </div>
+      )}
+    </div>
+  );
+}
 
-        {/* Progress bar */}
-        {taskCount > 0 && (
-          <div className="mt-2 h-1 bg-white border border-black rounded-full overflow-hidden">
-            <div
-              className="h-full bg-cyan-400 transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
+// ============================================
+// BOARD DRAG OVERLAY
+// ============================================
+
+function BoardTaskOverlay({
+  task,
+  formatDueDate,
+}: {
+  task: Task;
+  formatDueDate: (date: string | null) => { text: string; className: string };
+}) {
+  const dueDateInfo = formatDueDate(task.dueDate);
+  return (
+    <div className="bg-white rounded-lg shadow-xl border border-slate-200 p-3 w-[280px] cursor-grabbing rotate-[2deg]">
+      <div className="flex items-start gap-2">
+        <div className={cn(
+          "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
+          task.completed ? "bg-green-500 border-green-500" : "border-slate-300"
+        )}>
+          {task.completed && <Check className="w-3 h-3 text-white" />}
+        </div>
+        <span className="text-[13px] leading-snug flex-1 min-w-0 text-slate-800">{task.name}</span>
+        {task.assignee && (
+          <Avatar className="h-5 w-5 flex-shrink-0">
+            <AvatarImage src={task.assignee.image || ""} />
+            <AvatarFallback className="text-[10px] bg-blue-600 text-white">
+              {task.assignee.name?.[0]?.toUpperCase() || "?"}
+            </AvatarFallback>
+          </Avatar>
         )}
       </div>
-
-      {/* Add task button at top */}
-      <div className="px-3 pb-2">
-        {isAddingTask ? (
-          <Card className="p-2">
-            <input
-              type="text"
-              value={newTaskName}
-              onChange={(e) => setNewTaskName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSubmit();
-                if (e.key === "Escape") {
-                  setNewTaskName("");
-                  setIsAddingTask(false);
-                }
-              }}
-              onBlur={() => {
-                if (newTaskName.trim()) handleSubmit();
-                else setIsAddingTask(false);
-              }}
-              placeholder="Escribe el nombre de la tarea..."
-              className="w-full text-sm outline-none"
-              autoFocus
-              disabled={isCreating}
-            />
-          </Card>
-        ) : (
-          <button
-            onClick={() => setIsAddingTask(true)}
-            className="flex items-center gap-2 text-black hover:text-slate-700 py-1 w-full"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="text-sm">Agregar tarea</span>
-          </button>
-        )}
-      </div>
-
-      {/* Task cards */}
-      <div className="flex-1 overflow-y-auto px-3 pb-2 space-y-2">
-        {section.tasks.map((task) => {
-          const dueDateInfo = formatDueDate(task.dueDate);
-          return (
-            <Card
-              key={task.id}
-              className="p-3 cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => onTaskClick(task)}
-            >
-              <div className="flex items-start gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleComplete(task);
-                  }}
-                  className={cn(
-                    "w-4 h-4 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0",
-                    task.completed
-                      ? "bg-green-500 border-green-500"
-                      : "border-slate-300 hover:border-slate-400"
-                  )}
-                >
-                  {task.completed && <Check className="w-3 h-3 text-white" />}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <p className={cn(
-                    "text-sm",
-                    task.completed && "line-through text-black"
-                  )}>
-                    {task.name}
-                  </p>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className={cn("text-xs", dueDateInfo.className)}>
-                      {dueDateInfo.text}
-                    </span>
-                    <div className="flex items-center gap-1 text-black">
-                      {task._count.subtasks > 0 && (
-                        <span className="text-xs flex items-center">
-                          {task._count.subtasks}
-                          <Layers className="w-3 h-3 ml-0.5" />
-                        </span>
-                      )}
-                      {task._count.attachments > 0 && (
-                        <Paperclip className="w-3 h-3" />
-                      )}
-                    </div>
-                  </div>
-                  {task.project && (
-                    <div className="flex items-center gap-1 mt-2">
-                      <div
-                        className="w-2 h-2 rounded-sm"
-                        style={{ backgroundColor: task.project.color }}
-                      />
-                      <span className="text-xs text-black truncate">
-                        {task.project.name}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Add task at bottom (if has tasks) */}
-      {taskCount > 0 && !isAddingTask && (
-        <div className="px-3 py-2 border-t border-slate-200">
-          <button
-            onClick={() => setIsAddingTask(true)}
-            className="flex items-center gap-2 text-black hover:text-black py-1 w-full"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="text-sm">Agregar tarea</span>
-          </button>
+      {task.project && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: task.project.color }} />
+          <span className="text-[11px] text-slate-500">{task.project.name}</span>
+        </div>
+      )}
+      {dueDateInfo.text && (
+        <div className="mt-1.5 flex justify-end">
+          <span className={cn("text-[11px]", dueDateInfo.className)}>{dueDateInfo.text}</span>
         </div>
       )}
     </div>
@@ -1874,7 +2530,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
   };
 
   const calendarDays = getCalendarDays();
-  const weekDays = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
   const tasksByDate = tasks.reduce((acc, task) => {
     if (task.dueDate) {
@@ -1890,7 +2546,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
   const goToToday = () => setCurrentDate(new Date());
 
   const formatMonthYear = (date: Date) => {
-    return date.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   };
 
   return (
@@ -1911,7 +2567,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
           onClick={goToToday}
           className="px-3"
         >
-          Hoy
+          Today
         </Button>
         <Button
           variant="ghost"
@@ -1970,7 +2626,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                   )}
                 >
                   {isFirstOfMonth && isCurrentMonth
-                    ? date.toLocaleDateString("es-ES", { month: "short", day: "numeric" })
+                    ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
                     : dayNum}
                 </span>
                 {dayTasks.length > 2 && (
@@ -1991,7 +2647,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                 ))}
                 {dayTasks.length > 2 && (
                   <span className="text-xs text-black pl-1">
-                    +{dayTasks.length - 2} más
+                    +{dayTasks.length - 2} more
                   </span>
                 )}
               </div>
@@ -2001,14 +2657,14 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                 className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 text-xs text-black hover:text-black flex items-center gap-0.5 transition-opacity"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const name = prompt('Nombre de la tarea:');
+                  const name = prompt('Task name:');
                   if (name?.trim()) {
-                    toast.success(`Tarea "${name.trim()}" agregada para ${date.toLocaleDateString("es-ES")}`);
+                    toast.success(`Task "${name.trim()}" added for ${date.toLocaleDateString("en-US")}`);
                   }
                 }}
               >
                 <Plus className="w-3 h-3" />
-                Agregar
+                Add
               </button>
             </div>
           );
@@ -2032,10 +2688,10 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
     count: section.tasks.length,
   }));
 
-  // Data for donut chart - completion status (minimalistic colors)
+  // Data for donut chart - completion status
   const completionData = [
-    { name: "Sin completar", value: incomplete, color: "#94A3B8" }, // slate-400
-    { name: "Completadas", value: completed, color: "#CBD5E1" }, // slate-300
+    { name: "Incomplete", value: incomplete, color: "#8B8FA3" },
+    { name: "Completed", value: completed, color: "#D1D5DB" },
   ].filter((item) => item.value > 0);
 
   // Data for projects chart
@@ -2085,243 +2741,235 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
     });
   }
 
-  return (
-    <div className="p-6 space-y-6 overflow-auto">
-      {/* Header with Add widget button */}
-      <div className="flex items-center justify-between">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Agregar widget
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => toast.info('Widget de tareas por sección agregado')}>Tareas por sección</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info('Widget de gráfico de finalización agregado')}>Gráfico de finalización</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info('Widget de tareas por proyecto agregado')}>Tareas por proyecto</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info('Widget de línea de tiempo agregado')}>Línea de tiempo de finalización</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button variant="ghost" size="sm" className="text-gray-500" onClick={() => window.open("mailto:feedback@buildsync.com", "_blank")}>
-          Enviar comentarios
-        </Button>
-      </div>
+  // Widget footer component (Asana-style)
+  const WidgetFooter = ({ filterCount, filterLabel }: { filterCount: number; filterLabel?: string }) => (
+    <div className="flex items-center justify-between pt-3 mt-auto border-t border-gray-100">
+      <span className="flex items-center gap-1 text-[11px] text-gray-400">
+        <Filter className="w-3 h-3" />
+        {filterLabel || (filterCount === 0 ? "No filters" : `${filterCount} filter${filterCount > 1 ? "s" : ""}`)}
+      </span>
+      <button
+        onClick={() => toast.info("Detailed view coming soon")}
+        className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-50 transition-colors"
+      >
+        View all
+      </button>
+    </div>
+  );
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-black">Tareas completadas</p>
-          <p className="text-4xl font-light text-black mt-2">{completed}</p>
-          <div className="flex items-center justify-center mt-3 text-xs text-black">
-            <Filter className="w-3 h-3 mr-1" />
-            1 filtro
+  return (
+    <div className="px-8 py-5 overflow-auto h-full" style={{ backgroundColor: "#F9FAFB" }}>
+      {/* KPI Metric Cards — Asana style */}
+      <div className="grid grid-cols-4 gap-3 mb-5">
+        {[
+          { label: "Completed tasks", value: completed, filters: "1 filter" },
+          { label: "Incomplete tasks", value: incomplete, filters: "1 filter" },
+          { label: "Overdue tasks", value: overdue, filters: "1 filter" },
+          { label: "Total tasks", value: total, filters: "No filters" },
+        ].map((card) => (
+          <div
+            key={card.label}
+            className="bg-white rounded-lg border border-gray-200/80 py-5 px-4 flex flex-col items-center text-center"
+          >
+            <span className="text-[13px] text-gray-900 font-normal">{card.label}</span>
+            <span className="text-[40px] font-light text-gray-900 leading-tight mt-1.5 mb-2">{card.value}</span>
+            <span className="flex items-center gap-1 text-[11px] text-gray-400">
+              <Filter className="w-2.5 h-2.5" />
+              {card.filters}
+            </span>
           </div>
-        </Card>
-        <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-black">Tareas sin completar</p>
-          <p className="text-4xl font-light text-black mt-2">{incomplete}</p>
-          <div className="flex items-center justify-center mt-3 text-xs text-black">
-            <Filter className="w-3 h-3 mr-1" />
-            1 filtro
-          </div>
-        </Card>
-        <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-black">Tareas atrasadas</p>
-          <p className="text-4xl font-light text-black mt-2">{overdue}</p>
-          <div className="flex items-center justify-center mt-3 text-xs text-black">
-            <Filter className="w-3 h-3 mr-1" />
-            1 filtro
-          </div>
-        </Card>
-        <Card className="p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-sm text-black">Total de tareas</p>
-          <p className="text-4xl font-light text-black mt-2">{total}</p>
-          <div className="flex items-center justify-center mt-3 text-xs text-black">
-            <Filter className="w-3 h-3 mr-1" />
-            Sin filtros
-          </div>
-        </Card>
+        ))}
       </div>
 
       {/* Charts Row 1 */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Tasks by Section */}
-        <Card className="p-4">
-          <h3 className="text-sm font-medium text-black mb-4">Tareas por sección</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={tasksBySectionData}>
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 11 }}
-                interval={0}
-                angle={-30}
-                textAnchor="end"
-                height={50}
-              />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip
-                formatter={(value, name, props) => [value, props.payload.fullName]}
-                contentStyle={{ fontSize: 12 }}
-              />
-              <Bar dataKey="count" fill="#64748B" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="flex items-center justify-between mt-4 pt-3 border-t">
-            <div className="flex items-center text-xs text-black">
-              <Filter className="w-3 h-3 mr-1" />
-              1 filtro
-            </div>
-            <Button variant="ghost" size="sm" className="text-xs h-6">
-              Ver todo
-              <ChevronRight className="w-3 h-3 ml-1" />
-            </Button>
+      <div className="grid grid-cols-2 gap-3 mb-5">
+        {/* Tasks by Section — Bar Chart */}
+        <div className="bg-white rounded-lg border border-gray-200/80 flex flex-col">
+          <div className="px-5 pt-5 pb-0">
+            <h3 className="text-[13px] font-medium text-gray-900">Tasks by section</h3>
           </div>
-        </Card>
+          <div className="px-3 pt-3 pb-1 flex-1 min-h-0">
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={tasksBySectionData} margin={{ top: 10, right: 10, bottom: 5, left: -10 }}>
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "#E5E7EB" }}
+                  interval={0}
+                  angle={-35}
+                  textAnchor="end"
+                  height={55}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  formatter={(value, _name, props) => [value, (props as { payload: { fullName: string } }).payload.fullName]}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E7EB", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                />
+                <Bar dataKey="count" fill="#8B7EC8" radius={[3, 3, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="px-5 pb-4">
+            <WidgetFooter filterCount={1} />
+          </div>
+        </div>
 
-        {/* Tasks by Completion Status (Donut) */}
-        <Card className="p-4">
-          <h3 className="text-sm font-medium text-black mb-4">Tareas por estado de finalización</h3>
-          <div className="flex items-center justify-center">
+        {/* Tasks by Completion Status — Donut */}
+        <div className="bg-white rounded-lg border border-gray-200/80 flex flex-col">
+          <div className="px-5 pt-5 pb-0">
+            <h3 className="text-[13px] font-medium text-gray-900">Tasks by completion status next month</h3>
+          </div>
+          <div className="flex-1 flex items-center justify-center px-5 py-4">
             <div className="relative">
-              <ResponsiveContainer width={180} height={180}>
+              <ResponsiveContainer width={160} height={160}>
                 <PieChart>
                   <Pie
-                    data={completionData}
+                    data={completionData.length > 0 ? completionData : [{ name: "None", value: 1, color: "#E5E7EB" }]}
                     cx="50%"
                     cy="50%"
-                    innerRadius={55}
-                    outerRadius={75}
+                    innerRadius={48}
+                    outerRadius={68}
                     dataKey="value"
                     strokeWidth={0}
                   >
-                    {completionData.map((entry, index) => (
+                    {(completionData.length > 0 ? completionData : [{ name: "None", value: 1, color: "#E5E7EB" }]).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E7EB" }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-2xl font-semibold text-black">{incomplete}</span>
+                <span className="text-[28px] font-semibold text-gray-900">{incomplete}</span>
               </div>
             </div>
-            <div className="ml-6 space-y-2">
-              {completionData.map((item, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-sm"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-sm text-black">{item.name}</span>
-                </div>
-              ))}
-            </div>
           </div>
-          <div className="flex items-center justify-between mt-4 pt-3 border-t">
-            <div className="flex items-center text-xs text-black">
-              <Filter className="w-3 h-3 mr-1" />
-              2 filtros
-            </div>
-            <Button variant="ghost" size="sm" className="text-xs h-6">
-              Ver todo
-              <ChevronRight className="w-3 h-3 ml-1" />
-            </Button>
+          <div className="px-5 pb-4">
+            <WidgetFooter filterCount={2} />
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Charts Row 2 */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Tasks by Project */}
-        <Card className="p-4">
-          <h3 className="text-sm font-medium text-black mb-4">Tareas por proyecto</h3>
-          {tasksByProjectData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={tasksByProjectData}>
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 11 }}
-                  interval={0}
-                  angle={-30}
-                  textAnchor="end"
-                  height={50}
-                />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip
-                  formatter={(value, name, props) => [value, props.payload.fullName]}
-                  contentStyle={{ fontSize: 12 }}
-                />
-                <Bar dataKey="count" fill="#94A3B8" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[200px] flex items-center justify-center text-sm text-black">
-              Aún no hay tareas asignadas a proyectos
-            </div>
-          )}
-          <div className="flex items-center justify-between mt-4 pt-3 border-t">
-            <div className="flex items-center text-xs text-black">
-              <Filter className="w-3 h-3 mr-1" />
-              1 filtro
-            </div>
-            <Button variant="ghost" size="sm" className="text-xs h-6">
-              Ver todo
-              <ChevronRight className="w-3 h-3 ml-1" />
-            </Button>
+      <div className="grid grid-cols-2 gap-3">
+        {/* Tasks by Project — Bar Chart */}
+        <div className="bg-white rounded-lg border border-gray-200/80 flex flex-col">
+          <div className="px-5 pt-5 pb-0">
+            <h3 className="text-[13px] font-medium text-gray-900">Tasks by project</h3>
           </div>
-        </Card>
+          <div className="px-3 pt-3 pb-1 flex-1 min-h-0">
+            {tasksByProjectData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={tasksByProjectData} margin={{ top: 10, right: 10, bottom: 5, left: -10 }}>
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                    tickLine={false}
+                    axisLine={{ stroke: "#E5E7EB" }}
+                    interval={0}
+                    angle={-35}
+                    textAnchor="end"
+                    height={55}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    formatter={(value, _name, props) => [value, (props as { payload: { fullName: string } }).payload.fullName]}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E7EB", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                  />
+                  <Bar dataKey="count" fill="#8B7EC8" radius={[3, 3, 0, 0]} maxBarSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[220px] flex items-center justify-center text-[13px] text-gray-400">
+                No tasks assigned to projects yet
+              </div>
+            )}
+          </div>
+          <div className="px-5 pb-4">
+            <WidgetFooter filterCount={1} />
+          </div>
+        </div>
 
-        {/* Task Completion Over Time */}
-        <Card className="p-4">
-          <h3 className="text-sm font-medium text-black mb-4">Finalización de tareas a lo largo del tiempo</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={completionOverTimeData}>
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={2} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={{ fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line
-                type="monotone"
-                dataKey="total"
-                stroke="#64748B"
-                strokeWidth={2}
-                dot={{ r: 2 }}
-                name="Total de tareas"
-              />
-              <Line
-                type="monotone"
-                dataKey="completed"
-                stroke="#CBD5E1"
-                strokeWidth={2}
-                dot={{ r: 2 }}
-                name="Completadas"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-          <div className="flex items-center justify-between mt-4 pt-3 border-t">
-            <div className="flex items-center text-xs text-black">
-              <Filter className="w-3 h-3 mr-1" />
-              2 filtros
-            </div>
-            <Button variant="ghost" size="sm" className="text-xs h-6">
-              Ver todo
-              <ChevronRight className="w-3 h-3 ml-1" />
-            </Button>
+        {/* Task Completion Over Time — Area/Line Chart */}
+        <div className="bg-white rounded-lg border border-gray-200/80 flex flex-col">
+          <div className="px-5 pt-5 pb-0">
+            <h3 className="text-[13px] font-medium text-gray-900">Task completion over time</h3>
           </div>
-        </Card>
+          <div className="px-3 pt-3 pb-1 flex-1 min-h-0">
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={completionOverTimeData} margin={{ top: 10, right: 10, bottom: 5, left: -10 }}>
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 9, fill: "#9CA3AF" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "#E5E7EB" }}
+                  interval={1}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "#9CA3AF" }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E5E7EB", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} />
+                <Legend
+                  wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                  iconType="square"
+                  iconSize={8}
+                />
+                <Line type="monotone" dataKey="total" stroke="#C4B5FD" strokeWidth={2} dot={{ r: 1.5, fill: "#C4B5FD" }} name="Total" />
+                <Line type="monotone" dataKey="completed" stroke="#7C6CC4" strokeWidth={2} dot={{ r: 1.5, fill: "#7C6CC4" }} name="Completed" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="px-5 pb-4">
+            <WidgetFooter filterCount={2} />
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// Files View
+// Files View — Asana-style empty state
 function FilesView() {
   return (
-    <div className="flex flex-col items-center justify-center h-64 text-center">
-      <FileText className="h-12 w-12 text-slate-300 mb-4" />
-      <h3 className="font-medium text-black">Aún no hay archivos</h3>
-      <p className="text-sm text-black mt-1">Los archivos adjuntos a tus tareas aparecerán aquí</p>
+    <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
+      {/* Illustration matching Asana's style */}
+      <svg width="160" height="130" viewBox="0 0 160 130" fill="none" className="mb-6">
+        {/* Clipboard/document */}
+        <rect x="50" y="10" width="60" height="80" rx="6" fill="#FEE2E2" stroke="#F87171" strokeWidth="1.5" />
+        <rect x="60" y="25" width="30" height="3" rx="1.5" fill="#F87171" opacity="0.5" />
+        <rect x="60" y="33" width="40" height="3" rx="1.5" fill="#F87171" opacity="0.5" />
+        <rect x="60" y="41" width="25" height="3" rx="1.5" fill="#F87171" opacity="0.5" />
+        <circle cx="75" cy="65" r="12" fill="#FCA5A5" stroke="#F87171" strokeWidth="1.5" />
+        <circle cx="75" cy="65" r="4" fill="#F87171" />
+        {/* Chart piece */}
+        <path d="M20 75 A30 30 0 0 1 50 75 L35 75 Z" fill="#FEE2E2" stroke="#F87171" strokeWidth="1.5" />
+        <circle cx="30" cy="68" r="5" fill="#F87171" opacity="0.4" />
+        {/* Image icon */}
+        <rect x="105" y="55" width="40" height="35" rx="5" fill="#FEE2E2" stroke="#F87171" strokeWidth="1.5" />
+        <circle cx="117" cy="67" r="4" fill="#FCA5A5" />
+        <path d="M108 83 L120 72 L128 78 L138 68 L142 83 Z" fill="#F87171" opacity="0.3" />
+        {/* Small decorative dots */}
+        <circle cx="25" cy="40" r="3" fill="#F87171" opacity="0.3" />
+        <circle cx="140" cy="45" r="4" fill="#FCA5A5" opacity="0.4" />
+        <rect x="130" cy="25" width="8" height="8" rx="2" fill="#FEE2E2" stroke="#F87171" strokeWidth="1" transform="rotate(15 134 29)" />
+      </svg>
+      <p className="text-[15px] font-medium text-gray-900 max-w-md leading-relaxed">
+        All attachments from tasks and messages in this project will appear here
+      </p>
     </div>
   );
 }
@@ -2344,6 +2992,9 @@ function TaskDetailPanel({
   const [description, setDescription] = useState(task.description || "");
   const [activeTab, setActiveTab] = useState<"comments" | "activity">("comments");
   const [newComment, setNewComment] = useState("");
+  const [newSubtaskName, setNewSubtaskName] = useState("");
+  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const subtaskInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchTaskDetail();
@@ -2426,10 +3077,10 @@ function TaskDetailPanel({
           />
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm"><Heart className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm"><Paperclip className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm"><Link2 className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm"><Maximize2 className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => toast.success("Task liked")}><Heart className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => toast.info("File attachments coming soon")}><Paperclip className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tasks/${task.id}`); toast.success("Link copied to clipboard"); }}><Link2 className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" onClick={() => { window.open(`/tasks/${task.id}`, "_blank"); }}><Maximize2 className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" onClick={onClose}><X className="h-4 w-4" /></Button>
         </div>
       </div>
@@ -2443,50 +3094,72 @@ function TaskDetailPanel({
           {/* Visibility */}
           <div className="px-4 py-2 bg-white text-xs text-black flex items-center gap-1">
             <Globe className="h-3 w-3" />
-            Esta tarea es visible para todos en Mi espacio de trabajo
+            This task is visible to everyone in My workspace
           </div>
 
           {/* Metadata */}
           <div className="p-4 space-y-4 border-b">
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Responsable</span>
+              <span className="w-24 text-sm text-black">Assignee</span>
               <div className="flex items-center gap-2">
-                {taskDetail?.assignee ? (
-                  <>
-                    <Avatar className="h-6 w-6">
-                      <AvatarFallback className="text-xs bg-white border border-black">
-                        {taskDetail.assignee.name?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm">{taskDetail.assignee.name}</span>
-                  </>
-                ) : (
-                  <span className="text-sm text-black">Sin responsable</span>
-                )}
+                <AssigneeSelector
+                  value={taskDetail?.assignee || null}
+                  onChange={(user) => handleUpdate("assigneeId", user?.id || null)}
+                  trigger={
+                    taskDetail?.assignee ? (
+                      <button className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="text-xs bg-white border border-black">
+                            {taskDetail.assignee.name?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm">{taskDetail.assignee.name}</span>
+                      </button>
+                    ) : (
+                      <button className="text-sm text-slate-500 hover:text-slate-700 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
+                        No assignee
+                      </button>
+                    )
+                  }
+                />
               </div>
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Fecha de entrega</span>
-              <span className={cn("text-sm", dueDateInfo.className)}>
-                {dueDateInfo.text || "Sin fecha de entrega"}
-              </span>
+              <span className="w-24 text-sm text-black">Due date</span>
+              <DueDatePicker
+                value={taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null}
+                onChange={(date) => handleUpdate("dueDate", date?.toISOString() || null)}
+                trigger={
+                  taskDetail?.dueDate ? (
+                    <button className={cn("text-sm hover:bg-gray-100 px-2 py-1 rounded cursor-pointer", dueDateInfo.className)}>
+                      {dueDateInfo.text}
+                    </button>
+                  ) : (
+                    <button className="text-sm text-slate-500 hover:text-slate-700 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
+                      No due date
+                    </button>
+                  )
+                }
+              />
+            </div>
+
+            <div className="flex items-start gap-4">
+              <span className="w-24 text-sm text-black pt-1">Projects</span>
+              <div className="flex-1">
+                <ProjectSelector
+                  value={taskDetail?.project ? {
+                    id: taskDetail.project.id,
+                    name: taskDetail.project.name,
+                    color: taskDetail.project.color,
+                  } : null}
+                  onChange={(project) => handleUpdate("projectId", project?.id || null)}
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Proyectos</span>
-              {taskDetail?.project ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded" style={{ backgroundColor: taskDetail.project.color }} />
-                  <span className="text-sm">{taskDetail.project.name}</span>
-                </div>
-              ) : (
-                <Button variant="ghost" size="sm" className="text-black h-auto p-0">+ Agregar a proyecto</Button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Prioridad</span>
+              <span className="w-24 text-sm text-black">Priority</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-auto p-0">
@@ -2501,16 +3174,16 @@ function TaskDetailPanel({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "HIGH")}>
-                    <span className="text-black">Alta</span>
+                    <span className="text-black">High</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "MEDIUM")}>
-                    <span className="text-amber-600">Media</span>
+                    <span className="text-amber-600">Medium</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "LOW")}>
-                    <span className="text-black">Baja</span>
+                    <span className="text-black">Low</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "NONE")}>
-                    <span className="text-black">Ninguna</span>
+                    <span className="text-black">None</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -2519,12 +3192,12 @@ function TaskDetailPanel({
 
           {/* Description */}
           <div className="p-4 border-b">
-            <h4 className="text-sm font-medium text-slate-700 mb-2">Descripción</h4>
+            <h4 className="text-sm font-medium text-slate-700 mb-2">Description</h4>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={() => description !== taskDetail?.description && handleUpdate("description", description)}
-              placeholder="¿De qué se trata esta tarea?"
+              placeholder="What is this task about?"
               className="w-full p-2 text-sm border rounded-md resize-none min-h-[80px] outline-none focus:ring-2 focus:ring-slate-200"
             />
           </div>
@@ -2532,26 +3205,99 @@ function TaskDetailPanel({
           {/* Subtasks */}
           <div className="p-4 border-b">
             <h4 className="text-sm font-medium text-slate-700 mb-2">
-              Subtareas ({taskDetail?.subtasks?.length || 0})
+              Subtasks ({taskDetail?.subtasks?.length || 0})
             </h4>
-            <div className="space-y-2">
+            <div className="space-y-1">
               {taskDetail?.subtasks?.map((subtask: any) => (
-                <div key={subtask.id} className="flex items-center gap-2">
-                  <div className={cn(
-                    "w-4 h-4 rounded-full border-2 flex items-center justify-center",
-                    subtask.completed ? "bg-green-500 border-green-500" : "border-slate-300"
-                  )}>
-                    {subtask.completed && <Check className="w-3 h-3 text-white" />}
-                  </div>
-                  <span className={cn("text-sm", subtask.completed && "line-through text-black")}>
+                <div key={subtask.id} className="flex items-center gap-2 group hover:bg-gray-50 rounded px-1 py-0.5">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/tasks/${subtask.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ completed: !subtask.completed }),
+                        });
+                        if (res.ok) {
+                          fetchTaskDetail();
+                          onUpdate();
+                        }
+                      } catch {
+                        toast.error("Failed to update subtask");
+                      }
+                    }}
+                    className="flex-shrink-0"
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors",
+                      subtask.completed ? "bg-green-500 border-green-500" : "border-slate-300 hover:border-slate-400"
+                    )}>
+                      {subtask.completed && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                  </button>
+                  <span className={cn("text-sm flex-1", subtask.completed && "line-through text-slate-400")}>
                     {subtask.name}
                   </span>
                 </div>
               ))}
-              <Button variant="ghost" size="sm" className="text-black w-full justify-start">
-                <Plus className="h-4 w-4 mr-2" />
-                Agregar subtarea
-              </Button>
+              {isAddingSubtask ? (
+                <div className="flex items-center gap-2 px-1">
+                  <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex-shrink-0" />
+                  <input
+                    ref={subtaskInputRef}
+                    type="text"
+                    value={newSubtaskName}
+                    onChange={(e) => setNewSubtaskName(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter" && newSubtaskName.trim()) {
+                        try {
+                          const res = await fetch(`/api/tasks`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ name: newSubtaskName.trim(), parentTaskId: task.id }),
+                          });
+                          if (res.ok) {
+                            setNewSubtaskName("");
+                            fetchTaskDetail();
+                            onUpdate();
+                            toast.success("Subtask added");
+                          } else {
+                            toast.error("Failed to add subtask");
+                          }
+                        } catch {
+                          toast.error("Failed to add subtask");
+                        }
+                      }
+                      if (e.key === "Escape") {
+                        setIsAddingSubtask(false);
+                        setNewSubtaskName("");
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!newSubtaskName.trim()) {
+                        setIsAddingSubtask(false);
+                        setNewSubtaskName("");
+                      }
+                    }}
+                    placeholder="Subtask name..."
+                    className="flex-1 text-sm outline-none border-b border-slate-200 focus:border-slate-400 py-1"
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-black w-full justify-start"
+                  onClick={() => {
+                    setIsAddingSubtask(true);
+                    setTimeout(() => subtaskInputRef.current?.focus(), 0);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add subtask
+                </Button>
+              )}
             </div>
           </div>
 
@@ -2565,7 +3311,7 @@ function TaskDetailPanel({
                   activeTab === "comments" ? "text-black border-black" : "text-black border-transparent"
                 )}
               >
-                Comentarios
+                Comments
               </button>
               <button
                 onClick={() => setActiveTab("activity")}
@@ -2574,7 +3320,7 @@ function TaskDetailPanel({
                   activeTab === "activity" ? "text-black border-black" : "text-black border-transparent"
                 )}
               >
-                Toda la actividad
+                All activity
               </button>
             </div>
           </div>
@@ -2602,7 +3348,7 @@ function TaskDetailPanel({
                   </div>
                 ))}
                 {(!taskDetail?.comments || taskDetail.comments.length === 0) && (
-                  <p className="text-sm text-black text-center py-4">Aún no hay comentarios</p>
+                  <p className="text-sm text-black text-center py-4">No comments yet</p>
                 )}
               </>
             ) : (
@@ -2636,7 +3382,7 @@ function TaskDetailPanel({
             <AvatarFallback className="text-xs bg-black text-white">U</AvatarFallback>
           </Avatar>
           <Input
-            placeholder="Agregar un comentario..."
+            placeholder="Add a comment..."
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
@@ -2648,15 +3394,70 @@ function TaskDetailPanel({
       {/* Footer */}
       <div className="p-4 border-t flex items-center justify-between text-sm">
         <div className="flex items-center gap-2">
-          <span className="text-black">Colaboradores:</span>
-          <Avatar className="h-6 w-6">
-            <AvatarFallback className="text-[10px] bg-black text-white">U</AvatarFallback>
-          </Avatar>
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-            <Plus className="h-3 w-3" />
-          </Button>
+          <span className="text-black">Collaborators:</span>
+          {taskDetail?.collaborators?.map((collab: any) => (
+            <Avatar key={collab.id} className="h-6 w-6" title={collab.name || "User"}>
+              <AvatarFallback className="text-[10px] bg-black text-white">
+                {(collab.name || "U").charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+          ))}
+          {(!taskDetail?.collaborators || taskDetail.collaborators.length === 0) && (
+            <Avatar className="h-6 w-6">
+              <AvatarFallback className="text-[10px] bg-black text-white">U</AvatarFallback>
+            </Avatar>
+          )}
+          <AssigneeSelector
+            value={null}
+            onChange={async (user) => {
+              if (!user) return;
+              try {
+                const res = await fetch(`/api/tasks/${task.id}/collaborators`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ userId: user.id }),
+                });
+                if (res.ok) {
+                  toast.success(`${user.name} added as collaborator`);
+                  fetchTaskDetail();
+                } else if (res.status === 409) {
+                  toast.info("Already a collaborator");
+                } else {
+                  toast.error("Failed to add collaborator");
+                }
+              } catch {
+                toast.error("Failed to add collaborator");
+              }
+            }}
+            trigger={
+              <button className="h-6 w-6 rounded-full border border-dashed border-slate-300 flex items-center justify-center hover:border-slate-400 hover:bg-gray-50 cursor-pointer">
+                <Plus className="h-3 w-3 text-slate-400" />
+              </button>
+            }
+          />
         </div>
-        <Button variant="ghost" size="sm" className="text-black">Abandonar tarea</Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-black"
+          onClick={async () => {
+            try {
+              const res = await fetch(`/api/tasks/${task.id}/collaborators`, {
+                method: "DELETE",
+              });
+              if (res.ok) {
+                toast.success("You left this task");
+                fetchTaskDetail();
+              } else {
+                toast.error("Failed to leave task");
+              }
+            } catch {
+              toast.error("Failed to leave task");
+            }
+          }}
+        >
+          Leave task
+        </Button>
       </div>
     </div>
   );

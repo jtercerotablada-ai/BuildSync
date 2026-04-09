@@ -156,28 +156,8 @@ export function MessagesView({
     return mapping[status] || "on-track";
   };
 
-  // Sample status updates
-  const [statusUpdates, setStatusUpdates] = useState<StatusUpdate[]>([
-    {
-      id: "1",
-      title: "The project has started!",
-      author: currentUser,
-      createdAt: new Date(),
-      status: getStatusKey(projectStatus),
-      projectName: projectName,
-      projectColor: projectColor,
-      summary: "Project status is on track.",
-      content:
-        "Use status updates to communicate project progress with your team. Skip follow-up meetings and save time for what really matters.",
-      upcomingTasks: upcomingTasks,
-      collaborators: [
-        currentUser,
-        { id: "2", name: "Maria Garcia", initials: "MG", color: "#EC4899" },
-        { id: "3", name: "Carlos Lopez", initials: "CL", color: "#3B82F6" },
-      ],
-      replies: [],
-    },
-  ]);
+  // TODO: Fetch status updates/messages from API (e.g., GET /api/projects/:id/messages) once endpoint exists
+  const [statusUpdates, setStatusUpdates] = useState<StatusUpdate[]>([]);
 
   // Send new message
   const handleSendMessage = () => {
@@ -315,13 +295,13 @@ function StatusUpdateCard({
         <div className="flex items-start justify-between">
           <h3 className="text-lg font-semibold text-slate-900">{update.title}</h3>
           <div className="flex items-center gap-1">
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors" onClick={() => toast.info("Reactions coming soon")}>
+            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors" title="Reactions">
               <Smile className="w-4 h-4 text-slate-400" />
             </button>
             <button className="p-1.5 hover:bg-slate-100 rounded transition-colors" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied"); }}>
               <Link2 className="w-4 h-4 text-slate-400" />
             </button>
-            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors" onClick={() => toast.info("Full screen view coming soon")}>
+            <button className="p-1.5 hover:bg-slate-100 rounded transition-colors" title="Expand">
               <Maximize2 className="w-4 h-4 text-slate-400" />
             </button>
             <DropdownMenu>
@@ -331,9 +311,9 @@ function StatusUpdateCard({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => toast.info("Edit coming soon")}>Edit</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => toast.info("Delete coming soon")}>Delete</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => toast.info("Pin coming soon")}>Pin</DropdownMenuItem>
+                <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+                <DropdownMenuItem disabled>Delete</DropdownMenuItem>
+                <DropdownMenuItem disabled>Pin</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -502,11 +482,11 @@ function StatusUpdateCard({
               +{update.collaborators.length - 3}
             </span>
           )}
-          <button className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center hover:bg-slate-300 transition-colors" onClick={() => toast.info("Add member coming soon")}>
+          <button className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center hover:bg-slate-300 transition-colors" title="Add collaborator">
             <Plus className="w-3 h-3 text-slate-500" />
           </button>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => toast.info("Left the conversation")}>
+        <Button variant="ghost" size="sm" disabled>
           Leave
         </Button>
       </div>

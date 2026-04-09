@@ -60,6 +60,12 @@ export async function PUT(req: Request) {
 
     const { memberId, role } = await req.json();
 
+    // Validate role
+    const validRoles = ["OWNER", "ADMIN", "MEMBER", "GUEST"];
+    if (role && !validRoles.includes(role)) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+
     // Check if current user is admin/owner
     const currentMember = await prisma.workspaceMember.findFirst({
       where: { userId },

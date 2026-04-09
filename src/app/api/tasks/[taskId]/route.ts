@@ -9,12 +9,14 @@ const updateTaskSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional().nullable(),
   completed: z.boolean().optional(),
+  projectId: z.string().optional().nullable(),
   sectionId: z.string().optional().nullable(),
   assigneeId: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional().nullable(),
   taskStatus: z.enum(["ON_TRACK", "AT_RISK", "OFF_TRACK"]).optional().nullable(),
+  myTaskSection: z.enum(["DO_TODAY", "DO_NEXT_WEEK", "DO_LATER"]).optional().nullable(),
   position: z.number().optional(),
 });
 
@@ -212,6 +214,7 @@ export async function PATCH(
       select: {
         name: true,
         completed: true,
+        projectId: true,
         sectionId: true,
         assigneeId: true,
         dueDate: true,
@@ -251,7 +254,33 @@ export async function PATCH(
       });
     }
 
-    if (data.sectionId !== undefined && data.sectionId !== existingTask.sectionId) {
+    if (data.projectId !== undefined && data.projectId !== existingTask.projectId) {
+      updateData.projectId = data.projectId;
+
+      // Auto-assign to the first section of the new project so the task appears in views
+      if (data.projectId && !data.sectionId) {
+        const firstSection = await prisma.section.findFirst({
+          where: { projectId: data.projectId },
+          orderBy: { position: "asc" },
+          select: { id: true },
+        });
+        if (firstSection) {
+          updateData.sectionId = firstSection.id;
+        }
+      }
+
+      // If removing from project, also clear sectionId
+      if (!data.projectId) {
+        updateData.sectionId = null;
+      }
+
+      activities.push({
+        type: "TASK_MOVED",
+        data: { newProjectId: data.projectId },
+      });
+    }
+
+    if (data.sectionId !== undefined && data.sectionId !== existingTask.sectionId && updateData.sectionId === undefined) {
       updateData.sectionId = data.sectionId;
       activities.push({
         type: "TASK_MOVED",
@@ -290,6 +319,10 @@ export async function PATCH(
       updateData.taskStatus = data.taskStatus;
     }
 
+    if (data.myTaskSection !== undefined) {
+      updateData.myTaskSection = data.myTaskSection;
+    }
+
     if (data.position !== undefined) {
       updateData.position = data.position;
     }
@@ -325,6 +358,21 @@ export async function PATCH(
           select: {
             id: true,
             name: true,
+          },
+        },
+        subtasks: {
+          select: {
+            id: true,
+            name: true,
+            completed: true,
+          },
+        },
+        _count: {
+          select: {
+            subtasks: true,
+            comments: true,
+            attachments: true,
+            likes: true,
           },
         },
       },

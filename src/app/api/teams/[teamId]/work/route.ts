@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
 
 // POST /api/teams/:teamId/work - Link work to team
 export async function POST(
@@ -15,17 +16,11 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user has access to this team
+    await verifyTeamAccess(userId, teamId);
+
     const body = await req.json();
     const { workId, workType, customName, description } = body;
-
-    // Verify team exists
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-    });
-
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 });
-    }
 
     // Link the project to the team
     if (workType === "project") {
@@ -42,6 +37,10 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error linking work to team:", error);
     return NextResponse.json(
       { error: "Failed to link work" },
@@ -63,17 +62,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify team exists and user has access
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-      include: {
-        members: true,
-      },
-    });
-
-    if (!team) {
-      return NextResponse.json({ error: "Team not found" }, { status: 404 });
-    }
+    // Verify user has access to this team
+    await verifyTeamAccess(userId, teamId);
 
     // Get projects associated with this team
     const projects = await prisma.project.findMany({
@@ -110,6 +100,10 @@ export async function GET(
 
     return NextResponse.json(workItems);
   } catch (error) {
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching team work:", error);
     return NextResponse.json(
       { error: "Failed to fetch team work" },

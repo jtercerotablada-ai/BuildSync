@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { GoalProgressService } from "@/lib/goal-progress";
+import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const toggleSchema = z.object({
   completed: z.boolean(),
@@ -20,6 +21,9 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to this task's workspace
+    await verifyTaskAccess(userId, taskId);
 
     const body = await req.json();
     const { completed } = toggleSchema.parse(body);
@@ -75,6 +79,10 @@ export async function PATCH(
 
     return NextResponse.json(updatedSubtask);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     if (error instanceof z.ZodError) {
       const zodError = error as z.ZodError;
       return NextResponse.json(

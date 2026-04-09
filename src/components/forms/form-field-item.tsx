@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-// Tipos de campo disponibles
+// Available field types
 const fieldTypes = [
   { value: 'text', label: 'Text', icon: Type },
   { value: 'paragraph', label: 'Paragraph', icon: AlignLeft },
@@ -81,17 +81,17 @@ export function FormFieldItem({
 
   const isAttachment = field.type === 'attachment';
 
-  // Cerrar al hacer click fuera
+  // Close on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
 
-      // Ignorar clicks en portales de Select (dropdowns)
+      // Ignore clicks on Select portals (dropdowns)
       if (target.closest('[data-radix-popper-content-wrapper]')) {
         return;
       }
 
-      // Ignorar clicks en el overlay de Select
+      // Ignore clicks on the Select overlay
       if (target.closest('[data-radix-select-content]')) {
         return;
       }
@@ -102,7 +102,7 @@ export function FormFieldItem({
     };
 
     if (isExpanded) {
-      // Usar setTimeout para evitar que el click que abre el campo lo cierre inmediatamente
+      // Use setTimeout to prevent the opening click from immediately closing the field
       const timeoutId = setTimeout(() => {
         document.addEventListener('mousedown', handleClickOutside);
       }, 0);
@@ -121,7 +121,7 @@ export function FormFieldItem({
   const currentType = fieldTypes.find(t => t.value === field.type) || fieldTypes[0];
   const TypeIcon = currentType.icon;
 
-  // ========== ATTACHMENT - Estado colapsado ==========
+  // ========== ATTACHMENT - Collapsed state ==========
   if (!isExpanded && isAttachment) {
     return (
       <div
@@ -161,14 +161,14 @@ export function FormFieldItem({
     );
   }
 
-  // ========== ATTACHMENT - Estado expandido ==========
+  // ========== ATTACHMENT - Expanded state ==========
   if (isExpanded && isAttachment) {
     return (
       <div
         ref={containerRef}
         className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4 mb-3"
       >
-        {/* Header con icono */}
+        {/* Header with icon */}
         <div className="flex items-center gap-2 mb-4">
           <Paperclip className="h-4 w-4 text-gray-500" />
           <span className="text-sm font-medium text-gray-700">Attachment</span>
@@ -277,7 +277,7 @@ export function FormFieldItem({
     );
   }
 
-  // ========== NORMAL FIELDS - Estado colapsado ==========
+  // ========== NORMAL FIELDS - Collapsed state ==========
   if (!isExpanded) {
     return (
       <div
@@ -313,7 +313,7 @@ export function FormFieldItem({
     );
   }
 
-  // Estado expandido
+  // Expanded state
   return (
     <div
       ref={containerRef}

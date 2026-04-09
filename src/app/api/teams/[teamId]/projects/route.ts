@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
 
 export async function GET(
   request: Request,
@@ -13,6 +14,9 @@ export async function GET(
     }
 
     const { teamId } = await params;
+
+    // Verify user has access to this team
+    await verifyTeamAccess(userId, teamId);
 
     const projects = await prisma.project.findMany({
       where: { teamId },
@@ -48,6 +52,10 @@ export async function GET(
 
     return NextResponse.json(formattedProjects);
   } catch (error) {
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching team projects:", error);
     return NextResponse.json(
       { error: "Failed to fetch projects" },

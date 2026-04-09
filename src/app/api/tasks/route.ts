@@ -15,6 +15,7 @@ const createTaskSchema = z.object({
   priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional(),
   parentTaskId: z.string().optional().nullable(),
   taskType: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional(),
+  myTaskSection: z.enum(["DO_TODAY", "DO_NEXT_WEEK", "DO_LATER"]).optional().nullable(),
 });
 
 // GET /api/tasks - Get tasks
@@ -38,8 +39,19 @@ export async function GET(req: Request) {
 
     const whereClause: Record<string, unknown> = {
       parentTaskId: null, // Only get top-level tasks
-      project: { workspaceId },
     };
+
+    if (myTasks) {
+      // For "My Tasks", include tasks with a project in this workspace OR tasks without a project assigned to user
+      whereClause.OR = [
+        { project: { workspaceId } },
+        { projectId: null, creatorId: userId },
+      ];
+      whereClause.assigneeId = userId;
+    } else {
+      // For project/section views, scope to workspace
+      whereClause.project = { workspaceId };
+    }
 
     if (projectId) {
       whereClause.projectId = projectId;
@@ -49,16 +61,12 @@ export async function GET(req: Request) {
       whereClause.sectionId = sectionId;
     }
 
-    if (assigneeId) {
+    if (assigneeId && !myTasks) {
       whereClause.assigneeId = assigneeId;
     }
 
     if (completed !== null) {
       whereClause.completed = completed === "true";
-    }
-
-    if (myTasks) {
-      whereClause.assigneeId = userId;
     }
 
     const tasks = await prisma.task.findMany({
@@ -142,73 +150,91 @@ export async function POST(req: Request) {
       await verifyProjectAccess(userId, data.projectId);
     }
 
-    // Get the next position for the task
-    let position = 0;
-    if (data.sectionId) {
-      const lastTask = await prisma.task.findFirst({
-        where: { sectionId: data.sectionId },
-        orderBy: { position: "desc" },
-        select: { position: true },
-      });
-      position = (lastTask?.position ?? -1) + 1;
-    } else if (data.projectId) {
-      const lastTask = await prisma.task.findFirst({
-        where: { projectId: data.projectId, sectionId: null },
-        orderBy: { position: "desc" },
-        select: { position: true },
-      });
-      position = (lastTask?.position ?? -1) + 1;
-    }
-
     // Auto-assign to current user if no assigneeId provided (for My Tasks)
     const assigneeId = data.assigneeId ?? userId;
 
-    const task = await prisma.task.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        projectId: data.projectId,
-        sectionId: data.sectionId,
-        assigneeId: assigneeId,
-        creatorId: userId,
-        dueDate: data.dueDate ? new Date(data.dueDate) : null,
-        startDate: data.startDate ? new Date(data.startDate) : null,
-        priority: data.priority || "NONE",
-        taskType: data.taskType || "TASK",
-        parentTaskId: data.parentTaskId,
-        position,
-      },
-      include: {
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
+    // Wrap position calculation and task creation in a transaction to prevent race conditions
+    const task = await prisma.$transaction(async (tx) => {
+      // Get the next position for the task
+      let position = 0;
+      if (data.sectionId) {
+        const lastTask = await tx.task.findFirst({
+          where: { sectionId: data.sectionId },
+          orderBy: { position: "desc" },
+          select: { position: true },
+        });
+        position = (lastTask?.position ?? -1) + 1;
+      } else if (data.projectId) {
+        const lastTask = await tx.task.findFirst({
+          where: { projectId: data.projectId, sectionId: null },
+          orderBy: { position: "desc" },
+          select: { position: true },
+        });
+        position = (lastTask?.position ?? -1) + 1;
+      }
+
+      return tx.task.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          projectId: data.projectId,
+          sectionId: data.sectionId,
+          assigneeId: assigneeId,
+          creatorId: userId,
+          dueDate: data.dueDate ? new Date(data.dueDate) : null,
+          startDate: data.startDate ? new Date(data.startDate) : null,
+          priority: data.priority || "NONE",
+          taskType: data.taskType || "TASK",
+          parentTaskId: data.parentTaskId,
+          myTaskSection: data.myTaskSection || null,
+          position,
+        },
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
+          section: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          subtasks: {
+            select: {
+              id: true,
+              name: true,
+              completed: true,
+            },
+          },
+          _count: {
+            select: {
+              subtasks: true,
+              comments: true,
+              attachments: true,
+            },
           },
         },
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        project: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-          },
-        },
-        section: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
+      });
     });
 
     // Create activity log

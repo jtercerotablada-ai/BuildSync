@@ -40,6 +40,7 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
   const router = useRouter();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'frequent' | 'all'>('frequent');
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
         }
       } catch (error) {
         console.error('Failed to fetch people:', error);
+        setError('Failed to load data');
       } finally {
         setLoading(false);
       }
@@ -95,7 +97,7 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
           </DropdownMenu>
         </div>
 
-        {/* ===== DROPDOWN 3 PUNTOS ===== */}
+        {/* ===== THREE DOTS DROPDOWN ===== */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="p-2 hover:bg-gray-100 rounded-lg">
@@ -148,6 +150,8 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
         </DropdownMenu>
       </div>
 
+      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
+
       {/* ========== CONTENT ========== */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
@@ -190,7 +194,7 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
             </Button>
           </div>
         ) : (
-          /* Lista de personas */
+          /* People list */
           <div className="flex flex-wrap gap-4 justify-center py-4">
             {people.map((person) => (
               <button

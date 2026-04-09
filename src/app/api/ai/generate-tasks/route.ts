@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { getCurrentUserId } from '@/lib/auth-utils';
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { text, instructions } = await request.json();
 
     if (!text) {
@@ -16,12 +18,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
       return NextResponse.json(
-        { error: 'ANTHROPIC_API_KEY not configured' },
-        { status: 500 }
+        { error: 'AI features not configured' },
+        { status: 503 }
       );
     }
+    const anthropic = new Anthropic({ apiKey });
 
     const systemPrompt = `You are a task extraction assistant. Your job is to analyze text content and extract actionable tasks from it.
 

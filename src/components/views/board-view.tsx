@@ -1,27 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   DragOverlay,
   DragStartEvent,
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  useDroppable,
+  MeasuringStrategy,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
+  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { kanbanCollisionDetection } from "@/lib/kanban-collision-detection";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +35,6 @@ import {
   Calendar,
   MessageSquare,
   Paperclip,
-  User,
   Check,
   MoreHorizontal,
   Pencil,
@@ -43,6 +43,10 @@ import {
 import { cn } from "@/lib/utils";
 import { format, isToday, isTomorrow, isPast, parseISO } from "date-fns";
 import { toast } from "sonner";
+
+// ============================================
+// TYPES
+// ============================================
 
 interface Task {
   id: string;
@@ -79,12 +83,20 @@ interface BoardViewProps {
   projectId: string;
 }
 
-const PRIORITY_COLORS = {
-  NONE: { bg: "", text: "", label: "" },
-  LOW: { bg: "bg-white border border-black", text: "text-black", label: "Low" },
-  MEDIUM: { bg: "bg-white border border-black", text: "text-black", label: "Medium" },
-  HIGH: { bg: "bg-white border border-black", text: "text-black", label: "High" },
+// ============================================
+// PRIORITY CONFIG
+// ============================================
+
+const PRIORITY_CONFIG: Record<string, { dot: string; label: string }> = {
+  HIGH: { dot: "bg-red-500", label: "High" },
+  MEDIUM: { dot: "bg-amber-500", label: "Medium" },
+  LOW: { dot: "bg-blue-500", label: "Low" },
+  NONE: { dot: "", label: "" },
 };
+
+// ============================================
+// MAIN BOARD VIEW
+// ============================================
 
 export function BoardView({
   sections,
@@ -97,88 +109,157 @@ export function BoardView({
   const [addingTaskInSection, setAddingTaskInSection] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState("");
 
+  // Optimistic state: local copy of sections for instant UI updates
+  const [localSections, setLocalSections] = useState<Section[]>(sections);
+
+  // Sync local state when prop changes (after router.refresh)
+  useEffect(() => {
+    setLocalSections(sections);
+  }, [sections]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { distance: 5 },
     })
   );
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const taskId = active.id as string;
+  const dragSourceSectionRef = useRef<string | null>(null);
 
-    for (const section of sections) {
-      const task = section.tasks.find((t) => t.id === taskId);
-      if (task) {
-        setActiveTask(task);
-        break;
+  // ---- DRAG START ----
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const taskId = event.active.id as string;
+      for (const section of localSections) {
+        const task = section.tasks.find((t) => t.id === taskId);
+        if (task) {
+          setActiveTask(task);
+          dragSourceSectionRef.current = section.id;
+          break;
+        }
       }
-    }
-  };
+    },
+    [localSections]
+  );
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveTask(null);
+  // ---- DRAG OVER (optimistic cross-column move) ----
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { active, over } = event;
+      if (!over) return;
+      const activeId = active.id as string;
+      const overId = over.id as string;
 
-    if (!over || active.id === over.id) return;
+      // All logic inside updater to avoid stale closure issues
+      setLocalSections((prev) => {
+        const activeSection = prev.find((s) => s.tasks.some((t) => t.id === activeId));
+        if (!activeSection) return prev;
 
-    const taskId = active.id as string;
-    const overId = over.id as string;
+        let overSection = prev.find((s) => s.id === overId);
+        if (!overSection) overSection = prev.find((s) => s.tasks.some((t) => t.id === overId));
+        if (!overSection || activeSection.id === overSection.id) return prev;
 
-    let sourceSection: Section | null = null;
-    let destinationSection: Section | null = null;
+        const task = activeSection.tasks.find((t) => t.id === activeId);
+        if (!task) return prev;
 
-    for (const section of sections) {
-      if (section.tasks.find((t) => t.id === taskId)) {
-        sourceSection = section;
+        return prev.map((section) => {
+          if (section.id === activeSection.id) {
+            return { ...section, tasks: section.tasks.filter((t) => t.id !== activeId) };
+          }
+          if (section.id === overSection!.id) {
+            const overTaskIndex = section.tasks.findIndex((t) => t.id === overId);
+            const newTasks = [...section.tasks];
+            if (overTaskIndex >= 0) {
+              newTasks.splice(overTaskIndex, 0, task);
+            } else {
+              newTasks.push(task);
+            }
+            return { ...section, tasks: newTasks };
+          }
+          return section;
+        });
+      });
+    },
+    []
+  );
+
+  // ---- DRAG END (persist to backend) ----
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveTask(null);
+      const originalSourceId = dragSourceSectionRef.current;
+      dragSourceSectionRef.current = null;
+
+      if (!over) return;
+
+      const activeId = active.id as string;
+      const overId = over.id as string;
+
+      if (activeId === overId) return;
+
+      // Determine destination from the drop target (event data, not stale state)
+      let destSectionId: string | undefined;
+      if (localSections.some((s) => s.id === overId)) {
+        destSectionId = overId;
+      } else {
+        for (const s of localSections) {
+          if (s.tasks.some((t) => t.id === overId)) {
+            destSectionId = s.id;
+            break;
+          }
+        }
       }
-      if (section.id === overId) {
-        destinationSection = section;
-      } else if (section.tasks.find((t) => t.id === overId)) {
-        destinationSection = section;
+
+      if (!destSectionId) return;
+
+      // Same section → reorder only
+      if (destSectionId === originalSourceId) {
+        setLocalSections((prev) => {
+          const section = prev.find((s) => s.id === destSectionId);
+          if (!section) return prev;
+          const oldIndex = section.tasks.findIndex((t) => t.id === activeId);
+          const newIndex = section.tasks.findIndex((t) => t.id === overId);
+          if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
+          return prev.map((s) =>
+            s.id === section.id ? { ...s, tasks: arrayMove(s.tasks, oldIndex, newIndex) } : s
+          );
+        });
+
+        try {
+          const section = localSections.find((s) => s.id === destSectionId);
+          const newIndex = section?.tasks.findIndex((t) => t.id === overId) ?? 0;
+          const res = await fetch(`/api/tasks/${activeId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ position: newIndex }),
+          });
+          if (!res.ok) throw new Error();
+          router.refresh();
+        } catch {
+          toast.error("Failed to reorder task");
+          setLocalSections(sections); // rollback
+        }
+        return;
       }
-    }
 
-    if (!destinationSection) return;
-
-    const isSameSection = sourceSection?.id === destinationSection.id;
-
-    if (isSameSection) {
-      // Same-column reorder: calculate new position
-      const overTaskIndex = destinationSection.tasks.findIndex((t) => t.id === overId);
-      if (overTaskIndex === -1) return;
-      // Set position to place it at the target index
-      const newPosition = overTaskIndex;
+      // Cross-column move: persist to backend
       try {
-        const response = await fetch(`/api/tasks/${taskId}`, {
+        const res = await fetch(`/api/tasks/${activeId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ position: newPosition }),
+          body: JSON.stringify({ sectionId: destSectionId }),
         });
-        if (!response.ok) throw new Error("Failed to reorder task");
-        router.refresh();
-      } catch {
-        toast.error("Failed to reorder task");
-      }
-    } else {
-      // Cross-column move: update sectionId
-      try {
-        const response = await fetch(`/api/tasks/${taskId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sectionId: destinationSection.id }),
-        });
-        if (!response.ok) throw new Error("Failed to move task");
-        toast.success("Task moved");
+        if (!res.ok) throw new Error();
         router.refresh();
       } catch {
         toast.error("Failed to move task");
+        setLocalSections(sections); // rollback
       }
-    }
-  };
+    },
+    [localSections, sections, router]
+  );
 
+  // ---- CREATE TASK ----
   const handleAddTaskSubmit = async (sectionId: string) => {
     if (!newTaskName.trim()) {
       setAddingTaskInSection(null);
@@ -187,7 +268,7 @@ export function BoardView({
     }
 
     try {
-      const response = await fetch("/api/tasks", {
+      const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -196,11 +277,7 @@ export function BoardView({
           sectionId,
         }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to create task");
-      }
-
+      if (!res.ok) throw new Error();
       toast.success("Task created");
       router.refresh();
       setNewTaskName("");
@@ -210,21 +287,15 @@ export function BoardView({
     }
   };
 
+  // ---- ADD SECTION ----
   const handleAddSection = async () => {
     try {
-      const response = await fetch("/api/sections", {
+      const res = await fetch("/api/sections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "New section",
-          projectId,
-        }),
+        body: JSON.stringify({ name: "New section", projectId }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to create section");
-      }
-
+      if (!res.ok) throw new Error();
       toast.success("Section created");
       router.refresh();
     } catch {
@@ -235,21 +306,25 @@ export function BoardView({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={kanbanCollisionDetection}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
-      <div className="flex gap-4 p-6 h-full overflow-x-auto bg-slate-50">
-        {/* Section Columns */}
-        {sections.map((section) => (
-          <Column
+      <div className="flex gap-3 px-6 py-4 h-full overflow-x-auto">
+        {localSections.map((section) => (
+          <BoardColumn
             key={section.id}
             section={section}
             onTaskClick={onTaskClick}
             projectId={projectId}
             isAddingTask={addingTaskInSection === section.id}
-            newTaskName={newTaskName}
-            onStartAddTask={() => setAddingTaskInSection(section.id)}
+            newTaskName={addingTaskInSection === section.id ? newTaskName : ""}
+            onStartAddTask={() => {
+              setAddingTaskInSection(section.id);
+              setNewTaskName("");
+            }}
             onNewTaskNameChange={setNewTaskName}
             onSubmitTask={() => handleAddTaskSubmit(section.id)}
             onCancelAddTask={() => {
@@ -259,24 +334,31 @@ export function BoardView({
           />
         ))}
 
-        {/* Add Section Column */}
-        <button
-          onClick={handleAddSection}
-          className="flex-shrink-0 w-72 h-12 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add section
-        </button>
+        {/* + Add section */}
+        <div className="flex-shrink-0">
+          <button
+            onClick={handleAddSection}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            Add section
+          </button>
+        </div>
       </div>
 
-      <DragOverlay>
+      {/* Drag Overlay */}
+      <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
         {activeTask && <TaskCardOverlay task={activeTask} />}
       </DragOverlay>
     </DndContext>
   );
 }
 
-function Column({
+// ============================================
+// BOARD COLUMN
+// ============================================
+
+function BoardColumn({
   section,
   onTaskClick,
   projectId,
@@ -301,6 +383,11 @@ function Column({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(section.name);
 
+  // Make the entire column a drop target (critical for empty columns)
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+    id: section.id,
+  });
+
   const handleRename = async () => {
     if (!renameValue.trim() || renameValue === section.name) {
       setIsRenaming(false);
@@ -323,9 +410,10 @@ function Column({
   };
 
   const handleDelete = async () => {
-    const msg = section.tasks.length > 0
-      ? `Delete "${section.name}" and its ${section.tasks.length} task${section.tasks.length > 1 ? "s" : ""}?`
-      : `Delete "${section.name}"?`;
+    const msg =
+      section.tasks.length > 0
+        ? `Delete "${section.name}" and its ${section.tasks.length} task${section.tasks.length > 1 ? "s" : ""}?`
+        : `Delete "${section.name}"?`;
     if (!confirm(msg)) return;
     try {
       const res = await fetch(`/api/sections/${section.id}`, { method: "DELETE" });
@@ -338,9 +426,15 @@ function Column({
   };
 
   return (
-    <div className="flex-shrink-0 w-72 flex flex-col bg-slate-100 rounded-lg max-h-full">
+    <div
+      ref={setDroppableRef}
+      className={cn(
+        "flex-shrink-0 w-[280px] flex flex-col rounded-xl max-h-full transition-colors",
+        isOver ? "bg-slate-200/80" : "bg-slate-100/80"
+      )}
+    >
       {/* Column Header */}
-      <div className="p-3 flex items-center justify-between group">
+      <div className="px-3 pt-3 pb-2 flex items-center justify-between group">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {isRenaming ? (
             <input
@@ -349,103 +443,137 @@ function Column({
               onChange={(e) => setRenameValue(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleRename();
-                if (e.key === "Escape") { setIsRenaming(false); setRenameValue(section.name); }
+                if (e.key === "Escape") {
+                  setIsRenaming(false);
+                  setRenameValue(section.name);
+                }
               }}
               onBlur={handleRename}
-              className="font-semibold text-slate-900 bg-white border rounded px-2 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 w-full"
+              className="font-medium text-sm text-slate-900 bg-white border rounded px-2 py-0.5 outline-none focus:ring-2 focus:ring-blue-500 w-full"
               autoFocus
             />
           ) : (
             <>
-              <h3 className="font-semibold text-slate-900 truncate">{section.name}</h3>
-              <span className="text-sm text-slate-500">{section.tasks.length}</span>
+              <h3 className="font-medium text-sm text-slate-900 truncate">
+                {section.name}
+              </h3>
+              <span className="text-xs text-slate-400 tabular-nums">
+                {section.tasks.length}
+              </span>
             </>
           )}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-              <MoreHorizontal className="w-4 h-4 text-slate-400" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => { setIsRenaming(true); setRenameValue(section.name); }}>
-              <Pencil className="w-4 h-4 mr-2" />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onStartAddTask}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add task
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleDelete} className="text-red-600">
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete section
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
 
-      {/* Cards Container */}
-      <div className="flex-1 px-2 pb-2 overflow-y-auto">
-        {/* Add Task Button/Input - AT THE TOP */}
-        {isAddingTask ? (
-          <div className="bg-white rounded-lg shadow-sm border p-3 mb-2">
-            <input
-              type="text"
-              value={newTaskName}
-              onChange={(e) => onNewTaskNameChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onSubmitTask();
-                if (e.key === "Escape") onCancelAddTask();
-              }}
-              onBlur={() => {
-                if (!newTaskName.trim()) onCancelAddTask();
-              }}
-              placeholder="Task name"
-              className="w-full text-sm outline-none"
-              autoFocus
-            />
-          </div>
-        ) : (
+        <div className="flex items-center gap-0.5">
           <button
             onClick={onStartAddTask}
-            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-lg mb-2"
+            className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 transition-opacity"
           >
-            <Plus className="w-4 h-4" />
-            Add task
+            <Plus className="w-4 h-4 text-slate-400" />
           </button>
-        )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1 hover:bg-slate-200 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                <MoreHorizontal className="w-4 h-4 text-slate-400" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={() => {
+                  setIsRenaming(true);
+                  setRenameValue(section.name);
+                }}
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Rename section
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onStartAddTask}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add task
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete section
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
 
-        {/* Task Cards */}
+      {/* Task Cards */}
+      <div className="flex-1 px-2 pb-2 overflow-y-auto min-h-[60px]">
         <SortableContext
+          id={section.id}
           items={section.tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {section.tasks.map((task) => (
               <SortableTaskCard
                 key={task.id}
                 task={task}
                 onClick={() => onTaskClick(task.id)}
-                projectId={projectId}
               />
             ))}
           </div>
         </SortableContext>
+
+        {/* Empty state */}
+        {section.tasks.length === 0 && !isAddingTask && (
+          <div className="py-8 text-center">
+            <p className="text-xs text-slate-400">No tasks</p>
+          </div>
+        )}
+
+        {/* Inline add task */}
+        {isAddingTask && (
+          <div className="mt-1.5">
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-2.5">
+              <input
+                type="text"
+                value={newTaskName}
+                onChange={(e) => onNewTaskNameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onSubmitTask();
+                  if (e.key === "Escape") onCancelAddTask();
+                }}
+                onBlur={() => {
+                  if (!newTaskName.trim()) onCancelAddTask();
+                }}
+                placeholder="Write a task name"
+                className="w-full text-sm outline-none placeholder:text-slate-400"
+                autoFocus
+              />
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Bottom add task */}
+      {!isAddingTask && (
+        <button
+          onClick={onStartAddTask}
+          className="flex items-center gap-1.5 w-full px-3 py-2 text-sm text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-b-xl transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Add task
+        </button>
+      )}
     </div>
   );
 }
 
+// ============================================
+// SORTABLE TASK CARD
+// ============================================
+
 function SortableTaskCard({
   task,
   onClick,
-  projectId,
 }: {
   task: Task;
   onClick: () => void;
-  projectId: string;
 }) {
   const router = useRouter();
   const {
@@ -460,31 +588,29 @@ function SortableTaskCard({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
   };
 
-  const handleTaskComplete = async (e: React.MouseEvent) => {
+  const handleToggleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-
     try {
-      const response = await fetch(`/api/tasks/${task.id}`, {
+      const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: !task.completed }),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to update task");
-      }
-
-      toast.success(task.completed ? "Task marked incomplete" : "Task completed");
+      if (!res.ok) throw new Error();
       router.refresh();
     } catch {
       toast.error("Failed to update task");
     }
   };
 
-  const isOverdue = task.dueDate && !task.completed && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate));
+  const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.NONE;
+  const hasMetaInfo =
+    task._count.subtasks > 0 ||
+    task._count.comments > 0 ||
+    task._count.attachments > 0 ||
+    task.dueDate;
 
   return (
     <div
@@ -492,114 +618,120 @@ function SortableTaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className="bg-white rounded-lg shadow-sm border p-3 hover:shadow-md transition-shadow cursor-pointer"
+      className={cn(
+        "bg-white rounded-lg border border-slate-200 p-3 cursor-grab active:cursor-grabbing transition-all",
+        isDragging
+          ? "opacity-40 shadow-none"
+          : "hover:shadow-md hover:border-slate-300 shadow-sm"
+      )}
       onClick={onClick}
     >
-      {/* Task Name with Checkbox */}
-      <div className="flex items-start gap-2 mb-2">
+      {/* Top row: checkbox + name */}
+      <div className="flex items-start gap-2">
         <button
-          onClick={handleTaskComplete}
+          onClick={handleToggleComplete}
           className={cn(
-            "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
+            "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
             task.completed
-              ? "bg-black border-black"
+              ? "bg-green-500 border-green-500"
               : "border-slate-300 hover:border-slate-400"
           )}
         >
           {task.completed && <Check className="w-3 h-3 text-white" />}
         </button>
+
         <span
           className={cn(
-            "text-sm font-medium flex-1",
-            task.completed && "line-through text-slate-400"
+            "text-[13px] leading-snug flex-1 min-w-0",
+            task.completed ? "line-through text-slate-400" : "text-slate-800"
           )}
         >
           {task.name}
         </span>
       </div>
 
-      {/* Priority Badge */}
+      {/* Priority indicator */}
       {task.priority && task.priority !== "NONE" && (
-        <div className="mb-2">
-          <Badge
-            variant="secondary"
-            className={cn(
-              "text-xs",
-              PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS].bg,
-              PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS].text
-            )}
-          >
-            {PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS].label}
-          </Badge>
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className={cn("w-2 h-2 rounded-full", priority.dot)} />
+          <span className="text-[11px] text-slate-500">{priority.label}</span>
         </div>
       )}
 
-      {/* Bottom Row: Assignee & Due Date */}
-      <div className="flex items-center justify-between">
-        {/* Assignee */}
-        {task.assignee ? (
-          <Avatar className="h-6 w-6">
-            <AvatarImage src={task.assignee.image || ""} />
-            <AvatarFallback className="text-xs bg-amber-400 text-white">
-              {task.assignee.name?.[0] || "?"}
-            </AvatarFallback>
-          </Avatar>
-        ) : (
-          <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
-            <User className="w-3 h-3 text-slate-300" />
-          </div>
-        )}
+      {/* Bottom row: assignee + meta */}
+      {(task.assignee || hasMetaInfo) && (
+        <div className="flex items-center justify-between mt-2 pt-1.5">
+          {/* Assignee */}
+          {task.assignee ? (
+            <Avatar className="h-5 w-5">
+              <AvatarImage src={task.assignee.image || ""} />
+              <AvatarFallback className="text-[10px] bg-blue-600 text-white">
+                {task.assignee.name?.[0]?.toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+          ) : (
+            <div />
+          )}
 
-        {/* Meta info */}
-        <div className="flex items-center gap-2 text-slate-500">
-          {task._count.subtasks > 0 && (
-            <span className="text-xs">
-              {task.subtasks.filter((s) => s.completed).length}/
-              {task._count.subtasks}
-            </span>
-          )}
-          {task._count.comments > 0 && (
-            <MessageSquare className="h-3 w-3" />
-          )}
-          {task._count.attachments > 0 && (
-            <Paperclip className="h-3 w-3" />
-          )}
-          {task.dueDate && (
-            <DueDateBadge dueDate={task.dueDate} completed={task.completed} />
-          )}
+          {/* Meta info */}
+          <div className="flex items-center gap-2 text-slate-400">
+            {task._count.subtasks > 0 && (
+              <span className="text-[11px] tabular-nums">
+                {task.subtasks.filter((s) => s.completed).length}/{task._count.subtasks}
+              </span>
+            )}
+            {task._count.comments > 0 && <MessageSquare className="h-3 w-3" />}
+            {task._count.attachments > 0 && <Paperclip className="h-3 w-3" />}
+            {task.dueDate && (
+              <DueDateBadge dueDate={task.dueDate} completed={task.completed} />
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
+// ============================================
+// DRAG OVERLAY CARD
+// ============================================
+
 function TaskCardOverlay({ task }: { task: Task }) {
   return (
-    <div className="bg-white rounded-lg shadow-lg border p-3 w-72 cursor-grabbing">
+    <div className="bg-white rounded-lg shadow-xl border border-slate-200 p-3 w-[280px] cursor-grabbing rotate-[2deg]">
       <div className="flex items-start gap-2">
         <div
           className={cn(
-            "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
-            task.completed ? "bg-black border-black" : "border-slate-300"
+            "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
+            task.completed ? "bg-green-500 border-green-500" : "border-slate-300"
           )}
         >
           {task.completed && <Check className="w-3 h-3 text-white" />}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">{task.name}</p>
-        </div>
+        <span className="text-[13px] leading-snug flex-1 min-w-0 text-slate-800">
+          {task.name}
+        </span>
         {task.assignee && (
-          <Avatar className="h-6 w-6 flex-shrink-0">
+          <Avatar className="h-5 w-5 flex-shrink-0">
             <AvatarImage src={task.assignee.image || ""} />
-            <AvatarFallback className="text-xs bg-amber-400 text-white">
-              {task.assignee.name?.[0] || "?"}
+            <AvatarFallback className="text-[10px] bg-blue-600 text-white">
+              {task.assignee.name?.[0]?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
         )}
       </div>
+      {task.dueDate && (
+        <div className="mt-2 flex justify-end">
+          <DueDateBadge dueDate={task.dueDate} completed={task.completed} />
+        </div>
+      )}
     </div>
   );
 }
+
+// ============================================
+// DUE DATE BADGE
+// ============================================
 
 function DueDateBadge({
   dueDate,
@@ -609,22 +741,29 @@ function DueDateBadge({
   completed: boolean;
 }) {
   const date = parseISO(dueDate);
-  const isOverdue = !completed && isPast(date) && !isToday(date);
+  const overdue = !completed && isPast(date) && !isToday(date);
+  const today = isToday(date);
+  const tomorrow = isTomorrow(date);
 
   let label = format(date, "MMM d");
-  if (isToday(date)) label = "Today";
-  if (isTomorrow(date)) label = "Tomorrow";
+  if (today) label = "Today";
+  if (tomorrow) label = "Tomorrow";
 
   return (
-    <div
+    <span
       className={cn(
-        "flex items-center gap-1 text-xs",
-        isOverdue ? "text-black" : "text-slate-500",
-        completed && "text-slate-400"
+        "flex items-center gap-1 text-[11px] whitespace-nowrap",
+        completed
+          ? "text-slate-400"
+          : overdue
+            ? "text-red-500 font-medium"
+            : today
+              ? "text-orange-500"
+              : "text-slate-400"
       )}
     >
       <Calendar className="h-3 w-3" />
       {label}
-    </div>
+    </span>
   );
 }

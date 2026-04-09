@@ -30,13 +30,14 @@ export async function POST(req: Request) {
       // If user exists but has no password, they can continue to onboarding
       if (!existingUser.password) {
         return NextResponse.json(
-          { message: "Continue to complete your profile", userId: existingUser.id },
+          { message: "If this email is not already registered, a verification email has been sent." },
           { status: 200 }
         );
       }
+      // Return generic response to prevent email enumeration
       return NextResponse.json(
-        { error: "An account with this email already exists. Please sign in." },
-        { status: 400 }
+        { message: "If this email is not already registered, a verification email has been sent." },
+        { status: 200 }
       );
     }
 
@@ -57,8 +58,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        message: "Account created. Complete your profile.",
-        userId: user.id,
+        message: "If this email is not already registered, a verification email has been sent.",
       },
       { status: 201 }
     );

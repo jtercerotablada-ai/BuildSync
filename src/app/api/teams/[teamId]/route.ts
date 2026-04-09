@@ -71,23 +71,24 @@ export async function GET(
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    // Check access - user must be a member of the workspace or team
-    const isMember = team.members.some((m) => m.userId === userId);
-
-    if (!isMember && team.privacy === "PRIVATE") {
-      // Check workspace membership
-      const workspaceMember = await prisma.workspaceMember.findUnique({
-        where: {
-          userId_workspaceId: {
-            userId,
-            workspaceId: team.workspaceId,
-          },
+    // Verify user belongs to the same workspace as the team
+    const workspaceMember = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId,
+          workspaceId: team.workspaceId,
         },
-      });
+      },
+    });
 
-      if (!workspaceMember) {
-        return NextResponse.json({ error: "Access denied" }, { status: 403 });
-      }
+    if (!workspaceMember) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+
+    // For private teams, user must also be a team member
+    const isMember = team.members.some((m) => m.userId === userId);
+    if (!isMember && team.privacy === "PRIVATE") {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     return NextResponse.json(team);

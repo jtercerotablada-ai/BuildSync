@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 // GET /api/workspace/knowledge - Get knowledge entries
 export async function GET(req: Request) {
@@ -127,6 +128,19 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Entry ID required" }, { status: 400 });
     }
 
+    // Verify entry belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+    const existing = await prisma.knowledgeEntry.findUnique({
+      where: { id },
+      select: { workspaceId: true },
+    });
+    if (!existing) {
+      throw new NotFoundError("Knowledge entry not found");
+    }
+    if (existing.workspaceId !== workspaceId) {
+      throw new AuthorizationError("You don't have access to this knowledge entry");
+    }
+
     // If just incrementing view count
     if (incrementView) {
       const entry = await prisma.knowledgeEntry.update({
@@ -155,6 +169,10 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(entry);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error updating knowledge entry:", error);
     return NextResponse.json(
       { error: "Failed to update knowledge entry" },
@@ -179,12 +197,29 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Entry ID required" }, { status: 400 });
     }
 
+    // Verify entry belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+    const existing = await prisma.knowledgeEntry.findUnique({
+      where: { id },
+      select: { workspaceId: true },
+    });
+    if (!existing) {
+      throw new NotFoundError("Knowledge entry not found");
+    }
+    if (existing.workspaceId !== workspaceId) {
+      throw new AuthorizationError("You don't have access to this knowledge entry");
+    }
+
     await prisma.knowledgeEntry.delete({
       where: { id },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting knowledge entry:", error);
     return NextResponse.json(
       { error: "Failed to delete knowledge entry" },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   X,
   Calendar as CalendarIcon,
   User,
@@ -38,6 +45,9 @@ import {
   Send,
   Clock,
   CheckSquare,
+  Copy,
+  Archive,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
@@ -131,6 +141,9 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   const [description, setDescription] = useState("");
   const [newComment, setNewComment] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const [newSubtaskName, setNewSubtaskName] = useState("");
+  const isAddingSubtaskRef = useRef(false);
 
   useEffect(() => {
     fetchTask();
@@ -191,6 +204,84 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
     }
   };
 
+  const handleLike = async () => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/like`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("Failed");
+      fetchTask();
+    } catch {
+      toast.error("Failed to toggle like");
+    }
+  };
+
+  const handleAddSubtask = async () => {
+    if (isAddingSubtaskRef.current) return;
+    isAddingSubtaskRef.current = true;
+    if (!newSubtaskName.trim()) {
+      setIsAddingSubtask(false);
+      isAddingSubtaskRef.current = false;
+      return;
+    }
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/subtasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newSubtaskName }),
+      });
+      if (!response.ok) throw new Error("Failed");
+      setNewSubtaskName("");
+      setIsAddingSubtask(false);
+      fetchTask();
+    } catch {
+      toast.error("Failed to add subtask");
+    } finally {
+      isAddingSubtaskRef.current = false;
+    }
+  };
+
+  const handleDuplicate = async () => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/duplicate`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("Failed");
+      toast.success("Task duplicated");
+      router.refresh();
+    } catch {
+      toast.error("Failed to duplicate task");
+    }
+  };
+
+  const handleArchive = async () => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/archive`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("Failed");
+      toast.success("Task archived");
+      onClose();
+      router.refresh();
+    } catch {
+      toast.error("Failed to archive task");
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed");
+      toast.success("Task deleted");
+      onClose();
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete task");
+    }
+  };
+
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
 
@@ -248,15 +339,34 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={() => toast.info("Likes coming soon")}>
-            <ThumbsUp className="h-4 w-4" />
+          <Button variant="ghost" size="icon" onClick={handleLike} title="Like">
+            <ThumbsUp className={cn("h-4 w-4", task._count.likes > 0 && "text-blue-600 fill-blue-600")} />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied"); }}>
             <Link2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => toast.info("More options coming soon")}>
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleDuplicate}>
+                <Copy className="h-4 w-4 mr-2" />
+                Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleArchive}>
+                <Archive className="h-4 w-4 mr-2" />
+                Archive
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -377,11 +487,33 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
               <h4 className="text-sm font-medium">
                 Subtasks ({task._count.subtasks})
               </h4>
-              <Button variant="ghost" size="sm" onClick={() => toast.info("Add subtask coming soon")}>
+              <Button variant="ghost" size="sm" onClick={() => setIsAddingSubtask(true)}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add subtask
               </Button>
             </div>
+            {isAddingSubtask && (
+              <div className="flex items-center gap-2 p-2 rounded-md bg-slate-50 mb-2">
+                <Checkbox disabled className="rounded-full" />
+                <Input
+                  autoFocus
+                  value={newSubtaskName}
+                  onChange={(e) => setNewSubtaskName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddSubtask();
+                    } else if (e.key === "Escape") {
+                      setIsAddingSubtask(false);
+                      setNewSubtaskName("");
+                    }
+                  }}
+                  onBlur={handleAddSubtask}
+                  placeholder="Subtask name..."
+                  className="h-7 text-sm border-none px-0 focus-visible:ring-0"
+                />
+              </div>
+            )}
             {task.subtasks.length > 0 ? (
               <div className="space-y-2">
                 {task.subtasks.map((subtask) => (
@@ -392,6 +524,16 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
                     <Checkbox
                       checked={subtask.completed}
                       className="rounded-full"
+                      onClick={async () => {
+                        try {
+                          await fetch(`/api/tasks/${taskId}/subtasks/${subtask.id}/toggle`, {
+                            method: "PATCH",
+                          });
+                          fetchTask();
+                        } catch {
+                          toast.error("Failed to toggle subtask");
+                        }
+                      }}
                     />
                     <span
                       className={cn(

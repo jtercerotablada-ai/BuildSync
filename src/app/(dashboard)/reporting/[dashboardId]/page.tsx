@@ -40,12 +40,13 @@ import {
 // Widget types
 interface Widget {
   id: string;
-  type: "kpi" | "bar-chart" | "donut" | "line";
+  type: "kpi" | "bar-chart" | "donut" | "line" | "stacked" | "number";
   title: string;
   config: {
     value?: number;
     filter?: string;
     data?: { name: string; value: number; color?: string }[];
+    stackedData?: { name: string; completed: number; incomplete: number }[];
   };
 }
 
@@ -226,6 +227,16 @@ export default function DashboardPage() {
     tasksByStatus: { name: string; value: number; color: string }[];
     projectsByStatus: { name: string; value: number; color: string }[];
     upcomingByAssignee: { name: string; value: number; color: string }[];
+    overdueByProject: { name: string; value: number; color: string }[];
+    tasksByAssigneeAndStatus: { name: string; completed: number; incomplete: number }[];
+    tasksByCreator: { name: string; value: number; color: string }[];
+    projectsByOwner: { name: string; value: number; color: string }[];
+    projectsByPortfolio: { name: string; value: number; color: string }[];
+    goalsByStatus: { name: string; value: number; color: string }[];
+    projectsMostCompleted: { name: string; value: number; color: string }[];
+    tasksCompletedByMonth: { name: string; value: number }[];
+    tasksThisMonthByProject: { name: string; value: number; color: string }[];
+    upcomingByProject: { name: string; value: number; color: string }[];
   } | null>(null);
 
   const config = dashboardConfigs[dashboardId] || {
@@ -312,22 +323,99 @@ export default function DashboardPage() {
     }
   }, [reportData, config.prefix]);
 
+  // Map widget catalog IDs to their data source and chart type
+  const getWidgetDataAndType = (widgetId: string): { type: Widget["type"]; data?: Widget["config"]["data"]; stackedData?: Widget["config"]["stackedData"]; value?: number } => {
+    if (!reportData) return { type: "bar-chart", data: [] };
+
+    switch (widgetId) {
+      // Recommended
+      case "custom-chart":
+        return { type: "bar-chart", data: reportData.tasksByProject };
+      case "incomplete-by-project":
+        return { type: "bar-chart", data: reportData.tasksByProject };
+      case "projects-by-status":
+        return { type: "donut", data: reportData.projectsByStatus };
+      // Resources
+      case "tasks-assignee-status":
+        return { type: "stacked", stackedData: reportData.tasksByAssigneeAndStatus };
+      case "upcoming-by-assignee":
+        return { type: "bar-chart", data: reportData.upcomingByAssignee };
+      case "tasks-month-project":
+        return { type: "bar-chart", data: reportData.tasksThisMonthByProject };
+      case "custom-field-total":
+        return { type: "number", value: reportData.kpis.total };
+      case "projects-by-owner":
+        return { type: "bar-chart", data: reportData.projectsByOwner };
+      case "projects-by-portfolio":
+        return { type: "donut", data: reportData.projectsByPortfolio };
+      case "tasks-by-creator":
+        return { type: "bar-chart", data: reportData.tasksByCreator };
+      // Work Status
+      case "time-custom-field":
+        return { type: "stacked", stackedData: reportData.tasksByAssigneeAndStatus };
+      case "tasks-custom-field":
+        return { type: "donut", data: reportData.tasksByStatus };
+      case "overdue-by-project":
+        return { type: "donut", data: reportData.overdueByProject };
+      case "upcoming-by-project":
+        return { type: "bar-chart", data: reportData.upcomingByProject };
+      case "custom-total-project":
+        return { type: "bar-chart", data: reportData.tasksByProject };
+      case "projects-custom-field":
+        return { type: "donut", data: reportData.projectsByStatus };
+      case "goals-by-status":
+        return { type: "donut", data: reportData.goalsByStatus };
+      // Progress
+      case "projects-most-completed":
+        return { type: "bar-chart", data: reportData.projectsMostCompleted };
+      case "tasks-month-status":
+        return { type: "donut", data: reportData.tasksByStatus };
+      case "tasks-completed-month":
+        return { type: "line", data: reportData.tasksCompletedByMonth?.map(d => ({ ...d, color: "#3b82f6" })) };
+      // Time-related (use stacked as approximation)
+      case "time-estimate-assignee":
+        return { type: "stacked", stackedData: reportData.tasksByAssigneeAndStatus };
+      case "time-over-time":
+        return { type: "line", data: reportData.tasksCompletedByMonth?.map(d => ({ ...d, color: "#3b82f6" })) };
+      default:
+        return { type: "bar-chart", data: [] };
+    }
+  };
+
   const handleAddWidget = (widgetId: string, widgetName: string) => {
-    const widgetType =
-      widgetId.includes("donut") || widgetId.includes("status")
-        ? "donut"
-        : widgetId.includes("line") || widgetId.includes("over-time")
-        ? "line"
-        : "bar-chart";
+    const { type, data, stackedData, value } = getWidgetDataAndType(widgetId);
 
     const newWidget: Widget = {
       id: `widget-${Date.now()}`,
-      type: widgetType,
+      type,
       title: widgetName,
-      config: { data: [] },
+      config: {
+        data: data || [],
+        stackedData: stackedData,
+        value: value,
+        filter: "1 filter",
+      },
     };
     setWidgets([...widgets, newWidget]);
     setIsAddWidgetOpen(false);
+    toast.success(`"${widgetName}" added`);
+  };
+
+  const handleRemoveWidget = (widgetId: string) => {
+    setWidgets((prev) => prev.filter((w) => w.id !== widgetId));
+    toast.success("Widget removed");
+  };
+
+  const handleDuplicateWidget = (widgetId: string) => {
+    const original = widgets.find((w) => w.id === widgetId);
+    if (!original) return;
+    const duplicate: Widget = {
+      ...original,
+      id: `widget-${Date.now()}`,
+      title: `${original.title} (copy)`,
+    };
+    setWidgets((prev) => [...prev, duplicate]);
+    toast.success("Widget duplicated");
   };
 
   if (loading) {
@@ -402,7 +490,7 @@ export default function DashboardPage() {
           <Plus className="w-4 h-4 mr-2" />
           Add widget
         </Button>
-        <button className="text-sm text-black hover:text-black" onClick={() => toast.info("Send feedback coming soon")}>
+        <button className="text-sm text-black hover:text-black" onClick={() => toast.info("Coming soon")}>
           Send feedback
         </button>
       </div>
@@ -427,9 +515,9 @@ export default function DashboardPage() {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => toast.info("Edit coming soon")}>Edit</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toast.info("Duplicate coming soon")}>Duplicate</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toast.info("Remove coming soon")}>Remove</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Coming soon")}>Edit</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDuplicateWidget(widget.id)}>Duplicate</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleRemoveWidget(widget.id)}>Remove</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -471,9 +559,9 @@ export default function DashboardPage() {
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => toast.info("Edit coming soon")}>Edit</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toast.info("Duplicate coming soon")}>Duplicate</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => toast.info("Remove coming soon")}>Remove</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Coming soon")}>Edit</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDuplicateWidget(widget.id)}>Duplicate</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleRemoveWidget(widget.id)}>Remove</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -553,8 +641,9 @@ export default function DashboardPage() {
                           <Line
                             type="monotone"
                             dataKey="value"
-                            stroke="#64748B"
+                            stroke="#3b82f6"
                             strokeWidth={2}
+                            dot={{ fill: "#3b82f6", r: 4 }}
                           />
                         </LineChart>
                       </ResponsiveContainer>
@@ -566,6 +655,34 @@ export default function DashboardPage() {
                   </>
                 )}
 
+                {widget.type === "stacked" && (
+                  <>
+                    {widget.config.stackedData && widget.config.stackedData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={widget.config.stackedData}>
+                          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="completed" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} name="Completed" />
+                          <Bar dataKey="incomplete" stackId="a" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Incomplete" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[200px] flex items-center justify-center text-slate-400">
+                        No data available
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {widget.type === "number" && (
+                  <div className="h-[200px] flex flex-col items-center justify-center">
+                    <p className="text-5xl font-light text-slate-900">{widget.config.value ?? 0}</p>
+                    <p className="text-sm text-slate-400 mt-2">Total</p>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between mt-4 pt-3 border-t text-xs text-slate-400">
                   <div className="flex items-center gap-1">
                     <Filter className="w-3 h-3" />
@@ -573,7 +690,7 @@ export default function DashboardPage() {
                     <span className="mx-1">.</span>
                     <span>Tasks in My workspace</span>
                   </div>
-                  <button className="text-slate-600 hover:text-slate-900" onClick={() => toast.info("View all coming soon")}>
+                  <button className="text-slate-600 hover:text-slate-900" onClick={() => toast.info("Coming soon")}>
                     View all
                   </button>
                 </div>

@@ -24,7 +24,7 @@ interface DueDatePickerProps {
   trigger: React.ReactNode;
 }
 
-const DAYS_OF_WEEK = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const DAYS_OF_WEEK = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -175,7 +175,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
         align="start"
         sideOffset={4}
       >
-        {/* ========== INPUT DE FECHA ========== */}
+        {/* ========== DATE INPUT ========== */}
         <div className="flex items-center border-b px-3 py-2 gap-2">
           <span className="text-sm text-gray-500">+ Due date</span>
           <div className="flex-1" />
@@ -196,7 +196,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
           )}
         </div>
 
-        {/* ========== NAVEGACIÓN DE MES ========== */}
+        {/* ========== MONTH NAVIGATION ========== */}
         <div className="flex items-center justify-between px-3 py-2">
           <button
             onClick={handlePrevMonth}
@@ -215,9 +215,9 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
           </button>
         </div>
 
-        {/* ========== CALENDARIO ========== */}
+        {/* ========== CALENDAR ========== */}
         <div className="px-3 pb-2">
-          {/* Días de la semana */}
+          {/* Days of the week */}
           <div className="grid grid-cols-7 gap-1 mb-1">
             {DAYS_OF_WEEK.map((day, i) => (
               <div
@@ -229,7 +229,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
             ))}
           </div>
 
-          {/* Días del mes */}
+          {/* Days of the month */}
           <div className="grid grid-cols-7 gap-1">
             {allDays.map((item, i) => (
               <button
@@ -250,7 +250,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
           </div>
         </div>
 
-        {/* ========== FOOTER CON OPCIONES ========== */}
+        {/* ========== FOOTER WITH OPTIONS ========== */}
         <div className="flex items-center justify-between px-3 py-2 border-t">
           <div className="flex items-center gap-1">
             <Button

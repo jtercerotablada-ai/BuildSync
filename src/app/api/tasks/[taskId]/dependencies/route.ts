@@ -17,6 +17,41 @@ const createDependencySchema = z.object({
     .default("FINISH_TO_START"),
 });
 
+/**
+ * Detect if adding a dependency would create a circular chain.
+ * Checks whether `targetId` is reachable by traversing the blocking chain from `startId`.
+ * i.e., if startId already (transitively) depends on targetId, adding targetId -> startId would create a cycle.
+ */
+async function detectCircularDependency(startId: string, targetId: string): Promise<boolean> {
+  const visited = new Set<string>();
+  const queue = [startId];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (current === targetId) {
+      return true;
+    }
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+
+    // Find all tasks that `current` depends on (current is the dependent, blocking tasks are upstream)
+    const deps = await prisma.taskDependency.findMany({
+      where: { dependentTaskId: current },
+      select: { blockingTaskId: true },
+    });
+
+    for (const dep of deps) {
+      if (!visited.has(dep.blockingTaskId)) {
+        queue.push(dep.blockingTaskId);
+      }
+    }
+  }
+
+  return false;
+}
+
 // POST /api/tasks/:taskId/dependencies - Add a dependency
 export async function POST(
   req: Request,
@@ -64,19 +99,13 @@ export async function POST(
       );
     }
 
-    // Check for circular dependency (reverse direction)
-    const reverse = await prisma.taskDependency.findUnique({
-      where: {
-        dependentTaskId_blockingTaskId: {
-          dependentTaskId: data.blockingTaskId,
-          blockingTaskId: taskId,
-        },
-      },
-    });
-
-    if (reverse) {
+    // Check for circular dependency (transitive chain detection)
+    // If taskId depends on blockingTaskId, we need to make sure blockingTaskId
+    // doesn't already transitively depend on taskId (which would create a cycle)
+    const hasCircular = await detectCircularDependency(data.blockingTaskId, taskId);
+    if (hasCircular) {
       return NextResponse.json(
-        { error: "Circular dependency: the other task already depends on this one" },
+        { error: "Circular dependency detected: this would create a dependency cycle" },
         { status: 400 }
       );
     }

@@ -51,19 +51,19 @@ const STORAGE_KEY = 'buildsync-private-notepad';
 // Emoji picker data
 const emojiCategories = [
   {
-    name: 'Frecuentes',
+    name: 'Frequent',
     emojis: ['😀', '😂', '🥰', '😎', '🤔', '👍', '👎', '❤️', '🎉', '🔥', '✅', '⭐']
   },
   {
-    name: 'Caras',
+    name: 'Faces',
     emojis: ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘']
   },
   {
-    name: 'Gestos',
+    name: 'Gestures',
     emojis: ['👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '👋', '🙌', '👏', '🤝', '💪']
   },
   {
-    name: 'Objetos',
+    name: 'Objects',
     emojis: ['💼', '📁', '📋', '📌', '📎', '✏️', '📝', '💡', '🔔', '⏰', '📅', '✅']
   },
 ];
@@ -89,6 +89,7 @@ export function PrivateNotepadWidget({
   const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [selectedText, setSelectedText] = useState('');
   const [aiResult, setAiResult] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const savedSelectionRef = useRef<Range | null>(null);
 
@@ -117,6 +118,7 @@ export function PrivateNotepadWidget({
         }
       } catch (error) {
         console.error('Failed to fetch users for mentions:', error);
+        setError('Failed to load data');
       }
     }
     fetchUsers();
@@ -373,7 +375,12 @@ export function PrivateNotepadWidget({
   // 7. MENTION
   const insertMention = useCallback((user: { id: string; name: string }) => {
     restoreSelection();
-    const mentionHTML = `<span contenteditable="false" data-user-id="${user.id}" style="background-color: #dbeafe; color: #1d4ed8; padding: 2px 4px; border-radius: 4px; font-weight: 500;">@${user.name}</span>&nbsp;`;
+    const span = document.createElement('span');
+    span.contentEditable = 'false';
+    span.setAttribute('data-user-id', user.id);
+    span.style.cssText = 'background-color: #dbeafe; color: #1d4ed8; padding: 2px 4px; border-radius: 4px; font-weight: 500;';
+    span.textContent = `@${user.name}`;
+    const mentionHTML = span.outerHTML + '&nbsp;';
     document.execCommand('insertHTML', false, mentionHTML);
     handleContentChange();
     setShowMentionPicker(false);
@@ -683,7 +690,7 @@ export function PrivateNotepadWidget({
           <Lock className="h-4 w-4 text-gray-400" />
         </div>
 
-        {/* DROPDOWN 3 PUNTOS */}
+        {/* THREE DOTS DROPDOWN */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="p-2 hover:bg-gray-100 rounded-lg">
@@ -718,6 +725,8 @@ export function PrivateNotepadWidget({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
 
       {/* Editor area */}
       <div className="flex-1 overflow-y-auto relative min-h-[120px] mb-2">

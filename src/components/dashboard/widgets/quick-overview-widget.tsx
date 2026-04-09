@@ -68,7 +68,7 @@ export function QuickOverviewWidget() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Grid 2x2 para caber en widget cuadrado */}
+      {/* 2x2 grid to fit in square widget */}
       <div className="grid grid-cols-2 gap-4 flex-1 content-center">
         <StatCard
           icon={<Clock className="h-5 w-5" />}

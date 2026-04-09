@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { AIPanelProvider } from "@/contexts/ai-panel-context";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -26,12 +27,14 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <QueryProvider>
-            <SessionProvider>
-              {children}
-              <Toaster />
-            </SessionProvider>
-          </QueryProvider>
+          <SessionProvider>
+            <AIPanelProvider>
+              <QueryProvider>
+                {children}
+                <Toaster />
+              </QueryProvider>
+            </AIPanelProvider>
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>

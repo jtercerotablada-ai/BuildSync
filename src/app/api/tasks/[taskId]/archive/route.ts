@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 // POST /api/tasks/:taskId/archive - Archive a task
 export async function POST(
@@ -14,6 +15,9 @@ export async function POST(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to this task's workspace
+    await verifyTaskAccess(userId, taskId);
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -47,6 +51,10 @@ export async function POST(
 
     return NextResponse.json({ archived: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error archiving task:", error);
     return NextResponse.json(
       { error: "Failed to archive task" },
@@ -68,6 +76,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify user has access to this task's workspace
+    await verifyTaskAccess(userId, taskId);
+
     await prisma.task.update({
       where: { id: taskId },
       data: {
@@ -78,6 +89,10 @@ export async function DELETE(
 
     return NextResponse.json({ archived: false });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error unarchiving task:", error);
     return NextResponse.json(
       { error: "Failed to unarchive task" },

@@ -19,17 +19,6 @@ export async function DELETE(req: Request) {
       );
     }
 
-    // Nullify non-cascading references before deleting
-    await prisma.comment.updateMany({
-      where: { authorId: userId },
-      data: { authorId: userId }, // comments cascade via User relation
-    });
-
-    await prisma.activity.updateMany({
-      where: { userId },
-      data: { userId }, // activities cascade via User relation
-    });
-
     // Delete user (cascades handle Account, Session, WorkspaceMember, etc.)
     await prisma.user.delete({
       where: { id: userId },

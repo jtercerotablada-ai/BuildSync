@@ -98,7 +98,7 @@ export function AddColumnDropdown({
               type="text"
               value={fieldName}
               onChange={(e) => setFieldName(e.target.value)}
-              placeholder="Nuevo campo"
+              placeholder="New field"
               className="w-full h-8 px-3 text-[13px] border-2 border-black rounded-md bg-white focus:outline-none placeholder:text-gray-400"
             />
           </div>
@@ -106,7 +106,7 @@ export function AddColumnDropdown({
           {/* Section title */}
           <div className="px-3 pb-1.5">
             <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">
-              Tipos de campo
+              Field types
             </span>
           </div>
 
@@ -137,7 +137,7 @@ export function AddColumnDropdown({
               className="w-full flex items-center gap-2.5 px-3 h-9 text-[13px] text-gray-700 hover:bg-black/[0.04] transition-colors text-left cursor-pointer"
             >
               <BookOpen className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <span>Desde la biblioteca</span>
+              <span>From library</span>
             </button>
           </div>
         </div>

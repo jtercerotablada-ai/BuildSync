@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Sparkles,
@@ -10,10 +11,15 @@ import {
   ChevronDown,
   Calendar,
   Users,
-  FileText,
   FolderOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface Project {
@@ -27,7 +33,7 @@ interface Project {
     name: string | null;
     email: string | null;
     image: string | null;
-  };
+  } | null;
   members: {
     userId: string;
     role: string;
@@ -65,47 +71,27 @@ interface ActivityItem {
 }
 
 export function ProjectOverview({ project }: ProjectOverviewProps) {
+  const router = useRouter();
   const [description, setDescription] = useState(project.description || "");
-  const [statusUpdates] = useState<StatusUpdate[]>([
-    {
-      id: "1",
-      title: "The project has started!",
-      summary:
-        "Use status updates to communicate project progress with your team and stakeholders.",
-      author: { name: project.owner.name || "Project Owner" },
-      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
-      status: "on-track",
-    },
-  ]);
 
-  const [activities] = useState<ActivityItem[]>([
-    {
-      id: "1",
-      type: "status_update",
-      title: "The project has started!",
-      author: project.owner.name || "Project Owner",
-      createdAt: new Date(),
-    },
-    {
-      id: "2",
-      type: "member_joined",
-      title: "Joined My workspace",
-      createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000),
-    },
-    {
-      id: "3",
-      type: "member_joined",
-      title: "You joined",
-      createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000),
-    },
-    {
-      id: "4",
-      type: "project_created",
-      title: "Project created",
-      author: project.owner.name || "Project Owner",
-      createdAt: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000),
-    },
-  ]);
+  const saveDescription = useCallback(async (value: string) => {
+    if (value === (project.description || "")) return;
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: value || null }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    } catch {
+      toast.error("Failed to save description");
+    }
+  }, [project.id, project.description]);
+  // TODO: Fetch status updates from API (e.g., GET /api/projects/:id/status-updates) once endpoint exists
+  const [statusUpdates] = useState<StatusUpdate[]>([]);
+
+  // TODO: Fetch activity feed from API (e.g., GET /api/projects/:id/activities) once endpoint exists
+  const [activities] = useState<ActivityItem[]>([]);
 
   const statusColors = {
     ON_TRACK: { bg: "bg-green-500", label: "On track", text: "text-green-700" },
@@ -122,14 +108,16 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
   const allMembers: { id: string; name: string | null; email: string | null; image: string | null; role: string }[] = [];
 
   // Add owner first
-  allMembers.push({
-    id: project.owner.id,
-    name: project.owner.name,
-    email: project.owner.email,
-    image: project.owner.image,
-    role: "Project owner",
-  });
-  memberIds.add(project.owner.id);
+  if (project.owner) {
+    allMembers.push({
+      id: project.owner.id,
+      name: project.owner.name,
+      email: project.owner.email,
+      image: project.owner.image,
+      role: "Project owner",
+    });
+    memberIds.add(project.owner.id);
+  }
 
   // Add other members (skip if already added as owner)
   project.members.forEach((m) => {
@@ -228,6 +216,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onBlur={(e) => saveDescription(e.target.value)}
             placeholder="What is this project about?"
             className="w-full p-3 border rounded-lg text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
           />
@@ -237,7 +226,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-3">Project roles</h2>
           <div className="flex items-center gap-4 flex-wrap">
-            <button className="flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg text-sm text-slate-500 hover:bg-slate-50" onClick={() => toast.info("Add member coming soon")}>
+            <button className="flex items-center gap-2 px-3 py-2 border border-dashed rounded-lg text-sm text-slate-500 hover:bg-slate-50" onClick={() => router.push(`/projects/${project.id}/members`)}>
               <Plus className="w-4 h-4" />
               Add member
             </button>
@@ -266,7 +255,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
             <p className="text-sm text-slate-500">
               Create or connect a goal to link this project to a bigger purpose
             </p>
-            <Button variant="outline" size="sm" className="mt-3">
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => router.push("/goals")}>
               <Plus className="w-4 h-4 mr-2" />
               Add goal
             </Button>
@@ -283,14 +272,42 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
               <h3 className={cn("text-lg font-semibold", currentStatus.text)}>
                 {currentStatus.label}
               </h3>
-              <Button variant="outline" size="sm">
-                Update status
-                <ChevronDown className="w-4 h-4 ml-1" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    Update status
+                    <ChevronDown className="w-4 h-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {Object.entries(statusColors).map(([key, val]) => (
+                    <DropdownMenuItem
+                      key={key}
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/projects/${project.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ status: key }),
+                          });
+                          if (!res.ok) throw new Error("Failed");
+                          toast.success(`Status updated to ${val.label}`);
+                          router.refresh();
+                        } catch {
+                          toast.error("Failed to update status");
+                        }
+                      }}
+                    >
+                      <div className={cn("w-2 h-2 rounded-full mr-2", val.bg)} />
+                      {val.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* Latest Status Update */}
-            {statusUpdates.length > 0 && (
+            {statusUpdates.length > 0 ? (
               <div className="bg-white rounded-lg border-l-4 border-green-500 p-4 shadow-sm">
                 <h4 className="font-medium text-slate-900 mb-1">
                   {statusUpdates[0].title}
@@ -311,6 +328,10 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                   </span>
                 </div>
               </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                No status updates yet. Use the button above to post one.
+              </p>
             )}
           </div>
 
@@ -322,48 +343,52 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
             </div>
 
             <div className="space-y-4">
-              {activities.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-3">
-                  {/* Icon */}
-                  <div
-                    className={cn(
-                      "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
-                      activity.type === "status_update"
-                        ? "bg-green-500"
-                        : "bg-slate-200"
-                    )}
-                  >
-                    {activity.type === "status_update" && (
-                      <div className="w-2 h-2 bg-white rounded-full" />
-                    )}
-                    {activity.type === "member_joined" && (
-                      <Users className="w-3 h-3 text-slate-500" />
-                    )}
-                    {activity.type === "project_created" && (
-                      <FolderOpen className="w-3 h-3 text-slate-500" />
-                    )}
-                  </div>
+              {activities.length > 0 ? (
+                activities.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-3">
+                    {/* Icon */}
+                    <div
+                      className={cn(
+                        "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
+                        activity.type === "status_update"
+                          ? "bg-green-500"
+                          : "bg-slate-200"
+                      )}
+                    >
+                      {activity.type === "status_update" && (
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                      )}
+                      {activity.type === "member_joined" && (
+                        <Users className="w-3 h-3 text-slate-500" />
+                      )}
+                      {activity.type === "project_created" && (
+                        <FolderOpen className="w-3 h-3 text-slate-500" />
+                      )}
+                    </div>
 
-                  {/* Content */}
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-900">
-                      {activity.title}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {activity.author
-                        ? `${activity.author} - ${formatRelativeTime(activity.createdAt)}`
-                        : formatRelativeTime(activity.createdAt)}
-                    </p>
+                    {/* Content */}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-900">
+                        {activity.title}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {activity.author
+                          ? `${activity.author} - ${formatRelativeTime(activity.createdAt)}`
+                          : formatRelativeTime(activity.createdAt)}
+                      </p>
 
-                    {/* Author Avatar for status updates */}
-                    {activity.type === "status_update" && activity.author && (
-                      <div className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center text-xs font-medium text-white mt-2">
-                        {activity.author[0]}
-                      </div>
-                    )}
+                      {/* Author Avatar for status updates */}
+                      {activity.type === "status_update" && activity.author && (
+                        <div className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center text-xs font-medium text-white mt-2">
+                          {activity.author[0]}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-slate-400">No activity yet.</p>
+              )}
             </div>
           </div>
         </div>

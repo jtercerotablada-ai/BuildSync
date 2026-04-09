@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { InviteTeamModal } from "./invite-team-modal";
 
 interface TeamMember {
@@ -88,16 +89,29 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/teams/${team.id}/members`)}>
                   <Settings className="h-4 w-4 mr-2" />
                   Edit team
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/teams/${team.id}/members`)}>
                   <Users className="h-4 w-4 mr-2" />
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600">
+                <DropdownMenuItem
+                  className="text-red-600"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`/api/teams/${team.id}`, { method: "DELETE" });
+                      if (!res.ok) throw new Error("Failed");
+                      toast.success("Team deleted");
+                      router.push("/teams");
+                      router.refresh();
+                    } catch {
+                      toast.error("Failed to delete team");
+                    }
+                  }}
+                >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete team
                 </DropdownMenuItem>
@@ -168,10 +182,6 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
             );
           })}
 
-          {/* Add tab button */}
-          <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-            <Plus className="h-4 w-4" />
-          </button>
         </div>
       </div>
 

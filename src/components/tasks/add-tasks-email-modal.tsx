@@ -41,11 +41,11 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[660px] max-w-[92vw] p-0 rounded-xl border-0 shadow-[0_12px_40px_rgba(0,0,0,0.22)] gap-0 overflow-hidden [&>button]:hidden">
-        <DialogTitle className="sr-only">Agregar tareas por email</DialogTitle>
+        <DialogTitle className="sr-only">Add tasks by email</DialogTitle>
 
         {/* Header */}
         <div className="flex items-center justify-between px-[22px] py-[18px]">
-          <h2 className="text-[16px] font-semibold text-gray-900">Agregar tareas por email</h2>
+          <h2 className="text-[16px] font-semibold text-gray-900">Add tasks by email</h2>
           <button
             onClick={() => onOpenChange(false)}
             className="flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -57,7 +57,7 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
         {/* Body */}
         <div className="px-[22px] pb-[22px] space-y-5">
           <p className="text-[14px] text-gray-600 leading-relaxed">
-            Puedes agregar una tarea a esta lista enviando un email a:
+            You can add a task to this list by sending an email to:
           </p>
 
           {/* Email pill */}
@@ -66,7 +66,7 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
             className="group relative w-full h-14 flex items-center justify-center bg-[#f3f4f6] rounded-lg hover:bg-[#ebedf0] transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-black/10"
           >
             {loading ? (
-              <span className="text-[14px] text-gray-400">Cargando...</span>
+              <span className="text-[14px] text-gray-400">Loading...</span>
             ) : (
               <>
                 <span className="text-[18px] font-medium text-gray-800 select-all">
@@ -76,12 +76,12 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
                   {copied ? (
                     <>
                       <Check className="w-3.5 h-3.5 text-green-500" />
-                      <span className="text-green-600">Copiado</span>
+                      <span className="text-green-600">Copied</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Copiar</span>
+                      <span>Copy</span>
                     </>
                   )}
                 </span>
@@ -92,10 +92,10 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
           {/* Instructions */}
           <ul className="space-y-2.5 pl-1">
             {[
-              "El asunto se convierte en el nombre de la tarea",
-              "El cuerpo del email se convierte en la descripción de la tarea",
-              "Los archivos adjuntos se agregan a la tarea",
-              "Puedes poner en CC a compañeros de equipo para agregarlos como colaboradores",
+              "The subject becomes the task name",
+              "The email body becomes the task description",
+              "Attachments are added to the task",
+              "You can CC teammates to add them as collaborators",
             ].map((item) => (
               <li key={item} className="flex items-start gap-2.5 text-[13px] text-gray-600 leading-relaxed">
                 <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-[3px]" />
@@ -111,7 +111,7 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
               className="text-[13px] text-blue-600 hover:text-blue-700 hover:underline transition-colors"
               onClick={(e) => e.preventDefault()}
             >
-              Más información
+              Learn more
             </a>
           </div>
         </div>

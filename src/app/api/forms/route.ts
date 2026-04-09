@@ -62,7 +62,7 @@ export async function GET(req: Request) {
       name: form.name,
       projectName: form.project.name,
       responsesCount: form._count.submissions,
-      createdAt: form.id, // cuid is time-sortable
+      createdAt: form.createdAt || new Date().toISOString(),
     }));
 
     return NextResponse.json(result);

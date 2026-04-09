@@ -38,18 +38,18 @@ export function GoalProgressChart({
     );
 
     const months = [
-      "ene",
-      "feb",
-      "mar",
-      "abr",
-      "may",
-      "jun",
-      "jul",
-      "ago",
-      "sep",
-      "oct",
-      "nov",
-      "dic",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
     ];
 
     let currentDate = new Date(start);
@@ -189,7 +189,7 @@ export function GoalProgressChart({
             <Tooltip
               formatter={(value, name) => [
                 `${value}%`,
-                name === "expected" ? "Esperado" : "Actual",
+                name === "expected" ? "Expected" : "Actual",
               ]}
               labelFormatter={(label) => String(label)}
             />

@@ -53,15 +53,15 @@ interface SidebarProps {
 }
 
 const mainNavItems = [
-  { href: "/home", label: "Inicio", icon: Home },
-  { href: "/my-tasks", label: "Mis tareas", icon: CheckSquare },
-  { href: "/inbox", label: "Bandeja de entrada", icon: Inbox },
+  { href: "/home", label: "Home", icon: Home },
+  { href: "/my-tasks", label: "My Tasks", icon: CheckSquare },
+  { href: "/inbox", label: "Inbox", icon: Inbox },
 ];
 
 const insightsNavItems = [
-  { href: "/reporting", label: "Informes", icon: BarChart3 },
-  { href: "/portfolios", label: "Portafolios", icon: Briefcase },
-  { href: "/goals", label: "Objetivos", icon: Target },
+  { href: "/reporting", label: "Reporting", icon: BarChart3 },
+  { href: "/portfolios", label: "Portfolios", icon: Briefcase },
+  { href: "/goals", label: "Goals", icon: Target },
 ];
 
 function NavItem({
@@ -180,7 +180,7 @@ export function Sidebar({
                   href={item.href}
                   label={item.label}
                   icon={item.icon}
-                  isActive={pathname === item.href}
+                  isActive={pathname === item.href || (item.href !== '/home' && pathname.startsWith(item.href + '/'))}
                   collapsed={collapsed}
                 />
               ))}
@@ -191,7 +191,7 @@ export function Sidebar({
             {/* Insights */}
             {!collapsed && (
               <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                Información
+                Insights
               </div>
             )}
             <nav className="space-y-0.5">
@@ -201,7 +201,7 @@ export function Sidebar({
                   href={item.href}
                   label={item.label}
                   icon={item.icon}
-                  isActive={pathname === item.href}
+                  isActive={pathname === item.href || (item.href !== '/home' && pathname.startsWith(item.href + '/'))}
                   collapsed={collapsed}
                 />
               ))}
@@ -226,7 +226,7 @@ export function Sidebar({
                             !projectsOpen && "-rotate-90"
                           )}
                         />
-                        Proyectos
+                        Projects
                       </CollapsibleTrigger>
                       <div className="relative" ref={projectsDropdownRef}>
                         <Button
@@ -249,7 +249,7 @@ export function Sidebar({
                               }}
                             >
                               <Folder className="w-4 h-4 text-gray-500" />
-                              Nuevo proyecto
+                              New project
                             </button>
                             <button
                               className="w-full flex items-center gap-3 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
@@ -259,7 +259,7 @@ export function Sidebar({
                               }}
                             >
                               <FolderOpen className="w-4 h-4 text-gray-500" />
-                              Nuevo portafolio
+                              New portfolio
                             </button>
                           </div>
                         )}
@@ -269,7 +269,7 @@ export function Sidebar({
                       <nav className="space-y-0.5">
                         {projects.length === 0 ? (
                           <p className="px-3 py-1.5 text-[13px] text-gray-400">
-                            Aún no hay proyectos
+                            No projects yet
                           </p>
                         ) : (
                           projects.map((project) => {
@@ -307,7 +307,7 @@ export function Sidebar({
                   </Collapsible>
                 ) : (
                   <div className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                    Proyectos
+                    Projects
                   </div>
                 )}
 
@@ -324,7 +324,7 @@ export function Sidebar({
                             !teamsOpen && "-rotate-90"
                           )}
                         />
-                        Equipos
+                        Teams
                       </CollapsibleTrigger>
                       <Button
                         variant="ghost"
@@ -339,7 +339,7 @@ export function Sidebar({
                       <nav className="space-y-0.5">
                         {teams.length === 0 ? (
                           <p className="px-3 py-1.5 text-[13px] text-gray-400">
-                            Aún no hay equipos
+                            No teams yet
                           </p>
                         ) : (
                           teams.map((team) => {
@@ -380,7 +380,7 @@ export function Sidebar({
                   </Collapsible>
                 ) : (
                   <div className="px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                    Equipos
+                    Teams
                   </div>
                 )}
               </>
@@ -411,7 +411,7 @@ export function Sidebar({
                 sideOffset={8}
                 className="bg-[#111827] text-white text-[12px] rounded-lg px-2.5 py-1.5 shadow-md border-0"
               >
-                Configuración
+                Settings
               </TooltipContent>
             </Tooltip>
           ) : (
@@ -425,7 +425,7 @@ export function Sidebar({
                 )}
               >
                 <Settings className="h-[18px] w-[18px]" />
-                Configuración
+                Settings
               </span>
             </Link>
           )}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 // POST /api/tasks/:taskId/duplicate - Duplicate a task
 export async function POST(
@@ -14,6 +15,9 @@ export async function POST(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to this task's workspace
+    await verifyTaskAccess(userId, taskId);
 
     // Get the original task
     const originalTask = await prisma.task.findUnique({
@@ -117,6 +121,10 @@ export async function POST(
 
     return NextResponse.json(duplicatedTask, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error duplicating task:", error);
     return NextResponse.json(
       { error: "Failed to duplicate task" },

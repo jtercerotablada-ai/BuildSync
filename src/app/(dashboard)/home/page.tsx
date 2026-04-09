@@ -230,7 +230,7 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Widget Grid - 2 columnas con widgets cuadrados */}
+        {/* Widget Grid - 2 columns with square widgets */}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { validateToken, consumeToken } from "@/lib/tokens";
+import { validatePassword } from "@/lib/auth-utils";
 
 export async function POST(req: Request) {
   try {
@@ -11,11 +12,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Token is required" }, { status: 400 });
     }
 
-    if (!password || password.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters" },
-        { status: 400 }
-      );
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      return NextResponse.json({ error: pwCheck.message }, { status: 400 });
     }
 
     const record = await validateToken(token, "password-reset:");

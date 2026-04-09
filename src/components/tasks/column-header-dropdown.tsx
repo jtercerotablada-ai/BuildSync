@@ -54,7 +54,7 @@ export interface ColumnHeaderCallbacks {
 
 export const COLUMN_CONFIGS: Record<string, Omit<ColumnConfig, "id">> = {
   name: {
-    label: "Nombre de la tarea",
+    label: "Task name",
     sortable: true,
     filterable: true,
     groupable: true,
@@ -62,7 +62,7 @@ export const COLUMN_CONFIGS: Record<string, Omit<ColumnConfig, "id">> = {
     isFirst: true,
   },
   dueDate: {
-    label: "Fecha de entrega",
+    label: "Due date",
     sortable: true,
     filterable: true,
     groupable: true,
@@ -70,7 +70,7 @@ export const COLUMN_CONFIGS: Record<string, Omit<ColumnConfig, "id">> = {
     minWidth: "110px",
   },
   collaborators: {
-    label: "Colaboradores",
+    label: "Collaborators",
     sortable: false,
     filterable: false,
     groupable: false,
@@ -78,7 +78,7 @@ export const COLUMN_CONFIGS: Record<string, Omit<ColumnConfig, "id">> = {
     minWidth: "110px",
   },
   projects: {
-    label: "Proyectos",
+    label: "Projects",
     sortable: true,
     filterable: false,
     groupable: true,
@@ -86,7 +86,7 @@ export const COLUMN_CONFIGS: Record<string, Omit<ColumnConfig, "id">> = {
     minWidth: "160px",
   },
   visibility: {
-    label: "Visibilidad",
+    label: "Visibility",
     sortable: false,
     filterable: false,
     groupable: false,
@@ -98,14 +98,14 @@ export const COLUMN_CONFIGS: Record<string, Omit<ColumnConfig, "id">> = {
 // ─── Group field options for Agrupar submenu ─────────────
 
 const GROUP_SUBMENU_OPTIONS = [
-  { value: "sections", label: "Secciones", icon: ClipboardList },
-  { value: "start_date", label: "Fecha de inicio", icon: Calendar },
-  { value: "due_date", label: "Fecha de entrega", icon: CalendarDays },
-  { value: "creator", label: "Creador", icon: User },
-  { value: "created_at", label: "Fecha de creación", icon: Clock },
-  { value: "updated_at", label: "Última modificación", icon: Pencil },
-  { value: "completed_at", label: "Fecha de finalización", icon: CalendarCheck },
-  { value: "project", label: "Proyecto", icon: ClipboardList },
+  { value: "sections", label: "Sections", icon: ClipboardList },
+  { value: "start_date", label: "Start date", icon: Calendar },
+  { value: "due_date", label: "Due date", icon: CalendarDays },
+  { value: "creator", label: "Creator", icon: User },
+  { value: "created_at", label: "Creation date", icon: Clock },
+  { value: "updated_at", label: "Last modified", icon: Pencil },
+  { value: "completed_at", label: "Completion date", icon: CalendarCheck },
+  { value: "project", label: "Project", icon: ClipboardList },
 ];
 
 // ─── ColumnHeader ────────────────────────────────────────
@@ -230,19 +230,19 @@ const ColumnDropdown = forwardRef<
       {/* Sortable: Ordenar > submenu */}
       {config.sortable && (
         <DropdownSubmenu
-          label="Ordenar"
+          label="Sort"
           icon={<ArrowUpDown className="w-4 h-4" />}
           isOpen={openSub === "sort"}
           onToggle={() => setOpenSub(openSub === "sort" ? null : "sort")}
         >
           <DropdownItem
             icon={<ArrowUp className="w-4 h-4" />}
-            label="Orden ascendente"
+            label="Sort ascending"
             onClick={() => { callbacks.onSortAsc?.(); onClose(); }}
           />
           <DropdownItem
             icon={<ArrowDown className="w-4 h-4" />}
-            label="Orden descendente"
+            label="Sort descending"
             onClick={() => { callbacks.onSortDesc?.(); onClose(); }}
           />
         </DropdownSubmenu>
@@ -252,7 +252,7 @@ const ColumnDropdown = forwardRef<
       {config.filterable && (
         <DropdownItem
           icon={<Filter className="w-4 h-4" />}
-          label="Filtrar"
+          label="Filter"
           onClick={() => { callbacks.onFilter?.(); onClose(); }}
         />
       )}
@@ -260,7 +260,7 @@ const ColumnDropdown = forwardRef<
       {/* Groupable: Agrupar > submenu */}
       {config.groupable && (
         <DropdownSubmenu
-          label="Agrupar"
+          label="Group by"
           icon={<LayoutGrid className="w-4 h-4" />}
           isOpen={openSub === "group"}
           onToggle={() => setOpenSub(openSub === "group" ? null : "group")}
@@ -277,7 +277,7 @@ const ColumnDropdown = forwardRef<
           <div className="my-1.5 mx-3 border-t border-gray-200" />
           <DropdownItem
             icon={<Plus className="w-4 h-4" />}
-            label="Agregar campo personalizado..."
+            label="Add custom field..."
             accent
             onClick={() => { callbacks.onOpenCustomField?.(); onClose(); }}
           />
@@ -292,23 +292,23 @@ const ColumnDropdown = forwardRef<
       {/* Agregar columna */}
       <DropdownItem
         icon={<Plus className="w-4 h-4" />}
-        label="Agregar columna"
+        label="Add column"
         onClick={() => { callbacks.onAddColumn?.(); onClose(); }}
       />
 
       {/* Mover columna > submenu */}
       <DropdownSubmenu
-        label="Mover columna"
+        label="Move column"
         icon={<ArrowLeftRight className="w-4 h-4" />}
         isOpen={openSub === "move"}
         onToggle={() => setOpenSub(openSub === "move" ? null : "move")}
       >
         <DropdownItem
-          label="Mover a la izquierda"
+          label="Move left"
           onClick={() => { callbacks.onMoveLeft?.(); onClose(); }}
         />
         <DropdownItem
-          label="Mover a la derecha"
+          label="Move right"
           onClick={() => { callbacks.onMoveRight?.(); onClose(); }}
         />
       </DropdownSubmenu>
@@ -316,7 +316,7 @@ const ColumnDropdown = forwardRef<
       {/* Ocultar columna */}
       <DropdownItem
         icon={<EyeOff className="w-4 h-4" />}
-        label="Ocultar columna"
+        label="Hide column"
         onClick={() => { callbacks.onHideColumn?.(); onClose(); }}
       />
     </div>

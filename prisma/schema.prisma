@@ -10,7 +10,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============ USUARIOS Y AUTENTICACIÓN (NextAuth) ============
+// ============ USUARIOS Y AUTENTICACION (NextAuth) ============
 
 model Account {
   id                String  @id @default(cuid())
@@ -18,12 +18,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? 
-  access_token      String? 
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? 
+  id_token          String?
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -81,6 +81,22 @@ model User {
   workspaceNotes    WorkspaceNote[]   @relation("NoteAuthor")
   noteCollaborators NoteCollaborator[]
   preferences       UserPreferences?
+
+  // New relations (2.2)
+  portfolioMembers         PortfolioMember[]         @relation("UserPortfolioMembers")
+  portfolioStatusUpdates   PortfolioStatusUpdate[]   @relation("UserPortfolioStatusUpdates")
+  objectiveStatusUpdates   ObjectiveStatusUpdate[]   @relation("UserObjectiveStatusUpdates")
+  keyResultUpdates         KeyResultUpdate[]         @relation("UserKeyResultUpdates")
+  uploadedFiles            File[]                    @relation("UserFiles")
+  uploadedAttachments      Attachment[]              @relation("UserAttachments")
+  ownedReports             Report[]                  @relation("UserReports")
+  createdTemplates         ProjectTemplate[]         @relation("UserProjectTemplates")
+  workspaceInvitations     WorkspaceInvitation[]     @relation("UserWorkspaceInvitations")
+  messageReactions         MessageReaction[]         @relation("UserMessageReactions")
+  commentLikes             CommentLike[]             @relation("UserCommentLikes")
+  taskCollaborators        TaskCollaborator[]        @relation("UserTaskCollaborators")
+  taskLikes                TaskLike[]                @relation("UserTaskLikes")
+  objectiveLikes           ObjectiveLike[]           @relation("UserObjectiveLikes")
 }
 
 // ============ PREFERENCIAS DE USUARIO ============
@@ -113,8 +129,8 @@ model Workspace {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  ownerId String
-  owner   User   @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  ownerId String?
+  owner   User?   @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   // Relations
   members      WorkspaceMember[]
@@ -164,9 +180,10 @@ model WorkspaceInvitation {
   inviterId   String
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter   User      @relation("UserWorkspaceInvitations", fields: [inviterId], references: [id], onDelete: Cascade)
 
+  @@unique([email, workspaceId])
   @@index([email])
-  @@index([token])
 }
 
 enum InvitationStatus {
@@ -238,13 +255,15 @@ model Portfolio {
   updatedAt   DateTime          @updatedAt
 
   workspaceId String
-  ownerId     String
+  ownerId     String?
 
   workspace     Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner         User                     @relation("PortfolioOwner", fields: [ownerId], references: [id])
+  owner         User?                    @relation("PortfolioOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   projects      PortfolioProject[]
   members       PortfolioMember[]
   statusUpdates PortfolioStatusUpdate[]
+
+  @@index([workspaceId])
 }
 
 enum PortfolioStatus {
@@ -284,6 +303,7 @@ model PortfolioMember {
   userId      String
 
   portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  user      User      @relation("UserPortfolioMembers", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([portfolioId, userId])
 }
@@ -304,6 +324,7 @@ model PortfolioStatusUpdate {
   authorId    String
 
   portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  author    User      @relation("UserPortfolioStatusUpdates", fields: [authorId], references: [id], onDelete: Cascade)
 }
 
 // ============ PROYECTOS ============
@@ -323,11 +344,11 @@ model Project {
 
   workspaceId String
   teamId      String?
-  ownerId     String
+  ownerId     String?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  team      Team?     @relation(fields: [teamId], references: [id])
-  owner     User      @relation("ProjectOwner", fields: [ownerId], references: [id])
+  team      Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  owner     User?     @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   // Relations
   sections      Section[]
@@ -388,6 +409,8 @@ model ProjectView {
   type      ViewType
   isDefault Boolean  @default(false)
   config    Json? // View configuration (filters, sorting, visible columns, etc.)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -406,14 +429,18 @@ enum ViewType {
 // ============ SECCIONES ============
 
 model Section {
-  id       String @id @default(cuid())
-  name     String
-  position Int    @default(0)
+  id        String   @id @default(cuid())
+  name      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   tasks Task[]
+
+  @@index([projectId])
 }
 
 // ============ TAREAS ============
@@ -421,7 +448,7 @@ model Section {
 model Task {
   id          String    @id @default(cuid())
   name        String
-  description String?   
+  description String?
   completed   Boolean   @default(false)
   completedAt DateTime?
   startDate   DateTime?
@@ -430,7 +457,8 @@ model Task {
   isPrivate   Boolean   @default(false)
   taskType    TaskType    @default(TASK)
   priority    Priority    @default(NONE)
-  taskStatus  TaskStatus?
+  taskStatus    TaskStatus?
+  myTaskSection MyTaskSection?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -439,14 +467,14 @@ model Task {
   projectId    String?
   sectionId    String?
   assigneeId   String?
-  creatorId    String
+  creatorId    String?
   parentTaskId String? // For subtasks
 
   // Relations
   project    Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  section    Section?  @relation(fields: [sectionId], references: [id])
-  assignee   User?     @relation("AssignedTasks", fields: [assigneeId], references: [id])
-  creator    User      @relation("CreatedTasks", fields: [creatorId], references: [id])
+  section    Section?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  assignee   User?     @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator    User?     @relation("CreatedTasks", fields: [creatorId], references: [id], onDelete: SetNull)
   parentTask Task?     @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
 
   subtasks          Task[]             @relation("Subtasks")
@@ -460,6 +488,14 @@ model Task {
   likes             TaskLike[]
   objectives        ObjectiveTask[]
   keyResults        KeyResultTask[]
+
+  @@index([projectId])
+  @@index([sectionId])
+  @@index([assigneeId])
+  @@index([creatorId])
+  @@index([parentTaskId])
+  @@index([dueDate])
+  @@index([completed])
 }
 
 enum TaskType {
@@ -481,6 +517,12 @@ enum TaskStatus {
   OFF_TRACK
 }
 
+enum MyTaskSection {
+  DO_TODAY
+  DO_NEXT_WEEK
+  DO_LATER
+}
+
 model TaskCollaborator {
   id String @id @default(cuid())
 
@@ -488,6 +530,7 @@ model TaskCollaborator {
   userId String
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation("UserTaskCollaborators", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, userId])
 }
@@ -499,6 +542,7 @@ model TaskLike {
   userId String
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation("UserTaskLikes", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, userId])
 }
@@ -583,21 +627,24 @@ model CustomFieldValue {
 
 model Comment {
   id        String   @id @default(cuid())
-  content   String   
+  content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   taskId   String
-  authorId String
+  authorId String?
   parentId String? // For replies
 
   task   Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  author User     @relation(fields: [authorId], references: [id])
+  author User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
   parent Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
 
   replies     Comment[]     @relation("CommentReplies")
   attachments Attachment[]
   likes       CommentLike[]
+
+  @@index([taskId])
+  @@index([authorId])
 }
 
 model CommentLike {
@@ -607,6 +654,7 @@ model CommentLike {
   userId    String
 
   comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation("UserCommentLikes", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([commentId, userId])
 }
@@ -624,7 +672,10 @@ model File {
   projectId  String
   uploaderId String
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User    @relation("UserFiles", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 model Attachment {
@@ -639,8 +690,11 @@ model Attachment {
   commentId  String?
   uploaderId String
 
-  task    Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  task     Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  comment  Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  uploader User     @relation("UserAttachments", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
 }
 
 // ============ ACTIVIDAD / HISTORIAL ============
@@ -652,10 +706,14 @@ model Activity {
   createdAt DateTime     @default(now())
 
   taskId String?
-  userId String
+  userId String?
 
   task Task? @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user User  @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 enum ActivityType {
@@ -689,6 +747,9 @@ model Notification {
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 enum NotificationType {
@@ -712,13 +773,16 @@ model Message {
 
   workspaceId String?
   projectId   String?
-  authorId    String
+  authorId    String?
 
   workspace   Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project     Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author      User                @relation("MessageAuthor", fields: [authorId], references: [id])
+  author      User?               @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   attachments MessageAttachment[]
   reactions   MessageReaction[]
+
+  @@index([workspaceId])
+  @@index([projectId])
 }
 
 model TeamMessage {
@@ -729,12 +793,14 @@ model TeamMessage {
   updatedAt DateTime @updatedAt
 
   teamId   String
-  authorId String
+  authorId String?
 
   team        Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  author      User                @relation("TeamMessageAuthor", fields: [authorId], references: [id])
+  author      User?               @relation("TeamMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   attachments MessageAttachment[]
   reactions   MessageReaction[]
+
+  @@index([teamId])
 }
 
 model MessageAttachment {
@@ -763,6 +829,7 @@ model MessageReaction {
 
   message     Message?     @relation(fields: [messageId], references: [id], onDelete: Cascade)
   teamMessage TeamMessage? @relation(fields: [teamMessageId], references: [id], onDelete: Cascade)
+  user        User         @relation("UserMessageReactions", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId, emoji])
   @@unique([teamMessageId, userId, emoji])
@@ -785,13 +852,13 @@ model Objective {
   updatedAt      DateTime        @updatedAt
 
   workspaceId String
-  ownerId     String
+  ownerId     String?
   teamId      String?
   parentId    String? // For nested objectives
 
   workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner     User       @relation("ObjectiveOwner", fields: [ownerId], references: [id])
-  team      Team?      @relation(fields: [teamId], references: [id])
+  owner     User?      @relation("ObjectiveOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  team      Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
   parent    Objective? @relation("SubObjectives", fields: [parentId], references: [id], onDelete: Cascade)
 
   children      Objective[]             @relation("SubObjectives")
@@ -800,6 +867,10 @@ model Objective {
   tasks         ObjectiveTask[]
   statusUpdates ObjectiveStatusUpdate[]
   likes         ObjectiveLike[]
+
+  @@index([workspaceId])
+  @@index([ownerId])
+  @@index([parentId])
 }
 
 enum ObjectiveStatus {
@@ -838,6 +909,8 @@ model KeyResult {
   updates   KeyResultUpdate[]
   projects  KeyResultProject[]
   tasks     KeyResultTask[]
+
+  @@index([objectiveId])
 }
 
 enum KRFormat {
@@ -858,6 +931,7 @@ model KeyResultUpdate {
   authorId    String
 
   keyResult KeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+  author    User      @relation("UserKeyResultUpdates", fields: [authorId], references: [id], onDelete: Cascade)
 }
 
 model ObjectiveProject {
@@ -918,6 +992,7 @@ model ObjectiveStatusUpdate {
   authorId    String
 
   objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  author    User      @relation("UserObjectiveStatusUpdates", fields: [authorId], references: [id], onDelete: Cascade)
 }
 
 model ObjectiveLike {
@@ -927,6 +1002,7 @@ model ObjectiveLike {
   userId      String
 
   objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  user      User      @relation("UserObjectiveLikes", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([objectiveId, userId])
 }
@@ -934,9 +1010,11 @@ model ObjectiveLike {
 // ============ FLUJOS DE TRABAJO / AUTOMATIZACIONES ============
 
 model Workflow {
-  id       String  @id @default(cuid())
-  name     String
-  isActive Boolean @default(true)
+  id        String   @id @default(cuid())
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -945,9 +1023,11 @@ model Workflow {
 }
 
 model WorkflowRule {
-  id      String @id @default(cuid())
-  trigger Json // { type: "TASK_MOVED_TO_SECTION", sectionId: "..." }
-  actions Json // [{ type: "SET_ASSIGNEE", userId: "..." }, ...]
+  id        String   @id @default(cuid())
+  trigger   Json // { type: "TASK_MOVED_TO_SECTION", sectionId: "..." }
+  actions   Json // [{ type: "SET_ASSIGNEE", userId: "..." }, ...]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   workflowId String
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
@@ -956,11 +1036,13 @@ model WorkflowRule {
 // ============ FORMULARIOS ============
 
 model Form {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
   fields      Json // Form field configuration
-  isActive    Boolean @default(true)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -984,13 +1066,15 @@ model FormSubmission {
 model StatusUpdate {
   id        String        @id @default(cuid())
   status    ProjectStatus
-  summary   String        
+  summary   String
   createdAt DateTime      @default(now())
 
   projectId String
   authorId  String
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 // ============ BASE DE CONOCIMIENTO ============
@@ -1011,6 +1095,8 @@ model KnowledgeEntry {
   authorId    String
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
 }
 
 enum KnowledgeVisibility {
@@ -1033,7 +1119,10 @@ model Report {
   workspaceId String
   ownerId     String
 
+  owner   User           @relation("UserReports", fields: [ownerId], references: [id], onDelete: Cascade)
   widgets ReportWidget[]
+
+  @@index([workspaceId])
 }
 
 enum ReportType {
@@ -1066,24 +1155,25 @@ enum WidgetType {
 // ============ NOTAS DEL WORKSPACE ============
 
 model WorkspaceNote {
-  id        String       @id @default(cuid())
-  title     String
-  content   String
-  icon      String?
-  color     String?
-  isPinned  Boolean      @default(false)
-  isArchived Boolean     @default(false)
+  id         String         @id @default(cuid())
+  title      String
+  content    String
+  icon       String?
+  color      String?
+  isPinned   Boolean        @default(false)
+  isArchived Boolean        @default(false)
   visibility NoteVisibility @default(PRIVATE)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 
   workspaceId String
-  authorId    String
-  folderId    String?
+  authorId    String?
 
   workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  author        User               @relation("NoteAuthor", fields: [authorId], references: [id])
+  author        User?              @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   collaborators NoteCollaborator[]
+
+  @@index([workspaceId])
 }
 
 model NoteCollaborator {
@@ -1129,4 +1219,5 @@ model ProjectTemplate {
   creatorId   String
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator   User      @relation("UserProjectTemplates", fields: [creatorId], references: [id], onDelete: Cascade)
 }

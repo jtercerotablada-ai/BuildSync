@@ -57,12 +57,12 @@ export function TeamWorkSection({ teamId }: TeamWorkSectionProps) {
     <div className="bg-white border rounded-xl p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-900">Seleccion de trabajo</h3>
+        <h3 className="font-semibold text-gray-900">Work selection</h3>
         <button
           className="text-sm text-black hover:underline"
           onClick={() => router.push(`/teams/${teamId}/work`)}
         >
-          Ver todo el trabajo
+          View all work
         </button>
       </div>
 
@@ -118,14 +118,14 @@ export function TeamWorkSection({ teamId }: TeamWorkSectionProps) {
           </div>
 
           <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
-            Organiza enlaces a trabajos importantes, como portafolios, proyectos,
-            plantillas, etc., para que los miembros de tu equipo los encuentren
-            facilmente.
+            Organize links to important work, such as portfolios, projects,
+            templates, etc., so your team members can find them
+            easily.
           </p>
 
           <Button variant="outline" className="gap-2">
             <Plus className="h-4 w-4" />
-            Agregar trabajo
+            Add work
           </Button>
         </div>
       )}

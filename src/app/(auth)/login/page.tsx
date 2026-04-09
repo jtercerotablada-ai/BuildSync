@@ -13,7 +13,8 @@ import { Separator } from "@/components/ui/separator";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/home";
+  const rawCallbackUrl = searchParams.get("callbackUrl") || "/home";
+  const callbackUrl = rawCallbackUrl.startsWith("/") && !rawCallbackUrl.startsWith("//") ? rawCallbackUrl : "/home";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

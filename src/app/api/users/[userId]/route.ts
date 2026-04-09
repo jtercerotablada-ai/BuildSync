@@ -7,6 +7,11 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const currentUserId = await getCurrentUserId();
+    if (!currentUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { userId: targetUserId } = await params;
 
     const user = await prisma.user.findUnique({
@@ -27,7 +32,6 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const currentUserId = await getCurrentUserId();
     const isOwnProfile = currentUserId === targetUserId;
 
     let sharedWorkspaces: { id: string; name: string }[] = [];

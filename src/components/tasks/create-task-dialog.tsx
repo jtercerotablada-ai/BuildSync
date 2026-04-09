@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -87,6 +87,11 @@ export function CreateTaskDialog({
     setDescription("");
     setDueDate(undefined);
   };
+
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) resetForm();
+  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

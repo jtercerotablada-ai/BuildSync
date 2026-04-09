@@ -108,10 +108,14 @@ export async function POST(req: Request) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiration
 
+    // Validate role - only MEMBER and ADMIN are allowed
+    const validRoles = ["MEMBER", "ADMIN"] as const;
+    const safeRole = validRoles.includes(role) ? role : "MEMBER";
+
     const invitation = await prisma.workspaceInvitation.create({
       data: {
         email,
-        role,
+        role: safeRole,
         token,
         expiresAt,
         workspaceId: currentMember.workspaceId,

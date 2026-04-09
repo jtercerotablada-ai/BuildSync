@@ -222,7 +222,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
         </DropdownMenu>
       </div>
 
-      {/* ========== ACTIVITY/COMMENTS LIST (PRIMERO) ========== */}
+      {/* ========== ACTIVITY/COMMENTS LIST (FIRST) ========== */}
       <div className="px-6 py-4 space-y-3 min-h-[100px]">
         {sortedItems.length === 0 ? (
           <div className="text-center py-4 text-gray-400 text-sm">
@@ -350,7 +350,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
         )}
       </div>
 
-      {/* ========== COMMENT INPUT (DESPUÉS del activity) ========== */}
+      {/* ========== COMMENT INPUT (AFTER the activity) ========== */}
       <div className="px-6 py-4 border-t">
         <div className="flex items-start gap-3">
           <Avatar className="h-8 w-8 flex-shrink-0">
@@ -360,7 +360,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 space-y-2">
-            {/* Input con borde */}
+            {/* Input with border */}
             <Textarea
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
@@ -368,7 +368,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
               placeholder="Add a comment..."
               className="min-h-[80px] resize-none border border-gray-200 rounded-lg"
             />
-            {/* Toolbar visible siempre */}
+            {/* Toolbar always visible */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Attachments coming soon")}>

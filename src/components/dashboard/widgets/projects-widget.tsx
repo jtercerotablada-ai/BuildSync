@@ -34,6 +34,7 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchProjects() {
@@ -45,6 +46,7 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
         }
       } catch (error) {
         console.error('Failed to fetch projects:', error);
+        setError('Failed to load data');
       } finally {
         setLoading(false);
       }
@@ -102,6 +104,8 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
           New
         </Button>
       </div>
+
+      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
 
       {/* Projects List */}
       <div className="flex-1 overflow-y-auto min-h-0">

@@ -64,26 +64,26 @@ interface CustomFieldModalProps {
 // ─── Field type options ──────────────────────────────────
 
 const FIELD_TYPES: FieldType[] = [
-  { id: "text", label: "Texto", icon: Type, description: "Campo de texto libre" },
-  { id: "number", label: "Número", icon: Hash, description: "Valor numérico" },
-  { id: "date", label: "Fecha", icon: Calendar, description: "Selector de fecha" },
-  { id: "single_select", label: "Lista desplegable", icon: List, description: "Seleccionar una opción" },
-  { id: "multi_select", label: "Selección múltiple", icon: List, description: "Seleccionar varias opciones" },
-  { id: "checkbox", label: "Casilla de verificación", icon: ToggleLeft, description: "Sí o no" },
-  { id: "people", label: "Personas", icon: Users, description: "Seleccionar personas" },
+  { id: "text", label: "Text", icon: Type, description: "Free text field" },
+  { id: "number", label: "Number", icon: Hash, description: "Numeric value" },
+  { id: "date", label: "Date", icon: Calendar, description: "Date picker" },
+  { id: "single_select", label: "Dropdown", icon: List, description: "Select an option" },
+  { id: "multi_select", label: "Multi-select", icon: List, description: "Select multiple options" },
+  { id: "checkbox", label: "Checkbox", icon: ToggleLeft, description: "Yes or no" },
+  { id: "people", label: "People", icon: Users, description: "Select people" },
 ];
 
 // ─── Color options ───────────────────────────────────────
 
 const FIELD_COLORS = [
-  { id: "none", color: "transparent", label: "Sin color" },
-  { id: "red", color: "#E5484D", label: "Rojo" },
-  { id: "orange", color: "#F76B15", label: "Naranja" },
-  { id: "yellow", color: "#F5D90A", label: "Amarillo" },
-  { id: "green", color: "#46A758", label: "Verde" },
-  { id: "blue", color: "#0090FF", label: "Azul" },
-  { id: "purple", color: "#8E4EC6", label: "Púrpura" },
-  { id: "pink", color: "#E93D82", label: "Rosa" },
+  { id: "none", color: "transparent", label: "No color" },
+  { id: "red", color: "#E5484D", label: "Red" },
+  { id: "orange", color: "#F76B15", label: "Orange" },
+  { id: "yellow", color: "#F5D90A", label: "Yellow" },
+  { id: "green", color: "#46A758", label: "Green" },
+  { id: "blue", color: "#0090FF", label: "Blue" },
+  { id: "purple", color: "#8E4EC6", label: "Purple" },
+  { id: "pink", color: "#E93D82", label: "Pink" },
 ];
 
 // ─── AI Studio cards ─────────────────────────────────────
@@ -91,54 +91,54 @@ const FIELD_COLORS = [
 const AI_FIELD_CARDS: AIFieldCard[] = [
   {
     id: "task_summary",
-    title: "Resumen de la tarea",
-    description: "Resume automáticamente la descripción y los comentarios de la tarea.",
+    title: "Task summary",
+    description: "Automatically summarizes the task description and comments.",
     icon: FileText,
-    badge: "IA",
+    badge: "AI",
   },
   {
     id: "priority",
-    title: "Prioridad inteligente",
-    description: "Sugiere la prioridad basándose en la fecha de entrega y la descripción.",
+    title: "Smart priority",
+    description: "Suggests priority based on due date and description.",
     icon: Flag,
-    badge: "IA",
+    badge: "AI",
   },
   {
     id: "risk",
-    title: "Evaluación de riesgo",
-    description: "Identifica posibles riesgos o bloqueadores en la tarea.",
+    title: "Risk assessment",
+    description: "Identifies potential risks or blockers in the task.",
     icon: AlertTriangle,
-    badge: "IA",
+    badge: "AI",
   },
   {
     id: "next_steps",
-    title: "Próximos pasos",
-    description: "Genera los próximos pasos sugeridos a partir del contexto de la tarea.",
+    title: "Next steps",
+    description: "Generates suggested next steps from task context.",
     icon: Zap,
-    badge: "IA",
+    badge: "AI",
   },
   {
     id: "effort",
-    title: "Estimación de esfuerzo",
-    description: "Estima el esfuerzo necesario para completar la tarea.",
+    title: "Effort estimation",
+    description: "Estimates the effort needed to complete the task.",
     icon: Star,
-    badge: "IA",
+    badge: "AI",
   },
   {
     id: "category",
-    title: "Categorización automática",
-    description: "Clasifica automáticamente la tarea en la categoría adecuada.",
+    title: "Auto-categorization",
+    description: "Automatically classifies the task into the appropriate category.",
     icon: Sparkles,
-    badge: "IA",
+    badge: "AI",
   },
 ];
 
 // ─── Tabs ────────────────────────────────────────────────
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "create", label: "Crear" },
-  { id: "library", label: "Desde la biblioteca" },
-  { id: "ai_studio", label: "Campos con AI Studio" },
+  { id: "create", label: "Create" },
+  { id: "library", label: "From library" },
+  { id: "ai_studio", label: "AI Studio fields" },
 ];
 
 // ─── CustomFieldModal ────────────────────────────────────
@@ -174,22 +174,22 @@ export function CustomFieldModal({
 
   function handleCreate() {
     if (!fieldTitle.trim()) {
-      toast.error("El nombre del campo es obligatorio");
+      toast.error("Field name is required");
       return;
     }
     onFieldCreated?.({ name: fieldTitle.trim(), type: fieldType, color: fieldColor });
-    toast.success(`Campo "${fieldTitle}" creado`);
+    toast.success(`Field "${fieldTitle}" created`);
     resetAndClose();
   }
 
   function handleAddFromLibrary(fieldName: string) {
     onFieldCreated?.({ name: fieldName, type: "text", color: "none" });
-    toast.success(`Campo "${fieldName}" agregado desde la biblioteca`);
+    toast.success(`Field "${fieldName}" added from library`);
     resetAndClose();
   }
 
   function handleAddAIField(card: AIFieldCard) {
-    toast.success(`Campo "${card.title}" con IA agregado`);
+    toast.success(`AI field "${card.title}" added`);
     resetAndClose();
   }
 
@@ -210,11 +210,11 @@ export function CustomFieldModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="sm:max-w-[520px] p-0 gap-0 rounded-xl border-0 shadow-[0_16px_48px_rgba(0,0,0,0.16)] overflow-hidden">
-        <DialogTitle className="sr-only">Agregar campo personalizado</DialogTitle>
+        <DialogTitle className="sr-only">Add custom field</DialogTitle>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
-          <h2 className="text-[16px] font-semibold text-gray-900">Agregar campo personalizado</h2>
+          <h2 className="text-[16px] font-semibold text-gray-900">Add custom field</h2>
           <button
             onClick={() => onOpenChange(false)}
             className="flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -279,13 +279,13 @@ export function CustomFieldModal({
               onClick={() => onOpenChange(false)}
               className="px-4 h-8 text-[13px] font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors"
             >
-              Cancelar
+              Cancel
             </button>
             <button
               onClick={handleCreate}
               className="px-4 h-8 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md transition-colors"
             >
-              Crear campo
+              Create field
             </button>
           </div>
         )}
@@ -332,13 +332,13 @@ function CreateTab({
       {/* Field title */}
       <div>
         <label className="block text-[12px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-          Título del campo
+          Field title
         </label>
         <input
           type="text"
           value={fieldTitle}
           onChange={(e) => onFieldTitleChange(e.target.value)}
-          placeholder="ej., Estado, Prioridad, Sprint..."
+          placeholder="e.g., Status, Priority, Sprint..."
           className="w-full h-9 px-3 text-[13px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/10 placeholder:text-gray-400 transition-shadow"
           autoFocus
         />
@@ -347,7 +347,7 @@ function CreateTab({
       {/* Field type */}
       <div>
         <label className="block text-[12px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-          Tipo de campo
+          Field type
         </label>
         <div className="relative">
           <button
@@ -439,7 +439,7 @@ function CreateTab({
           >
             {onlyForThisProject && <Check className="w-3 h-3 text-white" />}
           </button>
-          <span className="text-[13px] text-gray-700">Solo para este proyecto</span>
+          <span className="text-[13px] text-gray-700">Only for this project</span>
         </label>
 
         <label className="flex items-center gap-2.5 cursor-pointer group">
@@ -454,7 +454,7 @@ function CreateTab({
           >
             {addToAllNewTasks && <Check className="w-3 h-3 text-white" />}
           </button>
-          <span className="text-[13px] text-gray-700">Agregar a todas las tareas nuevas</span>
+          <span className="text-[13px] text-gray-700">Add to all new tasks</span>
         </label>
       </div>
     </div>
@@ -464,14 +464,14 @@ function CreateTab({
 // ─── Library Tab ─────────────────────────────────────────
 
 const LIBRARY_FIELDS = [
-  { id: "status", name: "Estado", type: "Lista desplegable", usedBy: 12 },
-  { id: "priority", name: "Prioridad", type: "Lista desplegable", usedBy: 8 },
-  { id: "sprint", name: "Sprint", type: "Lista desplegable", usedBy: 5 },
-  { id: "effort", name: "Esfuerzo", type: "Número", usedBy: 3 },
-  { id: "department", name: "Departamento", type: "Lista desplegable", usedBy: 6 },
-  { id: "cost", name: "Costo", type: "Número", usedBy: 2 },
-  { id: "stage", name: "Etapa", type: "Lista desplegable", usedBy: 4 },
-  { id: "tags", name: "Etiquetas", type: "Selección múltiple", usedBy: 7 },
+  { id: "status", name: "Status", type: "Dropdown", usedBy: 12 },
+  { id: "priority", name: "Priority", type: "Dropdown", usedBy: 8 },
+  { id: "sprint", name: "Sprint", type: "Dropdown", usedBy: 5 },
+  { id: "effort", name: "Effort", type: "Number", usedBy: 3 },
+  { id: "department", name: "Department", type: "Dropdown", usedBy: 6 },
+  { id: "cost", name: "Cost", type: "Number", usedBy: 2 },
+  { id: "stage", name: "Stage", type: "Dropdown", usedBy: 4 },
+  { id: "tags", name: "Tags", type: "Multi-select", usedBy: 7 },
 ];
 
 function LibraryTab({
@@ -498,25 +498,25 @@ function LibraryTab({
           type="text"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Buscar campos..."
+          placeholder="Search fields..."
           className="w-full h-9 pl-9 pr-3 text-[13px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/10 placeholder:text-gray-400"
         />
       </div>
 
       {/* Filter chips */}
       <div className="flex items-center gap-1.5">
-        <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Filtrar:</span>
+        <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Filter:</span>
         <button className="px-2 h-6 text-[11px] font-medium text-gray-600 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
-          Todos
+          All
         </button>
         <button className="px-2 h-6 text-[11px] text-gray-500 rounded-full hover:bg-gray-100 transition-colors">
-          Texto
+          Text
         </button>
         <button className="px-2 h-6 text-[11px] text-gray-500 rounded-full hover:bg-gray-100 transition-colors">
-          Número
+          Number
         </button>
         <button className="px-2 h-6 text-[11px] text-gray-500 rounded-full hover:bg-gray-100 transition-colors">
-          Lista
+          List
         </button>
       </div>
 
@@ -532,19 +532,19 @@ function LibraryTab({
               <div>
                 <div className="text-[13px] font-medium text-gray-900">{field.name}</div>
                 <div className="text-[11px] text-gray-400 mt-0.5">
-                  {field.type} &middot; Usado en {field.usedBy} {field.usedBy === 1 ? "proyecto" : "proyectos"}
+                  {field.type} &middot; Used in {field.usedBy} {field.usedBy === 1 ? "project" : "projects"}
                 </div>
               </div>
               <span className="text-[12px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                + Agregar
+                + Add
               </span>
             </button>
           ))
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Search className="w-8 h-8 text-gray-300 mb-2" />
-            <p className="text-[13px] text-gray-500">No se encontraron campos</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">Prueba con otro término de búsqueda</p>
+            <p className="text-[13px] text-gray-500">No fields found</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Try a different search term</p>
           </div>
         )}
       </div>
@@ -562,7 +562,7 @@ function AIStudioTab({
   return (
     <div className="space-y-3">
       <p className="text-[13px] text-gray-500">
-        Los campos con IA se rellenan automáticamente con información inteligente basada en el contenido de la tarea.
+        AI fields are automatically filled with intelligent information based on task content.
       </p>
 
       <div className="grid grid-cols-2 gap-2.5">

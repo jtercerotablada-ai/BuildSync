@@ -21,14 +21,14 @@ export interface FieldTypeConfig {
 }
 
 export const FIELD_TYPES: FieldTypeConfig[] = [
-  { id: "single_select", label: "Selección única", icon: CircleDot, prismaType: "DROPDOWN" },
-  { id: "multi_select", label: "Selección múltiple", icon: ListChecks, prismaType: "MULTI_SELECT" },
-  { id: "date", label: "Fecha", icon: Calendar, prismaType: "DATE" },
-  { id: "people", label: "Personas", icon: Users, prismaType: "PEOPLE" },
-  { id: "reference", label: "Referencia", icon: Link2, prismaType: null },
-  { id: "text", label: "Texto", icon: Type, prismaType: "TEXT" },
-  { id: "number", label: "Número", icon: Hash, prismaType: "NUMBER" },
-  { id: "formula", label: "Fórmula", icon: FunctionSquare, prismaType: null },
-  { id: "timer", label: "Temporizador", icon: Timer, prismaType: null },
-  { id: "time_tracking", label: "Seguimiento del tiempo", icon: Clock, prismaType: null },
+  { id: "single_select", label: "Single select", icon: CircleDot, prismaType: "DROPDOWN" },
+  { id: "multi_select", label: "Multi select", icon: ListChecks, prismaType: "MULTI_SELECT" },
+  { id: "date", label: "Date", icon: Calendar, prismaType: "DATE" },
+  { id: "people", label: "People", icon: Users, prismaType: "PEOPLE" },
+  { id: "reference", label: "Reference", icon: Link2, prismaType: null },
+  { id: "text", label: "Text", icon: Type, prismaType: "TEXT" },
+  { id: "number", label: "Number", icon: Hash, prismaType: "NUMBER" },
+  { id: "formula", label: "Formula", icon: FunctionSquare, prismaType: null },
+  { id: "timer", label: "Timer", icon: Timer, prismaType: null },
+  { id: "time_tracking", label: "Time tracking", icon: Clock, prismaType: null },
 ];

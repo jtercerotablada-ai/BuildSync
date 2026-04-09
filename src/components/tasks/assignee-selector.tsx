@@ -112,7 +112,7 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
         align="start"
         sideOffset={4}
       >
-        {/* ========== INPUT DE BÚSQUEDA ========== */}
+        {/* ========== SEARCH INPUT ========== */}
         <div className="flex items-center border-b p-2 gap-2">
           {value ? (
             <Avatar className="h-7 w-7 flex-shrink-0">
@@ -145,7 +145,7 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
           )}
         </div>
 
-        {/* ========== LISTA DE USUARIOS ========== */}
+        {/* ========== USER LIST ========== */}
         <div className="max-h-[200px] overflow-y-auto">
           {loading && (
             <div className="px-3 py-4 text-sm text-gray-500 text-center">
@@ -186,7 +186,7 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
           ))}
         </div>
 
-        {/* ========== OPCIONES ADICIONALES ========== */}
+        {/* ========== ADDITIONAL OPTIONS ========== */}
         <div className="border-t">
           <button
             onClick={handleInviteByEmail}

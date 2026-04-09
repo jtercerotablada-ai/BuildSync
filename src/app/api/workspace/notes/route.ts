@@ -28,22 +28,26 @@ export async function GET(req: Request) {
       where: {
         workspaceId: workspaceMember.workspaceId,
         isArchived: showArchived,
-        OR: [
-          { authorId: userId },
-          { visibility: "WORKSPACE" },
+        AND: [
           {
-            visibility: "SHARED",
-            collaborators: {
-              some: { userId },
-            },
+            OR: [
+              { authorId: userId },
+              { visibility: "WORKSPACE" },
+              {
+                visibility: "SHARED",
+                collaborators: {
+                  some: { userId },
+                },
+              },
+            ],
           },
+          ...(search ? [{
+            OR: [
+              { title: { contains: search, mode: "insensitive" as const } },
+              { content: { contains: search, mode: "insensitive" as const } },
+            ],
+          }] : []),
         ],
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: "insensitive" } },
-            { content: { contains: search, mode: "insensitive" } },
-          ],
-        }),
       },
       include: {
         author: {

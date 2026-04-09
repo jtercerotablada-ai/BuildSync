@@ -3,17 +3,41 @@ import { getServerSession } from "next-auth";
 import { hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { validatePassword } from "@/lib/auth-utils";
+import { validateToken } from "@/lib/tokens";
 
 export async function POST(request: NextRequest) {
   try {
     const { name, password, image, email: bodyEmail } = await request.json();
 
-    // Get email from session or from body (for new registrations)
+    // Get email from session or from body (ONLY for users who just registered and don't have a session yet)
     const session = await getServerSession(authOptions);
     const email = session?.user?.email || bodyEmail;
 
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    }
+
+    // Security: If using bodyEmail (no session), require a valid email verification token
+    if (!session) {
+      const { token: bodyToken } = await request.clone().json();
+      if (!bodyToken) {
+        return NextResponse.json({ error: "Authentication required. Please verify your email first." }, { status: 401 });
+      }
+      const tokenResult = await validateToken(bodyToken, "email-verify");
+      if (!tokenResult) {
+        return NextResponse.json({ error: "Invalid or expired verification token" }, { status: 401 });
+      }
+      const targetUser = await prisma.user.findFirst({
+        where: { email: { equals: email.trim().toLowerCase(), mode: 'insensitive' } },
+        select: { password: true },
+      });
+      if (targetUser?.password) {
+        return NextResponse.json(
+          { error: "This account has already been set up. Please log in instead." },
+          { status: 403 }
+        );
+      }
     }
 
     if (!name || !name.trim()) {
@@ -23,11 +47,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!password || password.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters" },
-        { status: 400 }
-      );
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      return NextResponse.json({ error: pwCheck.message }, { status: 400 });
     }
 
     // Find user by email

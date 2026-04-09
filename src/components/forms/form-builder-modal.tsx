@@ -84,19 +84,19 @@ import { CSS } from '@dnd-kit/utilities';
 // Emoji picker data
 const emojiCategories = [
   {
-    name: 'Frecuentes',
+    name: 'Frequent',
     emojis: ['😀', '😂', '🥰', '😎', '🤔', '👍', '👎', '❤️', '🎉', '🔥', '✅', '⭐']
   },
   {
-    name: 'Caras',
+    name: 'Faces',
     emojis: ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘']
   },
   {
-    name: 'Gestos',
+    name: 'Gestures',
     emojis: ['👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '👋', '🙌', '👏', '🤝', '💪']
   },
   {
-    name: 'Objetos',
+    name: 'Objects',
     emojis: ['💼', '📁', '📋', '📌', '📎', '✏️', '📝', '💡', '🔔', '⏰', '📅', '✅']
   },
 ];
@@ -607,14 +607,31 @@ export function FormBuilderModal({
   // Insert Embed Link (iframe for videos, etc)
   const insertEmbedLinkContent = useCallback((url: string) => {
     if (!editorRef.current || !url.trim()) return;
+
+    // Validate URL protocol to prevent javascript: XSS
+    let safeUrl: string;
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return;
+      safeUrl = parsed.href;
+    } catch {
+      // If not a valid URL, prefix with https://
+      try {
+        const parsed = new URL('https://' + url);
+        safeUrl = parsed.href;
+      } catch {
+        return;
+      }
+    }
+
     editorRef.current.focus();
     restoreSelection();
 
     // Check if it's a YouTube URL and convert to embed
     let embedHtml = '';
-    const youtubeMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/);
-    const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
-    const loomMatch = url.match(/loom\.com\/share\/([a-zA-Z0-9]+)/);
+    const youtubeMatch = safeUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+    const vimeoMatch = safeUrl.match(/vimeo\.com\/(\d+)/);
+    const loomMatch = safeUrl.match(/loom\.com\/share\/([a-zA-Z0-9]+)/);
 
     if (youtubeMatch) {
       embedHtml = `<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; margin: 12px 0; border-radius: 8px;">
@@ -629,13 +646,21 @@ export function FormBuilderModal({
         <iframe src="https://www.loom.com/embed/${loomMatch[1]}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; border-radius: 8px;" allowfullscreen></iframe>
       </div>`;
     } else {
-      // Generic link card
-      embedHtml = `<a href="${url}" target="_blank" rel="noopener noreferrer" style="display: block; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin: 8px 0; text-decoration: none; color: inherit;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #6b7280;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-          <span style="color: #3b82f6; font-size: 14px;">${url}</span>
-        </div>
-      </a>`;
+      // Generic link card - build safely with DOM API
+      const a = document.createElement('a');
+      a.href = safeUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.style.cssText = 'display: block; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin: 8px 0; text-decoration: none; color: inherit;';
+      const div = document.createElement('div');
+      div.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+      div.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #6b7280;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>';
+      const span = document.createElement('span');
+      span.style.cssText = 'color: #3b82f6; font-size: 14px;';
+      span.textContent = safeUrl;
+      div.appendChild(span);
+      a.appendChild(div);
+      embedHtml = a.outerHTML;
     }
 
     document.execCommand('insertHTML', false, embedHtml + '<p><br></p>');

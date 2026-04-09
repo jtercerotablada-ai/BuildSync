@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 // GET /api/workspace/templates - Get project templates
 export async function GET() {
@@ -87,7 +88,7 @@ export async function POST(req: Request) {
   }
 }
 
-// POST /api/workspace/templates/from-project - Create template from existing project
+// PUT /api/workspace/templates - Update a template
 export async function PUT(req: Request) {
   try {
     const userId = await getCurrentUserId();
@@ -100,6 +101,19 @@ export async function PUT(req: Request) {
 
     if (!id) {
       return NextResponse.json({ error: "Template ID required" }, { status: 400 });
+    }
+
+    // Verify template belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+    const existing = await prisma.projectTemplate.findUnique({
+      where: { id },
+      select: { workspaceId: true },
+    });
+    if (!existing) {
+      throw new NotFoundError("Template not found");
+    }
+    if (existing.workspaceId !== workspaceId) {
+      throw new AuthorizationError("You don't have access to this template");
     }
 
     const template = await prisma.projectTemplate.update({
@@ -116,6 +130,10 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(template);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error updating template:", error);
     return NextResponse.json(
       { error: "Failed to update template" },
@@ -140,17 +158,21 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Template ID required" }, { status: 400 });
     }
 
-    // Verify ownership
+    // Verify template belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
     const template = await prisma.projectTemplate.findUnique({
       where: { id },
+      select: { workspaceId: true, creatorId: true },
     });
 
     if (!template) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+      throw new NotFoundError("Template not found");
     }
-
+    if (template.workspaceId !== workspaceId) {
+      throw new AuthorizationError("You don't have access to this template");
+    }
     if (template.creatorId !== userId) {
-      return NextResponse.json({ error: "Only the creator can delete this template" }, { status: 403 });
+      throw new AuthorizationError("Only the creator can delete this template");
     }
 
     await prisma.projectTemplate.delete({
@@ -159,6 +181,10 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting template:", error);
     return NextResponse.json(
       { error: "Failed to delete template" },

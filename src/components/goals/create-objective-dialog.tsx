@@ -173,6 +173,11 @@ export function CreateObjectiveDialog({
     setPrivacy("public");
   };
 
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) resetForm();
+  }, [open]);
+
   const getInitials = (name: string | null) => {
     if (!name) return "?";
     return name

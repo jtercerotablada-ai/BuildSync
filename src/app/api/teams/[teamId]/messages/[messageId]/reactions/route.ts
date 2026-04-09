@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
 
 const reactionSchema = z.object({
   emoji: z.string().min(1),
@@ -19,6 +20,9 @@ export async function POST(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Verify user has access to this team
+    await verifyTeamAccess(userId, teamId);
 
     const body = await req.json();
     const { emoji } = reactionSchema.parse(body);
@@ -88,6 +92,10 @@ export async function POST(
       );
     }
 
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error toggling reaction:", error);
     return NextResponse.json(
       { error: "Failed to toggle reaction" },

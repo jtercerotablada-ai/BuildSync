@@ -23,25 +23,25 @@ interface OptionsDrawerProps {
 const optionRows = [
   {
     id: "columns",
-    label: "Mostrar/ocultar columnas",
+    label: "Show/hide columns",
     icon: Columns,
     action: "columns" as const,
   },
   {
     id: "filters",
-    label: "Filtros",
+    label: "Filters",
     icon: Filter,
     action: "filters" as const,
   },
   {
     id: "sort",
-    label: "Clasificaciones",
+    label: "Sort",
     icon: ArrowUpDown,
     action: "sort" as const,
   },
   {
     id: "groups",
-    label: "Grupos",
+    label: "Groups",
     icon: LayoutGrid,
     action: "groups" as const,
   },
@@ -70,7 +70,7 @@ export function OptionsDrawer({
   function handleRowClick(action: string) {
     switch (action) {
       case "columns":
-        toast.info("Configuración de columnas próximamente");
+        toast.info("Column settings coming soon");
         break;
       case "filters":
         onOpenFilters();
@@ -96,7 +96,7 @@ export function OptionsDrawer({
         <>
           {/* Header */}
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
-            <h2 className="text-[18px] font-semibold text-gray-900">Lista</h2>
+            <h2 className="text-[18px] font-semibold text-gray-900">List</h2>
             <button
               onClick={onClose}
               className="flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -109,16 +109,16 @@ export function OptionsDrawer({
           <div className="px-5 pb-4">
             <div className="flex items-center gap-3">
               <div>
-                <p className="text-[12px] font-medium text-gray-500 mb-1.5">Ícono</p>
+                <p className="text-[12px] font-medium text-gray-500 mb-1.5">Icon</p>
                 <button className="flex items-center justify-center h-9 w-9 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-[18px]">
                   📋
                 </button>
               </div>
               <div className="flex-1">
-                <p className="text-[12px] font-medium text-gray-500 mb-1.5">Ver nombre</p>
+                <p className="text-[12px] font-medium text-gray-500 mb-1.5">View name</p>
                 <input
                   type="text"
-                  defaultValue="Lista"
+                  defaultValue="List"
                   className="w-full h-9 px-3 text-[14px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-black/10"
                 />
               </div>
@@ -146,7 +146,7 @@ export function OptionsDrawer({
                   </span>
                   {item.id === "columns" && (
                     <span className="text-[12px] text-gray-400 mr-1">
-                      {hiddenColumnsCount} ocultos
+                      {hiddenColumnsCount} hidden
                     </span>
                   )}
                   <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors" />
@@ -158,10 +158,10 @@ export function OptionsDrawer({
           {/* Footer */}
           <div className="mt-auto border-t border-gray-200 px-5 py-4">
             <button
-              onClick={() => toast.info("Enviar comentarios próximamente")}
+              onClick={() => toast.info("Send feedback coming soon")}
               className="text-[13px] text-blue-600 hover:underline"
             >
-              Enviar comentarios
+              Send feedback
             </button>
           </div>
         </>

@@ -56,6 +56,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch teams for the team selector
   useEffect(() => {
@@ -71,6 +72,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
         }
       } catch (error) {
         console.error('Failed to fetch teams:', error);
+        setError('Failed to load data');
       }
     }
     fetchTeams();
@@ -101,6 +103,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
       }
     } catch (error) {
       console.error('Failed to fetch goals:', error);
+      setError('Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -189,6 +192,8 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
           </DropdownMenu>
         )}
       </div>
+
+      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">

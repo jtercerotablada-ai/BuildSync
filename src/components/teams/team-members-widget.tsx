@@ -40,12 +40,12 @@ export function TeamMembersWidget({ teamId, members }: TeamMembersWidgetProps) {
       <div className="bg-white border rounded-xl p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900">Miembros</h3>
+          <h3 className="font-semibold text-gray-900">Members</h3>
           <button
             className="text-sm text-black hover:underline"
             onClick={() => router.push(`/teams/${teamId}/members`)}
           >
-            Ver la lista de {members.length} elemento{members.length !== 1 ? "s" : ""}
+            View all {members.length} member{members.length !== 1 ? "s" : ""}
           </button>
         </div>
 

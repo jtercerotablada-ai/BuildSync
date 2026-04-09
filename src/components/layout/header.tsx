@@ -44,7 +44,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
       <div className="flex items-center gap-2.5 min-w-[148px]">
         <button
           type="button"
-          aria-label="Alternar barra lateral"
+          aria-label="Toggle sidebar"
           onClick={onToggleSidebar}
           className="flex items-center justify-center h-8 w-8 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
         >
@@ -57,25 +57,25 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
               className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-black text-white text-[13px] font-medium hover:bg-gray-800 transition-colors"
             >
               <Plus className="h-4 w-4" />
-              Crear
+              Create
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
             <DropdownMenuItem onClick={onCreateTask} className="cursor-pointer">
               <CheckSquare className="mr-2 h-4 w-4 text-gray-500" />
-              Tarea
+              Task
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateProject} className="cursor-pointer">
               <FolderKanban className="mr-2 h-4 w-4 text-gray-500" />
-              Proyecto
+              Project
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreatePortfolio} className="cursor-pointer">
               <Briefcase className="mr-2 h-4 w-4 text-gray-500" />
-              Portafolio
+              Portfolio
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateGoal} className="cursor-pointer">
               <Target className="mr-2 h-4 w-4 text-gray-500" />
-              Objetivo
+              Goal
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -99,7 +99,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--search-bg, #f1f2f4)"; }}
         >
           <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
-          <span className="ml-2.5 text-[14px] text-gray-400 leading-none select-none">Buscar</span>
+          <span className="ml-2.5 text-[14px] text-gray-400 leading-none select-none">Search</span>
         </button>
       </div>
 
@@ -115,7 +115,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
 
         <button
           type="button"
-          onClick={() => toast.info("Notificaciones próximamente")}
+          onClick={() => toast.info("Notifications coming soon")}
           className="flex items-center justify-center h-8 w-8 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
         >
           <Bell className="h-[18px] w-[18px]" />
@@ -123,7 +123,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
 
         <button
           type="button"
-          onClick={() => toast.info("Centro de ayuda próximamente")}
+          onClick={() => toast.info("Help center coming soon")}
           className="flex items-center justify-center h-8 w-8 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
         >
           <HelpCircle className="h-[18px] w-[18px]" />
@@ -151,15 +151,15 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/settings" className="cursor-pointer">
+              <Link href="/profile" className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
-                Perfil
+                Profile
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/settings" className="cursor-pointer">
                 <Settings className="mr-2 h-4 w-4" />
-                Configuración
+                Settings
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -168,7 +168,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
               onClick={() => signOut({ callbackUrl: "/login" })}
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Cerrar sesión
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

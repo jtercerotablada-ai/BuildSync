@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import {
   addDays,
   addWeeks,
@@ -128,6 +129,8 @@ export function TimelineView({
   const [showCriticalPath, setShowCriticalPath] = useState(true);
   const [showBaseline, setShowBaseline] = useState(false);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
+  const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week" | "has_deps">("all");
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [dragState, setDragState] = useState<{
     taskId: string;
     handle: "left" | "right";
@@ -137,6 +140,22 @@ export function TimelineView({
   } | null>(null);
 
   const timelineRef = useRef<HTMLDivElement>(null);
+
+  // Apply task filter
+  const filteredSections = useMemo(() => {
+    if (taskFilter === "all") return sections;
+    const now = new Date();
+    const weekEnd = addDays(startOfWeek(now, { weekStartsOn: 1 }), 6);
+    return sections.map((section) => ({
+      ...section,
+      tasks: section.tasks.filter((task) => {
+        if (taskFilter === "incomplete") return !task.completed;
+        if (taskFilter === "completed") return task.completed;
+        if (taskFilter === "due_this_week") return task.dueDate && parseISO(task.dueDate) <= weekEnd;
+        return true;
+      }),
+    }));
+  }, [sections, taskFilter]);
 
   // ============================================
   // ZOOM CONFIGURATION
@@ -444,7 +463,7 @@ export function TimelineView({
       if (!response.ok) throw new Error("Failed to create section");
       router.refresh();
     } catch {
-      // Error handling
+      toast.error("Failed to add section");
     }
   };
 
@@ -500,10 +519,9 @@ export function TimelineView({
       <div className="flex items-center justify-between px-4 py-2 bg-white border-b">
         {/* Left */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => setShowCreateDialog(true)}>
             <Plus className="w-4 h-4 mr-1" />
             Add task
-            <ChevronDown className="w-3 h-3 ml-1" />
           </Button>
 
           <div className="h-6 w-px bg-slate-200 mx-2" />
@@ -594,10 +612,10 @@ export function TimelineView({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => toast.info("Filtering incomplete tasks")}>Incomplete tasks</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("Filtering completed tasks")}>Completed tasks</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("Filtering tasks due this week")}>Due this week</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("Filtering tasks with dependencies")}>Has dependencies</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTaskFilter("all")}>All tasks</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTaskFilter("incomplete")}>Incomplete tasks</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTaskFilter("completed")}>Completed tasks</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTaskFilter("due_this_week")}>Due this week</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <DropdownMenu>
@@ -614,7 +632,7 @@ export function TimelineView({
               <DropdownMenuItem onClick={() => setShowCriticalPath(!showCriticalPath)}>
                 {showCriticalPath ? "Hide" : "Show"} critical path
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("Compact mode coming soon")}>Compact mode</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Coming soon")}>Compact mode</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -641,7 +659,7 @@ export function TimelineView({
             </div>
 
             {/* Sections & Tasks */}
-            {sections.map((section) => {
+            {filteredSections.map((section) => {
               const isCollapsed = collapsedSections.has(section.id);
 
               return (
@@ -793,7 +811,7 @@ export function TimelineView({
               )}
 
               {/* Section Rows */}
-              {sections.map((section) => {
+              {filteredSections.map((section) => {
                 const isCollapsed = collapsedSections.has(section.id);
 
                 return (
@@ -965,6 +983,13 @@ export function TimelineView({
           </div>
         </div>
       </div>
+
+      <CreateTaskDialog
+        open={showCreateDialog}
+        onOpenChange={setShowCreateDialog}
+        projectId={projectId}
+        sectionId={filteredSections[0]?.id}
+      />
     </div>
   );
 }

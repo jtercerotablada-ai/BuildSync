@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50") || 50, 1), 100);
     const archived = searchParams.get("archived") === "true";
 
     const notifications = await prisma.notification.findMany({

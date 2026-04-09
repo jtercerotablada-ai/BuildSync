@@ -8,7 +8,12 @@ export const GoalProgressService = {
   /**
    * Recalculate progress for a single objective based on its progressSource
    */
-  async recalculateProgress(objectiveId: string): Promise<number> {
+  async recalculateProgress(objectiveId: string, depth: number = 0, visited: Set<string> = new Set()): Promise<number> {
+    if (depth > 10 || visited.has(objectiveId)) {
+      return 0;
+    }
+    visited.add(objectiveId);
+
     const objective = await prisma.objective.findUnique({
       where: { id: objectiveId },
       include: {
@@ -65,7 +70,7 @@ export const GoalProgressService = {
 
     // If this objective has a parent, recalculate parent's progress too
     if (objective.parentId) {
-      await this.recalculateProgress(objective.parentId);
+      await GoalProgressService.recalculateProgress(objective.parentId, depth + 1, visited);
     }
 
     return newProgress;

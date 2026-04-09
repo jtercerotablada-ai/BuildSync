@@ -54,7 +54,8 @@ export function TaskSubtasks({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleAddSubtask();
+      // Blur the input which triggers onBlur -> handleAddSubtask (single path)
+      (e.target as HTMLInputElement).blur();
     } else if (e.key === 'Escape') {
       setIsAdding(false);
       setNewSubtaskName('');

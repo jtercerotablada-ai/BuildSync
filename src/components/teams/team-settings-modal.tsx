@@ -69,6 +69,8 @@ export function TeamSettingsModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [allowInviteLinks, setAllowInviteLinks] = useState(true);
+  const [members, setMembers] = useState<{ id: string; role: string; user: { id: string; name: string | null; email: string | null; image: string | null } }[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
 
   // Reset form when team changes
   useEffect(() => {
@@ -76,6 +78,28 @@ export function TeamSettingsModal({
     setDescription(team.description || "");
     setPrivacy(team.privacy);
   }, [team]);
+
+  // Fetch real members when the members tab is shown
+  useEffect(() => {
+    if (activeTab !== "members" || !open) return;
+    let cancelled = false;
+    async function fetchMembers() {
+      setMembersLoading(true);
+      try {
+        const res = await fetch(`/api/teams/${team.id}/members`);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setMembers(data);
+        }
+      } catch {
+        // silently fail - list will be empty
+      } finally {
+        if (!cancelled) setMembersLoading(false);
+      }
+    }
+    fetchMembers();
+    return () => { cancelled = true; };
+  }, [activeTab, open, team.id]);
 
   const tabs = [
     { id: "general", label: "General" },
@@ -314,21 +338,51 @@ export function TeamSettingsModal({
                 </div>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Enter email addresses"
+                    placeholder="Enter email address"
                     className="flex-1"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => {
+                    onKeyDown={async (e) => {
                       if (e.key === 'Enter' && inviteEmail.trim()) {
-                        toast.success(`Invite sent to ${inviteEmail.trim()}`);
-                        setInviteEmail("");
+                        try {
+                          const res = await fetch(`/api/teams/${team.id}/invite`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: inviteEmail.trim() }),
+                          });
+                          if (res.ok) {
+                            toast.success(`Invited ${inviteEmail.trim()}`);
+                            setInviteEmail("");
+                            // Refresh member list
+                            const membersRes = await fetch(`/api/teams/${team.id}/members`);
+                            if (membersRes.ok) setMembers(await membersRes.json());
+                          } else {
+                            const data = await res.json();
+                            toast.error(data.error || 'Failed to invite user');
+                          }
+                        } catch { toast.error('Failed to invite user'); }
                       }
                     }}
                   />
-                  <Button size="sm" onClick={() => {
+                  <Button size="sm" onClick={async () => {
                     if (!inviteEmail.trim()) { toast.error('Please enter an email'); return; }
-                    toast.success(`Invite sent to ${inviteEmail.trim()}`);
-                    setInviteEmail("");
+                    try {
+                      const res = await fetch(`/api/teams/${team.id}/invite`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: inviteEmail.trim() }),
+                      });
+                      if (res.ok) {
+                        toast.success(`Invited ${inviteEmail.trim()}`);
+                        setInviteEmail("");
+                        // Refresh member list
+                        const membersRes = await fetch(`/api/teams/${team.id}/members`);
+                        if (membersRes.ok) setMembers(await membersRes.json());
+                      } else {
+                        const data = await res.json();
+                        toast.error(data.error || 'Failed to invite user');
+                      }
+                    } catch { toast.error('Failed to invite user'); }
                   }}>
                     Send invite
                   </Button>
@@ -346,33 +400,34 @@ export function TeamSettingsModal({
                 </div>
 
                 <div className="border rounded-lg divide-y">
-                  {/* Member Row Example */}
-                  <div className="flex items-center justify-between p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-sm font-medium">
-                        TL
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Team Lead</p>
-                        <p className="text-xs text-gray-500">lead@workspace.com</p>
-                      </div>
+                  {membersLoading ? (
+                    <div className="flex items-center justify-center p-6">
+                      <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100">
-                            Lead
-                            <ChevronDown className="h-3 w-3" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => toast.success('Role changed to Admin')}>Admin</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toast.success('Role changed to Lead')}>Lead</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toast.success('Role changed to Member')}>Member</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                  ) : members.length > 0 ? (
+                    members.map((member) => (
+                      <div key={member.user.id} className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                            {(member.user.name || member.user.email || "?").slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{member.user.name || "Unnamed"}</p>
+                            <p className="text-xs text-gray-500">{member.user.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600 px-2 py-1">
+                            {member.role === "LEAD" ? "Lead" : member.role === "ADMIN" ? "Admin" : "Member"}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No members found.
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -403,9 +458,10 @@ export function TeamSettingsModal({
                           <ChevronDown className="h-3 w-3" />
                         </button>
                       </DropdownMenuTrigger>
+                      {/* TODO: Wire to API once team permission settings endpoint exists */}
                       <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => toast.success('Settings: Team admins only')}>Team admins only</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast.success('Settings: All team members')}>All team members</DropdownMenuItem>
+                        <DropdownMenuItem disabled>Team admins only</DropdownMenuItem>
+                        <DropdownMenuItem disabled>All team members</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -428,9 +484,10 @@ export function TeamSettingsModal({
                           <ChevronDown className="h-3 w-3" />
                         </button>
                       </DropdownMenuTrigger>
+                      {/* TODO: Wire to API once team permission settings endpoint exists */}
                       <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => toast.success('Add members: All team members')}>All team members</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast.success('Add members: Team admins only')}>Team admins only</DropdownMenuItem>
+                        <DropdownMenuItem disabled>All team members</DropdownMenuItem>
+                        <DropdownMenuItem disabled>Team admins only</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -443,9 +500,10 @@ export function TeamSettingsModal({
                           <ChevronDown className="h-3 w-3" />
                         </button>
                       </DropdownMenuTrigger>
+                      {/* TODO: Wire to API once team permission settings endpoint exists */}
                       <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => toast.success('Remove members: Team admins only')}>Team admins only</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toast.success('Remove members: All team members')}>All team members</DropdownMenuItem>
+                        <DropdownMenuItem disabled>Team admins only</DropdownMenuItem>
+                        <DropdownMenuItem disabled>All team members</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -461,7 +519,8 @@ export function TeamSettingsModal({
                 <div className="space-y-2 pl-6">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Allow invite links</span>
-                    <Checkbox checked={allowInviteLinks} onCheckedChange={(checked) => { setAllowInviteLinks(!!checked); toast.success(checked ? 'Invite links enabled' : 'Invite links disabled'); }} />
+                    {/* TODO: Persist invite link setting via API once endpoint exists */}
+                    <Checkbox checked={allowInviteLinks} onCheckedChange={(checked) => { setAllowInviteLinks(!!checked); }} />
                   </div>
                   <p className="text-xs text-gray-500">
                     Anyone with the invite link can join the team

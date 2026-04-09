@@ -31,12 +31,12 @@ export interface UserWidgetPreferences {
   widgetSizes: Partial<Record<WidgetType, WidgetSize>>;
 }
 
-// IMPORTANTE: TODOS los widgets son del MISMO TAMAÑO
-// Grid de 2 columnas, cada widget ocupa 1 columna
-// Altura uniforme de ~320px para aspecto cuadrado
+// All widgets are the SAME SIZE
+// 2-column grid, each widget takes 1 column
+// Uniform height of ~320px for square aspect
 
 export const AVAILABLE_WIDGETS: WidgetConfig[] = [
-  // === WIDGETS HABILITADOS POR DEFECTO ===
+  // === DEFAULT ENABLED WIDGETS ===
   {
     id: 'my-tasks',
     title: 'My tasks',
@@ -61,7 +61,7 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     defaultEnabled: true,
     defaultOrder: 3,
   },
-  // === WIDGETS OPCIONALES ===
+  // === OPTIONAL WIDGETS ===
   {
     id: 'status-updates',
     title: 'Status updates',

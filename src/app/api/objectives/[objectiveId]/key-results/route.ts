@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId, AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
 import { GoalProgressService } from "@/lib/goal-progress";
 
 const createKeyResultSchema = z.object({
@@ -38,6 +39,16 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify objective belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+    const objective = await prisma.objective.findUnique({
+      where: { id: objectiveId },
+      select: { workspaceId: true },
+    });
+    if (!objective || objective.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
+    }
+
     const body = await req.json();
     const data = createKeyResultSchema.parse(body);
 
@@ -60,6 +71,10 @@ export async function POST(
 
     return NextResponse.json(keyResult, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: error.issues[0]?.message || "Validation error" },
@@ -82,10 +97,20 @@ export async function PATCH(
 ) {
   try {
     const userId = await getCurrentUserId();
-    await params; // Just to consume the param
+    const { objectiveId } = await params;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify objective belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+    const objective = await prisma.objective.findUnique({
+      where: { id: objectiveId },
+      select: { workspaceId: true },
+    });
+    if (!objective || objective.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -155,6 +180,10 @@ export async function PATCH(
 
     return NextResponse.json(keyResult);
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: error.issues[0]?.message || "Validation error" },
@@ -183,6 +212,16 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Verify objective belongs to user's workspace
+    const workspaceId = await getUserWorkspaceId(userId);
+    const objective = await prisma.objective.findUnique({
+      where: { id: objectiveId },
+      select: { workspaceId: true },
+    });
+    if (!objective || objective.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
+    }
+
     const { searchParams } = new URL(req.url);
     const keyResultId = searchParams.get("keyResultId");
 
@@ -202,6 +241,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting key result:", error);
     return NextResponse.json(
       { error: "Failed to delete key result" },

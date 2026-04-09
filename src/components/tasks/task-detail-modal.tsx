@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
@@ -178,6 +178,7 @@ export function TaskDetailModal({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingSubtaskName, setEditingSubtaskName] = useState('');
+  const isAddingSubtaskRef = useRef(false);
 
   const fetchTask = useCallback(async () => {
     if (!taskId) return;
@@ -200,6 +201,11 @@ export function TaskDetailModal({
 
   useEffect(() => {
     if (open && taskId) {
+      // Reset auxiliary edit states when opening a different task
+      setNewSubtaskName('');
+      setIsAddingSubtask(false);
+      setEditingSubtaskId(null);
+      setEditingSubtaskName('');
       fetchTask();
     }
   }, [open, taskId, fetchTask]);
@@ -259,8 +265,11 @@ export function TaskDetailModal({
   };
 
   const handleSubtaskAdd = async () => {
+    if (isAddingSubtaskRef.current) return;
+    isAddingSubtaskRef.current = true;
     if (!newSubtaskName.trim()) {
       setIsAddingSubtask(false);
+      isAddingSubtaskRef.current = false;
       return;
     }
 
@@ -278,6 +287,8 @@ export function TaskDetailModal({
       fetchTask();
     } catch (error) {
       toast.error('Failed to add subtask');
+    } finally {
+      isAddingSubtaskRef.current = false;
     }
   };
 
@@ -609,10 +620,10 @@ export function TaskDetailModal({
               </span>
             </div>
 
-            {/* ========== CONTENIDO SCROLLEABLE ========== */}
+            {/* ========== SCROLLABLE CONTENT ========== */}
             <div className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-4">
-                {/* 1. TÍTULO CON BORDE */}
+                {/* 1. TITLE WITH BORDER */}
                 <div className="border rounded-lg">
                   <Input
                     value={name}
@@ -626,7 +637,7 @@ export function TaskDetailModal({
                   />
                 </div>
 
-                {/* 2. DESCRIPCIÓN - DESPUÉS DEL TÍTULO */}
+                {/* 2. DESCRIPTION - AFTER THE TITLE */}
                 <div className="flex items-start gap-4">
                   <span className="w-28 text-sm text-gray-500 pt-2 flex-shrink-0">
                     Description
@@ -761,7 +772,7 @@ export function TaskDetailModal({
 
                 {/* ========== SUBTASKS ========== */}
                 <div className="space-y-2">
-                  {/* Label + botón inline */}
+                  {/* Label + inline button */}
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">Subtasks</span>
                     {!isAddingSubtask && (
@@ -777,7 +788,7 @@ export function TaskDetailModal({
                     )}
                   </div>
 
-                  {/* Lista de subtasks existentes */}
+                  {/* List of existing subtasks */}
                   {task.subtasks?.map((subtask) => (
                     <div key={subtask.id} className="flex items-center gap-2 py-1 group">
                       <button
@@ -834,7 +845,7 @@ export function TaskDetailModal({
                     </div>
                   ))}
 
-                  {/* Input para agregar subtask */}
+                  {/* Input to add subtask */}
                   {isAddingSubtask && (
                     <div className="flex items-center gap-2 py-1">
                       <div className="w-4 h-4 rounded-full border-2 border-gray-300" />
@@ -881,7 +892,7 @@ export function TaskDetailModal({
 
             {/* ========== FOOTER ========== */}
             <div className="flex items-center justify-between px-6 py-3 border-t bg-white flex-shrink-0">
-              {/* Colaboradores */}
+              {/* Collaborators */}
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-500">Collaborators</span>
                 <div className="flex -space-x-2">

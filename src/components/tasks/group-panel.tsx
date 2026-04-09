@@ -53,21 +53,21 @@ interface GroupPanelProps {
 // ─── Field options ───────────────────────────────────────
 
 const GROUP_FIELD_OPTIONS: { field: GroupField; label: string; icon: typeof Calendar }[] = [
-  { field: "sections", label: "Secciones", icon: ClipboardList },
-  { field: "due_date", label: "Fecha de entrega", icon: CalendarDays },
-  { field: "start_date", label: "Fecha de inicio", icon: Calendar },
-  { field: "creator", label: "Creador", icon: User },
-  { field: "created_at", label: "Fecha de creación", icon: Clock },
-  { field: "updated_at", label: "Última modificación", icon: Pencil },
-  { field: "completed_at", label: "Fecha de finalización", icon: CalendarCheck },
-  { field: "project", label: "Proyecto", icon: ClipboardList },
-  { field: "priority", label: "Prioridad", icon: GripVertical },
+  { field: "sections", label: "Sections", icon: ClipboardList },
+  { field: "due_date", label: "Due date", icon: CalendarDays },
+  { field: "start_date", label: "Start date", icon: Calendar },
+  { field: "creator", label: "Creator", icon: User },
+  { field: "created_at", label: "Creation date", icon: Clock },
+  { field: "updated_at", label: "Last modified", icon: Pencil },
+  { field: "completed_at", label: "Completion date", icon: CalendarCheck },
+  { field: "project", label: "Project", icon: ClipboardList },
+  { field: "priority", label: "Priority", icon: GripVertical },
 ];
 
 const ORDER_OPTIONS: { value: GroupOrder; label: string }[] = [
-  { value: "custom", label: "Orden personalizado" },
-  { value: "asc", label: "Ascendente" },
-  { value: "desc", label: "Descendente" },
+  { value: "custom", label: "Custom order" },
+  { value: "asc", label: "Ascending" },
+  { value: "desc", label: "Descending" },
 ];
 
 function fieldLabel(field: GroupField): string {
@@ -244,7 +244,7 @@ function GroupRow({
         options={fieldOptions}
         onSelect={(v) => onUpdate({ ...group, field: v as GroupField })}
         width="min-w-[150px]"
-        footerAction={onOpenCustomField ? { label: "Agregar campo personalizado...", onClick: onOpenCustomField } : undefined}
+        footerAction={onOpenCustomField ? { label: "Add custom field...", onClick: onOpenCustomField } : undefined}
       />
 
       {/* Order dropdown */}
@@ -283,7 +283,7 @@ function GroupRow({
             >
               {group.hideEmpty && <Check className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />}
               {!group.hideEmpty && <div className="w-3.5" />}
-              Ocultar grupos vacíos
+              Hide empty groups
             </button>
             <button
               onClick={() => {
@@ -299,7 +299,7 @@ function GroupRow({
             >
               {!group.hideEmpty && <Check className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />}
               {group.hideEmpty && <div className="w-3.5" />}
-              Mostrar grupos vacíos
+              Show empty groups
             </button>
           </div>
         )}
@@ -433,12 +433,12 @@ export function GroupPanel({ open, onClose, anchorRef, groups, onGroupsChange, o
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-[18px] pb-3">
           <div className="flex items-center gap-3">
-            <h3 className="text-[16px] font-semibold text-gray-900">Grupos</h3>
+            <h3 className="text-[16px] font-semibold text-gray-900">Groups</h3>
             <button
               onClick={() => {}}
               className="text-[12px] text-gray-400 hover:text-gray-500 transition-colors"
             >
-              Enviar comentarios
+              Send feedback
             </button>
           </div>
           <div className="flex items-center gap-2">
@@ -447,7 +447,7 @@ export function GroupPanel({ open, onClose, anchorRef, groups, onGroupsChange, o
                 onClick={handleClearAll}
                 className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors"
               >
-                Borrar
+                Clear
               </button>
             )}
             <button
@@ -481,7 +481,7 @@ export function GroupPanel({ open, onClose, anchorRef, groups, onGroupsChange, o
               className="flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-700 transition-colors py-1"
             >
               <Plus className="w-3.5 h-3.5" />
-              Agregar subgrupo
+              Add subgroup
             </button>
           </div>
         )}

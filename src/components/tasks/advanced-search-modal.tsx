@@ -88,7 +88,7 @@ export function AdvancedSearchModal({
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
           <DialogHeader className="p-0">
             <DialogTitle className="text-[16px] font-semibold text-gray-900">
-              Búsqueda avanzada
+              Advanced search
             </DialogTitle>
           </DialogHeader>
           <button
@@ -102,13 +102,13 @@ export function AdvancedSearchModal({
         {/* Body */}
         <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
           {/* Contiene las palabras */}
-          <FieldRow label="Contiene las palabras">
+          <FieldRow label="Contains the words">
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={criteria.words}
                 onChange={(e) => update({ words: e.target.value })}
-                placeholder="Escribe palabras clave..."
+                placeholder="Type keywords..."
                 className="flex-1 h-9 px-3 text-[13px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-black/10 placeholder:text-gray-400"
               />
               {criteria.words && (
@@ -116,14 +116,14 @@ export function AdvancedSearchModal({
                   onClick={() => update({ words: "" })}
                   className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors whitespace-nowrap"
                 >
-                  Borrar
+                  Clear
                 </button>
               )}
             </div>
           </FieldRow>
 
           {/* Tipo */}
-          <FieldRow label="Tipo">
+          <FieldRow label="Type">
             <Select
               value={criteria.type}
               onValueChange={(v) =>
@@ -134,15 +134,15 @@ export function AdvancedSearchModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="task">Tarea</SelectItem>
-                <SelectItem value="milestone">Hito</SelectItem>
-                <SelectItem value="approval">Aprobación</SelectItem>
+                <SelectItem value="task">Task</SelectItem>
+                <SelectItem value="milestone">Milestone</SelectItem>
+                <SelectItem value="approval">Approval</SelectItem>
               </SelectContent>
             </Select>
           </FieldRow>
 
           {/* Incluir */}
-          <FieldRow label="Incluir">
+          <FieldRow label="Include">
             <div className="flex items-center gap-5">
               <label className="flex items-center gap-2 text-[13px] text-gray-700 cursor-pointer">
                 <Checkbox
@@ -151,7 +151,7 @@ export function AdvancedSearchModal({
                     update({ includeSubtasks: v === true })
                   }
                 />
-                Subtareas
+                Subtasks
               </label>
               <label className="flex items-center gap-2 text-[13px] text-gray-700 cursor-pointer">
                 <Checkbox
@@ -160,7 +160,7 @@ export function AdvancedSearchModal({
                     update({ includeMilestones: v === true })
                   }
                 />
-                Hitos
+                Milestones
               </label>
               <label className="flex items-center gap-2 text-[13px] text-gray-700 cursor-pointer">
                 <Checkbox
@@ -169,13 +169,13 @@ export function AdvancedSearchModal({
                     update({ includeApprovals: v === true })
                   }
                 />
-                Aprobaciones
+                Approvals
               </label>
             </div>
           </FieldRow>
 
           {/* Ubicado */}
-          <FieldRow label="Ubicado">
+          <FieldRow label="Located in">
             <Select
               value={criteria.location}
               onValueChange={(v) => update({ location: v })}
@@ -184,14 +184,14 @@ export function AdvancedSearchModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="anywhere">En cualquier lugar</SelectItem>
-                <SelectItem value="my_tasks">Mis tareas</SelectItem>
+                <SelectItem value="anywhere">Anywhere</SelectItem>
+                <SelectItem value="my_tasks">My tasks</SelectItem>
               </SelectContent>
             </Select>
           </FieldRow>
 
           {/* Estado */}
-          <FieldRow label="Estado">
+          <FieldRow label="Status">
             <Select
               value={criteria.status}
               onValueChange={(v) =>
@@ -202,15 +202,15 @@ export function AdvancedSearchModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="any">Cualquiera</SelectItem>
-                <SelectItem value="incomplete">Sin finalizar</SelectItem>
-                <SelectItem value="complete">Finalizada</SelectItem>
+                <SelectItem value="any">Any</SelectItem>
+                <SelectItem value="incomplete">Incomplete</SelectItem>
+                <SelectItem value="complete">Complete</SelectItem>
               </SelectContent>
             </Select>
           </FieldRow>
 
           {/* Asignada a */}
-          <FieldRow label="Asignada a">
+          <FieldRow label="Assigned to">
             <div className="flex flex-wrap items-center gap-1.5 min-h-[36px] px-3 py-1.5 border border-gray-200 rounded-lg bg-white">
               {criteria.assignees.map((name, idx) => (
                 <span
@@ -235,7 +235,7 @@ export function AdvancedSearchModal({
               <input
                 type="text"
                 placeholder={
-                  criteria.assignees.length === 0 ? "Buscar personas..." : ""
+                  criteria.assignees.length === 0 ? "Search people..." : ""
                 }
                 className="flex-1 min-w-[80px] text-[13px] outline-none bg-transparent placeholder:text-gray-400"
                 onKeyDown={(e) => {
@@ -257,7 +257,7 @@ export function AdvancedSearchModal({
           </FieldRow>
 
           {/* Fecha de entrega */}
-          <FieldRow label="Fecha de entrega">
+          <FieldRow label="Due date">
             <Select
               value={criteria.dueDate}
               onValueChange={(v) =>
@@ -268,23 +268,23 @@ export function AdvancedSearchModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="any">Cualquiera</SelectItem>
-                <SelectItem value="today">Hoy</SelectItem>
-                <SelectItem value="this_week">Esta semana</SelectItem>
-                <SelectItem value="next_week">Próxima semana</SelectItem>
-                <SelectItem value="overdue">Atrasada</SelectItem>
-                <SelectItem value="no_date">Sin fecha</SelectItem>
+                <SelectItem value="any">Any</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="this_week">This week</SelectItem>
+                <SelectItem value="next_week">Next week</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="no_date">No date</SelectItem>
               </SelectContent>
             </Select>
           </FieldRow>
 
           {/* Colaboradores */}
-          <FieldRow label="Colaboradores">
+          <FieldRow label="Collaborators">
             <input
               type="text"
               value={criteria.collaborators}
               onChange={(e) => update({ collaborators: e.target.value })}
-              placeholder="Buscar colaboradores..."
+              placeholder="Search collaborators..."
               className="w-full h-9 px-3 text-[13px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-black/10 placeholder:text-gray-400"
             />
           </FieldRow>
@@ -294,13 +294,13 @@ export function AdvancedSearchModal({
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
           <div className="flex items-center gap-4">
             <button className="text-[13px] text-blue-600 hover:text-blue-700 font-medium transition-colors">
-              Agregar filtro
+              Add filter
             </button>
             <button
               onClick={handleReset}
               className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors"
             >
-              Restablecer los filtros
+              Reset filters
             </button>
           </div>
           <button
@@ -308,7 +308,7 @@ export function AdvancedSearchModal({
             className="flex items-center gap-1.5 px-4 h-9 bg-gray-900 text-white text-[13px] font-medium rounded-lg hover:bg-gray-800 transition-colors"
           >
             <Search className="w-3.5 h-3.5" />
-            Buscar
+            Search
           </button>
         </div>
       </DialogContent>

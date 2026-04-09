@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
-  ChevronLeft,
   ChevronRight,
   Plus,
   Loader2,
-  Calendar as CalendarIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TeamHeader } from "@/components/teams/team-header";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -68,72 +65,9 @@ interface Team {
   }>;
 }
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-function getDaysInMonth(year: number, month: number): Date[] {
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const days: Date[] = [];
-
-  const firstDayOfWeek = firstDay.getDay();
-  for (let i = firstDayOfWeek - 1; i >= 0; i--) {
-    const date = new Date(year, month, -i);
-    days.push(date);
-  }
-
-  for (let i = 1; i <= lastDay.getDate(); i++) {
-    days.push(new Date(year, month, i));
-  }
-
-  const remainingDays = 42 - days.length;
-  for (let i = 1; i <= remainingDays; i++) {
-    days.push(new Date(year, month + 1, i));
-  }
-
-  return days;
-}
-
-function isSameDay(date1: Date, date2: Date): boolean {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
-}
-
-function isSameMonth(date1: Date, date2: Date): boolean {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth()
-  );
-}
-
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
 export default function TeamCalendarPage() {
   const params = useParams();
+  const router = useRouter();
   const teamId = params.teamId as string;
 
   const [team, setTeam] = useState<Team | null>(null);
@@ -141,19 +75,16 @@ export default function TeamCalendarPage() {
   const [teamProjects, setTeamProjects] = useState<TeamProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   // Create task dialog state
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [newTaskName, setNewTaskName] = useState("");
   const [newTaskProjectId, setNewTaskProjectId] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  const today = new Date();
-  const days = getDaysInMonth(
-    currentDate.getFullYear(),
-    currentDate.getMonth()
-  );
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -200,23 +131,70 @@ export default function TeamCalendarPage() {
     fetchData();
   }, [teamId]);
 
-  const navigateMonth = (direction: "prev" | "next") => {
-    setCurrentDate((prev) => {
-      const newDate = new Date(prev);
-      if (direction === "prev") {
-        newDate.setMonth(prev.getMonth() - 1);
-      } else {
-        newDate.setMonth(prev.getMonth() + 1);
-      }
-      return newDate;
-    });
+  // Calculate calendar days (Monday-start)
+  const getCalendarDays = () => {
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+
+    // Get day of week (0=Sunday), convert to Monday-start (0=Monday)
+    let startDay = firstDayOfMonth.getDay();
+    startDay = startDay === 0 ? 6 : startDay - 1;
+
+    const days: { date: Date; isCurrentMonth: boolean }[] = [];
+
+    // Days from previous month
+    for (let i = startDay; i > 0; i--) {
+      const prevDate = new Date(year, month, 1 - i);
+      days.push({ date: prevDate, isCurrentMonth: false });
+    }
+
+    // Days of current month
+    for (let d = 1; d <= lastDayOfMonth.getDate(); d++) {
+      days.push({ date: new Date(year, month, d), isCurrentMonth: true });
+    }
+
+    // Days from next month to complete 6 weeks
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      days.push({ date: new Date(year, month + 1, i), isCurrentMonth: false });
+    }
+
+    return days;
   };
 
-  const getTasksForDate = (date: Date): Task[] => {
-    return tasks.filter((task) => {
-      if (!task.dueDate) return false;
-      return isSameDay(new Date(task.dueDate), date);
-    });
+  const calendarDays = getCalendarDays();
+  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  const tasksByDate = tasks.reduce((acc, task) => {
+    if (task.dueDate) {
+      const date = new Date(task.dueDate).toDateString();
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(task);
+    }
+    return acc;
+  }, {} as Record<string, Task[]>);
+
+  const goToPrevMonth = () => setCurrentDate(new Date(year, month - 1));
+  const goToNextMonth = () => setCurrentDate(new Date(year, month + 1));
+  const goToToday = () => setCurrentDate(new Date());
+
+  const formatMonthYear = (date: Date) => {
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  };
+
+  const handleAddClick = (date: Date) => {
+    setSelectedDate(date);
+    setNewTaskName("");
+    setNewTaskProjectId("");
+    setShowCreateDialog(true);
+  };
+
+  const handleTaskClick = (task: Task) => {
+    if (task.project) {
+      router.push(`/projects/${task.project.id}?task=${task.id}`);
+    } else {
+      router.push(`/my-tasks?task=${task.id}`);
+    }
   };
 
   async function handleCreateTask(e: React.FormEvent) {
@@ -254,8 +232,6 @@ export default function TeamCalendarPage() {
     }
   }
 
-  const selectedDateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -272,244 +248,127 @@ export default function TeamCalendarPage() {
     <div className="min-h-screen bg-gray-50">
       <TeamHeader team={team} activeTab="calendar" />
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar */}
-          <div className="lg:col-span-2 bg-white border rounded-xl p-6">
-            {/* Calendar header */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">
-                {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
-              </h2>
+      <div className="flex flex-col h-[calc(100vh-120px)]">
+        {/* Navigation toolbar */}
+        <div className="flex items-center justify-center gap-2 px-4 py-3 border-b bg-white">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={goToPrevMonth}
+            className="h-8 w-8"
+          >
+            <ChevronRight className="h-4 w-4 rotate-180" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={goToToday}
+            className="px-3"
+          >
+            Today
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={goToNextMonth}
+            className="h-8 w-8"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <span className="font-medium text-black ml-2">
+            {formatMonthYear(currentDate)}
+          </span>
+        </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentDate(new Date())}
-                >
-                  Today
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => navigateMonth("prev")}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => navigateMonth("next")}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+        {/* Week header - Monday start, weekend narrower */}
+        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_0.7fr_0.7fr] border-b bg-white">
+          {weekDays.map((day, index) => (
+            <div
+              key={day}
+              className={cn(
+                "py-2 text-center text-xs font-medium text-black uppercase border-r last:border-r-0",
+                index >= 5 && "bg-white"
+              )}
+            >
+              {day}
             </div>
+          ))}
+        </div>
 
-            {/* Weekday headers */}
-            <div className="grid grid-cols-7 mb-2">
-              {WEEKDAYS.map((day) => (
-                <div
-                  key={day}
-                  className="text-center text-sm font-medium text-gray-500 py-2"
-                >
-                  {day}
-                </div>
-              ))}
-            </div>
+        {/* Calendar grid */}
+        <div className="flex-1 grid grid-cols-[1fr_1fr_1fr_1fr_1fr_0.7fr_0.7fr] auto-rows-fr overflow-auto">
+          {calendarDays.map(({ date, isCurrentMonth }, index) => {
+            const dateStr = date.toDateString();
+            const dayTasks = tasksByDate[dateStr] || [];
+            const isToday = dateStr === new Date().toDateString();
+            const isWeekend = index % 7 >= 5;
+            const dayNum = date.getDate();
+            const isFirstOfMonth = dayNum === 1;
 
-            {/* Calendar grid */}
-            <div className="grid grid-cols-7 gap-1">
-              {days.map((date, index) => {
-                const isCurrentMonth = isSameMonth(date, currentDate);
-                const isToday = isSameDay(date, today);
-                const isSelected =
-                  selectedDate && isSameDay(date, selectedDate);
-                const dateTasks = getTasksForDate(date);
-
-                return (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedDate(date)}
+            return (
+              <div
+                key={dateStr}
+                className={cn(
+                  "border-r border-b p-1 min-h-[90px] group relative",
+                  !isCurrentMonth && "bg-white/50",
+                  isWeekend && "bg-white/30"
+                )}
+              >
+                {/* Day number */}
+                <div className="flex items-start justify-between">
+                  <span
                     className={cn(
-                      "aspect-square p-1 rounded-lg transition-colors relative",
-                      isCurrentMonth
-                        ? "hover:bg-gray-100"
-                        : "text-gray-300 hover:bg-gray-50",
-                      isSelected && "bg-blue-100 hover:bg-blue-100",
-                      isToday && "ring-2 ring-blue-500"
+                      "text-sm",
+                      !isCurrentMonth && "text-slate-300",
+                      isToday &&
+                        "bg-black text-white rounded-full w-6 h-6 flex items-center justify-center font-medium"
                     )}
                   >
-                    <span
-                      className={cn(
-                        "text-sm",
-                        isToday && "font-bold text-blue-600"
-                      )}
-                    >
-                      {date.getDate()}
-                    </span>
+                    {isFirstOfMonth && isCurrentMonth
+                      ? date.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : dayNum}
+                  </span>
+                  {dayTasks.length > 2 && (
+                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full mt-2" />
+                  )}
+                </div>
 
-                    {/* Task indicators */}
-                    {dateTasks.length > 0 && (
-                      <div className="flex justify-center gap-0.5 mt-1">
-                        {dateTasks.slice(0, 3).map((task, i) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              "w-1.5 h-1.5 rounded-full",
-                              task.completed
-                                ? "bg-gray-300"
-                                : task.project?.color
-                                ? ""
-                                : "bg-blue-500"
-                            )}
-                            style={
-                              !task.completed && task.project?.color
-                                ? { backgroundColor: task.project.color }
-                                : undefined
-                            }
-                          />
-                        ))}
-                        {dateTasks.length > 3 && (
-                          <span className="text-[8px] text-gray-400">
-                            +{dateTasks.length - 3}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Selected date details */}
-          <div className="bg-white border rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">
-                {selectedDate
-                  ? selectedDate.toLocaleDateString("en-US", {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                    })
-                  : "Select a date"}
-              </h3>
-
-              {selectedDate && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1"
-                  onClick={() => setShowCreateDialog(true)}
-                >
-                  <Plus className="h-3 w-3" />
-                  Add task
-                </Button>
-              )}
-            </div>
-
-            {selectedDate ? (
-              selectedDateTasks.length > 0 ? (
-                <div className="space-y-3">
-                  {selectedDateTasks.map((task) => (
+                {/* Tasks */}
+                <div className="mt-1 space-y-0.5">
+                  {dayTasks.slice(0, 2).map((task) => (
                     <div
                       key={task.id}
-                      className={cn(
-                        "p-3 border rounded-lg",
-                        task.completed && "opacity-50"
-                      )}
+                      className="text-xs p-1 bg-white border rounded shadow-sm truncate cursor-pointer hover:bg-gray-50"
+                      title={task.name}
+                      onClick={() => handleTaskClick(task)}
                     >
-                      <div className="flex items-start gap-2">
-                        <input
-                          type="checkbox"
-                          checked={task.completed}
-                          onChange={() => {
-                            const updated = !task.completed;
-                            setTasks((prev) =>
-                              prev.map((t) =>
-                                t.id === task.id
-                                  ? { ...t, completed: updated }
-                                  : t
-                              )
-                            );
-                            fetch(`/api/tasks/${task.id}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ completed: updated }),
-                            }).then((res) => {
-                              if (res.ok)
-                                toast.success(
-                                  updated
-                                    ? "Task completed"
-                                    : "Task reopened"
-                                );
-                            });
-                          }}
-                          className="mt-0.5 rounded cursor-pointer"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className={cn(
-                              "text-sm font-medium text-gray-900",
-                              task.completed && "line-through"
-                            )}
-                          >
-                            {task.name}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            {task.project && (
-                              <div className="flex items-center gap-1.5">
-                                <div
-                                  className="w-2 h-2 rounded"
-                                  style={{
-                                    backgroundColor: task.project.color,
-                                  }}
-                                />
-                                <span className="text-xs text-gray-500">
-                                  {task.project.name}
-                                </span>
-                              </div>
-                            )}
-                            {task.assignee && (
-                              <div className="flex items-center gap-1">
-                                <Avatar className="h-4 w-4">
-                                  <AvatarImage
-                                    src={task.assignee.image || undefined}
-                                  />
-                                  <AvatarFallback className="text-[8px] bg-gray-100">
-                                    {getInitials(task.assignee.name)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="text-xs text-gray-500">
-                                  {task.assignee.name}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                      {task.name}
                     </div>
                   ))}
+                  {dayTasks.length > 2 && (
+                    <span className="text-xs text-black pl-1">
+                      +{dayTasks.length - 2} more
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <CalendarIcon className="h-12 w-12 text-gray-200 mx-auto mb-3" />
-                  <p className="text-sm text-gray-500">
-                    No tasks for this day
-                  </p>
-                </div>
-              )
-            ) : (
-              <div className="text-center py-8">
-                <CalendarIcon className="h-12 w-12 text-gray-200 mx-auto mb-3" />
-                <p className="text-sm text-gray-500">
-                  Click on a day to see tasks
-                </p>
+
+                {/* Add task on hover */}
+                <button
+                  className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 text-xs text-black hover:text-black flex items-center gap-0.5 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddClick(date);
+                  }}
+                >
+                  <Plus className="w-3 h-3" />
+                  Add
+                </button>
               </div>
-            )}
-          </div>
+            );
+          })}
         </div>
       </div>
 

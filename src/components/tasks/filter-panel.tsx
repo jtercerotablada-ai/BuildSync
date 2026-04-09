@@ -63,118 +63,118 @@ interface FilterPanelProps {
 // ─── Constants ───────────────────────────────────────────
 
 const QUICK_FILTER_OPTIONS: { key: QuickFilterKey; label: string; icon: typeof Check }[] = [
-  { key: "incomplete", label: "Tareas sin finalizar", icon: CheckCircle2 },
-  { key: "completed", label: "Tareas finalizadas", icon: Check },
-  { key: "due_this_week", label: "Para entregar esta semana", icon: CalendarDays },
-  { key: "due_next_week", label: "Para entregar la próxima semana", icon: CalendarRange },
+  { key: "incomplete", label: "Incomplete tasks", icon: CheckCircle2 },
+  { key: "completed", label: "Completed tasks", icon: Check },
+  { key: "due_this_week", label: "Due this week", icon: CalendarDays },
+  { key: "due_next_week", label: "Due next week", icon: CalendarRange },
 ];
 
 const ADD_FILTER_OPTIONS: { field: FilterField; label: string; icon: typeof Check }[] = [
-  { field: "completion", label: "Estado de finalización", icon: CheckCircle2 },
-  { field: "start_date", label: "Fecha de inicio", icon: Calendar },
-  { field: "due_date", label: "Fecha de entrega", icon: CalendarDays },
-  { field: "creator", label: "Creador", icon: User },
-  { field: "creation_date", label: "Fecha de creación", icon: Clock },
-  { field: "last_modified", label: "Última modificación", icon: Pencil },
-  { field: "completion_date", label: "Fecha de finalización", icon: CalendarRange },
-  { field: "task_type", label: "Tipo de tarea", icon: Diamond },
+  { field: "completion", label: "Completion status", icon: CheckCircle2 },
+  { field: "start_date", label: "Start date", icon: Calendar },
+  { field: "due_date", label: "Due date", icon: CalendarDays },
+  { field: "creator", label: "Creator", icon: User },
+  { field: "creation_date", label: "Creation date", icon: Clock },
+  { field: "last_modified", label: "Last modified", icon: Pencil },
+  { field: "completion_date", label: "Completion date", icon: CalendarRange },
+  { field: "task_type", label: "Task type", icon: Diamond },
 ];
 
 const OPERATORS_BY_FIELD: Record<FilterField, { value: FilterOperator; label: string }[]> = {
   completion: [
-    { value: "is", label: "es" },
-    { value: "is_not", label: "no es" },
+    { value: "is", label: "is" },
+    { value: "is_not", label: "is not" },
   ],
   start_date: [
-    { value: "is_within", label: "está en" },
-    { value: "is_before", label: "es anterior a" },
-    { value: "is_after", label: "es posterior a" },
-    { value: "is_set", label: "está definida" },
-    { value: "is_not_set", label: "no está definida" },
+    { value: "is_within", label: "is within" },
+    { value: "is_before", label: "is before" },
+    { value: "is_after", label: "is after" },
+    { value: "is_set", label: "is set" },
+    { value: "is_not_set", label: "is not set" },
   ],
   due_date: [
-    { value: "is_within", label: "está en" },
-    { value: "is_before", label: "es anterior a" },
-    { value: "is_after", label: "es posterior a" },
-    { value: "is_set", label: "está definida" },
-    { value: "is_not_set", label: "no está definida" },
+    { value: "is_within", label: "is within" },
+    { value: "is_before", label: "is before" },
+    { value: "is_after", label: "is after" },
+    { value: "is_set", label: "is set" },
+    { value: "is_not_set", label: "is not set" },
   ],
   creator: [
-    { value: "is", label: "es" },
-    { value: "is_not", label: "no es" },
+    { value: "is", label: "is" },
+    { value: "is_not", label: "is not" },
   ],
   creation_date: [
-    { value: "is_within", label: "está en" },
-    { value: "is_before", label: "es anterior a" },
-    { value: "is_after", label: "es posterior a" },
+    { value: "is_within", label: "is within" },
+    { value: "is_before", label: "is before" },
+    { value: "is_after", label: "is after" },
   ],
   last_modified: [
-    { value: "is_within", label: "está en" },
-    { value: "is_before", label: "es anterior a" },
-    { value: "is_after", label: "es posterior a" },
+    { value: "is_within", label: "is within" },
+    { value: "is_before", label: "is before" },
+    { value: "is_after", label: "is after" },
   ],
   completion_date: [
-    { value: "is_within", label: "está en" },
-    { value: "is_before", label: "es anterior a" },
-    { value: "is_after", label: "es posterior a" },
-    { value: "is_set", label: "está definida" },
-    { value: "is_not_set", label: "no está definida" },
+    { value: "is_within", label: "is within" },
+    { value: "is_before", label: "is before" },
+    { value: "is_after", label: "is after" },
+    { value: "is_set", label: "is set" },
+    { value: "is_not_set", label: "is not set" },
   ],
   task_type: [
-    { value: "is", label: "es" },
-    { value: "is_not", label: "no es" },
+    { value: "is", label: "is" },
+    { value: "is_not", label: "is not" },
   ],
 };
 
 const VALUES_BY_FIELD: Record<FilterField, { value: string; label: string }[]> = {
   completion: [
-    { value: "incomplete", label: "Sin finalizar" },
-    { value: "complete", label: "Finalizada" },
+    { value: "incomplete", label: "Incomplete" },
+    { value: "complete", label: "Complete" },
   ],
   start_date: [
-    { value: "today", label: "Hoy" },
-    { value: "yesterday", label: "Ayer" },
-    { value: "this_week", label: "Esta semana" },
-    { value: "last_week", label: "La semana pasada" },
-    { value: "this_month", label: "Este mes" },
-    { value: "last_month", label: "El mes pasado" },
+    { value: "today", label: "Today" },
+    { value: "yesterday", label: "Yesterday" },
+    { value: "this_week", label: "This week" },
+    { value: "last_week", label: "Last week" },
+    { value: "this_month", label: "This month" },
+    { value: "last_month", label: "Last month" },
   ],
   due_date: [
-    { value: "today", label: "Hoy" },
-    { value: "tomorrow", label: "Mañana" },
-    { value: "this_week", label: "Esta semana" },
-    { value: "next_week", label: "La próxima semana" },
-    { value: "this_month", label: "Este mes" },
-    { value: "next_month", label: "El próximo mes" },
+    { value: "today", label: "Today" },
+    { value: "tomorrow", label: "Tomorrow" },
+    { value: "this_week", label: "This week" },
+    { value: "next_week", label: "Next week" },
+    { value: "this_month", label: "This month" },
+    { value: "next_month", label: "Next month" },
   ],
   creator: [
-    { value: "me", label: "Yo" },
+    { value: "me", label: "Me" },
   ],
   creation_date: [
-    { value: "today", label: "Hoy" },
-    { value: "yesterday", label: "Ayer" },
-    { value: "this_week", label: "Esta semana" },
-    { value: "last_week", label: "La semana pasada" },
-    { value: "this_month", label: "Este mes" },
+    { value: "today", label: "Today" },
+    { value: "yesterday", label: "Yesterday" },
+    { value: "this_week", label: "This week" },
+    { value: "last_week", label: "Last week" },
+    { value: "this_month", label: "This month" },
   ],
   last_modified: [
-    { value: "today", label: "Hoy" },
-    { value: "yesterday", label: "Ayer" },
-    { value: "this_week", label: "Esta semana" },
-    { value: "last_week", label: "La semana pasada" },
-    { value: "this_month", label: "Este mes" },
+    { value: "today", label: "Today" },
+    { value: "yesterday", label: "Yesterday" },
+    { value: "this_week", label: "This week" },
+    { value: "last_week", label: "Last week" },
+    { value: "this_month", label: "This month" },
   ],
   completion_date: [
-    { value: "today", label: "Hoy" },
-    { value: "yesterday", label: "Ayer" },
-    { value: "this_week", label: "Esta semana" },
-    { value: "last_week", label: "La semana pasada" },
-    { value: "this_month", label: "Este mes" },
+    { value: "today", label: "Today" },
+    { value: "yesterday", label: "Yesterday" },
+    { value: "this_week", label: "This week" },
+    { value: "last_week", label: "Last week" },
+    { value: "this_month", label: "This month" },
   ],
   task_type: [
-    { value: "TASK", label: "Tarea" },
-    { value: "MILESTONE", label: "Hito" },
-    { value: "APPROVAL", label: "Aprobación" },
+    { value: "TASK", label: "Task" },
+    { value: "MILESTONE", label: "Milestone" },
+    { value: "APPROVAL", label: "Approval" },
   ],
 };
 
@@ -231,7 +231,7 @@ function FilterBuilderRow({
   }, [showOperatorMenu, showValueMenu]);
 
   const currentOperatorLabel = operators.find((o) => o.value === filter.operator)?.label || filter.operator;
-  const currentValueLabel = values.find((v) => v.value === filter.value)?.label || filter.value || "Seleccionar...";
+  const currentValueLabel = values.find((v) => v.value === filter.value)?.label || filter.value || "Select...";
 
   return (
     <div className="flex items-center gap-2 py-1.5">
@@ -366,7 +366,7 @@ function AddFilterDropdown({
         className="flex items-center gap-1 text-[13px] text-gray-500 hover:text-gray-700 transition-colors py-1"
       >
         <Plus className="w-3.5 h-3.5" />
-        Agregar filtro
+        Add filter
         <ChevronDown className="w-3 h-3 text-gray-400" />
       </button>
 
@@ -519,20 +519,20 @@ export function FilterPanel({
       <div className="w-[560px] bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-[18px] pb-3">
-          <h3 className="text-[16px] font-semibold text-gray-900">Filtros</h3>
+          <h3 className="text-[16px] font-semibold text-gray-900">Filters</h3>
           {hasAnyFilter && (
             <button
               onClick={clearAll}
               className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors"
             >
-              Borrar
+              Clear
             </button>
           )}
         </div>
 
         {/* Quick filters */}
         <div className="px-5 pb-4">
-          <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2.5">Filtros rápidos</p>
+          <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2.5">Quick filters</p>
           <div className="flex flex-wrap gap-2">
             {QUICK_FILTER_OPTIONS.map((opt) => {
               const Icon = opt.icon;

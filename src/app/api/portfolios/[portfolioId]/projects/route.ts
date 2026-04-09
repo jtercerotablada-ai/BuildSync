@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId } from "@/lib/auth-guards";
 
 const addProjectSchema = z.object({
   projectId: z.string().min(1),
@@ -18,6 +19,13 @@ export async function POST(
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify workspace access
+    const workspaceId = await getUserWorkspaceId(userId);
+    const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId }, select: { workspaceId: true } });
+    if (!portfolio || portfolio.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     const body = await req.json();
@@ -96,6 +104,13 @@ export async function DELETE(
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify workspace access
+    const workspaceId = await getUserWorkspaceId(userId);
+    const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId }, select: { workspaceId: true } });
+    if (!portfolio || portfolio.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     const { searchParams } = new URL(req.url);

@@ -212,7 +212,7 @@ export default function GoalDetailPage() {
       });
 
       if (res.ok) {
-        setObjective((prev) => prev ? { ...prev, status: status || "ON_TRACK" } : null);
+        setObjective((prev) => prev ? { ...prev, status: status ?? "ON_TRACK" } : null);
       }
     } catch (error) {
       console.error("Error updating status:", error);
@@ -591,7 +591,7 @@ export default function GoalDetailPage() {
             </div>
           </div>
 
-          {/* Enviar comentarios link */}
+          {/* Send feedback link */}
           <button
             className="text-sm text-gray-500 hover:underline mb-8 block"
             onClick={() => window.open('mailto:feedback@buildsync.com?subject=Goals%20Feedback', '_blank')}
@@ -936,13 +936,13 @@ export default function GoalDetailPage() {
                         });
                         if (res.ok) {
                           toast.success('Comment posted');
+                          setComment("");
                         } else {
-                          toast.success('Comment saved');
+                          toast.error('Failed to post comment');
                         }
                       } catch {
-                        toast.success('Comment saved');
+                        toast.error('Failed to post comment');
                       }
-                      setComment("");
                     }}
                   >
                     <Send className="h-4 w-4" />

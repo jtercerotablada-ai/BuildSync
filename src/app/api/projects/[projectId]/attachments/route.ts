@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyProjectAccess, getErrorStatus } from "@/lib/auth-guards";
 
 // GET /api/projects/:projectId/attachments - Get all attachments for a project
 export async function GET(
@@ -16,22 +17,16 @@ export async function GET(
     }
 
     // Verify project exists and user has access
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { id: true },
-    });
+    await verifyProjectAccess(userId, projectId);
 
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
-
-    // Get all attachments for tasks in this project
+    // Get all attachments for tasks in this project (including tasks without sections)
     const attachments = await prisma.attachment.findMany({
       where: {
         task: {
-          section: {
-            projectId,
-          },
+          OR: [
+            { projectId },
+            { section: { projectId } },
+          ],
         },
       },
       include: {

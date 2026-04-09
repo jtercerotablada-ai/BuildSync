@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId, AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
 
 const createObjectiveSchema = z.object({
   name: z.string().min(1),
@@ -141,6 +142,28 @@ export async function POST(req: Request) {
 
     if (!workspaceMember) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
+    }
+
+    // Verify parentId belongs to user's workspace
+    if (data.parentId) {
+      const parent = await prisma.objective.findUnique({
+        where: { id: data.parentId },
+        select: { workspaceId: true },
+      });
+      if (!parent || parent.workspaceId !== workspaceMember.workspaceId) {
+        return NextResponse.json({ error: "Parent objective not found" }, { status: 404 });
+      }
+    }
+
+    // Verify teamId belongs to user's workspace
+    if (data.teamId) {
+      const team = await prisma.team.findUnique({
+        where: { id: data.teamId },
+        select: { workspaceId: true },
+      });
+      if (!team || team.workspaceId !== workspaceMember.workspaceId) {
+        return NextResponse.json({ error: "Team not found" }, { status: 404 });
+      }
     }
 
     const objective = await prisma.objective.create({

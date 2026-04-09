@@ -90,7 +90,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
 
     if (!validTypes.includes(f.type) && !validExts.includes(ext)) {
-      setError("Tipo de archivo no compatible. Usa archivos txt, md, csv, pdf, docx o imágenes.");
+      setError("Unsupported file type. Use txt, md, csv, pdf, docx, or image files.");
       return;
     }
 
@@ -141,7 +141,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
 
       const data = await res.json();
       if (!data.tasks || data.tasks.length === 0) {
-        setError("No se encontraron tareas accionables en el contenido proporcionado. Intenta agregar más detalle o ajustar tus instrucciones.");
+        setError("No actionable tasks found in the provided content. Try adding more detail or adjusting your instructions.");
         setIsGenerating(false);
         return;
       }
@@ -150,7 +150,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
       setSelectedTasks(new Set(data.tasks.map((_: GeneratedTask, i: number) => i)));
       setStep("review");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Algo salió mal");
+      setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setIsGenerating(false);
     }
@@ -206,7 +206,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
       onTasksCreated();
       handleClose();
     } else {
-      setError("Error al crear las tareas. Por favor, inténtalo de nuevo.");
+      setError("Failed to create tasks. Please try again.");
       setStep("review");
     }
   }
@@ -217,7 +217,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="sm:max-w-[820px] p-0 rounded-xl border-0 shadow-[0_16px_48px_rgba(0,0,0,0.16)] gap-0 overflow-hidden [&>button]:hidden">
-        <DialogTitle className="sr-only">Agregar tareas por IA</DialogTitle>
+        <DialogTitle className="sr-only">Add tasks with AI</DialogTitle>
         {/* Header */}
         <div className="flex items-center justify-between px-6 h-14 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
@@ -225,9 +225,9 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <span className="text-[15px] font-semibold text-gray-900">
-              {step === "input" && "Agregar tareas por IA"}
-              {step === "review" && `Revisar tareas (${selectedCount}/${totalTasks} seleccionadas)`}
-              {step === "creating" && "Creando tareas..."}
+              {step === "input" && "Add tasks with AI"}
+              {step === "review" && `Review tasks (${selectedCount}/${totalTasks} selected)`}
+              {step === "creating" && "Creating tasks..."}
             </span>
           </div>
           <button
@@ -242,7 +242,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
         {step === "input" && (
           <div className="px-6 py-5 space-y-5">
             <p className="text-[13px] text-gray-500 leading-relaxed">
-              Sube un archivo o pega texto con tareas. La IA extraerá los elementos accionables y creará tareas para ti.
+              Upload a file or paste text with tasks. AI will extract the actionable items and create tasks for you.
             </p>
 
             {/* Upload / Paste toggle */}
@@ -267,10 +267,10 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
                     </div>
                     <div className="text-center">
                       <p className="text-[13px] font-medium text-gray-700">
-                        Suelta un archivo aquí, o <span className="text-black underline underline-offset-2">examina</span>
+                        Drop a file here, or <span className="text-black underline underline-offset-2">browse</span>
                       </p>
                       <p className="text-[12px] text-gray-400 mt-1">
-                        Compatible con txt, md, csv, pdf, docx e imágenes
+                        Supports txt, md, csv, pdf, docx, and images
                       </p>
                     </div>
                   </div>
@@ -300,7 +300,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
                   onClick={() => setInputMode("paste")}
                   className="text-[13px] text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors"
                 >
-                  Pegar texto en su lugar
+                  Paste text instead
                 </button>
               </>
             ) : (
@@ -309,14 +309,14 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
                 <textarea
                   value={pastedText}
                   onChange={(e) => setPastedText(e.target.value)}
-                  placeholder="Pega tus notas de reunión, email, resumen de proyecto, o cualquier texto que contenga tareas..."
+                  placeholder="Paste your meeting notes, email, project summary, or any text containing tasks..."
                   className="w-full h-40 px-4 py-3 text-[13px] text-gray-800 placeholder:text-gray-400 bg-gray-50 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-colors"
                 />
                 <button
                   onClick={() => setInputMode("upload")}
                   className="text-[13px] text-gray-500 hover:text-gray-700 underline underline-offset-2 transition-colors"
                 >
-                  Subir un archivo en su lugar
+                  Upload a file instead
                 </button>
               </>
             )}
@@ -324,12 +324,12 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
             {/* AI Instructions */}
             <div className="space-y-2">
               <label className="text-[13px] font-medium text-gray-700">
-                Instrucciones para la IA <span className="font-normal text-gray-400">(opcional)</span>
+                Instructions for AI <span className="font-normal text-gray-400">(optional)</span>
               </label>
               <textarea
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
-                placeholder="ej., Enfocarse solo en elementos de alta prioridad, establecer todas las fechas de entrega para la próxima semana..."
+                placeholder="e.g., Focus only on high priority items, set all due dates for next week..."
                 className="w-full h-20 px-4 py-3 text-[13px] text-gray-800 placeholder:text-gray-400 bg-gray-50 border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-colors"
               />
             </div>
@@ -348,13 +348,13 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
           <div className="px-6 py-5 space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-[13px] text-gray-500">
-                Selecciona las tareas que deseas crear:
+                Select the tasks you want to create:
               </p>
               <button
                 onClick={toggleAll}
                 className="text-[12px] text-gray-500 hover:text-gray-700 underline underline-offset-2"
               >
-                {selectedTasks.size === totalTasks ? "Deseleccionar todo" : "Seleccionar todo"}
+                {selectedTasks.size === totalTasks ? "Deselect all" : "Select all"}
               </button>
             </div>
             <div className="max-h-[360px] overflow-y-auto space-y-1 -mx-1 px-1">
@@ -383,7 +383,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
                     <div className="flex items-center gap-3 mt-1">
                       {task.dueDate && (
                         <span className="text-[11px] text-gray-400">
-                          Vence {new Date(task.dueDate).toLocaleDateString("es-ES", { month: "short", day: "numeric" })}
+                          Due {new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                         </span>
                       )}
                       {task.priority !== "NONE" && (
@@ -414,7 +414,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
           <div className="px-6 py-12 flex flex-col items-center gap-4">
             <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
             <p className="text-[14px] text-gray-600">
-              Creando {createdCount} de {selectedCount} tareas...
+              Creating {createdCount} of {selectedCount} tasks...
             </p>
           </div>
         )}
@@ -428,7 +428,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
                   onClick={() => { setStep("input"); setError(""); }}
                   className="text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
                 >
-                  Atrás
+                  Back
                 </button>
               )}
             </div>
@@ -440,11 +440,11 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
               {step === "input" && isGenerating && (
                 <>
                   <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
-                  Analizando...
+                  Analyzing...
                 </>
               )}
-              {step === "input" && !isGenerating && "Continuar"}
-              {step === "review" && `Crear ${selectedCount} tarea${selectedCount !== 1 ? "s" : ""}`}
+              {step === "input" && !isGenerating && "Continue"}
+              {step === "review" && `Create ${selectedCount} task${selectedCount !== 1 ? "s" : ""}`}
             </Button>
           </div>
         )}

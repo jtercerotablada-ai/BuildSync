@@ -36,7 +36,7 @@ export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
     <div className="bg-white border rounded-xl p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-900">Objetivos</h3>
+        <h3 className="font-semibold text-gray-900">Goals</h3>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -101,7 +101,7 @@ export function TeamGoalsWidget({ teamId, goals }: TeamGoalsWidgetProps) {
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-black" />
-                <span className="text-gray-400">En curso (0%)</span>
+                <span className="text-gray-400">On track (0%)</span>
               </div>
               <div className="w-8 h-8 rounded-full border-2 border-dashed border-gray-300" />
             </div>

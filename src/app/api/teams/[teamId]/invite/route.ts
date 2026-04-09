@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
 
 const inviteSchema = z.object({
   email: z.string().email(),
@@ -38,10 +39,18 @@ export async function POST(
 
     const inviterMember = team.members.find((m) => m.userId === userId);
     if (!inviterMember) {
-      return NextResponse.json(
-        { error: "You must be a team member to invite others" },
-        { status: 403 }
-      );
+      throw new AuthorizationError("You must be a team member to invite others");
+    }
+
+    // Only team LEADs or workspace ADMIN/OWNER can invite members
+    if (inviterMember.role !== "LEAD") {
+      const workspaceMember = await prisma.workspaceMember.findUnique({
+        where: { userId_workspaceId: { userId, workspaceId: team.workspaceId } },
+        select: { role: true },
+      });
+      if (!workspaceMember || (workspaceMember.role !== "ADMIN" && workspaceMember.role !== "OWNER")) {
+        throw new AuthorizationError("Only team leads or workspace admins can invite members");
+      }
     }
 
     // Find the user by email
@@ -95,7 +104,7 @@ export async function POST(
     });
 
     // Also ensure user is a workspace member
-    const workspaceMember = await prisma.workspaceMember.findUnique({
+    const existingWorkspaceMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
           userId: invitedUser.id,
@@ -104,7 +113,7 @@ export async function POST(
       },
     });
 
-    if (!workspaceMember) {
+    if (!existingWorkspaceMember) {
       await prisma.workspaceMember.create({
         data: {
           userId: invitedUser.id,
@@ -124,6 +133,11 @@ export async function POST(
         { error: error.issues[0]?.message || "Invalid email" },
         { status: 400 }
       );
+    }
+
+    if (error instanceof AuthorizationError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
     }
 
     console.error("Error inviting to team:", error);

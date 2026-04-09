@@ -83,7 +83,11 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
     onOpenChange(false);
     switch (item.type) {
       case "task":
-        router.push(`/projects/${item.extra.projectId}`);
+        if (item.extra?.projectId) {
+          router.push(`/projects/${item.extra.projectId}`);
+        } else {
+          router.push(`/my-tasks`);
+        }
         break;
       case "project":
         router.push(`/projects/${item.id}`);
@@ -92,7 +96,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
         router.push(`/teams/${item.id}`);
         break;
       case "user":
-        router.push(`/settings`);
+        router.push(`/profile/${item.id}`);
         break;
     }
   }

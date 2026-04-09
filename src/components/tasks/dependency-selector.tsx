@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, X, Link, ArrowRight, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
@@ -55,11 +55,11 @@ export function DependencySelector({
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const existingIds = new Set([
+  const existingIds = useMemo(() => new Set([
     taskId,
     ...dependencies.map((d) => d.blockingTask.id),
     ...dependents.map((d) => d.dependentTask.id),
-  ]);
+  ]), [taskId, dependencies, dependents]);
 
   const searchTasks = useCallback(
     async (q: string) => {

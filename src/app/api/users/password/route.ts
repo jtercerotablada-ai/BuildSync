@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { compare, hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, validatePassword } from "@/lib/auth-utils";
 
 // POST /api/users/password
 export async function POST(req: Request) {
@@ -13,11 +13,9 @@ export async function POST(req: Request) {
 
     const { currentPassword, newPassword } = await req.json();
 
-    if (!newPassword || newPassword.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters" },
-        { status: 400 }
-      );
+    const pwCheck = validatePassword(newPassword);
+    if (!pwCheck.valid) {
+      return NextResponse.json({ error: pwCheck.message }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({

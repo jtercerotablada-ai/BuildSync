@@ -39,6 +39,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface KeyResult {
   id: string;
@@ -117,22 +118,26 @@ export default function GoalsPage() {
   ];
 
   useEffect(() => {
-    fetchObjectives();
+    const controller = new AbortController();
+    fetchObjectives(controller.signal);
+    return () => controller.abort();
   }, [activeTab]);
 
-  async function fetchObjectives() {
+  async function fetchObjectives(signal?: AbortSignal) {
     try {
       const params = new URLSearchParams();
       params.set("parentId", "null");
       if (activeTab === "my-goals") params.set("ownerId", "me");
 
-      const res = await fetch(`/api/objectives?${params}`);
+      const res = await fetch(`/api/objectives?${params}`, { signal });
       if (res.ok) {
         const data = await res.json();
         setObjectives(data);
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Error fetching objectives:", error);
+      toast.error("Failed to load objectives");
     } finally {
       setLoading(false);
     }

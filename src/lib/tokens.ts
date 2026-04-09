@@ -9,7 +9,7 @@ export async function createToken(
   identifier: string,
   expiresInMinutes: number = 60
 ): Promise<string> {
-  const token = crypto.randomUUID();
+  const token = crypto.randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + expiresInMinutes * 60 * 1000);
 
   // Delete any existing tokens for this identifier

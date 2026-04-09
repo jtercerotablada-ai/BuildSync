@@ -194,8 +194,8 @@ export function TaskComments({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toast.info("Edit feature coming soon")}>Edit</DropdownMenuItem>
+                      <DropdownMenuItem className="text-red-600" onClick={() => toast.info("Delete feature coming soon")}>Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

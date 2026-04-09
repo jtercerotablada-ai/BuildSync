@@ -47,15 +47,15 @@ interface SortPanelProps {
 // ─── Sort options ────────────────────────────────────────
 
 const SORT_OPTIONS: { field: SortField; label: string; icon: typeof Calendar; defaultDirection: SortDirection }[] = [
-  { field: "start_date", label: "Fecha de inicio", icon: Calendar, defaultDirection: "asc" },
-  { field: "due_date", label: "Fecha de entrega", icon: CalendarDays, defaultDirection: "asc" },
-  { field: "creator", label: "Creador", icon: User, defaultDirection: "asc" },
-  { field: "created_at", label: "Fecha de creación", icon: Clock, defaultDirection: "desc" },
-  { field: "updated_at", label: "Última modificación", icon: Pencil, defaultDirection: "desc" },
-  { field: "completed_at", label: "Fecha de finalización", icon: CalendarCheck, defaultDirection: "desc" },
-  { field: "likes", label: "Me gusta", icon: Heart, defaultDirection: "desc" },
-  { field: "alphabetical", label: "Orden alfabético", icon: ArrowDownAZ, defaultDirection: "asc" },
-  { field: "project", label: "Proyecto", icon: ClipboardList, defaultDirection: "asc" },
+  { field: "start_date", label: "Start date", icon: Calendar, defaultDirection: "asc" },
+  { field: "due_date", label: "Due date", icon: CalendarDays, defaultDirection: "asc" },
+  { field: "creator", label: "Creator", icon: User, defaultDirection: "asc" },
+  { field: "created_at", label: "Created date", icon: Clock, defaultDirection: "desc" },
+  { field: "updated_at", label: "Last modified", icon: Pencil, defaultDirection: "desc" },
+  { field: "completed_at", label: "Completed date", icon: CalendarCheck, defaultDirection: "desc" },
+  { field: "likes", label: "Likes", icon: Heart, defaultDirection: "desc" },
+  { field: "alphabetical", label: "Alphabetical", icon: ArrowDownAZ, defaultDirection: "asc" },
+  { field: "project", label: "Project", icon: ClipboardList, defaultDirection: "asc" },
 ];
 
 // ─── SortPanel ───────────────────────────────────────────
@@ -145,12 +145,12 @@ export function SortPanel({ open, onClose, anchorRef, sort, onSortChange }: Sort
         {/* Header with Clear */}
         {sort.field !== "none" && (
           <div className="flex items-center justify-between px-3 pb-1.5 mb-1 border-b border-gray-100">
-            <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Ordenado por</span>
+            <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Sorted by</span>
             <button
               onClick={handleClear}
               className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors"
             >
-              Borrar
+              Clear
             </button>
           </div>
         )}

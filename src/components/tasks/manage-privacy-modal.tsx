@@ -86,16 +86,16 @@ export function ManagePrivacyModal({ open, onOpenChange }: ManagePrivacyModalPro
       });
 
       if (res.ok) {
-        toast.success(`Invitación enviada a ${email}`);
+        toast.success(`Invitation sent to ${email}`);
         setQuery("");
         setSelectedUser(null);
         setResults([]);
       } else {
         const data = await res.json();
-        toast.error(data.error || "No se pudo enviar la invitación");
+        toast.error(data.error || "Could not send the invitation");
       }
     } catch {
-      toast.error("No se pudo enviar la invitación");
+      toast.error("Could not send the invitation");
     } finally {
       setInviting(false);
     }
@@ -147,11 +147,11 @@ export function ManagePrivacyModal({ open, onOpenChange }: ManagePrivacyModalPro
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[580px] max-w-[92vw] p-0 rounded-xl border-0 shadow-[0_12px_40px_rgba(0,0,0,0.22)] gap-0 overflow-visible [&>button]:hidden">
-        <DialogTitle className="sr-only">Administrar la privacidad</DialogTitle>
+        <DialogTitle className="sr-only">Manage privacy</DialogTitle>
 
         {/* Header */}
         <div className="flex items-center justify-between px-[22px] py-[18px]">
-          <h2 className="text-[16px] font-semibold text-gray-900">Administrar la privacidad</h2>
+          <h2 className="text-[16px] font-semibold text-gray-900">Manage privacy</h2>
           <button
             onClick={() => onOpenChange(false)}
             className="flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -172,7 +172,7 @@ export function ManagePrivacyModal({ open, onOpenChange }: ManagePrivacyModalPro
                 onChange={(e) => handleQueryChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onFocus={() => { if (results.length > 0) setShowResults(true); }}
-                placeholder="Agrega compañeros de equipo por nombre o por email\u2026"
+                placeholder="Add teammates by name or email\u2026"
                 className="w-full h-10 px-3 text-[14px] text-gray-800 placeholder:text-gray-400 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-colors"
               />
 
@@ -196,7 +196,7 @@ export function ManagePrivacyModal({ open, onOpenChange }: ManagePrivacyModalPro
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-gray-800 truncate">
-                          {user.name || "Desconocido"}
+                          {user.name || "Unknown"}
                         </p>
                         {user.email && (
                           <p className="text-[12px] text-gray-400 truncate">
@@ -223,7 +223,7 @@ export function ManagePrivacyModal({ open, onOpenChange }: ManagePrivacyModalPro
               {inviting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                "Invitar"
+                "Invite"
               )}
             </button>
           </div>
@@ -232,13 +232,13 @@ export function ManagePrivacyModal({ open, onOpenChange }: ManagePrivacyModalPro
           <div className="flex gap-3 p-3.5 bg-[#f3f4f6] rounded-lg">
             <Lock className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
             <p className="text-[13px] text-gray-600 leading-relaxed flex-1">
-              Esta vista es privada y solo tú puedes acceder a ella. Si agregas compañeros de equipo, podrán ver, editar y organizar tus tareas. Solo verán las tareas a las que ya tienen acceso.{" "}
+              This view is private and only you can access it. If you add teammates, they will be able to view, edit, and organize your tasks. They will only see tasks they already have access to.{" "}
               <a
                 href="#"
                 onClick={(e) => e.preventDefault()}
                 className="text-blue-600 hover:text-blue-700 hover:underline"
               >
-                Más información
+                Learn more
               </a>
             </p>
           </div>

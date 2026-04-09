@@ -34,7 +34,7 @@ interface Task {
 
 type TabType = 'upcoming' | 'overdue' | 'completed';
 
-// Obtener iniciales del nombre (2 letras)
+// Get initials from name (2 letters)
 function getInitials(name: string): string {
   return name
     .split(' ')
@@ -58,7 +58,7 @@ function formatDueDate(date: string): { text: string; isSpecial: boolean } {
     return { text: 'Tomorrow', isSpecial: true };
   }
 
-  // Formato: "jan 20", "feb 1"
+  // Format: "jan 20", "feb 1"
   return {
     text: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toLowerCase(),
     isSpecial: false
@@ -79,6 +79,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -96,6 +97,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
       }
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
+      setError('Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -105,7 +107,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
     fetchTasks();
   }, [fetchTasks]);
 
-  // Focus en input cuando se activa crear
+  // Focus input when create mode is activated
   useEffect(() => {
     if (isCreating && inputRef.current) {
       inputRef.current.focus();
@@ -186,7 +188,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
 
   return (
     <div className="h-full flex flex-col">
-      {/* ========== HEADER CON AVATAR ========== */}
+      {/* ========== HEADER WITH AVATAR ========== */}
       <div className="flex items-center gap-3 mb-3">
         {/* Avatar */}
         <Avatar className="h-10 w-10">
@@ -196,7 +198,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
           </AvatarFallback>
         </Avatar>
 
-        {/* Título con candado */}
+        {/* Title with lock icon */}
         <div className="flex-1">
           <div className="flex items-center gap-1.5">
             <span className="font-semibold text-gray-900">My tasks</span>
@@ -266,7 +268,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
         </DropdownMenu>
       </div>
 
-      {/* ========== TABS CON UNDERLINE ========== */}
+      {/* ========== TABS WITH UNDERLINE ========== */}
       <div className="flex border-b border-gray-200 mb-3">
         {tabs.map((tab) => (
           <button
@@ -284,7 +286,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
         ))}
       </div>
 
-      {/* ========== CREAR TAREA INLINE ========== */}
+      {/* ========== INLINE TASK CREATION ========== */}
       {isCreating ? (
         <div className="flex items-center gap-2 mb-2 py-1">
           <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
@@ -296,7 +298,8 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
             className="flex-1 h-7 text-sm border-0 p-0 focus-visible:ring-0 placeholder:text-gray-400"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                handleCreateTask();
+                e.preventDefault();
+                (e.target as HTMLInputElement).blur();
               } else if (e.key === 'Escape') {
                 setIsCreating(false);
                 setNewTaskName('');
@@ -315,7 +318,9 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
         </button>
       )}
 
-      {/* ========== LISTA DE TAREAS ========== */}
+      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
+
+      {/* ========== TASK LIST ========== */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="space-y-2">
@@ -324,7 +329,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
             ))}
           </div>
         ) : currentTasks.length === 0 ? (
-          /* Empty state minimalista */
+          /* Minimalist empty state */
           <div className="flex flex-col items-center justify-center h-full text-center py-4">
             <div className="w-12 h-12 mb-3 text-gray-200">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -335,7 +340,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
             <p className="text-gray-500 text-sm">No {activeTab} tasks</p>
           </div>
         ) : (
-          /* Lista de tareas */
+          /* Task list */
           <div className="space-y-0.5">
             {currentTasks.map((task) => {
               const dueInfo = task.dueDate ? formatDueDate(task.dueDate) : null;
@@ -346,7 +351,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
                   className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded cursor-pointer group"
                   onClick={() => handleTaskClick(task)}
                 >
-                  {/* Checkbox CIRCULAR con checkmark en hover */}
+                  {/* Circular checkbox with checkmark on hover */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -359,7 +364,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
                         : 'border-gray-300 hover:border-black hover:bg-white'
                     )}
                   >
-                    {/* Mostrar checkmark si completado O en hover */}
+                    {/* Show checkmark if completed or on hover */}
                     <Check className={cn(
                       'h-3 w-3 transition-opacity',
                       task.completed
@@ -368,7 +373,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
                     )} />
                   </button>
 
-                  {/* Contenido de la tarea */}
+                  {/* Task content */}
                   <div className="flex-1 min-w-0">
                     <p className={cn(
                       'text-sm truncate',
@@ -377,7 +382,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
                       {task.name}
                     </p>
 
-                    {/* Proyecto con BADGE de color */}
+                    {/* Project with color badge */}
                     {task.project && (
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span
@@ -397,7 +402,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
                     )}
                   </div>
 
-                  {/* Fecha con colores especiales */}
+                  {/* Due date with special colors */}
                   {dueInfo && (
                     <span className={cn(
                       'text-xs flex-shrink-0',

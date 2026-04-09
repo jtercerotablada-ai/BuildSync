@@ -40,6 +40,12 @@ export async function PATCH(
       );
     }
 
+    // Verify memberId belongs to this team
+    const memberToUpdate = await prisma.teamMember.findUnique({ where: { id: memberId } });
+    if (!memberToUpdate || memberToUpdate.teamId !== teamId) {
+      return NextResponse.json({ error: "Member not found in this team" }, { status: 404 });
+    }
+
     // Update the member
     const updatedMember = await prisma.teamMember.update({
       where: { id: memberId },

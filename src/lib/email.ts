@@ -14,11 +14,12 @@ const APP_URL = process.env.APP_URL || "http://localhost:3000";
 export async function sendVerificationEmail(email: string, token: string) {
   const verifyUrl = `${APP_URL}/verify-email?token=${token}`;
 
-  await getResend().emails.send({
-    from: FROM,
-    to: email,
-    subject: "Verify your BuildSync email",
-    html: `
+  try {
+    await getResend().emails.send({
+      from: FROM,
+      to: email,
+      subject: "Verify your BuildSync email",
+      html: `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -43,17 +44,22 @@ export async function sendVerificationEmail(email: string, token: string) {
   </div>
 </body>
 </html>`,
-  });
+    });
+  } catch (error) {
+    console.error("Failed to send email:", error);
+    throw new Error("Failed to send email. Please try again later.");
+  }
 }
 
 export async function sendPasswordResetEmail(email: string, token: string) {
   const resetUrl = `${APP_URL}/reset-password?token=${token}`;
 
-  await getResend().emails.send({
-    from: FROM,
-    to: email,
-    subject: "Reset your BuildSync password",
-    html: `
+  try {
+    await getResend().emails.send({
+      from: FROM,
+      to: email,
+      subject: "Reset your BuildSync password",
+      html: `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -78,5 +84,9 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   </div>
 </body>
 </html>`,
-  });
+    });
+  } catch (error) {
+    console.error("Failed to send email:", error);
+    throw new Error("Failed to send email. Please try again later.");
+  }
 }
