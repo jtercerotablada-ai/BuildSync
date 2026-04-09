@@ -17,9 +17,9 @@ export const metadata: Metadata = {
   title: "TT Civil & Structural | Project Management",
   description: "Tercero Tablada Civil & Structural Engineering - Project Management Platform",
   icons: {
-    icon: "/ttc/img/logo-icon.svg",
-    shortcut: "/ttc/img/logo-icon.svg",
-    apple: "/ttc/img/logo-icon.svg",
+    icon: "/ttc/img/logo-icon-favicon.svg",
+    shortcut: "/ttc/img/logo-icon-favicon.svg",
+    apple: "/ttc/img/logo-icon-favicon.svg",
   },
 };
 
