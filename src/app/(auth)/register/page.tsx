@@ -52,9 +52,8 @@ export default function RegisterPage() {
   return (
     <Card>
       <CardHeader className="space-y-1">
-        <div className="flex items-center justify-center gap-2">
-          <img src="/ttc/img/logo-icon.svg" alt="TT" className="w-10 h-10" />
-          <span className="text-2xl font-bold">TT Civil & Structural</span>
+        <div className="flex items-center justify-center">
+          <img src="/ttc/img/logo-icon-dark.svg" alt="TT Civil & Structural" className="w-20 h-20" />
         </div>
         <CardDescription className="text-center">
           Enter your email to get started

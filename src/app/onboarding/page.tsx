@@ -275,9 +275,8 @@ function OnboardingForm() {
       <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24 py-12 bg-white">
         <div className="max-w-md w-full mx-auto">
           {/* Logo */}
-          <div className="flex items-center gap-2 mb-8">
-            <img src="/ttc/img/logo-icon.svg" alt="TT" className="w-10 h-10" />
-            <span className="text-xl font-semibold text-slate-900">TT Civil & Structural</span>
+          <div className="flex items-center mb-8">
+            <img src="/ttc/img/logo-icon-dark.svg" alt="TT Civil & Structural" className="w-16 h-16" />
           </div>
 
           {/* Welcome text */}
