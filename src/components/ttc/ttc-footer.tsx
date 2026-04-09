@@ -59,7 +59,7 @@ export function TTCFooter() {
         >
           {/* Office */}
           <div>
-            <h4
+            <h3
               style={{
                 fontSize: '0.75rem',
                 fontWeight: 600,
@@ -70,7 +70,7 @@ export function TTCFooter() {
               }}
             >
               {t('footer.mainOffice')}
-            </h4>
+            </h3>
             <p
               style={{
                 color: '#999',
@@ -98,7 +98,7 @@ export function TTCFooter() {
 
           {/* Navigation */}
           <div>
-            <h4
+            <h3
               style={{
                 fontSize: '0.75rem',
                 fontWeight: 600,
@@ -109,7 +109,7 @@ export function TTCFooter() {
               }}
             >
               {t('footer.navigation')}
-            </h4>
+            </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
               <Link href="/projects" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('nav.projects')}
@@ -128,7 +128,7 @@ export function TTCFooter() {
 
           {/* Services */}
           <div>
-            <h4
+            <h3
               style={{
                 fontSize: '0.75rem',
                 fontWeight: 600,
@@ -139,7 +139,7 @@ export function TTCFooter() {
               }}
             >
               {t('footer.services')}
-            </h4>
+            </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
               <Link href="/services" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('footer.structuralEng')}
@@ -161,7 +161,7 @@ export function TTCFooter() {
 
           {/* Connect */}
           <div>
-            <h4
+            <h3
               style={{
                 fontSize: '0.75rem',
                 fontWeight: 600,
@@ -172,7 +172,7 @@ export function TTCFooter() {
               }}
             >
               {t('footer.connect')}
-            </h4>
+            </h3>
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
               <a
                 href="#"
@@ -257,7 +257,7 @@ export function TTCFooter() {
         >
           <p
             style={{
-              color: '#666',
+              color: '#888',
               fontSize: '0.6875rem',
               letterSpacing: '0.1em',
               textTransform: 'uppercase',

@@ -36,17 +36,10 @@ export function ContactForm() {
     setError('');
 
     try {
-      const data = new FormData();
-      data.append('name', formData.name);
-      data.append('email', formData.email);
-      data.append('phone', formData.phone);
-      data.append('service', formData.service);
-      data.append('message', formData.message);
-      files.forEach((f) => data.append('files', f));
-
       const res = await fetch('/api/contact', {
         method: 'POST',
-        body: data,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData }),
       });
 
       if (res.ok) {
@@ -128,6 +121,7 @@ export function ContactForm() {
       <div style={{ position: 'relative' }}>
         <input
           type="text"
+          id="contact-name"
           name="name"
           value={formData.name}
           onChange={handleChange}
@@ -137,7 +131,7 @@ export function ContactForm() {
           onFocus={(e) => (e.target.style.borderColor = '#c9a84c')}
           onBlur={(e) => (e.target.style.borderColor = '#222')}
         />
-        <label style={formData.name ? activeLabelStyle : labelStyle}>
+        <label htmlFor="contact-name" style={formData.name ? activeLabelStyle : labelStyle}>
           {t('contact.fullName')}
         </label>
       </div>
@@ -146,6 +140,7 @@ export function ContactForm() {
       <div style={{ position: 'relative' }}>
         <input
           type="email"
+          id="contact-email"
           name="email"
           value={formData.email}
           onChange={handleChange}
@@ -155,7 +150,7 @@ export function ContactForm() {
           onFocus={(e) => (e.target.style.borderColor = '#c9a84c')}
           onBlur={(e) => (e.target.style.borderColor = '#222')}
         />
-        <label style={formData.email ? activeLabelStyle : labelStyle}>
+        <label htmlFor="contact-email" style={formData.email ? activeLabelStyle : labelStyle}>
           {t('contact.email')}
         </label>
       </div>
@@ -164,6 +159,7 @@ export function ContactForm() {
       <div style={{ position: 'relative' }}>
         <input
           type="tel"
+          id="contact-phone"
           name="phone"
           value={formData.phone}
           onChange={handleChange}
@@ -172,7 +168,7 @@ export function ContactForm() {
           onFocus={(e) => (e.target.style.borderColor = '#c9a84c')}
           onBlur={(e) => (e.target.style.borderColor = '#222')}
         />
-        <label style={formData.phone ? activeLabelStyle : labelStyle}>
+        <label htmlFor="contact-phone" style={formData.phone ? activeLabelStyle : labelStyle}>
           {t('contact.phonePlaceholder')}
         </label>
       </div>
@@ -180,10 +176,12 @@ export function ContactForm() {
       {/* Service */}
       <div style={{ position: 'relative' }}>
         <select
+          id="contact-service"
           name="service"
           value={formData.service}
           onChange={handleChange}
           required
+          aria-label={t('contact.serviceNeeded')}
           style={{
             ...inputStyle,
             appearance: 'none',
@@ -201,7 +199,7 @@ export function ContactForm() {
           <option value="digital">{t('option.digital')}</option>
           <option value="other">{t('option.other')}</option>
         </select>
-        <label style={formData.service ? activeLabelStyle : labelStyle}>
+        <label htmlFor="contact-service" style={formData.service ? activeLabelStyle : labelStyle}>
           {t('contact.serviceNeeded')}
         </label>
       </div>
@@ -209,6 +207,7 @@ export function ContactForm() {
       {/* Message */}
       <div style={{ position: 'relative' }}>
         <textarea
+          id="contact-message"
           name="message"
           value={formData.message}
           onChange={handleChange}
@@ -223,6 +222,7 @@ export function ContactForm() {
           onBlur={(e) => (e.target.style.borderColor = '#222')}
         />
         <label
+          htmlFor="contact-message"
           style={
             formData.message
               ? { ...activeLabelStyle }
@@ -236,7 +236,7 @@ export function ContactForm() {
       {/* File Upload */}
       <div>
         <label
-          onClick={() => fileRef.current?.click()}
+          htmlFor="contact-files"
           style={{
             display: 'flex',
             flexDirection: 'column',
@@ -263,6 +263,7 @@ export function ContactForm() {
             fill="none"
             stroke="#999"
             strokeWidth="2"
+            aria-hidden="true"
           >
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
           </svg>
@@ -275,6 +276,7 @@ export function ContactForm() {
         </label>
         <input
           ref={fileRef}
+          id="contact-files"
           type="file"
           multiple
           accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png,.doc,.docx,.zip"
@@ -299,6 +301,7 @@ export function ContactForm() {
                 <span>{f.name}</span>
                 <button
                   type="button"
+                  aria-label={`Remove ${f.name}`}
                   onClick={() =>
                     setFiles(files.filter((_, idx) => idx !== i))
                   }
@@ -318,7 +321,7 @@ export function ContactForm() {
       </div>
 
       {error && (
-        <p style={{ color: '#e74c3c', fontSize: '0.875rem' }}>{error}</p>
+        <p role="alert" style={{ color: '#e74c3c', fontSize: '0.875rem' }}>{error}</p>
       )}
 
       {/* Submit */}

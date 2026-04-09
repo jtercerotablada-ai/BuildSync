@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -11,12 +11,15 @@ export function TTCHeader() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [, startTransition] = useTransition();
 
   const isHome = pathname === '/';
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
+      startTransition(() => {
+        setScrolled(window.scrollY > 50);
+      });
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
@@ -131,7 +134,7 @@ export function TTCHeader() {
             {/* Language Toggle */}
             <button
               onClick={toggleLanguage}
-              aria-label="Toggle language"
+              aria-label={language === 'en' ? 'EN / ES' : 'EN / ES'}
               style={{
                 background: 'transparent',
                 border: '1px solid #333',
