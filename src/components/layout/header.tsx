@@ -103,7 +103,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           <span className="ml-2.5 text-[14px] text-gray-400 leading-none select-none">Search</span>
         </button>
         {/* Mobile: TT logo centered */}
-        <img src="/ttc/img/logo-icon.svg" alt="TT" className="h-7 w-7 md:hidden" />
+        <img src="/ttc/img/logo-icon-dark.svg" alt="TT" className="h-7 w-7 md:hidden" />
       </div>
 
       {/* ─── RIGHT cluster: icon buttons + avatar ─── */}

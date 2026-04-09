@@ -175,9 +175,9 @@ export function Sidebar({
       <aside
         className={cn(
           "flex h-full flex-col border-r border-gray-200/80 bg-[#fafafa] transition-[width] duration-200 ease-out overflow-hidden",
-          "max-md:fixed max-md:top-[52px] max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:shadow-xl",
+          "max-md:fixed max-md:top-12 max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:shadow-xl",
           collapsed
-            ? "w-16 max-md:w-0 max-md:border-0"
+            ? "w-16 max-md:w-0 max-md:border-0 max-md:hidden"
             : "w-[240px] max-md:w-[260px]"
         )}
       >
