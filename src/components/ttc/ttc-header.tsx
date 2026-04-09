@@ -182,7 +182,6 @@ export function TTCHeader() {
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Open menu"
               style={{
-                display: 'none',
                 flexDirection: 'column',
                 gap: '5px',
                 background: 'none',
@@ -281,6 +280,9 @@ export function TTCHeader() {
         .ttc-logo {
           height: 36px;
           width: auto;
+        }
+        .ttc-hamburger {
+          display: none;
         }
         @media (min-width: 1440px) {
           .ttc-logo {
