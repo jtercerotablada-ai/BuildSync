@@ -18,13 +18,13 @@ export function TTCFooter() {
     >
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         {/* Brand */}
-        <div style={{ marginBottom: '3rem' }}>
+        <div style={{ marginBottom: '3rem', textAlign: 'center' }}>
           <Image
             src="/ttc/img/logo-tt-v2.svg"
             alt="Tercero Tablada"
             width={180}
             height={45}
-            style={{ height: '40px', width: 'auto', marginBottom: '1rem' }}
+            style={{ height: '40px', width: 'auto', marginBottom: '1rem', display: 'inline-block' }}
           />
           <p
             style={{
