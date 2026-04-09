@@ -47,7 +47,7 @@ export function ProjectCard({ image, title, description, href = '/projects' }: P
           zIndex: 2,
         }}
       >
-        <h3
+        <p
           style={{
             fontFamily: 'var(--ttc-font-heading)',
             fontSize: '1.375rem',
@@ -57,7 +57,7 @@ export function ProjectCard({ image, title, description, href = '/projects' }: P
           }}
         >
           {title}
-        </h3>
+        </p>
         <span
           style={{
             fontSize: '0.8125rem',
