@@ -86,9 +86,9 @@ export function TTCHeader() {
             <Image
               src="/ttc/img/logo-tt-v2.svg"
               alt="Tercero Tablada"
-              width={160}
-              height={40}
-              style={{ height: '36px', width: 'auto' }}
+              width={200}
+              height={50}
+              className="ttc-logo"
               priority
             />
           </Link>
@@ -278,12 +278,34 @@ export function TTCHeader() {
 
       {/* Responsive styles */}
       <style jsx global>{`
+        .ttc-logo {
+          height: 36px;
+          width: auto;
+        }
+        @media (min-width: 1440px) {
+          .ttc-logo {
+            height: 44px;
+          }
+        }
+        @media (min-width: 1920px) {
+          .ttc-logo {
+            height: 52px;
+          }
+        }
+        @media (min-width: 2560px) {
+          .ttc-logo {
+            height: 60px;
+          }
+        }
         @media (max-width: 768px) {
           .ttc-desktop-nav {
             display: none !important;
           }
           .ttc-hamburger {
             display: flex !important;
+          }
+          .ttc-logo {
+            height: 28px;
           }
         }
       `}</style>

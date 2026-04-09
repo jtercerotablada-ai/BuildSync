@@ -232,3 +232,37 @@
   color: var(--ttc-bg);
   border-color: var(--ttc-accent);
 }
+
+/* Responsive values grid */
+@media (max-width: 1024px) {
+  .ttc-values-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+@media (max-width: 768px) {
+  .ttc-values-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+@media (max-width: 480px) {
+  .ttc-values-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Responsive services grid - equal height */
+.ttc-services-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+@media (max-width: 1024px) {
+  .ttc-services-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .ttc-services-grid {
+    grid-template-columns: 1fr;
+  }
+}

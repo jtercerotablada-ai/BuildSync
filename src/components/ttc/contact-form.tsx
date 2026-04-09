@@ -216,7 +216,7 @@ export function ContactForm() {
           placeholder=" "
           style={{
             ...inputStyle,
-            resize: 'vertical',
+            resize: 'none',
           }}
           onFocus={(e) => (e.target.style.borderColor = '#c9a84c')}
           onBlur={(e) => (e.target.style.borderColor = '#222')}

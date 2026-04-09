@@ -320,11 +320,12 @@ export default function HomePage() {
           </ScrollAnimation>
 
           <div
+            className="ttc-values-grid"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))',
-              gap: '2.5rem',
-              maxWidth: '1000px',
+              gridTemplateColumns: 'repeat(5, 1fr)',
+              gap: '2rem',
+              maxWidth: '1400px',
               margin: '0 auto',
             }}
           >
