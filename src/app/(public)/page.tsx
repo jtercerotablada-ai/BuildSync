@@ -175,7 +175,8 @@ export default function HomePage() {
               fontWeight: 500,
               letterSpacing: '0.15em',
               color: '#c9a84c',
-              marginTop: '2rem',
+              marginTop: '1.5rem',
+              marginBottom: '4rem',
             }}
           >
             {t('hero.credential')}
@@ -186,7 +187,7 @@ export default function HomePage() {
         <div
           style={{
             position: 'absolute',
-            bottom: '2rem',
+            bottom: '1rem',
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 2,
@@ -195,7 +196,7 @@ export default function HomePage() {
           <div
             style={{
               width: '1px',
-              height: '60px',
+              height: '40px',
               background: 'linear-gradient(to bottom, #c9a84c, transparent)',
               animation: 'scrollPulse 2s ease-in-out infinite',
             }}
