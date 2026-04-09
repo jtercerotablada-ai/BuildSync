@@ -74,13 +74,13 @@ export default function AboutPage() {
               >
                 {t('about.heading')}
               </h2>
-              <p style={{ color: '#999', lineHeight: 1.8, marginBottom: '1rem', fontSize: '0.9375rem' }}>
+              <p style={{ color: '#a3a3a3', lineHeight: 1.8, marginBottom: '1rem', fontSize: '0.9375rem' }}>
                 {t('about.p1')}
               </p>
-              <p style={{ color: '#999', lineHeight: 1.8, marginBottom: '1rem', fontSize: '0.9375rem' }}>
+              <p style={{ color: '#a3a3a3', lineHeight: 1.8, marginBottom: '1rem', fontSize: '0.9375rem' }}>
                 {t('about.p2')}
               </p>
-              <p style={{ color: '#999', lineHeight: 1.8, fontSize: '0.9375rem' }}>
+              <p style={{ color: '#a3a3a3', lineHeight: 1.8, fontSize: '0.9375rem' }}>
                 {t('about.p3')}
               </p>
             </ScrollAnimation>

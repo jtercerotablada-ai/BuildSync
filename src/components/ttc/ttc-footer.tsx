@@ -28,7 +28,7 @@ export function TTCFooter() {
           />
           <p
             style={{
-              color: '#999',
+              color: '#a3a3a3',
               fontSize: '0.875rem',
               letterSpacing: '0.05em',
             }}
@@ -73,7 +73,7 @@ export function TTCFooter() {
             </h3>
             <p
               style={{
-                color: '#999',
+                color: '#a3a3a3',
                 fontSize: '0.875rem',
                 lineHeight: 1.7,
                 marginBottom: '0.75rem',
@@ -86,7 +86,7 @@ export function TTCFooter() {
             <a
               href="tel:+10000000000"
               style={{
-                color: '#999',
+                color: '#a3a3a3',
                 fontSize: '0.875rem',
                 textDecoration: 'none',
                 transition: 'color 0.3s',
@@ -111,16 +111,16 @@ export function TTCFooter() {
               {t('footer.navigation')}
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-              <Link href="/projects" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+              <Link href="/projects" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('nav.projects')}
               </Link>
-              <Link href="/services" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+              <Link href="/services" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('nav.services')}
               </Link>
-              <Link href="/about" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+              <Link href="/about" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('nav.about')}
               </Link>
-              <Link href="/contact" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+              <Link href="/contact" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('nav.contact')}
               </Link>
             </div>
@@ -141,19 +141,19 @@ export function TTCFooter() {
               {t('footer.services')}
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-              <Link href="/services" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+              <Link href="/services" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('footer.structuralEng')}
               </Link>
-              <Link href="/services" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+              <Link href="/services" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('footer.bim')}
               </Link>
-              <Link href="/services" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+              <Link href="/services" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('footer.postTension')}
               </Link>
-              <Link href="/services" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+              <Link href="/services" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('footer.digitalConstruction')}
               </Link>
-              <Link href="/services" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+              <Link href="/services" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                 {t('footer.clashDetection')}
               </Link>
             </div>
@@ -184,7 +184,7 @@ export function TTCFooter() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   border: '1px solid #333',
-                  color: '#999',
+                  color: '#a3a3a3',
                   textDecoration: 'none',
                   transition: 'all 0.3s',
                   fontSize: '1rem',
@@ -206,7 +206,7 @@ export function TTCFooter() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   border: '1px solid #333',
-                  color: '#999',
+                  color: '#a3a3a3',
                   textDecoration: 'none',
                   transition: 'all 0.3s',
                 }}
@@ -225,7 +225,7 @@ export function TTCFooter() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   border: '1px solid #333',
-                  color: '#999',
+                  color: '#a3a3a3',
                   textDecoration: 'none',
                   transition: 'all 0.3s',
                 }}

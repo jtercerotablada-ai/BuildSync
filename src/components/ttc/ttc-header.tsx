@@ -148,11 +148,11 @@ export function TTCHeader() {
                 fontFamily: 'inherit',
               }}
             >
-              <span style={{ color: language === 'en' ? '#c9a84c' : '#666' }}>
+              <span style={{ color: language === 'en' ? '#c9a84c' : '#8a8a8a' }}>
                 EN
               </span>
               {' / '}
-              <span style={{ color: language === 'es' ? '#c9a84c' : '#666' }}>
+              <span style={{ color: language === 'es' ? '#c9a84c' : '#8a8a8a' }}>
                 ES
               </span>
             </button>

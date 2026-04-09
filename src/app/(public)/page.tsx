@@ -155,7 +155,7 @@ export default function HomePage() {
               fontWeight: 500,
               letterSpacing: '0.2em',
               textTransform: 'uppercase',
-              color: '#999',
+              color: '#a3a3a3',
               marginBottom: '1.5rem',
             }}
           >
@@ -281,7 +281,7 @@ export default function HomePage() {
               </h2>
               <p
                 style={{
-                  color: '#999',
+                  color: '#a3a3a3',
                   fontSize: '1.0625rem',
                   maxWidth: '640px',
                   margin: '0 auto',
@@ -397,10 +397,10 @@ export default function HomePage() {
               >
                 {t('about.heading')}
               </h2>
-              <p style={{ color: '#999', lineHeight: 1.8, marginBottom: '1rem', fontSize: '0.9375rem' }}>
+              <p style={{ color: '#a3a3a3', lineHeight: 1.8, marginBottom: '1rem', fontSize: '0.9375rem' }}>
                 {t('about.p1')}
               </p>
-              <p style={{ color: '#999', lineHeight: 1.8, marginBottom: '2rem', fontSize: '0.9375rem' }}>
+              <p style={{ color: '#a3a3a3', lineHeight: 1.8, marginBottom: '2rem', fontSize: '0.9375rem' }}>
                 {t('about.p2')}
               </p>
 
@@ -431,7 +431,7 @@ export default function HomePage() {
               >
                 {t('section.ourClients')}
               </h2>
-              <p style={{ color: '#999', maxWidth: '600px', margin: '0 auto', lineHeight: 1.7 }}>
+              <p style={{ color: '#a3a3a3', maxWidth: '600px', margin: '0 auto', lineHeight: 1.7 }}>
                 {t('section.clientsSubtitle')}
               </p>
             </div>
@@ -463,7 +463,7 @@ export default function HomePage() {
               >
                 {t('contact.heading')}
               </h2>
-              <p style={{ color: '#999', lineHeight: 1.8, marginBottom: '2.5rem' }}>
+              <p style={{ color: '#a3a3a3', lineHeight: 1.8, marginBottom: '2.5rem' }}>
                 {t('contact.desc')}
               </p>
 
@@ -476,7 +476,7 @@ export default function HomePage() {
                   </svg>
                   <div>
                     <strong style={{ color: '#fff', fontSize: '0.875rem' }}>{t('contact.mainOffice')}</strong>
-                    <p style={{ color: '#999', fontSize: '0.875rem', lineHeight: 1.6, marginTop: '0.25rem' }}>
+                    <p style={{ color: '#a3a3a3', fontSize: '0.875rem', lineHeight: 1.6, marginTop: '0.25rem' }}>
                       123 Engineering Blvd, Suite 100<br />Your City, State 00000
                     </p>
                   </div>
@@ -489,7 +489,7 @@ export default function HomePage() {
                   <div>
                     <strong style={{ color: '#fff', fontSize: '0.875rem' }}>{t('contact.phone')}</strong>
                     <p style={{ marginTop: '0.25rem' }}>
-                      <a href="tel:+10000000000" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+                      <a href="tel:+10000000000" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                         +1 (000) 000-0000
                       </a>
                     </p>
@@ -504,7 +504,7 @@ export default function HomePage() {
                   <div>
                     <strong style={{ color: '#fff', fontSize: '0.875rem' }}>Email</strong>
                     <p style={{ marginTop: '0.25rem' }}>
-                      <a href="mailto:info@tercerotablada.com" style={{ color: '#999', fontSize: '0.875rem', textDecoration: 'none' }}>
+                      <a href="mailto:info@tercerotablada.com" style={{ color: '#a3a3a3', fontSize: '0.875rem', textDecoration: 'none' }}>
                         info@tercerotablada.com
                       </a>
                     </p>

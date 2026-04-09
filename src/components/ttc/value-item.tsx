@@ -44,7 +44,7 @@ export function ValueItem({ number, title, description }: ValueItemProps) {
         </h3>
         <p
           style={{
-            color: '#999',
+            color: '#a3a3a3',
             fontSize: '0.9375rem',
             lineHeight: 1.7,
           }}

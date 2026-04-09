@@ -77,7 +77,7 @@ export function ContactForm() {
         >
           Message Sent
         </h3>
-        <p style={{ color: '#999' }}>We will get back to you shortly.</p>
+        <p style={{ color: '#a3a3a3' }}>We will get back to you shortly.</p>
       </div>
     );
   }
@@ -99,7 +99,7 @@ export function ContactForm() {
     top: '50%',
     left: '1rem',
     transform: 'translateY(-50%)',
-    color: '#666',
+    color: '#8a8a8a',
     fontSize: '0.9375rem',
     pointerEvents: 'none',
     transition: 'all 0.3s',
@@ -267,10 +267,10 @@ export function ContactForm() {
           >
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
           </svg>
-          <span style={{ color: '#999', fontSize: '0.875rem' }}>
+          <span style={{ color: '#a3a3a3', fontSize: '0.875rem' }}>
             {t('contact.attachFiles')}
           </span>
-          <small style={{ color: '#666', fontSize: '0.75rem' }}>
+          <small style={{ color: '#8a8a8a', fontSize: '0.75rem' }}>
             {t('contact.fileTypes')}
           </small>
         </label>
@@ -295,7 +295,7 @@ export function ContactForm() {
                   background: '#1a1a1a',
                   marginBottom: '0.25rem',
                   fontSize: '0.8125rem',
-                  color: '#999',
+                  color: '#a3a3a3',
                 }}
               >
                 <span>{f.name}</span>
@@ -308,7 +308,7 @@ export function ContactForm() {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#666',
+                    color: '#8a8a8a',
                     cursor: 'pointer',
                   }}
                 >

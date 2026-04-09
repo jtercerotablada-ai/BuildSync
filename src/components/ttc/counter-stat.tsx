@@ -83,7 +83,7 @@ export function CounterStat({ target, suffix = '', label }: CounterStatProps) {
       <span
         style={{
           fontSize: '0.8125rem',
-          color: '#999',
+          color: '#a3a3a3',
           letterSpacing: '0.05em',
           textTransform: 'uppercase',
         }}

@@ -54,7 +54,7 @@ export default function ContactPage() {
                     <strong style={{ color: '#fff', fontSize: '0.9375rem', display: 'block', marginBottom: '0.25rem' }}>
                       {t('contact.mainOffice')}
                     </strong>
-                    <p style={{ color: '#999', fontSize: '0.9375rem', lineHeight: 1.6 }}>
+                    <p style={{ color: '#a3a3a3', fontSize: '0.9375rem', lineHeight: 1.6 }}>
                       123 Engineering Blvd, Suite 100<br />Your City, State 00000
                     </p>
                   </div>
@@ -69,7 +69,7 @@ export default function ContactPage() {
                     <strong style={{ color: '#fff', fontSize: '0.9375rem', display: 'block', marginBottom: '0.25rem' }}>
                       {t('contact.phone')}
                     </strong>
-                    <a href="tel:+10000000000" style={{ color: '#999', fontSize: '0.9375rem', textDecoration: 'none' }}>
+                    <a href="tel:+10000000000" style={{ color: '#a3a3a3', fontSize: '0.9375rem', textDecoration: 'none' }}>
                       +1 (000) 000-0000
                     </a>
                   </div>
@@ -85,7 +85,7 @@ export default function ContactPage() {
                     <strong style={{ color: '#fff', fontSize: '0.9375rem', display: 'block', marginBottom: '0.25rem' }}>
                       Email
                     </strong>
-                    <a href="mailto:info@tercerotablada.com" style={{ color: '#999', fontSize: '0.9375rem', textDecoration: 'none' }}>
+                    <a href="mailto:info@tercerotablada.com" style={{ color: '#a3a3a3', fontSize: '0.9375rem', textDecoration: 'none' }}>
                       info@tercerotablada.com
                     </a>
                   </div>
@@ -117,7 +117,7 @@ export default function ContactPage() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       border: '1px solid #333',
-                      color: '#999',
+                      color: '#a3a3a3',
                       textDecoration: 'none',
                       transition: 'all 0.3s',
                     }}
@@ -138,7 +138,7 @@ export default function ContactPage() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       border: '1px solid #333',
-                      color: '#999',
+                      color: '#a3a3a3',
                       textDecoration: 'none',
                       transition: 'all 0.3s',
                     }}
@@ -157,7 +157,7 @@ export default function ContactPage() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       border: '1px solid #333',
-                      color: '#999',
+                      color: '#a3a3a3',
                       textDecoration: 'none',
                       transition: 'all 0.3s',
                     }}

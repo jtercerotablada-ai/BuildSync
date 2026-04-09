@@ -51,7 +51,7 @@ export function ServiceCard({ icon, title, description }: ServiceCardProps) {
       </h3>
       <p
         style={{
-          color: '#999',
+          color: '#a3a3a3',
           fontSize: '0.9375rem',
           lineHeight: 1.7,
         }}
