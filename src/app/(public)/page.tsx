@@ -123,7 +123,7 @@ export default function HomePage() {
           <h1
             style={{
               fontFamily: 'var(--font-playfair), serif',
-              fontSize: 'clamp(2rem, 5.5vw, 4.5rem)',
+              fontSize: 'clamp(1.75rem, 4.2vw, 4rem)',
               fontWeight: 400,
               lineHeight: 1.1,
               letterSpacing: '-0.02em',
