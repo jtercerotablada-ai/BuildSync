@@ -265,8 +265,8 @@ export function TeamSettingsModal({
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-500">Endorsed</span>
                       <BadgeCheck className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-amber-600 hover:underline cursor-pointer" onClick={() => toast.info('BuildSync Enterprise features coming soon')}>
-                        Upgrade to BuildSync Enterprise
+                      <span className="text-sm text-amber-600 hover:underline cursor-pointer" onClick={() => toast.info('TT Enterprise features coming soon')}>
+                        Upgrade to TT Enterprise
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">

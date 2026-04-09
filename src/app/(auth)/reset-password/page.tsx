@@ -75,10 +75,8 @@ function ResetPasswordForm() {
       <Card>
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-black text-white font-semibold text-base">
-              <span>B<span className="text-sm">s</span><span className="text-[10px] ml-[1px]">.</span></span>
-            </div>
-            <span className="text-2xl font-bold">BuildSync</span>
+            <img src="/ttc/img/logo-icon.svg" alt="TT" className="w-10 h-10" />
+            <span className="text-2xl font-bold">TT Civil & Structural</span>
           </div>
         </CardHeader>
         <CardContent className="text-center py-8">
@@ -98,10 +96,8 @@ function ResetPasswordForm() {
       <Card>
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-black text-white font-semibold text-base">
-              <span>B<span className="text-sm">s</span><span className="text-[10px] ml-[1px]">.</span></span>
-            </div>
-            <span className="text-2xl font-bold">BuildSync</span>
+            <img src="/ttc/img/logo-icon.svg" alt="TT" className="w-10 h-10" />
+            <span className="text-2xl font-bold">TT Civil & Structural</span>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4 py-8">
@@ -126,10 +122,8 @@ function ResetPasswordForm() {
     <Card>
       <CardHeader className="space-y-1">
         <div className="flex items-center justify-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-black text-white font-semibold text-base">
-            <span>B<span className="text-sm">s</span><span className="text-[10px] ml-[1px]">.</span></span>
-          </div>
-          <span className="text-2xl font-bold">BuildSync</span>
+          <img src="/ttc/img/logo-icon.svg" alt="TT" className="w-10 h-10" />
+          <span className="text-2xl font-bold">TT Civil & Structural</span>
         </div>
         <CardDescription className="text-center">
           Set a new password for your account

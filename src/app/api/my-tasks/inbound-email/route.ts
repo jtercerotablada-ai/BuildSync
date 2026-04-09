@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-const INBOUND_DOMAIN = "mail.buildsync.app";
+const INBOUND_DOMAIN = "mail.ttcivilstructural.com";
 
 export async function GET() {
   try {

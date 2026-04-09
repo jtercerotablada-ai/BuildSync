@@ -223,7 +223,7 @@ export default function GoalsPage() {
           variant="ghost"
           size="sm"
           className="text-black"
-          onClick={() => window.open('mailto:feedback@buildsync.com?subject=Goals%20Feedback', '_blank')}
+          onClick={() => window.open('mailto:feedback@ttcivilstructural.com?subject=Goals%20Feedback', '_blank')}
         >
           Send feedback
         </Button>

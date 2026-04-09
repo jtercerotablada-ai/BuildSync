@@ -235,7 +235,7 @@ export default function TemplatesGalleryPage() {
           <div className="flex items-center gap-3">
             <button
               className="text-sm text-gray-600 hover:text-gray-900"
-              onClick={() => window.open('mailto:feedback@buildsync.com?subject=Templates%20Feedback', '_blank')}
+              onClick={() => window.open('mailto:feedback@ttcivilstructural.com?subject=Templates%20Feedback', '_blank')}
             >
               Send feedback
             </button>

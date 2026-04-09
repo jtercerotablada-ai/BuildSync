@@ -130,7 +130,7 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
   },
   {
     id: 'learning',
-    title: 'Learn BuildSync',
+    title: 'Learn TT',
     description: 'Tips and tutorials to get started',
     icon: 'GraduationCap',
     defaultEnabled: false,

@@ -276,15 +276,13 @@ function OnboardingForm() {
         <div className="max-w-md w-full mx-auto">
           {/* Logo */}
           <div className="flex items-center gap-2 mb-8">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-900 text-white font-semibold text-base">
-              <span>B<span className="text-sm">s</span><span className="text-[10px] ml-[1px]">.</span></span>
-            </div>
-            <span className="text-xl font-semibold text-slate-900">BuildSync</span>
+            <img src="/ttc/img/logo-icon.svg" alt="TT" className="w-10 h-10" />
+            <span className="text-xl font-semibold text-slate-900">TT Civil & Structural</span>
           </div>
 
           {/* Welcome text */}
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            Welcome to BuildSync!
+            Welcome to TT Civil & Structural!
           </h1>
           {email && (
             <p className="text-slate-600 mb-8">
@@ -411,7 +409,7 @@ function OnboardingForm() {
           {/* Info box */}
           <div className="mt-8 p-4 bg-slate-50 rounded-lg border-l-4 border-slate-900">
             <p className="text-sm text-slate-600">
-              You&apos;re getting started with BuildSync. You&apos;ll be able to manage projects,
+              You&apos;re getting started with TT Civil & Structural. You&apos;ll be able to manage projects,
               tasks, and collaborate with your team efficiently.
             </p>
           </div>

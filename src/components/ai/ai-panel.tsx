@@ -31,7 +31,7 @@ interface AIPanelProps {
 
 const defaultSuggestions = [
   { id: '1', icon: 'search', text: 'Find my recently overdue tasks' },
-  { id: '2', icon: 'docs', text: 'How to get started with BuildSync' },
+  { id: '2', icon: 'docs', text: 'How to get started' },
   { id: '3', icon: 'docs', text: 'Summarize my project progress' },
 ];
 
@@ -72,7 +72,7 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: 'Answer the following question helpfully and concisely. You are BuildSync AI, an assistant for project management.',
+          prompt: 'Answer the following question helpfully and concisely. You are TT AI Assistant, an assistant for project management.',
           text: input,
         }),
       });
@@ -163,7 +163,7 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
             ) : (
               <>
                 <Sparkles className="h-5 w-5" style={{ color: '#D97757' }} />
-                <h2 className="font-semibold text-gray-900">BuildSync AI</h2>
+                <h2 className="font-semibold text-gray-900">TT AI Assistant</h2>
               </>
             )}
           </div>

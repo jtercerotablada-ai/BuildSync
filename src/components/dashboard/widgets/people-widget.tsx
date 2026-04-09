@@ -183,7 +183,7 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
             </div>
 
             <p className="text-gray-500 text-sm mb-4">
-              Invite your teammates to collaborate in BuildSync
+              Invite your teammates to collaborate
             </p>
 
             <Button

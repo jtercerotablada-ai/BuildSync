@@ -95,8 +95,8 @@ export async function GET(request: NextRequest) {
     const lines: string[] = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//BuildSync//Tasks//EN",
-      "X-WR-CALNAME:BuildSync Tasks",
+      "PRODID:-//TT//Tasks//EN",
+      "X-WR-CALNAME:TT Tasks",
       "METHOD:PUBLISH",
     ];
 
@@ -132,7 +132,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "text/calendar; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="buildsync-tasks.ics"',
+        "Content-Disposition": 'attachment; filename="tt-tasks.ics"',
         "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     });

@@ -14,7 +14,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "BuildSync - Project Management",
+  title: "TT Civil & Structural | Project Management",
   description: "Modern project management app for teams",
 };
 

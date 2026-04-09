@@ -20,8 +20,8 @@ const STORAGE_KEY = 'buildsync-completed-tutorials';
 const TUTORIALS: Tutorial[] = [
   {
     id: 'getting-started',
-    title: 'Getting started with BuildSync',
-    description: 'Learn the basics of navigating and using BuildSync',
+    title: 'Getting started with TT',
+    description: 'Learn the basics of navigating and using TT',
     duration: '3 min',
     completed: false,
     url: '/home',

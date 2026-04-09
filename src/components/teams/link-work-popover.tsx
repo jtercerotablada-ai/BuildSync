@@ -120,7 +120,7 @@ export function LinkWorkPopover({ teamId, children, onSuccess }: LinkWorkPopover
           {/* Title */}
           <div>
             <h3 className="font-medium text-gray-900">
-              Work in BuildSync <span className="text-black">*</span>
+              Work in TT <span className="text-black">*</span>
             </h3>
             <p className="text-xs text-gray-500 mt-1">
               Team members won&apos;t automatically have access to work linked in this space.{" "}

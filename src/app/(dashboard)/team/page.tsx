@@ -977,7 +977,7 @@ function MembersContent({
           </Button>
 
           <div className="flex items-center gap-4">
-            <button className="text-sm text-gray-500 hover:underline" onClick={() => window.open("mailto:feedback@buildsync.com", "_blank")}>
+            <button className="text-sm text-gray-500 hover:underline" onClick={() => window.open("mailto:feedback@ttcivilstructural.com", "_blank")}>
               Send feedback
             </button>
             <button

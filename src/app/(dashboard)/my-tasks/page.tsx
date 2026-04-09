@@ -1003,7 +1003,7 @@ export default function MyTasksPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <button
-                onClick={() => toast.info("Send us feedback at feedback@buildsync.com")}
+                onClick={() => toast.info("Send us feedback at feedback@ttcivilstructural.com")}
                 className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors px-2 h-7"
               >
                 Send feedback
@@ -1011,7 +1011,7 @@ export default function MyTasksPage() {
             </div>
           ) : (view === "files") ? (
             <button
-              onClick={() => toast.info("Send us feedback at feedback@buildsync.com")}
+              onClick={() => toast.info("Send us feedback at feedback@ttcivilstructural.com")}
               className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors px-2 h-7"
             >
               Send feedback
@@ -1624,7 +1624,7 @@ export default function MyTasksPage() {
                     <li>On the left sidebar, click <strong>+</strong> next to &quot;Other calendars&quot;</li>
                     <li>Select <strong>From URL</strong></li>
                     <li>Paste the URL above and click <strong>Add calendar</strong></li>
-                    <li>Your BuildSync tasks will appear as events</li>
+                    <li>Your TT tasks will appear as events</li>
                   </ol>
                 </>
               ) : calendarSyncType === "ical" ? (
@@ -1635,7 +1635,7 @@ export default function MyTasksPage() {
                     <li>Open your calendar app (Apple Calendar, Thunderbird, etc.)</li>
                     <li>Look for <strong>Subscribe to calendar</strong> or <strong>Add calendar by URL</strong></li>
                     <li>Paste the URL and confirm</li>
-                    <li>Your BuildSync tasks will sync automatically</li>
+                    <li>Your TT tasks will sync automatically</li>
                   </ol>
                 </>
               ) : (
@@ -1645,7 +1645,7 @@ export default function MyTasksPage() {
                     <li>Open <strong>Outlook</strong> and go to Calendar</li>
                     <li>Click <strong>Add calendar</strong> &rarr; <strong>Subscribe from web</strong></li>
                     <li>Paste the URL above and click <strong>Import</strong></li>
-                    <li>Your BuildSync tasks will appear as calendar events</li>
+                    <li>Your TT tasks will appear as calendar events</li>
                   </ol>
                 </>
               )}

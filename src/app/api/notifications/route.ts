@@ -41,7 +41,7 @@ export async function GET(req: Request) {
         taskId: data?.taskId as string | undefined,
         projectId: data?.projectId as string | undefined,
         sender: {
-          name: (data?.authorName as string) || "BuildSync",
+          name: (data?.authorName as string) || "TT Civil & Structural",
           color: "#000000",
         },
       };

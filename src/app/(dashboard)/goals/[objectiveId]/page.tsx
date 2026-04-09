@@ -594,7 +594,7 @@ export default function GoalDetailPage() {
           {/* Send feedback link */}
           <button
             className="text-sm text-gray-500 hover:underline mb-8 block"
-            onClick={() => window.open('mailto:feedback@buildsync.com?subject=Goals%20Feedback', '_blank')}
+            onClick={() => window.open('mailto:feedback@ttcivilstructural.com?subject=Goals%20Feedback', '_blank')}
           >
             Send feedback
           </button>
@@ -794,7 +794,7 @@ export default function GoalDetailPage() {
           <div className="border rounded-xl p-4 mb-8 flex items-center justify-between bg-white">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-black" />
-              <span className="text-sm">Improve your objective with BuildSync AI</span>
+              <span className="text-sm">Improve your objective with TT AI</span>
             </div>
             <Button
               variant="outline"

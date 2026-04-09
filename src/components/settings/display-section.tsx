@@ -57,7 +57,7 @@ export function DisplaySection() {
       <div>
         <h2 className="text-lg font-semibold">Display</h2>
         <p className="text-sm text-muted-foreground">
-          Customize how BuildSync looks
+          Customize how TT looks
         </p>
       </div>
 

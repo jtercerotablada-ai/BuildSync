@@ -90,14 +90,14 @@ export function FieldMembersModal({
           <div className="flex items-center gap-2 text-black">
             <AlertTriangle className="h-4 w-4" />
             <span className="text-sm">
-              Upgrade to BuildSync Enterprise to edit access permissions.
+              Upgrade to TT Enterprise to edit access permissions.
             </span>
           </div>
           <Button
             variant="outline"
             size="sm"
             className="bg-white border-black text-black hover:bg-gray-100"
-            onClick={() => window.open('mailto:sales@buildsync.com?subject=Enterprise%20Inquiry', '_blank')}
+            onClick={() => window.open('mailto:sales@ttcivilstructural.com?subject=Enterprise%20Inquiry', '_blank')}
           >
             Contact Sales
           </Button>

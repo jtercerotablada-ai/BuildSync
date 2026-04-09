@@ -55,7 +55,7 @@ interface AIAssistantWidgetProps {
 
 const defaultSuggestions: Suggestion[] = [
   { id: '1', icon: 'search', text: 'Find my recently overdue tasks' },
-  { id: '2', icon: 'docs', text: 'How to get started with BuildSync' },
+  { id: '2', icon: 'docs', text: 'How to get started' },
   { id: '3', icon: 'docs', text: 'How to create and manage projects' },
 ];
 
@@ -235,7 +235,7 @@ export function AIAssistantWidget({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5" style={{ color: '#D97757' }} />
-          <h3 className="font-semibold text-gray-900">BuildSync AI</h3>
+          <h3 className="font-semibold text-gray-900">TT AI Assistant</h3>
         </div>
 
         {/* Dropdown 3 puntos */}
@@ -246,13 +246,13 @@ export function AIAssistantWidget({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            {/* Open BuildSync AI */}
+            {/* Open TT AI Assistant */}
             <DropdownMenuItem
               onClick={openPanel}
               className="cursor-pointer"
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              Open BuildSync AI
+              Open TT AI Assistant
             </DropdownMenuItem>
 
             {/* View past topics */}
