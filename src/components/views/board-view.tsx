@@ -33,6 +33,7 @@ import {
 import {
   Plus,
   Calendar,
+  CalendarDays,
   MessageSquare,
   Paperclip,
   Check,
@@ -108,6 +109,7 @@ export function BoardView({
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [addingTaskInSection, setAddingTaskInSection] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState("");
+  const [mobileColumnIndex, setMobileColumnIndex] = useState(0);
 
   // Optimistic state: local copy of sections for instant UI updates
   const [localSections, setLocalSections] = useState<Section[]>(sections);
@@ -303,54 +305,250 @@ export function BoardView({
     }
   };
 
-  return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={kanbanCollisionDetection}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-    >
-      <div className="flex gap-2 md:gap-3 px-2 md:px-6 py-2 md:py-4 h-full overflow-x-auto">
-        {localSections.map((section) => (
-          <BoardColumn
-            key={section.id}
-            section={section}
-            onTaskClick={onTaskClick}
-            projectId={projectId}
-            isAddingTask={addingTaskInSection === section.id}
-            newTaskName={addingTaskInSection === section.id ? newTaskName : ""}
-            onStartAddTask={() => {
-              setAddingTaskInSection(section.id);
-              setNewTaskName("");
-            }}
-            onNewTaskNameChange={setNewTaskName}
-            onSubmitTask={() => handleAddTaskSubmit(section.id)}
-            onCancelAddTask={() => {
-              setAddingTaskInSection(null);
-              setNewTaskName("");
-            }}
-          />
-        ))}
+  // Mobile helpers
+  const isMobileOverdue = (dueDate: string) => {
+    const date = parseISO(dueDate);
+    return isPast(date) && !isToday(date);
+  };
+  const formatMobileDate = (dueDate: string) => {
+    const date = parseISO(dueDate);
+    if (isToday(date)) return "Today";
+    if (isTomorrow(date)) return "Tomorrow";
+    return format(date, "MMM d");
+  };
 
-        {/* + Add section */}
-        <div className="flex-shrink-0">
-          <button
-            onClick={handleAddSection}
-            className="flex items-center gap-2 px-3 md:px-4 py-2 text-xs md:text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" />
-            Add section
-          </button>
+  const mobileActiveSection = localSections[mobileColumnIndex];
+
+  const handleMobileAddTask = async () => {
+    if (!newTaskName.trim() || !mobileActiveSection) {
+      setNewTaskName("");
+      setAddingTaskInSection(null);
+      return;
+    }
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newTaskName.trim(),
+          projectId,
+          sectionId: mobileActiveSection.id,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Task created");
+      router.refresh();
+      setNewTaskName("");
+      setAddingTaskInSection(null);
+    } catch {
+      toast.error("Failed to create task");
+    }
+  };
+
+  return (
+    <>
+      {/* ===== Mobile Board View ===== */}
+      <div className="md:hidden flex flex-col h-full">
+        {/* Column selector pills */}
+        <div className="flex gap-1.5 px-3 py-2.5 overflow-x-auto border-b border-gray-100" style={{ scrollbarWidth: 'none' }}>
+          {localSections.map((section, i) => (
+            <button
+              key={section.id}
+              onClick={() => setMobileColumnIndex(i)}
+              className={cn(
+                "px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all",
+                i === mobileColumnIndex
+                  ? "bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-600"
+              )}
+            >
+              {section.name} ({section.tasks.length})
+            </button>
+          ))}
+        </div>
+
+        {/* Column indicator dots */}
+        <div className="board-column-dots">
+          {localSections.map((_, i) => (
+            <div
+              key={i}
+              className={cn("board-column-dot", i === mobileColumnIndex && "active")}
+            />
+          ))}
+        </div>
+
+        {/* Active column cards */}
+        <div className="flex-1 overflow-y-auto px-3 py-1">
+          {mobileActiveSection?.tasks.map((task) => (
+            <div
+              key={task.id}
+              className="mobile-task-card"
+              onClick={() => onTaskClick(task.id)}
+            >
+              <div className="flex items-start gap-3">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fetch(`/api/tasks/${task.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ completed: !task.completed }),
+                    }).then((res) => {
+                      if (res.ok) router.refresh();
+                      else toast.error("Failed to update task");
+                    });
+                  }}
+                  className={cn(
+                    "mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                    task.completed
+                      ? "bg-[#c9a84c] border-[#c9a84c]"
+                      : "border-gray-300"
+                  )}
+                >
+                  {task.completed && (
+                    <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className={cn("text-sm font-medium leading-tight", task.completed && "line-through text-gray-400")}>
+                    {task.name}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    {task.dueDate && (
+                      <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
+                        !task.completed && isMobileOverdue(task.dueDate) ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-600"
+                      )}>
+                        <CalendarDays className="h-3 w-3" />
+                        {formatMobileDate(task.dueDate)}
+                      </span>
+                    )}
+                    {task.priority && task.priority !== "NONE" && (
+                      <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
+                        task.priority === "HIGH" ? "bg-red-50 text-red-600" :
+                        task.priority === "MEDIUM" ? "bg-yellow-50 text-yellow-700" :
+                        "bg-blue-50 text-blue-600"
+                      )}>
+                        {task.priority === "HIGH" ? "\u{1F534}" : task.priority === "MEDIUM" ? "\u{1F7E1}" : "\u{1F535}"}
+                        {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
+                      </span>
+                    )}
+                  </div>
+                  {task.assignee && (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <div className="h-5 w-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-medium text-gray-600 overflow-hidden">
+                        {task.assignee.image ? (
+                          <img src={task.assignee.image} className="h-full w-full object-cover" alt="" />
+                        ) : (
+                          task.assignee.name?.[0]
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500">{task.assignee.name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Empty state */}
+          {mobileActiveSection?.tasks.length === 0 && (
+            <div className="py-12 text-center">
+              <p className="text-sm text-gray-400">No tasks in this column</p>
+            </div>
+          )}
+
+          {/* Add task button */}
+          {addingTaskInSection === mobileActiveSection?.id ? (
+            <div className="mobile-task-card">
+              <input
+                type="text"
+                value={newTaskName}
+                onChange={(e) => setNewTaskName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleMobileAddTask();
+                  if (e.key === "Escape") {
+                    setAddingTaskInSection(null);
+                    setNewTaskName("");
+                  }
+                }}
+                onBlur={() => {
+                  if (!newTaskName.trim()) {
+                    setAddingTaskInSection(null);
+                    setNewTaskName("");
+                  }
+                }}
+                placeholder="Task name"
+                className="w-full text-sm outline-none bg-transparent"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                if (mobileActiveSection) {
+                  setAddingTaskInSection(mobileActiveSection.id);
+                  setNewTaskName("");
+                }
+              }}
+              className="w-full py-3 text-sm text-gray-400 text-center"
+            >
+              + Add task
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Drag Overlay */}
-      <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
-        {activeTask && <TaskCardOverlay task={activeTask} />}
-      </DragOverlay>
-    </DndContext>
+      {/* ===== Desktop Board View ===== */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={kanbanCollisionDetection}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      >
+        <div className="hidden md:flex gap-3 px-6 py-4 h-full overflow-x-auto">
+          {localSections.map((section) => (
+            <BoardColumn
+              key={section.id}
+              section={section}
+              onTaskClick={onTaskClick}
+              projectId={projectId}
+              isAddingTask={addingTaskInSection === section.id}
+              newTaskName={addingTaskInSection === section.id ? newTaskName : ""}
+              onStartAddTask={() => {
+                setAddingTaskInSection(section.id);
+                setNewTaskName("");
+              }}
+              onNewTaskNameChange={setNewTaskName}
+              onSubmitTask={() => handleAddTaskSubmit(section.id)}
+              onCancelAddTask={() => {
+                setAddingTaskInSection(null);
+                setNewTaskName("");
+              }}
+            />
+          ))}
+
+          {/* + Add section */}
+          <div className="flex-shrink-0">
+            <button
+              onClick={handleAddSection}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" />
+              Add section
+            </button>
+          </div>
+        </div>
+
+        {/* Drag Overlay */}
+        <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+          {activeTask && <TaskCardOverlay task={activeTask} />}
+        </DragOverlay>
+      </DndContext>
+    </>
   );
 }
 

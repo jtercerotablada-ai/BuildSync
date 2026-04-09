@@ -22,6 +22,7 @@ import { Loader2 } from "lucide-react";
 import { AIPanelProvider, useAIPanel } from "@/contexts/ai-panel-context";
 import { AIPanel } from "@/components/ai/ai-panel";
 import { SearchDialog } from "./search-dialog";
+import { MobileBottomNav } from "./mobile-bottom-nav";
 
 const SIDEBAR_STORAGE_KEY = "buildsync.sidebarCollapsed";
 
@@ -153,7 +154,7 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
           onCreateProject={() => setShowCreateProject(true)}
           basePath={basePath}
         />
-        <main className="flex-1 overflow-auto bg-white transition-[margin] duration-200 ease-out w-full">
+        <main className="flex-1 overflow-auto bg-white transition-[margin] duration-200 ease-out w-full pb-16 md:pb-0">
           {children}
         </main>
       </div>
@@ -232,6 +233,13 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
 
       {/* AI Panel */}
       <AIPanel isOpen={isAIPanelOpen} onClose={closeAIPanel} />
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav
+        onCreateTask={() => setShowQuickCreateTask(true)}
+        onToggleSidebar={toggleSidebar}
+        basePath={basePath}
+      />
     </div>
   );
 }

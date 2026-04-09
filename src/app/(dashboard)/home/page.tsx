@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   DndContext,
@@ -58,6 +58,14 @@ export default function HomePage() {
   const [showCreateGoal, setShowCreateGoal] = useState(false);
   const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
   const [activeId, setActiveId] = useState<WidgetType | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const {
     preferences,
@@ -212,74 +220,98 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-4 md:p-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-4 md:py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6 md:mb-8">
           <div>
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900">
+            <h1 className="text-lg md:text-2xl font-bold text-gray-900">
               {getGreeting()}, {userName}
             </h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-xs md:text-sm text-gray-500 mt-0.5 md:mt-1">
               Here&apos;s what&apos;s happening with your projects
             </p>
           </div>
-          <CustomizeWidgetsModal
-            preferences={preferences}
-            onToggleWidget={toggleWidget}
-            onReset={resetToDefaults}
-          />
+          <div className="hidden md:flex">
+            <CustomizeWidgetsModal
+              preferences={preferences}
+              onToggleWidget={toggleWidget}
+              onReset={resetToDefaults}
+            />
+          </div>
         </div>
 
         {/* Widget Grid - 2 columns with square widgets */}
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={preferences.widgetOrder || []}
-            strategy={rectSortingStrategy}
+        {isMobile ? (
+          /* Mobile: simple stack without drag-and-drop */
+          <div className="grid grid-cols-1 gap-2.5">
+            {(preferences.widgetOrder || []).map((widgetId) => {
+              if (!(preferences.visibleWidgets || []).includes(widgetId)) return null;
+              const widgetContent = renderWidget(widgetId);
+              if (!widgetContent) return null;
+              const hideHeader = widgetId === 'my-tasks' || widgetId === 'mentions' || widgetId === 'forms' || widgetId === 'people' || widgetId === 'private-notepad' || widgetId === 'ai-assistant';
+              const widgetSize = getWidgetSize(widgetId);
+              return (
+                <WidgetContainer
+                  key={widgetId}
+                  id={widgetId}
+                  onHide={toggleWidget}
+                  size={widgetSize}
+                  onSizeChange={!hideHeader ? (size) => setWidgetSize(widgetId, size) : undefined}
+                  hideHeader={hideHeader}
+                  menuActions={!hideHeader ? getMenuActions(widgetId) : undefined}
+                >
+                  {widgetContent}
+                </WidgetContainer>
+              );
+            })}
+          </div>
+        ) : (
+          /* Desktop: full DnD experience */
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
-              {(preferences.widgetOrder || []).map((widgetId) => {
-                if (!(preferences.visibleWidgets || []).includes(widgetId)) return null;
+            <SortableContext
+              items={preferences.widgetOrder || []}
+              strategy={rectSortingStrategy}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 md:gap-6">
+                {(preferences.widgetOrder || []).map((widgetId) => {
+                  if (!(preferences.visibleWidgets || []).includes(widgetId)) return null;
+                  const widgetContent = renderWidget(widgetId);
+                  if (!widgetContent) return null;
+                  const hideHeader = widgetId === 'my-tasks' || widgetId === 'mentions' || widgetId === 'forms' || widgetId === 'people' || widgetId === 'private-notepad' || widgetId === 'ai-assistant';
+                  const widgetSize = getWidgetSize(widgetId);
+                  return (
+                    <WidgetContainer
+                      key={widgetId}
+                      id={widgetId}
+                      onHide={toggleWidget}
+                      size={widgetSize}
+                      onSizeChange={!hideHeader ? (size) => setWidgetSize(widgetId, size) : undefined}
+                      hideHeader={hideHeader}
+                      menuActions={!hideHeader ? getMenuActions(widgetId) : undefined}
+                    >
+                      {widgetContent}
+                    </WidgetContainer>
+                  );
+                })}
+              </div>
+            </SortableContext>
 
-                // Skip widgets that no longer exist (e.g., quick-overview from old localStorage)
-                const widgetContent = renderWidget(widgetId);
-                if (!widgetContent) return null;
-
-                // Widgets with custom headers that manage their own dropdown
-                const hideHeader = widgetId === 'my-tasks' || widgetId === 'mentions' || widgetId === 'forms' || widgetId === 'people' || widgetId === 'private-notepad' || widgetId === 'ai-assistant';
-                const widgetSize = getWidgetSize(widgetId);
-
-                return (
-                  <WidgetContainer
-                    key={widgetId}
-                    id={widgetId}
-                    onHide={toggleWidget}
-                    size={widgetSize}
-                    onSizeChange={!hideHeader ? (size) => setWidgetSize(widgetId, size) : undefined}
-                    hideHeader={hideHeader}
-                    menuActions={!hideHeader ? getMenuActions(widgetId) : undefined}
-                  >
-                    {widgetContent}
-                  </WidgetContainer>
-                );
-              })}
-            </div>
-          </SortableContext>
-
-          {/* Drag Overlay - Shows a preview of the dragged widget */}
-          <DragOverlay adjustScale={false} dropAnimation={{
-            duration: 250,
-            easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-          }}>
-            {activeId ? (
-              <WidgetOverlay id={activeId} size="half" />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+            {/* Drag Overlay - Shows a preview of the dragged widget */}
+            <DragOverlay adjustScale={false} dropAnimation={{
+              duration: 250,
+              easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+            }}>
+              {activeId ? (
+                <WidgetOverlay id={activeId} size="half" />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        )}
 
         {/* Empty state if no widgets */}
         {(preferences.visibleWidgets || []).length === 0 && (

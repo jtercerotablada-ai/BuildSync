@@ -737,7 +737,7 @@ export default function MyTasksPage() {
   return (
     <div className="h-full flex flex-col bg-white">
       {/* TITLE ROW — no bottom border (Asana pattern) */}
-      <div className="flex items-center justify-between px-4 md:px-6" style={{ height: "var(--page-header-h, 44px)" }}>
+      <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-0" style={{ height: "var(--page-header-h, 44px)" }}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="inline-flex items-center gap-1.5 h-8 px-2 -ml-2 rounded-md hover:bg-black/[0.04] transition-colors cursor-pointer focus:outline-none">
@@ -747,7 +747,7 @@ export default function MyTasksPage() {
                   {session?.user?.name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-xl font-semibold text-gray-900 leading-none">My tasks</span>
+              <span className="text-lg md:text-xl font-semibold text-gray-900 leading-none">My tasks</span>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
             </button>
           </DropdownMenuTrigger>
@@ -828,7 +828,7 @@ export default function MyTasksPage() {
             </DropdownMenuSub>
           </DropdownMenuContent>
         </DropdownMenu>
-        <div className="flex items-center gap-1.5">
+        <div className="hidden md:flex items-center gap-1.5">
           <button
             onClick={() => setShowManagePrivacy(true)}
             className="flex items-center gap-1.5 px-3 h-8 text-[13px] font-medium text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
@@ -856,8 +856,30 @@ export default function MyTasksPage() {
         </div>
       </div>
 
-      {/* TABS ROW — single border below separating from toolbar */}
-      <div className="flex items-center px-4 md:px-6 border-b border-gray-200 overflow-x-auto" style={{ height: "var(--tabs-h, 34px)" }}>
+      {/* TABS ROW — mobile pill tabs + desktop underline tabs */}
+      {/* Mobile pill tabs */}
+      <div className="md:hidden flex items-center gap-1.5 px-4 py-2 overflow-x-auto border-b border-gray-200" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        {viewTabs.filter(tab => ["list", "board", "calendar"].includes(tab.id)).map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setView(tab.id as ViewType)}
+              className={cn(
+                "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors",
+                view === tab.id
+                  ? "bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+      {/* Desktop tabs */}
+      <div className="hidden md:flex items-center px-4 md:px-6 border-b border-gray-200 overflow-x-auto" style={{ height: "var(--tabs-h, 34px)" }}>
         {viewTabs.map((tab) => (
           <button
             key={tab.id}
@@ -887,8 +909,30 @@ export default function MyTasksPage() {
         </DropdownMenu>
       </div>
 
-      {/* TOOLBAR — no bottom border; gray band below provides separation */}
-      <div className="flex items-center justify-between px-4 md:px-6" style={{ height: "var(--toolbar-h, 42px)" }}>
+      {/* MOBILE TOOLBAR — compact filter + sort pills */}
+      <div className="md:hidden flex items-center gap-2 px-4 py-2">
+        {(view === "list" || view === "board" || view === "calendar") && (
+          <>
+            <button
+              onClick={() => setFilterPanelOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600"
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Filter
+            </button>
+            <button
+              onClick={() => setSortPanelOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600"
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              Sort
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* DESKTOP TOOLBAR — no bottom border; gray band below provides separation */}
+      <div className="hidden md:flex items-center justify-between px-4 md:px-6" style={{ height: "var(--toolbar-h, 42px)" }}>
         {/* LEFT: Filled Add task split button (Asana-style) — hidden on dashboard/files views */}
         <div className="flex items-center">
           {(view === "list" || view === "board" || view === "calendar") && <div className="inline-flex items-center h-8 rounded-md overflow-hidden bg-black text-white">

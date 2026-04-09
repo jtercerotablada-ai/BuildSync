@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Plus,
   Calendar,
+  CalendarDays,
   MessageSquare,
   Paperclip,
   MoreHorizontal,
@@ -313,6 +314,18 @@ export function ListView({
     }
   };
 
+  // Mobile helpers
+  const isOverdue = (dueDate: string) => {
+    const date = parseISO(dueDate);
+    return isPast(date) && !isToday(date);
+  };
+  const formatMobileDate = (dueDate: string) => {
+    const date = parseISO(dueDate);
+    if (isToday(date)) return "Today";
+    if (isTomorrow(date)) return "Tomorrow";
+    return format(date, "MMM d");
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* ========================================= */}
@@ -438,178 +451,249 @@ export function ListView({
               <div>
                 {/* Tasks */}
                 {section.tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="grid grid-cols-[32px_1fr_auto] md:grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-3 md:px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-100 group"
-                    onClick={() => onTaskClick(task.id)}
-                  >
-                    {/* Checkbox - select or complete */}
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={selectedTasks.has(task.id) || (!someSelected && task.completed)}
-                        onClick={(e) => {
-                          if (someSelected) {
-                            toggleTaskSelection(task.id, e);
-                          } else {
-                            handleTaskComplete(e, task.id, task.completed);
-                          }
-                        }}
-                        className={cn(
-                          someSelected ? "rounded" : "rounded-full",
-                          selectedTasks.has(task.id) && "border-blue-600 data-[state=checked]:bg-blue-600"
-                        )}
-                      />
-                    </div>
-
-                    {/* Task Name - Inline Editable */}
-                    <div className="flex items-center gap-2 min-w-0" onClick={(e) => e.stopPropagation()}>
-                      {editingTaskId === task.id && editingField === "name" ? (
-                        <input
-                          type="text"
-                          value={editingValue}
-                          onChange={(e) => setEditingValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") saveInlineEdit(task.id, "name", editingValue);
-                            if (e.key === "Escape") cancelEditing();
-                          }}
-                          onBlur={() => saveInlineEdit(task.id, "name", editingValue)}
-                          className="w-full px-1 py-0.5 text-sm outline-none border-b-2 border-blue-500 bg-transparent"
-                          autoFocus
-                        />
-                      ) : (
-                        <span
-                          className={cn(
-                            "truncate text-sm cursor-text hover:bg-slate-100 px-1 py-0.5 rounded -mx-1",
-                            task.completed && "line-through text-slate-400"
-                          )}
+                  <div key={task.id}>
+                    {/* ===== Mobile Task Card ===== */}
+                    <div
+                      className="md:hidden mobile-task-card"
+                      onClick={() => onTaskClick(task.id)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            startEditing(task.id, "name", task.name);
+                            handleTaskComplete(e, task.id, task.completed);
                           }}
+                          className={cn(
+                            "mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                            task.completed
+                              ? "bg-[#c9a84c] border-[#c9a84c]"
+                              : "border-gray-300"
+                          )}
                         >
-                          {task.name}
-                        </span>
-                      )}
-                      {!(editingTaskId === task.id && editingField === "name") && (
-                        <>
-                          {task._count.subtasks > 0 && (
-                            <span className="text-xs text-slate-500 flex-shrink-0" onClick={() => onTaskClick(task.id)}>
-                              {task.subtasks.filter((s) => s.completed).length}/
-                              {task._count.subtasks}
-                            </span>
+                          {task.completed && (
+                            <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
+                              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
                           )}
-                          {task._count.comments > 0 && (
-                            <MessageSquare className="h-3 w-3 text-slate-400 flex-shrink-0" onClick={() => onTaskClick(task.id)} />
-                          )}
-                          {task._count.attachments > 0 && (
-                            <Paperclip className="h-3 w-3 text-slate-400 flex-shrink-0" onClick={() => onTaskClick(task.id)} />
-                          )}
-                        </>
-                      )}
-                    </div>
-
-                    {/* Assignee */}
-                    <div className="hidden md:block">
-                      {task.assignee ? (
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={task.assignee.image || ""} />
-                            <AvatarFallback className="text-xs bg-amber-400 text-white">
-                              {task.assignee.name?.[0] || "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <span className="text-sm text-slate-700 truncate">
-                            {task.assignee.name}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
-                          <User className="w-3 h-3 text-slate-300" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Due Date - Inline Editable */}
-                    <div onClick={(e) => e.stopPropagation()}>
-                      {editingTaskId === task.id && editingField === "dueDate" ? (
-                        <input
-                          type="date"
-                          value={editingValue}
-                          onChange={(e) => {
-                            saveInlineEdit(task.id, "dueDate", e.target.value);
-                          }}
-                          onBlur={() => cancelEditing()}
-                          onKeyDown={(e) => { if (e.key === "Escape") cancelEditing(); }}
-                          className="text-sm border rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 w-full"
-                          autoFocus
-                        />
-                      ) : (
-                        <div
-                          className="cursor-pointer hover:bg-slate-100 rounded px-1 py-0.5 -mx-1"
-                          onClick={() => startEditing(task.id, "dueDate", task.dueDate ? task.dueDate.split("T")[0] : "")}
-                        >
-                          {task.dueDate ? (
-                            <DueDateBadge dueDate={task.dueDate} completed={task.completed} />
-                          ) : (
-                            <span className="text-slate-400 text-sm">—</span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Priority - Inline Editable */}
-                    <div className="hidden md:block" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="hover:bg-slate-100 rounded px-1 py-0.5 -mx-1 w-full text-left">
-                            {task.priority && task.priority !== "NONE" ? (
-                              <Badge
-                                variant="secondary"
-                                className={cn(
-                                  "text-xs",
-                                  PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS]
-                                )}
-                              >
-                                {PRIORITY_LABELS[task.priority as keyof typeof PRIORITY_LABELS]}
-                              </Badge>
-                            ) : (
-                              <span className="text-slate-400 text-sm">—</span>
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className={cn("text-sm font-medium leading-tight", task.completed && "line-through text-gray-400")}>
+                            {task.name}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            {task.dueDate && (
+                              <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
+                                !task.completed && isOverdue(task.dueDate) ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-600"
+                              )}>
+                                <CalendarDays className="h-3 w-3" />
+                                {formatMobileDate(task.dueDate)}
+                              </span>
                             )}
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          {(["HIGH", "MEDIUM", "LOW", "NONE"] as const).map((p) => (
-                            <DropdownMenuItem
-                              key={p}
-                              onClick={() => saveInlineEdit(task.id, "priority", p)}
-                              className={cn(task.priority === p && "bg-slate-100")}
-                            >
-                              {p === "NONE" ? "No priority" : PRIORITY_LABELS[p]}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            {task.priority && task.priority !== "NONE" && (
+                              <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
+                                task.priority === "HIGH" ? "bg-red-50 text-red-600" :
+                                task.priority === "MEDIUM" ? "bg-yellow-50 text-yellow-700" :
+                                "bg-blue-50 text-blue-600"
+                              )}>
+                                {task.priority === "HIGH" ? "\u{1F534}" : task.priority === "MEDIUM" ? "\u{1F7E1}" : "\u{1F535}"}
+                                {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
+                              </span>
+                            )}
+                            {task._count.subtasks > 0 && (
+                              <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                                {task.subtasks.filter((s) => s.completed).length}/{task._count.subtasks} subtasks
+                              </span>
+                            )}
+                          </div>
+                          {task.assignee && (
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <div className="h-5 w-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-medium text-gray-600 overflow-hidden">
+                                {task.assignee.image ? (
+                                  <img src={task.assignee.image} className="h-full w-full object-cover" alt="" />
+                                ) : (
+                                  task.assignee.name?.[0]
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-500">{task.assignee.name}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Status */}
-                    <div className="hidden md:block">
-                      {task.completed ? (
-                        <Badge variant="secondary" className="text-xs bg-green-50 text-green-700 border-green-200">
-                          Done
-                        </Badge>
-                      ) : task.dueDate && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate)) ? (
-                        <Badge variant="secondary" className="text-xs bg-red-50 text-red-700 border-red-200">
-                          Overdue
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                          To do
-                        </Badge>
-                      )}
-                    </div>
+                    {/* ===== Desktop Grid Row ===== */}
+                    <div
+                      className="hidden md:grid grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-100 group"
+                      onClick={() => onTaskClick(task.id)}
+                    >
+                      {/* Checkbox - select or complete */}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedTasks.has(task.id) || (!someSelected && task.completed)}
+                          onClick={(e) => {
+                            if (someSelected) {
+                              toggleTaskSelection(task.id, e);
+                            } else {
+                              handleTaskComplete(e, task.id, task.completed);
+                            }
+                          }}
+                          className={cn(
+                            someSelected ? "rounded" : "rounded-full",
+                            selectedTasks.has(task.id) && "border-blue-600 data-[state=checked]:bg-blue-600"
+                          )}
+                        />
+                      </div>
 
-                    {/* Empty column for "+" */}
-                    <div className="hidden md:block"></div>
+                      {/* Task Name - Inline Editable */}
+                      <div className="flex items-center gap-2 min-w-0" onClick={(e) => e.stopPropagation()}>
+                        {editingTaskId === task.id && editingField === "name" ? (
+                          <input
+                            type="text"
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveInlineEdit(task.id, "name", editingValue);
+                              if (e.key === "Escape") cancelEditing();
+                            }}
+                            onBlur={() => saveInlineEdit(task.id, "name", editingValue)}
+                            className="w-full px-1 py-0.5 text-sm outline-none border-b-2 border-blue-500 bg-transparent"
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className={cn(
+                              "truncate text-sm cursor-text hover:bg-slate-100 px-1 py-0.5 rounded -mx-1",
+                              task.completed && "line-through text-slate-400"
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditing(task.id, "name", task.name);
+                            }}
+                          >
+                            {task.name}
+                          </span>
+                        )}
+                        {!(editingTaskId === task.id && editingField === "name") && (
+                          <>
+                            {task._count.subtasks > 0 && (
+                              <span className="text-xs text-slate-500 flex-shrink-0" onClick={() => onTaskClick(task.id)}>
+                                {task.subtasks.filter((s) => s.completed).length}/
+                                {task._count.subtasks}
+                              </span>
+                            )}
+                            {task._count.comments > 0 && (
+                              <MessageSquare className="h-3 w-3 text-slate-400 flex-shrink-0" onClick={() => onTaskClick(task.id)} />
+                            )}
+                            {task._count.attachments > 0 && (
+                              <Paperclip className="h-3 w-3 text-slate-400 flex-shrink-0" onClick={() => onTaskClick(task.id)} />
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* Assignee */}
+                      <div>
+                        {task.assignee ? (
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={task.assignee.image || ""} />
+                              <AvatarFallback className="text-xs bg-amber-400 text-white">
+                                {task.assignee.name?.[0] || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm text-slate-700 truncate">
+                              {task.assignee.name}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
+                            <User className="w-3 h-3 text-slate-300" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Due Date - Inline Editable */}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        {editingTaskId === task.id && editingField === "dueDate" ? (
+                          <input
+                            type="date"
+                            value={editingValue}
+                            onChange={(e) => {
+                              saveInlineEdit(task.id, "dueDate", e.target.value);
+                            }}
+                            onBlur={() => cancelEditing()}
+                            onKeyDown={(e) => { if (e.key === "Escape") cancelEditing(); }}
+                            className="text-sm border rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 w-full"
+                            autoFocus
+                          />
+                        ) : (
+                          <div
+                            className="cursor-pointer hover:bg-slate-100 rounded px-1 py-0.5 -mx-1"
+                            onClick={() => startEditing(task.id, "dueDate", task.dueDate ? task.dueDate.split("T")[0] : "")}
+                          >
+                            {task.dueDate ? (
+                              <DueDateBadge dueDate={task.dueDate} completed={task.completed} />
+                            ) : (
+                              <span className="text-slate-400 text-sm">---</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Priority - Inline Editable */}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="hover:bg-slate-100 rounded px-1 py-0.5 -mx-1 w-full text-left">
+                              {task.priority && task.priority !== "NONE" ? (
+                                <Badge
+                                  variant="secondary"
+                                  className={cn(
+                                    "text-xs",
+                                    PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS]
+                                  )}
+                                >
+                                  {PRIORITY_LABELS[task.priority as keyof typeof PRIORITY_LABELS]}
+                                </Badge>
+                              ) : (
+                                <span className="text-slate-400 text-sm">---</span>
+                              )}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            {(["HIGH", "MEDIUM", "LOW", "NONE"] as const).map((p) => (
+                              <DropdownMenuItem
+                                key={p}
+                                onClick={() => saveInlineEdit(task.id, "priority", p)}
+                                className={cn(task.priority === p && "bg-slate-100")}
+                              >
+                                {p === "NONE" ? "No priority" : PRIORITY_LABELS[p]}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+
+                      {/* Status */}
+                      <div>
+                        {task.completed ? (
+                          <Badge variant="secondary" className="text-xs bg-green-50 text-green-700 border-green-200">
+                            Done
+                          </Badge>
+                        ) : task.dueDate && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate)) ? (
+                          <Badge variant="secondary" className="text-xs bg-red-50 text-red-700 border-red-200">
+                            Overdue
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            To do
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Empty column for "+" */}
+                      <div></div>
+                    </div>
                   </div>
                 ))}
 

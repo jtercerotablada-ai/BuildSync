@@ -304,7 +304,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[480px] z-50 border-l bg-white flex items-center justify-center">
+      <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[480px] z-50 border-l bg-white rounded-t-2xl md:rounded-none flex items-center justify-center transition-transform duration-300 ease-out animate-in slide-in-from-bottom md:slide-in-from-right">
         <div className="text-slate-500">Loading...</div>
       </div>
     );
@@ -312,14 +312,19 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
 
   if (!task) {
     return (
-      <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[480px] z-50 border-l bg-white flex items-center justify-center">
+      <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[480px] z-50 border-l bg-white rounded-t-2xl md:rounded-none flex items-center justify-center transition-transform duration-300 ease-out animate-in slide-in-from-bottom md:slide-in-from-right">
         <div className="text-slate-500">Task not found</div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[480px] z-50 border-l bg-white flex flex-col">
+    <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[480px] z-50 border-l bg-white rounded-t-2xl md:rounded-none flex flex-col transition-transform duration-300 ease-out animate-in slide-in-from-bottom md:slide-in-from-right">
+      {/* Mobile drag handle */}
+      <div className="md:hidden flex justify-center py-2">
+        <div className="w-10 h-1 rounded-full bg-gray-300" />
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-2">
@@ -387,80 +392,86 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           />
 
           {/* Metadata */}
-          <div className="space-y-3">
+          <div className="space-y-0 md:space-y-3">
             {/* Assignee */}
-            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
-              <div className="flex items-center gap-2 md:gap-3">
-                <User className="h-4 w-4 text-slate-400" />
-                <span className="text-sm text-slate-500 w-20">Assignee</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {task.assignee ? (
-                  <>
-                    <Avatar className="h-6 w-6">
-                      <AvatarImage src={task.assignee.image || ""} />
-                      <AvatarFallback className="text-xs">
-                        {task.assignee.name?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm">{task.assignee.name}</span>
-                  </>
-                ) : (
-                  <Button variant="ghost" size="sm" className="text-slate-500">
-                    No assignee
-                  </Button>
-                )}
+            <div className="border-b border-gray-100 md:border-0 pb-3 md:pb-0 mb-3 md:mb-0">
+              <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <User className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-500 w-20">Assignee</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {task.assignee ? (
+                    <>
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={task.assignee.image || ""} />
+                        <AvatarFallback className="text-xs">
+                          {task.assignee.name?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm">{task.assignee.name}</span>
+                    </>
+                  ) : (
+                    <Button variant="ghost" size="sm" className="text-slate-500">
+                      No assignee
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Due Date */}
-            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
-              <div className="flex items-center gap-2 md:gap-3">
-                <CalendarIcon className="h-4 w-4 text-slate-400" />
-                <span className="text-sm text-slate-500 w-20">Due date</span>
+            <div className="border-b border-gray-100 md:border-0 pb-3 md:pb-0 mb-3 md:mb-0">
+              <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <CalendarIcon className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-500 w-20">Due date</span>
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm" className="text-slate-600">
+                      {task.dueDate
+                        ? format(parseISO(task.dueDate), "MMM d, yyyy")
+                        : "No due date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={task.dueDate ? parseISO(task.dueDate) : undefined}
+                      onSelect={(date) =>
+                        updateTask({ dueDate: date?.toISOString() || null })
+                      }
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-slate-600">
-                    {task.dueDate
-                      ? format(parseISO(task.dueDate), "MMM d, yyyy")
-                      : "No due date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={task.dueDate ? parseISO(task.dueDate) : undefined}
-                    onSelect={(date) =>
-                      updateTask({ dueDate: date?.toISOString() || null })
-                    }
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
             </div>
 
             {/* Priority */}
-            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
-              <div className="flex items-center gap-2 md:gap-3">
-                <Flag className="h-4 w-4 text-slate-400" />
-                <span className="text-sm text-slate-500 w-20">Priority</span>
+            <div className="border-b border-gray-100 md:border-0 pb-3 md:pb-0 mb-3 md:mb-0">
+              <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <Flag className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-500 w-20">Priority</span>
+                </div>
+                <Select
+                  value={task.priority}
+                  onValueChange={(value) => updateTask({ priority: value })}
+                >
+                  <SelectTrigger className="w-full md:w-32 h-8 border-none">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <span className={option.color}>{option.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select
-                value={task.priority}
-                onValueChange={(value) => updateTask({ priority: value })}
-              >
-                <SelectTrigger className="w-full md:w-32 h-8 border-none">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <span className={option.color}>{option.label}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             {/* Section */}

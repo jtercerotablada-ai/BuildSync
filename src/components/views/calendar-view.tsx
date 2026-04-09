@@ -80,7 +80,9 @@ export function CalendarView({
 }: CalendarViewProps) {
   const router = useRouter();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    typeof window !== 'undefined' && window.innerWidth < 768 ? "week" : "month"
+  );
   const [isCreatingTask, setIsCreatingTask] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState("");
   const [calFilter, setCalFilter] = useState<"all" | "incomplete" | "completed">("all");
@@ -227,7 +229,7 @@ export function CalendarView({
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
-        <span className="font-medium text-black ml-2">
+        <span className="font-medium text-black ml-2 text-base md:text-lg">
           {viewMode === "week"
             ? `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d")} – ${format(endOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d, yyyy")}`
             : format(currentDate, "MMMM yyyy")}
@@ -324,7 +326,7 @@ export function CalendarView({
                 key={dateStr}
                 className={cn(
                   "border-r border-b p-0.5 md:p-1 group relative",
-                  isWeek ? "min-h-[400px]" : "min-h-[90px]",
+                  isWeek ? "min-h-[200px] md:min-h-[400px]" : "min-h-[52px] md:min-h-[90px]",
                   !isCurrentMonth && !isWeek && "bg-white/50",
                   isWeekendDay && showWeekends && "bg-white/30"
                 )}
@@ -351,13 +353,33 @@ export function CalendarView({
                   )}
                 </div>
 
-                {/* Tasks */}
-                <div className="mt-1 space-y-0.5">
+                {/* Tasks - Mobile: colored dots only */}
+                {dayTasks.length > 0 && (
+                  <div className="md:hidden flex gap-0.5 justify-center mt-1">
+                    {dayTasks.slice(0, 4).map((task) => (
+                      <div
+                        key={task.id}
+                        className={cn("w-1.5 h-1.5 rounded-full", task.completed && "opacity-40")}
+                        style={{ background: task.priority === "HIGH" ? "#ef4444" : task.priority === "MEDIUM" ? "#f59e0b" : "#c9a84c" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTaskClick(task.id);
+                        }}
+                      />
+                    ))}
+                    {dayTasks.length > 4 && (
+                      <span className="text-[8px] text-gray-400 leading-none">+{dayTasks.length - 4}</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Tasks - Desktop: full task cards */}
+                <div className="hidden md:block mt-1 space-y-0.5">
                   {dayTasks.slice(0, maxVisible).map((task) => (
                     <div
                       key={task.id}
                       className={cn(
-                        "text-xs p-0.5 md:p-1 bg-white border rounded shadow-sm truncate cursor-pointer hover:bg-white",
+                        "text-xs p-1 bg-white border rounded shadow-sm truncate cursor-pointer hover:bg-white",
                         task.completed && "line-through text-slate-400 opacity-60"
                       )}
                       title={task.name}
@@ -366,8 +388,7 @@ export function CalendarView({
                         onTaskClick(task.id);
                       }}
                     >
-                      <span className="hidden md:inline">{task.name}</span>
-                      <span className="md:hidden w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                      {task.name}
                     </div>
                   ))}
                   {dayTasks.length > maxVisible && (

@@ -37,8 +37,8 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
 
   return (
     <header
-      className="flex items-center border-b border-gray-200 bg-white"
-      style={{ height: "var(--topbar-h, 52px)", padding: "0 12px" }}
+      className="flex items-center border-b border-gray-200 bg-white h-12 md:h-[52px]"
+      style={{ padding: "0 12px" }}
     >
       {/* ─── LEFT cluster: hamburger + Create ─── */}
       <div className="flex items-center gap-2.5 md:min-w-[148px]">
@@ -54,10 +54,10 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-black text-white text-[13px] font-medium hover:bg-gray-800 transition-colors"
+              className="hidden md:inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-black text-white text-[13px] font-medium hover:bg-gray-800 transition-colors"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden md:inline">Create</span>
+              <span>Create</span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
@@ -81,12 +81,13 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
         </DropdownMenu>
       </div>
 
-      {/* ─── CENTER: Search capsule ─── */}
+      {/* ─── CENTER: Desktop search bar / Mobile logo ─── */}
       <div className="flex-1 flex justify-center px-4">
+        {/* Desktop search */}
         <button
           type="button"
           onClick={onSearchOpen}
-          className="group relative flex items-center rounded-full transition-colors"
+          className="hidden md:flex group relative items-center rounded-full transition-colors"
           style={{
             height: "var(--search-h, 36px)",
             width: "min(720px, 56vw)",
@@ -99,12 +100,23 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--search-bg, #f1f2f4)"; }}
         >
           <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
-          <span className="ml-2.5 text-[14px] text-gray-400 leading-none select-none hidden md:inline">Search</span>
+          <span className="ml-2.5 text-[14px] text-gray-400 leading-none select-none">Search</span>
         </button>
+        {/* Mobile: TT logo centered */}
+        <img src="/ttc/img/logo-icon.svg" alt="TT" className="h-7 w-7 md:hidden" />
       </div>
 
       {/* ─── RIGHT cluster: icon buttons + avatar ─── */}
       <div className="flex items-center gap-1.5 md:min-w-[148px] justify-end">
+        {/* Mobile search icon */}
+        <button
+          type="button"
+          onClick={onSearchOpen}
+          className="md:hidden flex items-center justify-center h-9 w-9 rounded-full text-gray-500 hover:bg-gray-100"
+        >
+          <Search className="h-[18px] w-[18px]" />
+        </button>
+
         <button
           type="button"
           onClick={openPanel}

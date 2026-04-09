@@ -328,9 +328,9 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             {/* Project Name with Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-1 text-base font-semibold text-slate-900 hover:text-slate-700">
-                  {project.name}
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
+                <button className="flex items-center gap-1 text-base font-semibold text-slate-900 hover:text-slate-700 max-w-[180px] md:max-w-none">
+                  <span className="truncate">{project.name}</span>
+                  <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
@@ -397,11 +397,17 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
             </Button>
 
-            {/* Status Badge */}
-            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm ${status.bg} ${status.text}`}>
+            {/* Status Badge - shown inline on desktop, below on mobile */}
+            <div className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm ${status.bg} ${status.text}`}>
               <div className={`w-2 h-2 rounded-full ${status.dot}`} />
               {STATUS_LABELS[project.status as keyof typeof STATUS_LABELS]}
             </div>
+          </div>
+
+          {/* Mobile-only status badge row */}
+          <div className={`md:hidden flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs w-fit ${status.bg} ${status.text}`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+            {STATUS_LABELS[project.status as keyof typeof STATUS_LABELS]}
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -423,14 +429,40 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               )}
             </div>
 
-            {/* Share Button */}
-            <Button className="bg-black hover:bg-black text-white" size="sm" onClick={() => {
+            {/* Share Button — hidden on mobile, lives in overflow menu */}
+            <Button className="hidden md:inline-flex bg-black hover:bg-black text-white" size="sm" onClick={() => {
               navigator.clipboard.writeText(window.location.href);
               toast.success('Project link copied to clipboard');
             }}>
-              <Share2 className="h-4 w-4 md:mr-2" />
-              <span className="hidden md:inline">Share</span>
+              <Share2 className="h-4 w-4 mr-2" />
+              Share
             </Button>
+
+            {/* Mobile overflow menu for Share/Customize/Members */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden h-8 w-8">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  toast.success('Project link copied to clipboard');
+                }}>
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Share
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => toast.info('Fields customization coming soon')}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Customize
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  {project.members.length} member{project.members.length !== 1 ? 's' : ''}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Customize Button */}
             <DropdownMenu>
@@ -456,7 +488,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
 
         {/* View Tabs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-1">
-          <div className="flex items-center gap-1 overflow-x-auto flex-nowrap">
+          <div className="flex items-center gap-0 md:gap-1 overflow-x-auto flex-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button
               onClick={() => handleViewChange("overview")}
               className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -466,7 +498,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               }`}
             >
               <FileText className="h-4 w-4" />
-              Overview
+              <span className="hidden md:inline">Overview</span>
             </button>
             <button
               onClick={() => handleViewChange("list")}
@@ -477,7 +509,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               }`}
             >
               <List className="h-4 w-4" />
-              List
+              <span className="hidden md:inline">List</span>
             </button>
             <button
               onClick={() => handleViewChange("board")}
@@ -488,7 +520,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               }`}
             >
               <LayoutGrid className="h-4 w-4" />
-              Board
+              <span className="hidden md:inline">Board</span>
             </button>
             <button
               onClick={() => handleViewChange("timeline")}
@@ -499,7 +531,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               }`}
             >
               <GanttChart className="h-4 w-4" />
-              Timeline
+              <span className="hidden md:inline">Timeline</span>
             </button>
             <button
               onClick={() => handleViewChange("dashboard")}
@@ -510,7 +542,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               }`}
             >
               <BarChart3 className="h-4 w-4" />
-              Dashboard
+              <span className="hidden md:inline">Dashboard</span>
             </button>
             <button
               onClick={() => handleViewChange("calendar")}
@@ -521,40 +553,40 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               }`}
             >
               <Calendar className="h-4 w-4" />
-              Calendar
+              <span className="hidden md:inline">Calendar</span>
             </button>
             <button
               onClick={() => handleViewChange("workflow")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "workflow"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
               <GitBranch className="h-4 w-4" />
-              Workflow
+              <span className="hidden md:inline">Workflow</span>
             </button>
             <button
               onClick={() => handleViewChange("messages")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "messages"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
               <MessageSquare className="h-4 w-4" />
-              Messages
+              <span className="hidden md:inline">Messages</span>
             </button>
             <button
               onClick={() => handleViewChange("files")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "files"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
               <FolderOpen className="h-4 w-4" />
-              Files
+              <span className="hidden md:inline">Files</span>
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
