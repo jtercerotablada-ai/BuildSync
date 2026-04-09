@@ -113,7 +113,7 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
         'bg-white rounded-lg border border-gray-200 shadow-sm group relative',
         'h-[320px] flex flex-col',
         // Size determines column span
-        size === 'full' ? 'col-span-2' : 'col-span-1',
+        size === 'full' ? 'col-span-1 md:col-span-2' : 'col-span-1',
         // Dragging state - placeholder style
         isDragging && 'opacity-40 border-2 border-dashed border-gray-400 bg-gray-50 shadow-inner',
         // Hover indicator when another widget is being dragged over this one
