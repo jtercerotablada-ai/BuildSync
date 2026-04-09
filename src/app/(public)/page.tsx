@@ -120,33 +120,20 @@ export default function HomePage() {
             {t('hero.badge')}
           </div>
 
-          <h1 style={{ marginBottom: '1.5rem' }}>
-            <span
-              style={{
-                display: 'block',
-                fontFamily: 'var(--font-playfair), serif',
-                fontSize: 'clamp(3rem, 8vw, 6rem)',
-                fontWeight: 400,
-                color: '#fff',
-                lineHeight: 1,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              {t('hero.titleLine1')}
-            </span>
-            <span
-              style={{
-                display: 'block',
-                fontFamily: 'var(--font-playfair), serif',
-                fontSize: 'clamp(3rem, 8vw, 6rem)',
-                fontWeight: 400,
-                color: '#c9a84c',
-                lineHeight: 1,
-                letterSpacing: '-0.02em',
-              }}
-            >
-              {t('hero.titleLine2')}
-            </span>
+          <h1
+            style={{
+              fontFamily: 'var(--font-playfair), serif',
+              fontSize: 'clamp(2rem, 5.5vw, 4.5rem)',
+              fontWeight: 400,
+              lineHeight: 1.1,
+              letterSpacing: '-0.02em',
+              marginBottom: '1.5rem',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ color: '#fff' }}>{t('hero.titleLine1')}</span>
+            {' '}
+            <span style={{ color: '#c9a84c' }}>{t('hero.titleLine2')}</span>
           </h1>
 
           <p

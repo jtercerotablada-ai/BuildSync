@@ -31,7 +31,7 @@ export function ValueItem({ number, title, description }: ValueItemProps) {
         {number}
       </span>
       <div>
-        <h3
+        <p
           style={{
             fontFamily: 'var(--ttc-font-heading)',
             fontSize: '1.25rem',
@@ -41,7 +41,7 @@ export function ValueItem({ number, title, description }: ValueItemProps) {
           }}
         >
           {title}
-        </h3>
+        </p>
         <p
           style={{
             color: '#a3a3a3',

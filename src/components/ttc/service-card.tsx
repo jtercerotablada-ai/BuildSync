@@ -37,7 +37,7 @@ export function ServiceCard({ icon, title, description }: ServiceCardProps) {
       >
         {icon}
       </div>
-      <h3
+      <p
         style={{
           fontFamily: 'var(--ttc-font-heading)',
           fontSize: '1.25rem',
@@ -48,7 +48,7 @@ export function ServiceCard({ icon, title, description }: ServiceCardProps) {
         }}
       >
         {title}
-      </h3>
+      </p>
       <p
         style={{
           color: '#a3a3a3',
