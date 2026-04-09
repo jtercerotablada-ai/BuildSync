@@ -174,11 +174,11 @@ export function Sidebar({
     <TooltipProvider delayDuration={300}>
       <aside
         className={cn(
-          "flex h-full flex-col border-r border-gray-200/80 bg-[#fafafa] transition-[width] duration-200 ease-out overflow-hidden",
-          "max-md:fixed max-md:top-12 max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:shadow-xl",
+          "flex h-full flex-col border-r border-gray-200/80 bg-[#fafafa] transition-all duration-200 ease-out overflow-hidden",
+          "max-md:fixed max-md:top-0 max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:shadow-2xl max-md:pt-14",
           collapsed
-            ? "w-16 max-md:w-0 max-md:border-0 max-md:hidden"
-            : "w-[240px] max-md:w-[260px]"
+            ? "w-16 max-md:w-0 max-md:border-0 max-md:opacity-0 max-md:pointer-events-none"
+            : "w-[240px] max-md:w-[270px] max-md:opacity-100"
         )}
       >
         <ScrollArea className="flex-1 pt-2" style={{ paddingLeft: collapsed ? 0 : undefined, paddingRight: collapsed ? 0 : undefined }}>
