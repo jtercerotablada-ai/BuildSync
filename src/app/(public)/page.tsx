@@ -101,7 +101,7 @@ export default function HomePage() {
             zIndex: 2,
             textAlign: 'center',
             maxWidth: '900px',
-            padding: '0 2rem',
+            padding: '6rem 2rem 0',
           }}
         >
           <div
@@ -114,7 +114,7 @@ export default function HomePage() {
               color: '#c9a84c',
               border: '1px solid rgba(201,168,76,0.3)',
               padding: '0.5rem 1.25rem',
-              marginBottom: '2rem',
+              marginBottom: '2.5rem',
             }}
           >
             {t('hero.badge')}
