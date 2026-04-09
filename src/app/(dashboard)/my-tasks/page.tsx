@@ -1965,84 +1965,128 @@ function TaskRow({
 }) {
   const dueDateInfo = formatDueDate(task.dueDate);
 
-  return (
-    <div
-      onClick={onClick}
-      className="flex items-center px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors"
-      style={{ height: 'var(--row-h)' }}
+  const checkboxEl = task.taskType === "MILESTONE" ? (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
+      className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-green-500" : "text-green-600 hover:text-green-700")}
     >
-      {/* Checkbox / type icon */}
-      <div className="w-8 flex-shrink-0 flex items-center">
-        {task.taskType === "MILESTONE" ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
-            className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-green-500" : "text-green-600 hover:text-green-700")}
-          >
-            <Diamond className="w-4 h-4" />
-          </button>
-        ) : task.taskType === "APPROVAL" ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
-            className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-green-500" : "text-orange-500 hover:text-orange-600")}
-          >
-            <ThumbsUp className="w-4 h-4" />
-          </button>
-        ) : (
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
-            className={cn(
-              "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
-              task.completed
-                ? "bg-green-500 border-green-500"
-                : "border-gray-300 hover:border-gray-400"
+      <Diamond className="w-4 h-4" />
+    </button>
+  ) : task.taskType === "APPROVAL" ? (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
+      className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-green-500" : "text-orange-500 hover:text-orange-600")}
+    >
+      <ThumbsUp className="w-4 h-4" />
+    </button>
+  ) : (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
+      className={cn(
+        "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0",
+        task.completed
+          ? "bg-green-500 border-green-500"
+          : "border-gray-300 hover:border-gray-400"
+      )}
+    >
+      {task.completed && <Check className="w-3 h-3 text-white" />}
+    </button>
+  );
+
+  return (
+    <>
+      {/* ── Mobile Card ── */}
+      <div
+        onClick={onClick}
+        className="md:hidden mobile-task-card mx-3 cursor-pointer"
+      >
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5">{checkboxEl}</div>
+          <div className="flex-1 min-w-0">
+            <p className={cn("text-sm font-medium leading-tight", task.completed && "line-through text-gray-400")}>
+              {task.name}
+            </p>
+            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+              {dueDateInfo.text && (
+                <span className={cn(
+                  "inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full",
+                  dueDateInfo.className.includes("red") ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500"
+                )}>
+                  {dueDateInfo.text}
+                </span>
+              )}
+              {task.priority && task.priority !== "NONE" && (
+                <span className={cn(
+                  "inline-flex items-center text-[11px] px-1.5 py-0.5 rounded-full",
+                  task.priority === "HIGH" ? "bg-red-50 text-red-600" :
+                  task.priority === "MEDIUM" ? "bg-amber-50 text-amber-700" :
+                  "bg-blue-50 text-blue-600"
+                )}>
+                  {task.priority === "HIGH" ? "High" : task.priority === "MEDIUM" ? "Med" : "Low"}
+                </span>
+              )}
+              {task._count.subtasks > 0 && (
+                <span className="text-[11px] text-gray-400 flex items-center">
+                  <Layers className="w-3 h-3 mr-0.5" />{task._count.subtasks}
+                </span>
+              )}
+              {task._count.comments > 0 && (
+                <span className="text-[11px] text-gray-400 flex items-center">
+                  <MessageSquare className="w-3 h-3 mr-0.5" />{task._count.comments}
+                </span>
+              )}
+            </div>
+            {task.project && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: task.project.color }} />
+                <span className="text-[11px] text-gray-400 truncate">{task.project.name}</span>
+              </div>
             )}
-          >
-            {task.completed && <Check className="w-3 h-3 text-white" />}
-          </button>
-        )}
+          </div>
+          {task.assignee && (
+            <Avatar className="w-6 h-6 flex-shrink-0">
+              <AvatarImage src={task.assignee.image || undefined} />
+              <AvatarFallback className="text-[10px] bg-gray-100 text-gray-600">
+                {task.assignee.name?.charAt(0) || "?"}
+              </AvatarFallback>
+            </Avatar>
+          )}
+        </div>
       </div>
 
-      {/* Task name + indicators */}
-      <div className="flex-1 flex items-center gap-2 min-w-0">
-        <span className={cn(
-          "text-[13px] truncate",
-          task.completed ? "line-through text-gray-400" : "text-gray-900"
-        )}>
-          {task.name}
-        </span>
-        {task._count.subtasks > 0 && (
-          <span className="text-[11px] text-gray-400 flex items-center flex-shrink-0">
-            <Layers className="w-3 h-3 mr-0.5" />
-            {task._count.subtasks}
-          </span>
-        )}
-        {task._count.attachments > 0 && (
-          <Paperclip className="w-3 h-3 text-gray-400 flex-shrink-0" />
-        )}
-        {task._count.comments > 0 && (
-          <span className="text-[11px] text-gray-400 flex items-center flex-shrink-0">
-            <MessageSquare className="w-3 h-3 mr-0.5" />
-            {task._count.comments}
-          </span>
-        )}
-      </div>
+      {/* ── Desktop Row ── */}
+      <div
+        onClick={onClick}
+        className="hidden md:flex items-center px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors"
+        style={{ height: 'var(--row-h)' }}
+      >
+        {/* Checkbox */}
+        <div className="w-8 flex-shrink-0 flex items-center">{checkboxEl}</div>
 
-      {/* Mobile: inline due date + assignee */}
-      <div className="flex md:hidden items-center gap-2 flex-shrink-0 ml-auto">
-        {dueDateInfo.text && (
-          <span className={cn("text-[11px]", dueDateInfo.className)}>
-            {dueDateInfo.text}
+        {/* Task name + indicators */}
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <span className={cn(
+            "text-[13px] truncate",
+            task.completed ? "line-through text-gray-400" : "text-gray-900"
+          )}>
+            {task.name}
           </span>
-        )}
-        {task.assignee && (
-          <Avatar className="w-5 h-5">
-            <AvatarImage src={task.assignee.image || undefined} />
-            <AvatarFallback className="text-[10px] bg-gray-100 text-gray-600">
-              {task.assignee.name?.charAt(0) || "?"}
-            </AvatarFallback>
-          </Avatar>
-        )}
-      </div>
+          {task._count.subtasks > 0 && (
+            <span className="text-[11px] text-gray-400 flex items-center flex-shrink-0">
+              <Layers className="w-3 h-3 mr-0.5" />
+              {task._count.subtasks}
+            </span>
+          )}
+          {task._count.attachments > 0 && (
+            <Paperclip className="w-3 h-3 text-gray-400 flex-shrink-0" />
+          )}
+          {task._count.comments > 0 && (
+            <span className="text-[11px] text-gray-400 flex items-center flex-shrink-0">
+              <MessageSquare className="w-3 h-3 mr-0.5" />
+              {task._count.comments}
+            </span>
+          )}
+        </div>
 
       {/* Due date */}
       <div className="hidden md:block flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-dueDate)" }}>
@@ -2096,6 +2140,7 @@ function TaskRow({
       {/* Spacer for + button column */}
       <div className="hidden md:block w-8 flex-shrink-0" />
     </div>
+    </>
   );
 }
 
