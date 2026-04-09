@@ -507,7 +507,16 @@ export function TimelineView({
   // RENDER
   // ============================================
 
-  const sidebarWidth = 280;
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  const sidebarWidth = isMobile ? 120 : 280;
   const rowHeight = 44;
   const headerHeight = 80;
 
@@ -516,9 +525,9 @@ export function TimelineView({
       {/* ============================================ */}
       {/* TOOLBAR */}
       {/* ============================================ */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white border-b">
+      <div className="flex items-center justify-between px-2 md:px-4 py-2 bg-white border-b overflow-x-auto">
         {/* Left */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowCreateDialog(true)}>
             <Plus className="w-4 h-4 mr-1" />
             Add task
@@ -555,7 +564,7 @@ export function TimelineView({
         </div>
 
         {/* Right */}
-        <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2">
           {/* Zoom Level Selector */}
           <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
             {(["day", "week", "month", "quarter"] as ZoomLevel[]).map((level) => (
@@ -652,7 +661,7 @@ export function TimelineView({
           >
             {/* Sidebar Header */}
             <div
-              className="border-b bg-slate-50 px-4 flex items-center font-medium text-sm text-slate-700"
+              className="border-b bg-slate-50 px-2 md:px-4 flex items-center font-medium text-xs md:text-sm text-slate-700"
               style={{ height: headerHeight }}
             >
               Task Name
@@ -666,7 +675,7 @@ export function TimelineView({
                 <div key={section.id}>
                   {/* Section Row */}
                   <button
-                    className="flex items-center gap-2 px-4 border-b bg-slate-50 hover:bg-slate-100 cursor-pointer w-full text-left"
+                    className="flex items-center gap-1 md:gap-2 px-2 md:px-4 border-b bg-slate-50 hover:bg-slate-100 cursor-pointer w-full text-left"
                     style={{ height: rowHeight }}
                     onClick={() => toggleSection(section.id)}
                   >
@@ -675,10 +684,10 @@ export function TimelineView({
                     ) : (
                       <ChevronDown className="w-4 h-4 text-slate-400" />
                     )}
-                    <span className="font-semibold text-sm text-slate-900">
+                    <span className="font-semibold text-xs md:text-sm text-slate-900 truncate">
                       {section.name}
                     </span>
-                    <span className="text-xs text-slate-400 ml-auto">
+                    <span className="text-xs text-slate-400 ml-auto flex-shrink-0">
                       {section.tasks.length}
                     </span>
                   </button>
@@ -694,7 +703,7 @@ export function TimelineView({
                         <div
                           key={task.id}
                           className={cn(
-                            "flex items-center gap-2 px-4 border-b hover:bg-white cursor-pointer group",
+                            "flex items-center gap-1 md:gap-2 px-2 md:px-4 border-b hover:bg-white cursor-pointer group",
                             selectedTaskId === task.id && "bg-white"
                           )}
                           style={{ height: rowHeight }}
@@ -703,7 +712,7 @@ export function TimelineView({
                             onTaskClick(task.id);
                           }}
                         >
-                          <GripVertical className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100" />
+                          <GripVertical className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 hidden md:block" />
 
                           {isMilestone ? (
                             <Diamond className="w-4 h-4 text-black" />
@@ -719,7 +728,7 @@ export function TimelineView({
 
                           <span
                             className={cn(
-                              "text-sm truncate flex-1",
+                              "text-xs md:text-sm truncate flex-1",
                               task.completed && "line-through text-slate-400"
                             )}
                           >
@@ -727,15 +736,15 @@ export function TimelineView({
                           </span>
 
                           {isCritical && showCriticalPath && (
-                            <AlertTriangle className="w-3 h-3 text-black" />
+                            <AlertTriangle className="w-3 h-3 text-black hidden md:block" />
                           )}
 
                           {progress > 0 && progress < 100 && (
-                            <span className="text-xs text-slate-500">{progress}%</span>
+                            <span className="text-xs text-slate-500 hidden md:inline">{progress}%</span>
                           )}
 
                           {task.assignee && (
-                            <div className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center text-xs font-medium text-white">
+                            <div className="w-6 h-6 rounded-full bg-amber-400 items-center justify-center text-xs font-medium text-white hidden md:flex">
                               {task.assignee.name?.[0] || "?"}
                             </div>
                           )}
@@ -748,7 +757,7 @@ export function TimelineView({
 
             {/* Add Section */}
             <button
-              className="flex items-center gap-2 px-4 text-slate-500 hover:bg-slate-50 cursor-pointer w-full text-left"
+              className="flex items-center gap-2 px-2 md:px-4 text-slate-500 hover:bg-slate-50 cursor-pointer w-full text-left"
               style={{ height: rowHeight }}
               onClick={handleAddSection}
             >
@@ -771,7 +780,7 @@ export function TimelineView({
                 {monthGroups.map((group, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-center text-sm font-medium text-slate-700 border-r"
+                    className="flex items-center justify-center text-xs md:text-sm font-medium text-slate-700 border-r"
                     style={{ width: group.columns.length * config.columnWidth }}
                   >
                     {group.label}
@@ -888,7 +897,7 @@ export function TimelineView({
                                   style={{
                                     left: position.left,
                                     width: position.width,
-                                    height: rowHeight - 12,
+                                    height: isMobile ? rowHeight - 8 : rowHeight - 12,
                                     backgroundColor: task.completed
                                       ? "#22C55E"
                                       : taskColor,

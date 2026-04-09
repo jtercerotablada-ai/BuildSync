@@ -737,7 +737,7 @@ export default function MyTasksPage() {
   return (
     <div className="h-full flex flex-col bg-white">
       {/* TITLE ROW — no bottom border (Asana pattern) */}
-      <div className="flex items-center justify-between px-6" style={{ height: "var(--page-header-h, 44px)" }}>
+      <div className="flex items-center justify-between px-4 md:px-6" style={{ height: "var(--page-header-h, 44px)" }}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="inline-flex items-center gap-1.5 h-8 px-2 -ml-2 rounded-md hover:bg-black/[0.04] transition-colors cursor-pointer focus:outline-none">
@@ -857,7 +857,7 @@ export default function MyTasksPage() {
       </div>
 
       {/* TABS ROW — single border below separating from toolbar */}
-      <div className="flex items-center px-6 border-b border-gray-200" style={{ height: "var(--tabs-h, 34px)" }}>
+      <div className="flex items-center px-4 md:px-6 border-b border-gray-200 overflow-x-auto" style={{ height: "var(--tabs-h, 34px)" }}>
         {viewTabs.map((tab) => (
           <button
             key={tab.id}
@@ -888,7 +888,7 @@ export default function MyTasksPage() {
       </div>
 
       {/* TOOLBAR — no bottom border; gray band below provides separation */}
-      <div className="flex items-center justify-between px-6" style={{ height: "var(--toolbar-h, 42px)" }}>
+      <div className="flex items-center justify-between px-4 md:px-6" style={{ height: "var(--toolbar-h, 42px)" }}>
         {/* LEFT: Filled Add task split button (Asana-style) — hidden on dashboard/files views */}
         <div className="flex items-center">
           {(view === "list" || view === "board" || view === "calendar") && <div className="inline-flex items-center h-8 rounded-md overflow-hidden bg-black text-white">
@@ -1142,7 +1142,7 @@ export default function MyTasksPage() {
           {/* COLUMN HEADERS - Only show in List view */}
           {view === "list" && (
             <div
-              className="flex items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0"
+              className="hidden md:flex items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0"
               style={{ height: "var(--col-header-h, 32px)" }}
             >
           {/* Checkbox spacer */}
@@ -1570,7 +1570,7 @@ export default function MyTasksPage() {
 
       {/* Calendar Sync Dialog */}
       <Dialog open={showCalendarSync} onOpenChange={setShowCalendarSync}>
-        <DialogContent className="sm:max-w-[520px]">
+        <DialogContent className="max-w-[90vw] md:max-w-[520px]">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className={cn(
@@ -1793,7 +1793,7 @@ function TaskSection({
       {/* Section header */}
       <button
         onClick={onToggleSection}
-        className="flex items-center px-6 w-full hover:bg-[var(--surface-hover)] text-left border-b border-[var(--border-subtle)]"
+        className="flex items-center px-4 md:px-6 w-full hover:bg-[var(--surface-hover)] text-left border-b border-[var(--border-subtle)]"
         style={{ height: "var(--row-h)" }}
       >
         <div className="w-8 flex-shrink-0 flex items-center">
@@ -1815,7 +1815,7 @@ function TaskSection({
           {/* Inline input row — appears at TOP of section (Asana behavior) */}
           {isAddingTask && (
             <div
-              className="flex items-center px-6 border-b border-[var(--border-subtle)] bg-blue-50/60"
+              className="flex items-center px-4 md:px-6 border-b border-[var(--border-subtle)] bg-blue-50/60"
               style={{ height: "var(--row-h)" }}
             >
               <div className="w-8 flex-shrink-0 flex items-center">
@@ -1842,15 +1842,15 @@ function TaskSection({
                 />
               </div>
               {/* Due date placeholder */}
-              <div className="flex-shrink-0 pl-2.5" style={{ width: "var(--col-dueDate)" }}>
+              <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-dueDate)" }}>
                 <Calendar className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
               {/* Collaborators placeholder */}
-              <div className="flex-shrink-0 pl-2.5" style={{ width: "var(--col-collaborators)" }} />
+              <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-collaborators)" }} />
               {/* Projects placeholder */}
-              <div className="flex-shrink-0 pl-2.5" style={{ width: "var(--col-projects)" }} />
+              <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-projects)" }} />
               {/* Visibility placeholder */}
-              <div className="flex-shrink-0 pl-2.5" style={{ width: "var(--col-visibility)" }}>
+              <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-visibility)" }}>
                 <span className="text-[13px] text-gray-300 flex items-center gap-1">
                   <Lock className="w-3 h-3" />
                   Only me
@@ -1858,7 +1858,7 @@ function TaskSection({
               </div>
               {/* Custom column placeholders */}
               {Array.from({ length: customColumnCount }).map((_, i) => (
-                <div key={i} className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5" />
+                <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 pl-2.5" />
               ))}
               {/* Spinner / spacer */}
               <div className="w-8 flex-shrink-0 flex items-center justify-center">
@@ -1882,21 +1882,21 @@ function TaskSection({
           {!isAddingTask && (
             <button
               onClick={() => { setActiveTaskType("TASK"); setIsAddingTask(true); }}
-              className="flex items-center px-6 w-full text-left border-b border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] transition-colors"
+              className="flex items-center px-4 md:px-6 w-full text-left border-b border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] transition-colors"
               style={{ height: "var(--row-h)" }}
             >
               <div className="w-8 flex-shrink-0 flex items-center">
                 <Plus className="w-3.5 h-3.5 text-gray-300" />
               </div>
               <span className="flex-1 text-[13px] text-gray-400">Add task</span>
-              <div className="flex-shrink-0" style={{ width: "var(--col-dueDate)" }} />
-              <div className="flex-shrink-0" style={{ width: "var(--col-collaborators)" }} />
-              <div className="flex-shrink-0" style={{ width: "var(--col-projects)" }} />
-              <div className="flex-shrink-0" style={{ width: "var(--col-visibility)" }} />
+              <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-dueDate)" }} />
+              <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-collaborators)" }} />
+              <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-projects)" }} />
+              <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-visibility)" }} />
               {Array.from({ length: customColumnCount }).map((_, i) => (
-                <div key={i} className="w-[110px] min-w-[110px] flex-shrink-0" />
+                <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0" />
               ))}
-              <div className="w-8 flex-shrink-0" />
+              <div className="hidden md:block w-8 flex-shrink-0" />
             </button>
           )}
         </div>
@@ -1924,7 +1924,7 @@ function TaskRow({
   return (
     <div
       onClick={onClick}
-      className="flex items-center px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors"
+      className="flex items-center px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors"
       style={{ height: 'var(--row-h)' }}
     >
       {/* Checkbox / type icon */}
@@ -1983,15 +1983,32 @@ function TaskRow({
         )}
       </div>
 
+      {/* Mobile: inline due date + assignee */}
+      <div className="flex md:hidden items-center gap-2 flex-shrink-0 ml-auto">
+        {dueDateInfo.text && (
+          <span className={cn("text-[11px]", dueDateInfo.className)}>
+            {dueDateInfo.text}
+          </span>
+        )}
+        {task.assignee && (
+          <Avatar className="w-5 h-5">
+            <AvatarImage src={task.assignee.image || undefined} />
+            <AvatarFallback className="text-[10px] bg-gray-100 text-gray-600">
+              {task.assignee.name?.charAt(0) || "?"}
+            </AvatarFallback>
+          </Avatar>
+        )}
+      </div>
+
       {/* Due date */}
-      <div className="flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-dueDate)" }}>
+      <div className="hidden md:block flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-dueDate)" }}>
         <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
       </div>
 
       {/* Collaborators */}
-      <div className="flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-collaborators)" }}>
+      <div className="hidden md:block flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-collaborators)" }}>
         {task.assignee && (
           <Avatar className="w-5 h-5">
             <AvatarImage src={task.assignee.image || undefined} />
@@ -2003,7 +2020,7 @@ function TaskRow({
       </div>
 
       {/* Projects */}
-      <div className="flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-projects)" }}>
+      <div className="hidden md:block flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-projects)" }}>
         {task.project && (
           <div className="flex items-center gap-1.5">
             <div
@@ -2018,7 +2035,7 @@ function TaskRow({
       </div>
 
       {/* Visibility */}
-      <div className="flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-visibility)" }}>
+      <div className="hidden md:block flex-shrink-0 pl-2.5 overflow-hidden" style={{ width: "var(--col-visibility)" }}>
         <span className="text-[13px] text-gray-400 flex items-center gap-1">
           <Globe className="w-3 h-3" />
           My workspace
@@ -2027,13 +2044,13 @@ function TaskRow({
 
       {/* Custom column cells */}
       {Array.from({ length: customColumnCount }).map((_, i) => (
-        <div key={i} className="w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+        <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
           <span className="text-[13px] text-gray-300">—</span>
         </div>
       ))}
 
       {/* Spacer for + button column */}
-      <div className="w-8 flex-shrink-0" />
+      <div className="hidden md:block w-8 flex-shrink-0" />
     </div>
   );
 }
@@ -2199,7 +2216,7 @@ function BoardView({
       onDragEnd={handleDragEnd}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
-      <div className="flex gap-3 px-6 py-4 h-full overflow-x-auto">
+      <div className="flex gap-3 px-4 md:px-6 py-4 h-full overflow-x-auto">
         {localSections.map((section) => (
           <BoardColumn
             key={section.id}
@@ -2758,7 +2775,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
   );
 
   return (
-    <div className="px-8 py-5 overflow-auto h-full" style={{ backgroundColor: "#F9FAFB" }}>
+    <div className="px-4 md:px-8 py-5 overflow-auto h-full" style={{ backgroundColor: "#F9FAFB" }}>
       {/* KPI Metric Cards — Asana style */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         {[

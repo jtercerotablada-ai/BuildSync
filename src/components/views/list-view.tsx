@@ -319,7 +319,7 @@ export function ListView({
       {/* COLUMN HEADERS - ONLY ONCE AT THE TOP    */}
       {/* ========================================= */}
       <div className="sticky top-0 bg-white border-b z-10">
-        <div className="grid grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-6 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <div className="hidden md:grid grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-6 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
           <div onClick={(e) => e.stopPropagation()}>
             <Checkbox
               checked={allSelected}
@@ -370,7 +370,7 @@ export function ListView({
         {sections.map((section) => (
           <div key={section.id} className="border-b border-slate-200">
             {/* Section Header */}
-            <div className="flex items-center gap-2 px-6 py-2 hover:bg-slate-50 group">
+            <div className="flex items-center gap-2 px-3 md:px-6 py-2 hover:bg-slate-50 group">
               <button
                 onClick={() => toggleSection(section.id)}
                 className="flex items-center gap-2 flex-1 text-left"
@@ -440,7 +440,7 @@ export function ListView({
                 {section.tasks.map((task) => (
                   <div
                     key={task.id}
-                    className="grid grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-100 group"
+                    className="grid grid-cols-[32px_1fr_auto] md:grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-3 md:px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-100 group"
                     onClick={() => onTaskClick(task.id)}
                   >
                     {/* Checkbox - select or complete */}
@@ -509,7 +509,7 @@ export function ListView({
                     </div>
 
                     {/* Assignee */}
-                    <div>
+                    <div className="hidden md:block">
                       {task.assignee ? (
                         <div className="flex items-center gap-2">
                           <Avatar className="h-6 w-6">
@@ -558,7 +558,7 @@ export function ListView({
                     </div>
 
                     {/* Priority - Inline Editable */}
-                    <div onClick={(e) => e.stopPropagation()}>
+                    <div className="hidden md:block" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button className="hover:bg-slate-100 rounded px-1 py-0.5 -mx-1 w-full text-left">
@@ -592,7 +592,7 @@ export function ListView({
                     </div>
 
                     {/* Status */}
-                    <div>
+                    <div className="hidden md:block">
                       {task.completed ? (
                         <Badge variant="secondary" className="text-xs bg-green-50 text-green-700 border-green-200">
                           Done
@@ -609,12 +609,12 @@ export function ListView({
                     </div>
 
                     {/* Empty column for "+" */}
-                    <div></div>
+                    <div className="hidden md:block"></div>
                   </div>
                 ))}
 
                 {/* Add Task Input - Inline */}
-                <div className="grid grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-6 py-2 items-center border-t border-slate-100">
+                <div className="grid grid-cols-[32px_1fr] md:grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-3 md:px-6 py-2 items-center border-t border-slate-100">
                   <div></div>
                   <div>
                     {addingTaskInSection === section.id ? (
@@ -651,11 +651,11 @@ export function ListView({
                       </button>
                     )}
                   </div>
-                  <div></div>
-                  <div></div>
-                  <div></div>
-                  <div></div>
-                  <div></div>
+                  <div className="hidden md:block"></div>
+                  <div className="hidden md:block"></div>
+                  <div className="hidden md:block"></div>
+                  <div className="hidden md:block"></div>
+                  <div className="hidden md:block"></div>
                 </div>
               </div>
             )}
@@ -665,7 +665,7 @@ export function ListView({
         {/* Add Section Button */}
         <button
           onClick={handleAddSection}
-          className="flex items-center gap-2 px-6 py-3 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left"
+          className="flex items-center gap-2 px-3 md:px-6 py-3 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left"
         >
           <Plus className="w-4 h-4" />
           Add section

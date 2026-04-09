@@ -303,7 +303,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
     <div className="h-full flex flex-col">
       {/* Portfolio Breadcrumb */}
       {project.portfolio && (
-        <div className="px-6 py-1.5 text-xs text-slate-500 border-b bg-slate-50">
+        <div className="px-4 md:px-6 py-1.5 text-xs text-slate-500 border-b bg-slate-50">
           <Link
             href={`/portfolios/${project.portfolio.id}`}
             className="hover:text-slate-700 hover:underline"
@@ -314,9 +314,9 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
       )}
 
       {/* Project Header */}
-      <div className="border-b bg-white px-6 py-2">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-3">
+      <div className="border-b bg-white px-4 md:px-6 py-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4 mb-1">
+          <div className="flex items-center gap-2 md:gap-3">
             {/* Project Icon */}
             <div
               className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-medium"
@@ -404,9 +404,9 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {/* Members */}
-            <div className="flex -space-x-2 mr-2">
+            <div className="hidden md:flex -space-x-2 mr-2">
               {project.members.slice(0, 3).map((member) => (
                 <div
                   key={member.userId}
@@ -424,18 +424,18 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </div>
 
             {/* Share Button */}
-            <Button className="bg-black hover:bg-black text-white" onClick={() => {
+            <Button className="bg-black hover:bg-black text-white" size="sm" onClick={() => {
               navigator.clipboard.writeText(window.location.href);
               toast.success('Project link copied to clipboard');
             }}>
-              <Share2 className="h-4 w-4 mr-2" />
-              Share
+              <Share2 className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Share</span>
             </Button>
 
             {/* Customize Button */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" size="sm" className="hidden md:inline-flex">
                   Customize
                 </Button>
               </DropdownMenuTrigger>
@@ -455,11 +455,11 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
         </div>
 
         {/* View Tabs */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 overflow-x-auto">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-1">
+          <div className="flex items-center gap-1 overflow-x-auto flex-nowrap">
             <button
               onClick={() => handleViewChange("overview")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "overview"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -470,7 +470,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("list")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "list"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -481,7 +481,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("board")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "board"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -492,7 +492,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("timeline")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "timeline"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -503,7 +503,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("dashboard")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "dashboard"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -514,7 +514,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("calendar")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "calendar"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -525,7 +525,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("workflow")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "workflow"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -536,7 +536,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("messages")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "messages"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -547,7 +547,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
             <button
               onClick={() => handleViewChange("files")}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "files"
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-slate-600 hover:text-slate-900"
@@ -581,7 +581,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
 
           {/* Toolbar - only show for task views */}
           {showToolbar && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 overflow-x-auto flex-nowrap">
               {/* Filter */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

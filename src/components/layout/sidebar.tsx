@@ -86,10 +86,10 @@ function NavItem({
     <Link href={href}>
       <span
         className={cn(
-          "flex items-center rounded-lg text-[13px] font-medium transition-colors",
+          "flex items-center rounded-lg text-xs md:text-[13px] font-medium transition-colors",
           collapsed
             ? "justify-center h-9 w-9 mx-auto"
-            : "gap-2.5 px-3 py-1.5",
+            : "gap-2.5 px-2 md:px-3 py-1.5",
           isActive
             ? "bg-gray-200/80 text-gray-900"
             : "text-gray-600 hover:bg-black/[0.04] hover:text-gray-900"
@@ -178,7 +178,7 @@ export function Sidebar({
           "max-md:fixed max-md:top-[52px] max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:shadow-xl",
           collapsed
             ? "w-16 max-md:w-0 max-md:border-0"
-            : "w-[240px] max-md:w-[280px]"
+            : "w-[240px] max-md:w-[260px]"
         )}
       >
         <ScrollArea className="flex-1 pt-2" style={{ paddingLeft: collapsed ? 0 : undefined, paddingRight: collapsed ? 0 : undefined }}>
@@ -293,7 +293,7 @@ export function Sidebar({
                               >
                                 <span
                                   className={cn(
-                                    "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
+                                    "flex items-center gap-2.5 rounded-md px-2 md:px-3 py-1.5 text-xs md:text-[13px] font-medium transition-colors",
                                     isActive
                                       ? "bg-gray-200/80 text-gray-900"
                                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
@@ -363,7 +363,7 @@ export function Sidebar({
                               >
                                 <span
                                   className={cn(
-                                    "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
+                                    "flex items-center gap-2.5 rounded-md px-2 md:px-3 py-1.5 text-xs md:text-[13px] font-medium transition-colors",
                                     isActive
                                       ? "bg-gray-200/80 text-gray-900"
                                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
@@ -429,7 +429,7 @@ export function Sidebar({
             <Link href={`${basePath}/settings`}>
               <span
                 className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                  "flex w-full items-center gap-2.5 rounded-lg px-2 md:px-3 py-2 md:py-1.5 text-xs md:text-[13px] font-medium transition-colors",
                   pathname === `${basePath}/settings`
                     ? "bg-gray-200/80 text-gray-900"
                     : "text-gray-600 hover:bg-black/[0.04] hover:text-gray-900"

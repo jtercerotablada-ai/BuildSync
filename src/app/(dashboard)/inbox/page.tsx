@@ -213,7 +213,7 @@ export default function InboxPage() {
   return (
     <div className="flex-1 flex flex-col h-full bg-white">
       {/* ─── Page Header ─── */}
-      <div className="flex items-center justify-between px-8 pt-7 pb-1">
+      <div className="flex items-center justify-between px-4 md:px-8 pt-7 pb-1">
         <h1 className="text-xl font-semibold text-gray-900 tracking-[-0.01em]">
           Inbox
         </h1>
@@ -244,7 +244,7 @@ export default function InboxPage() {
       </div>
 
       {/* ─── Tabs ─── */}
-      <div className="relative px-8">
+      <div className="relative px-4 md:px-8">
         <div className="flex items-center gap-6 pt-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -398,7 +398,7 @@ export default function InboxPage() {
             ) : filteredNotifications.length === 0 ? (
               <EmptyInbox />
             ) : (
-              <div className="px-8 py-4">
+              <div className="px-4 md:px-8 py-4">
                 {Object.entries(groupedNotifications).map(
                   ([period, notifs]) =>
                     notifs.length > 0 && (
@@ -732,7 +732,7 @@ function InboxToolbar({
   onArchiveAll: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between px-8 py-2 border-b border-gray-100">
+    <div className="flex items-center justify-between px-4 md:px-8 py-2 border-b border-gray-100">
       {/* Left group */}
       <div className="flex items-center gap-3">
         <FilterButton onFilter={onFilter} />
@@ -973,7 +973,7 @@ function InboxEmptyState({
 }) {
   return (
     <div className="flex flex-1 items-center justify-center min-h-[420px]">
-      <div className="flex flex-col items-center text-center max-w-[420px] mx-auto px-6">
+      <div className="flex flex-col items-center text-center max-w-full md:max-w-[420px] mx-auto px-4 md:px-6">
         {/* Icon container — 64px circle, light grey bg */}
         <div className="w-16 h-16 rounded-full bg-[#f3f4f6] flex items-center justify-center mb-6">
           <Icon className="w-[22px] h-[22px] text-gray-400" />

@@ -202,12 +202,12 @@ export function CalendarView({
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Navigation toolbar - centered like My Tasks */}
-      <div className="flex items-center justify-center gap-2 px-4 py-3 border-b">
+      <div className="flex flex-col md:flex-row items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-3 border-b">
         <Button
           variant="ghost"
           size="icon"
           onClick={goToPrev}
-          className="h-8 w-8"
+          className="h-10 w-10 md:h-8 md:w-8"
         >
           <ChevronRight className="h-4 w-4 rotate-180" />
         </Button>
@@ -223,7 +223,7 @@ export function CalendarView({
           variant="ghost"
           size="icon"
           onClick={goToNext}
-          className="h-8 w-8"
+          className="h-10 w-10 md:h-8 md:w-8"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -295,11 +295,12 @@ export function CalendarView({
           <div
             key={day}
             className={cn(
-              "py-2 text-center text-xs font-medium text-black uppercase border-r last:border-r-0",
+              "py-1 md:py-2 text-center text-[10px] md:text-xs font-medium text-black uppercase border-r last:border-r-0",
               showWeekends && index >= 5 && "bg-white"
             )}
           >
-            {day}
+            <span className="hidden md:inline">{day}</span>
+            <span className="md:hidden">{day.charAt(0)}</span>
           </div>
         ))}
       </div>
@@ -322,7 +323,7 @@ export function CalendarView({
               <div
                 key={dateStr}
                 className={cn(
-                  "border-r border-b p-1 group relative",
+                  "border-r border-b p-0.5 md:p-1 group relative",
                   isWeek ? "min-h-[400px]" : "min-h-[90px]",
                   !isCurrentMonth && !isWeek && "bg-white/50",
                   isWeekendDay && showWeekends && "bg-white/30"
@@ -332,7 +333,7 @@ export function CalendarView({
                 <div className="flex items-start justify-between">
                   <span
                     className={cn(
-                      "text-sm",
+                      "text-xs md:text-sm",
                       !isCurrentMonth && !isWeek && "text-slate-300",
                       isCurrentDay &&
                         "bg-black text-white rounded-full w-6 h-6 flex items-center justify-center font-medium"
@@ -356,7 +357,7 @@ export function CalendarView({
                     <div
                       key={task.id}
                       className={cn(
-                        "text-xs p-1 bg-white border rounded shadow-sm truncate cursor-pointer hover:bg-white",
+                        "text-xs p-0.5 md:p-1 bg-white border rounded shadow-sm truncate cursor-pointer hover:bg-white",
                         task.completed && "line-through text-slate-400 opacity-60"
                       )}
                       title={task.name}
@@ -365,7 +366,8 @@ export function CalendarView({
                         onTaskClick(task.id);
                       }}
                     >
-                      {task.name}
+                      <span className="hidden md:inline">{task.name}</span>
+                      <span className="md:hidden w-2 h-2 rounded-full bg-blue-500 inline-block" />
                     </div>
                   ))}
                   {dayTasks.length > maxVisible && (

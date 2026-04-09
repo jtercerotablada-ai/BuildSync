@@ -217,7 +217,7 @@ export default function GoalsPage() {
   return (
     <div className="flex-1 flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b">
+      <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b">
         <h1 className="text-xl font-semibold text-black">Goals</h1>
         <Button
           variant="ghost"
@@ -230,7 +230,7 @@ export default function GoalsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-6 border-b">
+      <div className="flex items-center gap-1 px-4 md:px-6 border-b overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -254,7 +254,7 @@ export default function GoalsPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-3 border-b bg-white">
         <div className="flex items-center gap-3">
           {/* Create Goal Button */}
           <Button
@@ -504,9 +504,9 @@ function GoalsListView({
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       {/* Column Headers */}
-      <div className="flex items-center border-b pb-2 text-xs font-medium text-black uppercase tracking-wide">
+      <div className="hidden md:flex items-center border-b pb-2 text-xs font-medium text-black uppercase tracking-wide">
         {columns.map((col) => (
           <div
             key={col.id}
@@ -525,8 +525,9 @@ function GoalsListView({
       <div className="divide-y">
         {objectives.map((objective) => (
           <div key={objective.id}>
+            {/* Desktop row */}
             <div
-              className="flex items-center py-3 hover:bg-white cursor-pointer group"
+              className="hidden md:flex items-center py-3 hover:bg-white cursor-pointer group"
               onClick={() => onRowClick(objective.id)}
             >
               {/* Name */}
@@ -607,6 +608,58 @@ function GoalsListView({
               <div className="w-10" />
             </div>
 
+            {/* Mobile card */}
+            <div
+              className="flex md:hidden items-center gap-3 py-3 px-3 hover:bg-gray-50 cursor-pointer"
+              onClick={() => onRowClick(objective.id)}
+            >
+              {(objective._count.keyResults > 0 ||
+                objective._count.children > 0) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleExpand(objective.id);
+                  }}
+                  className="p-1 hover:bg-white rounded flex-shrink-0"
+                >
+                  {expandedIds.has(objective.id) ? (
+                    <ChevronDown className="h-4 w-4 text-black" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-black" />
+                  )}
+                </button>
+              )}
+              <div
+                className={cn(
+                  "w-2.5 h-2.5 rounded-full flex-shrink-0",
+                  getStatusColor(objective.status)
+                )}
+              />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm text-black truncate block">{objective.name}</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 max-w-[100px] h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-black rounded-full"
+                      style={{ width: `${objective.progress}%` }}
+                    />
+                  </div>
+                  <span className="text-[11px] text-gray-500">{objective.progress}%</span>
+                  {objective.period && (
+                    <span className="text-[11px] text-gray-400">{objective.period}</span>
+                  )}
+                </div>
+              </div>
+              {objective.owner && (
+                <Avatar className="h-6 w-6 flex-shrink-0">
+                  <AvatarImage src={objective.owner.image || ""} />
+                  <AvatarFallback className="text-xs bg-white border border-black">
+                    {objective.owner.name?.charAt(0) || "?"}
+                  </AvatarFallback>
+                </Avatar>
+              )}
+            </div>
+
             {/* Expanded Key Results */}
             {expandedIds.has(objective.id) &&
               objective.keyResults.length > 0 && (
@@ -679,9 +732,9 @@ function StrategyMapView({
 
   if (showOnboarding) {
     return (
-      <div className="flex h-full">
+      <div className="flex flex-col md:flex-row h-full">
         {/* Left: Onboarding Form */}
-        <div className="w-1/2 p-8 border-r">
+        <div className="w-full md:w-1/2 p-4 md:p-8 md:border-r">
           <p className="text-sm text-black mb-4">Step 1 of 2</p>
 
           <h2 className="text-2xl font-semibold text-black mb-4">
@@ -734,7 +787,7 @@ function StrategyMapView({
         </div>
 
         {/* Right: Strategy Map Preview */}
-        <div className="w-1/2 p-8 bg-white overflow-auto">
+        <div className="hidden md:block w-1/2 p-8 bg-white overflow-auto">
           <StrategyMapPreview />
         </div>
       </div>
@@ -762,7 +815,7 @@ function StrategyMapView({
   }
 
   return (
-    <div className="p-8 overflow-auto">
+    <div className="p-4 md:p-8 overflow-auto">
       <StrategyMapTree objectives={objectives} />
     </div>
   );

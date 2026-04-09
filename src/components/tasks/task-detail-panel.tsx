@@ -304,7 +304,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
 
   if (loading) {
     return (
-      <div className="w-[480px] border-l bg-white flex items-center justify-center">
+      <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[480px] z-50 border-l bg-white flex items-center justify-center">
         <div className="text-slate-500">Loading...</div>
       </div>
     );
@@ -312,14 +312,14 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
 
   if (!task) {
     return (
-      <div className="w-[480px] border-l bg-white flex items-center justify-center">
+      <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[480px] z-50 border-l bg-white flex items-center justify-center">
         <div className="text-slate-500">Task not found</div>
       </div>
     );
   }
 
   return (
-    <div className="w-[480px] border-l bg-white flex flex-col">
+    <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[480px] z-50 border-l bg-white flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-2">
@@ -367,8 +367,8 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-10 w-10 md:h-8 md:w-8">
+            <X className="h-5 w-5 md:h-4 md:w-4" />
           </Button>
         </div>
       </div>
@@ -389,9 +389,11 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           {/* Metadata */}
           <div className="space-y-3">
             {/* Assignee */}
-            <div className="flex items-center gap-3">
-              <User className="h-4 w-4 text-slate-400" />
-              <span className="text-sm text-slate-500 w-20">Assignee</span>
+            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+              <div className="flex items-center gap-2 md:gap-3">
+                <User className="h-4 w-4 text-slate-400" />
+                <span className="text-sm text-slate-500 w-20">Assignee</span>
+              </div>
               <div className="flex items-center gap-2">
                 {task.assignee ? (
                   <>
@@ -412,9 +414,11 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
             </div>
 
             {/* Due Date */}
-            <div className="flex items-center gap-3">
-              <CalendarIcon className="h-4 w-4 text-slate-400" />
-              <span className="text-sm text-slate-500 w-20">Due date</span>
+            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+              <div className="flex items-center gap-2 md:gap-3">
+                <CalendarIcon className="h-4 w-4 text-slate-400" />
+                <span className="text-sm text-slate-500 w-20">Due date</span>
+              </div>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="sm" className="text-slate-600">
@@ -437,14 +441,16 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
             </div>
 
             {/* Priority */}
-            <div className="flex items-center gap-3">
-              <Flag className="h-4 w-4 text-slate-400" />
-              <span className="text-sm text-slate-500 w-20">Priority</span>
+            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+              <div className="flex items-center gap-2 md:gap-3">
+                <Flag className="h-4 w-4 text-slate-400" />
+                <span className="text-sm text-slate-500 w-20">Priority</span>
+              </div>
               <Select
                 value={task.priority}
                 onValueChange={(value) => updateTask({ priority: value })}
               >
-                <SelectTrigger className="w-32 h-8 border-none">
+                <SelectTrigger className="w-full md:w-32 h-8 border-none">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -459,9 +465,11 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
 
             {/* Section */}
             {task.section && (
-              <div className="flex items-center gap-3">
-                <CheckSquare className="h-4 w-4 text-slate-400" />
-                <span className="text-sm text-slate-500 w-20">Section</span>
+              <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <CheckSquare className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-500 w-20">Section</span>
+                </div>
                 <span className="text-sm">{task.section.name}</span>
               </div>
             )}
@@ -579,7 +587,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Write a comment..."
-                  className="min-h-[60px] resize-none"
+                  className="min-h-[80px] md:min-h-[60px] resize-none w-full"
                 />
                 <Button
                   size="icon"

@@ -574,7 +574,7 @@ export function TaskDetailModal({
           'p-0 gap-0 overflow-hidden flex flex-col [&>button]:hidden',
           isFullscreen
             ? 'fixed inset-0 !max-w-none w-screen h-screen !max-h-none rounded-none !translate-x-0 !translate-y-0 !top-0 !left-0'
-            : 'max-w-2xl w-full max-h-[90vh]'
+            : 'max-w-[95vw] md:max-w-2xl w-full max-h-[90vh]'
         )}
       >
         <VisuallyHidden.Root>
@@ -610,7 +610,7 @@ export function TaskDetailModal({
             />
 
             {/* ========== INFO BANNER ========== */}
-            <div className="flex items-center gap-2 px-6 py-2 bg-blue-50 text-sm text-gray-600 flex-shrink-0">
+            <div className="flex items-center gap-2 px-4 md:px-6 py-2 bg-blue-50 text-sm text-gray-600 flex-shrink-0">
               <Info className="h-4 w-4 text-blue-500" />
               <span>
                 This task is visible to members of{' '}
@@ -622,7 +622,7 @@ export function TaskDetailModal({
 
             {/* ========== SCROLLABLE CONTENT ========== */}
             <div className="flex-1 overflow-y-auto">
-              <div className="p-6 space-y-4">
+              <div className="p-4 md:p-6 space-y-4">
                 {/* 1. TITLE WITH BORDER */}
                 <div className="border rounded-lg">
                   <Input
@@ -638,8 +638,8 @@ export function TaskDetailModal({
                 </div>
 
                 {/* 2. DESCRIPTION - AFTER THE TITLE */}
-                <div className="flex items-start gap-4">
-                  <span className="w-28 text-sm text-gray-500 pt-2 flex-shrink-0">
+                <div className="flex flex-col md:flex-row md:items-start gap-1 md:gap-4">
+                  <span className="w-28 text-sm text-gray-500 md:pt-2 flex-shrink-0">
                     Description
                   </span>
                   <Textarea
@@ -656,7 +656,7 @@ export function TaskDetailModal({
                 {/* ========== CAMPOS ========== */}
                 <div className="space-y-3">
                   {/* Assignee */}
-                  <div className="flex items-center min-h-9">
+                  <div className="flex flex-col md:flex-row md:items-center min-h-9">
                     <div className="w-28 flex items-center gap-2 text-sm text-gray-500 flex-shrink-0">
                       <User className="h-4 w-4" />
                       <span>Assignee</span>
@@ -688,7 +688,7 @@ export function TaskDetailModal({
                   </div>
 
                   {/* Due Date */}
-                  <div className="flex items-center min-h-9">
+                  <div className="flex flex-col md:flex-row md:items-center min-h-9">
                     <div className="w-28 flex items-center gap-2 text-sm text-gray-500 flex-shrink-0">
                       <CalendarIcon className="h-4 w-4" />
                       <span>Due date</span>
@@ -716,8 +716,8 @@ export function TaskDetailModal({
                   </div>
 
                   {/* Projects */}
-                  <div className="flex items-start">
-                    <div className="w-28 flex items-center gap-2 text-sm text-gray-500 pt-2 flex-shrink-0">
+                  <div className="flex flex-col md:flex-row md:items-start">
+                    <div className="w-28 flex items-center gap-2 text-sm text-gray-500 md:pt-2 flex-shrink-0">
                       <FolderKanban className="h-4 w-4" />
                       <span>Projects</span>
                     </div>
@@ -735,8 +735,8 @@ export function TaskDetailModal({
                   </div>
 
                   {/* Dependencies */}
-                  <div className="flex items-start min-h-9">
-                    <div className="w-28 flex items-center gap-2 text-sm text-gray-500 pt-1.5 flex-shrink-0">
+                  <div className="flex flex-col md:flex-row md:items-start min-h-9">
+                    <div className="w-28 flex items-center gap-2 text-sm text-gray-500 md:pt-1.5 flex-shrink-0">
                       <Link className="h-4 w-4" />
                       <span>Dependencies</span>
                     </div>
@@ -750,8 +750,8 @@ export function TaskDetailModal({
                   </div>
 
                   {/* Custom Fields */}
-                  <div className="flex items-start">
-                    <div className="w-28 text-sm text-gray-500 pt-2 flex-shrink-0">
+                  <div className="flex flex-col md:flex-row md:items-start">
+                    <div className="w-28 text-sm text-gray-500 md:pt-2 flex-shrink-0">
                       Fields
                     </div>
                     <div className="flex-1 space-y-1">
@@ -891,7 +891,7 @@ export function TaskDetailModal({
             </div>
 
             {/* ========== FOOTER ========== */}
-            <div className="flex items-center justify-between px-6 py-3 border-t bg-white flex-shrink-0">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6 py-3 gap-2 md:gap-0 border-t bg-white flex-shrink-0">
               {/* Collaborators */}
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-500">Collaborators</span>
