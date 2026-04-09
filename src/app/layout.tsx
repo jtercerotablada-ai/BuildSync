@@ -15,7 +15,12 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "TT Civil & Structural | Project Management",
-  description: "Modern project management app for teams",
+  description: "Tercero Tablada Civil & Structural Engineering - Project Management Platform",
+  icons: {
+    icon: "/ttc/img/logo-icon.svg",
+    shortcut: "/ttc/img/logo-icon.svg",
+    apple: "/ttc/img/logo-icon.svg",
+  },
 };
 
 export default function RootLayout({
