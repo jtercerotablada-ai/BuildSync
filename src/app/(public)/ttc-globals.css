@@ -250,6 +250,27 @@
   }
 }
 
+/* Responsive footer grid */
+@media (max-width: 768px) {
+  .ttc-footer-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 2rem !important;
+  }
+  /* Office spans full width */
+  .ttc-footer-grid > div:first-child {
+    grid-column: 1 / -1;
+  }
+  /* Connect spans full width */
+  .ttc-footer-grid > div:last-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 400px) {
+  .ttc-footer-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
 /* Responsive services grid - equal height */
 .ttc-services-grid {
   display: grid;
