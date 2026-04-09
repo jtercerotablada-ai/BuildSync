@@ -96,6 +96,7 @@ export default function HomePage() {
 
         {/* Content */}
         <div
+          className="ttc-hero-content"
           style={{
             position: 'relative',
             zIndex: 2,
@@ -105,6 +106,7 @@ export default function HomePage() {
           }}
         >
           <div
+            className="ttc-hero-badge"
             style={{
               display: 'inline-block',
               fontSize: '0.6875rem',
@@ -121,6 +123,7 @@ export default function HomePage() {
           </div>
 
           <h1
+            className="ttc-hero-title"
             style={{
               fontFamily: 'var(--font-playfair), serif',
               fontSize: 'clamp(1.75rem, 4.2vw, 4rem)',
@@ -136,6 +139,7 @@ export default function HomePage() {
           </h1>
 
           <p
+            className="ttc-hero-materials"
             style={{
               fontSize: '0.75rem',
               fontWeight: 500,
@@ -149,6 +153,7 @@ export default function HomePage() {
           </p>
 
           <p
+            className="ttc-hero-desc"
             style={{
               fontSize: '1.0625rem',
               color: '#bbb',
@@ -160,7 +165,7 @@ export default function HomePage() {
             {t('hero.desc')}
           </p>
 
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div className="ttc-hero-buttons" style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link href="/projects" className="ttc-btn ttc-btn--primary">
               {t('hero.viewProjects')}
             </Link>
@@ -170,6 +175,7 @@ export default function HomePage() {
           </div>
 
           <p
+            className="ttc-hero-credential"
             style={{
               fontSize: '0.75rem',
               fontWeight: 500,
@@ -185,6 +191,7 @@ export default function HomePage() {
 
         {/* Scroll indicator */}
         <div
+          className="ttc-scroll-indicator"
           style={{
             position: 'absolute',
             bottom: '1rem',

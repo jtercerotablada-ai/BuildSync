@@ -271,6 +271,51 @@
   }
 }
 
+/* Mobile hero adjustments */
+@media (max-width: 768px) {
+  .ttc-hero-content {
+    padding: 5rem 1.25rem 0 !important;
+  }
+  .ttc-hero-badge {
+    font-size: 0.5625rem !important;
+    padding: 0.375rem 0.75rem !important;
+    margin-bottom: 1.25rem !important;
+  }
+  .ttc-hero-title {
+    font-size: 1.75rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  .ttc-hero-materials {
+    font-size: 0.5625rem !important;
+    letter-spacing: 0.1em !important;
+    margin-bottom: 0.75rem !important;
+  }
+  .ttc-hero-desc {
+    font-size: 0.875rem !important;
+    line-height: 1.6 !important;
+    margin-bottom: 1.5rem !important;
+  }
+  .ttc-hero-buttons {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+  }
+  .ttc-hero-buttons .ttc-btn {
+    width: 100% !important;
+    max-width: 280px !important;
+    padding: 0.75rem 1.5rem !important;
+    font-size: 0.6875rem !important;
+  }
+  .ttc-hero-credential {
+    font-size: 0.625rem !important;
+    margin-top: 1rem !important;
+    margin-bottom: 2rem !important;
+  }
+  .ttc-scroll-indicator {
+    display: none !important;
+  }
+}
+
 /* Responsive services grid - equal height */
 .ttc-services-grid {
   display: grid;
