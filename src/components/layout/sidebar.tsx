@@ -175,7 +175,10 @@ export function Sidebar({
       <aside
         className={cn(
           "flex h-full flex-col border-r border-gray-200/80 bg-[#fafafa] transition-[width] duration-200 ease-out overflow-hidden",
-          collapsed ? "w-16" : "w-[240px]"
+          "max-md:fixed max-md:top-[52px] max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:shadow-xl",
+          collapsed
+            ? "w-16 max-md:w-0 max-md:border-0"
+            : "w-[240px] max-md:w-[280px]"
         )}
       >
         <ScrollArea className="flex-1 pt-2" style={{ paddingLeft: collapsed ? 0 : undefined, paddingRight: collapsed ? 0 : undefined }}>

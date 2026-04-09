@@ -41,7 +41,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
       style={{ height: "var(--topbar-h, 52px)", padding: "0 12px" }}
     >
       {/* ─── LEFT cluster: hamburger + Create ─── */}
-      <div className="flex items-center gap-2.5 min-w-[148px]">
+      <div className="flex items-center gap-2.5 md:min-w-[148px]">
         <button
           type="button"
           aria-label="Toggle sidebar"
@@ -57,7 +57,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
               className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-black text-white text-[13px] font-medium hover:bg-gray-800 transition-colors"
             >
               <Plus className="h-4 w-4" />
-              Create
+              <span className="hidden md:inline">Create</span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
@@ -99,16 +99,16 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "var(--search-bg, #f1f2f4)"; }}
         >
           <Search className="h-4 w-4 text-gray-400 flex-shrink-0" />
-          <span className="ml-2.5 text-[14px] text-gray-400 leading-none select-none">Search</span>
+          <span className="ml-2.5 text-[14px] text-gray-400 leading-none select-none hidden md:inline">Search</span>
         </button>
       </div>
 
       {/* ─── RIGHT cluster: icon buttons + avatar ─── */}
-      <div className="flex items-center gap-1.5 min-w-[148px] justify-end">
+      <div className="flex items-center gap-1.5 md:min-w-[148px] justify-end">
         <button
           type="button"
           onClick={openPanel}
-          className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-orange-50 transition-colors"
+          className="hidden md:flex items-center justify-center h-8 w-8 rounded-md hover:bg-orange-50 transition-colors"
         >
           <Sparkles className="h-[18px] w-[18px]" style={{ color: "#D97757" }} />
         </button>
@@ -124,7 +124,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
         <button
           type="button"
           onClick={() => toast.info("Help center coming soon")}
-          className="flex items-center justify-center h-8 w-8 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          className="hidden md:flex items-center justify-center h-8 w-8 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
         >
           <HelpCircle className="h-[18px] w-[18px]" />
         </button>

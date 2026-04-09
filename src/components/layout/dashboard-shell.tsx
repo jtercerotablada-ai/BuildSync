@@ -28,6 +28,8 @@ const SIDEBAR_STORAGE_KEY = "buildsync.sidebarCollapsed";
 function getInitialCollapsed(): boolean {
   if (typeof window === "undefined") return false;
   try {
+    // On mobile, always start collapsed (sidebar hidden)
+    if (window.innerWidth < 768) return true;
     return localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
   } catch {
     return false;
@@ -137,14 +139,21 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
         onToggleSidebar={toggleSidebar}
       />
       {/* Sidebar + main below topbar */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Mobile overlay when sidebar is open */}
+        {!sidebarCollapsed && (
+          <div
+            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            onClick={toggleSidebar}
+          />
+        )}
         <Sidebar
           projects={projects}
           collapsed={sidebarCollapsed}
           onCreateProject={() => setShowCreateProject(true)}
           basePath={basePath}
         />
-        <main className="flex-1 overflow-auto bg-white transition-[margin] duration-200 ease-out">
+        <main className="flex-1 overflow-auto bg-white transition-[margin] duration-200 ease-out w-full">
           {children}
         </main>
       </div>
