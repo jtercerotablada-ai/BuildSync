@@ -97,6 +97,12 @@ model User {
   taskCollaborators        TaskCollaborator[]        @relation("UserTaskCollaborators")
   taskLikes                TaskLike[]                @relation("UserTaskLikes")
   objectiveLikes           ObjectiveLike[]           @relation("UserObjectiveLikes")
+
+  // TTC Civil Structural - Client/Worker relations
+  clientProjectAccesses    ClientProjectAccess[]     @relation("ClientProjectAccesses")
+  clientApprovals          ClientApproval[]          @relation("ClientApprovals")
+  sentDirectMessages       DirectMessage[]           @relation("SentDirectMessages")
+  receivedDirectMessages   DirectMessage[]           @relation("ReceivedDirectMessages")
 }
 
 // ============ PREFERENCIAS DE USUARIO ============
@@ -165,6 +171,8 @@ enum WorkspaceRole {
   ADMIN
   MEMBER
   GUEST
+  WORKER
+  CLIENT
 }
 
 model WorkspaceInvitation {
@@ -364,6 +372,11 @@ model Project {
   objectives    ObjectiveProject[]
   keyResults    KeyResultProject[]
   statusUpdates StatusUpdate[]
+
+  // TTC Civil Structural - Client relations
+  clientAccesses   ClientProjectAccess[] @relation("ClientAccesses")
+  clientApprovals  ClientApproval[]      @relation("ProjectApprovals")
+  directMessages   DirectMessage[]       @relation("ProjectDirectMessages")
 }
 
 model ProjectMember {
@@ -488,6 +501,7 @@ model Task {
   likes             TaskLike[]
   objectives        ObjectiveTask[]
   keyResults        KeyResultTask[]
+  clientApprovals   ClientApproval[] @relation("TaskApprovals")
 
   @@index([projectId])
   @@index([sectionId])
@@ -1220,4 +1234,82 @@ model ProjectTemplate {
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   creator   User      @relation("UserProjectTemplates", fields: [creatorId], references: [id], onDelete: Cascade)
+}
+
+// ============ TTC CIVIL STRUCTURAL - CLIENT/WORKER MODELS ============
+
+model ClientProjectAccess {
+  id         String   @id @default(cuid())
+  userId     String
+  projectId  String
+  canComment Boolean  @default(true)
+  canUpload  Boolean  @default(true)
+  canApprove Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user    User    @relation("ClientProjectAccesses", fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation("ClientAccesses", fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model ClientApproval {
+  id          String         @id @default(cuid())
+  projectId   String
+  taskId      String?
+  title       String
+  description String?
+  status      ApprovalStatus @default(PENDING)
+  clientId    String
+  reviewedAt  DateTime?
+  comments    String?
+  createdAt   DateTime       @default(now())
+
+  project Project @relation("ProjectApprovals", fields: [projectId], references: [id], onDelete: Cascade)
+  task    Task?   @relation("TaskApprovals", fields: [taskId], references: [id], onDelete: SetNull)
+  client  User    @relation("ClientApprovals", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([clientId])
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+model DirectMessage {
+  id         String   @id @default(cuid())
+  content    String
+  senderId   String
+  receiverId String
+  projectId  String?
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender   User     @relation("SentDirectMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User     @relation("ReceivedDirectMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  project  Project? @relation("ProjectDirectMessages", fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([projectId])
+}
+
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  service   String
+  message   String
+  files     Json?
+  status    String   @default("NEW")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

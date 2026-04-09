@@ -50,19 +50,24 @@ interface SidebarProps {
   collapsed?: boolean;
   onCreateProject?: () => void;
   onCreatePortfolio?: () => void;
+  basePath?: string;
 }
 
-const mainNavItems = [
-  { href: "/home", label: "Home", icon: Home },
-  { href: "/my-tasks", label: "My Tasks", icon: CheckSquare },
-  { href: "/inbox", label: "Inbox", icon: Inbox },
-];
+function getMainNavItems(basePath: string) {
+  return [
+    { href: `${basePath}/home`, label: "Home", icon: Home },
+    { href: `${basePath}/my-tasks`, label: "My Tasks", icon: CheckSquare },
+    { href: `${basePath}/inbox`, label: "Inbox", icon: Inbox },
+  ];
+}
 
-const insightsNavItems = [
-  { href: "/reporting", label: "Reporting", icon: BarChart3 },
-  { href: "/portfolios", label: "Portfolios", icon: Briefcase },
-  { href: "/goals", label: "Goals", icon: Target },
-];
+function getInsightsNavItems(basePath: string) {
+  return [
+    { href: `${basePath}/reporting`, label: "Reporting", icon: BarChart3 },
+    { href: `${basePath}/portfolios`, label: "Portfolios", icon: Briefcase },
+    { href: `${basePath}/goals`, label: "Goals", icon: Target },
+  ];
+}
 
 function NavItem({
   href,
@@ -119,9 +124,12 @@ export function Sidebar({
   collapsed = false,
   onCreateProject,
   onCreatePortfolio,
+  basePath = "",
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const mainNavItems = getMainNavItems(basePath);
+  const insightsNavItems = getInsightsNavItems(basePath);
   const { data: session } = useSession();
   const [mounted, setMounted] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(true);
@@ -180,7 +188,7 @@ export function Sidebar({
                   href={item.href}
                   label={item.label}
                   icon={item.icon}
-                  isActive={pathname === item.href || (item.href !== '/home' && pathname.startsWith(item.href + '/'))}
+                  isActive={pathname === item.href || (!item.href.endsWith('/home') && pathname.startsWith(item.href + '/'))}
                   collapsed={collapsed}
                 />
               ))}
@@ -201,7 +209,7 @@ export function Sidebar({
                   href={item.href}
                   label={item.label}
                   icon={item.icon}
-                  isActive={pathname === item.href || (item.href !== '/home' && pathname.startsWith(item.href + '/'))}
+                  isActive={pathname === item.href || (!item.href.endsWith('/home') && pathname.startsWith(item.href + '/'))}
                   collapsed={collapsed}
                 />
               ))}
@@ -274,11 +282,11 @@ export function Sidebar({
                         ) : (
                           projects.map((project) => {
                             const isActive =
-                              pathname === `/projects/${project.id}`;
+                              pathname === `${basePath}/projects/${project.id}`;
                             return (
                               <Link
                                 key={project.id}
-                                href={`/projects/${project.id}`}
+                                href={`${basePath}/projects/${project.id}`}
                               >
                                 <span
                                   className={cn(
@@ -330,7 +338,7 @@ export function Sidebar({
                         variant="ghost"
                         size="icon"
                         className="h-5 w-5"
-                        onClick={() => router.push("/teams/new")}
+                        onClick={() => router.push(`${basePath || ""}/teams/new`)}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -344,11 +352,11 @@ export function Sidebar({
                         ) : (
                           teams.map((team) => {
                             const isActive =
-                              pathname === `/teams/${team.id}`;
+                              pathname === `${basePath}/teams/${team.id}`;
                             return (
                               <Link
                                 key={team.id}
-                                href={`/teams/${team.id}`}
+                                href={`${basePath}/teams/${team.id}`}
                               >
                                 <span
                                   className={cn(
@@ -393,11 +401,11 @@ export function Sidebar({
           {collapsed ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Link href="/settings">
+                <Link href={`${basePath}/settings`}>
                   <span
                     className={cn(
                       "flex items-center justify-center rounded-lg h-9 w-9 mx-auto transition-colors",
-                      pathname === "/settings"
+                      pathname === `${basePath}/settings`
                         ? "bg-gray-200/80 text-gray-900"
                         : "text-gray-600 hover:bg-black/[0.04] hover:text-gray-900"
                     )}
@@ -415,11 +423,11 @@ export function Sidebar({
               </TooltipContent>
             </Tooltip>
           ) : (
-            <Link href="/settings">
+            <Link href={`${basePath}/settings`}>
               <span
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
-                  pathname === "/settings"
+                  pathname === `${basePath}/settings`
                     ? "bg-gray-200/80 text-gray-900"
                     : "text-gray-600 hover:bg-black/[0.04] hover:text-gray-900"
                 )}

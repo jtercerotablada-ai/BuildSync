@@ -1,0 +1,234 @@
+/* TTC Global CSS Variables & Styles */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+:root {
+  --ttc-bg: #0a0a0a;
+  --ttc-bg-light: #111111;
+  --ttc-bg-card: #141414;
+  --ttc-accent: #c9a84c;
+  --ttc-accent-hover: #d4b85e;
+  --ttc-text: #ffffff;
+  --ttc-text-muted: #999999;
+  --ttc-text-subtle: #666666;
+  --ttc-border: #222222;
+  --ttc-border-light: #333333;
+  --ttc-font-heading: 'Playfair Display', Georgia, serif;
+  --ttc-font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ttc-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===== MARQUEE ANIMATION ===== */
+@keyframes marquee-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ttc-marquee {
+  overflow: hidden;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.ttc-marquee__track {
+  display: inline-flex;
+  gap: 2rem;
+  animation: marquee-scroll 30s linear infinite;
+}
+
+.ttc-marquee__track span {
+  font-family: var(--ttc-font-heading);
+  font-size: 1.25rem;
+  color: var(--ttc-text-muted);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+/* ===== SCROLL ANIMATION ===== */
+.ttc-scroll-hidden {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.ttc-scroll-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.ttc-scroll-delay-100 { transition-delay: 0.1s; }
+.ttc-scroll-delay-200 { transition-delay: 0.2s; }
+.ttc-scroll-delay-300 { transition-delay: 0.3s; }
+.ttc-scroll-delay-400 { transition-delay: 0.4s; }
+
+/* ===== BUTTONS ===== */
+.ttc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem 2.25rem;
+  font-family: var(--ttc-font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: all var(--ttc-transition);
+  line-height: 1;
+}
+
+.ttc-btn--primary {
+  background: var(--ttc-accent);
+  color: var(--ttc-bg);
+}
+
+.ttc-btn--primary:hover {
+  background: var(--ttc-accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(201, 168, 76, 0.3);
+}
+
+.ttc-btn--outline {
+  background: transparent;
+  color: var(--ttc-text);
+  border: 1px solid var(--ttc-border-light);
+}
+
+.ttc-btn--outline:hover {
+  border-color: var(--ttc-accent);
+  color: var(--ttc-accent);
+  transform: translateY(-2px);
+}
+
+.ttc-btn--dark {
+  background: var(--ttc-bg-card);
+  color: var(--ttc-text);
+  border: 1px solid var(--ttc-border-light);
+}
+
+.ttc-btn--dark:hover {
+  border-color: var(--ttc-accent);
+  color: var(--ttc-accent);
+  transform: translateY(-2px);
+}
+
+.ttc-btn--full {
+  width: 100%;
+}
+
+/* ===== FORM FLOATING LABELS ===== */
+.ttc-form-group {
+  position: relative;
+}
+
+.ttc-form-group input,
+.ttc-form-group textarea,
+.ttc-form-group select {
+  width: 100%;
+  padding: 1.25rem 1rem 0.5rem;
+  background: var(--ttc-bg-card);
+  border: 1px solid var(--ttc-border);
+  color: var(--ttc-text);
+  font-family: var(--ttc-font-body);
+  font-size: 0.9375rem;
+  transition: border-color var(--ttc-transition);
+  outline: none;
+}
+
+.ttc-form-group input:focus,
+.ttc-form-group textarea:focus,
+.ttc-form-group select:focus {
+  border-color: var(--ttc-accent);
+}
+
+.ttc-form-group label {
+  position: absolute;
+  top: 50%;
+  left: 1rem;
+  transform: translateY(-50%);
+  color: var(--ttc-text-subtle);
+  font-size: 0.9375rem;
+  pointer-events: none;
+  transition: all var(--ttc-transition);
+}
+
+.ttc-form-group textarea ~ label {
+  top: 1.25rem;
+  transform: none;
+}
+
+.ttc-form-group input:focus ~ label,
+.ttc-form-group input:not(:placeholder-shown) ~ label,
+.ttc-form-group textarea:focus ~ label,
+.ttc-form-group textarea:not(:placeholder-shown) ~ label,
+.ttc-form-group select:focus ~ label,
+.ttc-form-group select:valid ~ label {
+  top: 0.5rem;
+  transform: none;
+  font-size: 0.6875rem;
+  color: var(--ttc-accent);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ===== SECTION LABEL ===== */
+.ttc-section-label {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ttc-accent);
+  margin-bottom: 1rem;
+}
+
+/* ===== PAGE HERO ===== */
+.ttc-page-hero {
+  padding-top: 10rem;
+  padding-bottom: 4rem;
+  text-align: center;
+  background: var(--ttc-bg);
+}
+
+.ttc-page-hero h1 {
+  font-family: var(--ttc-font-heading);
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 400;
+  color: var(--ttc-text);
+  margin-bottom: 1.5rem;
+  line-height: 1.1;
+}
+
+.ttc-page-hero p {
+  color: var(--ttc-text-muted);
+  font-size: 1.125rem;
+  max-width: 640px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+/* ===== FILTER TABS ===== */
+.ttc-filter-btn {
+  padding: 0.5rem 1.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ttc-text-muted);
+  background: transparent;
+  border: 1px solid var(--ttc-border);
+  cursor: pointer;
+  transition: all var(--ttc-transition);
+}
+
+.ttc-filter-btn:hover {
+  color: var(--ttc-text);
+  border-color: var(--ttc-border-light);
+}
+
+.ttc-filter-btn.active {
+  background: var(--ttc-accent);
+  color: var(--ttc-bg);
+  border-color: var(--ttc-accent);
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 290 60" fill="none">
+  <!-- TT Monogram + Company Name -->
+  <rect x="0" y="0" width="56" height="56" stroke="#c9a84c" stroke-width="1.5" fill="none" rx="3"/>
+  <!-- Structural beam -->
+  <line x1="8" y1="15" x2="48" y2="15" stroke="#c9a84c" stroke-width="2"/>
+  <!-- Column 1 at x=20, Column 2 at x=36 -->
+  <line x1="20" y1="15" x2="20" y2="9" stroke="#c9a84c" stroke-width="2"/>
+  <line x1="36" y1="15" x2="36" y2="9" stroke="#c9a84c" stroke-width="2"/>
+  <!-- T1 blanca centrada bajo columna 1 -->
+  <text x="20" y="46" font-family="'Inter', Arial, sans-serif" font-weight="700" font-size="32" fill="#ffffff" text-anchor="middle">T</text>
+  <!-- T2 dorada centrada bajo columna 2 -->
+  <text x="36" y="46" font-family="'Inter', Arial, sans-serif" font-weight="700" font-size="32" fill="#c9a84c" text-anchor="middle">T</text>
+  <!-- Company name -->
+  <text x="68" y="20" font-family="'Inter', Arial, sans-serif" font-weight="700" font-size="13" fill="#ffffff" letter-spacing="2.5">TERCERO TABLADA</text>
+  <text x="68" y="36" font-family="'Inter', Arial, sans-serif" font-weight="400" font-size="6.5" fill="#999999" letter-spacing="1.2">CIVIL &amp; STRUCTURAL ENGINEERING INC.</text>
+  <text x="68" y="50" font-family="'Inter', Arial, sans-serif" font-weight="600" font-size="6" fill="#c9a84c" letter-spacing="1.5">REGISTERED P.E., S.E.</text>
+</svg>

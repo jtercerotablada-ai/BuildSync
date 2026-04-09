@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <!-- TT Monogram grande - T's centradas bajo columnas -->
+  <rect x="2" y="2" width="116" height="116" fill="none" stroke="#c9a84c" stroke-width="2.5" rx="6"/>
+  <!-- Structural beam -->
+  <line x1="20" y1="30" x2="100" y2="30" stroke="#c9a84c" stroke-width="3"/>
+  <!-- Column 1 at x=44, Column 2 at x=76 -->
+  <line x1="44" y1="30" x2="44" y2="20" stroke="#c9a84c" stroke-width="2.5"/>
+  <line x1="76" y1="30" x2="76" y2="20" stroke="#c9a84c" stroke-width="2.5"/>
+  <!-- T1 blanca centrada bajo columna 1 (x=44) -->
+  <text x="44" y="92" font-family="'Inter', Arial, sans-serif" font-weight="700" font-size="68" fill="#ffffff" text-anchor="middle">T</text>
+  <!-- T2 dorada centrada bajo columna 2 (x=76) -->
+  <text x="76" y="92" font-family="'Inter', Arial, sans-serif" font-weight="700" font-size="68" fill="#c9a84c" text-anchor="middle">T</text>
+</svg>

@@ -42,9 +42,11 @@ interface Project {
 
 interface DashboardShellProps {
   children: ReactNode;
+  variant?: "default" | "ttc";
+  basePath?: string;
 }
 
-function DashboardShellContent({ children }: DashboardShellProps) {
+function DashboardShellContent({ children, variant = "default", basePath = "" }: DashboardShellProps) {
   const router = useRouter();
   const { isOpen: isAIPanelOpen, closePanel: closeAIPanel } = useAIPanel();
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -114,7 +116,7 @@ function DashboardShellContent({ children }: DashboardShellProps) {
         const portfolio = await res.json();
         setShowCreatePortfolio(false);
         setNewPortfolio({ name: "", description: "" });
-        router.push(`/portfolios/${portfolio.id}`);
+        router.push(`${basePath}/portfolios/${portfolio.id}`);
       }
     } catch (error) {
       console.error("Error creating portfolio:", error);
@@ -140,6 +142,7 @@ function DashboardShellContent({ children }: DashboardShellProps) {
           projects={projects}
           collapsed={sidebarCollapsed}
           onCreateProject={() => setShowCreateProject(true)}
+          basePath={basePath}
         />
         <main className="flex-1 overflow-auto bg-white transition-[margin] duration-200 ease-out">
           {children}
@@ -224,10 +227,10 @@ function DashboardShellContent({ children }: DashboardShellProps) {
   );
 }
 
-export function DashboardShell({ children }: DashboardShellProps) {
+export function DashboardShell({ children, variant = "default", basePath = "" }: DashboardShellProps) {
   return (
     <AIPanelProvider>
-      <DashboardShellContent>{children}</DashboardShellContent>
+      <DashboardShellContent variant={variant} basePath={basePath}>{children}</DashboardShellContent>
     </AIPanelProvider>
   );
 }

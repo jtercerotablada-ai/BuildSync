@@ -11,9 +11,22 @@ const publicPrefixes = [
   "/verify-email",
   "/api/auth",
   "/api/my-tasks/calendar-feed",
+  "/api/contact",
+];
+
+// TTC public pages (marketing / informational) - no auth required
+const publicExactRoutes = [
+  "/",
+  "/projects",
+  "/services",
+  "/about",
+  "/contact",
 ];
 
 function isPublicRoute(pathname: string): boolean {
+  if (publicExactRoutes.includes(pathname)) {
+    return true;
+  }
   return publicPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
@@ -46,6 +59,38 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Role-based redirects for authenticated users
+  const userRole = (token as Record<string, unknown>).role as string | undefined;
+
+  // CLIENT role users accessing dashboard should be redirected to client portal
+  if (userRole === "CLIENT" && pathname.startsWith("/dashboard")) {
+    return NextResponse.redirect(new URL("/client", request.url));
+  }
+
+  // WORKER role users accessing client portal should be redirected to portal
+  if (userRole === "WORKER" && pathname.startsWith("/client")) {
+    return NextResponse.redirect(new URL("/portal", request.url));
+  }
+
+  // Prevent non-admin/owner users from accessing admin routes
+  if (
+    pathname.startsWith("/portal") &&
+    userRole !== "WORKER" &&
+    userRole !== "ADMIN" &&
+    userRole !== "OWNER"
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  if (
+    pathname.startsWith("/client") &&
+    userRole !== "CLIENT" &&
+    userRole !== "ADMIN" &&
+    userRole !== "OWNER"
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   return NextResponse.next();
