@@ -51,10 +51,11 @@ export function TTCFooter() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gridTemplateColumns: 'repeat(4, 1fr)',
             gap: '3rem',
             paddingBottom: '3rem',
             borderBottom: '1px solid #1a1a1a',
+            textAlign: 'center',
           }}
         >
           {/* Office */}
