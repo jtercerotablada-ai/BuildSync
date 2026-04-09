@@ -100,7 +100,7 @@ export default function HomePage() {
             position: 'relative',
             zIndex: 2,
             textAlign: 'center',
-            maxWidth: '900px',
+            maxWidth: '1100px',
             padding: '6rem 2rem 0',
           }}
         >
@@ -128,7 +128,6 @@ export default function HomePage() {
               lineHeight: 1.1,
               letterSpacing: '-0.02em',
               marginBottom: '1.5rem',
-              whiteSpace: 'nowrap',
             }}
           >
             <span style={{ color: '#fff' }}>{t('hero.titleLine1')}</span>
