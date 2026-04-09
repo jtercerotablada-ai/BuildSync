@@ -213,15 +213,15 @@ export default function InboxPage() {
   return (
     <div className="flex-1 flex flex-col h-full bg-white">
       {/* ─── Page Header ─── */}
-      <div className="flex items-center justify-between px-4 md:px-8 pt-7 pb-1">
-        <h1 className="text-xl font-semibold text-gray-900 tracking-[-0.01em]">
+      <div className="flex items-center justify-between px-4 md:px-8 pt-5 md:pt-7 pb-1">
+        <h1 className="text-lg md:text-xl font-semibold text-gray-900 tracking-[-0.01em]">
           Inbox
         </h1>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="inline-flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-700 transition-colors">
               <Settings className="w-[15px] h-[15px]" />
-              Manage notifications
+              <span className="hidden md:inline">Manage notifications</span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
@@ -245,7 +245,7 @@ export default function InboxPage() {
 
       {/* ─── Tabs ─── */}
       <div className="relative px-4 md:px-8">
-        <div className="flex items-center gap-6 pt-2">
+        <div className="flex items-center gap-4 md:gap-6 pt-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -263,8 +263,8 @@ export default function InboxPage() {
                     : "text-gray-500 hover:text-gray-700"
                 )}
               >
-                <Icon className="w-[15px] h-[15px]" />
-                {tab.label}
+                <Icon className="hidden md:block w-[15px] h-[15px]" />
+                <span className="text-xs md:text-[13px]">{tab.label}</span>
                 {tab.id === "activity" && unreadCount > 0 && (
                   <span className="ml-0.5 bg-blue-600 text-white text-[10px] leading-none px-1.5 py-[3px] rounded-full min-w-[18px] text-center font-medium">
                     {unreadCount}
@@ -351,8 +351,8 @@ export default function InboxPage() {
       <div className="flex-1 overflow-auto">
         {activeTab === "activity" && (
           <>
-            {/* AI Summary Card */}
-            {showAISummary && <InboxSummaryCard
+            {/* AI Summary Card - hidden on mobile */}
+            {showAISummary && <div className="hidden md:block"><InboxSummaryCard
               onDismiss={() => setShowAISummary(false)}
               onViewSummary={async () => {
                 setAiSummaryLoading(true);
@@ -388,7 +388,7 @@ export default function InboxPage() {
               aiSummary={aiSummary}
               aiSummaryLoading={aiSummaryLoading}
               disabled={filteredNotifications.length === 0}
-            />}
+            /></div>}
 
             {/* Notifications grouped by time */}
             {loading ? (
@@ -734,14 +734,14 @@ function InboxToolbar({
   return (
     <div className="flex items-center justify-between px-4 md:px-8 py-2 border-b border-gray-100">
       {/* Left group */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         <FilterButton onFilter={onFilter} />
-        <DensityDropdown value={density} onChange={onDensityChange} />
+        <span className="hidden md:block"><DensityDropdown value={density} onChange={onDensityChange} /></span>
       </div>
 
       {/* Right group */}
-      <div className="flex items-center gap-3">
-        <SortDropdown value={sortOrder} onChange={onSortChange} />
+      <div className="flex items-center gap-2 md:gap-3">
+        <span className="hidden md:block"><SortDropdown value={sortOrder} onChange={onSortChange} /></span>
 
         {/* More options */}
         <DropdownMenu>

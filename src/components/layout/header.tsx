@@ -41,7 +41,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
       style={{ padding: "0 12px" }}
     >
       {/* ─── LEFT cluster: hamburger + Create ─── */}
-      <div className="flex items-center gap-2.5 md:min-w-[148px]">
+      <div className="flex items-center gap-2.5 min-w-[40px] md:min-w-[148px]">
         <button
           type="button"
           aria-label="Toggle sidebar"
@@ -107,7 +107,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
       </div>
 
       {/* ─── RIGHT cluster: icon buttons + avatar ─── */}
-      <div className="flex items-center gap-1.5 md:min-w-[148px] justify-end">
+      <div className="flex items-center gap-1.5 min-w-[100px] md:min-w-[148px] justify-end">
         {/* Mobile search icon */}
         <button
           type="button"
