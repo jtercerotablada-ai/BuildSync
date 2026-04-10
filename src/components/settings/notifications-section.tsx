@@ -111,23 +111,13 @@ export function NotificationsSection() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold">Notifications</h2>
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Notifications</h2>
-        <p className="text-sm text-muted-foreground">
-          Choose what notifications you receive
-        </p>
-      </div>
-
       <div className="space-y-4">
         {notificationItems.map((item) => (
           <div

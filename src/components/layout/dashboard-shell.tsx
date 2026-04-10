@@ -26,17 +26,6 @@ import { MobileBottomNav } from "./mobile-bottom-nav";
 
 const SIDEBAR_STORAGE_KEY = "buildsync.sidebarCollapsed";
 
-function getInitialCollapsed(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    // On mobile, always start collapsed (sidebar hidden)
-    if (window.innerWidth < 768) return true;
-    return localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
-  } catch {
-    return false;
-  }
-}
-
 interface Project {
   id: string;
   name: string;
@@ -59,19 +48,62 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
   const [showCreateGoal, setShowCreateGoal] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialCollapsed);
+  // Start collapsed on both server and client to avoid hydration mismatch.
+  // After mount, restore the user's preference or auto-collapse on mobile.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+
+    // On mobile, always start collapsed regardless of saved preference
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setSidebarCollapsed(true);
+      return;
+    }
+
+    // Try API first (DB-persisted), fall back to localStorage
+    (async () => {
+      try {
+        const res = await fetch("/api/users/preferences");
+        if (res.ok) {
+          const prefs = await res.json();
+          const ui = prefs.uiState as { sidebarCollapsed?: boolean } | null;
+          if (ui && typeof ui.sidebarCollapsed === "boolean") {
+            setSidebarCollapsed(ui.sidebarCollapsed);
+            return;
+          }
+        }
+      } catch {
+        // network error — fall through to localStorage
+      }
+
+      try {
+        const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+        setSidebarCollapsed(stored === "true");
+      } catch {
+        setSidebarCollapsed(false);
+      }
+    })();
+  }, []);
 
   // Portfolio creation state
   const [creatingPortfolio, setCreatingPortfolio] = useState(false);
   const [newPortfolio, setNewPortfolio] = useState({ name: "", description: "" });
 
-  // Persist sidebar state
+  // Persist sidebar state to BOTH localStorage (offline) and DB (cross-device)
   function toggleSidebar() {
     setSidebarCollapsed((prev) => {
       const next = !prev;
       try {
         localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
       } catch {}
+      // Fire-and-forget API save
+      fetch("/api/users/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uiState: { sidebarCollapsed: next } }),
+      }).catch(() => { /* ignore */ });
       return next;
     });
   }
@@ -141,8 +173,8 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
       />
       {/* Sidebar + main below topbar */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Mobile overlay when sidebar is open */}
-        {!sidebarCollapsed && (
+        {/* Mobile overlay when sidebar is open (after mount only to avoid hydration mismatch) */}
+        {mounted && !sidebarCollapsed && (
           <div
             className="fixed inset-0 bg-black/50 z-30 md:hidden"
             onClick={toggleSidebar}

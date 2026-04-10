@@ -10,6 +10,7 @@ const createObjectiveSchema = z.object({
   period: z.string().optional(),
   parentId: z.string().optional(),
   teamId: z.string().optional(),
+  ownerId: z.string().optional(),
   progressSource: z.enum(["MANUAL", "KEY_RESULTS", "SUB_OBJECTIVES", "PROJECTS"]).optional(),
 });
 
@@ -166,6 +167,22 @@ export async function POST(req: Request) {
       }
     }
 
+    // Verify ownerId belongs to user's workspace
+    let resolvedOwnerId = userId;
+    if (data.ownerId && data.ownerId !== userId) {
+      const ownerMember = await prisma.workspaceMember.findFirst({
+        where: {
+          userId: data.ownerId,
+          workspaceId: workspaceMember.workspaceId,
+        },
+        select: { userId: true },
+      });
+      if (!ownerMember) {
+        return NextResponse.json({ error: "Owner not found in workspace" }, { status: 404 });
+      }
+      resolvedOwnerId = data.ownerId;
+    }
+
     const objective = await prisma.objective.create({
       data: {
         name: data.name,
@@ -175,7 +192,7 @@ export async function POST(req: Request) {
         teamId: data.teamId,
         progressSource: data.progressSource || "MANUAL",
         workspaceId: workspaceMember.workspaceId,
-        ownerId: userId,
+        ownerId: resolvedOwnerId,
       },
       include: {
         owner: {

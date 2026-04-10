@@ -121,6 +121,11 @@ model UserPreferences {
 
   theme String @default("system")
 
+  // UI customization (home widgets, etc.)
+  widgetPreferences Json?
+  // Misc per-user UI state (sidebar collapsed, language, dismissed flags, AI history, etc.)
+  uiState Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -423,7 +428,7 @@ model ProjectView {
   isDefault Boolean  @default(false)
   config    Json? // View configuration (filters, sorting, visible columns, etc.)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -446,7 +451,7 @@ model Section {
   name      String
   position  Int      @default(0)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now()) @updatedAt
 
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1125,10 +1130,11 @@ model Report {
   id          String     @id @default(cuid())
   name        String
   description String?
+  iconColor   String     @default("#000000")
   type        ReportType @default(CUSTOM)
   isDefault   Boolean    @default(false)
   createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  updatedAt   DateTime   @default(now()) @updatedAt
 
   workspaceId String
   ownerId     String

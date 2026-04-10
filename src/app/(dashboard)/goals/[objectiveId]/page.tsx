@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
@@ -100,10 +101,23 @@ interface Objective {
       color: string;
     };
   }[];
+  statusUpdates?: {
+    id: string;
+    status: string;
+    summary: string;
+    createdAt: string;
+    author?: {
+      id: string;
+      name: string | null;
+      image: string | null;
+    } | null;
+  }[];
+  likedByMe?: boolean;
   _count: {
     keyResults: number;
     children: number;
     projects: number;
+    likes?: number;
   };
 }
 
@@ -159,6 +173,7 @@ function getTimeRemaining(period: string | null, endDate: string | null): string
 export default function GoalDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const objectiveId = params.objectiveId as string;
 
   const [objective, setObjective] = useState<Objective | null>(null);
@@ -195,11 +210,29 @@ export default function GoalDetailPage() {
         const data = await res.json();
         setObjective(data);
         setDescription(data.description || "");
+        setIsLiked(!!data.likedByMe);
       }
     } catch (error) {
       console.error("Error fetching objective:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function toggleLike() {
+    // Optimistic update
+    setIsLiked((prev) => !prev);
+    try {
+      const res = await fetch(`/api/objectives/${objectiveId}/likes`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setIsLiked(!!data.liked);
+    } catch {
+      // Revert on failure
+      setIsLiked((prev) => !prev);
+      toast.error("Could not update like");
     }
   }
 
@@ -358,11 +391,11 @@ export default function GoalDetailPage() {
   return (
     <div className="flex flex-col h-full bg-white">
       {/* ========== TOP BAR ========== */}
-      <div className="border-b px-6 py-3 flex items-center justify-between bg-white sticky top-0 z-10">
-        <span className="text-sm text-gray-500">
+      <div className="border-b px-4 md:px-6 py-3 flex items-center justify-between bg-white sticky top-0 z-10">
+        <span className="text-xs md:text-sm text-gray-500 truncate pr-2">
           Goals of {objective.workspace?.name || "My workspace"}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Avatar className="h-8 w-8 border-2 border-black">
             <AvatarImage src={objective.owner.image || ""} />
             <AvatarFallback className="text-xs bg-white text-black">
@@ -383,7 +416,7 @@ export default function GoalDetailPage() {
       </div>
 
       {/* ========== HEADER ========== */}
-      <div className="border-b px-6 py-3 flex items-center gap-3 bg-white">
+      <div className="border-b px-4 md:px-6 py-3 flex items-center gap-2 md:gap-3 bg-white">
         {/* Goal icon */}
         <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center">
           <Flag className="h-4 w-4 text-white" />
@@ -392,9 +425,9 @@ export default function GoalDetailPage() {
         {/* Goal name dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1 text-base font-medium hover:bg-gray-100 px-2 py-1 rounded">
-              {objective.name}
-              <ChevronDown className="h-4 w-4 text-gray-400" />
+            <button className="flex items-center gap-1 text-base font-medium hover:bg-gray-100 px-2 py-1 rounded min-w-0 max-w-[140px] md:max-w-none">
+              <span className="truncate">{objective.name}</span>
+              <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
@@ -449,15 +482,15 @@ export default function GoalDetailPage() {
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8", isLiked && "text-black")}
-            onClick={() => setIsLiked(!isLiked)}
+            className={cn("h-8 w-8 hidden sm:inline-flex", isLiked && "text-black")}
+            onClick={toggleLike}
           >
             <ThumbsUp className={cn("h-4 w-4", isLiked && "fill-current")} />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8", isStarred && "text-black")}
+            className={cn("h-8 w-8 hidden sm:inline-flex", isStarred && "text-black")}
             onClick={() => setIsStarred(!isStarred)}
           >
             <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
@@ -466,9 +499,9 @@ export default function GoalDetailPage() {
           {/* Status button */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2 text-gray-600">
-                <div className={cn("h-3 w-3 rounded-full", currentStatus.color)} />
-                Set status
+              <Button variant="ghost" size="sm" className="gap-2 text-gray-600 px-2 md:px-3">
+                <div className={cn("h-3 w-3 rounded-full flex-shrink-0", currentStatus.color)} />
+                <span className="hidden sm:inline">Set status</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -487,36 +520,36 @@ export default function GoalDetailPage() {
       </div>
 
       {/* ========== MAIN CONTENT ========== */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
         <div className="max-w-4xl mx-auto">
           {/* Goal Title */}
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">{objective.name}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6 md:mb-8 break-words">{objective.name}</h1>
 
           {/* ========== META FIELDS ========== */}
-          <div className="space-y-4 mb-6">
+          <div className="space-y-3 md:space-y-4 mb-6">
             {/* Objective owner */}
             <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Objective owner</span>
-              <div className="flex items-center gap-2">
-                <Avatar className="h-6 w-6 border border-black">
+              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Objective owner</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar className="h-6 w-6 border border-black flex-shrink-0">
                   <AvatarImage src={objective.owner.image || ""} />
                   <AvatarFallback className="text-xs bg-white text-black">
                     {getInitials(objective.owner.name)}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-sm">{objective.owner.name}</span>
+                <span className="text-sm truncate">{objective.owner.name}</span>
               </div>
             </div>
 
             {/* Period */}
             <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Period</span>
+              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Period</span>
               <span className="text-sm">{objective.period || "No period"}</span>
             </div>
 
             {/* Due date */}
             <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Due date</span>
+              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Due date</span>
               <div className="relative">
                 <button
                   className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
@@ -556,16 +589,16 @@ export default function GoalDetailPage() {
 
             {/* Responsible team */}
             <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Responsible team</span>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Users className="h-4 w-4" />
-                <span>{objective.team?.name || "No team"}</span>
+              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Responsible team</span>
+              <div className="flex items-center gap-2 text-sm text-gray-500 min-w-0">
+                <Users className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate">{objective.team?.name || "No team"}</span>
               </div>
             </div>
 
             {/* Fields */}
             <div className="flex items-center">
-              <span className="w-44 text-sm text-gray-500">Fields</span>
+              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Fields</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
@@ -600,22 +633,22 @@ export default function GoalDetailPage() {
           </button>
 
           {/* ========== PROGRESS CARDS ========== */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-6 md:mb-8">
             {/* Goal completion card */}
-            <div className="border rounded-xl p-6 text-center">
-              <p className="text-sm text-gray-500 mb-2">Objective completion</p>
-              <p className="text-4xl font-bold text-gray-900 mb-1">{objective.progress}%</p>
+            <div className="border rounded-xl p-4 md:p-6 text-center">
+              <p className="text-xs md:text-sm text-gray-500 mb-2">Objective completion</p>
+              <p className="text-3xl md:text-4xl font-bold text-gray-900 mb-1">{objective.progress}%</p>
               <p className="text-xs text-gray-400">
                 {getTimeRemaining(objective.period, objective.endDate)}
               </p>
             </div>
 
             {/* Status card */}
-            <div className="border rounded-xl p-6 text-center">
-              <p className="text-sm text-gray-500 mb-2">Latest status</p>
+            <div className="border rounded-xl p-4 md:p-6 text-center">
+              <p className="text-xs md:text-sm text-gray-500 mb-2">Latest status</p>
               <div className="flex items-center justify-center gap-2 mb-1">
-                <div className={cn("h-4 w-4 rounded-full", currentStatus.color)} />
-                <span className={cn("text-lg font-medium", currentStatus.textColor)}>
+                <div className={cn("h-4 w-4 rounded-full flex-shrink-0", currentStatus.color)} />
+                <span className={cn("text-base md:text-lg font-medium", currentStatus.textColor)}>
                   {currentStatus.label}
                 </span>
               </div>
@@ -641,15 +674,15 @@ export default function GoalDetailPage() {
           </div>
 
           {/* ========== PROGRESS SECTION WITH CHART ========== */}
-          <div className="mb-8">
+          <div className="mb-6 md:mb-8">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
                 <h3 className="font-semibold text-gray-900">Progress</h3>
-                <Zap className="h-4 w-4 text-black" />
+                <Zap className="h-4 w-4 text-black flex-shrink-0" />
                 {hasNoSubgoals && (
-                  <span className="text-sm text-black flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" />
+                  <span className="text-xs md:text-sm text-black flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3 flex-shrink-0" />
                     No sub-objectives connected
                   </span>
                 )}
@@ -664,11 +697,12 @@ export default function GoalDetailPage() {
                 <DropdownMenuContent>
                   <DropdownMenuItem onClick={async () => {
                     try {
-                      await fetch(`/api/objectives/${objectiveId}`, {
+                      const res = await fetch(`/api/objectives/${objectiveId}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ progressSource: 'MANUAL' }),
                       });
+                      if (!res.ok) throw new Error();
                       setObjective((prev) => prev ? { ...prev, progressSource: 'MANUAL' } : null);
                       toast.success('Progress: Manual');
                     } catch { toast.error('Error'); }
@@ -677,12 +711,13 @@ export default function GoalDetailPage() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={async () => {
                     try {
-                      await fetch(`/api/objectives/${objectiveId}`, {
+                      const res = await fetch(`/api/objectives/${objectiveId}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ progressSource: 'SUB_GOALS' }),
+                        body: JSON.stringify({ progressSource: 'SUB_OBJECTIVES' }),
                       });
-                      setObjective((prev) => prev ? { ...prev, progressSource: 'SUB_GOALS' } : null);
+                      if (!res.ok) throw new Error();
+                      setObjective((prev) => prev ? { ...prev, progressSource: 'SUB_OBJECTIVES' } : null);
                       toast.success('Progress: From sub-objectives');
                     } catch { toast.error('Error'); }
                   }}>
@@ -690,11 +725,12 @@ export default function GoalDetailPage() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={async () => {
                     try {
-                      await fetch(`/api/objectives/${objectiveId}`, {
+                      const res = await fetch(`/api/objectives/${objectiveId}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ progressSource: 'KEY_RESULTS' }),
                       });
+                      if (!res.ok) throw new Error();
                       setObjective((prev) => prev ? { ...prev, progressSource: 'KEY_RESULTS' } : null);
                       toast.success('Progress: From key results');
                     } catch { toast.error('Error'); }
@@ -730,30 +766,31 @@ export default function GoalDetailPage() {
 
           {/* ========== KEY RESULTS SECTION ========== */}
           {objective.keyResults.length > 0 && (
-            <div className="mb-8">
+            <div className="mb-6 md:mb-8">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">Key results</h3>
                 <Button variant="ghost" size="sm" className="text-gray-500" onClick={() => setAddKROpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
-                  Add key result
+                  <span className="hidden sm:inline">Add key result</span>
+                  <span className="sm:hidden">Add</span>
                 </Button>
               </div>
               <div className="space-y-3">
                 {objective.keyResults.map((kr) => {
                   const progress = calculateKRProgress(kr);
                   return (
-                    <div key={kr.id} className="border rounded-xl p-4 hover:shadow-sm transition-shadow">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h4 className="font-medium text-gray-900">{kr.name}</h4>
+                    <div key={kr.id} className="border rounded-xl p-3 md:p-4 hover:shadow-sm transition-shadow">
+                      <div className="flex items-start justify-between mb-3 gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-medium text-gray-900 break-words">{kr.name}</h4>
                           {kr.description && (
-                            <p className="text-sm text-gray-500 mt-1">{kr.description}</p>
+                            <p className="text-sm text-gray-500 mt-1 break-words">{kr.description}</p>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openUpdateDialog(kr)}>
-                            <Edit2 className="h-3 w-3 mr-1" />
-                            Update
+                        <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                          <Button variant="outline" size="sm" onClick={() => openUpdateDialog(kr)} className="px-2 md:px-3">
+                            <Edit2 className="h-3 w-3 md:mr-1" />
+                            <span className="hidden md:inline">Update</span>
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -775,7 +812,7 @@ export default function GoalDetailPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <Progress value={progress} className="flex-1 h-2" />
-                        <span className="text-sm font-medium text-gray-700 min-w-[100px] text-right">
+                        <span className="text-xs md:text-sm font-medium text-gray-700 text-right whitespace-nowrap">
                           {kr.currentValue} / {kr.targetValue}
                           {kr.unit ? ` ${kr.unit}` : ""}
                         </span>
@@ -791,9 +828,9 @@ export default function GoalDetailPage() {
           )}
 
           {/* ========== AI BANNER ========== */}
-          <div className="border rounded-xl p-4 mb-8 flex items-center justify-between bg-white">
+          <div className="border rounded-xl p-3 md:p-4 mb-6 md:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-black" />
+              <Sparkles className="h-5 w-5 text-black flex-shrink-0" />
               <span className="text-sm">Improve your objective with TT AI</span>
             </div>
             <Button
@@ -887,22 +924,45 @@ export default function GoalDetailPage() {
           <div className="border-t pt-6">
             {/* Activity items */}
             <div className="space-y-4 mb-6">
-              {/* Default activity */}
+              {/* Status updates / comments (newest first) */}
+              {(objective.statusUpdates || []).map((update) => {
+                const author = update.author || objective.owner;
+                const statusOption = getStatusOption(update.status);
+                return (
+                  <div key={update.id} className="flex items-start gap-3">
+                    <Avatar className="h-8 w-8 border border-black flex-shrink-0">
+                      <AvatarImage src={author?.image || ""} />
+                      <AvatarFallback className="text-xs bg-white text-black">
+                        {getInitials(author?.name || null)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">
+                        <span className="font-medium text-gray-900">{author?.name || "Someone"}</span>
+                        {" "}<span className="text-gray-400">· {formatRelativeTime(update.createdAt)}</span>
+                      </p>
+                      <div className="mt-1 inline-flex items-start gap-2 px-3 py-2 bg-gray-50 rounded-lg max-w-full">
+                        <div className={cn("h-3 w-3 rounded-full flex-shrink-0 mt-1", statusOption.color)} />
+                        <p className="text-sm text-gray-700 break-words whitespace-pre-wrap">{update.summary}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Default "created" activity */}
               <div className="flex items-start gap-3">
-                <Avatar className="h-8 w-8 border border-black">
+                <Avatar className="h-8 w-8 border border-black flex-shrink-0">
                   <AvatarImage src={objective.owner.image || ""} />
                   <AvatarFallback className="text-xs bg-white text-black">
                     {getInitials(objective.owner.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm">
                     <span className="font-medium text-gray-900">{objective.owner.name}</span>
                     {" "}<span className="text-gray-600">created this objective</span>
                     {" "}<span className="text-gray-400">· {formatRelativeTime(objective.createdAt)}</span>
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {objective.owner.name} designated you as owner of this objective · {formatRelativeTime(objective.createdAt)}
                   </p>
                 </div>
               </div>
@@ -910,9 +970,10 @@ export default function GoalDetailPage() {
 
             {/* Comment input */}
             <div className="flex items-start gap-3">
-              <Avatar className="h-8 w-8 border border-black">
+              <Avatar className="h-8 w-8 border border-black flex-shrink-0">
+                <AvatarImage src={session?.user?.image || ""} />
                 <AvatarFallback className="text-xs bg-white text-black">
-                  {getInitials(objective.owner.name)}
+                  {getInitials(session?.user?.name || null)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 relative">
@@ -937,6 +998,7 @@ export default function GoalDetailPage() {
                         if (res.ok) {
                           toast.success('Comment posted');
                           setComment("");
+                          await fetchObjective();
                         } else {
                           toast.error('Failed to post comment');
                         }

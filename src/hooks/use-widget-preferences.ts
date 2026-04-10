@@ -1,14 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { WidgetType, WidgetSize, UserWidgetPreferences, AVAILABLE_WIDGETS } from '@/types/dashboard';
 
 const STORAGE_KEY = 'buildsync-widget-preferences';
 
 /**
  * Auto-calculate widget sizes based on grid position.
- * In a 2-column grid, widgets pair up sequentially.
- * If a widget ends up alone in a row (odd count), it becomes full-width.
  */
 function calculateAutoSizes(
   visibleWidgets: WidgetType[],
@@ -18,39 +16,32 @@ function calculateAutoSizes(
   const orderedVisible = widgetOrder.filter(w => visibleWidgets.includes(w));
   const newSizes: Partial<Record<WidgetType, WidgetSize>> = {};
 
-  // Simulate the grid row by row
   let col = 0;
   let rowWidgets: WidgetType[] = [];
 
   for (const widget of orderedVisible) {
     const manualSize = currentSizes[widget];
 
-    // If a widget was manually set to full, it occupies its own row
     if (manualSize === 'full') {
-      // First: if there was a lone widget in the current row, make IT full
       if (rowWidgets.length === 1) {
         newSizes[rowWidgets[0]] = 'full';
       }
-      // This widget gets its own full row
       newSizes[widget] = 'full';
       rowWidgets = [];
       col = 0;
       continue;
     }
 
-    // Half-size widget
     rowWidgets.push(widget);
     newSizes[widget] = 'half';
     col++;
 
     if (col === 2) {
-      // Row complete — both widgets stay half
       rowWidgets = [];
       col = 0;
     }
   }
 
-  // If there's one widget left alone in the last row, make it full
   if (rowWidgets.length === 1) {
     newSizes[rowWidgets[0]] = 'full';
   }
@@ -67,38 +58,124 @@ const getDefaultPreferences = (): UserWidgetPreferences => {
   return {
     visibleWidgets: enabledWidgets,
     widgetOrder: enabledWidgets,
-    widgetSizes: {}, // All widgets default to 'half' size
+    widgetSizes: {},
   };
 };
 
 export function useWidgetPreferences() {
   const [preferences, setPreferences] = useState<UserWidgetPreferences>(getDefaultPreferences);
   const [isLoaded, setIsLoaded] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
 
+  // Load from API on mount, fall back to localStorage migration
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
+    let cancelled = false;
+    (async () => {
       try {
-        const parsed = JSON.parse(stored);
-        // Migrate legacy data that doesn't have widgetSizes
-        const migratedPreferences: UserWidgetPreferences = {
-          visibleWidgets: parsed.visibleWidgets || [],
-          widgetOrder: parsed.widgetOrder || [],
-          widgetSizes: parsed.widgetSizes || {},
-        };
-        setPreferences(migratedPreferences);
-      } catch (e) {
-        console.error('Failed to parse widget preferences:', e);
+        const res = await fetch('/api/users/preferences');
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          if (data.widgetPreferences) {
+            // Use server data
+            const migrated: UserWidgetPreferences = {
+              visibleWidgets: data.widgetPreferences.visibleWidgets || [],
+              widgetOrder: data.widgetPreferences.widgetOrder || [],
+              widgetSizes: data.widgetPreferences.widgetSizes || {},
+            };
+            setPreferences(migrated);
+            setIsLoaded(true);
+            return;
+          }
+
+          // No server data — try migrating from localStorage one time
+          const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              const migrated: UserWidgetPreferences = {
+                visibleWidgets: parsed.visibleWidgets || [],
+                widgetOrder: parsed.widgetOrder || [],
+                widgetSizes: parsed.widgetSizes || {},
+              };
+              setPreferences(migrated);
+              // Push migrated data to server
+              await fetch('/api/users/preferences', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ widgetPreferences: migrated }),
+              });
+            } catch {
+              // ignore
+            }
+          }
+        } else if (!cancelled) {
+          // API failed (e.g. unauthenticated) — fall back to localStorage
+          if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+              try {
+                const parsed = JSON.parse(stored);
+                setPreferences({
+                  visibleWidgets: parsed.visibleWidgets || [],
+                  widgetOrder: parsed.widgetOrder || [],
+                  widgetSizes: parsed.widgetSizes || {},
+                });
+              } catch {
+                // ignore
+              }
+            }
+          }
+        }
+      } catch {
+        // network error — defaults
+      } finally {
+        if (!cancelled) {
+          setIsLoaded(true);
+          isInitialLoadRef.current = false;
+        }
       }
-    }
-    setIsLoaded(true);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
+  // Persist to API (debounced) + localStorage as offline fallback
+  useEffect(() => {
+    if (!isLoaded || isInitialLoadRef.current) return;
+
+    // Always save locally as offline fallback
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+      } catch {
+        // ignore
+      }
+    }
+
+    // Debounced API save
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      fetch('/api/users/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ widgetPreferences: preferences }),
+      }).catch(() => {
+        // ignore network errors — local copy is the fallback
+      });
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [preferences, isLoaded]);
+
+  // Mark initial load complete after first render with isLoaded=true
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+      const t = setTimeout(() => { isInitialLoadRef.current = false; }, 100);
+      return () => clearTimeout(t);
     }
-  }, [preferences, isLoaded]);
+  }, [isLoaded]);
 
   const toggleWidget = useCallback((widgetId: WidgetType) => {
     setPreferences(prev => {
@@ -126,7 +203,6 @@ export function useWidgetPreferences() {
     });
   }, []);
 
-  // Reorder only — no size recalculation (used during drag)
   const reorderWidgets = useCallback((newOrder: WidgetType[]) => {
     setPreferences(prev => ({
       ...prev,
@@ -134,8 +210,6 @@ export function useWidgetPreferences() {
     }));
   }, []);
 
-  // Recalculate auto sizes based on current layout (used after drop)
-  // Preserves manually-set full sizes
   const recalculateWidgetSizes = useCallback(() => {
     setPreferences(prev => {
       const newSizes = calculateAutoSizes(prev.visibleWidgets, prev.widgetOrder, prev.widgetSizes || {});
@@ -152,7 +226,6 @@ export function useWidgetPreferences() {
     setPreferences(defaults);
   }, []);
 
-  // Manual size change — only affects the specific widget, no auto-recalculation
   const setWidgetSize = useCallback((widgetId: WidgetType, size: WidgetSize) => {
     setPreferences(prev => ({
       ...prev,

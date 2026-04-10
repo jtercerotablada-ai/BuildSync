@@ -72,13 +72,6 @@ export function SecuritySection({ hasOAuth, hasPassword }: SecuritySectionProps)
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Security</h2>
-        <p className="text-sm text-muted-foreground">
-          Manage your password and authentication
-        </p>
-      </div>
-
       {hasOAuth && !hasPassword && (
         <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
           <Shield className="h-5 w-5 text-blue-600 mt-0.5" />

@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Folder, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Portfolio {
   id: string;
@@ -53,9 +54,12 @@ export default function PortfoliosPage() {
       if (res.ok) {
         const data = await res.json();
         setPortfolios(data);
+      } else {
+        toast.error("Failed to load portfolios");
       }
     } catch (error) {
       console.error("Error fetching portfolios:", error);
+      toast.error("Failed to load portfolios");
     } finally {
       setLoading(false);
     }
@@ -77,10 +81,15 @@ export default function PortfoliosPage() {
         setPortfolios([portfolio, ...portfolios]);
         setCreateOpen(false);
         setNewPortfolio({ name: "", description: "" });
+        toast.success("Portfolio created");
         router.push(`/portfolios/${portfolio.id}`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to create portfolio");
       }
     } catch (error) {
       console.error("Error creating portfolio:", error);
+      toast.error("Failed to create portfolio");
     } finally {
       setCreating(false);
     }
@@ -89,13 +98,13 @@ export default function PortfoliosPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-black";
+        return "bg-green-500";
       case "AT_RISK":
-        return "bg-gray-500";
+        return "bg-yellow-500";
       case "OFF_TRACK":
-        return "bg-gray-300";
+        return "bg-red-500";
       case "COMPLETE":
-        return "bg-black";
+        return "bg-blue-500";
       default:
         return "bg-gray-400";
     }
@@ -110,18 +119,18 @@ export default function PortfoliosPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-black">Portfolios</h1>
-          <p className="text-sm text-black mt-1">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-semibold text-black">Portfolios</h1>
+          <p className="text-xs md:text-sm text-black mt-1">
             Organize and track multiple projects together
           </p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-black hover:bg-black">
+            <Button className="bg-black hover:bg-black w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Create portfolio
             </Button>
@@ -215,12 +224,12 @@ export default function PortfoliosPage() {
           {portfolios.map((portfolio) => (
             <Card
               key={portfolio.id}
-              className="p-6 hover:shadow-md cursor-pointer transition-shadow"
+              className="p-4 md:p-6 hover:shadow-md cursor-pointer transition-shadow min-h-[160px] flex flex-col"
               onClick={() => router.push(`/portfolios/${portfolio.id}`)}
             >
               <div className="flex items-start gap-3">
                 <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{ backgroundColor: portfolio.color + "20" }}
                 >
                   <Folder
@@ -229,24 +238,24 @@ export default function PortfoliosPage() {
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-black truncate">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="font-medium text-black truncate min-w-0">
                       {portfolio.name}
                     </h3>
                     <div
-                      className={`w-2 h-2 rounded-full ${getStatusColor(
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusColor(
                         portfolio.status
                       )}`}
                     />
                   </div>
-                  <p className="text-sm text-black mt-1">
+                  <p className="text-xs md:text-sm text-gray-500 mt-1">
                     {portfolio._count.projects}{" "}
                     {portfolio._count.projects === 1 ? "project" : "projects"}
                   </p>
                 </div>
               </div>
               {portfolio.description && (
-                <p className="text-sm text-black mt-3 line-clamp-2">
+                <p className="text-xs md:text-sm text-gray-600 mt-3 line-clamp-2 break-words">
                   {portfolio.description}
                 </p>
               )}

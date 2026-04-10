@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera, CheckCircle, AlertCircle } from "lucide-react";
+import { Camera, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface ProfileData {
@@ -34,6 +34,13 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
   const [image, setImage] = useState(profile?.image || "");
   const [saving, setSaving] = useState(false);
   const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    setName(profile?.name || "");
+    setJobTitle(profile?.jobTitle || "");
+    setBio(profile?.bio || "");
+    setImage(profile?.image || "");
+  }, [profile?.id]);
 
   const initials =
     name
@@ -102,8 +109,8 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Profile</h2>
-        <p className="text-sm text-muted-foreground">
+        <h2 className="text-lg font-semibold text-black">Profile</h2>
+        <p className="text-sm text-gray-500 mt-1">
           Manage your personal information
         </p>
       </div>
@@ -134,7 +141,10 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
 
       {/* Avatar */}
       <div className="flex items-center gap-4">
-        <div className="relative group cursor-pointer" onClick={handleImageUpload}>
+        <div
+          className="relative group cursor-pointer"
+          onClick={handleImageUpload}
+        >
           <Avatar className="h-20 w-20">
             <AvatarImage src={image} />
             <AvatarFallback className="bg-black text-white text-xl">
@@ -146,10 +156,8 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
           </div>
         </div>
         <div>
-          <p className="text-sm font-medium">Profile photo</p>
-          <p className="text-xs text-muted-foreground">
-            Click to upload a new photo
-          </p>
+          <p className="text-sm font-medium text-black">Profile photo</p>
+          <p className="text-xs text-gray-500">Click to upload a new photo</p>
         </div>
       </div>
 
@@ -179,11 +187,9 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
             id="email"
             value={profile?.email || ""}
             disabled
-            className="bg-muted"
+            className="bg-gray-50"
           />
-          <p className="text-xs text-muted-foreground">
-            Email cannot be changed
-          </p>
+          <p className="text-xs text-gray-500">Email cannot be changed</p>
         </div>
 
         <div className="space-y-2">
@@ -208,8 +214,19 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
         </div>
       </div>
 
-      <Button onClick={handleSave} disabled={saving}>
-        {saving ? "Saving..." : "Save changes"}
+      <Button
+        onClick={handleSave}
+        disabled={saving}
+        className="bg-black hover:bg-black"
+      >
+        {saving ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Saving...
+          </>
+        ) : (
+          "Save changes"
+        )}
       </Button>
     </div>
   );

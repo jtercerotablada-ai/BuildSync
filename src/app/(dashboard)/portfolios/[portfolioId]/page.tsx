@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +39,15 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+const STATUS_OPTIONS = [
+  { value: "ON_TRACK", label: "On track", color: "bg-green-500" },
+  { value: "AT_RISK", label: "At risk", color: "bg-yellow-500" },
+  { value: "OFF_TRACK", label: "Off track", color: "bg-red-500" },
+  { value: "ON_HOLD", label: "On hold", color: "bg-gray-400" },
+  { value: "COMPLETE", label: "Complete", color: "bg-blue-500" },
+];
 
 interface Project {
   id: string;
@@ -101,6 +112,9 @@ export default function PortfolioDetailPage() {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [adding, setAdding] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [descriptionDraft, setDescriptionDraft] = useState("");
 
   useEffect(() => {
     fetchPortfolio();
@@ -112,12 +126,69 @@ export default function PortfolioDetailPage() {
       if (res.ok) {
         const data = await res.json();
         setPortfolio(data);
+        setNameDraft(data.name || "");
+        setDescriptionDraft(data.description || "");
+      } else if (res.status !== 404) {
+        toast.error("Failed to load portfolio");
       }
     } catch (error) {
       console.error("Error fetching portfolio:", error);
+      toast.error("Failed to load portfolio");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function savePortfolio(patch: Record<string, unknown>) {
+    try {
+      const res = await fetch(`/api/portfolios/${portfolioId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Save failed");
+      }
+      const updated = await res.json();
+      setPortfolio((prev) => (prev ? { ...prev, ...updated } : prev));
+      return true;
+    } catch (error) {
+      console.error("Error saving portfolio:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to save");
+      return false;
+    }
+  }
+
+  async function handleNameSave() {
+    if (!nameDraft.trim() || nameDraft === portfolio?.name) {
+      setEditingName(false);
+      setNameDraft(portfolio?.name || "");
+      return;
+    }
+    const ok = await savePortfolio({ name: nameDraft.trim() });
+    if (ok) {
+      toast.success("Name updated");
+      setEditingName(false);
+    }
+  }
+
+  async function handleDescriptionSave() {
+    if (descriptionDraft === (portfolio?.description || "")) return;
+    const ok = await savePortfolio({
+      description: descriptionDraft.trim() || null,
+    });
+    if (ok) toast.success("Description updated");
+  }
+
+  async function handleStatusChange(status: string) {
+    const ok = await savePortfolio({ status });
+    if (ok) toast.success("Status updated");
+  }
+
+  async function handleDateChange(field: "startDate" | "endDate", value: string) {
+    const ok = await savePortfolio({ [field]: value || null });
+    if (ok) toast.success("Date updated");
   }
 
   async function fetchAvailableProjects() {
@@ -149,15 +220,21 @@ export default function PortfolioDetailPage() {
         await fetchPortfolio();
         setAddProjectOpen(false);
         setSelectedProjectId("");
+        toast.success("Project added");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to add project");
       }
     } catch (error) {
       console.error("Error adding project:", error);
+      toast.error("Failed to add project");
     } finally {
       setAdding(false);
     }
   }
 
   async function handleRemoveProject(projectId: string) {
+    if (!confirm("Remove this project from the portfolio?")) return;
     try {
       const res = await fetch(
         `/api/portfolios/${portfolioId}/projects?projectId=${projectId}`,
@@ -166,14 +243,18 @@ export default function PortfolioDetailPage() {
 
       if (res.ok) {
         await fetchPortfolio();
+        toast.success("Project removed");
+      } else {
+        toast.error("Failed to remove project");
       }
     } catch (error) {
       console.error("Error removing project:", error);
+      toast.error("Failed to remove project");
     }
   }
 
   async function handleDeletePortfolio() {
-    if (!confirm("Are you sure you want to delete this portfolio?")) return;
+    if (!confirm("Are you sure you want to delete this portfolio? This action cannot be undone.")) return;
 
     try {
       const res = await fetch(`/api/portfolios/${portfolioId}`, {
@@ -181,10 +262,14 @@ export default function PortfolioDetailPage() {
       });
 
       if (res.ok) {
+        toast.success("Portfolio deleted");
         router.push("/portfolios");
+      } else {
+        toast.error("Failed to delete portfolio");
       }
     } catch (error) {
       console.error("Error deleting portfolio:", error);
+      toast.error("Failed to delete portfolio");
     }
   }
 
@@ -247,55 +332,133 @@ export default function PortfolioDetailPage() {
     );
   }
 
+  const dateInputValue = (date: string | null) =>
+    date ? new Date(date).toISOString().split("T")[0] : "";
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b bg-white px-6 py-4">
-        <div className="flex items-center gap-4 mb-4">
+      <div className="border-b bg-white px-4 md:px-6 py-3 md:py-4">
+        <div className="flex items-start gap-2 md:gap-4 mb-3 md:mb-4">
           <Button
             variant="ghost"
             size="icon"
+            className="flex-shrink-0"
             onClick={() => router.push("/portfolios")}
+            aria-label="Back"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: portfolio.color + "20" }}
-            >
-              <Folder className="h-5 w-5" style={{ color: portfolio.color }} />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-slate-900">
+          <div
+            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: portfolio.color + "20" }}
+          >
+            <Folder className="h-5 w-5" style={{ color: portfolio.color }} />
+          </div>
+          <div className="min-w-0 flex-1">
+            {editingName ? (
+              <Input
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleNameSave();
+                  if (e.key === "Escape") {
+                    setEditingName(false);
+                    setNameDraft(portfolio.name);
+                  }
+                }}
+                autoFocus
+                className="h-8 text-lg md:text-xl font-semibold"
+              />
+            ) : (
+              <h1
+                className="text-lg md:text-xl font-semibold text-slate-900 truncate cursor-text hover:bg-slate-50 rounded px-1 -mx-1"
+                onClick={() => setEditingName(true)}
+                title="Click to edit"
+              >
                 {portfolio.name}
               </h1>
-              {portfolio.description && (
-                <p className="text-sm text-slate-500">{portfolio.description}</p>
-              )}
+            )}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="inline-flex">
+                    <Badge className={cn(getStatusColor(portfolio.status), "cursor-pointer")}>
+                      {getStatusLabel(portfolio.status)}
+                    </Badge>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {STATUS_OPTIONS.map((opt) => (
+                    <DropdownMenuItem
+                      key={opt.value}
+                      onClick={() => handleStatusChange(opt.value)}
+                    >
+                      <div className={cn("h-3 w-3 rounded-full mr-2", opt.color)} />
+                      {opt.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <span className="text-xs text-gray-500">
+                {portfolio._count.projects}{" "}
+                {portfolio._count.projects === 1 ? "project" : "projects"}
+              </span>
             </div>
           </div>
-          <Badge className={getStatusColor(portfolio.status)}>
-            {getStatusLabel(portfolio.status)}
-          </Badge>
-          <div className="ml-auto flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  className="text-red-600"
-                  onClick={handleDeletePortfolio}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete portfolio
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="flex-shrink-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setEditingName(true)}>
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600"
+                onClick={handleDeletePortfolio}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete portfolio
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Description (inline editable) */}
+        <Textarea
+          value={descriptionDraft}
+          onChange={(e) => setDescriptionDraft(e.target.value)}
+          onBlur={handleDescriptionSave}
+          placeholder="Add a description..."
+          rows={2}
+          className="mb-3 text-sm resize-none border-dashed"
+        />
+
+        {/* Date range */}
+        <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-3 text-xs md:text-sm text-slate-600">
+          <label className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-slate-400" />
+            <span className="text-slate-500">Start:</span>
+            <input
+              type="date"
+              value={dateInputValue(portfolio.startDate)}
+              onChange={(e) => handleDateChange("startDate", e.target.value)}
+              className="bg-transparent border-b border-dashed border-slate-300 focus:border-slate-600 outline-none px-1"
+            />
+          </label>
+          <label className="flex items-center gap-2">
+            <span className="text-slate-500">End:</span>
+            <input
+              type="date"
+              value={dateInputValue(portfolio.endDate)}
+              onChange={(e) => handleDateChange("endDate", e.target.value)}
+              className="bg-transparent border-b border-dashed border-slate-300 focus:border-slate-600 outline-none px-1"
+            />
+          </label>
         </div>
 
         {/* Toolbar */}
@@ -308,8 +471,8 @@ export default function PortfolioDetailPage() {
               fetchAvailableProjects();
             }}
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Add project
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Add project</span>
           </Button>
           <div className="flex items-center border rounded-md ml-auto">
             <Button
@@ -317,6 +480,7 @@ export default function PortfolioDetailPage() {
               size="sm"
               className={cn("rounded-r-none", viewMode === 'list' && "bg-slate-100")}
               onClick={() => setViewMode('list')}
+              aria-label="List view"
             >
               <List className="h-4 w-4" />
             </Button>
@@ -325,6 +489,7 @@ export default function PortfolioDetailPage() {
               size="sm"
               className={cn("rounded-l-none", viewMode === 'grid' && "bg-slate-100")}
               onClick={() => setViewMode('grid')}
+              aria-label="Grid view"
             >
               <LayoutGrid className="h-4 w-4" />
             </Button>
@@ -333,7 +498,7 @@ export default function PortfolioDetailPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
         {portfolio.projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
@@ -357,20 +522,20 @@ export default function PortfolioDetailPage() {
             </Button>
           </div>
         ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
             {portfolio.projects.map((pp) => (
               <div
                 key={pp.id}
-                className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-white"
+                className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-white relative group"
                 onClick={() => router.push(`/projects/${pp.project.id}`)}
               >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-3 h-3 rounded" style={{ backgroundColor: pp.project.color }} />
+                <div className="flex items-center gap-2 mb-3 pr-8">
+                  <div className="w-3 h-3 rounded flex-shrink-0" style={{ backgroundColor: pp.project.color }} />
                   <span className="font-medium text-sm truncate">{pp.project.name}</span>
                 </div>
                 <div className="flex items-center gap-2 mb-2">
                   <Progress value={pp.project.stats.progress} className="h-2 flex-1" />
-                  <span className="text-xs text-slate-500">{pp.project.stats.progress}%</span>
+                  <span className="text-xs text-slate-500 whitespace-nowrap">{pp.project.stats.progress}%</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <Badge className={getStatusColor(pp.project.status)}>
@@ -383,13 +548,35 @@ export default function PortfolioDetailPage() {
                     </AvatarFallback>
                   </Avatar>
                 </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    asChild
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      className="text-red-600"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveProject(pp.project.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Remove from portfolio
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ))}
           </div>
         ) : (
           <div className="bg-white rounded-lg border">
-            {/* Table Header */}
-            <div className="grid grid-cols-12 gap-4 px-4 py-3 border-b text-xs font-medium text-slate-500 uppercase tracking-wider">
+            {/* Desktop table header */}
+            <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 border-b text-xs font-medium text-slate-500 uppercase tracking-wider">
               <div className="col-span-4">Name</div>
               <div className="col-span-2">Status</div>
               <div className="col-span-2">Progress</div>
@@ -398,71 +585,118 @@ export default function PortfolioDetailPage() {
               <div className="col-span-1"></div>
             </div>
 
-            {/* Table Rows */}
+            {/* Rows */}
             {portfolio.projects.map((pp) => (
               <div
                 key={pp.id}
-                className="grid grid-cols-12 gap-4 px-4 py-3 border-b last:border-0 items-center hover:bg-slate-50 cursor-pointer"
+                className="border-b last:border-0 hover:bg-slate-50 cursor-pointer"
                 onClick={() => router.push(`/projects/${pp.project.id}`)}
               >
-                {/* Name */}
-                <div className="col-span-4 flex items-center gap-3">
-                  <div
-                    className="w-3 h-3 rounded"
-                    style={{ backgroundColor: pp.project.color }}
-                  />
-                  <span className="font-medium text-slate-900 truncate">
-                    {pp.project.name}
-                  </span>
-                </div>
-
-                {/* Status */}
-                <div className="col-span-2">
-                  <Badge className={getStatusColor(pp.project.status)}>
-                    {getStatusLabel(pp.project.status)}
-                  </Badge>
-                </div>
-
-                {/* Progress */}
-                <div className="col-span-2">
-                  <div className="flex items-center gap-2">
-                    <Progress
-                      value={pp.project.stats.progress}
-                      className="h-2 flex-1"
+                {/* Desktop row */}
+                <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 items-center">
+                  <div className="col-span-4 flex items-center gap-3 min-w-0">
+                    <div
+                      className="w-3 h-3 rounded flex-shrink-0"
+                      style={{ backgroundColor: pp.project.color }}
                     />
-                    <span className="text-sm text-slate-600 w-10">
-                      {pp.project.stats.progress}%
+                    <span className="font-medium text-slate-900 truncate">
+                      {pp.project.name}
                     </span>
+                  </div>
+                  <div className="col-span-2">
+                    <Badge className={getStatusColor(pp.project.status)}>
+                      {getStatusLabel(pp.project.status)}
+                    </Badge>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="flex items-center gap-2">
+                      <Progress
+                        value={pp.project.stats.progress}
+                        className="h-2 flex-1"
+                      />
+                      <span className="text-sm text-slate-600 w-10">
+                        {pp.project.stats.progress}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="col-span-2 flex items-center gap-1 text-sm text-slate-600 min-w-0">
+                    <Calendar className="h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">
+                      {formatDate(pp.project.startDate)} -{" "}
+                      {formatDate(pp.project.endDate)}
+                    </span>
+                  </div>
+                  <div className="col-span-1">
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={pp.project.owner.image || ""} />
+                      <AvatarFallback className="text-xs bg-slate-200">
+                        {pp.project.owner.name?.charAt(0) || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <div className="col-span-1 flex justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        asChild
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveProject(pp.project.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remove from portfolio
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
 
-                {/* Due Date */}
-                <div className="col-span-2 flex items-center gap-1 text-sm text-slate-600">
-                  <Calendar className="h-3 w-3" />
-                  <span>
-                    {formatDate(pp.project.startDate)} -{" "}
-                    {formatDate(pp.project.endDate)}
-                  </span>
-                </div>
-
-                {/* Owner */}
-                <div className="col-span-1">
-                  <Avatar className="h-7 w-7">
+                {/* Mobile row (card layout) */}
+                <div className="md:hidden px-3 py-3 flex items-center gap-3">
+                  <div
+                    className="w-3 h-3 rounded flex-shrink-0"
+                    style={{ backgroundColor: pp.project.color }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-slate-900 truncate text-sm">
+                        {pp.project.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Progress
+                        value={pp.project.stats.progress}
+                        className="h-1.5 flex-1 max-w-[100px]"
+                      />
+                      <span className="text-[11px] text-slate-500">
+                        {pp.project.stats.progress}%
+                      </span>
+                      <Badge className={cn("text-[10px] px-1.5 py-0", getStatusColor(pp.project.status))}>
+                        {getStatusLabel(pp.project.status)}
+                      </Badge>
+                    </div>
+                  </div>
+                  <Avatar className="h-6 w-6 flex-shrink-0">
                     <AvatarImage src={pp.project.owner.image || ""} />
                     <AvatarFallback className="text-xs bg-slate-200">
                       {pp.project.owner.name?.charAt(0) || "?"}
                     </AvatarFallback>
                   </Avatar>
-                </div>
-
-                {/* Actions */}
-                <div className="col-span-1 flex justify-end">
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       asChild
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>

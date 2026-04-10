@@ -63,13 +63,6 @@ export function AccountSection({ name, email, createdAt }: AccountSectionProps) 
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Account</h2>
-        <p className="text-sm text-muted-foreground">
-          Account information and danger zone
-        </p>
-      </div>
-
       {/* User Info */}
       <div className="rounded-lg border p-4 space-y-3 max-w-md">
         <div className="flex items-center gap-3">

@@ -55,6 +55,7 @@ import { WorkflowView } from "@/components/views/workflow-view";
 import { MessagesView } from "@/components/views/messages-view";
 import { FilesView } from "@/components/views/files-view";
 import { ProjectOverview } from "@/components/projects/project-overview";
+import { ProjectMembersDialog } from "@/components/projects/project-members-dialog";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 
@@ -148,6 +149,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const [isStarred, setIsStarred] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [membersDialogOpen, setMembersDialogOpen] = useState(false);
 
   // Filter/Sort state
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
@@ -411,8 +413,13 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Members */}
-            <div className="hidden md:flex -space-x-2 mr-2">
+            {/* Members (clickable — opens manage dialog) */}
+            <button
+              type="button"
+              onClick={() => setMembersDialogOpen(true)}
+              className="hidden md:flex items-center -space-x-2 mr-2 hover:opacity-80 transition-opacity"
+              title="Manage members"
+            >
               {project.members.slice(0, 3).map((member) => (
                 <div
                   key={member.userId}
@@ -427,7 +434,10 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                   {project.owner?.name?.[0] || "?"}
                 </div>
               )}
-            </div>
+              <div className="w-8 h-8 rounded-full bg-white border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 hover:text-gray-600">
+                <Plus className="h-4 w-4" />
+              </div>
+            </button>
 
             {/* Share Button — hidden on mobile, lives in overflow menu */}
             <Button className="hidden md:inline-flex bg-black hover:bg-black text-white" size="sm" onClick={() => {
@@ -458,8 +468,9 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                   Customize
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  {project.members.length} member{project.members.length !== 1 ? 's' : ''}
+                <DropdownMenuItem onClick={() => setMembersDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Manage members ({project.members.length + 1})
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -833,6 +844,22 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
         projectId={project.id}
         sectionId={selectedSectionId || undefined}
       />
+
+      {/* Project Members Dialog */}
+      {project.owner && (
+        <ProjectMembersDialog
+          open={membersDialogOpen}
+          onOpenChange={setMembersDialogOpen}
+          projectId={project.id}
+          owner={{
+            id: project.owner.id,
+            name: project.owner.name,
+            email: project.owner.email || "",
+            image: project.owner.image,
+          }}
+          onMembersChange={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }

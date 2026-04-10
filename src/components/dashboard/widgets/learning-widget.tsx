@@ -58,23 +58,49 @@ export function LearningWidget() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    // Load both completed tutorials and dismissed state from DB
+    (async () => {
       try {
-        const completedIds = JSON.parse(saved);
-        setTutorials(TUTORIALS.map(t => ({
-          ...t,
-          completed: completedIds.includes(t.id),
-        })));
+        const res = await fetch('/api/users/preferences');
+        if (res.ok) {
+          const prefs = await res.json();
+          const ui = prefs.uiState as {
+            learningDismissed?: boolean;
+            learningCompleted?: string[];
+          } | null;
+          if (ui?.learningDismissed === true) {
+            setDismissed(true);
+          }
+          if (ui?.learningCompleted && Array.isArray(ui.learningCompleted)) {
+            setTutorials(TUTORIALS.map(t => ({
+              ...t,
+              completed: ui.learningCompleted!.includes(t.id),
+            })));
+            return;
+          }
+        }
       } catch {
         // ignore
       }
-    }
 
-    const dismissedKey = localStorage.getItem('buildsync-learning-dismissed');
-    if (dismissedKey === 'true') {
-      setDismissed(true);
-    }
+      // Local fallback
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const completedIds = JSON.parse(saved);
+          setTutorials(TUTORIALS.map(t => ({
+            ...t,
+            completed: completedIds.includes(t.id),
+          })));
+        }
+        const dismissedKey = localStorage.getItem('buildsync-learning-dismissed');
+        if (dismissedKey === 'true') {
+          setDismissed(true);
+        }
+      } catch {
+        // ignore
+      }
+    })();
   }, []);
 
   const toggleCompleted = (id: string) => {
@@ -82,7 +108,21 @@ export function LearningWidget() {
       t.id === id ? { ...t, completed: !t.completed } : t
     );
     setTutorials(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated.filter(t => t.completed).map(t => t.id)));
+    const completedIds = updated.filter(t => t.completed).map(t => t.id);
+
+    // Local fallback
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(completedIds));
+    } catch {
+      // ignore
+    }
+
+    // DB save
+    fetch('/api/users/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uiState: { learningCompleted: completedIds } }),
+    }).catch(() => { /* ignore */ });
   };
 
   const handleNavigate = (tutorial: Tutorial) => {
@@ -91,7 +131,16 @@ export function LearningWidget() {
 
   const dismissWidget = () => {
     setDismissed(true);
-    localStorage.setItem('buildsync-learning-dismissed', 'true');
+    try {
+      localStorage.setItem('buildsync-learning-dismissed', 'true');
+    } catch {
+      // ignore
+    }
+    fetch('/api/users/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uiState: { learningDismissed: true } }),
+    }).catch(() => { /* ignore */ });
   };
 
   const completedCount = tutorials.filter(t => t.completed).length;

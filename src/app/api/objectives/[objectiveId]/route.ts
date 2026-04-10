@@ -113,6 +113,12 @@ export async function GET(
     // Verify user belongs to objective's workspace
     await verifyWorkspaceAccess(userId, objective.workspace.id);
 
+    // Determine if current user liked this objective
+    const myLike = await prisma.objectiveLike.findUnique({
+      where: { objectiveId_userId: { objectiveId, userId } },
+      select: { id: true },
+    });
+
     // Calculate progress based on source
     let calculatedProgress = objective.progress;
 
@@ -132,6 +138,7 @@ export async function GET(
     return NextResponse.json({
       ...objective,
       progress: calculatedProgress,
+      likedByMe: !!myLike,
     });
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {

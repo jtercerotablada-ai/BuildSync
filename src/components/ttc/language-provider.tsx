@@ -16,15 +16,44 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en');
 
   useEffect(() => {
-    const saved = localStorage.getItem('ttc-language') as Language | null;
-    if (saved && (saved === 'en' || saved === 'es')) {
-      setLanguageState(saved);
-    }
+    // Try API first (DB-persisted), fall back to localStorage
+    (async () => {
+      try {
+        const res = await fetch('/api/users/preferences');
+        if (res.ok) {
+          const prefs = await res.json();
+          const ui = prefs.uiState as { language?: string } | null;
+          if (ui?.language === 'en' || ui?.language === 'es') {
+            setLanguageState(ui.language);
+            return;
+          }
+        }
+      } catch {
+        // network error — fall through
+      }
+      try {
+        const saved = localStorage.getItem('ttc-language') as Language | null;
+        if (saved && (saved === 'en' || saved === 'es')) {
+          setLanguageState(saved);
+        }
+      } catch {
+        // ignore
+      }
+    })();
   }, []);
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('ttc-language', lang);
+    try {
+      localStorage.setItem('ttc-language', lang);
+    } catch {
+      // ignore
+    }
+    fetch('/api/users/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uiState: { language: lang } }),
+    }).catch(() => { /* ignore */ });
   }, []);
 
   const toggleLanguage = useCallback(() => {

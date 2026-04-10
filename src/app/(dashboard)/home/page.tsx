@@ -23,7 +23,8 @@ import {
 import { useWidgetPreferences } from '@/hooks/use-widget-preferences';
 import { WidgetContainer, WidgetOverlay, WidgetMenuAction } from '@/components/dashboard/widget-container';
 import { CustomizeWidgetsModal } from '@/components/dashboard/customize-widgets-modal';
-import { Plus, Target } from 'lucide-react';
+import { Plus, Target, CheckSquare, FolderOpen } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog';
 import { CreateObjectiveDialog } from '@/components/goals/create-objective-dialog';
 import { QuickCreateTaskModal } from '@/components/tasks/quick-create-task-modal';
@@ -52,6 +53,14 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
+function getFormattedDate(): string {
+  return new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
 export default function HomePage() {
   const { data: session } = useSession();
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -59,12 +68,20 @@ export default function HomePage() {
   const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
   const [activeId, setActiveId] = useState<WidgetType | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [today, setToday] = useState('');
 
   useEffect(() => {
+    // Defer state sets to the next microtask to avoid cascading renders lint rule
+    const t = setTimeout(() => {
+      setToday(getFormattedDate());
+      setIsMobile(window.innerWidth < 768);
+    }, 0);
     const check = () => setIsMobile(window.innerWidth < 768);
-    check();
     window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('resize', check);
+    };
   }, []);
 
   const {
@@ -222,22 +239,58 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-4 md:py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 md:mb-8">
-          <div>
-            <h1 className="text-lg md:text-2xl font-bold text-gray-900">
+        <div className="flex items-start justify-between mb-4 md:mb-6 gap-2">
+          <div className="min-w-0 flex-1">
+            {today && (
+              <p className="text-[11px] md:text-xs uppercase tracking-wide text-gray-400 font-medium mb-1">
+                {today}
+              </p>
+            )}
+            <h1 className="text-xl md:text-3xl font-bold text-gray-900 truncate">
               {getGreeting()}, {userName}
             </h1>
             <p className="text-xs md:text-sm text-gray-500 mt-0.5 md:mt-1">
               Here&apos;s what&apos;s happening with your projects
             </p>
           </div>
-          <div className="hidden md:flex">
+          <div className="flex-shrink-0">
             <CustomizeWidgetsModal
               preferences={preferences}
               onToggleWidget={toggleWidget}
               onReset={resetToDefaults}
             />
           </div>
+        </div>
+
+        {/* Quick action pills */}
+        <div className="flex flex-wrap gap-2 mb-6 md:mb-8">
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full h-8 text-xs md:text-sm"
+            onClick={() => setShowQuickCreateTask(true)}
+          >
+            <CheckSquare className="h-3.5 w-3.5 mr-1" />
+            New task
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full h-8 text-xs md:text-sm"
+            onClick={() => setShowCreateProject(true)}
+          >
+            <FolderOpen className="h-3.5 w-3.5 mr-1" />
+            New project
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full h-8 text-xs md:text-sm"
+            onClick={() => setShowCreateGoal(true)}
+          >
+            <Target className="h-3.5 w-3.5 mr-1" />
+            New goal
+          </Button>
         </div>
 
         {/* Widget Grid - 2 columns with square widgets */}

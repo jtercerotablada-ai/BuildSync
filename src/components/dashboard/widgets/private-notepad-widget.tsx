@@ -47,6 +47,7 @@ import { cn } from '@/lib/utils';
 import { WidgetSize } from '@/types/dashboard';
 
 const STORAGE_KEY = 'buildsync-private-notepad';
+const NOTEPAD_TITLE = '__home_private_notepad__';
 
 // Emoji picker data
 const emojiCategories = [
@@ -124,34 +125,101 @@ export function PrivateNotepadWidget({
     fetchUsers();
   }, []);
 
-  // Load saved content
+  // Track the server-side note ID (for the dedicated home notepad note)
+  const noteIdRef = useRef<string | null>(null);
+
+  // Load saved content from API (with localStorage fallback for offline / unauthenticated)
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    let cancelled = false;
+    (async () => {
       try {
-        const data = JSON.parse(saved);
-        const savedContent = data.content || '';
-        setContent(savedContent);
-        if (editorRef.current) {
-          editorRef.current.innerHTML = savedContent;
+        const res = await fetch('/api/workspace/notes');
+        if (res.ok && !cancelled) {
+          const notes: { id: string; title: string; content: string }[] = await res.json();
+          const notepad = notes.find((n) => n.title === NOTEPAD_TITLE);
+          if (notepad) {
+            noteIdRef.current = notepad.id;
+            setContent(notepad.content || '');
+            if (editorRef.current) {
+              editorRef.current.innerHTML = notepad.content || '';
+            }
+            setIsLoaded(true);
+            return;
+          }
         }
       } catch {
-        setContent(saved);
-        if (editorRef.current) {
-          editorRef.current.innerHTML = saved;
+        // network error — use local fallback
+      }
+
+      if (cancelled) return;
+
+      // Fall back to localStorage if API failed or no note exists yet
+      const saved = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          const savedContent = data.content || '';
+          setContent(savedContent);
+          if (editorRef.current) {
+            editorRef.current.innerHTML = savedContent;
+          }
+        } catch {
+          setContent(saved);
+          if (editorRef.current) {
+            editorRef.current.innerHTML = saved;
+          }
         }
       }
-    }
-    setIsLoaded(true);
+      setIsLoaded(true);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  // Save to localStorage
-  const saveNote = useCallback(() => {
-    const data = {
-      content: content,
-      savedAt: new Date().toISOString(),
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  // Save to API (and localStorage as offline fallback)
+  const saveNote = useCallback(async () => {
+    // Always cache locally so the note isn't lost if the API call fails
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ content, savedAt: new Date().toISOString() })
+        );
+      } catch {
+        // ignore
+      }
+    }
+
+    try {
+      if (noteIdRef.current) {
+        // Update existing
+        await fetch('/api/workspace/notes', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: noteIdRef.current,
+            content,
+          }),
+        });
+      } else {
+        // Create new (first save) — only if there's actual content
+        if (!content.trim()) return;
+        const res = await fetch('/api/workspace/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: NOTEPAD_TITLE,
+            content,
+            visibility: 'PRIVATE',
+          }),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          noteIdRef.current = created.id;
+        }
+      }
+    } catch {
+      // network error — local copy is the fallback
+    }
   }, [content]);
 
   // Auto-save

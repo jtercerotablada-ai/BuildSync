@@ -21,23 +21,51 @@ export function DraftCommentsWidget() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load drafts from localStorage
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    // Load drafts from API (DB-persisted), fall back to localStorage
+    let cancelled = false;
+    (async () => {
       try {
-        const data = JSON.parse(saved);
-        setDrafts(data);
+        const res = await fetch('/api/users/preferences');
+        if (res.ok && !cancelled) {
+          const prefs = await res.json();
+          const ui = prefs.uiState as { draftComments?: DraftComment[] } | null;
+          if (ui?.draftComments && Array.isArray(ui.draftComments)) {
+            setDrafts(ui.draftComments);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      if (cancelled) return;
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const data = JSON.parse(saved);
+          setDrafts(data);
+        }
       } catch {
         setDrafts([]);
       }
-    }
-    setLoading(false);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const deleteDraft = (id: string) => {
     const updated = drafts.filter(d => d.id !== id);
     setDrafts(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+    fetch('/api/users/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uiState: { draftComments: updated } }),
+    }).catch(() => { /* ignore */ });
   };
 
   const formatDate = (date: string) => {

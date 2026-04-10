@@ -150,22 +150,49 @@ export function AIAssistantWidget({
     item.name.toLowerCase().includes(mentionSearch.toLowerCase())
   );
 
-  // Load past topics from localStorage
+  // Load past topics from API (DB-persisted), fall back to localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    let cancelled = false;
+    (async () => {
       try {
-        setPastTopics(JSON.parse(saved));
+        const res = await fetch('/api/users/preferences');
+        if (res.ok && !cancelled) {
+          const prefs = await res.json();
+          const ui = prefs.uiState as { aiPastTopics?: PastTopic[] } | null;
+          if (ui?.aiPastTopics && Array.isArray(ui.aiPastTopics)) {
+            setPastTopics(ui.aiPastTopics);
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+      if (cancelled) return;
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          setPastTopics(JSON.parse(saved));
+        }
       } catch {
         setPastTopics([]);
       }
-    }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  // Save past topics to localStorage
+  // Save past topics to API + localStorage
   const savePastTopics = (topics: PastTopic[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
+    } catch {
+      // ignore
+    }
     setPastTopics(topics);
+    fetch('/api/users/preferences', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uiState: { aiPastTopics: topics } }),
+    }).catch(() => { /* ignore */ });
   };
 
   const handleSubmit = async () => {

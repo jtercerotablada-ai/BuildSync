@@ -217,12 +217,12 @@ export default function GoalsPage() {
   return (
     <div className="flex-1 flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b">
-        <h1 className="text-xl font-semibold text-black">Goals</h1>
+      <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b">
+        <h1 className="text-lg md:text-xl font-semibold text-black">Goals</h1>
         <Button
           variant="ghost"
           size="sm"
-          className="text-black"
+          className="text-black text-xs md:text-sm"
           onClick={() => window.open('mailto:feedback@ttcivilstructural.com?subject=Goals%20Feedback', '_blank')}
         >
           Send feedback
@@ -236,7 +236,7 @@ export default function GoalsPage() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+              "px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0",
               activeTab === tab.id
                 ? "border-slate-900 text-black"
                 : "border-transparent text-black hover:text-black"
@@ -246,8 +246,9 @@ export default function GoalsPage() {
           </button>
         ))}
         <button
-          className="p-2 text-black hover:text-black hover:bg-slate-100 rounded-md ml-1"
+          className="p-2 text-black hover:text-black hover:bg-slate-100 rounded-md ml-1 flex-shrink-0"
           onClick={() => setCreateOpen(true)}
+          aria-label="Create goal"
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -255,15 +256,15 @@ export default function GoalsPage() {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-3 border-b bg-white">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap">
           {/* Create Goal Button */}
           <Button
             size="sm"
             className="bg-black hover:bg-black"
             onClick={() => setCreateOpen(true)}
           >
-            <Plus className="w-4 h-4 mr-2" />
-            Create goal
+            <Plus className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Create goal</span>
           </Button>
 
           {/* Period Selector */}
@@ -271,50 +272,52 @@ export default function GoalsPage() {
             <button
               onClick={() => cyclePeriod("prev")}
               className="p-1.5 hover:bg-white rounded-l-md border-r"
+              aria-label="Previous period"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <select
               value={selectedPeriod}
               onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="px-3 py-1.5 text-sm bg-transparent border-none outline-none cursor-pointer"
+              className="px-2 md:px-3 py-1.5 text-xs md:text-sm bg-transparent border-none outline-none cursor-pointer max-w-[120px] md:max-w-none"
             >
               {PERIODS.map((period) => (
                 <option key={period} value={period}>
-                  Periods: {period}
+                  {period}
                 </option>
               ))}
             </select>
             <button
               onClick={() => cyclePeriod("next")}
               className="p-1.5 hover:bg-white rounded-r-md border-l"
+              aria-label="Next period"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2 flex-wrap">
           {/* Owner/Team Filter Badge */}
           {activeTab === "my-goals" && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-black rounded-full text-sm">
-              <User className="w-4 h-4 text-black" />
-              <span className="text-black">Owner: {session?.user?.name || "Me"}</span>
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-black rounded-full text-sm max-w-[200px]">
+              <User className="w-4 h-4 text-black flex-shrink-0" />
+              <span className="text-black truncate">Owner: {session?.user?.name || "Me"}</span>
             </div>
           )}
           {activeTab === "team-goals" && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-black rounded-full text-sm">
-              <Users className="w-4 h-4 text-black" />
-              <span className="text-black">Team: My workspace</span>
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-black rounded-full text-sm max-w-[200px]">
+              <Users className="w-4 h-4 text-black flex-shrink-0" />
+              <span className="text-black truncate">Team: My workspace</span>
             </div>
           )}
 
           {/* Filter & Options */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-black">
-                <Filter className="w-4 h-4 mr-2" />
-                Filter
+              <Button variant="ghost" size="sm" className="text-black px-2 md:px-3">
+                <Filter className="w-4 h-4 md:mr-2" />
+                <span className="hidden md:inline">Filter</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
@@ -331,9 +334,9 @@ export default function GoalsPage() {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-black">
-                <Settings className="w-4 h-4 mr-2" />
-                Options
+              <Button variant="ghost" size="sm" className="text-black px-2 md:px-3">
+                <Settings className="w-4 h-4 md:mr-2" />
+                <span className="hidden md:inline">Options</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
@@ -769,9 +772,9 @@ function StrategyMapView({
             </div>
           </div>
 
-          <div className="mt-8 pt-4 border-t flex items-center justify-between">
+          <div className="mt-8 pt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <p className="text-sm text-black">0 people will be notified</p>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
               <Button variant="ghost" onClick={onSkipOnboarding}>
                 Go to map
               </Button>
@@ -816,7 +819,9 @@ function StrategyMapView({
 
   return (
     <div className="p-4 md:p-8 overflow-auto">
-      <StrategyMapTree objectives={objectives} />
+      <div className="min-w-max">
+        <StrategyMapTree objectives={objectives} />
+      </div>
     </div>
   );
 }
