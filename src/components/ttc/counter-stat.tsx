@@ -6,9 +6,10 @@ interface CounterStatProps {
   target: number;
   suffix?: string;
   label: string;
+  delay?: number;
 }
 
-export function CounterStat({ target, suffix = '', label }: CounterStatProps) {
+export function CounterStat({ target, suffix = '', label, delay }: CounterStatProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [count, setCount] = useState(0);
   const [started, setStarted] = useState(false);
@@ -50,7 +51,7 @@ export function CounterStat({ target, suffix = '', label }: CounterStatProps) {
   }, [started, target]);
 
   return (
-    <div ref={ref} className="stat">
+    <div ref={ref} className="stat" data-aos="fade-up" data-aos-delay={delay}>
       <span className="stat__number" data-count={target}>
         {count}
       </span>

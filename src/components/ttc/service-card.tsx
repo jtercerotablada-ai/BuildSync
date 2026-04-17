@@ -6,11 +6,12 @@ interface ServiceCardProps {
   icon: React.ReactNode;
   title: string;
   description: string;
+  delay?: number;
 }
 
-export function ServiceCard({ icon, title, description }: ServiceCardProps) {
+export function ServiceCard({ icon, title, description, delay }: ServiceCardProps) {
   return (
-    <div className="service-card">
+    <div className="service-card" data-aos="fade-up" data-aos-delay={delay} data-tilt>
       <div className="service-card__icon">{icon}</div>
       <h3>{title}</h3>
       <p>{description}</p>

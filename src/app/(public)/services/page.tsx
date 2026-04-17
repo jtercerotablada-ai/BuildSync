@@ -45,7 +45,7 @@ export default function ServicesPage() {
         <div className="container">
           <div className="services__grid">
             {services.map((s, i) => (
-              <ServiceCard key={i} icon={s.icon} title={t(s.titleKey)} description={t(s.descKey)} />
+              <ServiceCard key={i} icon={s.icon} title={t(s.titleKey)} description={t(s.descKey)} delay={(i % 3) * 100} />
             ))}
           </div>
         </div>
@@ -58,8 +58,8 @@ export default function ServicesPage() {
             <h2 className="section__title">{t('section.ourValues')}</h2>
           </div>
           <div className="values__grid">
-            {values.map((v) => (
-              <ValueItem key={v.number} number={v.number} title={t(v.titleKey)} description={t(v.descKey)} />
+            {values.map((v, i) => (
+              <ValueItem key={v.number} number={v.number} title={t(v.titleKey)} description={t(v.descKey)} delay={i * 80} />
             ))}
           </div>
         </div>

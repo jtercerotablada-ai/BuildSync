@@ -32,11 +32,11 @@ export default function AboutPage() {
       <section className="section about">
         <div className="container">
           <div className="about__grid">
-            <div className="about__image">
+            <div className="about__image" data-aos="fade-right">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/ttc/img/team.jpg" alt="Tercero Tablada Team" loading="lazy" />
             </div>
-            <div className="about__content">
+            <div className="about__content" data-aos="fade-left" data-aos-delay={100}>
               <span className="section__label">{t('section.ourStory')}</span>
               <h2 className="section__title">{t('about.heading')}</h2>
               <p>{t('about.p1')}</p>
@@ -50,10 +50,10 @@ export default function AboutPage() {
       <section className="section stats-section">
         <div className="container">
           <div className="stats-grid">
-            <CounterStat target={150} suffix="+" label={t('stat.projects')} />
-            <CounterStat target={30} suffix="+" label={t('stat.years')} />
-            <CounterStat target={50} suffix="+" label={t('stat.clients')} />
-            <CounterStat target={9} label={t('stat.services')} />
+            <CounterStat target={150} suffix="+" label={t('stat.projects')} delay={0} />
+            <CounterStat target={30} suffix="+" label={t('stat.years')} delay={100} />
+            <CounterStat target={50} suffix="+" label={t('stat.clients')} delay={200} />
+            <CounterStat target={9} label={t('stat.services')} delay={300} />
           </div>
         </div>
       </section>
@@ -65,8 +65,8 @@ export default function AboutPage() {
             <h2 className="section__title">{t('section.ourValues')}</h2>
           </div>
           <div className="values__grid">
-            {values.map((v) => (
-              <ValueItem key={v.number} number={v.number} title={t(v.titleKey)} description={t(v.descKey)} />
+            {values.map((v, i) => (
+              <ValueItem key={v.number} number={v.number} title={t(v.titleKey)} description={t(v.descKey)} delay={i * 80} />
             ))}
           </div>
         </div>

@@ -65,7 +65,7 @@ export function ContactForm() {
   }
 
   return (
-    <div className="contact__form-wrap">
+    <div className="contact__form-wrap" data-aos="fade-left" data-aos-delay={100}>
       <form className="contact__form" onSubmit={handleSubmit}>
         <div className="form__group">
           <input
@@ -179,7 +179,7 @@ export function ContactForm() {
           </p>
         )}
 
-        <button type="submit" disabled={submitting} className="btn btn--primary btn--full">
+        <button type="submit" disabled={submitting} className="btn btn--primary btn--full" data-magnetic>
           {submitting ? '...' : t('contact.sendMessage')}
         </button>
       </form>

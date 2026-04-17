@@ -135,6 +135,7 @@ export default function HomePage() {
                 icon={s.icon}
                 title={t(s.titleKey)}
                 description={t(s.descKey)}
+                delay={(i % 3) * 100}
               />
             ))}
           </div>
@@ -149,12 +150,13 @@ export default function HomePage() {
             <h2 className="section__title">{t('section.ourValues')}</h2>
           </div>
           <div className="values__grid">
-            {values.map((v) => (
+            {values.map((v, i) => (
               <ValueItem
                 key={v.number}
                 number={v.number}
                 title={t(v.titleKey)}
                 description={t(v.descKey)}
+                delay={i * 80}
               />
             ))}
           </div>
@@ -175,9 +177,9 @@ export default function HomePage() {
               <p>{t('about.p1')}</p>
               <p>{t('about.p2')}</p>
               <div className="about__stats">
-                <CounterStat target={150} suffix="+" label={t('stat.projects')} />
-                <CounterStat target={30} suffix="+" label={t('stat.yearsShort')} />
-                <CounterStat target={50} suffix="+" label={t('stat.clients')} />
+                <CounterStat target={150} suffix="+" label={t('stat.projects')} delay={0} />
+                <CounterStat target={30} suffix="+" label={t('stat.yearsShort')} delay={100} />
+                <CounterStat target={50} suffix="+" label={t('stat.clients')} delay={200} />
               </div>
             </div>
           </div>
