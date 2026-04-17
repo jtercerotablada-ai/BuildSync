@@ -10,6 +10,14 @@
   box-sizing: border-box;
 }
 
+/* Hide Next.js dev tools portal (dev only, harmless in prod) */
+nextjs-portal,
+#__next-build-watcher,
+#nextjs__container,
+[data-nextjs-dev-tools-button] {
+  display: none !important;
+}
+
 :root {
   /* Color system */
   --color-bg: #0a0a0a;
@@ -306,7 +314,7 @@ img, svg {
 }
 
 .header__logo-img {
-  height: 38px;
+  height: 32px;
   width: auto;
 }
 
@@ -2365,7 +2373,7 @@ img, svg {
   }
 
   .header__logo-img {
-    height: 44px;
+    height: 36px;
   }
 
   .footer__logo-img {
@@ -2450,7 +2458,7 @@ img, svg {
   }
 
   .header__logo-img {
-    height: 50px;
+    height: 40px;
   }
 
   .footer__grid {

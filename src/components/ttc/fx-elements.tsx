@@ -20,6 +20,37 @@ export function FxElements() {
     window.addEventListener('scroll', updateScrollProgress, { passive: true });
     updateScrollProgress();
 
+    // Scroll animations ([data-aos])
+    const animatedEls = Array.from(document.querySelectorAll<HTMLElement>('[data-aos]'));
+    if (!('IntersectionObserver' in window)) {
+      animatedEls.forEach((el) => el.classList.add('aos-animate'));
+    } else {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              const delay = (entry.target as HTMLElement).getAttribute('data-aos-delay');
+              if (delay) {
+                setTimeout(() => entry.target.classList.add('aos-animate'), parseInt(delay));
+              } else {
+                entry.target.classList.add('aos-animate');
+              }
+              observer.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.05, rootMargin: '0px 0px -50px 0px' }
+      );
+      animatedEls.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          el.classList.add('aos-animate');
+        } else {
+          observer.observe(el);
+        }
+      });
+    }
+
     // Custom cursor (desktop only)
     const isDesktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     let targetX = 0, targetY = 0, ringX = 0, ringY = 0;

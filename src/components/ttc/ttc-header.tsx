@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useTranslation } from './language-provider';
 
@@ -51,13 +50,11 @@ export function TTCHeader() {
       <header className={headerClass} id="header">
         <div className="header__inner">
           <Link href="/" className="header__logo">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/ttc/img/logo-tt-v2.svg"
               alt="Tercero Tablada"
-              width={200}
-              height={50}
               className="header__logo-img"
-              priority
             />
           </Link>
 

@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useTranslation } from './language-provider';
 
 export function TTCFooter() {
@@ -13,11 +12,10 @@ export function TTCFooter() {
       <div className="container">
         <div className="footer__top">
           <div className="footer__brand">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/ttc/img/logo-tt-v2.svg"
               alt="Tercero Tablada"
-              width={180}
-              height={56}
               className="footer__logo-img"
             />
             <p className="footer__tagline">{t('footer.tagline')}</p>
