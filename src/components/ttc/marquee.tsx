@@ -17,12 +17,12 @@ export function Marquee() {
   const items = [...clients, ...clients];
 
   return (
-    <div className="ttc-marquee" style={{ padding: '2rem 0' }}>
-      <div className="ttc-marquee__track">
+    <div className="marquee">
+      <div className="marquee__track">
         {items.map((item, i) => (
           <React.Fragment key={i}>
             <span>{item}</span>
-            <span style={{ color: '#c9a84c' }}>{'\u00b7'}</span>
+            <span>{'\u00b7'}</span>
           </React.Fragment>
         ))}
       </div>

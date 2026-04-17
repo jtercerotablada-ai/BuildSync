@@ -2,38 +2,41 @@
 
 import React, { useState } from 'react';
 import { useTranslation } from '@/components/ttc/language-provider';
-import { ScrollAnimation } from '@/components/ttc/scroll-animation';
 import { ProjectCard } from '@/components/ttc/project-card';
+import type { TranslationKey } from '@/lib/i18n';
 
 type Category = 'all' | 'residential' | 'commercial' | 'industrial' | 'public';
 
-interface ProjectData {
+interface ProjectItem {
   image: string;
-  titleKey: string;
-  descKey: string;
-  category: Category;
+  category: Exclude<Category, 'all'>;
+  categoryKey: TranslationKey;
+  titleKey: TranslationKey;
+  descKey: TranslationKey;
 }
-
-const allProjects: ProjectData[] = [
-  { image: '/ttc/img/projects/project-01.jpg', titleKey: 'project.residentialTower', descKey: 'project.residentialTower.full', category: 'residential' },
-  { image: '/ttc/img/projects/project-02.jpg', titleKey: 'project.commercialComplex', descKey: 'project.commercialComplex.full', category: 'commercial' },
-  { image: '/ttc/img/projects/project-03.jpg', titleKey: 'project.industrialWarehouse', descKey: 'project.industrialWarehouse.full', category: 'industrial' },
-  { image: '/ttc/img/projects/project-04.jpg', titleKey: 'project.luxuryResidence', descKey: 'project.luxuryResidence.full', category: 'residential' },
-  { image: '/ttc/img/projects/project-05.jpg', titleKey: 'project.multiFamilyHousing', descKey: 'project.multiFamilyHousing.full', category: 'residential' },
-  { image: '/ttc/img/projects/project-06.jpg', titleKey: 'project.publicInfrastructure', descKey: 'project.publicInfrastructure.full', category: 'public' },
-  { image: '/ttc/img/projects/project-07.jpg', titleKey: 'project.parkingStructure', descKey: 'project.parkingStructure.full', category: 'commercial' },
-  { image: '/ttc/img/projects/project-08.jpg', titleKey: 'project.mixedUse', descKey: 'project.mixedUse.full', category: 'commercial' },
-  { image: '/ttc/img/projects/project-09.jpg', titleKey: 'project.oceanfront', descKey: 'project.oceanfront.full', category: 'residential' },
-  { image: '/ttc/img/projects/project-10.jpg', titleKey: 'project.customHome', descKey: 'project.customHome.full', category: 'residential' },
-  { image: '/ttc/img/projects/project-11.jpg', titleKey: 'project.distributionCenter', descKey: 'project.distributionCenter.full', category: 'industrial' },
-  { image: '/ttc/img/projects/project-12.jpg', titleKey: 'project.officeBuilding', descKey: 'project.officeBuilding.full', category: 'commercial' },
-];
 
 export default function ProjectsPage() {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<Category>('all');
 
-  const filters: { key: Category; labelKey: string }[] = [
+  const allProjects: ProjectItem[] = [
+    { image: '/ttc/img/projects/project-01.jpg', category: 'residential', categoryKey: 'category.residential', titleKey: 'project.residentialTower', descKey: 'project.residentialTower.desc' },
+    { image: '/ttc/img/projects/project-02.jpg', category: 'commercial', categoryKey: 'category.commercial', titleKey: 'project.commercialComplex', descKey: 'project.commercialComplex.desc' },
+    { image: '/ttc/img/projects/project-03.jpg', category: 'industrial', categoryKey: 'category.industrial', titleKey: 'project.industrialWarehouse', descKey: 'project.industrialWarehouse.desc' },
+    { image: '/ttc/img/projects/project-04.jpg', category: 'residential', categoryKey: 'category.luxury', titleKey: 'project.luxuryResidence', descKey: 'project.luxuryResidence.desc' },
+    { image: '/ttc/img/projects/project-05.jpg', category: 'residential', categoryKey: 'category.multifamily', titleKey: 'project.multiFamilyHousing', descKey: 'project.multiFamilyHousing.desc' },
+    { image: '/ttc/img/projects/project-06.jpg', category: 'public', categoryKey: 'category.publicWorks', titleKey: 'project.publicInfrastructure', descKey: 'project.publicInfrastructure.desc' },
+    { image: '/ttc/img/projects/project-07.jpg', category: 'commercial', categoryKey: 'category.parking', titleKey: 'project.parkingStructure', descKey: 'project.parkingStructure.desc' },
+    { image: '/ttc/img/projects/project-08.jpg', category: 'commercial', categoryKey: 'category.mixedUse', titleKey: 'project.mixedUse', descKey: 'project.mixedUse.desc' },
+    { image: '/ttc/img/projects/project-09.jpg', category: 'public', categoryKey: 'category.healthcare', titleKey: 'project.healthcare', descKey: 'project.healthcare.desc' },
+    { image: '/ttc/img/projects/project-10.jpg', category: 'commercial', categoryKey: 'category.hospitality', titleKey: 'project.hospitality', descKey: 'project.hospitality.desc' },
+    { image: '/ttc/img/projects/project-11.jpg', category: 'industrial', categoryKey: 'category.industrial', titleKey: 'project.distributionCenter', descKey: 'project.distributionCenter' },
+    { image: '/ttc/img/projects/project-12.jpg', category: 'commercial', categoryKey: 'category.office', titleKey: 'project.officeBuilding', descKey: 'project.officeBuilding' },
+  ];
+
+  const filtered = filter === 'all' ? allProjects : allProjects.filter((p) => p.category === filter);
+
+  const filterBtns: { key: Category; labelKey: TranslationKey }[] = [
     { key: 'all', labelKey: 'projects.filterAll' },
     { key: 'residential', labelKey: 'projects.filterResidential' },
     { key: 'commercial', labelKey: 'projects.filterCommercial' },
@@ -41,60 +44,43 @@ export default function ProjectsPage() {
     { key: 'public', labelKey: 'projects.filterPublic' },
   ];
 
-  const filtered = filter === 'all' ? allProjects : allProjects.filter((p) => p.category === filter);
-
   return (
     <>
-      {/* Page Hero */}
-      <section className="ttc-page-hero">
-        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 2rem' }}>
-          <span className="ttc-section-label">{t('section.portfolio')}</span>
-          <h1>{t('projects.title')}</h1>
-          <p>{t('projects.subtitle')}</p>
+      <section className="page-hero">
+        <div className="container">
+          <span className="section__label">{t('section.portfolio')}</span>
+          <h1 className="page-hero__title">{t('projects.title')}</h1>
+          <p className="page-hero__subtitle">{t('projects.subtitle')}</p>
         </div>
       </section>
 
-      {/* Projects Grid */}
-      <section style={{ padding: '4rem 2rem 6rem', background: '#0a0a0a' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-          {/* Filter Tabs */}
-          <div
-            style={{
-              display: 'flex',
-              gap: '0.5rem',
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              marginBottom: '3rem',
-            }}
-          >
-            {filters.map((f) => (
+      <section className="section projects-page">
+        <div className="container">
+          <div className="projects-filter">
+            {filterBtns.map((b) => (
               <button
-                key={f.key}
-                onClick={() => setFilter(f.key)}
-                className={`ttc-filter-btn ${filter === f.key ? 'active' : ''}`}
+                key={b.key}
+                className={`filter-btn${filter === b.key ? ' active' : ''}`}
+                onClick={() => setFilter(b.key)}
               >
-                {t(f.labelKey as any)}
+                {t(b.labelKey)}
               </button>
             ))}
           </div>
 
-          {/* Grid */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
-              gap: '1.5rem',
-            }}
-          >
+          <div className="projects__grid projects__grid--full">
             {filtered.map((p, i) => (
-              <ScrollAnimation key={p.titleKey + filter} delay={(i % 3) * 100}>
-                <ProjectCard
-                  image={p.image}
-                  title={t(p.titleKey as any)}
-                  description={t(p.descKey as any)}
-                  href="#"
-                />
-              </ScrollAnimation>
+              <ProjectCard
+                key={p.image}
+                image={p.image}
+                category={t(p.categoryKey)}
+                title={t(p.titleKey)}
+                description={t(p.descKey)}
+                index={i + 1}
+                total={filtered.length}
+                href="#"
+                delay={(i % 4) * 100}
+              />
             ))}
           </div>
         </div>

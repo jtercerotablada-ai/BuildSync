@@ -19,6 +19,28 @@ export const dictionaries = {
     'hero.credential': 'Registered P.E., S.E.',
     'hero.viewProjects': 'View Projects',
     'hero.contactUs': 'Contact Us',
+    'hero.scroll': 'Scroll',
+
+    // Project categories (badges)
+    'category.residential': 'Residential',
+    'category.commercial': 'Commercial',
+    'category.industrial': 'Industrial',
+    'category.luxury': 'Luxury',
+    'category.multifamily': 'Multi-Family',
+    'category.publicWorks': 'Public Works',
+    'category.parking': 'Parking',
+    'category.mixedUse': 'Mixed-Use',
+    'category.healthcare': 'Healthcare',
+    'category.hospitality': 'Hospitality',
+    'category.office': 'Office',
+
+    // New projects (09, 10)
+    'project.healthcare': 'Healthcare Facility',
+    'project.healthcare.desc': 'Seismic-Resistant Design',
+    'project.healthcare.full': 'Seismic-Resistant Design \u00b7 Healthcare',
+    'project.hospitality': 'Hospitality Tower',
+    'project.hospitality.desc': 'High-Rise Concrete',
+    'project.hospitality.full': 'High-Rise Concrete \u00b7 Hospitality',
 
     // Section Labels
     'section.portfolio': 'Portfolio',
@@ -189,6 +211,28 @@ export const dictionaries = {
     'hero.credential': 'P.E., S.E. Registrado',
     'hero.viewProjects': 'Ver Proyectos',
     'hero.contactUs': 'Contactenos',
+    'hero.scroll': 'Desliza',
+
+    // Project categories (badges)
+    'category.residential': 'Residencial',
+    'category.commercial': 'Comercial',
+    'category.industrial': 'Industrial',
+    'category.luxury': 'Lujo',
+    'category.multifamily': 'Multifamiliar',
+    'category.publicWorks': 'Obras Publicas',
+    'category.parking': 'Estacionamiento',
+    'category.mixedUse': 'Uso Mixto',
+    'category.healthcare': 'Salud',
+    'category.hospitality': 'Hoteleria',
+    'category.office': 'Oficina',
+
+    // New projects (09, 10)
+    'project.healthcare': 'Centro de Salud',
+    'project.healthcare.desc': 'Diseno Sismorresistente',
+    'project.healthcare.full': 'Diseno Sismorresistente \u00b7 Salud',
+    'project.hospitality': 'Torre Hotelera',
+    'project.hospitality.desc': 'Concreto de Gran Altura',
+    'project.hospitality.full': 'Concreto de Gran Altura \u00b7 Hoteleria',
 
     // Section Labels
     'section.portfolio': 'Portafolio',

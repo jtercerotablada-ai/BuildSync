@@ -33,63 +33,29 @@ export function CounterStat({ target, suffix = '', label }: CounterStatProps) {
 
   useEffect(() => {
     if (!started) return;
+    const duration = 2200;
+    let startTime: number | null = null;
 
-    const duration = 2000;
-    const steps = 60;
-    const increment = target / steps;
-    let current = 0;
-    const interval = duration / steps;
+    function step(timestamp: number) {
+      if (startTime === null) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.floor(eased * target));
+      if (progress < 1) requestAnimationFrame(step);
+      else setCount(target);
+    }
 
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= target) {
-        setCount(target);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(current));
-      }
-    }, interval);
-
-    return () => clearInterval(timer);
+    const rafId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafId);
   }, [started, target]);
 
   return (
-    <div ref={ref} style={{ textAlign: 'center' }}>
-      <div style={{ marginBottom: '0.5rem' }}>
-        <span
-          style={{
-            fontFamily: 'var(--ttc-font-heading)',
-            fontSize: 'clamp(2.5rem, 5vw, 3.5rem)',
-            fontWeight: 400,
-            color: '#c9a84c',
-            lineHeight: 1,
-          }}
-        >
-          {count}
-        </span>
-        {suffix && (
-          <span
-            style={{
-              fontFamily: 'var(--ttc-font-heading)',
-              fontSize: 'clamp(1.5rem, 3vw, 2rem)',
-              color: '#c9a84c',
-              marginLeft: '0.125rem',
-            }}
-          >
-            {suffix}
-          </span>
-        )}
-      </div>
-      <span
-        style={{
-          fontSize: '0.8125rem',
-          color: '#a3a3a3',
-          letterSpacing: '0.05em',
-          textTransform: 'uppercase',
-        }}
-      >
-        {label}
+    <div ref={ref} className="stat">
+      <span className="stat__number" data-count={target}>
+        {count}
       </span>
+      {suffix && <span className="stat__suffix">{suffix}</span>}
+      <span className="stat__label">{label}</span>
     </div>
   );
 }

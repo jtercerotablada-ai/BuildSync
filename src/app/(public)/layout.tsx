@@ -1,14 +1,22 @@
 import type { Metadata } from 'next';
-import { Playfair_Display } from 'next/font/google';
+import { Playfair_Display, Inter } from 'next/font/google';
 import { LanguageProvider } from '@/components/ttc/language-provider';
 import { TTCHeader } from '@/components/ttc/ttc-header';
 import { TTCFooter } from '@/components/ttc/ttc-footer';
+import { FxElements } from '@/components/ttc/fx-elements';
 import './ttc-globals.css';
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
   variable: '--font-playfair',
   display: 'swap',
+});
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+  weight: ['300', '400', '500', '600', '700', '800', '900'],
 });
 
 export const metadata: Metadata = {
@@ -23,16 +31,9 @@ export default function PublicLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={playfair.variable}
-      style={{
-        fontFamily: 'var(--font-inter, Inter), sans-serif',
-        backgroundColor: '#0a0a0a',
-        color: '#ffffff',
-        minHeight: '100vh',
-      }}
-    >
+    <div className={`${playfair.variable} ${inter.variable}`}>
       <LanguageProvider>
+        <FxElements />
         <TTCHeader />
         <main>{children}</main>
         <TTCFooter />
