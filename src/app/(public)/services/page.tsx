@@ -41,7 +41,7 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      <section className="section services">
+      <section className="section services-page">
         <div className="container">
           <div className="services__grid">
             {services.map((s, i) => (

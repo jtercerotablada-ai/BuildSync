@@ -17,7 +17,7 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section className="section contact">
+      <section className="section contact-page">
         <div className="container">
           <div className="contact__grid">
             <div className="contact__info" data-aos="fade-right">

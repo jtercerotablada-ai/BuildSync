@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 export function FxElements() {
+  const pathname = usePathname();
+
   useEffect(() => {
     // Scroll progress bar
     const scrollProgress = document.getElementById('scrollProgress');
@@ -22,10 +25,11 @@ export function FxElements() {
 
     // Scroll animations ([data-aos])
     const animatedEls = Array.from(document.querySelectorAll<HTMLElement>('[data-aos]'));
+    let aosObserver: IntersectionObserver | null = null;
     if (!('IntersectionObserver' in window)) {
       animatedEls.forEach((el) => el.classList.add('aos-animate'));
     } else {
-      const observer = new IntersectionObserver(
+      aosObserver = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
@@ -35,7 +39,7 @@ export function FxElements() {
               } else {
                 entry.target.classList.add('aos-animate');
               }
-              observer.unobserve(entry.target);
+              aosObserver?.unobserve(entry.target);
             }
           });
         },
@@ -46,7 +50,7 @@ export function FxElements() {
         if (rect.top < window.innerHeight && rect.bottom > 0) {
           el.classList.add('aos-animate');
         } else {
-          observer.observe(el);
+          aosObserver?.observe(el);
         }
       });
     }
@@ -145,6 +149,7 @@ export function FxElements() {
 
     return () => {
       window.removeEventListener('scroll', updateScrollProgress);
+      aosObserver?.disconnect();
       if (rafId !== null) cancelAnimationFrame(rafId);
       document.removeEventListener('mousemove', onMouseMove);
       hoverables.forEach((el) => {
@@ -161,7 +166,7 @@ export function FxElements() {
       });
       document.body.classList.remove('cursor-active');
     };
-  }, []);
+  }, [pathname]);
 
   return (
     <>

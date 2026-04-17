@@ -29,7 +29,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="section about">
+      <section className="section about-page">
         <div className="container">
           <div className="about__grid">
             <div className="about__image" data-aos="fade-right">
