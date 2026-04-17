@@ -2791,7 +2791,7 @@ img, svg {
   }
 
   .header__logo-img {
-    content: url('../../assets/img/logo-icon.svg');
+    content: url('/ttc/img/logo-icon.svg');
     height: 44px;
     width: 44px;
   }
