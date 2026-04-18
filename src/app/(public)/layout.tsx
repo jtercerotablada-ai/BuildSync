@@ -4,6 +4,7 @@ import { LanguageProvider } from '@/components/ttc/language-provider';
 import { TTCHeader } from '@/components/ttc/ttc-header';
 import { TTCFooter } from '@/components/ttc/ttc-footer';
 import { FxElements } from '@/components/ttc/fx-elements';
+import 'leaflet/dist/leaflet.css';
 import './ttc-globals.css';
 
 const playfair = Playfair_Display({

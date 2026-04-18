@@ -1,25 +1,37 @@
 import { NextResponse } from 'next/server';
 
+// Free elevation lookup via Open-Elevation (https://open-elevation.com/).
+// Returns elevation in meters above sea level. If the service is down, we
+// degrade gracefully to elevation = 0 so the rest of the tool still works.
+
 export async function POST(req: Request) {
   const { lat, lng } = await req.json().catch(() => ({}));
   if (typeof lat !== 'number' || typeof lng !== 'number') {
     return NextResponse.json({ error: 'lat/lng required' }, { status: 400 });
   }
-  const key = process.env.GOOGLE_MAPS_SERVER_KEY;
-  if (!key) {
-    // graceful degradation — return 0 m elevation so the tool still works
-    return NextResponse.json({ elevation_m: 0, source: 'default' });
+
+  try {
+    const r = await fetch(
+      `https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`,
+      {
+        headers: {
+          'User-Agent': 'ttcivilstructural.com Load Generator',
+        },
+        cache: 'no-store',
+      }
+    );
+    if (!r.ok) {
+      return NextResponse.json({ elevation_m: 0, source: 'fallback' });
+    }
+    const data = (await r.json()) as {
+      results?: Array<{ elevation: number }>;
+    };
+    const e = data.results?.[0]?.elevation;
+    if (typeof e !== 'number') {
+      return NextResponse.json({ elevation_m: 0, source: 'fallback' });
+    }
+    return NextResponse.json({ elevation_m: e, source: 'open-elevation' });
+  } catch {
+    return NextResponse.json({ elevation_m: 0, source: 'fallback' });
   }
-  const url = new URL('https://maps.googleapis.com/maps/api/elevation/json');
-  url.searchParams.set('locations', `${lat},${lng}`);
-  url.searchParams.set('key', key);
-  const r = await fetch(url.toString(), { cache: 'no-store' });
-  const data = await r.json();
-  if (data.status !== 'OK' || !data.results?.length) {
-    return NextResponse.json({ elevation_m: 0, source: 'default', error: data.status });
-  }
-  return NextResponse.json({
-    elevation_m: data.results[0].elevation,
-    source: 'google',
-  });
 }
