@@ -543,6 +543,7 @@ img, svg {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  padding-bottom: 9rem;
 }
 
 .hero__bg {
@@ -777,7 +778,6 @@ img, svg {
   text-transform: uppercase;
   color: var(--color-accent);
   writing-mode: vertical-rl;
-  transform: rotate(180deg);
   opacity: 0.8;
 }
 
@@ -2569,6 +2569,7 @@ img, svg {
 
   .hero {
     min-height: 100svh;
+    padding-bottom: 0;
   }
 
   .hero__watermark {
