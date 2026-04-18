@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { DiagramPoint, Results } from '@/lib/beam/types';
 
 interface DiagramProps {
@@ -17,6 +17,18 @@ interface DiagramProps {
   minPos?: number;
 }
 
+function useIsPhone() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 600px)');
+    const update = () => setPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return phone;
+}
+
 function Diagram({
   title,
   unit,
@@ -30,12 +42,13 @@ function Diagram({
   minValue,
   minPos,
 }: DiagramProps) {
+  const phone = useIsPhone();
   const W = 1000;
-  const H = 220;
-  const padL = 70;
-  const padR = 40;
-  const padT = 28;
-  const padB = 40;
+  const H = phone ? 300 : 220;
+  const padL = phone ? 85 : 70;
+  const padR = phone ? 30 : 40;
+  const padT = phone ? 36 : 28;
+  const padB = phone ? 56 : 40;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 

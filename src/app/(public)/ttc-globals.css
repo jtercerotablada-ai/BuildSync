@@ -1993,67 +1993,159 @@ img, svg {
 
 @media (max-width: 600px) {
   .container--wide {
-    padding: 0 1rem;
+    padding: 0 0.75rem;
   }
+
+  /* ----- Toolbar: segmented pill tabs + grid of actions ----- */
   .beam-calc__toolbar {
-    padding: 0.75rem 0.85rem;
-    gap: 0.6rem;
+    padding: 0.6rem 0.6rem;
+    gap: 0.55rem;
   }
   .beam-calc__tabs {
     width: 100%;
-    gap: 0.35rem;
+    gap: 0.2rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid var(--color-border);
+    border-radius: 0.55rem;
+    padding: 0.2rem;
   }
   .beam-calc__tab {
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    min-width: 0;
     justify-content: center;
-    padding: 0.45rem 0.5rem;
-    font-size: 0.68rem;
-    letter-spacing: 0.05em;
-    gap: 0.3rem;
+    padding: 0.55rem 0.25rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+    gap: 0.25rem;
+    border-color: transparent;
+    border-radius: 0.4rem;
+    min-height: 42px;
+  }
+  .beam-calc__tab.is-active {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   }
   .beam-calc__tab-count {
-    font-size: 0.62rem;
-    padding: 0.05rem 0.35rem;
-    min-width: 1.1rem;
+    font-size: 0.6rem;
+    padding: 0.05rem 0.3rem;
+    min-width: 1.05rem;
   }
   .beam-calc__actions {
     width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 0.5rem;
   }
-  .beam-calc__solve,
+  .beam-calc__toggle {
+    grid-column: 1 / -1;
+    justify-content: center;
+    padding: 0.55rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--color-border);
+    border-radius: 0.4rem;
+  }
+  .beam-calc__solve {
+    grid-column: 1 / -1;
+    min-height: 48px;
+    font-size: 0.78rem;
+  }
   .btn--ghost {
-    padding: 0.6rem 0.85rem;
+    min-height: 44px;
+    padding: 0.6rem 0.75rem;
     font-size: 0.7rem;
   }
+
+  /* ----- Canvas + panel compact ----- */
   .beam-calc__panel {
-    padding: 1rem;
+    padding: 0.85rem;
   }
   .beam-calc__canvas {
-    padding: 1rem 0.5rem;
+    padding: 0.5rem 0.25rem 0.75rem;
   }
   .beam-calc__results {
-    padding: 1.25rem 1rem;
+    padding: 1.1rem 0.85rem;
   }
-  .results-summary__extremes {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .results-summary__card {
-    padding: 0.65rem;
-  }
-  .results-summary__reactions {
-    overflow-x: auto;
-  }
-  .diagram {
-    padding: 0.75rem 0.6rem;
-  }
+
+  /* ----- Larger touch targets, no iOS zoom ----- */
   .panel {
     gap: 0.85rem;
+  }
+  .panel__input-group input,
+  .panel__field input,
+  .panel__field select,
+  .panel__field > input {
+    min-height: 44px;
+    font-size: 16px;
   }
   .panel__input-group input {
     min-width: 0;
   }
+  .panel__quick button {
+    min-height: 36px;
+    min-width: 40px;
+    padding: 0 0.5rem;
+    font-size: 0.75rem;
+  }
+  .panel__add {
+    min-height: 46px;
+  }
+  .panel__item {
+    padding: 0.6rem 0.65rem;
+  }
+  .panel__item-input {
+    width: 64px;
+    min-height: 36px;
+    font-size: 14px;
+  }
   .support-type-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+  .support-type-btn {
+    min-height: 68px;
+  }
+  .seg button {
+    min-height: 42px;
+    font-size: 0.75rem;
+  }
+
+  /* ----- SVG readability: bump text inside diagrams/visualizer ----- */
+  .beam-viz__svg text {
+    font-size: 18px;
+  }
+  .beam-viz__dim text {
+    font-size: 16px;
+  }
+  .beam-viz__empty text {
+    font-size: 20px;
+  }
+  .diagram__svg text {
+    font-size: 16px;
+  }
+
+  /* ----- Results: 2-col cards, table scrolls ----- */
+  .results-summary__extremes {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+  .results-summary__card {
+    padding: 0.7rem 0.6rem;
+  }
+  .results-summary__card-value {
+    font-size: 1rem;
+  }
+  .results-summary__reactions {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .results-summary__reactions table {
+    min-width: 420px;
+  }
+  .diagram {
+    padding: 0.7rem 0.4rem 0.55rem;
+  }
+  .diagram__title {
+    font-size: 0.72rem;
+    margin-bottom: 0.35rem;
   }
 }
 

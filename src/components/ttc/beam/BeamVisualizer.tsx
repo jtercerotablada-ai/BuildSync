@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { BeamModel, Load, Support, AppliedMoment } from '@/lib/beam/types';
 import { LOAD_CASE_COLORS } from '@/lib/beam/types';
 
@@ -9,13 +9,26 @@ interface Props {
   selectedId?: string | null;
 }
 
+function useIsPhone() {
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 600px)');
+    const update = () => setPhone(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return phone;
+}
+
 export function BeamVisualizer({ beam, selectedId }: Props) {
+  const phone = useIsPhone();
   const W = 1000;
-  const H = 340;
-  const padL = 60;
-  const padR = 60;
-  const padT = 110;
-  const padB = 90;
+  const H = phone ? 520 : 340;
+  const padL = phone ? 50 : 60;
+  const padR = phone ? 50 : 60;
+  const padT = phone ? 170 : 110;
+  const padB = phone ? 140 : 90;
   const beamLen = W - padL - padR;
   const beamY = padT + 40;
   const L = beam.length;
