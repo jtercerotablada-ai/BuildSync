@@ -135,38 +135,60 @@ function Diagram({
         <line x1={padL} y1={padT} x2={padL} y2={H - padB} stroke="#4a4a4a" strokeWidth="0.8" />
         <line x1={padL} y1={H - padB} x2={W - padR} y2={H - padB} stroke="#4a4a4a" strokeWidth="0.8" />
 
-        {maxValue !== undefined && maxPos !== undefined && Math.abs(maxValue) > 1e-9 && (
-          <g>
-            <circle cx={xOf(maxPos)} cy={yOf(maxValue)} r="3" fill={color} />
-            <text
-              x={xOf(maxPos)}
-              y={yOf(maxValue) - 8}
-              textAnchor="middle"
-              fontSize="10"
-              fontWeight="700"
-              fill={color}
-              fontFamily="system-ui"
-            >
-              {maxLabel ?? 'max'} = {formatTick(maxValue)}
-            </text>
-          </g>
-        )}
-        {minValue !== undefined && minPos !== undefined && Math.abs(minValue) > 1e-9 && minValue !== maxValue && (
-          <g>
-            <circle cx={xOf(minPos)} cy={yOf(minValue)} r="3" fill={color} />
-            <text
-              x={xOf(minPos)}
-              y={yOf(minValue) + 16}
-              textAnchor="middle"
-              fontSize="10"
-              fontWeight="700"
-              fill={color}
-              fontFamily="system-ui"
-            >
-              {minLabel ?? 'min'} = {formatTick(minValue)}
-            </text>
-          </g>
-        )}
+        {maxValue !== undefined && maxPos !== undefined && Math.abs(maxValue) > 1e-9 && (() => {
+          const mx = xOf(maxPos);
+          const near0 = mx < padL + 40;
+          const nearL = mx > W - padR - 40;
+          const anchor = near0 ? 'start' : nearL ? 'end' : 'middle';
+          const dx = near0 ? 6 : nearL ? -6 : 0;
+          return (
+            <g>
+              <circle cx={mx} cy={yOf(maxValue)} r="3" fill={color} />
+              <text
+                x={mx + dx}
+                y={yOf(maxValue) - 8}
+                textAnchor={anchor}
+                fontSize="10"
+                fontWeight="700"
+                fill={color}
+                fontFamily="system-ui"
+                paintOrder="stroke"
+                stroke="#0f0f0f"
+                strokeWidth="3"
+                strokeLinejoin="round"
+              >
+                {maxLabel ?? 'max'} = {formatTick(maxValue)}
+              </text>
+            </g>
+          );
+        })()}
+        {minValue !== undefined && minPos !== undefined && Math.abs(minValue) > 1e-9 && Math.abs(minValue - (maxValue ?? 0)) > 1e-6 && (() => {
+          const mx = xOf(minPos);
+          const near0 = mx < padL + 40;
+          const nearL = mx > W - padR - 40;
+          const anchor = near0 ? 'start' : nearL ? 'end' : 'middle';
+          const dx = near0 ? 6 : nearL ? -6 : 0;
+          return (
+            <g>
+              <circle cx={mx} cy={yOf(minValue)} r="3" fill={color} />
+              <text
+                x={mx + dx}
+                y={yOf(minValue) + 16}
+                textAnchor={anchor}
+                fontSize="10"
+                fontWeight="700"
+                fill={color}
+                fontFamily="system-ui"
+                paintOrder="stroke"
+                stroke="#0f0f0f"
+                strokeWidth="3"
+                strokeLinejoin="round"
+              >
+                {minLabel ?? 'min'} = {formatTick(minValue)}
+              </text>
+            </g>
+          );
+        })()}
 
         <text x={W - padR} y={H - padB + 28} textAnchor="end" fontSize="10" fill="#8a8a8a" fontFamily="system-ui">
           x (m)

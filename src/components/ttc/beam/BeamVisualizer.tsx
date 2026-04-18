@@ -92,20 +92,23 @@ export function BeamVisualizer({ beam, selectedId }: Props) {
 
         {guides.length > 0 && (
           <g className="beam-viz__empty">
-            {guides.map((g, i) => (
-              <text
-                key={i}
-                x={W / 2}
-                y={H / 2 - 10 + i * 22}
-                textAnchor="middle"
-                fontSize="14"
-                fill="#8a8a8a"
-                fontFamily="system-ui"
-                fontStyle="italic"
-              >
-                {g}
-              </text>
-            ))}
+            {guides.map((g, i) => {
+              const cy = hasLength ? 24 + i * 20 : H / 2 - ((guides.length - 1) * 22) / 2 + i * 22;
+              return (
+                <text
+                  key={i}
+                  x={W / 2}
+                  y={cy}
+                  textAnchor="middle"
+                  fontSize={hasLength ? 12 : 14}
+                  fill="#6f6f6f"
+                  fontFamily="system-ui"
+                  fontStyle="italic"
+                >
+                  {g}
+                </text>
+              );
+            })}
           </g>
         )}
       </svg>
@@ -236,42 +239,57 @@ function renderDistributed(
   const marker = 'arrow';
 
   const maxMag = Math.max(Math.abs(wA), Math.abs(wB), 1e-9);
-  const baseArrow = 40;
-  const minArrow = 8;
-  const lenAt = (ratio: number) => {
+  const beamEdgeGap = 8;          // distance between beam top and arrow tip
+  const maxArrowLen = 60;          // visible arrow length at max |w|
+  const minVisibleArrow = 10;      // skip arrows shorter than this (w ~= 0)
+  const arrowLenAt = (ratio: number) => {
     const w = wA + (wB - wA) * ratio;
-    const rel = Math.abs(w) / maxMag;
-    return minArrow + rel * (baseArrow - minArrow);
+    return (Math.abs(w) / maxMag) * maxArrowLen;
   };
 
   const span = x2 - x1;
-  const count = Math.max(3, Math.min(20, Math.floor(span / 25)));
+  const count = Math.max(4, Math.min(12, Math.round(span / 48)));
 
   const arrows = [];
   const tops: { x: number; y: number }[] = [];
   for (let i = 0; i <= count; i++) {
     const ratio = i / count;
     const x = x1 + ratio * span;
-    const len = lenAt(ratio);
-    const tailY = isDown ? y - len : y + len;
-    const tipY = isDown ? y - 6 : y + 6;
+    const arrowLen = arrowLenAt(ratio);
+    const tipY = isDown ? y - beamEdgeGap : y + beamEdgeGap;
+    const tailY = isDown ? tipY - arrowLen : tipY + arrowLen;
     tops.push({ x, y: tailY });
-    arrows.push(
-      <line
-        key={i}
-        x1={x}
-        y1={tailY}
-        x2={x}
-        y2={tipY}
-        stroke="currentColor"
-        strokeWidth="1.4"
-        markerEnd={`url(#${marker})`}
-      />
-    );
+    if (arrowLen >= minVisibleArrow) {
+      arrows.push(
+        <line
+          key={`a${i}`}
+          x1={x}
+          y1={tailY}
+          x2={x}
+          y2={tipY}
+          stroke="currentColor"
+          strokeWidth="1.3"
+          markerEnd={`url(#${marker})`}
+        />
+      );
+    }
   }
 
-  const connector = tops.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
-  const labelY = tops[0].y + (isDown ? -6 : 16);
+  // Envelope: top line + closing sides down to the beam edge (creates a clean trapezoid / triangle shape)
+  const edgeY = isDown ? y - beamEdgeGap : y + beamEdgeGap;
+  const fillPath =
+    `M ${x1.toFixed(2)} ${edgeY.toFixed(2)} ` +
+    tops.map((p) => `L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ') +
+    ` L ${x2.toFixed(2)} ${edgeY.toFixed(2)} Z`;
+
+  const envelope = tops
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+    .join(' ');
+
+  // Label placed above the tallest top point (or below if isDown=false)
+  const tallest = tops.reduce((acc, p) =>
+    isDown ? (p.y < acc.y ? p : acc) : (p.y > acc.y ? p : acc), tops[0]);
+  const labelY = tallest.y + (isDown ? -6 : 16);
   const magLabel =
     Math.abs(wA - wB) < 1e-9
       ? `${wA.toFixed(2)} kN/m`
@@ -279,16 +297,21 @@ function renderDistributed(
 
   return (
     <g key={l.id} className={`beam-viz__load ${selected ? 'is-selected' : ''}`} style={{ color }}>
-      <path d={connector} stroke="currentColor" strokeWidth="1.6" fill="none" />
+      <path d={fillPath} fill="currentColor" fillOpacity="0.08" stroke="none" />
+      <path d={envelope} stroke="currentColor" strokeWidth="1.6" fill="none" />
       {arrows}
       <text
-        x={(x1 + x2) / 2}
+        x={tallest.x}
         y={labelY}
         fontSize="11"
         fill="currentColor"
         fontFamily="system-ui"
         textAnchor="middle"
         fontWeight="600"
+        paintOrder="stroke"
+        stroke="#0f0f0f"
+        strokeWidth="3"
+        strokeLinejoin="round"
       >
         {magLabel}
       </text>
