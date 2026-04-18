@@ -53,6 +53,14 @@ export function solve(model: BeamModel): Results {
   });
   model.moments.forEach((m) => positionSet.add(clamp(m.position, 0, L)));
 
+  // Subdivide to guarantee accuracy: add intermediate nodes so Hermite-cubic
+  // deflection captures 4th-order UDL shapes and fixed-fixed beams don't
+  // collapse to zero DOF (which would yield zero deflection everywhere).
+  const minElements = Math.max(24, Math.ceil(L * 4));
+  for (let i = 1; i < minElements; i++) {
+    positionSet.add((i / minElements) * L);
+  }
+
   const sorted = Array.from(positionSet).sort((a, b) => a - b);
   const nodes = dedupe(sorted, TOL);
   const N = nodes.length;
@@ -169,7 +177,10 @@ export function solve(model: BeamModel): Results {
     if (s.type === 'fixed' || s.type === 'guided') {
       let Km = 0;
       for (let j = 0; j < 2 * N; j++) Km += K[dm][j] * u[j];
-      Rm = (Km - F[dm]) / KN;
+      // FEM gives the CCW moment applied by the support on the beam.
+      // We store r.M as the sagging-positive internal moment at the support
+      // so it matches the moment-diagram convention (opposite sign).
+      Rm = -(Km - F[dm]) / KN;
     }
     reactions.push({ supportId: s.id, position: s.position, type: s.type, V: Rv, M: Rm });
   }
@@ -203,8 +214,13 @@ export function solve(model: BeamModel): Results {
     let V = 0;
     let M = 0;
 
+    // At the right endpoint x=L, a reaction located at x=L represents the
+    // boundary wall couple that closes equilibrium OUTSIDE the beam. Within
+    // the beam interior we want M(L⁻), so skip the endpoint reaction at x=L.
+    const atRightEnd = Math.abs(x - L) < TOL;
     for (const r of reactions) {
       if (r.position <= x + TOL) {
+        if (atRightEnd && Math.abs(r.position - L) < TOL) continue;
         V += r.V * KN;
         M += r.V * KN * (x - r.position);
         M += r.M * KN;
@@ -222,7 +238,9 @@ export function solve(model: BeamModel): Results {
     for (const m of model.moments) {
       if (m.position < x - TOL) {
         const S = (m.direction === 'ccw' ? 1 : -1) * m.magnitude * KN;
-        M += S;
+        // Sagging-positive internal moment: CCW applied moment M0 creates a
+        // DOWN jump of M0 in the diagram. Subtract to match convention.
+        M -= S;
       }
     }
 
