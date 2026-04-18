@@ -110,20 +110,20 @@ export function RcCanvas({ params, results, unitSystem, overlay = 'flexural' }: 
           </defs>
         )}
 
-        {/* Concrete outline */}
+        {/* Concrete outline — warm stone look with gold accent */}
         <path
           d={pathD}
-          fill="rgba(140, 140, 140, 0.15)"
-          stroke="#3c4858"
-          strokeWidth={strokeW}
+          fill="rgba(201, 168, 76, 0.18)"
+          stroke="#c9a84c"
+          strokeWidth={strokeW * 1.2}
           strokeLinejoin="round"
         />
 
-        {/* Compressive zone overlay */}
+        {/* Compressive zone overlay (vivid teal) */}
         {naDepth !== null && naDepth > 0 && (
           <path
             d={pathD}
-            fill="rgba(56, 128, 255, 0.18)"
+            fill="rgba(64, 196, 255, 0.28)"
             clipPath="url(#compression-zone)"
           />
         )}
@@ -136,15 +136,15 @@ export function RcCanvas({ params, results, unitSystem, overlay = 'flexural' }: 
               x2={w + pad * 0.5}
               y1={naDepth}
               y2={naDepth}
-              stroke="#d63a3a"
-              strokeWidth={strokeW * 1.5}
+              stroke="#ff5a66"
+              strokeWidth={strokeW * 1.6}
               strokeDasharray={`${strokeW * 4} ${strokeW * 4}`}
             />
             <text
               x={w + pad * 0.55}
               y={naDepth}
               fontSize={fontSize}
-              fill="#d63a3a"
+              fill="#ff7d87"
               dominantBaseline="middle"
               textAnchor="start"
             >
@@ -154,7 +154,7 @@ export function RcCanvas({ params, results, unitSystem, overlay = 'flexural' }: 
           </>
         )}
 
-        {/* Rebar markers */}
+        {/* Rebar markers — bright gold rings over dark core */}
         {params.layers.map((L) => {
           const bar = inferBar(L);
           const xs = barDistributeX(params.concrete, L.count);
@@ -166,9 +166,9 @@ export function RcCanvas({ params, results, unitSystem, overlay = 'flexural' }: 
                   cx={x}
                   cy={L.depth}
                   r={Math.max(bar.diameter / 2, strokeW * 2)}
-                  fill="#1a1a1a"
-                  stroke="#555"
-                  strokeWidth={strokeW * 0.5}
+                  fill="#0f0f11"
+                  stroke="#e3c872"
+                  strokeWidth={strokeW * 0.8}
                 />
               ))}
               {/* Layer label to the left */}
@@ -176,7 +176,7 @@ export function RcCanvas({ params, results, unitSystem, overlay = 'flexural' }: 
                 x={-pad * 0.5}
                 y={L.depth}
                 fontSize={fontSize * 0.85}
-                fill="#555"
+                fill="rgba(242,239,228,0.72)"
                 dominantBaseline="middle"
                 textAnchor="end"
               >
@@ -187,14 +187,14 @@ export function RcCanvas({ params, results, unitSystem, overlay = 'flexural' }: 
         })}
 
         {/* Dim lines: width and height */}
-        <g className="rc-canvas__dims" opacity="0.65">
+        <g className="rc-canvas__dims" opacity="0.8">
           {/* width dim (below) */}
           <line
             x1={0}
             x2={w}
             y1={h + dimOffset}
             y2={h + dimOffset}
-            stroke="#888"
+            stroke="rgba(242,239,228,0.45)"
             strokeWidth={strokeW * 0.8}
           />
           <line
@@ -202,7 +202,7 @@ export function RcCanvas({ params, results, unitSystem, overlay = 'flexural' }: 
             x2={0}
             y1={h}
             y2={h + dimOffset + strokeW * 3}
-            stroke="#888"
+            stroke="rgba(242,239,228,0.35)"
             strokeWidth={strokeW * 0.5}
           />
           <line
@@ -210,14 +210,14 @@ export function RcCanvas({ params, results, unitSystem, overlay = 'flexural' }: 
             x2={w}
             y1={h}
             y2={h + dimOffset + strokeW * 3}
-            stroke="#888"
+            stroke="rgba(242,239,228,0.35)"
             strokeWidth={strokeW * 0.5}
           />
           <text
             x={w / 2}
             y={h + dimOffset + fontSize * 0.8}
             fontSize={fontSize}
-            fill="#555"
+            fill="rgba(242,239,228,0.82)"
             textAnchor="middle"
           >
             {formatValue(w, 'dimension', unitSystem, 1)} {unitLabel('dimension', unitSystem)}
@@ -229,14 +229,14 @@ export function RcCanvas({ params, results, unitSystem, overlay = 'flexural' }: 
             x2={-dimOffset}
             y1={0}
             y2={h}
-            stroke="#888"
+            stroke="rgba(242,239,228,0.45)"
             strokeWidth={strokeW * 0.8}
           />
           <text
             x={-dimOffset - fontSize * 0.3}
             y={h / 2}
             fontSize={fontSize}
-            fill="#555"
+            fill="rgba(242,239,228,0.82)"
             textAnchor="end"
             dominantBaseline="middle"
             transform={`rotate(-90 ${-dimOffset - fontSize * 0.3} ${h / 2})`}

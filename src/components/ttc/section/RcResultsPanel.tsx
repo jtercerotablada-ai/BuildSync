@@ -242,23 +242,23 @@ function MomentCurvatureChart({
         {/* Grid */}
         {Array.from({ length: gridX + 1 }).map((_, i) => {
           const x = ml + (i / gridX) * plotW;
-          return <line key={`gx${i}`} x1={x} x2={x} y1={mt} y2={mt + plotH} stroke="#e8e8ec" />;
+          return <line key={`gx${i}`} x1={x} x2={x} y1={mt} y2={mt + plotH} stroke="rgba(255,255,255,0.06)" />;
         })}
         {Array.from({ length: gridY + 1 }).map((_, i) => {
           const y = mt + (i / gridY) * plotH;
-          return <line key={`gy${i}`} x1={ml} x2={ml + plotW} y1={y} y2={y} stroke="#e8e8ec" />;
+          return <line key={`gy${i}`} x1={ml} x2={ml + plotW} y1={y} y2={y} stroke="rgba(255,255,255,0.06)" />;
         })}
 
         {/* Axes */}
-        <line x1={ml} x2={ml + plotW} y1={mt + plotH} y2={mt + plotH} stroke="#444" strokeWidth={1} />
-        <line x1={ml} x2={ml} y1={mt} y2={mt + plotH} stroke="#444" strokeWidth={1} />
+        <line x1={ml} x2={ml + plotW} y1={mt + plotH} y2={mt + plotH} stroke="rgba(242,239,228,0.55)" strokeWidth={1} />
+        <line x1={ml} x2={ml} y1={mt} y2={mt + plotH} stroke="rgba(242,239,228,0.55)" strokeWidth={1} />
 
         {/* Axis labels */}
         {Array.from({ length: gridX + 1 }).map((_, i) => {
           const phi = (i / gridX) * phiMax;
           const x = ml + (i / gridX) * plotW;
           return (
-            <text key={`xl${i}`} x={x} y={mt + plotH + 14} fontSize={10} textAnchor="middle" fill="#555">
+            <text key={`xl${i}`} x={x} y={mt + plotH + 14} fontSize={10} textAnchor="middle" fill="rgba(242,239,228,0.65)">
               {phi.toExponential(1)}
             </text>
           );
@@ -267,7 +267,7 @@ function MomentCurvatureChart({
           const M = (1 - i / gridY) * MMax;
           const y = mt + (i / gridY) * plotH;
           return (
-            <text key={`yl${i}`} x={ml - 4} y={y + 3} fontSize={10} textAnchor="end" fill="#555">
+            <text key={`yl${i}`} x={ml - 4} y={y + 3} fontSize={10} textAnchor="end" fill="rgba(242,239,228,0.65)">
               {momentScale(M).toExponential(1)}
             </text>
           );
@@ -279,26 +279,26 @@ function MomentCurvatureChart({
           x2={ml + plotW}
           y1={ys(flexural.Mn)}
           y2={ys(flexural.Mn)}
-          stroke="#4a90e2"
+          stroke="#58a9ff"
           strokeDasharray="3 3"
           strokeWidth={1}
         />
-        <text x={ml + plotW - 4} y={ys(flexural.Mn) - 3} fontSize={10} textAnchor="end" fill="#4a90e2">
+        <text x={ml + plotW - 4} y={ys(flexural.Mn) - 3} fontSize={10} textAnchor="end" fill="#58a9ff">
           Mn
         </text>
 
         {/* Curve */}
-        <path d={path} fill="none" stroke="#d63a3a" strokeWidth={1.8} />
+        <path d={path} fill="none" stroke="#ff6b6b" strokeWidth={1.8} />
 
         {/* Yield point */}
         {yieldPoint && (
           <>
-            <circle cx={xs(yieldPoint.phi)} cy={ys(yieldPoint.M)} r={4} fill="#0a8f4a" />
+            <circle cx={xs(yieldPoint.phi)} cy={ys(yieldPoint.M)} r={4} fill="#3dd78d" />
             <text
               x={xs(yieldPoint.phi) + 6}
               y={ys(yieldPoint.M) - 6}
               fontSize={10}
-              fill="#0a8f4a"
+              fill="#3dd78d"
             >
               Yield
             </text>
@@ -308,12 +308,12 @@ function MomentCurvatureChart({
         {/* Ultimate point */}
         {ultimatePoint && (
           <>
-            <circle cx={xs(ultimatePoint.phi)} cy={ys(ultimatePoint.M)} r={4} fill="#d63a3a" />
+            <circle cx={xs(ultimatePoint.phi)} cy={ys(ultimatePoint.M)} r={4} fill="#ff6b6b" />
             <text
               x={xs(ultimatePoint.phi) + 6}
               y={ys(ultimatePoint.M) - 6}
               fontSize={10}
-              fill="#d63a3a"
+              fill="#ff6b6b"
             >
               Ultimate
             </text>
@@ -321,7 +321,7 @@ function MomentCurvatureChart({
         )}
 
         {/* Axis titles */}
-        <text x={ml + plotW / 2} y={H - 6} fontSize={11} textAnchor="middle" fill="#333">
+        <text x={ml + plotW / 2} y={H - 6} fontSize={11} textAnchor="middle" fill="rgba(242,239,228,0.9)">
           φ (1/mm)
         </text>
         <text
@@ -329,7 +329,7 @@ function MomentCurvatureChart({
           y={mt + plotH / 2}
           fontSize={11}
           textAnchor="middle"
-          fill="#333"
+          fill="rgba(242,239,228,0.9)"
           transform={`rotate(-90 12 ${mt + plotH / 2})`}
         >
           M ({momU})
@@ -424,11 +424,11 @@ function PMChart({ results, unitSystem }: { results: RcResults; unitSystem: Unit
         {/* Grid */}
         {Array.from({ length: gridX + 1 }).map((_, i) => {
           const x = ml + (i / gridX) * plotW;
-          return <line key={`gx${i}`} x1={x} x2={x} y1={mt} y2={mt + plotH} stroke="#e8e8ec" />;
+          return <line key={`gx${i}`} x1={x} x2={x} y1={mt} y2={mt + plotH} stroke="rgba(255,255,255,0.06)" />;
         })}
         {Array.from({ length: gridY + 1 }).map((_, i) => {
           const y = mt + (i / gridY) * plotH;
-          return <line key={`gy${i}`} x1={ml} x2={ml + plotW} y1={y} y2={y} stroke="#e8e8ec" />;
+          return <line key={`gy${i}`} x1={ml} x2={ml + plotW} y1={y} y2={y} stroke="rgba(255,255,255,0.06)" />;
         })}
 
         {/* P=0 axis (flexion line) */}
@@ -437,44 +437,44 @@ function PMChart({ results, unitSystem }: { results: RcResults; unitSystem: Unit
           x2={ml + plotW}
           y1={ys(0)}
           y2={ys(0)}
-          stroke="#999"
+          stroke="rgba(242,239,228,0.35)"
           strokeWidth={1}
           strokeDasharray="2 3"
         />
 
         {/* Nominal envelope */}
-        <path d={envPath} fill="rgba(214,58,58,0.12)" stroke="#d63a3a" strokeWidth={1.6} />
+        <path d={envPath} fill="rgba(255,107,107,0.18)" stroke="#ff6b6b" strokeWidth={1.6} />
 
         {/* φ envelope */}
-        <path d={phiPath} fill="rgba(74,144,226,0.12)" stroke="#4a90e2" strokeWidth={1.4} strokeDasharray="4 3" />
+        <path d={phiPath} fill="rgba(88,169,255,0.15)" stroke="#58a9ff" strokeWidth={1.4} strokeDasharray="4 3" />
 
         {/* Key points */}
-        <circle cx={xs(0)} cy={ys(P0)} r={4} fill="#d63a3a" />
-        <text x={xs(0) + 6} y={ys(P0) + 3} fontSize={10} fill="#d63a3a">P0</text>
+        <circle cx={xs(0)} cy={ys(P0)} r={4} fill="#ff6b6b" />
+        <text x={xs(0) + 6} y={ys(P0) + 3} fontSize={10} fill="#ff6b6b">P0</text>
 
-        <circle cx={xs(0)} cy={ys(pureTension)} r={4} fill="#d63a3a" />
-        <text x={xs(0) + 6} y={ys(pureTension) - 4} fontSize={10} fill="#d63a3a">Pnt</text>
+        <circle cx={xs(0)} cy={ys(pureTension)} r={4} fill="#ff6b6b" />
+        <text x={xs(0) + 6} y={ys(pureTension) - 4} fontSize={10} fill="#ff6b6b">Pnt</text>
 
-        <circle cx={xs(balancePoint.M)} cy={ys(balancePoint.P)} r={4} fill="#0a8f4a" />
-        <text x={xs(balancePoint.M) + 6} y={ys(balancePoint.P)} fontSize={10} fill="#0a8f4a">
+        <circle cx={xs(balancePoint.M)} cy={ys(balancePoint.P)} r={4} fill="#3dd78d" />
+        <text x={xs(balancePoint.M) + 6} y={ys(balancePoint.P)} fontSize={10} fill="#3dd78d">
           Balance
         </text>
 
-        <circle cx={xs(pureFlexion.M)} cy={ys(pureFlexion.P)} r={4} fill="#333" />
-        <text x={xs(pureFlexion.M) + 6} y={ys(pureFlexion.P) + 10} fontSize={10} fill="#333">
+        <circle cx={xs(pureFlexion.M)} cy={ys(pureFlexion.P)} r={4} fill="#c9a84c" />
+        <text x={xs(pureFlexion.M) + 6} y={ys(pureFlexion.P) + 10} fontSize={10} fill="#c9a84c">
           Pure flex
         </text>
 
         {/* Axes */}
-        <line x1={ml} x2={ml + plotW} y1={mt + plotH} y2={mt + plotH} stroke="#444" strokeWidth={1} />
-        <line x1={ml} x2={ml} y1={mt} y2={mt + plotH} stroke="#444" strokeWidth={1} />
+        <line x1={ml} x2={ml + plotW} y1={mt + plotH} y2={mt + plotH} stroke="rgba(242,239,228,0.55)" strokeWidth={1} />
+        <line x1={ml} x2={ml} y1={mt} y2={mt + plotH} stroke="rgba(242,239,228,0.55)" strokeWidth={1} />
 
         {/* Axis tick labels */}
         {Array.from({ length: gridX + 1 }).map((_, i) => {
           const M = (i / gridX) * Mmax;
           const x = ml + (i / gridX) * plotW;
           return (
-            <text key={`xl${i}`} x={x} y={mt + plotH + 14} fontSize={10} textAnchor="middle" fill="#555">
+            <text key={`xl${i}`} x={x} y={mt + plotH + 14} fontSize={10} textAnchor="middle" fill="rgba(242,239,228,0.65)">
               {mScale(M).toExponential(1)}
             </text>
           );
@@ -483,14 +483,14 @@ function PMChart({ results, unitSystem }: { results: RcResults; unitSystem: Unit
           const P = Pmax - (i / gridY) * (Pmax - Pmin);
           const y = mt + (i / gridY) * plotH;
           return (
-            <text key={`yl${i}`} x={ml - 4} y={y + 3} fontSize={10} textAnchor="end" fill="#555">
+            <text key={`yl${i}`} x={ml - 4} y={y + 3} fontSize={10} textAnchor="end" fill="rgba(242,239,228,0.65)">
               {pScale(P).toExponential(1)}
             </text>
           );
         })}
 
         {/* Axis titles */}
-        <text x={ml + plotW / 2} y={H - 6} fontSize={11} textAnchor="middle" fill="#333">
+        <text x={ml + plotW / 2} y={H - 6} fontSize={11} textAnchor="middle" fill="rgba(242,239,228,0.9)">
           M ({momU})
         </text>
         <text
@@ -498,7 +498,7 @@ function PMChart({ results, unitSystem }: { results: RcResults; unitSystem: Unit
           y={mt + plotH / 2}
           fontSize={11}
           textAnchor="middle"
-          fill="#333"
+          fill="rgba(242,239,228,0.9)"
           transform={`rotate(-90 12 ${mt + plotH / 2})`}
         >
           P ({forceU})
@@ -506,11 +506,19 @@ function PMChart({ results, unitSystem }: { results: RcResults; unitSystem: Unit
 
         {/* Legend */}
         <g transform={`translate(${ml + plotW - 100} ${mt + 4})`}>
-          <rect x={0} y={0} width={94} height={30} fill="rgba(255,255,255,0.88)" stroke="#ddd" />
-          <line x1={6} x2={22} y1={10} y2={10} stroke="#d63a3a" strokeWidth={2} />
-          <text x={26} y={13} fontSize={10} fill="#333">Nominal</text>
-          <line x1={6} x2={22} y1={22} y2={22} stroke="#4a90e2" strokeWidth={2} strokeDasharray="3 2" />
-          <text x={26} y={25} fontSize={10} fill="#333">φ-reduced</text>
+          <rect
+            x={0}
+            y={0}
+            width={94}
+            height={30}
+            fill="rgba(20,20,24,0.88)"
+            stroke="rgba(255,255,255,0.1)"
+            rx={4}
+          />
+          <line x1={6} x2={22} y1={10} y2={10} stroke="#ff6b6b" strokeWidth={2} />
+          <text x={26} y={13} fontSize={10} fill="rgba(242,239,228,0.9)">Nominal</text>
+          <line x1={6} x2={22} y1={22} y2={22} stroke="#58a9ff" strokeWidth={2} strokeDasharray="3 2" />
+          <text x={26} y={25} fontSize={10} fill="rgba(242,239,228,0.9)">φ-reduced</text>
         </g>
       </svg>
     </div>

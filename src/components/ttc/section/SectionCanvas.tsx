@@ -108,7 +108,7 @@ export function SectionCanvas({
       ? `url(#${sigmaGradId})`
       : heatmapMode === 'tau' && Math.abs(V) > 0 && Qx_max > 0
         ? `url(#${tauGradId})`
-        : 'rgba(201,168,76,0.15)';
+        : 'rgba(201,168,76,0.28)';
 
   const strokeWidth = Math.max((xMax - xMin) * 0.003, 0.5);
 
@@ -427,7 +427,7 @@ function GridLines({
         y1={yMin - padding}
         x2={x}
         y2={yMax + padding}
-        stroke="rgba(0,0,0,0.05)"
+        stroke="rgba(255,255,255,0.06)"
         strokeWidth={0.3}
         vectorEffect="non-scaling-stroke"
       />
@@ -441,7 +441,7 @@ function GridLines({
         y1={y}
         x2={xMax + padding}
         y2={y}
-        stroke="rgba(0,0,0,0.05)"
+        stroke="rgba(255,255,255,0.06)"
         strokeWidth={0.3}
         vectorEffect="non-scaling-stroke"
       />
