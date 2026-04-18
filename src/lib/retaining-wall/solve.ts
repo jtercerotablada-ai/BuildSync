@@ -48,10 +48,17 @@ export function solveWall(input: WallInput): WallResults {
     errors.push(
       `Sliding FS=${stability.FS_sliding.toFixed(2)} < ${input.safetyFactors.sliding} — consider a shear key or widen footing`
     );
-  if (!stability.bearingOk)
-    errors.push(
-      `Bearing qmax=${stability.qMax.toFixed(0)} kPa > qAllow=${input.baseSoil.qAllow} kPa`
-    );
+  if (!stability.bearingOk) {
+    if (!isFinite(stability.qMax)) {
+      errors.push(
+        `Bearing FAIL — resultant falls outside the footing (e=${stability.eccentricity.toFixed(0)} mm, B/2=${(stability.B / 2).toFixed(0)} mm). Wall physically overturns. Widen footing.`
+      );
+    } else {
+      errors.push(
+        `Bearing qmax=${stability.qMax.toFixed(0)} kPa > qAllow=${input.baseSoil.qAllow} kPa`
+      );
+    }
+  }
   if (!stability.eccentricityOk) {
     const lim = input.safetyFactors.eccentricity === 'kern' ? 'B/6' : 'B/3';
     issues.push(
@@ -120,7 +127,10 @@ export const DEFAULT_INPUT: WallInput = {
     delta: (20 * Math.PI) / 180, // ~(2/3)·φ
     ca: 0,
     qAllow: 200,
-    passiveEnabled: true,
+    // Conservative default: do NOT rely on passive pressure unless the user
+    // confirms the front soil will remain in place (no future excavation,
+    // frost line clearance, etc.). Matches SkyCiv / ASDIP defaults.
+    passiveEnabled: false,
   },
   water: {
     enabled: false,

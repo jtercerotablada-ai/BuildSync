@@ -142,19 +142,14 @@ export function computeStability(
     });
   }
 
-  // 5. Soil in front of wall (toe cover) — resisting dead weight, small
-  if (g.frontFill > 0) {
-    const frontV = baseSoil.gamma * (g.B_toe / 1000) * (g.frontFill / 1000);
-    const frontX = (g.B_toe / 2) / 1000;
-    resultants.push({
-      label: 'Toe soil',
-      V: frontV,
-      H: 0,
-      x: frontX * 1000,
-      y: (g.H_foot + g.frontFill / 2) / 1000 * 1000,
-      Mr: frontV * frontX,
-    });
-  }
+  // 5. Soil in front of wall (toe cover) — DELIBERATELY EXCLUDED from the
+  //    stability resultants. Convention per SkyCiv, ASDIP, and sound
+  //    geotechnical practice: do not rely on soil that could be excavated
+  //    later (utility trench, landscaping, frost line work). Including it in
+  //    ΣV would increase the sliding and bearing FS non-conservatively. The
+  //    toe fill is still rendered on the canvas and contributes passive
+  //    resistance only when the user explicitly opts in via
+  //    baseSoil.passiveEnabled.
 
   // 6. Horizontal active pressure resultant (driving/overturning)
   const H_drive = integ.Pa + integ.Pq + integ.Pw + integ.dPae;
@@ -196,7 +191,12 @@ export function computeStability(
   let qMax: number, qMin: number;
   const V_kNpm = sumV; // kN/m of wall
   const B_m = B / 1000;
-  if (Math.abs(e) <= kern) {
+  // Resultant outside the footing → wall physically overturns, bearing fails.
+  // Flag with ±Infinity so the check rolls to FAIL.
+  if (Math.abs(e) >= B / 2 - 1e-6 || sumV <= 0) {
+    qMax = Infinity;
+    qMin = 0;
+  } else if (Math.abs(e) <= kern) {
     qMax = (V_kNpm / B_m) * (1 + (6 * Math.abs(e)) / B); // kPa
     qMin = (V_kNpm / B_m) * (1 - (6 * Math.abs(e)) / B);
   } else {
@@ -205,7 +205,9 @@ export function computeStability(
     qMax = (2 * V_kNpm) / (Lc / 1000);
     qMin = 0;
   }
-  const bearingUtil = qMax / Math.max(baseSoil.qAllow, 1e-6);
+  const bearingUtil = isFinite(qMax)
+    ? qMax / Math.max(baseSoil.qAllow, 1e-6)
+    : Infinity;
 
   const sf = input.safetyFactors;
   const eMax = sf.eccentricity === 'kern' ? B / 6 : B / 3;
