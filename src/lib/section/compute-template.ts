@@ -111,8 +111,13 @@ export function computeTemplate(p: TemplateParams): SectionProperties {
         { xMin: 0, xMax: B, yMin: H - tf, yMax: H },
         { xMin: (B - tw) / 2, xMax: (B + tw) / 2, yMin: tf, yMax: H - tf },
       ];
-      const J = (2 * B * tf ** 3 + (H - tf) * tw ** 3) / 3;
-      const Cw = (tf * B ** 3 * (H - tf) ** 2) / 24;
+      // St-Venant open-section J (Gere, Timoshenko): only the web BETWEEN
+      // the two flanges contributes its full length → (H − 2·tf), not (H − tf).
+      const J = (2 * B * tf ** 3 + (H - 2 * tf) * tw ** 3) / 3;
+      // Cw for doubly-symmetric I (Timoshenko, Theory of Elastic Stability):
+      // Cw = Iy · h²/4  where h is the distance between flange centerlines.
+      const hCenterline = H - tf;
+      const Cw = (tf * B ** 3 * hCenterline ** 2) / 24;
       return fromRects(rects, {
         outline: iShapeOutline(B, H, tw, tf),
         holes: [],

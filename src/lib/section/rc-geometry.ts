@@ -1,4 +1,4 @@
-import type { ConcreteShape } from './rc-types';
+import type { ConcreteShape, RcParams } from './rc-types';
 
 // Helpers to query rectangular & T-beam concrete geometries.
 //
@@ -73,6 +73,33 @@ export function grossIx(shape: ConcreteShape): number {
 export interface CompressionZone {
   area: number;     // compressed concrete area (mm²)
   Qtop: number;     // first moment about top fiber, Σ w(y)·y·dy (mm³)
+}
+
+// Plastic centroid (measured from top fiber). This is the point at which a
+// purely axial force acting on the fully-yielded section produces zero moment.
+// Required for correct P-M interaction diagrams (ACI 318 convention: moments
+// are taken about the plastic centroid so "pure compression" is at M=0).
+//
+// Net-force formulation matching rc-nonlinear.ts:
+//   • Concrete: 0.85·f'c·Ag acting at the gross concrete centroid
+//   • Each steel layer: (fy − 0.85·f'c)·As_i at depth d_i
+//
+// y_pc = [ 0.85·f'c·Ag·y_conc + Σ (fy − 0.85·f'c)·As_i·d_i ]
+//        --------------------------------------------------------
+//        [ 0.85·f'c·Ag       + Σ (fy − 0.85·f'c)·As_i       ]
+export function plasticCentroidFromTop(params: RcParams, fc: number, fy: number): number {
+  const { concrete, layers } = params;
+  const Ag = grossArea(concrete);
+  const yConc = grossCentroidFromTop(concrete);
+  const Fc = 0.85 * fc * Ag;
+  let sumF = Fc;
+  let sumFy = Fc * yConc;
+  for (const L of layers) {
+    const Fs = (fy - 0.85 * fc) * L.area;
+    sumF += Fs;
+    sumFy += Fs * L.depth;
+  }
+  return sumF > 0 ? sumFy / sumF : yConc;
 }
 
 export function compressionZone(shape: ConcreteShape, c: number): CompressionZone {

@@ -1,4 +1,10 @@
-import { compressionZone, grossArea, totalHeight, widthAt } from './rc-geometry';
+import {
+  compressionZone,
+  grossArea,
+  plasticCentroidFromTop,
+  totalHeight,
+  widthAt,
+} from './rc-geometry';
 import { phiFromStrain, resolveMaterials } from './rc-materials';
 import type {
   FlexuralCapacityResult,
@@ -41,10 +47,11 @@ export function computeFlexuralCapacity(params: RcParams): FlexuralCapacityResul
   const mats = resolveMaterials(params.materials);
   const { concrete, layers } = params;
   const h = totalHeight(concrete);
+  const pcY = plasticCentroidFromTop(params, mats.fc, mats.fy);
 
   // Find c such that ΣF = 0 with P = 0 using Whitney block for concrete and
   // elasto-plastic steel at the ULTIMATE state (ε_top = εCU).
-  const eqn = (c: number): number => forceSumWhitney(params, mats, c).P;
+  const eqn = (c: number): number => forceSumWhitney(params, mats, c, pcY).P;
 
   // Bracket: c small → tension dominates → P < 0; c large → compression dominates → P > 0.
   let lo = h * 0.001;
@@ -75,17 +82,21 @@ export function computeFlexuralCapacity(params: RcParams): FlexuralCapacityResul
     }
   }
 
-  const st = forceSumWhitney(params, mats, c);
+  const st = forceSumWhitney(params, mats, c, pcY);
   const extremeTensionLayer = extremeTensionSteel(params, c);
   const epsT = extremeTensionLayer
     ? Math.abs(mats.epsCU * (extremeTensionLayer.depth - c) / c)
     : 0;
   const phi = phiFromStrain(epsT, mats.epsY);
+  // Pure-flexion Mn is inherently positive (sagging convention). Use |M| so a
+  // very slight asymmetry-driven sign flip in the Whitney sweep cannot turn Mn
+  // negative by accident.
+  const Mn = Math.abs(st.M);
 
   return {
-    Mn: st.M,
+    Mn,
     phi,
-    phiMn: phi * st.M,
+    phiMn: phi * Mn,
     a: mats.beta1 * c,
     c,
     epsT,
@@ -106,11 +117,11 @@ interface StateSum {
 function forceSumWhitney(
   params: RcParams,
   mats: ReturnType<typeof resolveMaterials>,
-  c: number
+  c: number,
+  pcY: number
 ): StateSum {
   const { concrete, layers } = params;
   const h = totalHeight(concrete);
-  const pcY = h / 2; // plastic centroid ≈ gross centroid for rectangular; refine later
 
   // Whitney block depth
   const a = Math.min(mats.beta1 * c, h);
@@ -159,6 +170,7 @@ export function computeMomentCurvature(params: RcParams, nPoints = 60): MomentCu
   const mats = resolveMaterials(params.materials);
   const { concrete } = params;
   const h = totalHeight(concrete);
+  const pcY = plasticCentroidFromTop(params, mats.fc, mats.fy);
 
   // Curvature sweep from 0 to ~ εCU / (h/5) (generous upper bound)
   const phiMax = mats.epsCU / (h * 0.1); // allows NA as high as 10% of h
@@ -166,7 +178,7 @@ export function computeMomentCurvature(params: RcParams, nPoints = 60): MomentCu
 
   for (let k = 0; k <= nPoints; k++) {
     const phi = (k / nPoints) * phiMax;
-    const state = stateAtCurvature(params, mats, phi);
+    const state = stateAtCurvature(params, mats, phi, pcY);
     if (!state) continue;
     points.push(state);
   }
@@ -183,7 +195,8 @@ export function computeMomentCurvature(params: RcParams, nPoints = 60): MomentCu
 function stateAtCurvature(
   params: RcParams,
   mats: ReturnType<typeof resolveMaterials>,
-  phi: number
+  phi: number,
+  pcY: number
 ): MomentCurvaturePoint | null {
   if (phi <= 0) {
     return { phi: 0, M: 0, c: totalHeight(params.concrete), epsC: 0, epsSMax: 0 };
@@ -193,7 +206,7 @@ function stateAtCurvature(
   // ε(y) = phi·(c − y) → at y=0 (top) ε = phi·c (compression), y=c ε=0.
   const h = totalHeight(params.concrete);
   const residual = (c: number) => {
-    const st = forceSumHognestad(params, mats, phi, c);
+    const st = forceSumHognestad(params, mats, phi, c, pcY);
     return st.P; // want P = 0
   };
 
@@ -224,24 +237,24 @@ function stateAtCurvature(
     }
   }
 
-  const st = forceSumHognestad(params, mats, phi, c);
+  const st = forceSumHognestad(params, mats, phi, c, pcY);
   const epsC = phi * c;
   // Max steel tension strain is at the bottom-most tension layer
   const ext = extremeTensionSteel(params, c);
   const epsSMax = ext ? phi * (ext.depth - c) : 0;
 
-  return { phi, M: st.M, c, epsC, epsSMax };
+  // M-φ under P=0 (pure flexion) is inherently positive-sagging by convention.
+  return { phi, M: Math.abs(st.M), c, epsC, epsSMax };
 }
 
 function forceSumHognestad(
   params: RcParams,
   mats: ReturnType<typeof resolveMaterials>,
   phi: number,
-  c: number
+  c: number,
+  pcY: number
 ): StateSum {
   const { concrete, layers } = params;
-  const h = totalHeight(concrete);
-  const pcY = h / 2;
 
   // Numerically integrate concrete compression from y=0 down to y=c, using
   // N_STRIPS horizontal strips (Simpson-ish trapezoid). Hognestad stress:
@@ -308,6 +321,11 @@ export function computeInteraction(params: RcParams, nPoints = 40): InteractionR
   const mats = resolveMaterials(params.materials);
   const { concrete, layers } = params;
   const h = totalHeight(concrete);
+  // Moments are taken about the plastic centroid (ACI 318 convention) so that
+  // the pure-compression state sits naturally at M=0 and the envelope closes
+  // without the "zigzag" that the old h/2 approximation produced for
+  // asymmetric sections.
+  const pcY = plasticCentroidFromTop(params, mats.fc, mats.fy);
 
   // Sweep c from a very small value (near pure tension) up to a very large
   // value (pure compression). At each c we compute P and M from the Whitney
@@ -317,6 +335,12 @@ export function computeInteraction(params: RcParams, nPoints = 40): InteractionR
   // Pure tension
   const AsTotal = layers.reduce((s, L) => s + L.area, 0);
   const Pnt = -mats.fy * AsTotal;
+  // Pure-tension moment about the plastic centroid. Non-zero for asymmetric
+  // steel layouts: M_pt = Σ (−fy·As_i)·(pcY − d_i).
+  const MntSigned = layers.reduce(
+    (m, L) => m + (-mats.fy * L.area) * (pcY - L.depth),
+    0
+  );
 
   // Pure compression P0 = 0.85·f'c·(Ag − As) + fy·As
   const Ag = grossArea(concrete);
@@ -328,21 +352,22 @@ export function computeInteraction(params: RcParams, nPoints = 40): InteractionR
   for (let k = 0; k <= nPoints; k++) {
     const t = k / nPoints;
     const c = cMin * Math.pow(cMax / cMin, t);
-    const st = forceSumWhitney(params, mats, c);
+    const st = forceSumWhitney(params, mats, c, pcY);
     const ext = extremeTensionSteel(params, c);
     const epsT = ext ? Math.abs(mats.epsCU * (ext.depth - c) / c) : 0;
     const phi = phiFromStrain(epsT, mats.epsY);
     // Cap phi·P at 0.80·φ·P0 per ACI 318-19 §22.4.2 (tied reinforcement default)
     const phiPcap = 0.8 * phi * P0;
     const phiP = Math.min(phi * st.P, phiPcap);
-    const phiM = phi * Math.abs(st.M);
+    // The P-M envelope is plotted with |M| (physically symmetric about M=0).
+    const Mabs = Math.abs(st.M);
     points.push({
       P: st.P,
-      M: Math.abs(st.M),
+      M: Mabs,
       c,
       phi,
       phiP,
-      phiM,
+      phiM: phi * Mabs,
       epsT,
     });
   }
@@ -353,7 +378,7 @@ export function computeInteraction(params: RcParams, nPoints = 40): InteractionR
   // Add pure-compression and pure-tension anchors at the ends
   const pureCompression: InteractionPoint = {
     P: P0,
-    M: 0,
+    M: 0, // by definition of plastic centroid
     c: Infinity,
     phi: 0.65,
     phiP: 0.8 * 0.65 * P0,
@@ -361,13 +386,14 @@ export function computeInteraction(params: RcParams, nPoints = 40): InteractionR
     epsT: -Infinity,
     label: 'pure-compression',
   };
+  const Mnt = Math.abs(MntSigned);
   const pureTension: InteractionPoint = {
     P: Pnt,
-    M: 0,
+    M: Mnt,
     c: 0,
     phi: 0.9,
     phiP: 0.9 * Pnt,
-    phiM: 0,
+    phiM: 0.9 * Mnt,
     epsT: mats.fy / mats.Es,
     label: 'pure-tension',
   };

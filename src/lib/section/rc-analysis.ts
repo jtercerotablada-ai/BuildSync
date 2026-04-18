@@ -20,7 +20,10 @@ export function computeRc(params: RcParams): RcResults {
   const h = totalHeight(shape);
   const yt = ybar;
   const yb = h - ybar;
-  const Mcr = (mats.fr * Ig) / Math.max(yt, 1e-9);
+  // Cracking moment for positive (sagging) bending — tension on the bottom
+  // fiber. For T-beams with flange on top, yb > yt, giving a smaller Mcr that
+  // is the design-critical value. For rectangular sections yt = yb.
+  const Mcr = (mats.fr * Ig) / Math.max(yb, 1e-9);
 
   const cracked = computeCracked(params, 0);
   const flexural = computeFlexuralCapacity(params);
