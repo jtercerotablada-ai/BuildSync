@@ -25,13 +25,12 @@ interface Props {
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Palette — matched against the reference images Juan provided
+// Palette — matched to the TTC dark theme (same look as Section Builder)
 const C = {
-  bg: '#1d4d7a',              // blueprint blue
-  grid: 'rgba(255,255,255,0.08)',
-  soilTop: '#a57846',          // lighter brown (top 30% of backfill)
-  soilMid: '#875a2e',          // mid brown
-  soilBot: '#5e3d1c',          // darker brown (foundation)
+  grid: 'rgba(201,168,76,0.05)', // gold-tinted gridline, very subtle
+  soilTop: '#a57846',             // lighter brown (top of backfill)
+  soilMid: '#875a2e',             // mid brown
+  soilBot: '#5e3d1c',             // darker brown (foundation)
   soilStroke: '#3a2410',
   pebbleLight: '#c4925a',
   pebbleDark: '#4a2e12',
@@ -39,20 +38,19 @@ const C = {
   grassEdge: '#3d7a23',
   concrete: '#c4cbd1',
   concreteEdge: '#7d858f',
-  active: '#f0c839',           // yellow = active pressure
+  active: '#f0c839',              // yellow = active pressure
   activeLight: 'rgba(240,200,57,0.22)',
-  passive: '#46b93d',          // green = passive + surcharge arrows
+  passive: '#46b93d',             // green = passive + surcharge arrows
   passiveLight: 'rgba(70,185,61,0.22)',
   water: '#5dc4d4',
-  weight: '#f0c839',
-  reaction: '#46b93d',
-  bearing: '#ef6565',          // red = bearing reaction (upward)
+  bearing: '#ef6565',             // red = bearing reaction (upward)
   bearingLight: 'rgba(239,101,101,0.22)',
-  dim: '#f59e0b',              // orange double arrows
-  pillFill: '#ffffff',
-  pillStroke: '#ffffff',
-  pillText: '#1d4d7a',
-  label: '#ffffff',
+  dim: 'var(--color-accent, #c9a84c)', // TTC gold for dimensions
+  dimHex: '#c9a84c',
+  pillFill: 'rgba(20,20,24,0.92)',     // dark pill on dark canvas
+  pillStroke: 'rgba(201,168,76,0.55)', // gold border
+  pillText: '#f2efe4',                 // light cream text
+  label: '#f2efe4',
 };
 
 export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
@@ -254,15 +252,14 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           <path d="M0,0 L0,7 L9,3.5 z" fill={C.bearing} />
         </marker>
         <marker id="rw-arr-o" markerWidth="10" markerHeight="10" refX="9" refY="3.5" orient="auto">
-          <path d="M0,0 L0,7 L9,3.5 z" fill={C.dim} />
+          <path d="M0,0 L0,7 L9,3.5 z" fill={C.dimHex} />
         </marker>
         <marker id="rw-arr-o-start" markerWidth="10" markerHeight="10" refX="1" refY="3.5" orient="auto">
-          <path d="M9,0 L9,7 L0,3.5 z" fill={C.dim} />
+          <path d="M9,0 L9,7 L0,3.5 z" fill={C.dimHex} />
         </marker>
       </defs>
 
-      {/* Blueprint background + grid */}
-      <rect x="0" y="0" width={vbW} height={vbH} fill={C.bg} />
+      {/* Subtle gold-tinted grid on top of the canvas dark gradient */}
       <rect x="0" y="0" width={vbW} height={vbH} fill="url(#rw-grid)" />
 
       {/* ─── FOUNDATION (darkest brown) ─── */}
@@ -484,7 +481,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
             y={yW(50)}
             text={`Ka·γ·H = ${(sigmaSoilBase + sigmaSurch).toFixed(1)} kPa`}
             fs={fs.sm}
-            textColor={C.pillText}
+            textColor={C.label}
           />
         </g>
       )}
@@ -563,7 +560,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           y={yW(-qMax * bearingScale - 180)}
           text={`qmax = ${qMax.toFixed(0)} ${unitSystem === 'imperial' ? 'ksf' : 'kPa'}`}
           fs={fs.sm}
-          textColor={C.pillText}
+          textColor={C.label}
         />
       </g>
 
@@ -577,7 +574,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
         label: `H = ${mm(g.H_stem + g.H_foot)}`,
         fs: fs.md,
         vertical: true,
-        color: C.dim,
+        color: C.dimHex,
       })}
 
       {/* B footing width along the bottom */}
@@ -589,7 +586,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
         label: `B = ${mm(B)}`,
         fs: fs.md,
         vertical: false,
-        color: C.dim,
+        color: C.dimHex,
       })}
 
       {/* Wall labels */}
@@ -631,7 +628,7 @@ function Pill({
   y: number;
   text: string;
   fs: number;
-  textColor: string;
+  textColor?: string;
 }) {
   const padX = fs * 0.6;
   const padY = fs * 0.3;
@@ -646,8 +643,8 @@ function Pill({
         height={h}
         rx={h / 2}
         ry={h / 2}
-        fill="#ffffff"
-        stroke="#ffffff"
+        fill="rgba(20,20,24,0.92)"
+        stroke="rgba(201,168,76,0.55)"
         strokeWidth={3}
       />
       <text
@@ -655,7 +652,7 @@ function Pill({
         y={y + fs * 0.34}
         fontSize={fs}
         textAnchor="middle"
-        fill={textColor}
+        fill={textColor ?? '#f2efe4'}
         fontFamily="Inter, sans-serif"
         fontWeight={700}
       >
