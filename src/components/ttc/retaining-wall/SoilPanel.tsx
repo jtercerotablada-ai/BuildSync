@@ -1,0 +1,167 @@
+'use client';
+
+import React from 'react';
+import type { SoilLayer, BaseSoil, WaterTable } from '@/lib/retaining-wall/types';
+
+interface Props {
+  backfill: SoilLayer[];
+  baseSoil: BaseSoil;
+  water: WaterTable;
+  onChangeBackfill: (b: SoilLayer[]) => void;
+  onChangeBase: (b: BaseSoil) => void;
+  onChangeWater: (w: WaterTable) => void;
+}
+
+const DEG = 180 / Math.PI;
+
+export function SoilPanel({
+  backfill,
+  baseSoil,
+  water,
+  onChangeBackfill,
+  onChangeBase,
+  onChangeWater,
+}: Props) {
+  const updateLayer = (i: number, patch: Partial<SoilLayer>) => {
+    onChangeBackfill(backfill.map((L, idx) => (idx === i ? { ...L, ...patch } : L)));
+  };
+
+  const addLayer = () => {
+    onChangeBackfill([
+      ...backfill,
+      { name: `Layer ${backfill.length + 1}`, gamma: 18, phi: (30 * Math.PI) / 180, c: 0, thickness: 1000 },
+    ]);
+  };
+
+  const removeLayer = (i: number) => {
+    onChangeBackfill(backfill.filter((_, idx) => idx !== i));
+  };
+
+  const setBase = <K extends keyof BaseSoil>(key: K, value: BaseSoil[K]) =>
+    onChangeBase({ ...baseSoil, [key]: value });
+
+  return (
+    <div className="rw-panel">
+      <h3 className="rw-panel__title">Soil Parameters</h3>
+
+      <div className="rw-panel__section">
+        <div className="rw-panel__subtitle">Backfill Layers (top → bottom)</div>
+        <p className="rw-panel__hint">γ kN/m³ · φ in degrees · c in kPa · thickness mm (0 = to bottom)</p>
+        {backfill.map((L, i) => (
+          <div key={i} className="rw-layer">
+            <div className="rw-layer__head">
+              <input
+                className="rw-layer__name"
+                value={L.name}
+                onChange={(e) => updateLayer(i, { name: e.target.value })}
+              />
+              {backfill.length > 1 && (
+                <button
+                  className="rw-icon-btn rw-icon-btn--danger"
+                  onClick={() => removeLayer(i)}
+                  aria-label="Remove layer"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <div className="rw-fields">
+              <Field label="γ (kN/m³)" value={L.gamma} onChange={(v) => updateLayer(i, { gamma: v })} />
+              <Field
+                label="φ (°)"
+                value={Math.round(L.phi * DEG * 100) / 100}
+                onChange={(v) => updateLayer(i, { phi: (v * Math.PI) / 180 })}
+              />
+              <Field label="c (kPa)" value={L.c} onChange={(v) => updateLayer(i, { c: v })} />
+              <Field
+                label="Thickness"
+                value={L.thickness}
+                onChange={(v) => updateLayer(i, { thickness: v })}
+              />
+            </div>
+          </div>
+        ))}
+        <button className="btn btn--ghost btn--xs" onClick={addLayer}>
+          + Add layer
+        </button>
+      </div>
+
+      <div className="rw-panel__section">
+        <div className="rw-panel__subtitle">Base Soil (bearing + passive)</div>
+        <div className="rw-fields">
+          <Field label="γ (kN/m³)" value={baseSoil.gamma} onChange={(v) => setBase('gamma', v)} />
+          <Field
+            label="φ (°)"
+            value={Math.round(baseSoil.phi * DEG * 100) / 100}
+            onChange={(v) => setBase('phi', (v * Math.PI) / 180)}
+          />
+          <Field label="c (kPa)" value={baseSoil.c} onChange={(v) => setBase('c', v)} />
+          <Field
+            label="δ (°)"
+            value={Math.round(baseSoil.delta * DEG * 100) / 100}
+            onChange={(v) => setBase('delta', (v * Math.PI) / 180)}
+          />
+          <Field label="ca (kPa)" value={baseSoil.ca} onChange={(v) => setBase('ca', v)} />
+          <Field label="q_allow (kPa)" value={baseSoil.qAllow} onChange={(v) => setBase('qAllow', v)} />
+        </div>
+        <label className="rw-check">
+          <input
+            type="checkbox"
+            checked={baseSoil.passiveEnabled}
+            onChange={(e) => setBase('passiveEnabled', e.target.checked)}
+          />
+          <span>Include passive resistance at toe</span>
+        </label>
+      </div>
+
+      <div className="rw-panel__section">
+        <div className="rw-panel__subtitle">Water Table</div>
+        <label className="rw-check">
+          <input
+            type="checkbox"
+            checked={water.enabled}
+            onChange={(e) => onChangeWater({ ...water, enabled: e.target.checked })}
+          />
+          <span>Water table present behind wall</span>
+        </label>
+        {water.enabled && (
+          <div className="rw-fields">
+            <Field
+              label="Depth from stem top (mm)"
+              value={water.depthFromStemTop}
+              onChange={(v) => onChangeWater({ ...water, depthFromStemTop: v })}
+            />
+            <Field
+              label="γw (kN/m³)"
+              value={water.gammaW}
+              onChange={(v) => onChangeWater({ ...water, gammaW: v })}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <label className="rw-field">
+      <span className="rw-field__label">{label}</span>
+      <input
+        type="number"
+        className="rw-field__input"
+        value={value}
+        step="any"
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+      />
+    </label>
+  );
+}

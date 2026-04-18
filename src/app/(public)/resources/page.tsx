@@ -31,7 +31,7 @@ const designTools: Tool[] = [
   { iconKey: 'rcDesign', titleKey: 'tool.rcDesign', descKey: 'tool.rcDesign.desc', status: 'coming-soon' },
   { iconKey: 'memberDesign', titleKey: 'tool.memberDesign', descKey: 'tool.memberDesign.desc', status: 'coming-soon' },
   { iconKey: 'composite', titleKey: 'tool.composite', descKey: 'tool.composite.desc', status: 'coming-soon' },
-  { iconKey: 'retaining', titleKey: 'tool.retaining', descKey: 'tool.retaining.desc', status: 'coming-soon' },
+  { iconKey: 'retaining', titleKey: 'tool.retaining', descKey: 'tool.retaining.desc', status: 'available', href: '/resources/retaining-wall' },
   { iconKey: 'slab', titleKey: 'tool.slab', descKey: 'tool.slab.desc', status: 'coming-soon' },
 ];
 
