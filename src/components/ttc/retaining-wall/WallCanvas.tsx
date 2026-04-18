@@ -3,7 +3,6 @@
 import React, { useMemo } from 'react';
 import type { WallInput, WallResults } from '@/lib/retaining-wall/types';
 import type { UnitSystem } from '@/lib/beam/units';
-import { fromSI, unitLabel } from '@/lib/beam/units';
 
 interface Props {
   input: WallInput;
@@ -11,18 +10,49 @@ interface Props {
   unitSystem?: UnitSystem;
 }
 
-// Palette — solid high-contrast colors matching pro retaining-wall software.
+/**
+ * Engineering section view of a cantilever retaining wall.
+ *
+ *  Layout philosophy (matches SkyCiv / ASDIP / Prokon conventions):
+ *
+ *    ┌──────────────────────────────────┐  ← sky line (implicit, canvas bg)
+ *    │  pressure   │ surcharge ARROWS   │
+ *    │  diagram →  │ ▼ ▼ ▼ ▼ ▼ ▼ ▼     │
+ *    │         Pa─►├──── pink band ────│  ← grade (stem top)
+ *    │             │░░░░░░░░ BROWN ░░░░│
+ *    │  ◂ σh triangle ░░░░░░░░░░░░░░░░ │
+ *    │   ▒▒▒▒▒▒▒ │  │ ▒▒▒▒▒▒▒░░░░░░░░░│  ← grade (front fill top)
+ *    │   yellow  │  │ yellow backfill │
+ *    │   toe fill│st│  (multi-layer)  │
+ *    ├───────────┼──┼─────────────────┤  ← footing top
+ *    │           ░░░░░░░░                │  ← footing bottom
+ *    │ ░░░░░░░ ORANGE  FOUNDATION  ░░░░░│
+ *    │                                   │
+ *    │  [qmax ──── qmin]   bearing      │
+ *    └──────────────────────────────────┘
+ *
+ *  Key decisions:
+ *   • NO "sky" polygon — canvas background shows through (dark, matches site).
+ *   • Every soil zone extends edge-to-edge of the viewBox so there are no
+ *     "cut-off" slices of dark canvas around the drawing.
+ *   • Padding is lean: just enough for pressure diagram (left), bearing
+ *     diagram (bottom), and optional surcharge band (top).
+ *   • Colors: SkyCiv-matched brown/orange/yellow-green/pink/gray.
+ *   • Stroke on every soil polygon so boundaries read even on dark bg.
+ */
+
 const C = {
-  concrete: '#d4d4d4',
-  concreteStroke: '#6f6f6f',
-  backfill: '#8b6f3e',          // warm brown
-  backfillStroke: '#5e4a24',
-  surcharge: '#d99595',          // pink-red band
-  surchargeStroke: '#b24848',
-  foundation: '#d97706',         // orange
-  foundationStroke: '#8a4a06',
-  toeFill: '#c4b95b',            // yellow-green
-  toeFillStroke: '#7f7736',
+  concrete: '#e0e0e0',
+  concreteEdge: '#6f6f6f',
+  backfill: '#9c7a46',        // warm saturated brown
+  backfillEdge: '#5e4a24',
+  foundation: '#e48320',      // saturated orange
+  foundationEdge: '#9b5110',
+  toeFill: '#c9bd5a',         // yellow-green
+  toeFillEdge: '#7f7736',
+  surcharge: '#e8b5b5',       // pink
+  surchargeEdge: '#b24848',
+  grade: '#a8a8a8',
   water: '#5ca8d4',
   dim: '#c9a84c',
   pressure: '#ff6b6b',
@@ -35,114 +65,101 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
   const H_total = g.H_stem + g.H_foot;
   const B = g.B_toe + g.t_stem_bot + g.B_heel;
 
-  // Surcharge band height (visual only, represents q/γ)
+  // Pull a representative backfill γ for the q-equivalent height
   const gammaBackfill = input.backfill[0]?.gamma ?? 18;
-  const qEq_mm = input.loads.surchargeQ > 0
-    ? Math.min((input.loads.surchargeQ / gammaBackfill) * 1000, H_total * 0.35)
-    : 0;
-  // Sloping wedge rise over heel
-  const dh = g.B_heel * Math.tan(g.backfillSlope);
-  const wedgeTop = g.H_stem + dh;
+  const qEq_mm =
+    input.loads.surchargeQ > 0
+      ? Math.min((input.loads.surchargeQ / gammaBackfill) * 1000, H_total * 0.25)
+      : 0;
+  const dh = g.B_heel * Math.tan(g.backfillSlope); // slope rise over heel width
 
-  // ViewBox: wall at center-right, with ample room LEFT for pressure diagram
-  // and BELOW for bearing stress + foundation block.
-  const padL = Math.max(B * 0.55, 2800);
-  const padR = Math.max(B * 0.6, 2500);
-  const padT = Math.max(H_total * 0.25 + qEq_mm + 600, 1400);
-  const padB = Math.max(H_total * 0.55, 2000);
+  // ---- viewBox padding: LEAN so the wall dominates the canvas ----
+  // Left: room for Ka·σv triangle + Pa arrow + units label
+  // Right: room for backfill to extend + q label
+  // Top: just enough for surcharge arrows + "q = …" label
+  // Bottom: enough for bearing diagram + qmax label + horizontal dim
+  const pressureRoom = Math.max(H_total * 0.55, 1800);
+  const padL = pressureRoom;
+  const padR = Math.max(B * 0.35, 1400);
+  const surchargeRoom = qEq_mm > 0 ? qEq_mm + 450 : 350;
+  const padT = surchargeRoom;
+  const bearingRoom = Math.max(results.stability.qMax * 6, 800); // ~6 mm per kPa
+  const padB = Math.max(bearingRoom + 300, 1100);
+
   const vbW = B + padL + padR;
   const vbH = H_total + padT + padB;
 
-  // World: y=0 at footing BOTTOM, +y up. x=0 at toe.
+  // world (x, y)  — x=0 at toe, y=0 at FOOTING BOTTOM, +y up
   const xW = (x: number) => padL + x;
   const yW = (y: number) => padT + H_total - y;
 
-  // Wall points
+  // Wall reference points (world)
   const footTop = g.H_foot;
   const stemTop = footTop + g.H_stem;
   const stemFrontX = g.B_toe;
   const stemBackX_bot = g.B_toe + g.t_stem_bot;
   const stemBackX_top = g.B_toe + g.t_stem_top;
   const heelX = B;
+  const xLeft = -padL;
+  const xRight = B + padR;
+  const yBottom = -padB;
+  const yTop = H_total + padT;
+  const frontTopY = footTop + g.frontFill;
+  const wedgeTopAtHeel = stemTop + dh;
+  const wedgeRightEdgeY = wedgeTopAtHeel + padR * Math.tan(g.backfillSlope);
 
-  // ---- background soil zones (edge-to-edge) ----
-  // 1) Foundation soil: covers ENTIRE bottom of viewBox, from below footing
-  //    out to all edges. Color: solid orange.
-  // 2) Toe fill: from left edge of viewBox to stem front face, above footing
-  //    top up to height g.frontFill. Color: yellow-green.
-  // 3) Backfill (main): from stem back face to right edge of viewBox, above
-  //    footing top up to stem top + slope-rise at heel. Color: brown.
-  // 4) Surcharge band: strip of pink above the backfill top, arrows pointing down.
-
-  // Foundation (below footing): entire viewBox bottom half
-  const foundationBottomY = -padB; // extends all the way down
-  const foundation = [
-    [-padL, 0],
-    [B + padR, 0],
-    [B + padR, foundationBottomY],
-    [-padL, foundationBottomY],
+  // ---------- SOIL POLYGONS (edge-to-edge) ----------
+  // Foundation: fills ENTIRE below-footing area
+  const foundation: [number, number][] = [
+    [xLeft, 0],
+    [xRight, 0],
+    [xRight, yBottom],
+    [xLeft, yBottom],
   ];
 
-  // Toe fill: left-of-stem on top of footing (includes front fill above footing top)
-  const frontTopY = footTop + g.frontFill;
-  const toeFill = [
-    [-padL, footTop],
+  // Toe fill: left of stem, from ground in front of wall to toe face
+  const toeFill: [number, number][] = [
+    [xLeft, footTop],
     [stemFrontX, footTop],
     [stemFrontX, frontTopY],
-    [-padL, frontTopY],
+    [xLeft, frontTopY],
   ];
 
-  // Main backfill polygon (stem back → heel → right edge → up at slope)
-  // Top surface slopes at angle β from horizontal.
-  const backfillRightEdgeY_top = wedgeTop + padR * Math.tan(g.backfillSlope);
-  const backfill = [
+  // Backfill: right of stem up to backfill top (sloped)
+  const backfill: [number, number][] = [
     [stemBackX_bot, footTop],
+    [xRight, footTop],
+    [xRight, wedgeRightEdgeY],
+    [heelX, wedgeTopAtHeel],
     [stemBackX_top, stemTop],
-    [heelX, wedgeTop],
-    [B + padR, backfillRightEdgeY_top],
-    [B + padR, footTop],
   ];
 
-  // Surcharge band on top of backfill (pink strip)
-  const surchargeBand =
-    input.loads.surchargeQ > 0
+  // Surcharge band on TOP of backfill
+  const surchargeBand: [number, number][] | null =
+    qEq_mm > 0
       ? [
           [stemBackX_top, stemTop],
-          [heelX, wedgeTop],
-          [B + padR, backfillRightEdgeY_top],
-          [B + padR, backfillRightEdgeY_top + qEq_mm],
+          [heelX, wedgeTopAtHeel],
+          [xRight, wedgeRightEdgeY],
+          [xRight, wedgeRightEdgeY + qEq_mm],
           [stemBackX_top, stemTop + qEq_mm],
         ]
       : null;
 
-  // Sky/air fill (above surcharge & above toe fill) — fills remaining top space
-  // to avoid black edges.
-  const skyTopY = vbH; // large number
-  const sky = [
-    [-padL, frontTopY],
-    [stemFrontX, frontTopY],
-    [stemFrontX, stemTop],
-    [stemBackX_top, stemTop],
-    [stemBackX_top, stemTop + qEq_mm],
-    [B + padR, backfillRightEdgeY_top + qEq_mm],
-    [B + padR, skyTopY],
-    [-padL, skyTopY],
-  ];
-
-  // ---- wall concrete ----
-  const footing = [
+  // ---------- CONCRETE ----------
+  const footing: [number, number][] = [
     [0, 0],
     [B, 0],
     [B, footTop],
     [0, footTop],
   ];
-  const stem = [
+  const stem: [number, number][] = [
     [stemFrontX, footTop],
     [stemBackX_bot, footTop],
     [stemBackX_top, stemTop],
     [stemFrontX, stemTop],
   ];
-  const keyShape = g.key
+  const keyShape: [number, number][] | null = g.key
     ? [
         [heelX - g.key.offsetFromHeel - g.key.width, 0],
         [heelX - g.key.offsetFromHeel, 0],
@@ -151,76 +168,45 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
       ]
     : null;
 
-  // ---- Bearing diagram (below footing) ----
+  // ---------- BEARING DIAGRAM ----------
   const { qMax, qMin, eccentricity, kern } = results.stability;
-  const qVisScale = Math.min(padB * 0.6 / Math.max(qMax, 1), 20); // mm-per-kPa
+  const qVis = Math.min(bearingRoom / Math.max(qMax, 1), 8); // mm-per-kPa
   const trapezoidal = Math.abs(eccentricity) <= kern;
   const bearingPoly: [number, number][] = trapezoidal
     ? [
         [0, 0],
         [B, 0],
-        [B, -qMin * qVisScale],
-        [0, -qMax * qVisScale],
+        [B, -qMin * qVis],
+        [0, -qMax * qVis],
       ]
     : (() => {
         const Lc = 3 * (B / 2 - Math.abs(eccentricity));
         return [
           [0, 0],
-          [Lc, 0],
-          [0, -qMax * qVisScale],
+          [Math.min(Lc, B), 0],
+          [0, -qMax * qVis],
         ];
       })();
 
-  // ---- helpers ----
-  const poly = (pts: number[][]) =>
+  // ---------- PRESSURE DIAGRAM (rectangle for surcharge + triangle for soil) ----------
+  // Ka·σv at base (kPa)
+  const Ka = results.pressure.K;
+  const sigmaSoilBase = Ka * gammaBackfill * (H_total / 1000);
+  const sigmaSurch = Ka * input.loads.surchargeQ;
+  const pressMax = Math.max(sigmaSoilBase + sigmaSurch, 1);
+  const pxPerKPa = (pressureRoom * 0.55) / pressMax;
+  const wBase = (sigmaSoilBase + sigmaSurch) * pxPerKPa;
+  const wTop = sigmaSurch * pxPerKPa;
+
+  // ---------- helpers ----------
+  const poly = (pts: [number, number][]) =>
     pts.map(([x, y]) => `${xW(x).toFixed(1)},${yW(y).toFixed(1)}`).join(' ');
 
-  const fsLabel = Math.max(H_total * 0.009, 45);
-  const fsDim = Math.max(H_total * 0.011, 55);
-
-  const dim = (x1: number, y1: number, x2: number, y2: number, text: string, offset = 0) => {
-    const vertical = Math.abs(x1 - x2) < 1;
-    const mx = (xW(x1) + xW(x2)) / 2;
-    const my = (yW(y1) + yW(y2)) / 2;
-    return (
-      <g>
-        <line
-          x1={xW(x1)}
-          y1={yW(y1)}
-          x2={xW(x2)}
-          y2={yW(y2)}
-          stroke={C.dim}
-          strokeWidth={3}
-        />
-        <line
-          x1={xW(x1) - 15}
-          y1={yW(y1) - (vertical ? 0 : 15)}
-          x2={xW(x1) + 15}
-          y2={yW(y1) + (vertical ? 0 : 15)}
-          stroke={C.dim}
-          strokeWidth={3}
-        />
-        <line
-          x1={xW(x2) - 15}
-          y1={yW(y2) - (vertical ? 0 : 15)}
-          x2={xW(x2) + 15}
-          y2={yW(y2) + (vertical ? 0 : 15)}
-          stroke={C.dim}
-          strokeWidth={3}
-        />
-        <text
-          x={vertical ? mx + 20 : mx}
-          y={vertical ? my : my - 14}
-          fontSize={fsDim}
-          textAnchor={vertical ? 'start' : 'middle'}
-          fill={C.dim}
-          fontFamily="JetBrains Mono, monospace"
-          fontWeight={700}
-        >
-          {text}
-        </text>
-      </g>
-    );
+  const fs = {
+    lg: Math.max(H_total * 0.042, 140),
+    md: Math.max(H_total * 0.032, 105),
+    sm: Math.max(H_total * 0.026, 90),
+    dim: Math.max(H_total * 0.028, 95),
   };
 
   const mm = (v: number) => {
@@ -238,83 +224,70 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
       aria-label="Retaining wall section"
     >
       <defs>
-        <marker id="rw-arrow-red" markerWidth="12" markerHeight="12" refX="10" refY="4" orient="auto">
-          <path d="M0,0 L0,8 L10,4 z" fill={C.pressure} />
-        </marker>
-        <marker id="rw-arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="4" orient="auto">
-          <path d="M0,0 L0,8 L10,4 z" fill={C.bearing} />
+        <marker id="rw-arrow-red" markerWidth="10" markerHeight="10" refX="9" refY="3.5" orient="auto">
+          <path d="M0,0 L0,7 L9,3.5 z" fill={C.pressure} />
         </marker>
       </defs>
 
-      {/* Sky / air background (prevents black edges above ground) */}
-      <polygon points={poly(sky)} fill="#1a1a1e" />
-
-      {/* Foundation soil — full edge-to-edge below footing */}
+      {/* ===== SOIL ZONES (edge-to-edge, solid colors) ===== */}
       <polygon
         points={poly(foundation)}
         fill={C.foundation}
-        stroke={C.foundationStroke}
-        strokeWidth={3}
+        stroke={C.foundationEdge}
+        strokeWidth={6}
       />
-
-      {/* Toe fill (front of wall) */}
       {g.frontFill > 0 && (
         <polygon
           points={poly(toeFill)}
           fill={C.toeFill}
-          stroke={C.toeFillStroke}
-          strokeWidth={3}
+          stroke={C.toeFillEdge}
+          strokeWidth={6}
         />
       )}
-
-      {/* Backfill */}
       <polygon
         points={poly(backfill)}
         fill={C.backfill}
-        stroke={C.backfillStroke}
-        strokeWidth={3}
+        stroke={C.backfillEdge}
+        strokeWidth={6}
       />
-
-      {/* Surcharge band (pink) */}
       {surchargeBand && (
+        <polygon
+          points={poly(surchargeBand)}
+          fill={C.surcharge}
+          stroke={C.surchargeEdge}
+          strokeWidth={5}
+        />
+      )}
+
+      {/* Surcharge arrows and label (drawn above the band) */}
+      {qEq_mm > 0 && (
         <>
-          <polygon
-            points={poly(surchargeBand)}
-            fill={C.surcharge}
-            stroke={C.surchargeStroke}
-            strokeWidth={3}
-            opacity={0.9}
-          />
-          {/* Arrows pointing DOWN onto the backfill */}
           {Array.from({ length: 7 }).map((_, i) => {
-            const t = i / 6;
-            const x = stemBackX_top + (heelX + padR * 0.15 - stemBackX_top) * t;
-            const yTop =
-              stemTop +
-              qEq_mm +
-              (x - stemBackX_top) * Math.tan(g.backfillSlope);
-            const yBot =
-              stemTop + (x - stemBackX_top) * Math.tan(g.backfillSlope) + 30;
+            const tt = i / 6;
+            const x = stemBackX_top + (xRight - stemBackX_top) * tt;
+            const yBottomLocal =
+              stemTop + qEq_mm + (x - stemBackX_top) * Math.tan(g.backfillSlope);
+            const yTopLocal = yBottomLocal + 380;
             return (
               <line
                 key={i}
                 x1={xW(x)}
-                y1={yW(yTop)}
+                y1={yW(yTopLocal)}
                 x2={xW(x)}
-                y2={yW(yBot)}
-                stroke={C.surchargeStroke}
-                strokeWidth={5}
+                y2={yW(yBottomLocal + 40)}
+                stroke={C.pressure}
+                strokeWidth={10}
                 markerEnd="url(#rw-arrow-red)"
               />
             );
           })}
           <text
-            x={xW((stemBackX_top + heelX) / 2)}
-            y={yW(stemTop + qEq_mm + 200)}
-            fontSize={fsLabel * 1.1}
+            x={xW((stemBackX_top + xRight) / 2)}
+            y={yW(stemTop + qEq_mm + 420)}
+            fontSize={fs.md}
             textAnchor="middle"
             fill={C.pressure}
-            fontFamily="JetBrains Mono, monospace"
+            fontFamily="Inter, sans-serif"
             fontWeight={700}
           >
             q = {input.loads.surchargeQ.toFixed(2)} {unitSystem === 'imperial' ? 'ksf' : 'kPa'}
@@ -322,115 +295,90 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
         </>
       )}
 
-      {/* Water table */}
+      {/* ===== CONCRETE ===== */}
+      <polygon points={poly(footing)} fill={C.concrete} stroke={C.concreteEdge} strokeWidth={7} />
+      <polygon points={poly(stem)} fill={C.concrete} stroke={C.concreteEdge} strokeWidth={7} />
+      {keyShape && (
+        <polygon points={poly(keyShape)} fill={C.concrete} stroke={C.concreteEdge} strokeWidth={7} />
+      )}
+
+      {/* Water-table line across the backfill */}
       {input.water.enabled && (() => {
         const yWater = stemTop - input.water.depthFromStemTop;
         return (
-          <>
-            <line
-              x1={xW(stemBackX_bot)}
-              y1={yW(yWater)}
-              x2={xW(B + padR)}
-              y2={yW(yWater + padR * Math.tan(g.backfillSlope))}
-              stroke={C.water}
-              strokeWidth={6}
-              strokeDasharray="30 15"
-            />
-            <text
-              x={xW(heelX + 100)}
-              y={yW(yWater) - 30}
-              fontSize={fsLabel}
-              fill={C.water}
-              fontFamily="JetBrains Mono, monospace"
-              fontWeight={700}
-            >
-              W.T.
-            </text>
-          </>
+          <line
+            x1={xW(stemBackX_bot)}
+            y1={yW(yWater)}
+            x2={xW(xRight)}
+            y2={yW(yWater + padR * Math.tan(g.backfillSlope))}
+            stroke={C.water}
+            strokeWidth={7}
+            strokeDasharray="30 18"
+          />
         );
       })()}
 
-      {/* Concrete (footing + stem + optional key) */}
-      <polygon points={poly(footing)} fill={C.concrete} stroke={C.concreteStroke} strokeWidth={4} />
-      <polygon points={poly(stem)} fill={C.concrete} stroke={C.concreteStroke} strokeWidth={4} />
-      {keyShape && (
-        <polygon points={poly(keyShape)} fill={C.concrete} stroke={C.concreteStroke} strokeWidth={4} />
+      {/* ===== ACTIVE PRESSURE TRIANGLE (left of stem) ===== */}
+      {pressMax > 1 && (
+        <g>
+          <polygon
+            points={poly([
+              [stemFrontX, stemTop],
+              [stemFrontX - wTop, stemTop],
+              [stemFrontX - wBase, 0],
+              [stemFrontX, 0],
+            ])}
+            fill="rgba(255,107,107,0.22)"
+            stroke={C.pressure}
+            strokeWidth={5}
+          />
+          {/* Pa resultant */}
+          <line
+            x1={xW(stemFrontX - wBase * 0.65)}
+            y1={yW(results.pressure.yBar)}
+            x2={xW(stemFrontX - wBase - 180)}
+            y2={yW(results.pressure.yBar)}
+            stroke={C.pressure}
+            strokeWidth={14}
+            markerEnd="url(#rw-arrow-red)"
+          />
+          <text
+            x={xW(stemFrontX - wBase - 220)}
+            y={yW(results.pressure.yBar) - 60}
+            fontSize={fs.md}
+            textAnchor="end"
+            fill={C.pressure}
+            fontFamily="Inter, sans-serif"
+            fontWeight={700}
+          >
+            Pa = {(results.pressure.Pa + results.pressure.Pq + results.pressure.Pw).toFixed(1)}{' '}
+            {unitSystem === 'imperial' ? 'klf' : 'kN/m'}
+          </text>
+          <text
+            x={xW(stemFrontX - wBase - 220)}
+            y={yW(results.pressure.yBar) + fs.md - 20}
+            fontSize={fs.sm}
+            textAnchor="end"
+            fill={C.pressure}
+            fontFamily="JetBrains Mono, monospace"
+          >
+            σh,max = {sigmaSoilBase.toFixed(1)} kPa
+          </text>
+        </g>
       )}
 
-      {/* ---- Active pressure triangle on stem back ---- */}
-      {(() => {
-        const sigmaBase = results.pressure.K * gammaBackfill * (H_total / 1000);
-        const sigmaSurch = results.pressure.K * input.loads.surchargeQ;
-        const maxDrawWidth = padL * 0.55;
-        const scale = maxDrawWidth / Math.max(sigmaBase + sigmaSurch, 1);
-        const wBase = (sigmaBase + sigmaSurch) * scale;
-        const wTop = sigmaSurch * scale;
-        // Triangle from stem-back-top ≡ (stemBackX_top, stemTop) along the INCLINED
-        // back face down to footing bottom. Arrows point LEFT (into the stem).
-        const backTopX = stemBackX_top;
-        const backBotX = stemBackX_bot;
-        const pts = [
-          [backTopX, stemTop],
-          [backTopX - wTop, stemTop],
-          [backBotX - wBase, 0],
-          [backBotX, 0],
-        ];
-        return (
-          <g>
-            <polygon
-              points={poly(pts)}
-              fill="rgba(255,107,107,0.25)"
-              stroke={C.pressure}
-              strokeWidth={3}
-            />
-            {/* Resultant arrow */}
-            <line
-              x1={xW(backBotX - wBase * 0.7)}
-              y1={yW(results.pressure.yBar)}
-              x2={xW(backBotX - wBase - 200)}
-              y2={yW(results.pressure.yBar)}
-              stroke={C.pressure}
-              strokeWidth={8}
-              markerEnd="url(#rw-arrow-red)"
-            />
-            <text
-              x={xW(backBotX - wBase - 220)}
-              y={yW(results.pressure.yBar) - 20}
-              fontSize={fsLabel * 1.1}
-              textAnchor="end"
-              fill={C.pressure}
-              fontFamily="JetBrains Mono, monospace"
-              fontWeight={700}
-            >
-              Pa = {(results.pressure.Pa + results.pressure.Pq + results.pressure.Pw).toFixed(1)}{' '}
-              {unitSystem === 'imperial' ? 'klf' : 'kN/m'}
-            </text>
-            <text
-              x={xW(backBotX - wBase - 220)}
-              y={yW(results.pressure.yBar) + fsLabel * 1.15}
-              fontSize={fsLabel * 0.85}
-              textAnchor="end"
-              fill={C.pressure}
-              fontFamily="JetBrains Mono, monospace"
-            >
-              σh = {sigmaBase.toFixed(1)} kPa
-            </text>
-          </g>
-        );
-      })()}
-
-      {/* ---- Bearing stress diagram below footing ---- */}
+      {/* ===== BEARING STRESS DIAGRAM (below footing) ===== */}
       <g>
         <polygon
           points={poly(bearingPoly)}
-          fill="rgba(61,215,141,0.25)"
+          fill="rgba(61,215,141,0.3)"
           stroke={C.bearing}
-          strokeWidth={3}
+          strokeWidth={5}
         />
         <text
-          x={xW(0) + 10}
-          y={yW(-qMax * qVisScale) + fsLabel + 10}
-          fontSize={fsLabel}
+          x={xW(0)}
+          y={yW(-qMax * qVis) + fs.sm + 30}
+          fontSize={fs.sm}
           fill={C.bearing}
           fontFamily="JetBrains Mono, monospace"
           fontWeight={700}
@@ -439,9 +387,9 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
         </text>
         {trapezoidal && (
           <text
-            x={xW(B) - 10}
-            y={yW(-qMin * qVisScale) + fsLabel + 10}
-            fontSize={fsLabel}
+            x={xW(B)}
+            y={yW(-qMin * qVis) + fs.sm + 30}
+            fontSize={fs.sm}
             textAnchor="end"
             fill={C.bearing}
             fontFamily="JetBrains Mono, monospace"
@@ -452,38 +400,82 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
         )}
       </g>
 
-      {/* ---- Dimensions ---- */}
-      {dim(0, -padB * 0.55, stemFrontX, -padB * 0.55, mm(g.B_toe))}
-      {dim(stemFrontX, -padB * 0.55, stemBackX_bot, -padB * 0.55, mm(g.t_stem_bot))}
-      {dim(stemBackX_bot, -padB * 0.55, B, -padB * 0.55, mm(g.B_heel))}
-      {dim(-padL * 0.45, 0, -padL * 0.45, footTop, mm(g.H_foot))}
-      {dim(-padL * 0.45, footTop, -padL * 0.45, stemTop, mm(g.H_stem))}
+      {/* ===== DIMENSIONS (bottom row + left column) ===== */}
+      {dim(xW, yW, 0, -padB * 0.4, stemFrontX, -padB * 0.4, mm(g.B_toe), fs.dim)}
+      {dim(xW, yW, stemFrontX, -padB * 0.4, stemBackX_bot, -padB * 0.4, mm(g.t_stem_bot), fs.dim)}
+      {dim(xW, yW, stemBackX_bot, -padB * 0.4, B, -padB * 0.4, mm(g.B_heel), fs.dim)}
+      {dim(xW, yW, -padL * 0.2, 0, -padL * 0.2, footTop, mm(g.H_foot), fs.dim, true)}
+      {dim(xW, yW, -padL * 0.2, footTop, -padL * 0.2, stemTop, mm(g.H_stem), fs.dim, true)}
 
-      {/* ---- Member labels ---- */}
+      {/* ===== MEMBER LABELS ===== */}
       <text
         x={xW(stemFrontX + g.t_stem_bot / 2)}
-        y={yW(stemTop + 200)}
-        fontSize={fsLabel * 1.3}
+        y={yW(stemTop + 100) - fs.md}
+        fontSize={fs.md}
         textAnchor="middle"
         fill={C.label}
         fontFamily="Inter, sans-serif"
-        fontWeight={700}
-        letterSpacing="0.15em"
+        fontWeight={800}
+        letterSpacing="0.2em"
       >
         STEM
       </text>
       <text
         x={xW(B / 2)}
-        y={yW(g.H_foot / 2) + fsLabel / 2}
-        fontSize={fsLabel * 1.1}
+        y={yW(g.H_foot / 2) + fs.md / 3}
+        fontSize={fs.md}
         textAnchor="middle"
         fill="#0a0a0b"
         fontFamily="Inter, sans-serif"
-        fontWeight={700}
-        letterSpacing="0.15em"
+        fontWeight={800}
+        letterSpacing="0.2em"
       >
         FOOTING
       </text>
     </svg>
+  );
+}
+
+// -------- dimension helper (rendered outside component for JSX clarity) --------
+function dim(
+  xW: (x: number) => number,
+  yW: (y: number) => number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  text: string,
+  fontSize: number,
+  vertical = false,
+) {
+  const mxPx = (xW(x1) + xW(x2)) / 2;
+  const myPx = (yW(y1) + yW(y2)) / 2;
+  const tickLen = fontSize * 0.45;
+  return (
+    <g key={`${x1}-${y1}-${x2}-${y2}`}>
+      <line x1={xW(x1)} y1={yW(y1)} x2={xW(x2)} y2={yW(y2)} stroke={C.dim} strokeWidth={3} />
+      {vertical ? (
+        <>
+          <line x1={xW(x1) - tickLen} y1={yW(y1)} x2={xW(x1) + tickLen} y2={yW(y1)} stroke={C.dim} strokeWidth={3} />
+          <line x1={xW(x2) - tickLen} y1={yW(y2)} x2={xW(x2) + tickLen} y2={yW(y2)} stroke={C.dim} strokeWidth={3} />
+        </>
+      ) : (
+        <>
+          <line x1={xW(x1)} y1={yW(y1) - tickLen} x2={xW(x1)} y2={yW(y1) + tickLen} stroke={C.dim} strokeWidth={3} />
+          <line x1={xW(x2)} y1={yW(y2) - tickLen} x2={xW(x2)} y2={yW(y2) + tickLen} stroke={C.dim} strokeWidth={3} />
+        </>
+      )}
+      <text
+        x={vertical ? mxPx + fontSize * 0.35 : mxPx}
+        y={vertical ? myPx + fontSize * 0.35 : myPx - fontSize * 0.35}
+        fontSize={fontSize}
+        textAnchor={vertical ? 'start' : 'middle'}
+        fill={C.dim}
+        fontFamily="JetBrains Mono, monospace"
+        fontWeight={700}
+      >
+        {text}
+      </text>
+    </g>
   );
 }
