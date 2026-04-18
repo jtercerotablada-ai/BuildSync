@@ -1991,124 +1991,255 @@ img, svg {
   }
 }
 
-@media (max-width: 600px) {
+/* ================================================================
+   MOBILE-FIRST: phone + small tablet (<=768px)
+   Edge-to-edge shell, sticky frosted header, fixed bottom action bar
+   (SkyCiv / BeamGuru pattern), card-based inputs, reactions rebuilt
+   as card stack instead of table.
+   ================================================================ */
+@media (max-width: 768px) {
+  .section--tool {
+    padding-top: 0.5rem;
+    padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
+  }
   .container--wide {
-    padding: 0 0.75rem;
+    padding: 0;
   }
 
-  /* ----- Toolbar: segmented pill tabs + grid of actions ----- */
+  .beam-calc {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    background: var(--color-bg);
+  }
+
+  /* Sticky frosted top bar + pill tabs */
   .beam-calc__toolbar {
-    padding: 0.6rem 0.6rem;
-    gap: 0.55rem;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(14px) saturate(1.1);
+    -webkit-backdrop-filter: blur(14px) saturate(1.1);
+    background: rgba(15, 15, 15, 0.78);
+    padding: 0.55rem 0.75rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
   .beam-calc__tabs {
     width: 100%;
-    gap: 0.2rem;
-    background: rgba(255, 255, 255, 0.025);
-    border: 1px solid var(--color-border);
-    border-radius: 0.55rem;
+    gap: 0.15rem;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0.6rem;
     padding: 0.2rem;
   }
   .beam-calc__tab {
     flex: 1 1 0;
     min-width: 0;
     justify-content: center;
-    padding: 0.55rem 0.25rem;
-    font-size: 0.62rem;
+    padding: 0.55rem 0.35rem;
+    font-size: 0.66rem;
     letter-spacing: 0.04em;
     gap: 0.25rem;
+    min-height: 44px;
     border-color: transparent;
-    border-radius: 0.4rem;
-    min-height: 42px;
+    border-radius: 0.45rem;
+    white-space: nowrap;
+    background: transparent;
   }
   .beam-calc__tab.is-active {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    background: var(--color-accent);
+    box-shadow: 0 2px 8px rgba(201, 168, 76, 0.3);
   }
   .beam-calc__tab-count {
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     padding: 0.05rem 0.3rem;
-    min-width: 1.05rem;
+    min-width: 1rem;
   }
-  .beam-calc__actions {
-    width: 100%;
+
+  /* Actions -> fixed frosted bottom bar */
+  .beam-calc__toolbar .beam-calc__actions {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 0.6rem 0.85rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    backdrop-filter: blur(18px) saturate(1.25);
+    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    background: rgba(10, 10, 10, 0.88);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 -6px 28px rgba(0, 0, 0, 0.55);
+    z-index: 40;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 0.45rem 0.55rem;
+    align-items: center;
   }
   .beam-calc__toggle {
-    grid-column: 1 / -1;
-    justify-content: center;
-    padding: 0.55rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--color-border);
-    border-radius: 0.4rem;
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 0.62rem;
+    padding: 0;
+    justify-self: start;
+  }
+  .btn--ghost {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 36px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.68rem;
+    justify-self: end;
+    border-radius: 0.45rem;
   }
   .beam-calc__solve {
     grid-column: 1 / -1;
-    min-height: 48px;
-    font-size: 0.78rem;
-  }
-  .btn--ghost {
-    min-height: 44px;
-    padding: 0.6rem 0.75rem;
-    font-size: 0.7rem;
+    grid-row: 2;
+    min-height: 52px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    border-radius: 0.6rem;
+    letter-spacing: 0.12em;
   }
 
-  /* ----- Canvas + panel compact ----- */
+  .beam-calc__issues {
+    margin: 0.55rem 0.75rem 0;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(201, 76, 76, 0.25);
+  }
+
+  /* Body stack */
+  .beam-calc__body {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
   .beam-calc__panel {
-    padding: 0.85rem;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+    max-height: none;
+    padding: 1rem 0.75rem 1.25rem;
   }
   .beam-calc__canvas {
-    padding: 0.5rem 0.25rem 0.75rem;
-  }
-  .beam-calc__results {
-    padding: 1.1rem 0.85rem;
+    padding: 0.75rem 0.5rem 1.1rem;
+    background: var(--color-bg);
   }
 
-  /* ----- Larger touch targets, no iOS zoom ----- */
+  /* Panel: each field is a rounded card */
   .panel {
     gap: 0.85rem;
+  }
+  .panel__title {
+    font-size: 0.78rem;
+    margin: 0 0.15rem 0.15rem;
+    letter-spacing: 0.2em;
+  }
+  .panel__field {
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 0.65rem;
+    padding: 0.8rem 0.8rem;
+  }
+  .panel__field > span {
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    color: var(--color-text-muted);
+  }
+  .panel__input-group {
+    gap: 0.5rem;
   }
   .panel__input-group input,
   .panel__field input,
   .panel__field select,
   .panel__field > input {
-    min-height: 44px;
+    min-height: 46px;
     font-size: 16px;
+    padding: 0 0.9rem;
+    border-radius: 0.5rem;
+    background: rgba(0, 0, 0, 0.35);
   }
-  .panel__input-group input {
-    min-width: 0;
+  .panel__input-group .panel__unit {
+    min-width: 2.75rem;
+    text-align: center;
+    font-size: 0.78rem;
+    padding: 0 0.5rem;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 0.4rem;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .panel__quick {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
   }
   .panel__quick button {
-    min-height: 36px;
-    min-width: 40px;
-    padding: 0 0.5rem;
-    font-size: 0.75rem;
+    min-height: 40px;
+    min-width: 44px;
+    padding: 0 0.7rem;
+    font-size: 0.78rem;
+    border-radius: 0.45rem;
   }
   .panel__add {
-    min-height: 46px;
+    min-height: 50px;
+    font-size: 0.8rem;
+    border-radius: 0.55rem;
+    margin-top: 0.1rem;
+  }
+  .panel__hint {
+    font-size: 0.72rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.4rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-left: 3px solid var(--color-accent);
   }
   .panel__item {
-    padding: 0.6rem 0.65rem;
+    padding: 0.75rem 0.65rem;
+    border-radius: 0.55rem;
+    gap: 0.55rem;
   }
   .panel__item-input {
-    width: 64px;
+    width: 72px;
+    min-height: 40px;
+    font-size: 15px;
+  }
+  .panel__item-del {
+    min-width: 36px;
     min-height: 36px;
-    font-size: 14px;
+    font-size: 1.25rem;
+  }
+  .seg {
+    width: 100%;
+    border-radius: 0.5rem;
+  }
+  .seg button {
+    min-height: 44px;
+    font-size: 0.78rem;
+    flex: 1;
   }
   .support-type-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+    gap: 0.55rem;
   }
   .support-type-btn {
-    min-height: 68px;
-  }
-  .seg button {
-    min-height: 42px;
-    font-size: 0.75rem;
+    min-height: 80px;
+    border-radius: 0.55rem;
+    padding: 0.85rem 0.35rem;
   }
 
-  /* ----- SVG readability: bump text inside diagrams/visualizer ----- */
+  /* Beam viz: contained card, bigger text */
+  .beam-viz {
+    background: rgba(255, 255, 255, 0.015);
+    border-radius: 0.55rem;
+    padding: 0.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
   .beam-viz__svg text {
     font-size: 18px;
   }
@@ -2116,36 +2247,144 @@ img, svg {
     font-size: 16px;
   }
   .beam-viz__empty text {
-    font-size: 20px;
+    font-size: 19px;
   }
   .diagram__svg text {
-    font-size: 16px;
+    font-size: 15px;
   }
 
-  /* ----- Results: 2-col cards, table scrolls ----- */
+  /* Results */
+  .beam-calc__results {
+    padding: 1.35rem 0.75rem 1.5rem;
+    background: var(--color-bg-alt);
+  }
+  .beam-calc__results-title {
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+  }
+  .results-summary {
+    gap: 1.2rem;
+    grid-template-columns: 1fr;
+  }
   .results-summary__extremes {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+    gap: 0.55rem;
   }
   .results-summary__card {
-    padding: 0.7rem 0.6rem;
+    padding: 0.9rem 0.75rem;
+    border-radius: 0.55rem;
+  }
+  .results-summary__card-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
   }
   .results-summary__card-value {
-    font-size: 1rem;
+    font-size: 1.2rem;
   }
-  .results-summary__reactions {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+
+  /* Reactions: rebuild as card stack (no table) */
+  .results-summary__reactions h4 {
+    margin-bottom: 0.55rem;
   }
   .results-summary__reactions table {
-    min-width: 420px;
+    display: block;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 0;
+  }
+  .results-summary__reactions thead {
+    display: none;
+  }
+  .results-summary__reactions tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  .results-summary__reactions tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem 0.75rem;
+    padding: 0.75rem 0.85rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--color-border);
+    border-radius: 0.55rem;
+  }
+  .results-summary__reactions td {
+    padding: 0;
+    border: none;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .results-summary__reactions td::before {
+    font-size: 0.58rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+  .results-summary__reactions td:nth-child(1) {
+    grid-column: 1 / -1;
+    color: var(--color-accent);
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding-bottom: 0.35rem;
+    margin-bottom: 0.1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .results-summary__reactions td:nth-child(1)::before {
+    content: 'Support';
+  }
+  .results-summary__reactions td:nth-child(2)::before {
+    content: 'Position';
+  }
+  .results-summary__reactions td:nth-child(3)::before {
+    content: 'Vertical (kN)';
+  }
+  .results-summary__reactions td:nth-child(4)::before {
+    content: 'Moment (kN\00b7m)';
+  }
+
+  .diagrams {
+    gap: 0.85rem;
   }
   .diagram {
-    padding: 0.7rem 0.4rem 0.55rem;
+    padding: 0.85rem 0.4rem 0.65rem;
+    border-radius: 0.55rem;
   }
   .diagram__title {
     font-size: 0.72rem;
-    margin-bottom: 0.35rem;
+    padding: 0 0.55rem;
+    margin-bottom: 0.45rem;
+  }
+}
+
+/* Extra-small phones */
+@media (max-width: 400px) {
+  .beam-calc__tab {
+    font-size: 0.62rem;
+    padding: 0.55rem 0.15rem;
+    letter-spacing: 0.02em;
+  }
+  .beam-calc__tab-count {
+    font-size: 0.56rem;
+    padding: 0.05rem 0.26rem;
+  }
+  .panel__field {
+    padding: 0.7rem 0.65rem;
+  }
+  .panel__input-group .panel__unit {
+    min-width: 2.25rem;
+    font-size: 0.72rem;
+  }
+  .results-summary__card-value {
+    font-size: 1.1rem;
   }
 }
 
