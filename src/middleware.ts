@@ -12,6 +12,7 @@ const publicPrefixes = [
   "/api/auth",
   "/api/my-tasks/calendar-feed",
   "/api/contact",
+  "/resources",
 ];
 
 // TTC public pages (marketing / informational) - no auth required

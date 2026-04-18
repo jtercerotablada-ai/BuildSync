@@ -40,30 +40,16 @@ type Action =
   | { type: 'RESET' };
 
 const initialModel: BeamModel = {
-  length: 6,
+  length: 0,
   section: {
     material: 'steel',
     E: 200000,
     I: 1.12e8,
-    A: 11800,
-    label: 'Custom W-Shape',
+    A: undefined,
+    label: '',
   },
-  supports: [
-    { id: 'sup-1', type: 'pinned', position: 0 },
-    { id: 'sup-2', type: 'roller', position: 6 },
-  ],
-  loads: [
-    {
-      id: 'ld-1',
-      type: 'distributed',
-      startPosition: 0,
-      endPosition: 6,
-      startMagnitude: 10,
-      endMagnitude: 10,
-      direction: 'down',
-      loadCase: 'dead',
-    },
-  ],
+  supports: [],
+  loads: [],
   moments: [],
   selfWeight: false,
   density: 7850,
@@ -262,16 +248,24 @@ function tabCount(m: BeamModel, t: Tab): string {
 
 function validate(m: BeamModel): string[] {
   const issues: string[] = [];
-  if (m.length <= 0) issues.push('Beam length must be greater than zero.');
+  if (m.length <= 0) issues.push('Enter beam length in the Beam tab.');
   if (m.section.E <= 0) issues.push('Young\u2019s Modulus (E) must be greater than zero.');
   if (m.section.I <= 0) issues.push('Moment of Inertia (I) must be greater than zero.');
   if (m.supports.length < 1) issues.push('Add at least one support.');
   const hasFixed = m.supports.some((s) => s.type === 'fixed');
-  if (!hasFixed && m.supports.length < 2) {
-    issues.push('Unstable: need at least 2 supports or 1 fixed support.');
+  const hasGuided = m.supports.some((s) => s.type === 'guided');
+  const vertSupports = m.supports.filter((s) => s.type !== 'guided').length;
+  if (vertSupports < 1 && m.supports.length > 0) {
+    issues.push('Unstable: add at least one vertical support (pinned, roller, or fixed).');
   }
-  if (m.supports.some((s) => s.position < 0 || s.position > m.length)) {
+  if (m.supports.length > 0 && !hasFixed && !hasGuided && vertSupports < 2) {
+    issues.push('Unstable: need \u22652 vertical supports or 1 fixed/guided support.');
+  }
+  if (m.length > 0 && m.supports.some((s) => s.position < 0 || s.position > m.length)) {
     issues.push('Support positions must be within beam length.');
+  }
+  if (m.loads.length === 0 && !m.selfWeight && m.moments.length === 0 && m.supports.length > 0) {
+    issues.push('Add at least one load or moment (or enable Self Weight).');
   }
   return issues;
 }
@@ -416,7 +410,7 @@ function SupportsPanel({ model, dispatch, selectedId, setSelectedId }: Selectabl
       <div className="panel__field">
         <span>Support Type</span>
         <div className="support-type-grid">
-          {(['pinned', 'roller', 'fixed'] as SupportType[]).map((t) => (
+          {(['pinned', 'roller', 'fixed', 'guided'] as SupportType[]).map((t) => (
             <button
               key={t}
               type="button"
@@ -664,10 +658,25 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
             </div>
           </label>
           <label className="panel__field">
-            <span>Magnitude (uniform)</span>
+            <span>{'Start Magnitude (w\u2081)'}</span>
             <div className="panel__input-group">
               <input type="number" step="0.1" value={mag} onChange={(e) => setMag(e.target.value)} />
               <span className="panel__unit">kN/m</span>
+            </div>
+          </label>
+          <label className="panel__field">
+            <span>{'End Magnitude (w\u2082) \u2014 leave equal for UDL, differ for trapezoidal/triangular'}</span>
+            <div className="panel__input-group">
+              <input type="number" step="0.1" value={mag2} onChange={(e) => setMag2(e.target.value)} />
+              <span className="panel__unit">kN/m</span>
+              <div className="panel__quick">
+                <button type="button" onClick={() => setMag2(mag)} title="Match start (uniform)">
+                  =
+                </button>
+                <button type="button" onClick={() => setMag2('0')} title="Zero (triangular)">
+                  0
+                </button>
+              </div>
             </div>
           </label>
         </>
@@ -703,7 +712,9 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
               <div className="panel__item-title">
                 {l.type === 'point'
                   ? `Point ${l.magnitude} kN @ ${l.position.toFixed(2)} m`
-                  : `UDL ${l.startMagnitude} kN/m [${l.startPosition.toFixed(2)}–${l.endPosition.toFixed(2)}] m`}
+                  : l.startMagnitude === l.endMagnitude
+                    ? `UDL ${l.startMagnitude} kN/m [${l.startPosition.toFixed(2)}\u2013${l.endPosition.toFixed(2)}] m`
+                    : `${l.startMagnitude}\u2192${l.endMagnitude} kN/m [${l.startPosition.toFixed(2)}\u2013${l.endPosition.toFixed(2)}] m`}
               </div>
               <div className="panel__item-meta">{LOAD_CASE_LABELS[l.loadCase]}</div>
             </div>
@@ -853,6 +864,16 @@ function SupportIcon({ type, small }: { type: SupportType; small?: boolean }) {
           <line x1="4" y1="12" x2="8" y2="16" stroke="currentColor" strokeWidth="1" />
           <line x1="4" y1="18" x2="8" y2="22" stroke="currentColor" strokeWidth="1" />
           <line x1="4" y1="24" x2="8" y2="28" stroke="currentColor" strokeWidth="1" />
+        </>
+      )}
+      {type === 'guided' && (
+        <>
+          <rect x="8" y="12" width="16" height="8" stroke="currentColor" strokeWidth="1.5" fill="none" />
+          <line x1="4" y1="24" x2="28" y2="24" stroke="currentColor" strokeWidth="1.5" />
+          <line x1="6" y1="27" x2="9" y2="24" stroke="currentColor" strokeWidth="1" />
+          <line x1="12" y1="27" x2="15" y2="24" stroke="currentColor" strokeWidth="1" />
+          <line x1="18" y1="27" x2="21" y2="24" stroke="currentColor" strokeWidth="1" />
+          <line x1="24" y1="27" x2="27" y2="24" stroke="currentColor" strokeWidth="1" />
         </>
       )}
     </svg>

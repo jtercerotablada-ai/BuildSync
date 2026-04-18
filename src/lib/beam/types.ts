@@ -1,4 +1,4 @@
-export type SupportType = 'pinned' | 'roller' | 'fixed';
+export type SupportType = 'pinned' | 'roller' | 'fixed' | 'guided';
 
 export interface Support {
   id: string;

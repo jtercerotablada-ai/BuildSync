@@ -18,13 +18,23 @@ export function BeamVisualizer({ beam, selectedId }: Props) {
   const padB = 90;
   const beamLen = W - padL - padR;
   const beamY = padT + 40;
-  const L = Math.max(beam.length, 0.001);
+  const L = beam.length;
+  const hasLength = L > 0;
 
-  const xOf = (x: number) => padL + (x / L) * beamLen;
+  const xOf = (x: number) => padL + (x / Math.max(L, 0.001)) * beamLen;
 
   const loads = beam.loads;
   const supports = beam.supports;
   const moments = beam.moments;
+
+  const guides: string[] = [];
+  if (!hasLength) {
+    guides.push('Enter beam length in the Beam tab to begin.');
+  } else {
+    if (supports.length === 0) guides.push('Add supports in the Supports tab.');
+    if (loads.length === 0 && moments.length === 0 && !beam.selfWeight)
+      guides.push('Add loads or moments (or enable Self Weight).');
+  }
 
   return (
     <div className="beam-viz">
@@ -38,37 +48,66 @@ export function BeamVisualizer({ beam, selectedId }: Props) {
           </pattern>
         </defs>
 
-        <line
-          x1={xOf(0)}
-          y1={beamY}
-          x2={xOf(L)}
-          y2={beamY}
-          stroke="#e8e2d3"
-          strokeWidth="8"
-          strokeLinecap="round"
-        />
-        <line
-          x1={xOf(0)}
-          y1={beamY}
-          x2={xOf(L)}
-          y2={beamY}
-          stroke="#2a2a2a"
-          strokeWidth="1"
-        />
+        {hasLength && (
+          <>
+            <line
+              x1={xOf(0)}
+              y1={beamY}
+              x2={xOf(L)}
+              y2={beamY}
+              stroke="#e8e2d3"
+              strokeWidth="8"
+              strokeLinecap="round"
+            />
+            <line
+              x1={xOf(0)}
+              y1={beamY}
+              x2={xOf(L)}
+              y2={beamY}
+              stroke="#2a2a2a"
+              strokeWidth="1"
+            />
+          </>
+        )}
 
-        {loads.filter((l) => l.type === 'distributed').map((l) => renderDistributed(l, xOf, beamY, selectedId === l.id))}
-        {loads.filter((l) => l.type === 'point').map((l) => renderPointLoad(l, xOf, beamY, selectedId === l.id))}
-        {moments.map((m) => renderMoment(m, xOf, beamY, selectedId === m.id))}
-        {supports.map((s) => renderSupport(s, xOf, beamY, selectedId === s.id))}
+        {hasLength && (
+          <>
+            {loads.filter((l) => l.type === 'distributed').map((l) => renderDistributed(l, xOf, beamY, selectedId === l.id))}
+            {loads.filter((l) => l.type === 'point').map((l) => renderPointLoad(l, xOf, beamY, selectedId === l.id))}
+            {moments.map((m) => renderMoment(m, xOf, beamY, selectedId === m.id))}
+            {supports.map((s) => renderSupport(s, xOf, beamY, selectedId === s.id))}
+          </>
+        )}
 
-        <g className="beam-viz__dim">
-          <line x1={xOf(0)} y1={H - padB + 22} x2={xOf(L)} y2={H - padB + 22} stroke="#8a8a8a" strokeWidth="0.8" />
-          <line x1={xOf(0)} y1={H - padB + 16} x2={xOf(0)} y2={H - padB + 28} stroke="#8a8a8a" strokeWidth="0.8" />
-          <line x1={xOf(L)} y1={H - padB + 16} x2={xOf(L)} y2={H - padB + 28} stroke="#8a8a8a" strokeWidth="0.8" />
-          <text x={(xOf(0) + xOf(L)) / 2} y={H - padB + 42} textAnchor="middle" fontSize="12" fill="#a8a8a8" fontFamily="system-ui">
-            L = {L.toFixed(3)} m
-          </text>
-        </g>
+        {hasLength && (
+          <g className="beam-viz__dim">
+            <line x1={xOf(0)} y1={H - padB + 22} x2={xOf(L)} y2={H - padB + 22} stroke="#8a8a8a" strokeWidth="0.8" />
+            <line x1={xOf(0)} y1={H - padB + 16} x2={xOf(0)} y2={H - padB + 28} stroke="#8a8a8a" strokeWidth="0.8" />
+            <line x1={xOf(L)} y1={H - padB + 16} x2={xOf(L)} y2={H - padB + 28} stroke="#8a8a8a" strokeWidth="0.8" />
+            <text x={(xOf(0) + xOf(L)) / 2} y={H - padB + 42} textAnchor="middle" fontSize="12" fill="#a8a8a8" fontFamily="system-ui">
+              L = {L.toFixed(3)} m
+            </text>
+          </g>
+        )}
+
+        {guides.length > 0 && (
+          <g className="beam-viz__empty">
+            {guides.map((g, i) => (
+              <text
+                key={i}
+                x={W / 2}
+                y={H / 2 - 10 + i * 22}
+                textAnchor="middle"
+                fontSize="14"
+                fill="#8a8a8a"
+                fontFamily="system-ui"
+                fontStyle="italic"
+              >
+                {g}
+              </text>
+            ))}
+          </g>
+        )}
       </svg>
     </div>
   );
@@ -105,6 +144,19 @@ function renderSupport(s: Support, xOf: (x: number) => number, y: number, select
         <circle cx={cx + 8} cy={y + 10} r="5" fill="none" stroke={color} strokeWidth="1.5" />
         <line x1={cx - size - 6} y1={y + 16} x2={cx + size + 6} y2={y + 16} stroke={color} strokeWidth="1.5" />
         <rect x={cx - size - 6} y={y + 17} width={2 * size + 12} height={8} fill="url(#hatch)" />
+        <text x={cx} y={y + size + 30} textAnchor="middle" fontSize="10" fill="#a8a8a8" fontFamily="system-ui">
+          {s.position.toFixed(2)} m
+        </text>
+      </g>
+    );
+  }
+
+  if (s.type === 'guided') {
+    return (
+      <g key={s.id} className={`beam-viz__support ${selected ? 'is-selected' : ''}`}>
+        <rect x={cx - size} y={y + 4} width={2 * size} height={10} fill="none" stroke={color} strokeWidth="1.5" />
+        <line x1={cx - size - 6} y1={y + 18} x2={cx + size + 6} y2={y + 18} stroke={color} strokeWidth="1.5" />
+        <rect x={cx - size - 6} y={y + 19} width={2 * size + 12} height={8} fill="url(#hatch)" />
         <text x={cx} y={y + size + 30} textAnchor="middle" fontSize="10" fill="#a8a8a8" fontFamily="system-ui">
           {s.position.toFixed(2)} m
         </text>
@@ -172,23 +224,38 @@ function renderDistributed(
   y: number,
   selected: boolean
 ) {
-  const a = Math.min(l.startPosition, l.endPosition);
-  const b = Math.max(l.startPosition, l.endPosition);
-  const x1 = xOf(a);
-  const x2 = xOf(b);
+  const aPos = Math.min(l.startPosition, l.endPosition);
+  const bPos = Math.max(l.startPosition, l.endPosition);
+  const reversed = l.startPosition > l.endPosition;
+  const wA = reversed ? l.endMagnitude : l.startMagnitude;
+  const wB = reversed ? l.startMagnitude : l.endMagnitude;
+  const x1 = xOf(aPos);
+  const x2 = xOf(bPos);
   const isDown = l.direction === 'down';
-  const arrowLen = 36;
-  const tailY = isDown ? y - arrowLen : y + arrowLen;
-  const tipY = isDown ? y - 6 : y + 6;
   const color = selected ? '#c9a84c' : LOAD_CASE_COLORS[l.loadCase];
   const marker = 'arrow';
+
+  const maxMag = Math.max(Math.abs(wA), Math.abs(wB), 1e-9);
+  const baseArrow = 40;
+  const minArrow = 8;
+  const lenAt = (ratio: number) => {
+    const w = wA + (wB - wA) * ratio;
+    const rel = Math.abs(w) / maxMag;
+    return minArrow + rel * (baseArrow - minArrow);
+  };
 
   const span = x2 - x1;
   const count = Math.max(3, Math.min(20, Math.floor(span / 25)));
 
   const arrows = [];
+  const tops: { x: number; y: number }[] = [];
   for (let i = 0; i <= count; i++) {
-    const x = x1 + (i / count) * span;
+    const ratio = i / count;
+    const x = x1 + ratio * span;
+    const len = lenAt(ratio);
+    const tailY = isDown ? y - len : y + len;
+    const tipY = isDown ? y - 6 : y + 6;
+    tops.push({ x, y: tailY });
     arrows.push(
       <line
         key={i}
@@ -203,20 +270,27 @@ function renderDistributed(
     );
   }
 
+  const connector = tops.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
+  const labelY = tops[0].y + (isDown ? -6 : 16);
+  const magLabel =
+    Math.abs(wA - wB) < 1e-9
+      ? `${wA.toFixed(2)} kN/m`
+      : `${wA.toFixed(2)} \u2192 ${wB.toFixed(2)} kN/m`;
+
   return (
     <g key={l.id} className={`beam-viz__load ${selected ? 'is-selected' : ''}`} style={{ color }}>
-      <line x1={x1} y1={tailY} x2={x2} y2={tailY} stroke="currentColor" strokeWidth="1.6" />
+      <path d={connector} stroke="currentColor" strokeWidth="1.6" fill="none" />
       {arrows}
       <text
         x={(x1 + x2) / 2}
-        y={tailY + (isDown ? -6 : 16)}
+        y={labelY}
         fontSize="11"
         fill="currentColor"
         fontFamily="system-ui"
         textAnchor="middle"
         fontWeight="600"
       >
-        {l.startMagnitude.toFixed(2)} kN/m
+        {magLabel}
       </text>
     </g>
   );
@@ -247,7 +321,7 @@ function renderMoment(m: AppliedMoment, xOf: (x: number) => number, y: number, s
         markerEnd="url(#arrow)"
       />
       <text x={cx} y={y - r - 8} textAnchor="middle" fontSize="11" fill="currentColor" fontFamily="system-ui" fontWeight="600">
-        {m.magnitude.toFixed(2)} kN·m
+        {`${m.magnitude.toFixed(2)} kN\u00b7m`}
       </text>
     </g>
   );

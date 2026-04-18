@@ -25,9 +25,14 @@ export function solve(model: BeamModel): Results {
   }
 
   const hasFixed = model.supports.some((s) => s.type === 'fixed');
-  const verticalSupports = model.supports.length;
-  if (!hasFixed && verticalSupports < 2) {
-    warnings.push('Beam is unstable \u2014 need at least 2 vertical supports or 1 fixed support');
+  const verticalSupports = model.supports.filter((s) => s.type !== 'guided').length;
+  const hasGuided = model.supports.some((s) => s.type === 'guided');
+  if (verticalSupports < 1) {
+    warnings.push('Beam is unstable \u2014 need at least one vertical support (pinned, roller, or fixed)');
+    return emptyResults(warnings);
+  }
+  if (!hasFixed && !hasGuided && verticalSupports < 2) {
+    warnings.push('Beam is unstable \u2014 need \u22652 vertical supports or 1 fixed/guided support');
     return emptyResults(warnings);
   }
 
@@ -74,20 +79,30 @@ export function solve(model: BeamModel): Results {
       F[2 * idx] += sign * load.magnitude * KN;
     } else {
       const sign = load.direction === 'up' ? 1 : -1;
-      const a = Math.min(load.startPosition, load.endPosition);
-      const b = Math.max(load.startPosition, load.endPosition);
-      const w = sign * Math.abs(load.startMagnitude) * KN;
-      if (Math.abs(b - a) < TOL) continue;
+      const aPos = Math.min(load.startPosition, load.endPosition);
+      const bPos = Math.max(load.startPosition, load.endPosition);
+      const span = bPos - aPos;
+      if (span < TOL) continue;
+      const reversed = load.startPosition > load.endPosition;
+      const wStart = sign * Math.abs(load.startMagnitude) * KN;
+      const wEnd = sign * Math.abs(load.endMagnitude) * KN;
+      const wA = reversed ? wEnd : wStart;
+      const wB = reversed ? wStart : wEnd;
+      const intensityAt = (x: number) => wA + ((wB - wA) * (x - aPos)) / span;
 
       for (let i = 0; i < N - 1; i++) {
         const x1 = nodes[i];
         const x2 = nodes[i + 1];
-        if (x2 <= a + TOL || x1 >= b - TOL) continue;
         const Le = x2 - x1;
-        F[2 * i] += (w * Le) / 2;
-        F[2 * i + 1] += (w * Le * Le) / 12;
-        F[2 * (i + 1)] += (w * Le) / 2;
-        F[2 * (i + 1) + 1] += -(w * Le * Le) / 12;
+        if (Le < TOL) continue;
+        if (x2 <= aPos + TOL || x1 >= bPos - TOL) continue;
+        const wL = intensityAt(x1);
+        const wR = intensityAt(x2);
+        const fem = trapezoidFEM(Le, wL, wR);
+        F[2 * i] += fem[0];
+        F[2 * i + 1] += fem[1];
+        F[2 * (i + 1)] += fem[2];
+        F[2 * (i + 1) + 1] += fem[3];
       }
     }
   }
@@ -114,8 +129,12 @@ export function solve(model: BeamModel): Results {
   for (const s of model.supports) {
     const idx = findNode(nodes, s.position);
     supportNode.set(s.id, idx);
-    constrainedSet.add(2 * idx);
-    if (s.type === 'fixed') constrainedSet.add(2 * idx + 1);
+    if (s.type === 'guided') {
+      constrainedSet.add(2 * idx + 1);
+    } else {
+      constrainedSet.add(2 * idx);
+      if (s.type === 'fixed') constrainedSet.add(2 * idx + 1);
+    }
   }
 
   const free: number[] = [];
@@ -140,11 +159,14 @@ export function solve(model: BeamModel): Results {
     const idx = supportNode.get(s.id)!;
     const dv = 2 * idx;
     const dm = 2 * idx + 1;
-    let Kv = 0;
-    for (let j = 0; j < 2 * N; j++) Kv += K[dv][j] * u[j];
-    const Rv = (Kv - F[dv]) / KN;
+    let Rv = 0;
     let Rm = 0;
-    if (s.type === 'fixed') {
+    if (s.type !== 'guided') {
+      let Kv = 0;
+      for (let j = 0; j < 2 * N; j++) Kv += K[dv][j] * u[j];
+      Rv = (Kv - F[dv]) / KN;
+    }
+    if (s.type === 'fixed' || s.type === 'guided') {
       let Km = 0;
       for (let j = 0; j < 2 * N; j++) Km += K[dm][j] * u[j];
       Rm = (Km - F[dm]) / KN;
@@ -207,15 +229,23 @@ export function solve(model: BeamModel): Results {
     for (const ld of model.loads) {
       if (ld.type !== 'distributed') continue;
       const sign = ld.direction === 'up' ? 1 : -1;
-      const w = sign * Math.abs(ld.startMagnitude) * KN;
-      const a = Math.min(ld.startPosition, ld.endPosition);
-      const b = Math.max(ld.startPosition, ld.endPosition);
-      if (x <= a) continue;
-      const hi = Math.min(x, b);
-      const len = hi - a;
-      if (len <= 0) continue;
-      V += w * len;
-      M += w * len * (x - (a + hi) / 2);
+      const aPos = Math.min(ld.startPosition, ld.endPosition);
+      const bPos = Math.max(ld.startPosition, ld.endPosition);
+      const span = bPos - aPos;
+      if (span < TOL) continue;
+      if (x <= aPos) continue;
+      const reversed = ld.startPosition > ld.endPosition;
+      const wStart = sign * Math.abs(ld.startMagnitude) * KN;
+      const wEnd = sign * Math.abs(ld.endMagnitude) * KN;
+      const wA = reversed ? wEnd : wStart;
+      const wB = reversed ? wStart : wEnd;
+      const hi = Math.min(x, bPos);
+      const Lx = hi - aPos;
+      if (Lx <= 0) continue;
+      const wHi = wA + ((wB - wA) * Lx) / span;
+      // Integrate the linear load from aPos to hi with intensities wA at aPos, wHi at hi
+      V += (Lx * (wA + wHi)) / 2;
+      M += (Lx * Lx * (2 * wA + wHi)) / 6;
     }
 
     if (selfW !== 0 && x > 0) {
@@ -279,6 +309,27 @@ function selfWeightLoad(model: BeamModel): number {
   const A = model.section.A;
   if (!A || A <= 0) return 0;
   return -model.density * A * MM2 * G;
+}
+
+// Equivalent nodal forces (FEM) for a linearly varying distributed load
+// on an element of length L, with intensity wL at the left node and wR at the right node.
+// Sign convention: positive w = UP (downward loads come in negative).
+// Returns [F_v1, F_θ1, F_v2, F_θ2].
+function trapezoidFEM(L: number, wL: number, wR: number): [number, number, number, number] {
+  // Uniform part (w = min intensity contribution, but here we decompose as uniform + triangular)
+  // Uniform FEM for w over L:
+  //   F_v = wL/2 at both ends
+  //   F_θ = +wL²/12 at left, -wL²/12 at right
+  // Triangular FEM: 0 at left, (wR-wL) at right, over L:
+  //   F_v1 = (wR-wL)·L·3/20, F_v2 = (wR-wL)·L·7/20
+  //   F_θ1 = (wR-wL)·L²/30, F_θ2 = -(wR-wL)·L²/20
+  const w1 = wL;
+  const dw = wR - wL;
+  const Fv1 = (w1 * L) / 2 + (3 * dw * L) / 20;
+  const Ft1 = (w1 * L * L) / 12 + (dw * L * L) / 30;
+  const Fv2 = (w1 * L) / 2 + (7 * dw * L) / 20;
+  const Ft2 = -(w1 * L * L) / 12 - (dw * L * L) / 20;
+  return [Fv1, Ft1, Fv2, Ft2];
 }
 
 function elementStiffness(EI: number, L: number): number[][] {
