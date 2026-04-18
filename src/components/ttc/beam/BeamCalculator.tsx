@@ -145,6 +145,24 @@ export function BeamCalculator() {
             </button>
           ))}
         </div>
+        <div className="beam-calc__tabs-mobile">
+          <label className="beam-calc__tabs-mobile-label">Section</label>
+          <select
+            className="beam-calc__tabs-select"
+            value={tab}
+            onChange={(e) => setTab(e.target.value as Tab)}
+          >
+            {(['beam', 'section', 'supports', 'loads', 'moments'] as Tab[]).map((t) => {
+              const c = tabCount(model, t);
+              return (
+                <option key={t} value={t}>
+                  {tabLabel(t)}
+                  {c ? ` (${c})` : ''}
+                </option>
+              );
+            })}
+          </select>
+        </div>
         <div className="beam-calc__actions">
           <label className="beam-calc__toggle">
             <input
