@@ -1,3 +1,4 @@
+import { computeComposite } from '../src/lib/section/compute-composite';
 import { computePolygon } from '../src/lib/section/compute-polygon';
 import { computeTemplate } from '../src/lib/section/compute-template';
 import { fromSI, toSI, type Quantity } from '../src/lib/beam/units';
@@ -455,6 +456,153 @@ hdr('T-18: International catalogs (EN 10365 / EN 10210 / BS 4-1)');
       console.log(`  ${R}✗${N} family missing: ${f}`);
     }
   }
+}
+
+// ============================================================
+// T-19: Composite — two stacked rectangles should equal one tall rectangle
+// ============================================================
+
+hdr('T-19: Composite — 100×100 + 100×100 stacked = 100×200');
+{
+  // Two 100×100 rectangles, one on top of the other.
+  // Bottom rect: dy = 0, top rect: dy = 100.
+  // Combined should be identical to a single 100×200 rect.
+  const ref = computeTemplate({ kind: 'rectangular', b: 100, h: 200 });
+  const comp = computeComposite({
+    operands: [
+      {
+        id: 'a',
+        params: { kind: 'rectangular', b: 100, h: 100 },
+        dx: 0,
+        dy: 0,
+        op: 'add',
+      },
+      {
+        id: 'b',
+        params: { kind: 'rectangular', b: 100, h: 100 },
+        dx: 0,
+        dy: 100,
+        op: 'add',
+      },
+    ],
+  });
+  near(comp.A, ref.A, 1e-9, 'A');
+  near(comp.xbar, ref.xbar, 1e-9, 'xbar');
+  near(comp.ybar, ref.ybar, 1e-9, 'ybar');
+  near(comp.Ix, ref.Ix, 1e-9, 'Ix');
+  near(comp.Iy, ref.Iy, 1e-9, 'Iy');
+  near(comp.yMax, ref.yMax, 1e-9, 'yMax');
+}
+
+// ============================================================
+// T-20: Composite — rectangle minus rectangle = hollow rect (via subtract)
+// ============================================================
+
+hdr('T-20: Composite — 200×300 rect minus 180×280 inner = hollow rect 10mm walls');
+{
+  // Solid outer rect 200×300 with a 180×280 rect subtracted at (10, 10).
+  // Equivalent hollow-rect: B=200, H=300, tw=tf=10.
+  const ref = computeTemplate({
+    kind: 'hollow-rect',
+    B: 200,
+    H: 300,
+    tw: 10,
+    tf: 10,
+  });
+  const comp = computeComposite({
+    operands: [
+      {
+        id: 'out',
+        params: { kind: 'rectangular', b: 200, h: 300 },
+        dx: 0,
+        dy: 0,
+        op: 'add',
+      },
+      {
+        id: 'hole',
+        params: { kind: 'rectangular', b: 180, h: 280 },
+        dx: 10,
+        dy: 10,
+        op: 'subtract',
+      },
+    ],
+  });
+  near(comp.A, ref.A, 1e-9, 'A');
+  near(comp.xbar, ref.xbar, 1e-9, 'xbar');
+  near(comp.ybar, ref.ybar, 1e-9, 'ybar');
+  near(comp.Ix, ref.Ix, 1e-9, 'Ix');
+  near(comp.Iy, ref.Iy, 1e-9, 'Iy');
+}
+
+// ============================================================
+// T-21: Composite — I-shape + cover plate (parallel axis theorem sanity)
+// ============================================================
+
+hdr('T-21: Composite — W-equivalent I + 200×20 cover plate on top');
+{
+  // W12-like: H=300, B=200, tw=10, tf=15. Cover plate 200×20 welded on top.
+  const I = { kind: 'i-shape', H: 300, B: 200, tw: 10, tf: 15 } as const;
+  const plate = { kind: 'rectangular', b: 200, h: 20 } as const;
+
+  // Hand-calc expected:
+  //   A_I = 2·200·15 + 10·(300−30) = 6000 + 2700 = 8700
+  //   A_p = 200·20 = 4000
+  //   A_total = 12700
+  //   ybar_I = 150 (centered), ybar_p_global = 300 + 10 = 310
+  //   ybar_composite = (8700·150 + 4000·310) / 12700 = (1_305_000 + 1_240_000) / 12700
+  //                  ≈ 200.394 mm
+  //   (dy_I = 150 − 200.394 = −50.394; dy_p = 310 − 200.394 = 109.606)
+  //   Ix_I local = 200·300³/12 − 190·270³/12 = 450_000_000 − 311_716_500 = 138_283_500
+  //   Ix_p local = 200·20³/12 = 133_333.33
+  //   Ix_composite = Ix_I + A_I·dy_I² + Ix_p + A_p·dy_p²
+  //                = 138_283_500 + 8700·(50.394)² + 133_333 + 4000·(109.606)²
+  //                = 138_283_500 + 22_095_000 + 133_333 + 48_051_100
+  //                ≈ 208_562_933 mm⁴
+  const comp = computeComposite({
+    operands: [
+      { id: 'i', params: I, dx: 0, dy: 0, op: 'add' },
+      { id: 'p', params: plate, dx: 0, dy: 300, op: 'add' },
+    ],
+  });
+  near(comp.A, 12700, 1e-9, 'A = A_I + A_plate');
+  near(comp.ybar, 200.3937, 1e-3, 'ybar (weighted average)');
+  // Match to hand-calc ±0.1% (numeric centroid integration from outlines)
+  near(comp.Ix, 208_562_933, 5e-3, 'Ix (parallel axis theorem)');
+}
+
+// ============================================================
+// T-22: Composite — 2C back-to-back (symmetric built-up)
+// ============================================================
+
+hdr('T-22: Composite — 2C channels back-to-back');
+{
+  // Two C 250×100 channels mirrored: left one flange-right, right one dx=200
+  // This is an approximate check — we just verify area doubles and Ix doubles
+  // relative to a single channel at its own centroid (not the composite centroid).
+  const one = computeTemplate({ kind: 'channel', H: 250, B: 100, tw: 8, tf: 12 });
+  const comp = computeComposite({
+    operands: [
+      {
+        id: 'l',
+        params: { kind: 'channel', H: 250, B: 100, tw: 8, tf: 12 },
+        dx: 0,
+        dy: 0,
+        op: 'add',
+      },
+      {
+        id: 'r',
+        params: { kind: 'channel', H: 250, B: 100, tw: 8, tf: 12 },
+        dx: 200,
+        dy: 0,
+        op: 'add',
+      },
+    ],
+  });
+  near(comp.A, 2 * one.A, 1e-9, 'A = 2·A_single');
+  // Both channels share the same Ix about their own x-centroid → composite Ix
+  // is simply 2·Ix_single (because both centroids sit on the composite y-centroid,
+  // which is at y=125 for symmetric stacking).
+  near(comp.Ix, 2 * one.Ix, 1e-6, 'Ix (same y-centroid) = 2·Ix_single');
 }
 
 // ============================================================

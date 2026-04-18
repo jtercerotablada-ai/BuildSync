@@ -7,13 +7,17 @@ import { ShapeTemplatesPanel, defaultsFor } from './ShapeTemplatesPanel';
 import { PropertiesPanel } from './PropertiesPanel';
 import { DatabasePanel, type UnifiedEntry } from './DatabasePanel';
 import { PolygonEditorPanel } from './PolygonEditorPanel';
+import { CompositeEditorPanel } from './CompositeEditorPanel';
 import { SavedSectionsPanel } from './SavedSectionsPanel';
 import { computeTemplate } from '@/lib/section/compute-template';
 import { computePolygon } from '@/lib/section/compute-polygon';
+import { computeComposite } from '@/lib/section/compute-composite';
 import { sectionWeightPerLength, sectionYoungs } from '@/lib/section/compute';
 import { aiscToSectionProperties, findAISC } from '@/lib/section/aisc-loader';
 import { findIntl, intlToSectionProperties } from '@/lib/section/international-loader';
 import type {
+  CompositeOperand,
+  CompositeParams,
   Point2D,
   SavedSection,
   SectionProperties,
@@ -31,7 +35,7 @@ import {
   type UnitSystem,
 } from '@/lib/beam/units';
 
-type Tab = 'templates' | 'database' | 'custom' | 'saved';
+type Tab = 'templates' | 'database' | 'custom' | 'composite' | 'saved';
 
 const STORAGE_KEY = 'ttc:saved-sections';
 const PENDING_KEY = 'ttc:beam-pending-section';
@@ -59,6 +63,7 @@ export function SectionBuilder() {
   const [savedSections, setSavedSections] = useState<SavedSection[]>([]);
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
   const [activeVertex, setActiveVertex] = useState<number | null>(null);
+  const [activeOperandId, setActiveOperandId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -81,6 +86,7 @@ export function SectionBuilder() {
   const properties = useMemo<SectionProperties>(() => {
     if (state.source.type === 'template') return computeTemplate(state.source.params);
     if (state.source.type === 'polygon') return computePolygon(state.source.params.vertices);
+    if (state.source.type === 'composite') return computeComposite(state.source.params);
     if (state.source.type === 'database') {
       const standard = state.source.ref.standard ?? 'AISC';
       if (standard === 'AISC') {
@@ -113,6 +119,15 @@ export function SectionBuilder() {
     setActiveSavedId(null);
   };
 
+  const setComposite = (params: CompositeParams) => {
+    setState((s) => ({
+      ...s,
+      source: { type: 'composite', params },
+      label: `Composite (${params.operands.length} ops)`,
+    }));
+    setActiveSavedId(null);
+  };
+
   const setDatabase = (u: UnifiedEntry) => {
     const standard: 'AISC' | 'EN' | 'BS' =
       u.source === 'aisc'
@@ -140,6 +155,23 @@ export function SectionBuilder() {
         { x: 150, y: 200 },
         { x: 0, y: 200 },
       ]);
+    }
+    if (t === 'composite' && state.source.type !== 'composite') {
+      const iOp: CompositeOperand = {
+        id: `op-${Date.now()}-i`,
+        params: { kind: 'i-shape', H: 300, B: 150, tw: 10, tf: 15 },
+        dx: 0,
+        dy: 0,
+        op: 'add',
+      };
+      const plate: CompositeOperand = {
+        id: `op-${Date.now()}-p`,
+        params: { kind: 'rectangular', b: 200, h: 20 },
+        dx: -25,
+        dy: 300,
+        op: 'add',
+      };
+      setComposite({ operands: [iOp, plate] });
     }
     setTab(t);
   };
@@ -208,7 +240,7 @@ export function SectionBuilder() {
     <div className="sb">
       <div className="sb__toolbar">
         <div className="sb__tabs" role="tablist">
-          {(['templates', 'database', 'custom', 'saved'] as Tab[]).map((t) => (
+          {(['templates', 'database', 'custom', 'composite', 'saved'] as Tab[]).map((t) => (
             <button
               key={t}
               role="tab"
@@ -229,7 +261,7 @@ export function SectionBuilder() {
             value={tab}
             onChange={(e) => handleTabSwitch(e.target.value as Tab)}
           >
-            {(['templates', 'database', 'custom', 'saved'] as Tab[]).map((t) => (
+            {(['templates', 'database', 'custom', 'composite', 'saved'] as Tab[]).map((t) => (
               <option key={t} value={t}>
                 {tabLabel(t)}
               </option>
@@ -357,6 +389,15 @@ export function SectionBuilder() {
               setActiveIndex={setActiveVertex}
             />
           )}
+          {tab === 'composite' && state.source.type === 'composite' && (
+            <CompositeEditorPanel
+              params={state.source.params}
+              onChange={setComposite}
+              unitSystem={unitSystem}
+              activeOperandId={activeOperandId}
+              setActiveOperandId={setActiveOperandId}
+            />
+          )}
           {tab === 'saved' && (
             <SavedSectionsPanel
               sections={savedSections}
@@ -410,7 +451,13 @@ export function SectionBuilder() {
 }
 
 function tabLabel(t: Tab): string {
-  return { templates: 'Templates', database: 'Database', custom: 'Custom', saved: 'Saved' }[t];
+  return {
+    templates: 'Templates',
+    database: 'Database',
+    custom: 'Custom',
+    composite: 'Composite',
+    saved: 'Saved',
+  }[t];
 }
 
 function labelForTemplate(p: TemplateParams): string {

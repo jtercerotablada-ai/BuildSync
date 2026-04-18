@@ -33,6 +33,7 @@ export function SectionCanvas({
 }: Props) {
   const {
     outline,
+    subShapes,
     xbar,
     ybar,
     xMin,
@@ -68,8 +69,14 @@ export function SectionCanvas({
 
     // Transverse shear stress τ_max (MPa) at neutral axis.
     // V is in SI kN; convert to N by ×1000. τ = V·Q/(I·t) where t is the outline width at y=ybar.
+    // For composites: t = Σ add-widths − Σ subtract-widths across sub-shapes.
     let tMax = 0;
-    const tNaNumeric = thicknessAt(outline, ybar);
+    const tNaNumeric = subShapes && subShapes.length > 0
+      ? subShapes.reduce(
+          (sum, s) => sum + (s.op === 'add' ? 1 : -1) * thicknessAt(s.outline, ybar),
+          0
+        )
+      : thicknessAt(outline, ybar);
     if (heatmapMode === 'tau' && Ix > 0 && V !== 0 && tNaNumeric > 0 && Qx_max > 0) {
       tMax = (V * 1000 * Qx_max) / (Ix * tNaNumeric);
     }
@@ -87,13 +94,14 @@ export function SectionCanvas({
       tNA: tNaNumeric,
       naOffset: naOff,
     };
-  }, [xMin, xMax, yMin, yMax, heatmapMode, M, V, ybar, Ix, Qx_max, outline]);
+  }, [xMin, xMax, yMin, yMax, heatmapMode, M, V, ybar, Ix, Qx_max, outline, subShapes]);
 
   const pathD = pointsToPath(outline);
   const stressExtreme = Math.max(Math.abs(stressMax), Math.abs(stressMin), 1e-9);
   const tauExtreme = Math.max(Math.abs(tauMax), 1e-9);
   const sigmaGradId = 'sb-sigma-gradient';
   const tauGradId = 'sb-tau-gradient';
+  const subtractHatchId = 'sb-subtract-hatch';
 
   const activeFill =
     heatmapMode === 'sigma' && Math.abs(M) > 0
@@ -101,6 +109,8 @@ export function SectionCanvas({
       : heatmapMode === 'tau' && Math.abs(V) > 0 && Qx_max > 0
         ? `url(#${tauGradId})`
         : 'rgba(201,168,76,0.15)';
+
+  const strokeWidth = Math.max((xMax - xMin) * 0.003, 0.5);
 
   // Shear center shown only if distinct from centroid (within 1% of bbox max).
   const size = Math.max(xMax - xMin, yMax - yMin, 1);
@@ -149,19 +159,54 @@ export function SectionCanvas({
             <stop offset={((naOffset + 1) * 0.5).toFixed(4)} stopColor={tauColor(tauMax * 0.75, tauExtreme)} />
             <stop offset="1" stopColor={tauColor(0, tauExtreme)} />
           </linearGradient>
+
+          {/* Crosshatch pattern to indicate 'subtract' operands in composites */}
+          <pattern
+            id={subtractHatchId}
+            patternUnits="userSpaceOnUse"
+            width={Math.max((xMax - xMin) * 0.02, 6)}
+            height={Math.max((xMax - xMin) * 0.02, 6)}
+            patternTransform="rotate(45)"
+          >
+            <line
+              x1="0"
+              y1="0"
+              x2="0"
+              y2={Math.max((xMax - xMin) * 0.02, 6)}
+              stroke="#b0323b"
+              strokeWidth={Math.max((xMax - xMin) * 0.005, 1)}
+              vectorEffect="non-scaling-stroke"
+            />
+          </pattern>
         </defs>
 
         {/* Y-axis flip: draw in math coords (Y up) */}
         <g transform="scale(1, -1)">
           <GridLines xMin={xMin} xMax={xMax} yMin={yMin} yMax={yMax} padding={padding} />
 
-          <path
-            d={pathD}
-            fill={activeFill}
-            stroke="var(--color-accent)"
-            strokeWidth={Math.max((xMax - xMin) * 0.003, 0.5)}
-            vectorEffect="non-scaling-stroke"
-          />
+          {subShapes && subShapes.length > 0 ? (
+            <g>
+              {subShapes.map((s, i) => (
+                <path
+                  key={`sub-${i}`}
+                  d={pointsToPath(s.outline)}
+                  fill={s.op === 'subtract' ? `url(#${subtractHatchId})` : activeFill}
+                  stroke={s.op === 'subtract' ? '#b0323b' : 'var(--color-accent)'}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={s.op === 'subtract' ? '4 3' : undefined}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+            </g>
+          ) : (
+            <path
+              d={pathD}
+              fill={activeFill}
+              stroke="var(--color-accent)"
+              strokeWidth={strokeWidth}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
 
           {/* Centroidal axes (gold dashed) */}
           {showAxes && (

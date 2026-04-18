@@ -1,5 +1,6 @@
 import type { MaterialPreset } from '../beam/types';
 import { MATERIAL_PRESETS } from '../beam/types';
+import { computeComposite } from './compute-composite';
 import { computePolygon } from './compute-polygon';
 import { computeTemplate } from './compute-template';
 import type { SectionProperties, SectionSource } from './types';
@@ -7,6 +8,7 @@ import type { SectionProperties, SectionSource } from './types';
 export function computeSection(source: SectionSource): SectionProperties {
   if (source.type === 'template') return computeTemplate(source.params);
   if (source.type === 'polygon') return computePolygon(source.params.vertices);
+  if (source.type === 'composite') return computeComposite(source.params);
   throw new Error('Database sections must be resolved via aisc-loader');
 }
 

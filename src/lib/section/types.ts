@@ -34,10 +34,26 @@ export interface DatabaseSectionRef {
   standard?: 'AISC' | 'EN' | 'BS';
 }
 
+// A single operand inside a composite/built-up section. Each operand is a
+// template shape placed at offset (dx, dy) in global composite coords and
+// combined with 'add' (union) or 'subtract' (cutout).
+export interface CompositeOperand {
+  id: string;
+  params: TemplateParams;
+  dx: number;
+  dy: number;
+  op: 'add' | 'subtract';
+}
+
+export interface CompositeParams {
+  operands: CompositeOperand[];
+}
+
 export type SectionSource =
   | { type: 'template'; params: TemplateParams }
   | { type: 'database'; ref: DatabaseSectionRef }
-  | { type: 'polygon'; params: PolygonParams };
+  | { type: 'polygon'; params: PolygonParams }
+  | { type: 'composite'; params: CompositeParams };
 
 export interface Point2D {
   x: number;
@@ -98,6 +114,15 @@ export interface SectionProperties {
 
   // Hole outlines (for hollow shapes — CW direction, subtracted for heatmap)
   holes: Point2D[][];
+
+  // For composite/built-up sections: the individual operand outlines (in global
+  // composite coords). When present the canvas renders each sub-shape directly
+  // instead of falling back to the combined `outline` (which is just a bbox
+  // placeholder for composites).
+  subShapes?: Array<{
+    outline: Point2D[];
+    op: 'add' | 'subtract';
+  }>;
 }
 
 export interface SavedSection {
