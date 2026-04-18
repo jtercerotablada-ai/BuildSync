@@ -30,11 +30,8 @@ export function BeamVisualizer({ beam, selectedId }: Props) {
     <div className="beam-viz">
       <svg viewBox={`0 0 ${W} ${H}`} className="beam-viz__svg" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <marker id="arrowDown" markerWidth="10" markerHeight="10" refX="5" refY="9" orient="auto" markerUnits="strokeWidth">
-            <path d="M1,1 L5,9 L9,1" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </marker>
-          <marker id="arrowUp" markerWidth="10" markerHeight="10" refX="5" refY="1" orient="auto" markerUnits="strokeWidth">
-            <path d="M1,9 L5,1 L9,9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <marker id="arrow" viewBox="0 0 10 10" markerWidth="8" markerHeight="8" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+            <path d="M1,1 L9,5 L1,9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </marker>
           <pattern id="hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
             <line x1="0" y1="0" x2="0" y2="6" stroke="#8a8a8a" strokeWidth="1" />
@@ -141,7 +138,7 @@ function renderPointLoad(
   const isDown = l.direction === 'down';
   const tailY = isDown ? y - arrowLen : y + arrowLen;
   const tipY = isDown ? y - 6 : y + 6;
-  const marker = isDown ? 'arrowDown' : 'arrowUp';
+  const marker = 'arrow';
 
   return (
     <g key={l.id} className={`beam-viz__load ${selected ? 'is-selected' : ''}`} style={{ color }}>
@@ -184,7 +181,7 @@ function renderDistributed(
   const tailY = isDown ? y - arrowLen : y + arrowLen;
   const tipY = isDown ? y - 6 : y + 6;
   const color = selected ? '#c9a84c' : LOAD_CASE_COLORS[l.loadCase];
-  const marker = isDown ? 'arrowDown' : 'arrowUp';
+  const marker = 'arrow';
 
   const span = x2 - x1;
   const count = Math.max(3, Math.min(20, Math.floor(span / 25)));
@@ -247,7 +244,7 @@ function renderMoment(m: AppliedMoment, xOf: (x: number) => number, y: number, s
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"
-        markerEnd={isCCW ? 'url(#arrowUp)' : 'url(#arrowDown)'}
+        markerEnd="url(#arrow)"
       />
       <text x={cx} y={y - r - 8} textAnchor="middle" fontSize="11" fill="currentColor" fontFamily="system-ui" fontWeight="600">
         {m.magnitude.toFixed(2)} kN·m
