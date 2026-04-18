@@ -127,9 +127,13 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
       })();
 
   // ─── soil polygons (edge-to-edge so there's no dark canvas on the sides)
+  // Foundation extends UP to the top of the footing so it wraps around the
+  // sides of the buried footing — the concrete footing polygon drawn later
+  // covers the middle strip. This eliminates the "hueco"/gap that showed on
+  // either side of the footing when foundation only covered y < 0.
   const foundation: [number, number][] = [
-    [xLeft, 0],
-    [xRight, 0],
+    [xLeft, footTop],
+    [xRight, footTop],
     [xRight, yBottom],
     [xLeft, yBottom],
   ];
@@ -296,7 +300,12 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           const sx = xW(p.cx);
           const sy = yW(p.cy);
           // Only draw pebbles that fall in a soil-filled area
-          const inFoundation = p.cy < 0 + 50;
+          // Foundation now wraps around the sides of the footing. A pebble is
+          // in foundation if it's below footing bottom OR beside the footing
+          // (outside x in [0, B]) and below footTop.
+          const inFoundation =
+            p.cy < 0 + 50 ||
+            (p.cy < footTop && (p.cx < 0 || p.cx > B));
           const inBackfill =
             p.cy > footTop &&
             p.cx > stemBackX_bot &&
