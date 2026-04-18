@@ -1325,7 +1325,14 @@ img, svg {
 }
 
 .container--wide {
-  max-width: 1400px;
+  max-width: min(1800px, calc(100vw - 3rem));
+  padding: 0 1.5rem;
+}
+
+@media (min-width: 1920px) {
+  .container--wide {
+    max-width: min(2100px, calc(100vw - 4rem));
+  }
 }
 
 .section--tool {
