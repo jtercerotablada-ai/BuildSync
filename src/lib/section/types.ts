@@ -29,6 +29,9 @@ export interface PolygonParams {
 export interface DatabaseSectionRef {
   designation: string;
   family: string;
+  // Catalog standard. Defaults to 'AISC' when omitted for backward compatibility
+  // with saved sections created before international catalogs were added.
+  standard?: 'AISC' | 'EN' | 'BS';
 }
 
 export type SectionSource =

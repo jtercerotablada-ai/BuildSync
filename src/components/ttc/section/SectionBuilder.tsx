@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import { SectionCanvas, type HeatmapMode } from './SectionCanvas';
 import { ShapeTemplatesPanel, defaultsFor } from './ShapeTemplatesPanel';
 import { PropertiesPanel } from './PropertiesPanel';
-import { DatabasePanel } from './DatabasePanel';
+import { DatabasePanel, type UnifiedEntry } from './DatabasePanel';
 import { PolygonEditorPanel } from './PolygonEditorPanel';
 import { SavedSectionsPanel } from './SavedSectionsPanel';
 import { computeTemplate } from '@/lib/section/compute-template';
 import { computePolygon } from '@/lib/section/compute-polygon';
 import { sectionWeightPerLength, sectionYoungs } from '@/lib/section/compute';
-import { aiscToSectionProperties, findAISC, type AISCEntry } from '@/lib/section/aisc-loader';
+import { aiscToSectionProperties, findAISC } from '@/lib/section/aisc-loader';
+import { findIntl, intlToSectionProperties } from '@/lib/section/international-loader';
 import type {
   Point2D,
   SavedSection,
@@ -81,8 +82,14 @@ export function SectionBuilder() {
     if (state.source.type === 'template') return computeTemplate(state.source.params);
     if (state.source.type === 'polygon') return computePolygon(state.source.params.vertices);
     if (state.source.type === 'database') {
-      const entry = findAISC(state.source.ref.designation);
-      if (entry) return aiscToSectionProperties(entry);
+      const standard = state.source.ref.standard ?? 'AISC';
+      if (standard === 'AISC') {
+        const entry = findAISC(state.source.ref.designation);
+        if (entry) return aiscToSectionProperties(entry);
+      } else {
+        const entry = findIntl(state.source.ref.designation);
+        if (entry) return intlToSectionProperties(entry);
+      }
     }
     return computeTemplate(defaultsFor('rectangular'));
   }, [state.source]);
@@ -106,11 +113,20 @@ export function SectionBuilder() {
     setActiveSavedId(null);
   };
 
-  const setDatabase = (entry: AISCEntry) => {
+  const setDatabase = (u: UnifiedEntry) => {
+    const standard: 'AISC' | 'EN' | 'BS' =
+      u.source === 'aisc'
+        ? 'AISC'
+        : u.entry.family === 'UB' || u.entry.family === 'UC'
+        ? 'BS'
+        : 'EN';
     setState((s) => ({
       ...s,
-      source: { type: 'database', ref: { designation: entry.designation, family: entry.family } },
-      label: entry.designation,
+      source: {
+        type: 'database',
+        ref: { designation: u.entry.designation, family: u.entry.family, standard },
+      },
+      label: u.entry.designation,
     }));
     setActiveSavedId(null);
   };
