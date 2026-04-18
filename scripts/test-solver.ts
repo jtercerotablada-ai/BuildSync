@@ -762,11 +762,694 @@ function case20() {
 }
 
 // ============================================================
+// Case 21: Propped cantilever with central point load (not UDL)
+// ============================================================
+function case21() {
+  header('Propped cantilever L=8, central P=16 (fixed at 0, roller at L)');
+  const L = 8;
+  const P = 16;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'fixed', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  m.loads = [
+    { id: 'p1', type: 'point', position: L / 2, magnitude: P, direction: 'down', loadCase: 'dead' },
+  ];
+  const r = solve(m);
+
+  // Classical: R_fixed_V = 11P/16, R_fixed_M = -3PL/16, R_roller = 5P/16.
+  // M_max(+) at L/2 = 5PL/32.
+  check('R_fixed V', r.reactions[0].V, (11 * P) / 16);
+  check('R_fixed M', r.reactions[0].M, (-3 * P * L) / 16, 0.02);
+  check('R_roller', r.reactions[1].V, (5 * P) / 16);
+  check('M at 0', sample(r.moment, 0), (-3 * P * L) / 16, 0.02);
+  check('M at L/2', sample(r.moment, L / 2), (5 * P * L) / 32, 0.05);
+  check('M at L', sample(r.moment, L), 0, 0.02);
+}
+
+// ============================================================
+// Case 22: Cantilever with partial UDL only on first half
+// ============================================================
+function case22() {
+  header('Cantilever L=6, UDL w=10 only on [0,3], nothing on [3,6]');
+  const L = 6;
+  const w = 10;
+  const a = 3; // UDL ends at x=3
+  const m = baseModel(L);
+  m.supports = [{ id: 's1', type: 'fixed', position: 0 }];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: a,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Total W = w·a = 30, centroid at a/2 = 1.5 from fixed.
+  const W = w * a;
+  check('R_V at 0', r.reactions[0].V, W);
+  check('R_M at 0', r.reactions[0].M, -W * (a / 2), 0.02);
+  // M at a (end of UDL): R_V·a + R_M - w·a²/2 = 30·3 - 45 - 45 = 0.
+  check('M at end of UDL (x=3)', sample(r.moment, a), 0, 0.02);
+  // M for x > a: V(x) = 0 and M(x) = 0.
+  check('M at x=4 (past UDL)', sample(r.moment, 4), 0, 0.02);
+  check('M at tip (free)', sample(r.moment, L), 0, 0.02);
+  check('V at x=4 (past UDL)', sample(r.shear, 4), 0, 0.05);
+}
+
+// ============================================================
+// Case 23: Cantilever with applied CCW moment at free tip
+// ============================================================
+function case23() {
+  header('Cantilever L=5, CCW moment M0=25 applied at free tip');
+  const L = 5;
+  const M0 = 25;
+  const m = baseModel(L);
+  m.supports = [{ id: 's1', type: 'fixed', position: 0 }];
+  m.moments = [{ id: 'm1', position: L, magnitude: M0, direction: 'ccw' }];
+  const r = solve(m);
+
+  // No vertical forces → R_V = 0. ΣM: R_M_applied + M0 = 0 → R_M_applied = -M0 (CW).
+  // R_M_stored = +M0.
+  check('R_V at 0', r.reactions[0].V, 0, 1e-2);
+  check('R_M at 0', r.reactions[0].M, M0, 0.02);
+  // M(x) is constant = +M0 for 0 ≤ x < L (no forces, only wall's constant moment).
+  check('M at 0', sample(r.moment, 0), M0, 0.02);
+  check('M at L/2', sample(r.moment, L / 2), M0, 0.02);
+  // δ at tip: standard cantilever with tip moment: δ = M0·L²/(2EI).
+  const EI = 200000 * 1e6 * 1.12e8 * 1e-12;
+  const delta = (M0 * 1000 * L * L) / (2 * EI);
+  check('δ at tip (mm)', Math.abs(sample(r.deflection, L)), delta * 1000, 0.1);
+}
+
+// ============================================================
+// Case 24: Cantilever with CW moment at tip (mirror of 23)
+// ============================================================
+function case24() {
+  header('Cantilever L=5, CW moment M0=25 applied at free tip');
+  const L = 5;
+  const M0 = 25;
+  const m = baseModel(L);
+  m.supports = [{ id: 's1', type: 'fixed', position: 0 }];
+  m.moments = [{ id: 'm1', position: L, magnitude: M0, direction: 'cw' }];
+  const r = solve(m);
+
+  check('R_V at 0', r.reactions[0].V, 0, 1e-2);
+  check('R_M at 0', r.reactions[0].M, -M0, 0.02);
+  check('M at 0', sample(r.moment, 0), -M0, 0.02);
+  check('M at L/2', sample(r.moment, L / 2), -M0, 0.02);
+}
+
+// ============================================================
+// Case 25: SS beam with ascending trapezoidal UDL (w1=5, w2=15)
+// ============================================================
+function case25() {
+  header('SS beam L=8, trapezoidal UDL w1=5 at 0 → w2=15 at L');
+  const L = 8;
+  const w1 = 5;
+  const w2 = 15;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w1,
+      endMagnitude: w2,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Total W = L·(w1+w2)/2 = 80. Centroid = L·(w1+2w2)/(3(w1+w2)) = 8·35/60 = 4.6667.
+  const W = (L * (w1 + w2)) / 2;
+  const xc = (L * (w1 + 2 * w2)) / (3 * (w1 + w2));
+  const R_L = (W * xc) / L;
+  const R_0 = W - R_L;
+  check('R0', r.reactions[0].V, R_0, 0.02);
+  check('RL', r.reactions[1].V, R_L, 0.02);
+  check('M at 0', sample(r.moment, 0), 0, 1e-2);
+  check('M at L', sample(r.moment, L), 0, 1e-2);
+  // M at x=4: analytical = 33.333·4 - ∫₀⁴(5 + 1.25u)(4-u)du = 133.33 - 53.33 = 80
+  check('M at x=4', sample(r.moment, 4), 80, 0.1);
+  check('M at x=2', sample(r.moment, 2), 55, 0.1);
+}
+
+// ============================================================
+// Case 26: SS beam with descending trapezoidal UDL (w1=15, w2=5) — mirror
+// ============================================================
+function case26() {
+  header('SS beam L=8, descending UDL w1=15 at 0 → w2=5 at L');
+  const L = 8;
+  const w1 = 15;
+  const w2 = 5;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w1,
+      endMagnitude: w2,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  const W = (L * (w1 + w2)) / 2;
+  const xc = (L * (w1 + 2 * w2)) / (3 * (w1 + w2));
+  const R_L = (W * xc) / L;
+  const R_0 = W - R_L;
+  check('R0', r.reactions[0].V, R_0, 0.02);
+  check('RL', r.reactions[1].V, R_L, 0.02);
+  check('M at 0', sample(r.moment, 0), 0, 1e-2);
+  check('M at L', sample(r.moment, L), 0, 1e-2);
+}
+
+// ============================================================
+// Case 27: UDL direction='up' (lifting load) on SS beam
+// ============================================================
+function case27() {
+  header('SS beam L=10, UDL w=5 directed UP (lifting)');
+  const L = 10;
+  const w = 5;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'up',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Reactions pull DOWN to hold beam (net total up = wL = 50 lifting, supports resist down).
+  const R = -(w * L) / 2;
+  check('R0', r.reactions[0].V, R);
+  check('RL', r.reactions[1].V, R);
+  // Moment shape inverted: M_max = -wL²/8 = -62.5 (hogging instead of sagging).
+  check('M at L/2', sample(r.moment, L / 2), -(w * L * L) / 8);
+  check('M at 0', sample(r.moment, 0), 0, 1e-2);
+  check('M at L', sample(r.moment, L), 0, 1e-2);
+}
+
+// ============================================================
+// Case 28: UDL defined right-to-left (startPosition > endPosition)
+// Result must match equivalent left-to-right definition.
+// ============================================================
+function case28() {
+  header('SS beam L=10, UDL on [2,8] defined R→L (start=8, end=2)');
+  const L = 10;
+  const w = 6;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 8, // reversed
+      endPosition: 2,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Equivalent to UDL on [2,8]. W = 6·6 = 36, centroid at x=5.
+  // ΣM_0: R_L·10 = 36·5 → R_L = 18. R_0 = 18. Symmetric.
+  check('R0', r.reactions[0].V, 18, 0.02);
+  check('RL', r.reactions[1].V, 18, 0.02);
+  check('M at 0', sample(r.moment, 0), 0, 1e-2);
+  check('M at L', sample(r.moment, L), 0, 1e-2);
+  check('M at 5 (center)', sample(r.moment, 5), 18 * 5 - 6 * 3 * 1.5, 0.05);
+}
+
+// ============================================================
+// Case 29: Guided support at right end + fixed at left + UDL
+// Tests the guided support DOF constraint (θ=0, v free, R_V=0, R_M≠0)
+// ============================================================
+function case29() {
+  header('Fixed at 0, GUIDED at L=4, UDL w=6 full span');
+  const L = 4;
+  const w = 6;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'fixed', position: 0 },
+    { id: 's2', type: 'guided', position: L },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Derived: R_V_0 = wL = 24. R_V_L = 0 (guided). R_M_0_applied = +wL²/3 = 32.
+  // R_M_L_applied = wL²/6 = 16. Stored = -applied.
+  check('R_V_0', r.reactions[0].V, w * L);
+  check('R_V_L (guided)', r.reactions[1].V, 0, 1e-2);
+  check('R_M_0', r.reactions[0].M, -(w * L * L) / 3, 0.1);
+  check('R_M_L', r.reactions[1].M, -(w * L * L) / 6, 0.1);
+  check('M at 0', sample(r.moment, 0), -(w * L * L) / 3, 0.1);
+  // M(L-) from left = wL·L - wL²/3 - wL²/2 = wL²(1 - 1/3 - 1/2) = wL²/6.
+  check('M at L (interior)', sample(r.moment, L), (w * L * L) / 6, 0.1);
+  // Slope at L must be 0 (guided). Sampling slightly inside to avoid any edge effect.
+  check('slope at L (guided)', sample(r.slope, L), 0, 1e-3);
+  // Slope at 0 must also be 0 (fixed).
+  check('slope at 0 (fixed)', sample(r.slope, 0), 0, 1e-3);
+}
+
+// ============================================================
+// Case 30: Three-span continuous beam, UDL full length
+// ============================================================
+function case30() {
+  header('3-span continuous beam L=18, supports 0/6/12/18, UDL w=10');
+  const L = 18;
+  const w = 10;
+  const l = 6; // span length
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: 6 },
+    { id: 's3', type: 'roller', position: 12 },
+    { id: 's4', type: 'roller', position: L },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Classical: R_end = 0.4·wl = 24, R_interior = 1.1·wl = 66. M_over_interior = -wl²/10 = -36.
+  check('R0', r.reactions[0].V, 0.4 * w * l, 0.1);
+  check('R_mid1', r.reactions[1].V, 1.1 * w * l, 0.1);
+  check('R_mid2', r.reactions[2].V, 1.1 * w * l, 0.1);
+  check('RL', r.reactions[3].V, 0.4 * w * l, 0.1);
+  check('M at mid support 1', sample(r.moment, 6), -(w * l * l) / 10, 0.1);
+  check('M at mid support 2', sample(r.moment, 12), -(w * l * l) / 10, 0.1);
+  check('M at 0', sample(r.moment, 0), 0, 0.02);
+  check('M at L', sample(r.moment, L), 0, 0.02);
+  // Max positive in middle span at center (x=9): wl²·1/40 = 9
+  check('M_max(+) in middle span', sample(r.moment, 9), (w * l * l) / 40, 0.2);
+}
+
+// ============================================================
+// Case 31: Double overhang (asymmetric support positions)
+// ============================================================
+function case31() {
+  header('Asym overhang L=10, pin at 2, roller at 7, UDL w=10 full');
+  const L = 10;
+  const w = 10;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 2 },
+    { id: 's2', type: 'roller', position: 7 },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // ΣM_pin(2): R_roller·5 - w·10·3 = 0 → R_roller = 60. R_pin = 100 - 60 = 40.
+  check('R_pin (x=2)', r.reactions[0].V, 40, 0.02);
+  check('R_roller (x=7)', r.reactions[1].V, 60, 0.02);
+  check('M at 0 (free)', sample(r.moment, 0), 0, 0.02);
+  check('M at L (free)', sample(r.moment, L), 0, 0.02);
+  // M at x=2 (pin): only voladizo [0,2] contributes: -w·2²/2 = -20.
+  check('M at pin support (x=2)', sample(r.moment, 2), -20, 0.05);
+  // M at x=7 (roller): -w·7²/2 + R_pin·5 = -245 + 200 = -45
+  check('M at roller (x=7)', sample(r.moment, 7), -45, 0.05);
+  // M at x=5 (between): -w·5²/2 + R_pin·3 = -125 + 120 = -5
+  check('M at x=5', sample(r.moment, 5), -5, 0.05);
+}
+
+// ============================================================
+// Case 32: Applied moment exactly AT a support position
+// ============================================================
+function case32() {
+  header('SS beam L=10, CCW moment M0=20 applied at roller (x=L)');
+  const L = 10;
+  const M0 = 20;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  // Moment at x=L (exactly at roller)
+  m.moments = [{ id: 'm1', position: L, magnitude: M0, direction: 'ccw' }];
+  const r = solve(m);
+
+  // ΣM_0 (CCW+): R_L·L + M0 = 0 → R_L = -M0/L = -2. R_0 = +2.
+  check('R0', r.reactions[0].V, M0 / L, 0.02);
+  check('RL', r.reactions[1].V, -M0 / L, 0.02);
+  // M(x) = R_0·x = (M0/L)·x for 0<x<L. M(L-) just before jump at L.
+  // With applied moment AT L, the jump is at L. M(L-) = M0 (before jump).
+  check('M at 0', sample(r.moment, 0), 0, 1e-2);
+  check('M at L/2', sample(r.moment, L / 2), M0 / 2, 0.02);
+  // M at x=L with atRightEnd fix: shows pre-jump interior value.
+  check('M at L-ε', sample(r.moment, L - 0.01), M0, 0.05);
+}
+
+// ============================================================
+// Case 33: Point load applied exactly AT a support
+// ============================================================
+function case33() {
+  header('SS beam L=8, P=20 applied at roller (x=L)');
+  const L = 8;
+  const P = 20;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  // Point load AT the roller
+  m.loads = [
+    { id: 'p1', type: 'point', position: L, magnitude: P, direction: 'down', loadCase: 'dead' },
+  ];
+  const r = solve(m);
+
+  // Load directly on roller → R_L carries all of P. R_0 = 0.
+  check('R0', r.reactions[0].V, 0, 0.02);
+  check('RL', r.reactions[1].V, P, 0.02);
+  // M anywhere = 0 (no bending anywhere, load goes directly into support).
+  check('M at 0', sample(r.moment, 0), 0, 1e-2);
+  check('M at L/2', sample(r.moment, L / 2), 0, 0.05);
+  check('M at L', sample(r.moment, L), 0, 0.05);
+}
+
+// ============================================================
+// Case 34: Very short beam (L = 0.5 m) — numerical stability
+// ============================================================
+function case34() {
+  header('Very short SS beam L=0.5, P=10 at center');
+  const L = 0.5;
+  const P = 10;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  m.loads = [
+    { id: 'p1', type: 'point', position: L / 2, magnitude: P, direction: 'down', loadCase: 'dead' },
+  ];
+  const r = solve(m);
+
+  check('R0', r.reactions[0].V, P / 2);
+  check('RL', r.reactions[1].V, P / 2);
+  check('M at center', sample(r.moment, L / 2), (P * L) / 4);
+  check('M at 0', sample(r.moment, 0), 0, 1e-2);
+  check('M at L', sample(r.moment, L), 0, 1e-2);
+}
+
+// ============================================================
+// Case 35: Very long beam (L = 30 m) — numerical stability
+// ============================================================
+function case35() {
+  header('Very long SS beam L=30, UDL w=5');
+  const L = 30;
+  const w = 5;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  const R = (w * L) / 2;
+  check('R0', r.reactions[0].V, R);
+  check('RL', r.reactions[1].V, R);
+  check('M_max at center', sample(r.moment, L / 2), (w * L * L) / 8);
+  const EI = 200000 * 1e6 * 1.12e8 * 1e-12;
+  const delta = (5 * (w * 1000) * Math.pow(L, 4)) / (384 * EI);
+  check('δ_max (mm)', Math.abs(sample(r.deflection, L / 2)), delta * 1000, 0.5);
+}
+
+// ============================================================
+// Case 36: Non-integer support positions
+// ============================================================
+function case36() {
+  header('SS beam L=10, pin at 1.5, roller at 8.5, UDL w=4 full');
+  const L = 10;
+  const w = 4;
+  const aPin = 1.5;
+  const aRoll = 8.5;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: aPin },
+    { id: 's2', type: 'roller', position: aRoll },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Symmetric positions: each support bears half the total load.
+  // R_pin = R_roller = wL/2 = 20.
+  check('R_pin', r.reactions[0].V, (w * L) / 2, 0.02);
+  check('R_roller', r.reactions[1].V, (w * L) / 2, 0.02);
+  check('M at 0 (free)', sample(r.moment, 0), 0, 0.02);
+  check('M at L (free)', sample(r.moment, L), 0, 0.02);
+  // Voladizo at left: UDL over [0, 1.5]. M at pin = -w·1.5²/2 = -4.5
+  check('M at pin (x=1.5)', sample(r.moment, aPin), -4.5, 0.05);
+  check('M at roller (x=8.5)', sample(r.moment, aRoll), -4.5, 0.05);
+}
+
+// ============================================================
+// Case 37: Cantilever + triangular UDL (0 at fixed → w at tip)
+// ============================================================
+function case37() {
+  header('Cantilever L=6, triangular UDL 0 at fixed → w=12 at tip');
+  const L = 6;
+  const w = 12;
+  const m = baseModel(L);
+  m.supports = [{ id: 's1', type: 'fixed', position: 0 }];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: 0,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Total W = wL/2 = 36. Centroid at 2L/3 = 4 from fixed.
+  const W = (w * L) / 2;
+  const xc = (2 * L) / 3;
+  check('R_V', r.reactions[0].V, W);
+  // R_M = -W·xc = -36·4 = -144
+  check('R_M', r.reactions[0].M, -W * xc, 0.1);
+  check('M at 0', sample(r.moment, 0), -W * xc, 0.1);
+  check('M at tip', sample(r.moment, L), 0, 0.02);
+
+  const EI = 200000 * 1e6 * 1.12e8 * 1e-12;
+  // δ_tip for triangular (0→w, max AT TIP) on cantilever: 11·wL⁴/(120·EI)
+  // Load concentrated near free end, so maximum deflection is LARGER.
+  const delta = (11 * (w * 1000) * Math.pow(L, 4)) / (120 * EI);
+  check('δ at tip (mm)', Math.abs(sample(r.deflection, L)), delta * 1000, 0.2);
+}
+
+// ============================================================
+// Case 38: Cantilever + triangular UDL (w at fixed → 0 at tip)
+// ============================================================
+function case38() {
+  header('Cantilever L=6, triangular UDL w=12 at fixed → 0 at tip');
+  const L = 6;
+  const w = 12;
+  const m = baseModel(L);
+  m.supports = [{ id: 's1', type: 'fixed', position: 0 }];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w,
+      endMagnitude: 0,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Total W = wL/2 = 36. Centroid at L/3 = 2 from fixed.
+  const W = (w * L) / 2;
+  const xc = L / 3;
+  check('R_V', r.reactions[0].V, W);
+  check('R_M', r.reactions[0].M, -W * xc, 0.1);
+  check('M at 0', sample(r.moment, 0), -W * xc, 0.1);
+  check('M at tip', sample(r.moment, L), 0, 0.02);
+
+  const EI = 200000 * 1e6 * 1.12e8 * 1e-12;
+  // δ_tip for triangular (w→0, max AT FIXED) on cantilever: wL⁴/(30·EI)
+  // Load concentrated near fixed end, so maximum deflection is SMALLER.
+  const delta = ((w * 1000) * Math.pow(L, 4)) / (30 * EI);
+  check('δ at tip (mm)', Math.abs(sample(r.deflection, L)), delta * 1000, 0.2);
+}
+
+// ============================================================
+// Case 39: SS beam + upward point load + downward UDL (mixed direction)
+// ============================================================
+function case39() {
+  header('SS beam L=10, UDL w=5 down full + P=30 UP at x=5');
+  const L = 10;
+  const w = 5;
+  const P = 30;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'pinned', position: 0 },
+    { id: 's2', type: 'roller', position: L },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+    { id: 'p1', type: 'point', position: 5, magnitude: P, direction: 'up', loadCase: 'dead' },
+  ];
+  const r = solve(m);
+
+  // Total vertical: wL down + P up = 50 - 30 = 20 net down. Symmetric → R = 10 each.
+  check('R0', r.reactions[0].V, 10);
+  check('RL', r.reactions[1].V, 10);
+  // M at center: R_0·5 - w·5²/2 + 0 (P not yet at x=5-) = 50 - 62.5 = -12.5
+  // With the UP load at 5, M(5) = R_0·5 - w·25/2 + 0 = -12.5. At x=5+: subtracts -P·(5-5) = 0 so same.
+  check('M at 5 (with P lifting)', sample(r.moment, 5), -12.5, 0.05);
+  check('M at 0', sample(r.moment, 0), 0, 1e-2);
+  check('M at L', sample(r.moment, L), 0, 1e-2);
+}
+
+// ============================================================
+// Case 40: Fixed + roller + roller (propped beam with interior support)
+// ============================================================
+function case40() {
+  header('Fixed at 0, rollers at 4 and 8, UDL w=8 full (L=8)');
+  const L = 8;
+  const w = 8;
+  const m = baseModel(L);
+  m.supports = [
+    { id: 's1', type: 'fixed', position: 0 },
+    { id: 's2', type: 'roller', position: 4 },
+    { id: 's3', type: 'roller', position: L },
+  ];
+  m.loads = [
+    {
+      id: 'd1',
+      type: 'distributed',
+      startPosition: 0,
+      endPosition: L,
+      startMagnitude: w,
+      endMagnitude: w,
+      direction: 'down',
+      loadCase: 'dead',
+    },
+  ];
+  const r = solve(m);
+
+  // Continuity at x=4 and x=8 with fixed end: this is a "propped" 2-span continuous with left end fixed.
+  // Verify equilibrium only (exact numeric values are messier).
+  const totalReactions = r.reactions.reduce((a, x) => a + x.V, 0);
+  check('Sum of vertical reactions', totalReactions, w * L, 0.1);
+  check('M at 0 (fixed end has hogging)', sample(r.moment, 0) < 0 ? -1 : 1, -1, 0);
+  check('M at L (free-ish end, roller)', sample(r.moment, L), 0, 0.1);
+}
+
+// ============================================================
 // Run all
 // ============================================================
 const cases = [
   case1, case2, case3, case4, case5, case6, case7, case8, case9, case10,
   case11, case12, case13, case14, case15, case16, case17, case18, case19, case20,
+  case21, case22, case23, case24, case25, case26, case27, case28, case29, case30,
+  case31, case32, case33, case34, case35, case36, case37, case38, case39, case40,
 ];
 for (const c of cases) {
   try {
