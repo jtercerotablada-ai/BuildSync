@@ -77,6 +77,10 @@ export function computePolygon(vertices: Point2D[]): SectionProperties {
   const r1 = Math.sqrt(I1 / A);
   const r2 = Math.sqrt(I2 / A);
 
+  // Q_x max: first moment of area above neutral axis y=ybar via polygon clipping.
+  const aboveNA = clipHalfplane(vertices, ybar, 'x', 'above');
+  const Qx_max = firstMoment(aboveNA, ybar, 'x');
+
   // Ensure CCW orientation in output outline (for consistent rendering).
   const outline = signedA >= 0 ? vertices.slice() : vertices.slice().reverse();
 
@@ -107,6 +111,9 @@ export function computePolygon(vertices: Point2D[]): SectionProperties {
     r2,
     J: 0, // polygon torsion constant is complicated; leave 0 for now
     Cw: 0,
+    Qx_max,
+    shearCenterX: xbar,
+    shearCenterY: ybar,
     outline,
     holes: [],
   };
@@ -256,6 +263,9 @@ function empty(): SectionProperties {
     r2: 0,
     J: 0,
     Cw: 0,
+    Qx_max: 0,
+    shearCenterX: 0,
+    shearCenterY: 0,
     outline: [],
     holes: [],
   };

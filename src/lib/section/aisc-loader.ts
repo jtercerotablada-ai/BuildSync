@@ -103,6 +103,25 @@ export function aiscToSectionProperties(e: AISCEntry): SectionProperties {
   const xbar = (xMin + xMax) / 2;
   const ybar = (yMin + yMax) / 2;
 
+  // Shear center: default = centroid (bbox center). Channel offsets via Timoshenko;
+  // angle sits at leg-corner midline; WT approximates at flange mid-plane.
+  let shearCenterX = xbar;
+  let shearCenterY = ybar;
+  if (e.family === 'C' && bf > 0 && tw > 0 && tf > 0) {
+    const b_ = bf - tw / 2;
+    const h_ = d - tf;
+    if (b_ > 0 && h_ > 0) {
+      const e0 = (3 * b_ * b_ * tf) / (6 * b_ * tf + h_ * tw);
+      shearCenterX = xbar - e0;
+    }
+  } else if (e.family === 'L') {
+    shearCenterX = xMin + tw / 2;
+    shearCenterY = yMin + tw / 2;
+  } else if (e.family === 'WT') {
+    shearCenterX = xbar;
+    shearCenterY = yMax - tf / 2;
+  }
+
   return {
     A,
     perimeter,
@@ -130,9 +149,41 @@ export function aiscToSectionProperties(e: AISCEntry): SectionProperties {
     r2: Math.min(rx, ry),
     J,
     Cw,
+    Qx_max: aiscQxMax(e.family, d, bf, tw, tf),
+    shearCenterX,
+    shearCenterY,
     outline,
     holes: [],
   };
+}
+
+// Approximate Qx_max (first moment about NA) from dimensioned AISC entries.
+// Used for max transverse shear stress τ_max = V·Qx_max/(Ix·t).
+function aiscQxMax(family: string, d: number, bf: number, tw: number, tf: number): number {
+  switch (family) {
+    case 'W':
+    case 'S':
+    case 'C': {
+      const halfWeb = d / 2 - tf;
+      if (halfWeb <= 0) return 0;
+      return bf * tf * (d / 2 - tf / 2) + (tw * halfWeb * halfWeb) / 2;
+    }
+    case 'HSS-R': {
+      const dHalf = d / 2;
+      const bInner = bf - 2 * tw;
+      const hHalfInner = dHalf - tw;
+      if (bInner <= 0 || hHalfInner <= 0) return (bf * dHalf * dHalf) / 2;
+      return (bf * dHalf * dHalf) / 2 - (bInner * hHalfInner * hHalfInner) / 2;
+    }
+    case 'HSS-C':
+    case 'Pipe': {
+      const ro = d / 2;
+      const ri = ro - tw;
+      return ri > 0 ? (2 / 3) * (ro ** 3 - ri ** 3) : (2 / 3) * ro ** 3;
+    }
+    default:
+      return 0;
+  }
 }
 
 // Simplified outline for visualization — sharp corners, approximate profile.

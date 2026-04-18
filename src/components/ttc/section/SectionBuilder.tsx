@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { SectionCanvas } from './SectionCanvas';
+import { SectionCanvas, type HeatmapMode } from './SectionCanvas';
 import { ShapeTemplatesPanel, defaultsFor } from './ShapeTemplatesPanel';
 import { PropertiesPanel } from './PropertiesPanel';
 import { DatabasePanel } from './DatabasePanel';
@@ -52,8 +52,9 @@ export function SectionBuilder() {
   const [tab, setTab] = useState<Tab>('templates');
   const [state, setState] = useState<State>(initialState);
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('metric');
-  const [moment, setMoment] = useState<number>(0); // in SI N·mm
-  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [moment, setMoment] = useState<number>(0); // applied M in SI (kN·m)
+  const [shear, setShear] = useState<number>(0); // applied V in SI (kN)
+  const [heatmapMode, setHeatmapMode] = useState<HeatmapMode>('off');
   const [savedSections, setSavedSections] = useState<SavedSection[]>([]);
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
   const [activeVertex, setActiveVertex] = useState<number | null>(null);
@@ -178,14 +179,14 @@ export function SectionBuilder() {
     setState(initialState);
     setActiveSavedId(null);
     setMoment(0);
-    setShowHeatmap(false);
+    setShear(0);
+    setHeatmapMode('off');
   };
 
-  // Moment input in user units, stored as SI (N·mm).
-  // User enters kN·m (metric) or kip·ft (imperial).
-  // toSI('moment', ...) returns N·mm.
   const momentDisplay = fromSI(moment, 'moment', unitSystem);
   const momentUnit = unitLabel('moment', unitSystem);
+  const shearDisplay = fromSI(shear, 'force', unitSystem);
+  const shearUnit = unitLabel('force', unitSystem);
 
   return (
     <div className="sb">
@@ -268,14 +269,45 @@ export function SectionBuilder() {
             />
           </label>
 
-          <label className="sb__toggle">
+          <label className="sb__field-inline">
+            <span>V ({shearUnit})</span>
             <input
-              type="checkbox"
-              checked={showHeatmap}
-              onChange={() => setShowHeatmap((v) => !v)}
+              type="number"
+              step="any"
+              value={Math.round(shearDisplay * 10000) / 10000}
+              onChange={(e) =>
+                setShear(toSI(parseFloat(e.target.value) || 0, 'force', unitSystem))
+              }
+              className="sb__field-inline-input"
             />
-            <span>Heatmap</span>
           </label>
+
+          <div className="sb__heatmap seg" role="group" aria-label="Stress heatmap mode">
+            <button
+              type="button"
+              className={heatmapMode === 'off' ? 'is-active' : ''}
+              onClick={() => setHeatmapMode('off')}
+              title="No stress overlay"
+            >
+              Off
+            </button>
+            <button
+              type="button"
+              className={heatmapMode === 'sigma' ? 'is-active' : ''}
+              onClick={() => setHeatmapMode('sigma')}
+              title="Bending stress σ = M·y/Ix"
+            >
+              σ
+            </button>
+            <button
+              type="button"
+              className={heatmapMode === 'tau' ? 'is-active' : ''}
+              onClick={() => setHeatmapMode('tau')}
+              title="Shear stress τ = V·Q/(I·t)"
+            >
+              τ
+            </button>
+          </div>
 
           <button className="btn btn--ghost" onClick={handleReset}>
             Reset
@@ -325,7 +357,8 @@ export function SectionBuilder() {
           <SectionCanvas
             props={properties}
             M={moment}
-            showHeatmap={showHeatmap}
+            V={shear}
+            heatmapMode={heatmapMode}
             unitSystem={unitSystem}
             onVertexClick={
               state.source.type === 'polygon'

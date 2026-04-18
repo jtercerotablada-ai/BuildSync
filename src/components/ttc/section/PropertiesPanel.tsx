@@ -58,6 +58,12 @@ export function PropertiesPanel({ props, unitSystem, weightPerLength }: Props) {
         <Row label="Cw (warping)" value={props.Cw} q="warping" system={unitSystem} />
       </Section>
 
+      <Section title="Shear">
+        <Row label="Qx,max (first moment)" value={props.Qx_max} q="sectionModulus" system={unitSystem} />
+        <Row label="Shear center x" value={props.shearCenterX} q="dimension" system={unitSystem} />
+        <Row label="Shear center y" value={props.shearCenterY} q="dimension" system={unitSystem} />
+      </Section>
+
       {weightPerLength !== undefined && weightPerLength > 0 && (
         <Section title="Weight">
           <Row label="Weight / length" value={weightPerLength} q="massPerLength" system={unitSystem} digits={2} />

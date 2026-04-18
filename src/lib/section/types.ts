@@ -84,6 +84,12 @@ export interface SectionProperties {
   J: number;
   Cw: number;
 
+  // Maximum first moment about centroidal x-axis (used for max shear stress τ = V·Qmax/(I·t))
+  Qx_max: number;
+  // Shear center (x, y) in natural shape coords (coincides with centroid for symmetric sections)
+  shearCenterX: number;
+  shearCenterY: number;
+
   // Outline polyline (CCW, in natural coords)
   outline: Point2D[];
 

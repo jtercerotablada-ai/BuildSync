@@ -4421,6 +4421,35 @@ img, svg {
   color: rgba(242, 239, 228, 0.8);
 }
 
+.sb__heatmap {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+  border: none;
+}
+.sb__heatmap button {
+  padding: 0.3rem 0.8rem;
+  background: transparent;
+  border: none;
+  color: rgba(242, 239, 228, 0.65);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 2rem;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.sb__heatmap button + button {
+  border-left: none;
+}
+.sb__heatmap button.is-active {
+  background: var(--color-accent);
+  color: #0a0a0b;
+}
+
 .sb__body {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) minmax(420px, 2fr) minmax(300px, 1fr);

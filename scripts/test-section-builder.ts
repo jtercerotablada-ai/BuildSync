@@ -273,6 +273,72 @@ hdr('T-15: CW polygon (reversed) yields same positive area & I');
 }
 
 // ============================================================
+// Section 5: Qx_max (first moment about centroidal x-axis)
+//            and shear center — used for transverse shear stress
+// ============================================================
+
+hdr('T-16: Qx_max against closed-form solutions');
+{
+  // Rectangle b×h: Qx_max = b·h²/8 (half area × h/4 lever arm)
+  const rect = computeTemplate({ kind: 'rectangular', b: 100, h: 200 });
+  near(rect.Qx_max, (100 * 200 * 200) / 8, 1e-9, 'rect 100×200: Qx_max = b·h²/8');
+
+  // Solid circle D=100: Qx_max = (2/3)·r³
+  const circ = computeTemplate({ kind: 'circular', D: 100 });
+  near(circ.Qx_max, (2 / 3) * 50 ** 3, 1e-9, 'circle D=100: Qx_max = (2/3)·r³');
+
+  // Hollow circle D=100 d=80: Qx_max = (2/3)·(ro³ − ri³)
+  const hcirc = computeTemplate({ kind: 'hollow-circ', D: 100, d: 80 });
+  near(hcirc.Qx_max, (2 / 3) * (50 ** 3 - 40 ** 3), 1e-9, 'hollow-circ: Qx_max = (2/3)·(ro³−ri³)');
+
+  // Hollow rect: Qx_max = B·(H/2)²/2 − (B−2t)·((H/2−t))²/2
+  const hr = computeTemplate({ kind: 'hollow-rect', B: 200, H: 300, tw: 10, tf: 10 });
+  const expected_hr = (200 * 150 * 150) / 2 - (180 * 140 * 140) / 2;
+  near(hr.Qx_max, expected_hr, 1e-6, 'hollow-rect Qx_max');
+
+  // Polygon rect should match template rect
+  const poly = computePolygon([
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 200 },
+    { x: 0, y: 200 },
+  ]);
+  near(poly.Qx_max, rect.Qx_max, 1e-6, 'polygon rect Qx_max matches template');
+}
+
+hdr('T-17: Shear center location');
+{
+  // Rectangle: shear center = centroid (doubly symmetric)
+  const rect = computeTemplate({ kind: 'rectangular', b: 100, h: 200 });
+  near(rect.shearCenterX, 50, 1e-9, 'rect: shearCenterX = xbar');
+  near(rect.shearCenterY, 100, 1e-9, 'rect: shearCenterY = ybar');
+
+  // I-shape (doubly symmetric): sc = centroid
+  const iShape = computeTemplate({ kind: 'i-shape', H: 300, B: 150, tw: 10, tf: 15 });
+  near(iShape.shearCenterX, iShape.xbar, 1e-9, 'I-shape: sc = centroid');
+  near(iShape.shearCenterY, iShape.ybar, 1e-9, 'I-shape: sc.y = ybar');
+
+  // Angle: sc at intersection of leg midlines (t/2, t/2)
+  const ang = computeTemplate({ kind: 'angle', H: 100, B: 100, t: 10 });
+  near(ang.shearCenterX, 5, 1e-9, 'angle: sc.x = t/2');
+  near(ang.shearCenterY, 5, 1e-9, 'angle: sc.y = t/2');
+
+  // Channel: sc to the LEFT of web by Timoshenko's e0 distance
+  const H = 250, B = 60, tw = 10, tf = 15;
+  const ch = computeTemplate({ kind: 'channel', H, B, tw, tf });
+  const b_ = B - tw / 2;
+  const h_ = H - tf;
+  const e0 = (3 * b_ * b_ * tf) / (6 * b_ * tf + h_ * tw);
+  near(ch.shearCenterX, tw / 2 - e0, 1e-9, 'channel: sc.x = tw/2 − e0');
+  near(ch.shearCenterY, H / 2, 1e-9, 'channel: sc.y = H/2');
+
+  // Circle: sc at center
+  const circ = computeTemplate({ kind: 'circular', D: 100 });
+  near(circ.shearCenterX, 50, 1e-9, 'circle: sc.x = D/2');
+  near(circ.shearCenterY, 50, 1e-9, 'circle: sc.y = D/2');
+}
+
+// ============================================================
 // Summary
 // ============================================================
 

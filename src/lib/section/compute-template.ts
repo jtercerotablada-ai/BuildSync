@@ -41,12 +41,14 @@ export function computeTemplate(p: TemplateParams): SectionProperties {
 
     case 'circular': {
       const { D } = p;
+      const ro = D / 2;
       const A = (Math.PI * D * D) / 4;
       const I = (Math.PI * D ** 4) / 64;
       const S = (Math.PI * D ** 3) / 32;
       const Z = D ** 3 / 6;
       const r = D / 4;
       const J = (Math.PI * D ** 4) / 32;
+      const Qx_max = (2 / 3) * ro ** 3;
       return closedCircular({
         A,
         Ix: I,
@@ -61,6 +63,7 @@ export function computeTemplate(p: TemplateParams): SectionProperties {
         ry: r,
         J,
         Cw: 0,
+        Qx_max,
         outline: circleOutline(D / 2, D / 2, D / 2),
         holes: [],
         D,
@@ -70,12 +73,15 @@ export function computeTemplate(p: TemplateParams): SectionProperties {
 
     case 'hollow-circ': {
       const { D, d } = p;
+      const ro = D / 2;
+      const ri = d / 2;
       const A = (Math.PI * (D * D - d * d)) / 4;
       const I = (Math.PI * (D ** 4 - d ** 4)) / 64;
       const S = (Math.PI * (D ** 4 - d ** 4)) / (32 * D);
       const Z = (D ** 3 - d ** 3) / 6;
       const r = Math.sqrt(I / A);
       const J = (Math.PI * (D ** 4 - d ** 4)) / 32;
+      const Qx_max = (2 / 3) * (ro ** 3 - ri ** 3);
       return closedCircular({
         A,
         Ix: I,
@@ -90,6 +96,7 @@ export function computeTemplate(p: TemplateParams): SectionProperties {
         ry: r,
         J,
         Cw: 0,
+        Qx_max,
         outline: circleOutline(D / 2, D / 2, D / 2),
         holes: [circleOutline(D / 2, D / 2, d / 2).slice().reverse()],
         D,
@@ -121,11 +128,13 @@ export function computeTemplate(p: TemplateParams): SectionProperties {
         { xMin: 0, xMax: B, yMin: H - tf, yMax: H },
       ];
       const J = (B * tf ** 3 + (H - tf) * tw ** 3) / 3;
+      // Shear center at the flange mid-plane (thin-walled open section).
       return fromRects(rects, {
         outline: tShapeOutline(B, H, tw, tf),
         holes: [],
         J,
         Cw: 0,
+        shearCenterOverride: { x: B / 2, y: H - tf / 2 },
       });
     }
 
@@ -136,11 +145,13 @@ export function computeTemplate(p: TemplateParams): SectionProperties {
         { xMin: t, xMax: B, yMin: 0, yMax: t },
       ];
       const J = (H * t ** 3 + (B - t) * t ** 3) / 3;
+      // Shear center at the intersection of leg midlines (thin-walled open section).
       return fromRects(rects, {
         outline: angleOutline(B, H, t),
         holes: [],
         J,
         Cw: 0,
+        shearCenterOverride: { x: t / 2, y: t / 2 },
       });
     }
 
@@ -157,11 +168,15 @@ export function computeTemplate(p: TemplateParams): SectionProperties {
       const h_ = H - tf;
       const alpha = 1 / (2 + (h_ * tw) / (3 * b_ * tf));
       const Cw = (tf * b_ ** 3 * h_ ** 2 * (1 - 3 * alpha)) / 6 + (alpha ** 2 * h_ ** 3 * tw) / 6;
+      // Shear center offset from web centerline (Timoshenko thin-walled):
+      // e0 = 3·b²·tf / (6·b·tf + h·tw), measured outward from the web (opposite flanges).
+      const e0 = (3 * b_ * b_ * tf) / (6 * b_ * tf + h_ * tw);
       return fromRects(rects, {
         outline: channelOutline(B, H, tw, tf),
         holes: [],
         J,
         Cw: Math.max(0, Cw),
+        shearCenterOverride: { x: tw / 2 - e0, y: H / 2 },
       });
     }
 
@@ -192,6 +207,7 @@ interface ShapeMeta {
   holes: Point2D[][];
   J: number;
   Cw: number;
+  shearCenterOverride?: Point2D;
 }
 
 function fromRects(rects: Rect[], meta: ShapeMeta): SectionProperties {
@@ -232,6 +248,24 @@ function fromRects(rects: Rect[], meta: ShapeMeta): SectionProperties {
   const r1 = Math.sqrt(I1 / A);
   const r2 = Math.sqrt(I2 / A);
 
+  // Q_x max at neutral axis y=ybar: Σ (area above NA) × (centroid of that area relative to NA).
+  // Used for max transverse shear stress τ_max = V·Q/(I·t).
+  let Qx_max = 0;
+  for (const r of rects) {
+    const w = r.xMax - r.xMin;
+    if (r.yMax <= ybar) continue;
+    if (r.yMin >= ybar) {
+      const cy = (r.yMin + r.yMax) / 2;
+      Qx_max += (r.yMax - r.yMin) * w * (cy - ybar);
+    } else {
+      // rect straddles NA — only the portion above y=ybar contributes
+      const above = r.yMax - ybar;
+      Qx_max += (w * above * above) / 2;
+    }
+  }
+
+  const shearCenter = meta.shearCenterOverride ?? { x: xbar, y: ybar };
+
   return {
     A,
     perimeter: polygonPerimeter(meta.outline) + meta.holes.reduce((s, h) => s + polygonPerimeter(h), 0),
@@ -259,6 +293,9 @@ function fromRects(rects: Rect[], meta: ShapeMeta): SectionProperties {
     r2,
     J: meta.J,
     Cw: meta.Cw,
+    Qx_max,
+    shearCenterX: shearCenter.x,
+    shearCenterY: shearCenter.y,
     outline: meta.outline,
     holes: meta.holes,
   };
@@ -278,12 +315,13 @@ function closedCircular(input: {
   ry: number;
   J: number;
   Cw: number;
+  Qx_max: number;
   outline: Point2D[];
   holes: Point2D[][];
   D: number;
   perimeter: number;
 }): SectionProperties {
-  const { A, Ix, Iy, Zx, Zy, J, Cw, outline, holes, D, perimeter } = input;
+  const { A, Ix, Iy, Zx, Zy, J, Cw, Qx_max, outline, holes, D, perimeter } = input;
   const { I1, I2, alpha } = principalAxes(Ix, Iy, 0);
   const r = Math.sqrt(Ix / A);
   return {
@@ -313,6 +351,9 @@ function closedCircular(input: {
     r2: r,
     J,
     Cw,
+    Qx_max,
+    shearCenterX: D / 2,
+    shearCenterY: D / 2,
     outline,
     holes,
   };
