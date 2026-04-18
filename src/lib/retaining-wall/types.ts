@@ -166,6 +166,18 @@ export interface StabilityResult {
   eccentricityOk: boolean;
 }
 
+export interface CrackControl {
+  /** ACI 318-19 §24.3.2 max spacing: s = 380(280/fs) - 2.5·cc ≤ 300(280/fs). */
+  s_max: number;            // mm
+  fs: number;               // service stress in reinforcement (MPa), = 2·fy/3
+  /** Chosen bar diameter / area (display hint only). */
+  bar: { id: string; area: number; diameter: number };
+  /** Required spacing to provide As_req with the chosen bar (mm). */
+  s_req: number;
+  /** True if s_req ≤ s_max (crack control satisfied). */
+  ok: boolean;
+}
+
 export interface StemDesignResult {
   /** Max moment at footing-top interface (kN·m/m). */
   Mu: number;
@@ -182,6 +194,7 @@ export interface StemDesignResult {
   a: number;
   rho: number;        // reinforcement ratio
   phiMn: number;      // provided design capacity if As_req is used (kN·m/m)
+  crack: CrackControl;
 }
 
 export interface SlabDesignResult {
@@ -195,6 +208,25 @@ export interface SlabDesignResult {
   a: number;
   phiMn: number;
   critical: 'top' | 'bottom'; // which face is in tension
+  crack: CrackControl;
+}
+
+export interface KeyDesignResult {
+  enabled: boolean;           // true if key is modeled in geometry
+  /** Horizontal passive force on key face (kN/m). */
+  Hp_key: number;
+  /** Factored moment at the base of the footing where the key springs from (kN·m/m). */
+  Mu: number;
+  /** Factored shear at the same section (kN/m). */
+  Vu: number;
+  d: number;                  // effective depth into key (mm)
+  a: number;                  // Whitney block depth
+  As_req: number;             // mm²/m
+  As_min: number;
+  Vc: number;                 // kN/m concrete shear capacity
+  shearOk: boolean;
+  phiMn: number;
+  crack: CrackControl;
 }
 
 export interface WallResults {
@@ -203,6 +235,7 @@ export interface WallResults {
   stem: StemDesignResult;
   heel: SlabDesignResult;
   toe: SlabDesignResult;
+  key: KeyDesignResult;
   issues: string[];       // non-fatal warnings (low eccentricity, thin cover, etc.)
   errors: string[];       // fatal: FS < min, bearing exceeds, etc.
 }

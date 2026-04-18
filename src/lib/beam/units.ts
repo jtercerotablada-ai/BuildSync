@@ -16,7 +16,12 @@ export type Quantity =
   | 'massPerLength'
   | 'stress'
   | 'torsion'
-  | 'warping';
+  | 'warping'
+  | 'pressure'         // kPa ↔ ksf (geotechnical bearing/stress)
+  | 'unitWeight'       // kN/m³ ↔ pcf (soil/concrete unit weight)
+  | 'areaPerLength'    // mm²/m ↔ in²/ft (rebar area per unit length)
+  | 'forcePerLength'   // kN/m ↔ klf (per-meter line load/force)
+  | 'momentPerLength'; // kN·m/m ↔ kip·ft/ft (per-meter wall moment)
 
 // SI (metric) is the canonical internal representation for every value in BeamModel.
 // Factor = value-in-SI per unit-of-imperial.  value_SI = value_imperial * factor.
@@ -35,6 +40,13 @@ const LBPERFT_TO_KGPERM = 0.45359237 / FT_TO_M;
 // Distributed load: 1 kip/ft = (kip/ft) → kN/m.  kN/m = kip * 4.4482 / 0.3048.
 const KIPPERFT_TO_KNM = KIP_TO_KN / FT_TO_M;
 
+// Pressure: 1 ksf (kip/ft²) = 4.4482 kN / 0.0929 m² = 47.88 kPa
+const KSF_TO_KPA = KIP_TO_KN / (FT_TO_M * FT_TO_M);
+// Unit weight: 1 pcf (lb/ft³) = 0.004448 kN / (0.3048³ m³) = 0.1571 kN/m³
+const PCF_TO_KNM3 = (0.00444822161526) / (FT_TO_M ** 3);
+// Rebar area per width: 1 in²/ft = 645.16 mm² / 0.3048 m = 2116.73 mm²/m
+const IN2_PER_FT_TO_MM2_PER_M = IN2_TO_MM2 / FT_TO_M;
+
 const TO_SI_FACTOR: Record<Quantity, Record<UnitSystem, number>> = {
   length: { metric: 1, imperial: FT_TO_M },
   position: { metric: 1, imperial: FT_TO_M },
@@ -52,6 +64,11 @@ const TO_SI_FACTOR: Record<Quantity, Record<UnitSystem, number>> = {
   stress: { metric: 1, imperial: KSI_TO_MPA },
   torsion: { metric: 1, imperial: IN4_TO_MM4 },
   warping: { metric: 1, imperial: IN6_TO_MM6 },
+  pressure: { metric: 1, imperial: KSF_TO_KPA },
+  unitWeight: { metric: 1, imperial: PCF_TO_KNM3 },
+  areaPerLength: { metric: 1, imperial: IN2_PER_FT_TO_MM2_PER_M },
+  forcePerLength: { metric: 1, imperial: KIPPERFT_TO_KNM },
+  momentPerLength: { metric: 1, imperial: KIPFT_TO_KNM }, // kip·ft per ft of length ≡ kN·m per m
 };
 
 export const UNIT_LABELS: Record<UnitSystem, Record<Quantity, string>> = {
@@ -72,6 +89,11 @@ export const UNIT_LABELS: Record<UnitSystem, Record<Quantity, string>> = {
     stress: 'MPa',
     torsion: 'mm\u2074',
     warping: 'mm\u2076',
+    pressure: 'kPa',
+    unitWeight: 'kN/m\u00b3',
+    areaPerLength: 'mm\u00b2/m',
+    forcePerLength: 'kN/m',
+    momentPerLength: 'kN\u00b7m/m',
   },
   imperial: {
     length: 'ft',
@@ -90,6 +112,11 @@ export const UNIT_LABELS: Record<UnitSystem, Record<Quantity, string>> = {
     stress: 'ksi',
     torsion: 'in\u2074',
     warping: 'in\u2076',
+    pressure: 'ksf',
+    unitWeight: 'pcf',
+    areaPerLength: 'in\u00b2/ft',
+    forcePerLength: 'klf',
+    momentPerLength: 'kip\u00b7ft/ft',
   },
 };
 

@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import type { WallInput } from '@/lib/retaining-wall/types';
 import { DEFAULT_INPUT, solveWall } from '@/lib/retaining-wall/solve';
+import type { UnitSystem } from '@/lib/beam/units';
 import { GeometryPanel } from './GeometryPanel';
 import { MaterialsPanel } from './MaterialsPanel';
 import { SoilPanel } from './SoilPanel';
@@ -11,22 +12,18 @@ import { WallCanvas } from './WallCanvas';
 import { StabilityResults } from './StabilityResults';
 import { DesignResults } from './DesignResults';
 
-type Tab = 'geometry' | 'materials' | 'soil' | 'loads' | 'design';
+type Tab = 'geometry' | 'materials' | 'soil' | 'loads';
+type ResultTab = 'stability' | 'design';
 
 function tabLabel(t: Tab): string {
-  return {
-    geometry: 'Geometry',
-    materials: 'Materials',
-    soil: 'Soil',
-    loads: 'Loads',
-    design: 'Design',
-  }[t];
+  return { geometry: 'Geometry', materials: 'Materials', soil: 'Soil', loads: 'Loads' }[t];
 }
 
 export function RetainingWallCalculator() {
   const [tab, setTab] = useState<Tab>('geometry');
+  const [resultTab, setResultTab] = useState<ResultTab>('stability');
   const [input, setInput] = useState<WallInput>(DEFAULT_INPUT);
-  const [view, setView] = useState<'stability' | 'design'>('stability');
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>('metric');
 
   const results = useMemo(() => {
     try {
@@ -37,11 +34,14 @@ export function RetainingWallCalculator() {
     }
   }, [input]);
 
+  const failCount = results?.errors.length ?? 0;
+  const issueCount = results?.issues.length ?? 0;
+
   return (
     <div className="rw">
       <div className="rw__toolbar">
         <div className="rw__tabs" role="tablist">
-          {(['geometry', 'materials', 'soil', 'loads', 'design'] as Tab[]).map((t) => (
+          {(['geometry', 'materials', 'soil', 'loads'] as Tab[]).map((t) => (
             <button
               key={t}
               role="tab"
@@ -60,7 +60,7 @@ export function RetainingWallCalculator() {
             value={tab}
             onChange={(e) => setTab(e.target.value as Tab)}
           >
-            {(['geometry', 'materials', 'soil', 'loads', 'design'] as Tab[]).map((t) => (
+            {(['geometry', 'materials', 'soil', 'loads'] as Tab[]).map((t) => (
               <option key={t} value={t}>
                 {tabLabel(t)}
               </option>
@@ -69,35 +69,50 @@ export function RetainingWallCalculator() {
         </div>
 
         <div className="rw__actions">
+          <div className="rw__units seg" role="group" aria-label="Unit system">
+            <button
+              type="button"
+              className={unitSystem === 'metric' ? 'is-active' : ''}
+              onClick={() => setUnitSystem('metric')}
+            >
+              Metric
+            </button>
+            <button
+              type="button"
+              className={unitSystem === 'imperial' ? 'is-active' : ''}
+              onClick={() => setUnitSystem('imperial')}
+            >
+              Imperial
+            </button>
+          </div>
           <div className="rw__status">
-            {results?.errors.length ? (
-              <span className="rw__status-pill rw__status-pill--fail">
-                {results.errors.length} FAIL
-              </span>
+            {failCount > 0 ? (
+              <span className="rw__status-pill rw__status-pill--fail">{failCount} FAIL</span>
+            ) : issueCount > 0 ? (
+              <span className="rw__status-pill rw__status-pill--warn">{issueCount} WARN</span>
             ) : (
               <span className="rw__status-pill rw__status-pill--ok">OK</span>
             )}
           </div>
-          <button
-            className="btn btn--ghost"
-            onClick={() => setInput(DEFAULT_INPUT)}
-          >
+          <button className="btn btn--ghost" onClick={() => setInput(DEFAULT_INPUT)}>
             Reset
           </button>
         </div>
       </div>
 
-      <div className="rw__body">
+      <div className="rw__body rw__body--layout2">
         <aside className="rw__side">
           {tab === 'geometry' && (
             <GeometryPanel
               geometry={input.geometry}
+              unitSystem={unitSystem}
               onChange={(g) => setInput((s) => ({ ...s, geometry: g }))}
             />
           )}
           {tab === 'materials' && (
             <MaterialsPanel
               concrete={input.concrete}
+              unitSystem={unitSystem}
               onChange={(c) => setInput((s) => ({ ...s, concrete: c }))}
             />
           )}
@@ -106,6 +121,7 @@ export function RetainingWallCalculator() {
               backfill={input.backfill}
               baseSoil={input.baseSoil}
               water={input.water}
+              unitSystem={unitSystem}
               onChangeBackfill={(b) => setInput((s) => ({ ...s, backfill: b }))}
               onChangeBase={(b) => setInput((s) => ({ ...s, baseSoil: b }))}
               onChangeWater={(w) => setInput((s) => ({ ...s, water: w }))}
@@ -116,58 +132,46 @@ export function RetainingWallCalculator() {
               loads={input.loads}
               theory={input.theory}
               safetyFactors={input.safetyFactors}
+              unitSystem={unitSystem}
               onChangeLoads={(l) => setInput((s) => ({ ...s, loads: l }))}
               onChangeTheory={(t) => setInput((s) => ({ ...s, theory: t }))}
               onChangeSafety={(sf) => setInput((s) => ({ ...s, safetyFactors: sf }))}
             />
           )}
-          {tab === 'design' && results && (
-            <DesignResults results={results} />
-          )}
         </aside>
 
         <main className="rw__canvas">
           {results ? (
-            <WallCanvas input={input} results={results} />
+            <WallCanvas input={input} results={results} unitSystem={unitSystem} />
           ) : (
             <div className="rw__empty">Enter geometry to build your wall</div>
           )}
-          <div className="rw__canvas-footer">
-            <div className="rw__label">
-              Cantilever wall · H={(input.geometry.H_stem + input.geometry.H_foot) / 1000}m · B=
-              {(
-                (input.geometry.B_toe +
-                  input.geometry.t_stem_bot +
-                  input.geometry.B_heel) /
-                1000
-              ).toFixed(2)}
-              m
-            </div>
-            <div className="rw__view-toggle seg" role="group" aria-label="Results view">
-              <button
-                type="button"
-                className={view === 'stability' ? 'is-active' : ''}
-                onClick={() => setView('stability')}
-              >
-                Stability
-              </button>
-              <button
-                type="button"
-                className={view === 'design' ? 'is-active' : ''}
-                onClick={() => setView('design')}
-              >
-                Design
-              </button>
-            </div>
-          </div>
         </main>
+      </div>
 
-        <aside className="rw__props">
-          {results && view === 'stability' && (
-            <StabilityResults results={results} />
-          )}
-          {results && view === 'design' && <DesignResults results={results} />}
-        </aside>
+      <div className="rw__results">
+        <div className="rw__results-tabs seg" role="group" aria-label="Results view">
+          <button
+            type="button"
+            className={resultTab === 'stability' ? 'is-active' : ''}
+            onClick={() => setResultTab('stability')}
+          >
+            Stability
+          </button>
+          <button
+            type="button"
+            className={resultTab === 'design' ? 'is-active' : ''}
+            onClick={() => setResultTab('design')}
+          >
+            Design (ACI 318)
+          </button>
+        </div>
+        {results && resultTab === 'stability' && (
+          <StabilityResults results={results} unitSystem={unitSystem} />
+        )}
+        {results && resultTab === 'design' && (
+          <DesignResults results={results} unitSystem={unitSystem} />
+        )}
       </div>
     </div>
   );

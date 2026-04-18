@@ -6,6 +6,8 @@ import type {
   EarthPressureTheory,
   WallInput,
 } from '@/lib/retaining-wall/types';
+import type { UnitSystem, Quantity } from '@/lib/beam/units';
+import { fromSI, toSI, unitLabel } from '@/lib/beam/units';
 
 type SF = WallInput['safetyFactors'];
 
@@ -13,6 +15,7 @@ interface Props {
   loads: WallLoads;
   theory: EarthPressureTheory;
   safetyFactors: SF;
+  unitSystem: UnitSystem;
   onChangeLoads: (l: WallLoads) => void;
   onChangeTheory: (t: EarthPressureTheory) => void;
   onChangeSafety: (sf: SF) => void;
@@ -22,10 +25,13 @@ export function LoadsPanel({
   loads,
   theory,
   safetyFactors,
+  unitSystem,
   onChangeLoads,
   onChangeTheory,
   onChangeSafety,
 }: Props) {
+  const pressU = unitLabel('pressure', unitSystem);
+
   return (
     <div className="rw-panel">
       <h3 className="rw-panel__title">Loads &amp; Analysis</h3>
@@ -34,8 +40,10 @@ export function LoadsPanel({
         <div className="rw-panel__subtitle">Surcharge</div>
         <div className="rw-fields">
           <Field
-            label="q (kPa)"
-            value={loads.surchargeQ}
+            label={`q (${pressU})`}
+            siValue={loads.surchargeQ}
+            q="pressure"
+            system={unitSystem}
             onChange={(v) => onChangeLoads({ ...loads, surchargeQ: v })}
           />
         </div>
@@ -44,22 +52,18 @@ export function LoadsPanel({
       <div className="rw-panel__section">
         <div className="rw-panel__subtitle">Seismic (Mononobe-Okabe)</div>
         <div className="rw-fields">
-          <Field
+          <RawField
             label="kh"
             value={loads.seismic.kh}
-            onChange={(v) =>
-              onChangeLoads({ ...loads, seismic: { ...loads.seismic, kh: v } })
-            }
+            onChange={(v) => onChangeLoads({ ...loads, seismic: { ...loads.seismic, kh: v } })}
           />
-          <Field
+          <RawField
             label="kv"
             value={loads.seismic.kv}
-            onChange={(v) =>
-              onChangeLoads({ ...loads, seismic: { ...loads.seismic, kv: v } })
-            }
+            onChange={(v) => onChangeLoads({ ...loads, seismic: { ...loads.seismic, kv: v } })}
           />
         </div>
-        <p className="rw-panel__hint">Typical kh = 0.1 – 0.2 for moderate seismicity. 0 = static only.</p>
+        <p className="rw-panel__hint">Typical kh = 0.1–0.2 for moderate seismicity. 0 = static only.</p>
       </div>
 
       <div className="rw-panel__section">
@@ -88,21 +92,9 @@ export function LoadsPanel({
       <div className="rw-panel__section">
         <div className="rw-panel__subtitle">Safety Factors</div>
         <div className="rw-fields">
-          <Field
-            label="FS Overturning"
-            value={safetyFactors.overturning}
-            onChange={(v) => onChangeSafety({ ...safetyFactors, overturning: v })}
-          />
-          <Field
-            label="FS Sliding"
-            value={safetyFactors.sliding}
-            onChange={(v) => onChangeSafety({ ...safetyFactors, sliding: v })}
-          />
-          <Field
-            label="FS Bearing"
-            value={safetyFactors.bearing}
-            onChange={(v) => onChangeSafety({ ...safetyFactors, bearing: v })}
-          />
+          <RawField label="FS Overturning" value={safetyFactors.overturning} onChange={(v) => onChangeSafety({ ...safetyFactors, overturning: v })} />
+          <RawField label="FS Sliding" value={safetyFactors.sliding} onChange={(v) => onChangeSafety({ ...safetyFactors, sliding: v })} />
+          <RawField label="FS Bearing" value={safetyFactors.bearing} onChange={(v) => onChangeSafety({ ...safetyFactors, bearing: v })} />
         </div>
         <div className="seg" role="group" aria-label="Eccentricity limit">
           <button
@@ -127,12 +119,40 @@ export function LoadsPanel({
 
 function Field({
   label,
+  siValue,
+  q,
+  system,
+  onChange,
+}: {
+  label: string;
+  siValue: number;
+  q: Quantity;
+  system: UnitSystem;
+  onChange: (siNew: number) => void;
+}) {
+  const disp = fromSI(siValue, q, system);
+  return (
+    <label className="rw-field">
+      <span className="rw-field__label">{label}</span>
+      <input
+        type="number"
+        className="rw-field__input"
+        value={Math.round(disp * 10000) / 10000}
+        step="any"
+        onChange={(e) => onChange(toSI(parseFloat(e.target.value) || 0, q, system))}
+      />
+    </label>
+  );
+}
+
+function RawField({
+  label,
   value,
   onChange,
 }: {
   label: string;
   value: number;
-  onChange: (n: number) => void;
+  onChange: (v: number) => void;
 }) {
   return (
     <label className="rw-field">

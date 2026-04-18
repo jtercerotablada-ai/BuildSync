@@ -2,7 +2,7 @@
 
 import type { WallInput, WallResults } from './types';
 import { computeStability } from './stability';
-import { designStem, designHeel, designToe } from './design';
+import { designStem, designHeel, designToe, designKey } from './design';
 
 export function solveWall(input: WallInput): WallResults {
   const { stability, pressure } = computeStability(input);
@@ -35,6 +35,7 @@ export function solveWall(input: WallInput): WallResults {
   const stem = designStem(input);
   const heel = designHeel(input, q_heel_avg);
   const toe = designToe(input, q_toe_avg);
+  const key = designKey(input);
 
   // Diagnostics
   const issues: string[] = [];
@@ -63,6 +64,14 @@ export function solveWall(input: WallInput): WallResults {
     errors.push(`Heel shear Vu=${heel.Vu.toFixed(1)} exceeds φVc=${(0.75 * heel.Vc).toFixed(1)} kN/m`);
   if (!toe.shearOk)
     errors.push(`Toe shear Vu=${toe.Vu.toFixed(1)} exceeds φVc=${(0.75 * toe.Vc).toFixed(1)} kN/m`);
+  if (key.enabled && !key.shearOk)
+    errors.push(`Key shear Vu=${key.Vu.toFixed(1)} exceeds φVc=${(0.75 * key.Vc).toFixed(1)} kN/m`);
+  if (!stem.crack.ok)
+    issues.push(`Stem rebar spacing ${stem.crack.s_req.toFixed(0)} > s_max ${stem.crack.s_max.toFixed(0)} mm — crack control`);
+  if (!heel.crack.ok)
+    issues.push(`Heel rebar spacing exceeds ACI §24.3.2`);
+  if (!toe.crack.ok)
+    issues.push(`Toe rebar spacing exceeds ACI §24.3.2`);
 
   return {
     pressure,
@@ -70,6 +79,7 @@ export function solveWall(input: WallInput): WallResults {
     stem,
     heel,
     toe,
+    key,
     issues,
     errors,
   };
