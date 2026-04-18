@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useReducer, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useReducer, useState, useCallback } from 'react';
 import { BeamVisualizer } from './BeamVisualizer';
 import { DiagramsPanel } from './DiagramsPanel';
 import { solve } from '@/lib/beam/solver';
@@ -44,6 +44,7 @@ type Action =
   | { type: 'ADD_MOMENT'; moment: AppliedMoment }
   | { type: 'UPDATE_MOMENT'; id: string; patch: Partial<AppliedMoment> }
   | { type: 'REMOVE_MOMENT'; id: string }
+  | { type: 'APPLY_SECTION'; section: { material: MaterialPreset; E: number; I: number; A: number; label: string } }
   | { type: 'RESET' };
 
 const initialModel: BeamModel = {
@@ -111,6 +112,17 @@ function reducer(state: BeamModel, action: Action): BeamModel {
       };
     case 'REMOVE_MOMENT':
       return { ...state, moments: state.moments.filter((m) => m.id !== action.id) };
+    case 'APPLY_SECTION':
+      return {
+        ...state,
+        section: {
+          material: action.section.material,
+          E: action.section.E,
+          I: action.section.I,
+          A: action.section.A,
+          label: action.section.label,
+        },
+      };
     case 'RESET':
       return initialModel;
     default:
@@ -133,6 +145,25 @@ export function BeamCalculator() {
     const r = solve(model);
     setResults(r);
   }, [model]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('ttc:beam-pending-section');
+      if (!raw) return;
+      const section = JSON.parse(raw) as {
+        material: MaterialPreset;
+        E: number;
+        I: number;
+        A: number;
+        label: string;
+      };
+      dispatch({ type: 'APPLY_SECTION', section });
+      setTab('section');
+      localStorage.removeItem('ttc:beam-pending-section');
+    } catch {
+      localStorage.removeItem('ttc:beam-pending-section');
+    }
+  }, []);
 
   const issues = useMemo(() => validate(model), [model]);
 

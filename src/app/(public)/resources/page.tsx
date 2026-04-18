@@ -18,7 +18,7 @@ type Tool = {
 const analysisTools: Tool[] = [
   { iconKey: 's3d', titleKey: 'tool.s3d', descKey: 'tool.s3d.desc', status: 'coming-soon' },
   { iconKey: 'beam', titleKey: 'tool.beam', descKey: 'tool.beam.desc', status: 'available', href: '/resources/beam' },
-  { iconKey: 'sectionBuilder', titleKey: 'tool.sectionBuilder', descKey: 'tool.sectionBuilder.desc', status: 'coming-soon' },
+  { iconKey: 'sectionBuilder', titleKey: 'tool.sectionBuilder', descKey: 'tool.sectionBuilder.desc', status: 'available', href: '/resources/section-builder' },
   { iconKey: 'advancedBeam', titleKey: 'tool.advancedBeam', descKey: 'tool.advancedBeam.desc', status: 'coming-soon' },
 ];
 

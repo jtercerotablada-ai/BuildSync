@@ -10,7 +10,13 @@ export type Quantity =
   | 'E'
   | 'I'
   | 'A'
-  | 'density';
+  | 'density'
+  | 'dimension'
+  | 'sectionModulus'
+  | 'massPerLength'
+  | 'stress'
+  | 'torsion'
+  | 'warping';
 
 // SI (metric) is the canonical internal representation for every value in BeamModel.
 // Factor = value-in-SI per unit-of-imperial.  value_SI = value_imperial * factor.
@@ -21,7 +27,11 @@ const IN_TO_MM = 25.4;
 const KSI_TO_MPA = 6.8947572931783;
 const IN4_TO_MM4 = 416231.42588;
 const IN2_TO_MM2 = 645.16;
+const IN3_TO_MM3 = 16387.064;
+const IN6_TO_MM6 = IN_TO_MM ** 6;
 const PCF_TO_KGM3 = 16.0184633739601;
+// 1 lb/ft = 0.45359237 kg / 0.3048 m = 1.48816394358... kg/m
+const LBPERFT_TO_KGPERM = 0.45359237 / FT_TO_M;
 // Distributed load: 1 kip/ft = (kip/ft) → kN/m.  kN/m = kip * 4.4482 / 0.3048.
 const KIPPERFT_TO_KNM = KIP_TO_KN / FT_TO_M;
 
@@ -36,6 +46,12 @@ const TO_SI_FACTOR: Record<Quantity, Record<UnitSystem, number>> = {
   I: { metric: 1, imperial: IN4_TO_MM4 },
   A: { metric: 1, imperial: IN2_TO_MM2 },
   density: { metric: 1, imperial: PCF_TO_KGM3 },
+  dimension: { metric: 1, imperial: IN_TO_MM },
+  sectionModulus: { metric: 1, imperial: IN3_TO_MM3 },
+  massPerLength: { metric: 1, imperial: LBPERFT_TO_KGPERM },
+  stress: { metric: 1, imperial: KSI_TO_MPA },
+  torsion: { metric: 1, imperial: IN4_TO_MM4 },
+  warping: { metric: 1, imperial: IN6_TO_MM6 },
 };
 
 export const UNIT_LABELS: Record<UnitSystem, Record<Quantity, string>> = {
@@ -50,6 +66,12 @@ export const UNIT_LABELS: Record<UnitSystem, Record<Quantity, string>> = {
     I: 'mm\u2074',
     A: 'mm\u00b2',
     density: 'kg/m\u00b3',
+    dimension: 'mm',
+    sectionModulus: 'mm\u00b3',
+    massPerLength: 'kg/m',
+    stress: 'MPa',
+    torsion: 'mm\u2074',
+    warping: 'mm\u2076',
   },
   imperial: {
     length: 'ft',
@@ -62,6 +84,12 @@ export const UNIT_LABELS: Record<UnitSystem, Record<Quantity, string>> = {
     I: 'in\u2074',
     A: 'in\u00b2',
     density: 'pcf',
+    dimension: 'in',
+    sectionModulus: 'in\u00b3',
+    massPerLength: 'lb/ft',
+    stress: 'ksi',
+    torsion: 'in\u2074',
+    warping: 'in\u2076',
   },
 };
 
