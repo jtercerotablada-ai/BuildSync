@@ -243,9 +243,13 @@ export function solve(model: BeamModel): Results {
       const Lx = hi - aPos;
       if (Lx <= 0) continue;
       const wHi = wA + ((wB - wA) * Lx) / span;
-      // Integrate the linear load from aPos to hi with intensities wA at aPos, wHi at hi
+      const D = x - aPos;
+      // Shear: integral of w(u) du over [aPos, hi]
       V += (Lx * (wA + wHi)) / 2;
-      M += (Lx * Lx * (2 * wA + wHi)) / 6;
+      // Moment at x: integral of w(u)*(x-u) du over [aPos, hi].
+      // Reduces to Lx^2*(2wA+wHi)/6 when x <= bPos (D = Lx), and extends
+      // correctly when x > bPos (D > Lx) so cantilever moments close out to zero.
+      M += wA * (D * Lx - (Lx * Lx) / 2) + (wHi - wA) * ((D * Lx) / 2 - (Lx * Lx) / 3);
     }
 
     if (selfW !== 0 && x > 0) {
