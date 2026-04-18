@@ -119,6 +119,7 @@ export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
   { category: 'Scaffolding', code: 'AS/NZS 1576:2019', title: 'AS/NZS 1576 Scaffold Member Design', description: 'Scaffolding per AS/NZS 1576.1 & 1576.2.', status: 'coming-soon' },
 
   // ─────────── Loading ───────────
+  { category: 'Loading', code: 'ASCE 7-22', title: 'ASCE 7-22 Wind Load Generator', description: 'MWFRS + C&C wind pressures from site lat/lng lookup.', status: 'available', href: '/resources/load-gen', isNew: true },
   { category: 'Loading', code: 'AS 4055:2021', title: 'AS 4055:2021 Wind Loads for Housing', description: 'Residential wind loading per AS 4055.', status: 'coming-soon' },
   { category: 'Loading', code: 'NBCC 2015', title: 'NBCC 2015 Multi-Roof Snow Drift', description: 'Snow loads per NBCC 2015.', status: 'coming-soon' },
   { category: 'Loading', code: 'AS 1170.4', title: 'AS 1170.4 Seismic Loading Calculator', description: 'Seismic loading per AS 1170.4.', status: 'coming-soon' },

@@ -21,7 +21,9 @@ export type Quantity =
   | 'unitWeight'       // kN/m³ ↔ pcf (soil/concrete unit weight)
   | 'areaPerLength'    // mm²/m ↔ in²/ft (rebar area per unit length)
   | 'forcePerLength'   // kN/m ↔ klf (per-meter line load/force)
-  | 'momentPerLength'; // kN·m/m ↔ kip·ft/ft (per-meter wall moment)
+  | 'momentPerLength'  // kN·m/m ↔ kip·ft/ft (per-meter wall moment)
+  | 'velocity'         // m/s ↔ mph (wind speed)
+  | 'pressureSmall';   // Pa ↔ psf (wind/cladding pressures — much smaller than geotech)
 
 // SI (metric) is the canonical internal representation for every value in BeamModel.
 // Factor = value-in-SI per unit-of-imperial.  value_SI = value_imperial * factor.
@@ -46,6 +48,10 @@ const KSF_TO_KPA = KIP_TO_KN / (FT_TO_M * FT_TO_M);
 const PCF_TO_KNM3 = (0.00444822161526) / (FT_TO_M ** 3);
 // Rebar area per width: 1 in²/ft = 645.16 mm² / 0.3048 m = 2116.73 mm²/m
 const IN2_PER_FT_TO_MM2_PER_M = IN2_TO_MM2 / FT_TO_M;
+// Velocity: 1 mph = 0.44704 m/s (wind speed)
+const MPH_TO_MS = 0.44704;
+// Small pressure: 1 psf = 47.88 Pa (wind / cladding); kept in Pa in SI
+const PSF_TO_PA = (0.00444822161526 * 1000) / (FT_TO_M * FT_TO_M);
 
 const TO_SI_FACTOR: Record<Quantity, Record<UnitSystem, number>> = {
   length: { metric: 1, imperial: FT_TO_M },
@@ -69,6 +75,8 @@ const TO_SI_FACTOR: Record<Quantity, Record<UnitSystem, number>> = {
   areaPerLength: { metric: 1, imperial: IN2_PER_FT_TO_MM2_PER_M },
   forcePerLength: { metric: 1, imperial: KIPPERFT_TO_KNM },
   momentPerLength: { metric: 1, imperial: KIPFT_TO_KNM }, // kip·ft per ft of length ≡ kN·m per m
+  velocity: { metric: 1, imperial: MPH_TO_MS },
+  pressureSmall: { metric: 1, imperial: PSF_TO_PA },
 };
 
 export const UNIT_LABELS: Record<UnitSystem, Record<Quantity, string>> = {
@@ -94,6 +102,8 @@ export const UNIT_LABELS: Record<UnitSystem, Record<Quantity, string>> = {
     areaPerLength: 'mm\u00b2/m',
     forcePerLength: 'kN/m',
     momentPerLength: 'kN\u00b7m/m',
+    velocity: 'm/s',
+    pressureSmall: 'Pa',
   },
   imperial: {
     length: 'ft',
@@ -117,6 +127,8 @@ export const UNIT_LABELS: Record<UnitSystem, Record<Quantity, string>> = {
     areaPerLength: 'in\u00b2/ft',
     forcePerLength: 'klf',
     momentPerLength: 'kip\u00b7ft/ft',
+    velocity: 'mph',
+    pressureSmall: 'psf',
   },
 };
 
