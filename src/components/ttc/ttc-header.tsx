@@ -32,6 +32,7 @@ export function TTCHeader() {
   const navLinks = [
     { href: '/projects', label: t('nav.projects') },
     { href: '/services', label: t('nav.services') },
+    { href: '/resources', label: t('nav.resources') },
     { href: '/about', label: t('nav.about') },
     { href: '/contact', label: t('nav.contact') },
   ];

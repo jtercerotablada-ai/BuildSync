@@ -38,6 +38,7 @@ export function TTCFooter() {
             <h4>{t('footer.navigation')}</h4>
             <Link href="/projects">{t('nav.projects')}</Link>
             <Link href="/services">{t('nav.services')}</Link>
+            <Link href="/resources">{t('nav.resources')}</Link>
             <Link href="/about">{t('nav.about')}</Link>
             <Link href="/contact">{t('nav.contact')}</Link>
           </div>
