@@ -376,19 +376,20 @@ function PMChart({ results, unitSystem }: { results: RcResults; unitSystem: Unit
     const xs = (M: number) => ml + (M / Mmax) * plotW;
     const ys = (P: number) => mt + plotH - ((P - Pmin) / (Pmax - Pmin)) * plotH;
 
-    // Nominal envelope: run from pureTension up along (M=0 axis until first point),
-    // then traverse points sorted by P descending, then back to pureTension.
-    const ordered = [...points].sort((a, b) => b.P - a.P);
+    // Points come already ordered by c descending (pure compression first, pure
+    // tension last) — DO NOT re-sort by P, the envelope is multi-valued in P
+    // around the balance point and sorting by P creates a zigzag artifact.
+    // Filter out any anchor points with c = ±Infinity (those are wired in by
+    // computeInteraction and would collapse the path).
+    const swept = points.filter((p) => isFinite(p.c));
     const envPath =
       `M ${xs(0).toFixed(2)} ${ys(P0).toFixed(2)} ` +
-      ordered.map((p) => `L ${xs(p.M).toFixed(2)} ${ys(p.P).toFixed(2)}`).join(' ') +
+      swept.map((p) => `L ${xs(p.M).toFixed(2)} ${ys(p.P).toFixed(2)}`).join(' ') +
       ` L ${xs(0).toFixed(2)} ${ys(pureTension).toFixed(2)} Z`;
 
-    // φ envelope
-    const phiOrdered = [...points].sort((a, b) => b.phiP - a.phiP);
     const phiPath =
       `M ${xs(0).toFixed(2)} ${ys(phiPmax).toFixed(2)} ` +
-      phiOrdered.map((p) => `L ${xs(p.phiM).toFixed(2)} ${ys(p.phiP).toFixed(2)}`).join(' ') +
+      swept.map((p) => `L ${xs(p.phiM).toFixed(2)} ${ys(p.phiP).toFixed(2)}`).join(' ') +
       ` L ${xs(0).toFixed(2)} ${ys(0.9 * pureTension).toFixed(2)} Z`;
 
     return {
