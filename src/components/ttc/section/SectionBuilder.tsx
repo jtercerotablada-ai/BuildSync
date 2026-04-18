@@ -9,9 +9,13 @@ import { DatabasePanel, type UnifiedEntry } from './DatabasePanel';
 import { PolygonEditorPanel } from './PolygonEditorPanel';
 import { CompositeEditorPanel } from './CompositeEditorPanel';
 import { SavedSectionsPanel } from './SavedSectionsPanel';
+import { RcEditorPanel } from './RcEditorPanel';
+import { RcResultsPanel } from './RcResultsPanel';
+import { RcCanvas } from './RcCanvas';
 import { computeTemplate } from '@/lib/section/compute-template';
 import { computePolygon } from '@/lib/section/compute-polygon';
 import { computeComposite } from '@/lib/section/compute-composite';
+import { computeRc } from '@/lib/section/rc-analysis';
 import { sectionWeightPerLength, sectionYoungs } from '@/lib/section/compute';
 import { aiscToSectionProperties, findAISC } from '@/lib/section/aisc-loader';
 import { findIntl, intlToSectionProperties } from '@/lib/section/international-loader';
@@ -24,6 +28,7 @@ import type {
   SectionSource,
   TemplateParams,
 } from '@/lib/section/types';
+import type { RcParams } from '@/lib/section/rc-types';
 import {
   MATERIAL_PRESETS,
   type MaterialPreset,
@@ -35,7 +40,13 @@ import {
   type UnitSystem,
 } from '@/lib/beam/units';
 
-type Tab = 'templates' | 'database' | 'custom' | 'composite' | 'saved';
+type Tab = 'templates' | 'database' | 'custom' | 'composite' | 'rc' | 'saved';
+
+const RC_INITIAL: RcParams = {
+  concrete: { kind: 'rectangular', b: 300, h: 500 },
+  layers: [{ id: 'bot', depth: 440, area: 2040, count: 4, label: '4 #8' }],
+  materials: { fc: 28, fy: 420, Es: 200_000 },
+};
 
 const STORAGE_KEY = 'ttc:saved-sections';
 const PENDING_KEY = 'ttc:beam-pending-section';
@@ -64,6 +75,8 @@ export function SectionBuilder() {
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null);
   const [activeVertex, setActiveVertex] = useState<number | null>(null);
   const [activeOperandId, setActiveOperandId] = useState<string | null>(null);
+  const [rcParams, setRcParams] = useState<RcParams>(RC_INITIAL);
+  const [activeRcLayer, setActiveRcLayer] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -104,6 +117,15 @@ export function SectionBuilder() {
     () => sectionWeightPerLength(properties.A, state.material),
     [properties.A, state.material]
   );
+
+  const rcResults = useMemo(() => {
+    if (tab !== 'rc') return null;
+    try {
+      return computeRc(rcParams);
+    } catch {
+      return null;
+    }
+  }, [tab, rcParams]);
 
   const setTemplate = (params: TemplateParams) => {
     setState((s) => ({ ...s, source: { type: 'template', params }, label: labelForTemplate(params) }));
@@ -240,7 +262,7 @@ export function SectionBuilder() {
     <div className="sb">
       <div className="sb__toolbar">
         <div className="sb__tabs" role="tablist">
-          {(['templates', 'database', 'custom', 'composite', 'saved'] as Tab[]).map((t) => (
+          {(['templates', 'database', 'custom', 'composite', 'rc', 'saved'] as Tab[]).map((t) => (
             <button
               key={t}
               role="tab"
@@ -261,7 +283,7 @@ export function SectionBuilder() {
             value={tab}
             onChange={(e) => handleTabSwitch(e.target.value as Tab)}
           >
-            {(['templates', 'database', 'custom', 'composite', 'saved'] as Tab[]).map((t) => (
+            {(['templates', 'database', 'custom', 'composite', 'rc', 'saved'] as Tab[]).map((t) => (
               <option key={t} value={t}>
                 {tabLabel(t)}
               </option>
@@ -398,6 +420,15 @@ export function SectionBuilder() {
               setActiveOperandId={setActiveOperandId}
             />
           )}
+          {tab === 'rc' && (
+            <RcEditorPanel
+              params={rcParams}
+              onChange={setRcParams}
+              unitSystem={unitSystem}
+              activeLayerId={activeRcLayer}
+              setActiveLayerId={setActiveRcLayer}
+            />
+          )}
           {tab === 'saved' && (
             <SavedSectionsPanel
               sections={savedSections}
@@ -411,39 +442,56 @@ export function SectionBuilder() {
         </aside>
 
         <main className="sb__canvas">
-          <SectionCanvas
-            props={properties}
-            M={moment}
-            V={shear}
-            heatmapMode={heatmapMode}
-            unitSystem={unitSystem}
-            onVertexClick={
-              state.source.type === 'polygon'
-                ? (i) => setActiveVertex(i === activeVertex ? null : i)
-                : undefined
-            }
-            activeVertex={activeVertex}
-          />
+          {tab === 'rc' && rcResults ? (
+            <RcCanvas
+              params={rcParams}
+              results={rcResults}
+              unitSystem={unitSystem}
+              overlay="flexural"
+            />
+          ) : (
+            <SectionCanvas
+              props={properties}
+              M={moment}
+              V={shear}
+              heatmapMode={heatmapMode}
+              unitSystem={unitSystem}
+              onVertexClick={
+                state.source.type === 'polygon'
+                  ? (i) => setActiveVertex(i === activeVertex ? null : i)
+                  : undefined
+              }
+              activeVertex={activeVertex}
+            />
+          )}
 
           <div className="sb__canvas-footer">
-            <div className="sb__label">{state.label}</div>
+            <div className="sb__label">{tab === 'rc' ? rcLabel(rcParams) : state.label}</div>
             <div className="sb__canvas-buttons">
-              <button className="btn btn--ghost" onClick={handleSave}>
-                Save
-              </button>
-              <button className="btn btn--primary" onClick={handleUseInBeam}>
-                Use in Beam Calculator →
-              </button>
+              {tab !== 'rc' && (
+                <>
+                  <button className="btn btn--ghost" onClick={handleSave}>
+                    Save
+                  </button>
+                  <button className="btn btn--primary" onClick={handleUseInBeam}>
+                    Use in Beam Calculator →
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </main>
 
         <aside className="sb__props">
-          <PropertiesPanel
-            props={properties}
-            unitSystem={unitSystem}
-            weightPerLength={weightPerLength}
-          />
+          {tab === 'rc' && rcResults ? (
+            <RcResultsPanel results={rcResults} unitSystem={unitSystem} />
+          ) : (
+            <PropertiesPanel
+              props={properties}
+              unitSystem={unitSystem}
+              weightPerLength={weightPerLength}
+            />
+          )}
         </aside>
       </div>
     </div>
@@ -456,8 +504,18 @@ function tabLabel(t: Tab): string {
     database: 'Database',
     custom: 'Custom',
     composite: 'Composite',
+    rc: 'RC Section',
     saved: 'Saved',
   }[t];
+}
+
+function rcLabel(p: RcParams): string {
+  const totAs = p.layers.reduce((s, L) => s + L.area, 0);
+  const shape =
+    p.concrete.kind === 'rectangular'
+      ? `${p.concrete.b}×${p.concrete.h}`
+      : `T bf=${p.concrete.bf}, bw=${p.concrete.bw}, h=${p.concrete.h}`;
+  return `RC ${shape} · ${p.layers.length} layer${p.layers.length === 1 ? '' : 's'} · As=${totAs.toFixed(0)}`;
 }
 
 function labelForTemplate(p: TemplateParams): string {
