@@ -278,16 +278,21 @@ export function SectionBuilder() {
           ))}
         </div>
         <div className="sb__tabs-mobile">
+          <label className="sb__tabs-mobile-label">Tool</label>
           <select
             className="sb__tabs-select"
             value={tab}
             onChange={(e) => handleTabSwitch(e.target.value as Tab)}
           >
-            {(['templates', 'database', 'custom', 'composite', 'rc', 'saved'] as Tab[]).map((t) => (
-              <option key={t} value={t}>
-                {tabLabel(t)}
-              </option>
-            ))}
+            {(['templates', 'database', 'custom', 'composite', 'rc', 'saved'] as Tab[]).map((t) => {
+              const count = t === 'saved' ? savedSections.length : 0;
+              return (
+                <option key={t} value={t}>
+                  {tabLabel(t)}
+                  {count ? ` (${count})` : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
 
