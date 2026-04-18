@@ -17,6 +17,13 @@ import {
   type Support,
   type SupportType,
 } from '@/lib/beam/types';
+import {
+  type UnitSystem,
+  fromSI,
+  toSI,
+  inputValue,
+  unitLabel,
+} from '@/lib/beam/units';
 
 type Tab = 'beam' | 'section' | 'supports' | 'loads' | 'moments';
 
@@ -120,6 +127,7 @@ export function BeamCalculator() {
   const [tab, setTab] = useState<Tab>('beam');
   const [results, setResults] = useState<Results | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [unitSystem, setUnitSystem] = useState<UnitSystem>('metric');
 
   const handleSolve = useCallback(() => {
     const r = solve(model);
@@ -164,6 +172,24 @@ export function BeamCalculator() {
           </select>
         </div>
         <div className="beam-calc__actions">
+          <div className="beam-calc__units seg" role="group" aria-label="Unit system">
+            <button
+              type="button"
+              className={unitSystem === 'metric' ? 'is-active' : ''}
+              onClick={() => setUnitSystem('metric')}
+              title="Metric (SI): m, kN, MPa, mm"
+            >
+              Metric
+            </button>
+            <button
+              type="button"
+              className={unitSystem === 'imperial' ? 'is-active' : ''}
+              onClick={() => setUnitSystem('imperial')}
+              title="Imperial (US): ft, kip, ksi, in"
+            >
+              Imperial
+            </button>
+          </div>
           <label className="beam-calc__toggle">
             <input
               type="checkbox"
@@ -198,14 +224,17 @@ export function BeamCalculator() {
 
       <div className="beam-calc__body">
         <aside className="beam-calc__panel">
-          {tab === 'beam' && <BeamPanel model={model} dispatch={dispatch} />}
-          {tab === 'section' && <SectionPanel model={model} dispatch={dispatch} />}
+          {tab === 'beam' && <BeamPanel model={model} dispatch={dispatch} unitSystem={unitSystem} />}
+          {tab === 'section' && (
+            <SectionPanel model={model} dispatch={dispatch} unitSystem={unitSystem} />
+          )}
           {tab === 'supports' && (
             <SupportsPanel
               model={model}
               dispatch={dispatch}
               selectedId={selectedId}
               setSelectedId={setSelectedId}
+              unitSystem={unitSystem}
             />
           )}
           {tab === 'loads' && (
@@ -214,6 +243,7 @@ export function BeamCalculator() {
               dispatch={dispatch}
               selectedId={selectedId}
               setSelectedId={setSelectedId}
+              unitSystem={unitSystem}
             />
           )}
           {tab === 'moments' && (
@@ -222,20 +252,21 @@ export function BeamCalculator() {
               dispatch={dispatch}
               selectedId={selectedId}
               setSelectedId={setSelectedId}
+              unitSystem={unitSystem}
             />
           )}
         </aside>
 
         <main className="beam-calc__canvas">
-          <BeamVisualizer beam={model} selectedId={selectedId} />
+          <BeamVisualizer beam={model} selectedId={selectedId} unitSystem={unitSystem} />
         </main>
       </div>
 
       {results?.solved && (
         <section className="beam-calc__results">
           <h3 className="beam-calc__results-title">Results</h3>
-          <ResultsSummary results={results} />
-          <DiagramsPanel results={results} length={model.length} />
+          <ResultsSummary results={results} unitSystem={unitSystem} />
+          <DiagramsPanel results={results} length={model.length} unitSystem={unitSystem} />
         </section>
       )}
 
@@ -291,6 +322,7 @@ function validate(m: BeamModel): string[] {
 interface PanelProps {
   model: BeamModel;
   dispatch: React.Dispatch<Action>;
+  unitSystem: UnitSystem;
 }
 
 interface SelectablePanelProps extends PanelProps {
@@ -298,7 +330,8 @@ interface SelectablePanelProps extends PanelProps {
   setSelectedId: (id: string | null) => void;
 }
 
-function BeamPanel({ model, dispatch }: PanelProps) {
+function BeamPanel({ model, dispatch, unitSystem }: PanelProps) {
+  const step = unitSystem === 'metric' ? 0.1 : 0.5;
   return (
     <div className="panel">
       <h4 className="panel__title">Beam Geometry</h4>
@@ -307,23 +340,33 @@ function BeamPanel({ model, dispatch }: PanelProps) {
         <div className="panel__input-group">
           <input
             type="number"
-            step="0.1"
+            step={step}
             min="0"
-            value={model.length}
-            onChange={(e) => dispatch({ type: 'SET_LENGTH', length: parseFloat(e.target.value) || 0 })}
+            value={inputValue(model.length, 'length', unitSystem)}
+            onChange={(e) =>
+              dispatch({
+                type: 'SET_LENGTH',
+                length: toSI(parseFloat(e.target.value) || 0, 'length', unitSystem),
+              })
+            }
           />
-          <span className="panel__unit">m</span>
+          <span className="panel__unit">{unitLabel('length', unitSystem)}</span>
         </div>
       </label>
       <div className="panel__hint">
-        Total beam length in meters. Add supports and loads in the other tabs.
+        Total beam length in {unitLabel('length', unitSystem)}. Add supports and loads in the other tabs.
       </div>
     </div>
   );
 }
 
-function SectionPanel({ model, dispatch }: PanelProps) {
+function SectionPanel({ model, dispatch, unitSystem }: PanelProps) {
   const isCustom = model.section.material === 'custom';
+  const eStep = unitSystem === 'metric' ? 1000 : 100;
+  const iStep = unitSystem === 'metric' ? 1e6 : 10;
+  const aStep = unitSystem === 'metric' ? 100 : 1;
+  const dStep = unitSystem === 'metric' ? 10 : 1;
+
   return (
     <div className="panel">
       <h4 className="panel__title">Section Properties</h4>
@@ -348,12 +391,14 @@ function SectionPanel({ model, dispatch }: PanelProps) {
         <div className="panel__input-group">
           <input
             type="number"
-            step="1000"
-            value={model.section.E}
+            step={eStep}
+            value={inputValue(model.section.E, 'E', unitSystem)}
             disabled={!isCustom}
-            onChange={(e) => dispatch({ type: 'SET_E', E: parseFloat(e.target.value) || 0 })}
+            onChange={(e) =>
+              dispatch({ type: 'SET_E', E: toSI(parseFloat(e.target.value) || 0, 'E', unitSystem) })
+            }
           />
-          <span className="panel__unit">MPa</span>
+          <span className="panel__unit">{unitLabel('E', unitSystem)}</span>
         </div>
       </label>
 
@@ -362,11 +407,13 @@ function SectionPanel({ model, dispatch }: PanelProps) {
         <div className="panel__input-group">
           <input
             type="number"
-            step="1e6"
-            value={model.section.I}
-            onChange={(e) => dispatch({ type: 'SET_I', I: parseFloat(e.target.value) || 0 })}
+            step={iStep}
+            value={inputValue(model.section.I, 'I', unitSystem)}
+            onChange={(e) =>
+              dispatch({ type: 'SET_I', I: toSI(parseFloat(e.target.value) || 0, 'I', unitSystem) })
+            }
           />
-          <span className="panel__unit">mm⁴</span>
+          <span className="panel__unit">{unitLabel('I', unitSystem)}</span>
         </div>
       </label>
 
@@ -375,13 +422,19 @@ function SectionPanel({ model, dispatch }: PanelProps) {
         <div className="panel__input-group">
           <input
             type="number"
-            step="100"
-            value={model.section.A ?? ''}
+            step={aStep}
+            value={model.section.A === undefined ? '' : inputValue(model.section.A, 'A', unitSystem)}
             onChange={(e) =>
-              dispatch({ type: 'SET_A', A: e.target.value === '' ? undefined : parseFloat(e.target.value) })
+              dispatch({
+                type: 'SET_A',
+                A:
+                  e.target.value === ''
+                    ? undefined
+                    : toSI(parseFloat(e.target.value) || 0, 'A', unitSystem),
+              })
             }
           />
-          <span className="panel__unit">mm²</span>
+          <span className="panel__unit">{unitLabel('A', unitSystem)}</span>
         </div>
       </label>
 
@@ -390,34 +443,55 @@ function SectionPanel({ model, dispatch }: PanelProps) {
         <div className="panel__input-group">
           <input
             type="number"
-            step="10"
-            value={model.density}
-            onChange={(e) => dispatch({ type: 'SET_DENSITY', density: parseFloat(e.target.value) || 0 })}
+            step={dStep}
+            value={inputValue(model.density, 'density', unitSystem)}
+            onChange={(e) =>
+              dispatch({
+                type: 'SET_DENSITY',
+                density: toSI(parseFloat(e.target.value) || 0, 'density', unitSystem),
+              })
+            }
           />
-          <span className="panel__unit">kg/m³</span>
+          <span className="panel__unit">{unitLabel('density', unitSystem)}</span>
         </div>
       </label>
 
       <div className="panel__hint">
-        {model.section.material === 'steel' && 'Default: ASTM A36 Steel, E = 200,000 MPa.'}
-        {model.section.material === 'concrete' && 'Default: Concrete f\u2019c = 28 MPa, E ≈ 24,870 MPa.'}
-        {model.section.material === 'aluminum' && 'Default: Aluminum 6061-T6, E = 69,000 MPa.'}
-        {model.section.material === 'wood' && 'Default: Douglas Fir, E = 13,000 MPa.'}
+        {model.section.material === 'steel' &&
+          (unitSystem === 'metric'
+            ? 'Default: ASTM A36 Steel, E = 200,000 MPa.'
+            : 'Default: ASTM A36 Steel, E \u2248 29,000 ksi.')}
+        {model.section.material === 'concrete' &&
+          (unitSystem === 'metric'
+            ? 'Default: Concrete f\u2019c = 28 MPa, E \u2248 24,870 MPa.'
+            : 'Default: Concrete f\u2019c \u2248 4 ksi, E \u2248 3,605 ksi.')}
+        {model.section.material === 'aluminum' &&
+          (unitSystem === 'metric'
+            ? 'Default: Aluminum 6061-T6, E = 69,000 MPa.'
+            : 'Default: Aluminum 6061-T6, E \u2248 10,000 ksi.')}
+        {model.section.material === 'wood' &&
+          (unitSystem === 'metric'
+            ? 'Default: Douglas Fir, E = 13,000 MPa.'
+            : 'Default: Douglas Fir, E \u2248 1,885 ksi.')}
         {isCustom && 'Enter your own E value.'}
       </div>
     </div>
   );
 }
 
-function SupportsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePanelProps) {
+function SupportsPanel({ model, dispatch, selectedId, setSelectedId, unitSystem }: SelectablePanelProps) {
   const [type, setType] = useState<SupportType>('pinned');
   const [pos, setPos] = useState<string>('0');
+  const step = unitSystem === 'metric' ? 0.1 : 0.5;
+  const uLen = unitLabel('position', unitSystem);
+  const LDisplay = inputValue(model.length, 'length', unitSystem);
 
   const add = () => {
     const p = parseFloat(pos);
-    if (isNaN(p) || p < 0 || p > model.length) return;
+    if (isNaN(p) || p < 0 || p > LDisplay) return;
     const id = newId('sup');
-    dispatch({ type: 'ADD_SUPPORT', support: { id, type, position: p } });
+    const posSI = toSI(p, 'position', unitSystem);
+    dispatch({ type: 'ADD_SUPPORT', support: { id, type, position: posSI } });
     setPos('');
   };
 
@@ -448,22 +522,22 @@ function SupportsPanel({ model, dispatch, selectedId, setSelectedId }: Selectabl
         <div className="panel__input-group">
           <input
             type="number"
-            step="0.1"
+            step={step}
             min="0"
-            max={model.length}
+            max={LDisplay}
             value={pos}
             onChange={(e) => setPos(e.target.value)}
             placeholder="Support location"
           />
-          <span className="panel__unit">m</span>
+          <span className="panel__unit">{uLen}</span>
           <div className="panel__quick">
             <button type="button" onClick={() => setPos('0')}>
               L
             </button>
-            <button type="button" onClick={() => setPos((model.length / 2).toString())}>
+            <button type="button" onClick={() => setPos((LDisplay / 2).toString())}>
               M
             </button>
-            <button type="button" onClick={() => setPos(model.length.toString())}>
+            <button type="button" onClick={() => setPos(LDisplay.toString())}>
               R
             </button>
           </div>
@@ -485,20 +559,24 @@ function SupportsPanel({ model, dispatch, selectedId, setSelectedId }: Selectabl
             <SupportIcon type={s.type} small />
             <div className="panel__item-body">
               <div className="panel__item-title">{s.type}</div>
-              <div className="panel__item-meta">x = {s.position.toFixed(3)} m</div>
+              <div className="panel__item-meta">
+                x = {fromSI(s.position, 'position', unitSystem).toFixed(3)} {uLen}
+              </div>
             </div>
             <input
               type="number"
               className="panel__item-input"
-              step="0.1"
+              step={step}
               min="0"
-              max={model.length}
-              value={s.position}
+              max={LDisplay}
+              value={inputValue(s.position, 'position', unitSystem)}
               onChange={(e) =>
                 dispatch({
                   type: 'UPDATE_SUPPORT',
                   id: s.id,
-                  patch: { position: parseFloat(e.target.value) || 0 },
+                  patch: {
+                    position: toSI(parseFloat(e.target.value) || 0, 'position', unitSystem),
+                  },
                 })
               }
             />
@@ -516,7 +594,7 @@ function SupportsPanel({ model, dispatch, selectedId, setSelectedId }: Selectabl
   );
 }
 
-function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePanelProps) {
+function LoadsPanel({ model, dispatch, selectedId, setSelectedId, unitSystem }: SelectablePanelProps) {
   const [loadType, setLoadType] = useState<'point' | 'distributed'>('point');
   const [direction, setDirection] = useState<LoadDirection>('down');
   const [pos, setPos] = useState('');
@@ -524,6 +602,11 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
   const [mag, setMag] = useState('10');
   const [mag2, setMag2] = useState('10');
   const [loadCase, setLoadCase] = useState<LoadCase>('dead');
+  const step = unitSystem === 'metric' ? 0.1 : 0.5;
+  const uLen = unitLabel('position', unitSystem);
+  const uForce = unitLabel('force', unitSystem);
+  const uDist = unitLabel('distLoad', unitSystem);
+  const LDisplay = inputValue(model.length, 'length', unitSystem);
 
   const add = () => {
     if (loadType === 'point') {
@@ -535,8 +618,8 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
         load: {
           id: newId('pl'),
           type: 'point',
-          position: p,
-          magnitude: Math.abs(M),
+          position: toSI(p, 'position', unitSystem),
+          magnitude: toSI(Math.abs(M), 'force', unitSystem),
           direction,
           loadCase,
         },
@@ -553,10 +636,10 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
         load: {
           id: newId('dl'),
           type: 'distributed',
-          startPosition: a,
-          endPosition: b,
-          startMagnitude: Math.abs(W1),
-          endMagnitude: Math.abs(isNaN(W2) ? W1 : W2),
+          startPosition: toSI(a, 'position', unitSystem),
+          endPosition: toSI(b, 'position', unitSystem),
+          startMagnitude: toSI(Math.abs(W1), 'distLoad', unitSystem),
+          endMagnitude: toSI(Math.abs(isNaN(W2) ? W1 : W2), 'distLoad', unitSystem),
           direction,
           loadCase,
         },
@@ -617,21 +700,21 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
             <div className="panel__input-group">
               <input
                 type="number"
-                step="0.1"
+                step={step}
                 min="0"
-                max={model.length}
+                max={LDisplay}
                 value={pos}
                 onChange={(e) => setPos(e.target.value)}
               />
-              <span className="panel__unit">m</span>
+              <span className="panel__unit">{uLen}</span>
               <div className="panel__quick">
                 <button type="button" onClick={() => setPos('0')}>
                   L
                 </button>
-                <button type="button" onClick={() => setPos((model.length / 2).toString())}>
+                <button type="button" onClick={() => setPos((LDisplay / 2).toString())}>
                   M
                 </button>
-                <button type="button" onClick={() => setPos(model.length.toString())}>
+                <button type="button" onClick={() => setPos(LDisplay.toString())}>
                   R
                 </button>
               </div>
@@ -641,7 +724,7 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
             <span>Magnitude</span>
             <div className="panel__input-group">
               <input type="number" step="0.1" value={mag} onChange={(e) => setMag(e.target.value)} />
-              <span className="panel__unit">kN</span>
+              <span className="panel__unit">{uForce}</span>
             </div>
           </label>
         </>
@@ -652,13 +735,13 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
             <div className="panel__input-group">
               <input
                 type="number"
-                step="0.1"
+                step={step}
                 min="0"
-                max={model.length}
+                max={LDisplay}
                 value={pos}
                 onChange={(e) => setPos(e.target.value)}
               />
-              <span className="panel__unit">m</span>
+              <span className="panel__unit">{uLen}</span>
             </div>
           </label>
           <label className="panel__field">
@@ -666,27 +749,27 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
             <div className="panel__input-group">
               <input
                 type="number"
-                step="0.1"
+                step={step}
                 min="0"
-                max={model.length}
+                max={LDisplay}
                 value={pos2}
                 onChange={(e) => setPos2(e.target.value)}
               />
-              <span className="panel__unit">m</span>
+              <span className="panel__unit">{uLen}</span>
             </div>
           </label>
           <label className="panel__field">
             <span>{'Start Magnitude (w\u2081)'}</span>
             <div className="panel__input-group">
               <input type="number" step="0.1" value={mag} onChange={(e) => setMag(e.target.value)} />
-              <span className="panel__unit">kN/m</span>
+              <span className="panel__unit">{uDist}</span>
             </div>
           </label>
           <label className="panel__field">
             <span>{'End Magnitude (w\u2082) \u2014 leave equal for UDL, differ for trapezoidal/triangular'}</span>
             <div className="panel__input-group">
               <input type="number" step="0.1" value={mag2} onChange={(e) => setMag2(e.target.value)} />
-              <span className="panel__unit">kN/m</span>
+              <span className="panel__unit">{uDist}</span>
               <div className="panel__quick">
                 <button type="button" onClick={() => setMag2(mag)} title="Match start (uniform)">
                   =
@@ -716,44 +799,62 @@ function LoadsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePa
       </button>
 
       <div className="panel__list">
-        {model.loads.map((l) => (
-          <div
-            key={l.id}
-            className={`panel__item ${selectedId === l.id ? 'is-selected' : ''}`}
-            onMouseEnter={() => setSelectedId(l.id)}
-            onMouseLeave={() => setSelectedId(null)}
-          >
-            <div className="panel__item-icon">
-              {l.direction === 'down' ? '↓' : '↑'}
-            </div>
-            <div className="panel__item-body">
-              <div className="panel__item-title">
-                {l.type === 'point'
-                  ? `Point ${l.magnitude} kN @ ${l.position.toFixed(2)} m`
-                  : l.startMagnitude === l.endMagnitude
-                    ? `UDL ${l.startMagnitude} kN/m [${l.startPosition.toFixed(2)}\u2013${l.endPosition.toFixed(2)}] m`
-                    : `${l.startMagnitude}\u2192${l.endMagnitude} kN/m [${l.startPosition.toFixed(2)}\u2013${l.endPosition.toFixed(2)}] m`}
-              </div>
-              <div className="panel__item-meta">{LOAD_CASE_LABELS[l.loadCase]}</div>
-            </div>
-            <button
-              className="panel__item-del"
-              onClick={() => dispatch({ type: 'REMOVE_LOAD', id: l.id })}
-              aria-label="Remove"
+        {model.loads.map((l) => {
+          const posStr =
+            l.type === 'point'
+              ? `${fromSI(l.position, 'position', unitSystem).toFixed(2)} ${uLen}`
+              : `[${fromSI(l.startPosition, 'position', unitSystem).toFixed(2)}\u2013${fromSI(
+                  l.endPosition,
+                  'position',
+                  unitSystem
+                ).toFixed(2)}] ${uLen}`;
+          const magStr =
+            l.type === 'point'
+              ? `${fromSI(l.magnitude, 'force', unitSystem).toFixed(2)} ${uForce}`
+              : Math.abs(l.startMagnitude - l.endMagnitude) < 1e-9
+                ? `${fromSI(l.startMagnitude, 'distLoad', unitSystem).toFixed(2)} ${uDist}`
+                : `${fromSI(l.startMagnitude, 'distLoad', unitSystem).toFixed(2)}\u2192${fromSI(
+                    l.endMagnitude,
+                    'distLoad',
+                    unitSystem
+                  ).toFixed(2)} ${uDist}`;
+          return (
+            <div
+              key={l.id}
+              className={`panel__item ${selectedId === l.id ? 'is-selected' : ''}`}
+              onMouseEnter={() => setSelectedId(l.id)}
+              onMouseLeave={() => setSelectedId(null)}
             >
-              ×
-            </button>
-          </div>
-        ))}
+              <div className="panel__item-icon">{l.direction === 'down' ? '↓' : '↑'}</div>
+              <div className="panel__item-body">
+                <div className="panel__item-title">
+                  {l.type === 'point' ? `Point ${magStr} @ ${posStr}` : `${magStr} ${posStr}`}
+                </div>
+                <div className="panel__item-meta">{LOAD_CASE_LABELS[l.loadCase]}</div>
+              </div>
+              <button
+                className="panel__item-del"
+                onClick={() => dispatch({ type: 'REMOVE_LOAD', id: l.id })}
+                aria-label="Remove"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function MomentsPanel({ model, dispatch, selectedId, setSelectedId }: SelectablePanelProps) {
+function MomentsPanel({ model, dispatch, selectedId, setSelectedId, unitSystem }: SelectablePanelProps) {
   const [pos, setPos] = useState('');
   const [mag, setMag] = useState('10');
   const [dir, setDir] = useState<'cw' | 'ccw'>('ccw');
+  const step = unitSystem === 'metric' ? 0.1 : 0.5;
+  const uLen = unitLabel('position', unitSystem);
+  const uMom = unitLabel('moment', unitSystem);
+  const LDisplay = inputValue(model.length, 'length', unitSystem);
 
   const add = () => {
     const p = parseFloat(pos);
@@ -761,7 +862,12 @@ function MomentsPanel({ model, dispatch, selectedId, setSelectedId }: Selectable
     if (isNaN(p) || isNaN(M)) return;
     dispatch({
       type: 'ADD_MOMENT',
-      moment: { id: newId('m'), position: p, magnitude: Math.abs(M), direction: dir },
+      moment: {
+        id: newId('m'),
+        position: toSI(p, 'position', unitSystem),
+        magnitude: toSI(Math.abs(M), 'moment', unitSystem),
+        direction: dir,
+      },
     });
     setPos('');
   };
@@ -775,21 +881,21 @@ function MomentsPanel({ model, dispatch, selectedId, setSelectedId }: Selectable
         <div className="panel__input-group">
           <input
             type="number"
-            step="0.1"
+            step={step}
             min="0"
-            max={model.length}
+            max={LDisplay}
             value={pos}
             onChange={(e) => setPos(e.target.value)}
           />
-          <span className="panel__unit">m</span>
+          <span className="panel__unit">{uLen}</span>
           <div className="panel__quick">
             <button type="button" onClick={() => setPos('0')}>
               L
             </button>
-            <button type="button" onClick={() => setPos((model.length / 2).toString())}>
+            <button type="button" onClick={() => setPos((LDisplay / 2).toString())}>
               M
             </button>
-            <button type="button" onClick={() => setPos(model.length.toString())}>
+            <button type="button" onClick={() => setPos(LDisplay.toString())}>
               R
             </button>
           </div>
@@ -800,7 +906,7 @@ function MomentsPanel({ model, dispatch, selectedId, setSelectedId }: Selectable
         <span>Magnitude</span>
         <div className="panel__input-group">
           <input type="number" step="0.1" value={mag} onChange={(e) => setMag(e.target.value)} />
-          <span className="panel__unit">kN·m</span>
+          <span className="panel__unit">{uMom}</span>
         </div>
       </label>
 
@@ -831,7 +937,8 @@ function MomentsPanel({ model, dispatch, selectedId, setSelectedId }: Selectable
             <div className="panel__item-icon">{m.direction === 'ccw' ? '↺' : '↻'}</div>
             <div className="panel__item-body">
               <div className="panel__item-title">
-                {m.magnitude} kN·m @ {m.position.toFixed(2)} m
+                {fromSI(m.magnitude, 'moment', unitSystem).toFixed(2)} {uMom} @{' '}
+                {fromSI(m.position, 'position', unitSystem).toFixed(2)} {uLen}
               </div>
               <div className="panel__item-meta">{m.direction === 'ccw' ? 'Counter-clockwise' : 'Clockwise'}</div>
             </div>
@@ -898,7 +1005,11 @@ function SupportIcon({ type, small }: { type: SupportType; small?: boolean }) {
   );
 }
 
-function ResultsSummary({ results }: { results: Results }) {
+function ResultsSummary({ results, unitSystem }: { results: Results; unitSystem: UnitSystem }) {
+  const uLen = unitLabel('position', unitSystem);
+  const uForce = unitLabel('force', unitSystem);
+  const uMom = unitLabel('moment', unitSystem);
+  const uDef = unitLabel('deflection', unitSystem);
   return (
     <div className="results-summary">
       <div className="results-summary__reactions">
@@ -907,18 +1018,18 @@ function ResultsSummary({ results }: { results: Results }) {
           <thead>
             <tr>
               <th>Support</th>
-              <th>x (m)</th>
-              <th>Vertical (kN)</th>
-              <th>Moment (kN·m)</th>
+              <th>x ({uLen})</th>
+              <th>Vertical ({uForce})</th>
+              <th>Moment ({uMom})</th>
             </tr>
           </thead>
           <tbody>
             {results.reactions.map((r, i) => (
               <tr key={r.supportId}>
                 <td>#{i + 1} {r.type}</td>
-                <td>{r.position.toFixed(3)}</td>
-                <td>{r.V.toFixed(3)}</td>
-                <td>{r.type === 'fixed' ? r.M.toFixed(3) : '—'}</td>
+                <td>{fromSI(r.position, 'position', unitSystem).toFixed(3)}</td>
+                <td>{fromSI(r.V, 'force', unitSystem).toFixed(3)}</td>
+                <td>{r.type === 'fixed' ? fromSI(r.M, 'moment', unitSystem).toFixed(3) : '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -927,28 +1038,48 @@ function ResultsSummary({ results }: { results: Results }) {
       <div className="results-summary__extremes">
         <div className="results-summary__card">
           <div className="results-summary__card-label">Max Shear V⁺</div>
-          <div className="results-summary__card-value">{results.maxShear.value.toFixed(3)} kN</div>
-          <div className="results-summary__card-sub">@ {results.maxShear.position.toFixed(3)} m</div>
+          <div className="results-summary__card-value">
+            {fromSI(results.maxShear.value, 'force', unitSystem).toFixed(3)} {uForce}
+          </div>
+          <div className="results-summary__card-sub">
+            @ {fromSI(results.maxShear.position, 'position', unitSystem).toFixed(3)} {uLen}
+          </div>
         </div>
         <div className="results-summary__card">
           <div className="results-summary__card-label">Min Shear V⁻</div>
-          <div className="results-summary__card-value">{results.minShear.value.toFixed(3)} kN</div>
-          <div className="results-summary__card-sub">@ {results.minShear.position.toFixed(3)} m</div>
+          <div className="results-summary__card-value">
+            {fromSI(results.minShear.value, 'force', unitSystem).toFixed(3)} {uForce}
+          </div>
+          <div className="results-summary__card-sub">
+            @ {fromSI(results.minShear.position, 'position', unitSystem).toFixed(3)} {uLen}
+          </div>
         </div>
         <div className="results-summary__card">
           <div className="results-summary__card-label">Max Moment M⁺</div>
-          <div className="results-summary__card-value">{results.maxMoment.value.toFixed(3)} kN·m</div>
-          <div className="results-summary__card-sub">@ {results.maxMoment.position.toFixed(3)} m</div>
+          <div className="results-summary__card-value">
+            {fromSI(results.maxMoment.value, 'moment', unitSystem).toFixed(3)} {uMom}
+          </div>
+          <div className="results-summary__card-sub">
+            @ {fromSI(results.maxMoment.position, 'position', unitSystem).toFixed(3)} {uLen}
+          </div>
         </div>
         <div className="results-summary__card">
           <div className="results-summary__card-label">Min Moment M⁻</div>
-          <div className="results-summary__card-value">{results.minMoment.value.toFixed(3)} kN·m</div>
-          <div className="results-summary__card-sub">@ {results.minMoment.position.toFixed(3)} m</div>
+          <div className="results-summary__card-value">
+            {fromSI(results.minMoment.value, 'moment', unitSystem).toFixed(3)} {uMom}
+          </div>
+          <div className="results-summary__card-sub">
+            @ {fromSI(results.minMoment.position, 'position', unitSystem).toFixed(3)} {uLen}
+          </div>
         </div>
         <div className="results-summary__card">
           <div className="results-summary__card-label">Max Deflection δ</div>
-          <div className="results-summary__card-value">{results.maxDeflection.value.toFixed(3)} mm</div>
-          <div className="results-summary__card-sub">@ {results.maxDeflection.position.toFixed(3)} m</div>
+          <div className="results-summary__card-value">
+            {fromSI(results.maxDeflection.value, 'deflection', unitSystem).toFixed(3)} {uDef}
+          </div>
+          <div className="results-summary__card-sub">
+            @ {fromSI(results.maxDeflection.position, 'position', unitSystem).toFixed(3)} {uLen}
+          </div>
         </div>
       </div>
     </div>

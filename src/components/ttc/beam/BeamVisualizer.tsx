@@ -3,10 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import type { BeamModel, Load, Support, AppliedMoment } from '@/lib/beam/types';
 import { LOAD_CASE_COLORS } from '@/lib/beam/types';
+import { fromSI, unitLabel, type UnitSystem } from '@/lib/beam/units';
 
 interface Props {
   beam: BeamModel;
   selectedId?: string | null;
+  unitSystem?: UnitSystem;
 }
 
 function useIsPhone() {
@@ -21,8 +23,12 @@ function useIsPhone() {
   return phone;
 }
 
-export function BeamVisualizer({ beam, selectedId }: Props) {
+export function BeamVisualizer({ beam, selectedId, unitSystem = 'metric' }: Props) {
   const phone = useIsPhone();
+  const uLen = unitLabel('position', unitSystem);
+  const uForce = unitLabel('force', unitSystem);
+  const uDist = unitLabel('distLoad', unitSystem);
+  const uMom = unitLabel('moment', unitSystem);
   const W = 1000;
   const H = phone ? 520 : 340;
   const padL = phone ? 50 : 60;
@@ -85,10 +91,10 @@ export function BeamVisualizer({ beam, selectedId }: Props) {
 
         {hasLength && (
           <>
-            {loads.filter((l) => l.type === 'distributed').map((l) => renderDistributed(l, xOf, beamY, selectedId === l.id))}
-            {loads.filter((l) => l.type === 'point').map((l) => renderPointLoad(l, xOf, beamY, selectedId === l.id))}
-            {moments.map((m) => renderMoment(m, xOf, beamY, selectedId === m.id))}
-            {supports.map((s) => renderSupport(s, xOf, beamY, selectedId === s.id))}
+            {loads.filter((l) => l.type === 'distributed').map((l) => renderDistributed(l, xOf, beamY, selectedId === l.id, unitSystem, uDist))}
+            {loads.filter((l) => l.type === 'point').map((l) => renderPointLoad(l, xOf, beamY, selectedId === l.id, unitSystem, uForce))}
+            {moments.map((m) => renderMoment(m, xOf, beamY, selectedId === m.id, unitSystem, uMom))}
+            {supports.map((s) => renderSupport(s, xOf, beamY, selectedId === s.id, unitSystem, uLen))}
           </>
         )}
 
@@ -98,7 +104,7 @@ export function BeamVisualizer({ beam, selectedId }: Props) {
             <line x1={xOf(0)} y1={H - padB + 16} x2={xOf(0)} y2={H - padB + 28} stroke="#8a8a8a" strokeWidth="0.8" />
             <line x1={xOf(L)} y1={H - padB + 16} x2={xOf(L)} y2={H - padB + 28} stroke="#8a8a8a" strokeWidth="0.8" />
             <text x={(xOf(0) + xOf(L)) / 2} y={H - padB + 42} textAnchor="middle" fontSize="12" fill="#a8a8a8" fontFamily="system-ui">
-              L = {L.toFixed(3)} m
+              L = {fromSI(L, 'length', unitSystem).toFixed(3)} {uLen}
             </text>
           </g>
         )}
@@ -129,10 +135,18 @@ export function BeamVisualizer({ beam, selectedId }: Props) {
   );
 }
 
-function renderSupport(s: Support, xOf: (x: number) => number, y: number, selected: boolean) {
+function renderSupport(
+  s: Support,
+  xOf: (x: number) => number,
+  y: number,
+  selected: boolean,
+  unitSystem: UnitSystem,
+  uLen: string
+) {
   const cx = xOf(s.position);
   const color = selected ? '#c9a84c' : '#e8e2d3';
   const size = 18;
+  const posLabel = `${fromSI(s.position, 'position', unitSystem).toFixed(2)} ${uLen}`;
 
   if (s.type === 'pinned') {
     return (
@@ -147,7 +161,7 @@ function renderSupport(s: Support, xOf: (x: number) => number, y: number, select
         <line x1={cx - size - 6} y1={y + size + 4} x2={cx + size + 6} y2={y + size + 4} stroke={color} strokeWidth="1.5" />
         <rect x={cx - size - 6} y={y + size + 5} width={2 * size + 12} height={8} fill="url(#hatch)" />
         <text x={cx} y={y + size + 30} textAnchor="middle" fontSize="10" fill="#a8a8a8" fontFamily="system-ui">
-          {s.position.toFixed(2)} m
+          {posLabel}
         </text>
       </g>
     );
@@ -161,7 +175,7 @@ function renderSupport(s: Support, xOf: (x: number) => number, y: number, select
         <line x1={cx - size - 6} y1={y + 16} x2={cx + size + 6} y2={y + 16} stroke={color} strokeWidth="1.5" />
         <rect x={cx - size - 6} y={y + 17} width={2 * size + 12} height={8} fill="url(#hatch)" />
         <text x={cx} y={y + size + 30} textAnchor="middle" fontSize="10" fill="#a8a8a8" fontFamily="system-ui">
-          {s.position.toFixed(2)} m
+          {posLabel}
         </text>
       </g>
     );
@@ -174,7 +188,7 @@ function renderSupport(s: Support, xOf: (x: number) => number, y: number, select
         <line x1={cx - size - 6} y1={y + 18} x2={cx + size + 6} y2={y + 18} stroke={color} strokeWidth="1.5" />
         <rect x={cx - size - 6} y={y + 19} width={2 * size + 12} height={8} fill="url(#hatch)" />
         <text x={cx} y={y + size + 30} textAnchor="middle" fontSize="10" fill="#a8a8a8" fontFamily="system-ui">
-          {s.position.toFixed(2)} m
+          {posLabel}
         </text>
       </g>
     );
@@ -188,7 +202,7 @@ function renderSupport(s: Support, xOf: (x: number) => number, y: number, select
       <line x1={wallX} y1={y - 22} x2={wallX} y2={y + 22} stroke={color} strokeWidth="1.5" />
       <rect x={wallX + (side > 0 ? 0 : -12)} y={y - 22} width="12" height="44" fill="url(#hatch)" />
       <text x={cx} y={y + 40} textAnchor="middle" fontSize="10" fill="#a8a8a8" fontFamily="system-ui">
-        {s.position.toFixed(2)} m
+        {posLabel}
       </text>
     </g>
   );
@@ -198,7 +212,9 @@ function renderPointLoad(
   l: Extract<Load, { type: 'point' }>,
   xOf: (x: number) => number,
   y: number,
-  selected: boolean
+  selected: boolean,
+  unitSystem: UnitSystem,
+  uForce: string
 ) {
   const cx = xOf(l.position);
   const color = selected ? '#c9a84c' : LOAD_CASE_COLORS[l.loadCase];
@@ -228,7 +244,7 @@ function renderPointLoad(
         fontFamily="system-ui"
         fontWeight="600"
       >
-        {l.magnitude.toFixed(2)} kN
+        {fromSI(l.magnitude, 'force', unitSystem).toFixed(2)} {uForce}
       </text>
     </g>
   );
@@ -238,7 +254,9 @@ function renderDistributed(
   l: Extract<Load, { type: 'distributed' }>,
   xOf: (x: number) => number,
   y: number,
-  selected: boolean
+  selected: boolean,
+  unitSystem: UnitSystem,
+  uDist: string
 ) {
   const aPos = Math.min(l.startPosition, l.endPosition);
   const bPos = Math.max(l.startPosition, l.endPosition);
@@ -303,10 +321,12 @@ function renderDistributed(
   const tallest = tops.reduce((acc, p) =>
     isDown ? (p.y < acc.y ? p : acc) : (p.y > acc.y ? p : acc), tops[0]);
   const labelY = tallest.y + (isDown ? -6 : 16);
+  const wAConv = fromSI(wA, 'distLoad', unitSystem);
+  const wBConv = fromSI(wB, 'distLoad', unitSystem);
   const magLabel =
     Math.abs(wA - wB) < 1e-9
-      ? `${wA.toFixed(2)} kN/m`
-      : `${wA.toFixed(2)} \u2192 ${wB.toFixed(2)} kN/m`;
+      ? `${wAConv.toFixed(2)} ${uDist}`
+      : `${wAConv.toFixed(2)} \u2192 ${wBConv.toFixed(2)} ${uDist}`;
 
   return (
     <g key={l.id} className={`beam-viz__load ${selected ? 'is-selected' : ''}`} style={{ color }}>
@@ -332,7 +352,14 @@ function renderDistributed(
   );
 }
 
-function renderMoment(m: AppliedMoment, xOf: (x: number) => number, y: number, selected: boolean) {
+function renderMoment(
+  m: AppliedMoment,
+  xOf: (x: number) => number,
+  y: number,
+  selected: boolean,
+  unitSystem: UnitSystem,
+  uMom: string
+) {
   const cx = xOf(m.position);
   const color = selected ? '#c9a84c' : '#b877c9';
   const r = 18;
@@ -357,7 +384,7 @@ function renderMoment(m: AppliedMoment, xOf: (x: number) => number, y: number, s
         markerEnd="url(#arrow)"
       />
       <text x={cx} y={y - r - 8} textAnchor="middle" fontSize="11" fill="currentColor" fontFamily="system-ui" fontWeight="600">
-        {`${m.magnitude.toFixed(2)} kN\u00b7m`}
+        {`${fromSI(m.magnitude, 'moment', unitSystem).toFixed(2)} ${uMom}`}
       </text>
     </g>
   );
