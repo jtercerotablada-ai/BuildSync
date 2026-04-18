@@ -197,13 +197,13 @@ function MomentCurvatureChart({
   const chart = useMemo(() => {
     if (points.length === 0) return null;
     const phiMax = Math.max(...points.map((p) => p.phi));
-    const MMax = Math.max(...points.map((p) => p.M), flexural.Mn);
+    const MMax = Math.max(...points.map((p) => p.M), flexural.Mn) * 1.08; // headroom for top labels
     const W = 400;
     const H = 260;
-    const ml = 50;
-    const mr = 16;
-    const mt = 14;
-    const mb = 36;
+    const ml = 54;
+    const mr = 56; // extra room on the right so "Ultimate" label doesn't clip
+    const mt = 22;
+    const mb = 38;
     const plotW = W - ml - mr;
     const plotH = H - mt - mb;
 
@@ -273,7 +273,8 @@ function MomentCurvatureChart({
           );
         })}
 
-        {/* Mn reference line */}
+        {/* Mn reference line — label anchored at the LEFT edge so it can't
+            collide with the Ultimate marker near the top-right. */}
         <line
           x1={ml}
           x2={ml + plotW}
@@ -283,40 +284,41 @@ function MomentCurvatureChart({
           strokeDasharray="3 3"
           strokeWidth={1}
         />
-        <text x={ml + plotW - 4} y={ys(flexural.Mn) - 3} fontSize={10} textAnchor="end" fill="#58a9ff">
+        <LabelPill x={ml + 6} y={ys(flexural.Mn) - 4} anchor="start" color="#58a9ff">
           Mn
-        </text>
+        </LabelPill>
 
         {/* Curve */}
         <path d={path} fill="none" stroke="#ff6b6b" strokeWidth={1.8} />
 
-        {/* Yield point */}
+        {/* Yield point — label above-right of the marker, backed by a dark pill */}
         {yieldPoint && (
           <>
             <circle cx={xs(yieldPoint.phi)} cy={ys(yieldPoint.M)} r={4} fill="#3dd78d" />
-            <text
-              x={xs(yieldPoint.phi) + 6}
-              y={ys(yieldPoint.M) - 6}
-              fontSize={10}
-              fill="#3dd78d"
+            <LabelPill
+              x={xs(yieldPoint.phi) + 8}
+              y={ys(yieldPoint.M) - 8}
+              anchor="start"
+              color="#3dd78d"
             >
               Yield
-            </text>
+            </LabelPill>
           </>
         )}
 
-        {/* Ultimate point */}
+        {/* Ultimate point — anchor=end so the label pulls LEFT of the marker
+            and stays inside the plot even when ultimate sits at phi=phiMax. */}
         {ultimatePoint && (
           <>
             <circle cx={xs(ultimatePoint.phi)} cy={ys(ultimatePoint.M)} r={4} fill="#ff6b6b" />
-            <text
-              x={xs(ultimatePoint.phi) + 6}
-              y={ys(ultimatePoint.M) - 6}
-              fontSize={10}
-              fill="#ff6b6b"
+            <LabelPill
+              x={xs(ultimatePoint.phi) - 8}
+              y={ys(ultimatePoint.M) + 14}
+              anchor="end"
+              color="#ff6b6b"
             >
               Ultimate
-            </text>
+            </LabelPill>
           </>
         )}
 
@@ -360,16 +362,16 @@ function PMChart({ results, unitSystem }: { results: RcResults; unitSystem: Unit
       balancePoint.P,
       pureFlexion.P,
     ];
-    const Mmax = Math.max(...allM) * 1.05;
-    const Pmax = Math.max(...allP) * 1.05;
-    const Pmin = Math.min(...allP, 0) * 1.05;
+    const Mmax = Math.max(...allM) * 1.1; // 10% headroom so right-side labels don't clip
+    const Pmax = Math.max(...allP) * 1.08;
+    const Pmin = Math.min(...allP, 0) * 1.08;
 
     const W = 400;
     const H = 320;
-    const ml = 54;
-    const mr = 16;
-    const mt = 14;
-    const mb = 36;
+    const ml = 58;
+    const mr = 22;
+    const mt = 18;
+    const mb = 38;
     const plotW = W - ml - mr;
     const plotH = H - mt - mb;
 
@@ -449,22 +451,55 @@ function PMChart({ results, unitSystem }: { results: RcResults; unitSystem: Unit
         {/* φ envelope */}
         <path d={phiPath} fill="rgba(88,169,255,0.15)" stroke="#58a9ff" strokeWidth={1.4} strokeDasharray="4 3" />
 
-        {/* Key points */}
-        <circle cx={xs(0)} cy={ys(P0)} r={4} fill="#ff6b6b" />
-        <text x={xs(0) + 6} y={ys(P0) + 3} fontSize={10} fill="#ff6b6b">P0</text>
+        {/* Key points — each label is auto-placed and backed by a dark pill
+            so it stays readable even when the envelope curve crosses behind
+            it. Anchoring rule:
+              • x in the right half → anchor="end" (label LEFT of marker)
+              • otherwise → anchor="start" (label RIGHT) */}
+        {(() => {
+          const xBal = xs(balancePoint.M);
+          const xPF = xs(pureFlexion.M);
+          const xHalf = ml + plotW / 2;
+          const balRight = xBal > xHalf;
+          const pfRight = xPF > xHalf;
+          return (
+            <>
+              {/* P0 */}
+              <circle cx={xs(0)} cy={ys(P0)} r={4} fill="#ff6b6b" />
+              <LabelPill x={xs(0) + 9} y={ys(P0) + 4} anchor="start" color="#ff6b6b">
+                P0
+              </LabelPill>
 
-        <circle cx={xs(0)} cy={ys(pureTension)} r={4} fill="#ff6b6b" />
-        <text x={xs(0) + 6} y={ys(pureTension) - 4} fontSize={10} fill="#ff6b6b">Pnt</text>
+              {/* Pnt */}
+              <circle cx={xs(0)} cy={ys(pureTension)} r={4} fill="#ff6b6b" />
+              <LabelPill x={xs(0) + 9} y={ys(pureTension) - 6} anchor="start" color="#ff6b6b">
+                Pnt
+              </LabelPill>
 
-        <circle cx={xs(balancePoint.M)} cy={ys(balancePoint.P)} r={4} fill="#3dd78d" />
-        <text x={xs(balancePoint.M) + 6} y={ys(balancePoint.P)} fontSize={10} fill="#3dd78d">
-          Balance
-        </text>
+              {/* Balance */}
+              <circle cx={xBal} cy={ys(balancePoint.P)} r={4} fill="#3dd78d" />
+              <LabelPill
+                x={xBal + (balRight ? -8 : 8)}
+                y={ys(balancePoint.P) - 8}
+                anchor={balRight ? 'end' : 'start'}
+                color="#3dd78d"
+              >
+                Balance
+              </LabelPill>
 
-        <circle cx={xs(pureFlexion.M)} cy={ys(pureFlexion.P)} r={4} fill="#c9a84c" />
-        <text x={xs(pureFlexion.M) + 6} y={ys(pureFlexion.P) + 10} fontSize={10} fill="#c9a84c">
-          Pure flex
-        </text>
+              {/* Pure flex — dropped below P=0 so it doesn't ride the axis line */}
+              <circle cx={xPF} cy={ys(pureFlexion.P)} r={4} fill="#c9a84c" />
+              <LabelPill
+                x={xPF + (pfRight ? -8 : 8)}
+                y={ys(pureFlexion.P) + 18}
+                anchor={pfRight ? 'end' : 'start'}
+                color="#c9a84c"
+              >
+                Pure flex
+              </LabelPill>
+            </>
+          );
+        })()}
 
         {/* Axes */}
         <line x1={ml} x2={ml + plotW} y1={mt + plotH} y2={mt + plotH} stroke="rgba(242,239,228,0.55)" strokeWidth={1} />
@@ -523,5 +558,54 @@ function PMChart({ results, unitSystem }: { results: RcResults; unitSystem: Unit
         </g>
       </svg>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* LabelPill — rounded dark chip behind chart annotations so labels   */
+/* remain legible even when the plot curves run underneath them.      */
+/* Width is estimated from character count (monospace approximation); */
+/* anchor=start pads to the right of (x,y), end pads to the left.     */
+/* ------------------------------------------------------------------ */
+function LabelPill({
+  x,
+  y,
+  anchor,
+  color,
+  children,
+}: {
+  x: number;
+  y: number;
+  anchor: 'start' | 'end' | 'middle';
+  color: string;
+  children: string;
+}) {
+  const text = children;
+  const padX = 4;
+  const padY = 2;
+  const charW = 5.6; // ≈ avg char width for fontSize 10
+  const width = text.length * charW + padX * 2;
+  const height = 14;
+  let rectX: number;
+  if (anchor === 'end') rectX = x - width + padX;
+  else if (anchor === 'start') rectX = x - padX;
+  else rectX = x - width / 2;
+  const rectY = y - height + padY + 2; // baseline adjust
+  return (
+    <g>
+      <rect
+        x={rectX}
+        y={rectY}
+        width={width}
+        height={height}
+        rx={3}
+        ry={3}
+        fill="rgba(15,15,18,0.82)"
+        stroke="rgba(255,255,255,0.08)"
+      />
+      <text x={x} y={y} fontSize={10} fill={color} textAnchor={anchor}>
+        {text}
+      </text>
+    </g>
   );
 }
