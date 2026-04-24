@@ -1,26 +1,31 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from './language-provider';
 
 export function UnderDevOverlay() {
   const pathname = usePathname();
   const { language } = useTranslation();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const isResources = pathname?.startsWith('/resources');
   const active = !isResources;
 
   useEffect(() => {
+    if (!mounted) return;
     if (active) {
       document.body.classList.add('under-dev');
     } else {
       document.body.classList.remove('under-dev');
     }
     return () => document.body.classList.remove('under-dev');
-  }, [active]);
+  }, [active, mounted]);
 
-  if (!active) return null;
+  if (!mounted || !active) return null;
 
   const t = {
     badge: language === 'es' ? 'En Desarrollo' : 'Under Development',
@@ -32,14 +37,14 @@ export function UnderDevOverlay() {
         ? 'Estamos puliendo esta seccion. Mientras tanto, explora nuestras herramientas de ingenieria gratuitas — completas, validadas y listas para usar.'
         : 'We\u2019re polishing this section. Meanwhile, explore our free engineering tools — fully built, validated, and ready to use.',
     cta1: language === 'es' ? 'Abrir Calculadoras' : 'Open Calculators',
-    cta2: language === 'es' ? 'Contactenos' : 'Contact Us',
+    cta2: language === 'es' ? 'Ver 101 Herramientas' : 'Browse 101 Tools',
     footer:
       language === 'es'
         ? 'Tercero Tablada · Ingenieria Civil y Estructural'
         : 'Tercero Tablada · Civil & Structural Engineering',
   };
 
-  return (
+  const overlay = (
     <div className="under-dev-overlay" role="dialog" aria-labelledby="udTitle" aria-describedby="udDesc">
       <div className="under-dev-card">
         <div className="under-dev-badge">
@@ -62,11 +67,13 @@ export function UnderDevOverlay() {
             <span aria-hidden>→</span>
           </a>
           <a href="/resources/quick-design" className="under-dev-btn under-dev-btn--outline">
-            {language === 'es' ? 'Ver 101 Calculadoras' : 'Browse 101 Tools'}
+            {t.cta2}
           </a>
         </div>
         <div className="under-dev-footer">{t.footer}</div>
       </div>
     </div>
   );
+
+  return createPortal(overlay, document.body);
 }
