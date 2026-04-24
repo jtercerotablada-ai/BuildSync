@@ -4,6 +4,7 @@ import { LanguageProvider } from '@/components/ttc/language-provider';
 import { TTCHeader } from '@/components/ttc/ttc-header';
 import { TTCFooter } from '@/components/ttc/ttc-footer';
 import { FxElements } from '@/components/ttc/fx-elements';
+import { UnderDevOverlay } from '@/components/ttc/under-dev-overlay';
 import 'leaflet/dist/leaflet.css';
 import './ttc-globals.css';
 
@@ -38,6 +39,7 @@ export default function PublicLayout({
         <TTCHeader />
         <main>{children}</main>
         <TTCFooter />
+        <UnderDevOverlay />
       </LanguageProvider>
     </div>
   );
