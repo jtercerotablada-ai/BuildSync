@@ -168,8 +168,6 @@ export function AdvancedBeamSchematic({ model, deflection, showDeformed = false,
 
 function SupportSymbol({ support, label, cx, cy }: { support: Support; label: string; cx: number; cy: number }) {
   const gold = '#c9a84c';
-  const labelText = (suffix?: string) =>
-    suffix ? `${label}  ·  ${suffix}` : label;
   switch (support.type) {
     case 'pin': {
       return (
@@ -178,10 +176,8 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
             fill="none" stroke={gold} strokeWidth="2" />
           <line x1={cx - 22} y1={cy + 38} x2={cx + 22} y2={cy + 38} stroke={gold} strokeWidth="2" />
           <rect x={cx - 22} y={cy + 38} width="44" height="6" fill="url(#ab-hatch)" />
-          <text x={cx} y={cy + 60} textAnchor="middle" fill="#c9a84c"
-            fontSize="13" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
-          <text x={cx} y={cy + 73} textAnchor="middle" fill="rgba(255,255,255,0.5)"
-            fontSize="10" fontFamily="var(--font-inter), sans-serif">pin</text>
+          <text x={cx} y={cy + 62} textAnchor="middle" fill="#c9a84c"
+            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
         </g>
       );
     }
@@ -192,10 +188,8 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
           <circle cx={cx + 8} cy={cy + 18} r="6" fill="none" stroke={gold} strokeWidth="2" />
           <line x1={cx - 22} y1={cy + 28} x2={cx + 22} y2={cy + 28} stroke={gold} strokeWidth="2" />
           <rect x={cx - 22} y={cy + 28} width="44" height="6" fill="url(#ab-hatch)" />
-          <text x={cx} y={cy + 50} textAnchor="middle" fill="#c9a84c"
-            fontSize="13" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
-          <text x={cx} y={cy + 63} textAnchor="middle" fill="rgba(255,255,255,0.5)"
-            fontSize="10" fontFamily="var(--font-inter), sans-serif">roller</text>
+          <text x={cx} y={cy + 52} textAnchor="middle" fill="#c9a84c"
+            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
         </g>
       );
     }
@@ -204,10 +198,8 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
         <g>
           <rect x={cx - 4} y={cy - 28} width="8" height="56" fill={gold} />
           <rect x={cx + 4} y={cy - 32} width="14" height="64" fill="url(#ab-hatch)" />
-          <text x={cx} y={cy + 52} textAnchor="middle" fill="#c9a84c"
-            fontSize="13" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
-          <text x={cx} y={cy + 65} textAnchor="middle" fill="rgba(255,255,255,0.5)"
-            fontSize="10" fontFamily="var(--font-inter), sans-serif">fixed</text>
+          <text x={cx} y={cy + 54} textAnchor="middle" fill="#c9a84c"
+            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
         </g>
       );
     }
@@ -218,12 +210,8 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
             fill="none" stroke={gold} strokeWidth="2" />
           <line x1={cx - 22} y1={cy + 50} x2={cx + 22} y2={cy + 50} stroke={gold} strokeWidth="2" />
           <rect x={cx - 22} y={cy + 50} width="44" height="6" fill="url(#ab-hatch)" />
-          <text x={cx} y={cy + 72} textAnchor="middle" fill="#c9a84c"
-            fontSize="13" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
-          <text x={cx} y={cy + 85} textAnchor="middle" fill="rgba(255,255,255,0.5)"
-            fontSize="10" fontFamily="var(--font-inter), sans-serif">
-            spring k={support.kv ?? 0} kN/m
-          </text>
+          <text x={cx} y={cy + 74} textAnchor="middle" fill="#c9a84c"
+            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
         </g>
       );
     }
@@ -231,8 +219,8 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
     default:
       return (
         <g>
-          <text x={cx} y={cy + 24} textAnchor="middle" fill="rgba(255,255,255,0.5)"
-            fontSize="12" fontFamily="var(--font-inter), sans-serif">{labelText('free')}</text>
+          <text x={cx} y={cy + 24} textAnchor="middle" fill="#c9a84c"
+            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
         </g>
       );
   }
