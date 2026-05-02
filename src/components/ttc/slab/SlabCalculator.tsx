@@ -192,11 +192,11 @@ export function SlabCalculator() {
           <span className="ab-label">{result.classification === 'one-way' ? 'One-way' : `Two-way (Case ${result.case ?? '?'})`}</span>
         </div>
         <div className="ab-input-group">
-          <label>β = L_long / L_short</label>
+          <label>β = L long / L short</label>
           <span className="ab-label">{result.beta.toFixed(3)}</span>
         </div>
         <div className="ab-input-group">
-          <label>w_u (factored)</label>
+          <label>wu (factored)</label>
           <span className="ab-label">{result.wu.toFixed(2)} kN/m²</span>
         </div>
         <button type="button" className="ab-btn ab-btn--primary slab-print-btn"
@@ -436,7 +436,7 @@ function InputsTab({ model, dispatch }:
               onChange={(v) => dispatch({ type: 'SET_PUNCH', patch: { studFy: v } })} /></Field>
           </div>
         ) : (
-          <p className="ab-empty">Disabled — toggle on to add a column and compute v_u / φ·v_c.</p>
+          <p className="ab-empty">Disabled — toggle on to add a column and compute vu / φ·vc.</p>
         )}
       </div>
     </div>
@@ -647,8 +647,8 @@ function ChecksTab({ result }: { result: ReturnType<typeof analyze> }) {
             )}
             <Row label="b₀ (critical perimeter)" value={`${result.punching.bo.toFixed(0)} mm`} />
             <Row label="d (effective depth)" value={`${result.punching.d.toFixed(0)} mm`} />
-            <Row label="v_c capacity" value={`${result.punching.vc.toFixed(3)} MPa`} />
-            <Row label="v_u demand" value={`${result.punching.vu.toFixed(3)} MPa`} />
+            <Row label="vc capacity" value={`${result.punching.vc.toFixed(3)} MPa`} />
+            <Row label="vu demand" value={`${result.punching.vu.toFixed(3)} MPa`} />
             <Row label="Demand / capacity" value={`${result.punching.ratio.toFixed(3)}`}
               ok={result.punching.ok} />
             {result.punching.studRail && (
@@ -662,7 +662,7 @@ function ChecksTab({ result }: { result: ReturnType<typeof analyze> }) {
               </div>
             )}
             {result.punching.needsReinf && !result.punching.studRail && (
-              <p className="slab-card__warn">⚠ v_u &gt; φ·v_c — add stud rails / drop panel / increase d / f&apos;c.</p>
+              <p className="slab-card__warn">⚠ vu &gt; φ·vc — add stud rails / drop panel / increase d / fʹc.</p>
             )}
             <p className="slab-card__ref">{result.punching.ref}</p>
             {result.punching.steps && (
@@ -738,7 +738,7 @@ function CodeRefsTab({ result }: { result: ReturnType<typeof analyze> }) {
     { area: 'Crack control',         clauses: ['§24.3.2 — s ≤ 380(280/fs) − 2.5cc and ≤ 300(280/fs)'] },
     { area: 'Min thickness',         clauses: ['Table 7.3.1.1 (one-way), modified by §7.3.1.1.1 factor (0.4 + fy/700)', 'Table 8.3.1.1 (two-way without beams) — interpolated for fy and adjusted for edge beams + drop panels'] },
     { area: 'Deflection',            clauses: ['§24.2.4 — long-term multiplier λ = ξ/(1+50ρ′), ξ=2.0 (5+ years)', 'Branson Ie via Eq. 24.2.3.5a'] },
-    { area: 'Punching shear',        clauses: ['§22.6.5.2 — vc = least of 0.33·λs·√fc, (0.17+0.33/β)·λs·√fc, (αs·d/(12·b₀)+0.17)·λs·√fc', '§22.6.5.2.1 — λs = √(2/(1+0.004·d)) ≤ 1', '§22.6.3.1 — √fc capped at 8.3 MPa', '§21.2.1 — φ = 0.75 for shear', '§22.6.7 + ACI 421.1R-20 — stud rails when v_u > φv_c'] },
+    { area: 'Punching shear',        clauses: ['§22.6.5.2 — vc = least of 0.33·λs·√fc, (0.17+0.33/β)·λs·√fc, (αs·d/(12·b₀)+0.17)·λs·√fc', '§22.6.5.2.1 — λs = √(2/(1+0.004·d)) ≤ 1', '§22.6.3.1 — √fc capped at 8.3 MPa', '§21.2.1 — φ = 0.75 for shear', '§22.6.7 + ACI 421.1R-20 — stud rails when vu > φvc'] },
   ] : [
     { area: 'Load factors',          clauses: ['EN 1990 Table A1.2(B) — γG = 1.35, γQ = 1.5'] },
     { area: 'Two-way moments',       clauses: ['Method 3 (PCA) used as elastic plate analysis acceptable under §5.1.3 simplified analysis'] },
@@ -765,7 +765,7 @@ function CodeRefsTab({ result }: { result: ReturnType<typeof analyze> }) {
           <li>PCA Notes Method 3 coefficient lookup (Cases 1–9)</li>
           <li>Hand-calc flexural design (As req, As min)</li>
           <li>Branson Ie cracked-section deflection</li>
-          <li>ACI 318 §22.6 punching shear with λ_s size factor and √fc ≤ 8.3 MPa cap</li>
+          <li>ACI 318 §22.6 punching shear with λs size factor and √fc ≤ 8.3 MPa cap</li>
           <li>EN 1992 §6.4.4 punching with basic perimeter at 2d</li>
           <li>Crack-control max spacing per §24.3.2 / §7.3.3</li>
           <li>Min thickness Table 7.3.1.1 with fy modifier (0.4+fy/700)</li>
