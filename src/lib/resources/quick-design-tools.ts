@@ -133,7 +133,7 @@ export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
   { category: 'Analysis', code: '—', title: 'Column Analysis', description: 'Analyse columns for axial and bending.', status: 'coming-soon' },
   { category: 'Analysis', code: '—', title: 'Simply Supported Beam Analysis', description: 'Beams with distributed and point loads.', status: 'available', href: '/resources/beam' },
   { category: 'Analysis', code: '—', title: 'Section Properties', description: 'Section properties for any shape.', status: 'available', href: '/resources/section-builder' },
-  { category: 'Analysis', code: '—', title: 'Multi-Span Beam Analysis', description: 'Continuous beams per stiffness method.', status: 'available', href: '/resources/beam' },
+  { category: 'Analysis', code: '—', title: 'Multi-Span Beam Analysis', description: 'Continuous beams, hinges, springs, settlements, thermal — full FEM.', status: 'available', href: '/resources/advanced-beam', isNew: true },
   { category: 'Analysis', code: '—', title: 'Column Buckling Load', description: 'Critical buckling load for compression columns.', status: 'coming-soon' },
   { category: 'Analysis', code: '—', title: '2D Stiffness Method Analysis', description: 'Stiffness matrix + force vector for 2D elements.', status: 'coming-soon' },
   { category: 'Analysis', code: '—', title: 'Cable Sag Analysis', description: 'Pre-tension for a specified cable sag.', status: 'coming-soon' },

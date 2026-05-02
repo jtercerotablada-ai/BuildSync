@@ -201,7 +201,7 @@ export const dictionaries = {
     'tool.sectionBuilder': 'Section Builder',
     'tool.sectionBuilder.desc': 'Create, analyze, and design using library, custom, or built-up cross sections.',
     'tool.advancedBeam': 'Advanced Beam',
-    'tool.advancedBeam.desc': 'Analysis of steel members with complex geometry including penetrations, stiffeners, and notches.',
+    'tool.advancedBeam.desc': 'Multi-span Euler-Bernoulli FEM with variable EI, internal hinges, spring supports, settlements, thermal gradients, and modal analysis. 126 unit tests against analytical solutions.',
 
     // Resources \u2014 Design tools
     'tool.quickDesign': 'Quick Design',
@@ -439,7 +439,7 @@ export const dictionaries = {
     'tool.sectionBuilder': 'Constructor de Secciones',
     'tool.sectionBuilder.desc': 'Cree, analice y disene usando secciones de biblioteca, personalizadas o ensambladas.',
     'tool.advancedBeam': 'Viga Avanzada',
-    'tool.advancedBeam.desc': 'Analisis de miembros de acero con geometria compleja incluyendo perforaciones, rigidizadores y muescas.',
+    'tool.advancedBeam.desc': 'FEM Euler-Bernoulli multi-tramo con EI variable, articulaciones internas, apoyos elasticos, asentamientos, gradientes termicos y analisis modal. 126 tests unitarios validados contra soluciones analiticas.',
 
     // Resources \u2014 Design tools
     'tool.quickDesign': 'Diseno Rapido',
