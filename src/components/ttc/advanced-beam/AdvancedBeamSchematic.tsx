@@ -122,9 +122,10 @@ export function AdvancedBeamSchematic({ model, deflection, showDeformed = false 
           <SupportSymbol key={s.id} support={s} cx={x2px(s.position)} cy={deflectedY(s.position)} />
         ))}
 
-        {/* loads */}
+        {/* loads — anchored to deformed beam top so arrows ride the curve */}
         {model.loads.map((ld) => (
-          <LoadSymbol key={ld.id} load={ld} L={L} x2px={x2px} beamY={beamY} />
+          <LoadSymbol key={ld.id} load={ld} L={L} x2px={x2px}
+            beamYAt={deflectedY} beamHeight={beamHeight} />
         ))}
 
         {/* dimension labels */}
@@ -210,12 +211,15 @@ function LoadSymbol({
   load,
   L,
   x2px,
-  beamY,
+  beamYAt,
+  beamHeight,
 }: {
   load: Load;
   L: number;
   x2px: (x: number) => number;
-  beamY: number;
+  /** Returns the (deflected) baseline y at beam position x (m). */
+  beamYAt: (x: number) => number;
+  beamHeight: number;
 }) {
   const colorMap: Record<string, string> = {
     dead: '#8b7355',
@@ -227,24 +231,27 @@ function LoadSymbol({
   const baseColor = '#c9a84c';
   const lc = (load as { loadCase?: string }).loadCase;
   const color = (lc && colorMap[lc]) || baseColor;
+  // Edge of the beam where the arrow tip touches (top edge for down loads, bottom for up)
+  const beamTopY = (x: number) => beamYAt(x) - beamHeight / 2;
+  const beamBotY = (x: number) => beamYAt(x) + beamHeight / 2;
 
   if (load.type === 'point') {
     const cx = x2px(load.position);
     const isDown = load.direction === 'down';
-    const arrowTop = isDown ? beamY - 56 : beamY + 56;
-    const arrowBot = isDown ? beamY - 8 : beamY + 8;
+    const tipY = isDown ? beamTopY(load.position) - 2 : beamBotY(load.position) + 2;
+    const baseY = isDown ? tipY - 48 : tipY + 48;
     return (
       <g>
-        <line x1={cx} y1={arrowTop} x2={cx} y2={arrowBot} stroke={color} strokeWidth="2" />
+        <line x1={cx} y1={baseY} x2={cx} y2={tipY} stroke={color} strokeWidth="2" />
         <polygon
           points={
             isDown
-              ? `${cx},${arrowBot} ${cx - 5},${arrowBot - 10} ${cx + 5},${arrowBot - 10}`
-              : `${cx},${arrowBot} ${cx - 5},${arrowBot + 10} ${cx + 5},${arrowBot + 10}`
+              ? `${cx},${tipY} ${cx - 5},${tipY - 10} ${cx + 5},${tipY - 10}`
+              : `${cx},${tipY} ${cx - 5},${tipY + 10} ${cx + 5},${tipY + 10}`
           }
           fill={color}
         />
-        <text x={cx + 8} y={isDown ? arrowTop - 4 : arrowTop + 14} fill={color}
+        <text x={cx + 8} y={isDown ? baseY - 4 : baseY + 14} fill={color}
           fontSize="12" fontFamily="var(--font-inter), sans-serif" fontWeight="600">
           {`${load.magnitude} kN`}
         </text>
@@ -252,8 +259,10 @@ function LoadSymbol({
     );
   }
   if (load.type === 'distributed') {
-    const x1 = x2px(Math.min(load.startPosition, load.endPosition));
-    const x2 = x2px(Math.max(load.startPosition, load.endPosition));
+    const aPos = Math.min(load.startPosition, load.endPosition);
+    const bPos = Math.max(load.startPosition, load.endPosition);
+    const x1 = x2px(aPos);
+    const x2 = x2px(bPos);
     const isDown = load.direction === 'down';
     const wMaxAbs = Math.max(Math.abs(load.startMagnitude), Math.abs(load.endMagnitude), 1e-9);
     const arrowMaxLen = 36;
@@ -265,33 +274,36 @@ function LoadSymbol({
     };
     const numArrows = Math.max(6, Math.min(20, Math.floor((x2 - x1) / 36)));
     const arrows: React.ReactElement[] = [];
+    const topPts: string[] = [];
     for (let i = 0; i <= numArrows; i++) {
       const f = i / numArrows;
       const px = x1 + (x2 - x1) * f;
+      const xPos = aPos + (bPos - aPos) * f;
+      const tipY = isDown ? beamTopY(xPos) - 2 : beamBotY(xPos) + 2;
       const len = lenAt(f);
+      const baseY = isDown ? tipY - len - 6 : tipY + len + 6;
+      topPts.push(`${px.toFixed(1)},${baseY.toFixed(1)}`);
       if (len < 4) continue;
-      const top = isDown ? beamY - len - 6 : beamY + len + 6;
-      const tip = isDown ? beamY - 6 : beamY + 6;
       arrows.push(
         <g key={`d-${load.id}-${i}`}>
-          <line x1={px} y1={top} x2={px} y2={tip} stroke={color} strokeWidth="1.6" opacity="0.85" />
+          <line x1={px} y1={baseY} x2={px} y2={tipY} stroke={color} strokeWidth="1.6" opacity="0.85" />
           <polygon points={
             isDown
-              ? `${px},${tip} ${px - 3.5},${tip - 7} ${px + 3.5},${tip - 7}`
-              : `${px},${tip} ${px - 3.5},${tip + 7} ${px + 3.5},${tip + 7}`
+              ? `${px},${tipY} ${px - 3.5},${tipY - 7} ${px + 3.5},${tipY - 7}`
+              : `${px},${tipY} ${px - 3.5},${tipY + 7} ${px + 3.5},${tipY + 7}`
           } fill={color} opacity="0.85" />
         </g>
       );
     }
-    // Top connector line
-    const yTopA = isDown ? beamY - 6 - lenAt(0) - 6 : beamY + 6 + lenAt(0) + 6;
-    const yTopB = isDown ? beamY - 6 - lenAt(1) - 6 : beamY + 6 + lenAt(1) + 6;
+    const labelY = isDown
+      ? Math.min(...topPts.map((p) => parseFloat(p.split(',')[1]))) - 4
+      : Math.max(...topPts.map((p) => parseFloat(p.split(',')[1]))) + 14;
     return (
       <g>
+        {/* Connector polyline follows the arrow tops, mirroring the deformed beam */}
+        <polyline points={topPts.join(' ')} fill="none" stroke={color} strokeWidth="1.6" opacity="0.9" />
         {arrows}
-        <line x1={x1} y1={yTopA} x2={x2} y2={yTopB} stroke={color} strokeWidth="1.6" opacity="0.9" />
-        <text x={(x1 + x2) / 2} y={isDown ? Math.min(yTopA, yTopB) - 4 : Math.max(yTopA, yTopB) + 14}
-          textAnchor="middle" fill={color}
+        <text x={(x1 + x2) / 2} y={labelY} textAnchor="middle" fill={color}
           fontSize="11" fontFamily="var(--font-inter), sans-serif" fontWeight="600">
           {load.startMagnitude === load.endMagnitude
             ? `${load.startMagnitude} kN/m`
@@ -302,17 +314,17 @@ function LoadSymbol({
   }
   if (load.type === 'moment') {
     const cx = x2px(load.position);
+    const cy = beamYAt(load.position) - 30;
     const r = 18;
     const isCcw = load.direction === 'ccw';
-    // Draw an arc with arrowhead
     const startAng = isCcw ? -30 : 210;
     const endAng = isCcw ? 210 : -30;
     const a1 = (startAng * Math.PI) / 180;
     const a2 = (endAng * Math.PI) / 180;
     const x1a = cx + r * Math.cos(a1);
-    const y1a = beamY - 36 + r * Math.sin(a1);
+    const y1a = cy + r * Math.sin(a1);
     const x2a = cx + r * Math.cos(a2);
-    const y2a = beamY - 36 + r * Math.sin(a2);
+    const y2a = cy + r * Math.sin(a2);
     const sweep = isCcw ? 0 : 1;
     return (
       <g>
@@ -322,7 +334,7 @@ function LoadSymbol({
           points={`${x2a},${y2a} ${x2a - (isCcw ? -8 : 8)},${y2a - 4} ${x2a - (isCcw ? -2 : 2)},${y2a + (isCcw ? 8 : -8)}`}
           fill={color}
         />
-        <text x={cx} y={beamY - 60} textAnchor="middle" fill={color}
+        <text x={cx} y={cy - 24} textAnchor="middle" fill={color}
           fontSize="12" fontFamily="var(--font-inter), sans-serif" fontWeight="600">
           {`${load.magnitude} kN·m`}
         </text>
@@ -330,10 +342,11 @@ function LoadSymbol({
     );
   }
   if (load.type === 'thermal') {
-    const cx = x2px(L / 2);          // center label
+    const cx = x2px(L / 2);
+    const cy = beamYAt(L / 2) - 60;
     return (
       <g>
-        <text x={cx} y={beamY - 70} textAnchor="middle" fill={color}
+        <text x={cx} y={cy} textAnchor="middle" fill={color}
           fontSize="11" fontFamily="var(--font-inter), sans-serif" fontWeight="600">
           {`Δ T = ${load.deltaTGradient}°C`}
         </text>
