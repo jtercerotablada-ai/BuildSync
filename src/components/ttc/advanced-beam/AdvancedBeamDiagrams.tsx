@@ -124,7 +124,7 @@ export function AdvancedBeamDiagrams({ results, totalLength }: Props) {
                     fontSize: 12,
                   }}
                   labelFormatter={(v) => `x = ${Number(v).toFixed(3)} m`}
-                  formatter={(v: number) => [`${Number(v).toFixed(3)} ${c.unit}`, '']}
+                  formatter={(v) => [`${Number(v).toFixed(3)} ${c.unit}`, '']}
                 />
                 <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" strokeWidth={1} />
                 <Area type="monotone" dataKey="value" stroke="none" fill={`url(#grad-${c.id})`} />
