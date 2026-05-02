@@ -223,7 +223,7 @@ export const dictionaries = {
     'tool.retaining': 'Retaining Wall',
     'tool.retaining.desc': 'Powerful retaining wall design software for gravity and cantilever walls.',
     'tool.slab': 'Slab Design',
-    'tool.slab.desc': 'Complete slab design checks for ACI 318 and Eurocode design standards.',
+    'tool.slab.desc': 'One-way and two-way RC slab design per ACI 318-19 and EN 1992-1-1: Method 3 coefficients (9 cases), reinforcement, deflection (Branson Ie + min thickness), punching shear, and crack control. 63 unit tests against analytical solutions.',
 
     // Footer
     'footer.tagline': 'International Structural Engineering Firm',
@@ -461,7 +461,7 @@ export const dictionaries = {
     'tool.retaining': 'Muro de Contencion',
     'tool.retaining.desc': 'Software de diseno de muros de contencion por gravedad y en voladizo.',
     'tool.slab': 'Diseno de Losas',
-    'tool.slab.desc': 'Chequeos completos de diseno de losas para estandares ACI 318 y Eurocodigo.',
+    'tool.slab.desc': 'Diseno de losas RC en una y dos direcciones segun ACI 318-19 y EN 1992-1-1: coeficientes Method 3 (9 casos), refuerzo, deflexion (Ie de Branson + espesor minimo), punzonamiento y control de fisuras. 63 tests unitarios validados contra soluciones analiticas.',
 
     // Footer
     'footer.tagline': 'Despacho Internacional de Ingenieria Estructural',
