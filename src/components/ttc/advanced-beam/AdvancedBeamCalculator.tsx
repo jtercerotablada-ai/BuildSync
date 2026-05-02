@@ -13,7 +13,7 @@ import {
   type LoadCase,
   type MaterialPreset,
 } from '@/lib/advanced-beam/types';
-import { AdvancedBeamSchematic } from './AdvancedBeamSchematic';
+import { AdvancedBeamSchematic, buildSupportLabels } from './AdvancedBeamSchematic';
 import { AdvancedBeamDiagrams } from './AdvancedBeamDiagrams';
 
 // ============================================================================
@@ -308,6 +308,13 @@ export function AdvancedBeamCalculator() {
   const [computeModes, setComputeModes] = useState(0);
 
   const results = useMemo(() => solve(model, { computeModes }), [model, computeModes]);
+  const supportLabels = useMemo(() => buildSupportLabels(model.supports), [model.supports]);
+  const hingeLabels = useMemo(() => {
+    const sorted = [...model.hinges].sort((a, b) => a.position - b.position);
+    const map: Record<string, string> = {};
+    sorted.forEach((h, i) => (map[h.id] = `H${i + 1}`));
+    return map;
+  }, [model.hinges]);
 
   return (
     <div className="ab-root">
@@ -353,6 +360,7 @@ export function AdvancedBeamCalculator() {
           model={model}
           deflection={results.deflection}
           showDeformed={showDeformed && results.solved}
+          supportLabels={supportLabels}
         />
       </section>
 
@@ -381,14 +389,14 @@ export function AdvancedBeamCalculator() {
         </nav>
 
         {tab === 'segments' && <SegmentsTab model={model} dispatch={dispatch} />}
-        {tab === 'supports' && <SupportsTab model={model} dispatch={dispatch} />}
-        {tab === 'hinges' && <HingesTab model={model} dispatch={dispatch} />}
+        {tab === 'supports' && <SupportsTab model={model} dispatch={dispatch} labels={supportLabels} />}
+        {tab === 'hinges' && <HingesTab model={model} dispatch={dispatch} labels={hingeLabels} />}
         {tab === 'loads' && <LoadsTab model={model} dispatch={dispatch} />}
       </section>
 
       {/* RESULTS GRID */}
       <section className="ab-section ab-results-grid">
-        <ReactionsPanel results={results} />
+        <ReactionsPanel results={results} labels={supportLabels} />
         <KeyResultsPanel results={results} />
       </section>
 
@@ -487,7 +495,7 @@ function SegmentsTab({ model, dispatch }: TabProps) {
   );
 }
 
-function SupportsTab({ model, dispatch }: TabProps) {
+function SupportsTab({ model, dispatch, labels }: TabProps & { labels: Record<string, string> }) {
   return (
     <div className="ab-table-wrap">
       <div className="ab-row-actions">
@@ -500,7 +508,7 @@ function SupportsTab({ model, dispatch }: TabProps) {
         <table className="ab-table">
           <thead>
             <tr>
-              <th>ID</th><th>Position (m)</th><th>Type</th>
+              <th>Label</th><th>Position (m)</th><th>Type</th>
               <th>k_v (kN/m)</th><th>k_r (kN·m/rad)</th>
               <th>Settle (mm)</th><th>Rotation (rad)</th><th></th>
             </tr>
@@ -508,7 +516,7 @@ function SupportsTab({ model, dispatch }: TabProps) {
           <tbody>
             {model.supports.map((s) => (
               <tr key={s.id}>
-                <td className="ab-mono">{s.id.slice(0, 9)}</td>
+                <td className="ab-label">{labels[s.id] ?? s.id.slice(0, 4)}</td>
                 <td><Num val={s.position} step={0.1}
                   onChange={(v) => dispatch({ type: 'UPDATE_SUPPORT', id: s.id, patch: { position: v } })} /></td>
                 <td>
@@ -548,7 +556,7 @@ function SupportsTab({ model, dispatch }: TabProps) {
   );
 }
 
-function HingesTab({ model, dispatch }: TabProps) {
+function HingesTab({ model, dispatch, labels }: TabProps & { labels: Record<string, string> }) {
   return (
     <div className="ab-table-wrap">
       <div className="ab-row-actions">
@@ -560,11 +568,11 @@ function HingesTab({ model, dispatch }: TabProps) {
       ) : (
         <div className="ab-table-scroll">
           <table className="ab-table">
-            <thead><tr><th>ID</th><th>Position (m)</th><th></th></tr></thead>
+            <thead><tr><th>Label</th><th>Position (m)</th><th></th></tr></thead>
             <tbody>
               {model.hinges.map((h) => (
                 <tr key={h.id}>
-                  <td className="ab-mono">{h.id.slice(0, 9)}</td>
+                  <td className="ab-label">{labels[h.id] ?? h.id.slice(0, 4)}</td>
                   <td><Num val={h.position} step={0.1}
                     onChange={(v) => dispatch({ type: 'UPDATE_HINGE', id: h.id, patch: { position: v } })} /></td>
                   <td><button type="button" className="ab-btn ab-btn--danger" onClick={() => dispatch({ type: 'REMOVE_HINGE', id: h.id })}>×</button></td>
@@ -675,7 +683,7 @@ interface TabProps {
 // Result panels
 // ----------------------------------------------------------------------------
 
-function ReactionsPanel({ results }: { results: import('@/lib/advanced-beam/types').Results }) {
+function ReactionsPanel({ results, labels }: { results: import('@/lib/advanced-beam/types').Results; labels: Record<string, string> }) {
   return (
     <div className="ab-result-card">
       <h4>Reactions</h4>
@@ -689,7 +697,7 @@ function ReactionsPanel({ results }: { results: import('@/lib/advanced-beam/type
           <tbody>
             {results.reactions.map((r) => (
               <tr key={r.supportId}>
-                <td className="ab-mono">{r.supportId.slice(0, 9)}</td>
+                <td className="ab-label">{labels[r.supportId] ?? r.supportId.slice(0, 4)}</td>
                 <td>{r.type}</td>
                 <td>{r.position.toFixed(2)}</td>
                 <td>{r.V.toFixed(3)}</td>

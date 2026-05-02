@@ -11,13 +11,37 @@ interface Props {
   deflection?: { x: number; value: number }[];
   /** Show deformed shape if true, undeformed otherwise. Default false. */
   showDeformed?: boolean;
+  /** Map of support id → display label (e.g. "A", "B"). */
+  supportLabels?: Record<string, string>;
+}
+
+// Convert 0-based index to spreadsheet-style label: A, B, ..., Z, AA, AB, ...
+function indexToLabel(i: number): string {
+  let s = '';
+  let n = i;
+  do {
+    s = String.fromCharCode(65 + (n % 26)) + s;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return s;
+}
+
+/** Derive {id → label} where leftmost support is "A". */
+export function buildSupportLabels(supports: { id: string; position: number }[]): Record<string, string> {
+  const ordered = [...supports]
+    .map((s, i) => ({ ...s, _orig: i }))
+    .sort((a, b) => a.position - b.position || a._orig - b._orig);
+  const labels: Record<string, string> = {};
+  ordered.forEach((s, i) => (labels[s.id] = indexToLabel(i)));
+  return labels;
 }
 
 /**
  * Schematic SVG of the beam: shows segments, supports, hinges and loads to scale.
  * Fully responsive (viewBox auto-scaled). Designed for dark backgrounds with TTC gold accents.
  */
-export function AdvancedBeamSchematic({ model, deflection, showDeformed = false }: Props) {
+export function AdvancedBeamSchematic({ model, deflection, showDeformed = false, supportLabels }: Props) {
+  const labels = useMemo(() => supportLabels ?? buildSupportLabels(model.supports), [supportLabels, model.supports]);
   const L = model.totalLength || 1;
   const W = 1000;                             // SVG width units
   const beamY = 220;                          // baseline y in SVG
@@ -119,7 +143,8 @@ export function AdvancedBeamSchematic({ model, deflection, showDeformed = false 
 
         {/* supports */}
         {model.supports.map((s) => (
-          <SupportSymbol key={s.id} support={s} cx={x2px(s.position)} cy={deflectedY(s.position)} />
+          <SupportSymbol key={s.id} support={s} label={labels[s.id] ?? s.id}
+            cx={x2px(s.position)} cy={deflectedY(s.position)} />
         ))}
 
         {/* loads — anchored to deformed beam top so arrows ride the curve */}
@@ -141,20 +166,22 @@ export function AdvancedBeamSchematic({ model, deflection, showDeformed = false 
   );
 }
 
-function SupportSymbol({ support, cx, cy }: { support: Support; cx: number; cy: number }) {
+function SupportSymbol({ support, label, cx, cy }: { support: Support; label: string; cx: number; cy: number }) {
   const gold = '#c9a84c';
+  const labelText = (suffix?: string) =>
+    suffix ? `${label}  ·  ${suffix}` : label;
   switch (support.type) {
     case 'pin': {
-      // Triangle below beam
       return (
         <g>
           <polygon points={`${cx},${cy + 8} ${cx - 14},${cy + 32} ${cx + 14},${cy + 32}`}
             fill="none" stroke={gold} strokeWidth="2" />
           <line x1={cx - 22} y1={cy + 38} x2={cx + 22} y2={cy + 38} stroke={gold} strokeWidth="2" />
-          {/* hatch ground */}
           <rect x={cx - 22} y={cy + 38} width="44" height="6" fill="url(#ab-hatch)" />
-          <text x={cx} y={cy + 60} textAnchor="middle" fill="rgba(255,255,255,0.7)"
-            fontSize="11" fontFamily="var(--font-inter), sans-serif">{support.id}</text>
+          <text x={cx} y={cy + 60} textAnchor="middle" fill="#c9a84c"
+            fontSize="13" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
+          <text x={cx} y={cy + 73} textAnchor="middle" fill="rgba(255,255,255,0.5)"
+            fontSize="10" fontFamily="var(--font-inter), sans-serif">pin</text>
         </g>
       );
     }
@@ -165,33 +192,37 @@ function SupportSymbol({ support, cx, cy }: { support: Support; cx: number; cy: 
           <circle cx={cx + 8} cy={cy + 18} r="6" fill="none" stroke={gold} strokeWidth="2" />
           <line x1={cx - 22} y1={cy + 28} x2={cx + 22} y2={cy + 28} stroke={gold} strokeWidth="2" />
           <rect x={cx - 22} y={cy + 28} width="44" height="6" fill="url(#ab-hatch)" />
-          <text x={cx} y={cy + 50} textAnchor="middle" fill="rgba(255,255,255,0.7)"
-            fontSize="11" fontFamily="var(--font-inter), sans-serif">{support.id}</text>
+          <text x={cx} y={cy + 50} textAnchor="middle" fill="#c9a84c"
+            fontSize="13" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
+          <text x={cx} y={cy + 63} textAnchor="middle" fill="rgba(255,255,255,0.5)"
+            fontSize="10" fontFamily="var(--font-inter), sans-serif">roller</text>
         </g>
       );
     }
     case 'fixed': {
       return (
         <g>
-          {/* wall to the left if at x=0 visually, otherwise show as full clamp */}
           <rect x={cx - 4} y={cy - 28} width="8" height="56" fill={gold} />
           <rect x={cx + 4} y={cy - 32} width="14" height="64" fill="url(#ab-hatch)" />
-          <text x={cx} y={cy + 52} textAnchor="middle" fill="rgba(255,255,255,0.7)"
-            fontSize="11" fontFamily="var(--font-inter), sans-serif">{support.id} (fixed)</text>
+          <text x={cx} y={cy + 52} textAnchor="middle" fill="#c9a84c"
+            fontSize="13" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
+          <text x={cx} y={cy + 65} textAnchor="middle" fill="rgba(255,255,255,0.5)"
+            fontSize="10" fontFamily="var(--font-inter), sans-serif">fixed</text>
         </g>
       );
     }
     case 'spring': {
       return (
         <g>
-          {/* zigzag spring */}
           <path d={`M ${cx},${cy + 6} L ${cx - 8},${cy + 14} L ${cx + 8},${cy + 22} L ${cx - 8},${cy + 30} L ${cx + 8},${cy + 38} L ${cx},${cy + 46}`}
             fill="none" stroke={gold} strokeWidth="2" />
           <line x1={cx - 22} y1={cy + 50} x2={cx + 22} y2={cy + 50} stroke={gold} strokeWidth="2" />
           <rect x={cx - 22} y={cy + 50} width="44" height="6" fill="url(#ab-hatch)" />
-          <text x={cx} y={cy + 72} textAnchor="middle" fill="rgba(255,255,255,0.7)"
-            fontSize="11" fontFamily="var(--font-inter), sans-serif">
-            {support.id} (k_v={support.kv ?? 0})
+          <text x={cx} y={cy + 72} textAnchor="middle" fill="#c9a84c"
+            fontSize="13" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
+          <text x={cx} y={cy + 85} textAnchor="middle" fill="rgba(255,255,255,0.5)"
+            fontSize="10" fontFamily="var(--font-inter), sans-serif">
+            spring k={support.kv ?? 0} kN/m
           </text>
         </g>
       );
@@ -201,7 +232,7 @@ function SupportSymbol({ support, cx, cy }: { support: Support; cx: number; cy: 
       return (
         <g>
           <text x={cx} y={cy + 24} textAnchor="middle" fill="rgba(255,255,255,0.5)"
-            fontSize="11" fontFamily="var(--font-inter), sans-serif">{support.id} (free)</text>
+            fontSize="12" fontFamily="var(--font-inter), sans-serif">{labelText('free')}</text>
         </g>
       );
   }

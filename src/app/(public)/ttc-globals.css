@@ -7487,6 +7487,7 @@ img, svg {
 .ab-table select:focus,
 .ab-num:focus { outline: none; border-color: #c9a84c; }
 .ab-mono { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 0.78rem; color: rgba(255,255,255,0.55); }
+.ab-label { font-weight: 700; color: #c9a84c; letter-spacing: 0.5px; font-size: 0.95rem; }
 .ab-na { color: rgba(255,255,255,0.3); font-style: italic; }
 .ab-empty { color: rgba(255,255,255,0.5); font-style: italic; padding: 1rem 0; }
 
