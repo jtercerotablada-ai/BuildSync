@@ -662,6 +662,68 @@ block('BLOCK 30 — Drop panel reduces h_min');
 }
 
 // ============================================================
+// BLOCK 31 — User reinforcement override + capacity verification
+// ============================================================
+block('BLOCK 31 — User-defined rebar with φMn / utilization check');
+{
+  // SS slab L=5, fy=420, fc=28, h=200. Auto would pick a small bar.
+  // User overrides midspan-x with #5 @ 200 mm c/c → As_provided = 199·1000/200 = 995 mm²/m
+  // d = 175 mm; a = 995·420/(0.85·28·1000) = 17.5 mm; jd = d − a/2 = 166.25
+  // φMn = 0.9·995·420·166.25/1e6 = 62.5 kN·m/m
+  const r = analyze({
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 5, Ly: 5, h: 200 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1.5, LL: 5 },
+    userRebar: [{ location: 'mid-x', bar: '#5', spacing: 200 }],
+  });
+  const mid = r.reinforcement.find((x) => x.location === 'mid-x')!;
+  expect('User bar applied (As_provided)', mid.As_provided, 199 * 1000 / 200, 0.005);
+  // φMn calculation
+  const a = (mid.As_provided * 420) / (0.85 * 28 * 1000);
+  const phiMn_expected = (0.9 * mid.As_provided * 420 * (mid.d - a / 2)) / 1e6;
+  expect('φMn matches independent calc', mid.phiMn_provided, phiMn_expected, 0.01);
+  // utilization
+  expect('utilization Mu/φMn', mid.utilization, mid.Mu / mid.phiMn_provided, 0.005);
+  // source flag
+  expectStr('source = user', mid.source, 'user');
+  expectBool('OK because φMn >> Mu', mid.ok, true);
+}
+
+block('BLOCK 32 — User overrides too small bar → FAIL');
+{
+  // Heavy load (Mu high) but user picks only #3 @ 300 — way under-reinforced
+  const r = analyze({
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 5, Ly: 5, h: 200 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 5, LL: 10 },
+    userRebar: [{ location: 'mid-x', bar: '#3', spacing: 300 }],
+  });
+  const mid = r.reinforcement.find((x) => x.location === 'mid-x')!;
+  expectBool('FAIL flag set', mid.ok, false);
+  expectBool('utilization > 1', mid.utilization > 1, true);
+  expectBool('failure messages present', mid.failures.length > 0, true);
+}
+
+block('BLOCK 33 — Default (no user rebar) → source = auto, ok = true');
+{
+  const r = analyze({
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 5, Ly: 5, h: 200 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1.5, LL: 5 },
+  });
+  for (const r1 of r.reinforcement) {
+    expectStr(`${r1.location} source = auto`, r1.source, 'auto');
+    expectBool(`${r1.location} ok = true`, r1.ok, true);
+  }
+}
+
+// ============================================================
 // SUMMARY
 // ============================================================
 console.log('\n============================================');

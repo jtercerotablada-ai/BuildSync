@@ -82,8 +82,8 @@ export function analyze(input: SlabInput): SlabAnalysis {
     moments = twoWayMoments(shortLen, longLen, wu, factor_DL * DL, factor_LL * LL, c, longSide);
   }
 
-  // ---- Reinforcement design ----
-  const reinforcement = designReinforcement(moments, g, m, code);
+  // ---- Reinforcement design (with optional user overrides) ----
+  const reinforcement = designReinforcement(moments, g, m, code, input.userRebar ?? []);
 
   // ---- Deflection ----
   const deflection = checkDeflection(g, m, e, classification, beta, wService, code, input);
@@ -243,16 +243,18 @@ function designReinforcement(
   g: Geometry,
   mat: Materials,
   code: Code,
+  userRebar: import('./types').UserRebar[],
 ): ReinforcementResult[] {
   const out: ReinforcementResult[] = [];
   const cases: { loc: ReinforcementResult['location']; Mu: number; cover: number }[] = [
     { loc: 'mid-x', Mu: M.Mx_pos, cover: g.cover_bottom_x! },
     { loc: 'mid-y', Mu: M.My_pos, cover: g.cover_bottom_y! },
-    { loc: 'sup-x', Mu: -M.Mx_neg, cover: g.cover_top_x! },     // negate so Mu > 0 for design
+    { loc: 'sup-x', Mu: -M.Mx_neg, cover: g.cover_top_x! },
     { loc: 'sup-y', Mu: -M.My_neg, cover: g.cover_top_y! },
   ];
   for (const item of cases) {
-    out.push(designOneRebarLayer(item.loc, item.Mu, g.h, item.cover, mat, code));
+    const userOverride = userRebar.find((u) => u.location === item.loc);
+    out.push(designOneRebarLayer(item.loc, item.Mu, g.h, item.cover, mat, code, userOverride));
   }
   return out;
 }
@@ -264,6 +266,7 @@ function designOneRebarLayer(
   cover_mm: number,
   mat: Materials,
   code: Code,
+  userOverride?: import('./types').UserRebar,
 ): ReinforcementResult {
   // Compute As required from rectangular stress block (per unit metre width)
   const fc = mat.fc;
@@ -315,22 +318,64 @@ function designOneRebarLayer(
 
   const As_design = Math.max(As_req, As_min);
 
-  // Bar selection — choose smallest bar that gives spacing ≤ s_max
+  // Maximum spacing per code
+  // ACI: §7.7.2.3 (S&T) min(3h, 450 mm) — but at moment-critical sections also
+  //      §8.7.2.2 / §7.7.2.3 min(2h, 450 mm) for FLEXURAL spacing.
+  //      We apply the more restrictive flexural cap min(2h, 450 mm).
+  // EN 1992-1-1 §9.3.1.1(3): slab max bar spacing = min(3h, 400 mm) primary,
+  //      min(3.5h, 450 mm) secondary. We use primary direction = min(2.5h, 400 mm)
+  //      conservatively for flexural critical sections.
   const s_max = isACI(code)
-    ? Math.min(3 * h_mm, 450)               // ACI 318-19 §7.7.2.3 for slabs: 3h or 18 in (450 mm)
-    : Math.min(3 * h_mm, 400);              // EN 1992-1-1 §9.3.1.1(3)
+    ? Math.min(2 * h_mm, 450)
+    : Math.min(2.5 * h_mm, 400);
   const candidates = isACI(code)
     ? BAR_CATALOG.filter((bar) => bar.system === 'imperial' && bar.db >= 9.5)
     : BAR_CATALOG.filter((bar) => bar.system === 'metric'   && bar.db >= 8);
-  let chosen = candidates[0];
-  let spacing = (chosen.Ab * b) / Math.max(1, As_design);
+
+  // Auto-select bar (smallest that meets spacing limits with given As_design)
+  let chosenBar = candidates[0];
+  let chosenSpacing = (chosenBar.Ab * b) / Math.max(1, As_design);
   for (const bar of candidates) {
     const s = (bar.Ab * b) / Math.max(1, As_design);
-    if (s <= s_max && s >= 50) { chosen = bar; spacing = s; break; }
+    if (s <= s_max && s >= 50) { chosenBar = bar; chosenSpacing = s; break; }
   }
 
+  // ── User override: if supplied, use that bar+spacing instead ──
+  let source: 'auto' | 'user' = 'auto';
+  if (userOverride) {
+    const userBar = BAR_CATALOG.find((bar) => bar.label === userOverride.bar);
+    if (userBar) {
+      chosenBar = userBar;
+      chosenSpacing = userOverride.spacing;
+      source = 'user';
+    }
+  }
+
+  // Provided steel area for the chosen (or overridden) bar+spacing
+  const As_provided = (chosenBar.Ab * b) / Math.max(1, chosenSpacing);
+
+  // Provided moment capacity φMn  =  φ · As · fyd · (d − a/2)  with  a = As·fyd / (fcd·b)
+  const a_block = (As_provided * fyd) / (fcd * b);
+  const phiMn_Nmm = phi * As_provided * fyd * (d - a_block / 2);
+  const phiMn_provided = phiMn_Nmm / 1e6;     // → kN·m / m
+
+  // Utilization = demand / capacity
+  const utilization = phiMn_provided > 1e-9 ? Math.abs(Mu_kNm) / phiMn_provided : Infinity;
+
+  // OK if: As_provided ≥ As_design AND spacing ≤ s_max AND φMn ≥ Mu
+  const failures: string[] = [];
+  if (As_provided + 1e-3 < As_design)
+    failures.push(`As_provided (${As_provided.toFixed(0)}) < As_design (${As_design.toFixed(0)}) mm²/m`);
+  if (chosenSpacing > s_max + 1e-3)
+    failures.push(`spacing (${chosenSpacing.toFixed(0)}) > s_max (${s_max.toFixed(0)}) mm`);
+  if (chosenSpacing < 50)
+    failures.push(`spacing (${chosenSpacing.toFixed(0)}) < 50 mm minimum (rebar congestion)`);
+  if (utilization > 1.0 + 1e-3)
+    failures.push(`utilization (${utilization.toFixed(2)}) > 1.0 — capacity insufficient`);
+  const ok = failures.length === 0;
+
   const ref = isACI(code)
-    ? `ACI 318-19 §22.2.2 (φ=0.9), ${refMin}`
+    ? `${aciClause(code, '22.2.2')} (φ=0.9), ${refMin}`
     : `EN 1992-1-1 §6.1 (γs=1.15, γc=1.5), ${refMin}`;
 
   // Build hand-calc breakdown
@@ -370,19 +415,32 @@ function designOneRebarLayer(
       result: `As_design = ${As_design.toFixed(0)} mm²/m`,
     },
     {
-      title: 'Bar selection',
-      formula: 's = Ab · b / As_design  ≤  s_max',
-      substitution: `${chosen.label} (Ab = ${chosen.Ab} mm²),  s = ${chosen.Ab}·1000 / ${As_design.toFixed(0)} = ${spacing.toFixed(0)} mm  ≤  ${s_max.toFixed(0)} mm`,
-      result: `${chosen.label} @ ${spacing.toFixed(0)} mm c/c`,
+      title: source === 'user' ? 'Bar selection (USER OVERRIDE)' : 'Bar selection',
+      formula: 's = Ab · b / As_provided',
+      substitution: `${chosenBar.label} (Ab = ${chosenBar.Ab} mm²),  s = ${chosenSpacing.toFixed(0)} mm c/c  ${source === 'user' ? '(user-specified)' : '(auto)'}`,
+      result: `${chosenBar.label} @ ${chosenSpacing.toFixed(0)} mm c/c  →  As_provided = ${As_provided.toFixed(0)} mm²/m`,
       ref: isACI(code) ? aciClause(code, '7.7.2.3') : 'EN 1992-1-1 §9.3.1.1(3)',
+    },
+    {
+      title: 'Provided moment capacity φMn',
+      formula: 'φMn = φ · As · fy · (d − a/2),  a = As·fy / (0.85·fc·b)',
+      substitution: `As=${As_provided.toFixed(0)},  a=${a_block.toFixed(1)} mm,  d=${d.toFixed(0)} mm`,
+      result: `φMn = ${phiMn_provided.toFixed(2)} kN·m/m`,
+    },
+    {
+      title: 'Utilization (demand / capacity)',
+      formula: 'r = Mu / φMn',
+      substitution: `r = ${Math.abs(Mu_kNm).toFixed(2)} / ${phiMn_provided.toFixed(2)}`,
+      result: `r = ${utilization.toFixed(3)}  ${ok ? '✓ OK' : '✗ FAIL — ' + failures.join('; ')}`,
     },
   ];
 
   return {
     location, Mu: Math.abs(Mu_kNm), d,
     As_req, As_min, As_design,
-    bar: chosen.label, spacing, spacing_max: s_max, ref,
-    steps,
+    bar: chosenBar.label, spacing: chosenSpacing, spacing_max: s_max,
+    source, As_provided, phiMn_provided, utilization, ok, failures,
+    ref, steps,
   };
 }
 

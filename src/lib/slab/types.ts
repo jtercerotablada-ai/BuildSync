@@ -112,6 +112,9 @@ export interface SlabInput {
   materials: Materials;
   loads: Loads;
   punching?: PunchingInput;
+  /** Optional user-supplied bar+spacing per critical location. The solver verifies
+   *  the user's choice against the required As, max spacing, and φMn ≥ Mu. */
+  userRebar?: UserRebar[];
 }
 
 // ---------------------------------------------------------------------------
@@ -158,16 +161,41 @@ export interface ReinforcementResult {
   As_min: number;
   /** Final design As = max(As_req, As_min) (mm²/m). */
   As_design: number;
-  /** Suggested bar size (e.g. "#5", "ϕ12"). */
+  /** Suggested (or user-overridden) bar size (e.g. "#5", "ϕ12"). */
   bar: string;
-  /** Required spacing for the chosen bar (mm). */
+  /** Spacing for the chosen bar (mm). */
   spacing: number;
   /** Maximum allowed spacing per code (mm). */
   spacing_max: number;
+  /** Whether the bar+spacing came from user override or auto-selection. */
+  source: 'auto' | 'user';
+  /** Provided steel area (mm²/m) given chosen bar + spacing. */
+  As_provided: number;
+  /** φ·Mn provided (kN·m/m) computed from As_provided. */
+  phiMn_provided: number;
+  /** Demand-to-capacity ratio = Mu / (φ·Mn). ≤ 1 → OK. */
+  utilization: number;
+  /** PASS/FAIL: As_provided ≥ As_design AND spacing ≤ s_max AND φMn ≥ Mu. */
+  ok: boolean;
+  /** Failure reasons (if any) — empty array when ok. */
+  failures: string[];
   /** Code reference clause. */
   ref: string;
   /** Hand-calculation breakdown. */
   steps?: CalcStep[];
+}
+
+/**
+ * User override for reinforcement at a specific slab location.
+ * If supplied for a location, the solver uses these instead of auto-selecting,
+ * computes As_provided + φMn_provided, and reports compliance vs the demand.
+ */
+export interface UserRebar {
+  location: 'mid-x' | 'mid-y' | 'sup-x' | 'sup-y';
+  /** Bar label from BAR_CATALOG (e.g. "#5", "ϕ12"). */
+  bar: string;
+  /** Centre-to-centre spacing (mm). */
+  spacing: number;
 }
 
 export interface DeflectionResult {

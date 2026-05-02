@@ -7998,6 +7998,21 @@ img, svg {
 .slab-step__result { color: #5fb674; font-weight: 600; font-variant-numeric: tabular-nums; padding-top: 0.15rem; font-size: 0.84rem; }
 .slab-step__ref { color: rgba(255, 255, 255, 0.4); font-style: italic; font-size: 0.68rem; padding-top: 0.1rem; }
 
+/* User-rebar verification */
+.slab-row-fail td { background: rgba(201, 76, 76, 0.06); }
+.slab-handcalc--fail {
+  border-color: rgba(201, 76, 76, 0.5);
+  background: rgba(201, 76, 76, 0.08);
+}
+.slab-fail-list {
+  margin: 0.5rem 0 0.6rem;
+  padding-left: 1.2rem;
+  color: #ff8a72;
+  font-size: 0.85rem;
+  list-style: none;
+}
+.slab-fail-list li { padding: 0.2rem 0; }
+
 /* Stud rail */
 .slab-studrail {
   margin-top: 0.6rem;

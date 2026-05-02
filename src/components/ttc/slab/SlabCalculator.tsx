@@ -3,6 +3,7 @@
 import React, { useMemo, useReducer, useState } from 'react';
 import { analyze } from '@/lib/slab/solver';
 import {
+  BAR_CATALOG,
   CONCRETE_PRESETS,
   REBAR_PRESETS,
   type SlabInput,
@@ -11,6 +12,7 @@ import {
   type ConcreteGrade,
   type RebarGrade,
   type ColumnPosition,
+  type UserRebar,
 } from '@/lib/slab/types';
 import dynamic from 'next/dynamic';
 import { SlabSchematic } from './SlabSchematic';
@@ -31,7 +33,9 @@ type Action =
   | { type: 'SET_MAT'; patch: Partial<SlabInput['materials']> }
   | { type: 'SET_LOAD'; patch: Partial<SlabInput['loads']> }
   | { type: 'TOGGLE_PUNCHING'; on: boolean }
-  | { type: 'SET_PUNCH'; patch: Partial<NonNullable<SlabInput['punching']>> };
+  | { type: 'SET_PUNCH'; patch: Partial<NonNullable<SlabInput['punching']>> }
+  | { type: 'SET_USER_REBAR'; location: UserRebar['location']; bar: string; spacing: number }
+  | { type: 'CLEAR_USER_REBAR'; location: UserRebar['location'] };
 
 function reducer(state: SlabInput, action: Action): SlabInput {
   switch (action.type) {
@@ -57,6 +61,12 @@ function reducer(state: SlabInput, action: Action): SlabInput {
       return state.punching
         ? { ...state, punching: { ...state.punching, ...action.patch } }
         : state;
+    case 'SET_USER_REBAR': {
+      const others = (state.userRebar ?? []).filter((u) => u.location !== action.location);
+      return { ...state, userRebar: [...others, { location: action.location, bar: action.bar, spacing: action.spacing }] };
+    }
+    case 'CLEAR_USER_REBAR':
+      return { ...state, userRebar: (state.userRebar ?? []).filter((u) => u.location !== action.location) };
   }
 }
 
@@ -231,7 +241,7 @@ export function SlabCalculator() {
 
         {tab === 'inputs'  && <InputsTab model={model} dispatch={dispatch} />}
         {tab === 'results' && <MomentsTab result={result} />}
-        {tab === 'rebar'   && <ReinforcementTab result={result} />}
+        {tab === 'rebar'   && <ReinforcementTab result={result} model={model} dispatch={dispatch} />}
         {tab === 'checks'  && <ChecksTab result={result} />}
         {tab === 'refs'    && <CodeRefsTab result={result} />}
       </section>
@@ -456,44 +466,102 @@ function MomentsTab({ result }: { result: ReturnType<typeof analyze> }) {
 // ============================================================================
 // Reinforcement tab
 // ============================================================================
-function ReinforcementTab({ result }: { result: ReturnType<typeof analyze> }) {
+function ReinforcementTab({ result, model, dispatch }:
+  { result: ReturnType<typeof analyze>; model: SlabInput; dispatch: React.Dispatch<Action> }) {
   if (result.reinforcement.length === 0) return <p className="ab-empty">No reinforcement computed.</p>;
+
+  const isACI = model.code === 'ACI 318-19' || model.code === 'ACI 318-25';
+  const barOptions = isACI
+    ? BAR_CATALOG.filter((b) => b.system === 'imperial' && b.db >= 9.5)
+    : BAR_CATALOG.filter((b) => b.system === 'metric'   && b.db >= 8);
+
   return (
     <div>
+      <p className="ab-section__subtitle" style={{ marginBottom: '0.75rem' }}>
+        Toggle a row to <strong>Edit</strong> and override the auto-selected bar/spacing — the
+        solver re-computes As_provided, φMn and demand/capacity ratio. ✓ = compliant; ✗ = NOT
+        compliant (reasons listed in the hand-calc panel below).
+      </p>
       <div className="ab-table-scroll">
         <table className="ab-result-table">
           <thead>
             <tr>
               <th>Location</th><th>Mu (kN·m/m)</th><th>d (mm)</th>
-              <th>As req (mm²/m)</th><th>As min (mm²/m)</th><th>As design (mm²/m)</th>
-              <th>Bar</th><th>Spacing (mm)</th><th>s_max (mm)</th>
+              <th>As req</th><th>As min</th><th>As design</th>
+              <th>Bar</th><th>Spacing (mm)</th>
+              <th>As prov.</th><th>φMn</th><th>Mu/φMn</th><th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {result.reinforcement.map((r) => (
-              <tr key={r.location}>
-                <td data-label="Location" className="ab-label">{labelLoc(r.location)}</td>
-                <td data-label="Mu">{r.Mu.toFixed(3)}</td>
-                <td data-label="d">{r.d.toFixed(0)}</td>
-                <td data-label="As req">{r.As_req.toFixed(0)}</td>
-                <td data-label="As min">{r.As_min.toFixed(0)}</td>
-                <td data-label="As design" className="ab-label">{r.As_design.toFixed(0)}</td>
-                <td data-label="Bar">{r.bar}</td>
-                <td data-label="Spacing">{r.spacing.toFixed(0)}</td>
-                <td data-label="s_max">{r.spacing_max.toFixed(0)}</td>
-              </tr>
-            ))}
+            {result.reinforcement.map((r) => {
+              const userOverride = (model.userRebar ?? []).find((u) => u.location === r.location);
+              return (
+                <tr key={r.location} className={r.ok ? '' : 'slab-row-fail'}>
+                  <td data-label="Location" className="ab-label">{labelLoc(r.location)}</td>
+                  <td data-label="Mu">{r.Mu.toFixed(2)}</td>
+                  <td data-label="d">{r.d.toFixed(0)}</td>
+                  <td data-label="As req">{r.As_req.toFixed(0)}</td>
+                  <td data-label="As min">{r.As_min.toFixed(0)}</td>
+                  <td data-label="As design" className="ab-label">{r.As_design.toFixed(0)}</td>
+                  <td data-label="Bar">
+                    {userOverride ? (
+                      <select value={userOverride.bar}
+                        onChange={(e) => dispatch({ type: 'SET_USER_REBAR', location: r.location, bar: e.target.value, spacing: userOverride.spacing })}>
+                        {barOptions.map((b) => <option key={b.label} value={b.label}>{b.label} (Ab={b.Ab})</option>)}
+                      </select>
+                    ) : <span>{r.bar}</span>}
+                  </td>
+                  <td data-label="Spacing">
+                    {userOverride ? (
+                      <Num val={userOverride.spacing} step={10}
+                        onChange={(v) => dispatch({ type: 'SET_USER_REBAR', location: r.location, bar: userOverride.bar, spacing: v })} />
+                    ) : <span>{r.spacing.toFixed(0)}</span>}
+                  </td>
+                  <td data-label="As prov.">{r.As_provided.toFixed(0)}</td>
+                  <td data-label="φMn">{r.phiMn_provided.toFixed(2)}</td>
+                  <td data-label="Mu/φMn" className={r.utilization > 1 ? 'slab-row__value--bad' : 'slab-row__value--ok'}>
+                    {r.utilization.toFixed(3)}
+                  </td>
+                  <td data-label="Status">
+                    {r.source === 'user' ? (
+                      <button type="button" className="ab-btn ab-btn--danger"
+                        title="Revert to auto"
+                        onClick={() => dispatch({ type: 'CLEAR_USER_REBAR', location: r.location })}>↺ Auto</button>
+                    ) : (
+                      <button type="button" className="ab-btn"
+                        title="Override bar / spacing"
+                        onClick={() => dispatch({ type: 'SET_USER_REBAR', location: r.location, bar: r.bar, spacing: r.spacing })}>
+                        ✏️ Edit
+                      </button>
+                    )}
+                    <span className={r.ok ? 'slab-row__value--ok' : 'slab-row__value--bad'} style={{ marginLeft: '0.4rem' }}>
+                      {r.ok ? '✓' : '✗'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
       <div className="slab-handcalcs">
-        <h4>Hand calculations (per location)</h4>
+        <h4>Hand calculations + verification (per location)</h4>
         {result.reinforcement.map((r) => (
-          <details key={r.location} className="slab-handcalc">
+          <details key={r.location} className={`slab-handcalc ${r.ok ? '' : 'slab-handcalc--fail'}`}>
             <summary>
               <span className="ab-label">{labelLoc(r.location)}</span>
-              <span className="slab-handcalc__sub">Mu = {r.Mu.toFixed(2)} kN·m/m → As = {r.As_design.toFixed(0)} mm²/m, {r.bar} @ {r.spacing.toFixed(0)} mm</span>
+              <span className="slab-handcalc__sub">
+                {r.source === 'user' ? '✏️ user-override · ' : ''}
+                Mu = {r.Mu.toFixed(2)} kN·m/m → {r.bar} @ {r.spacing.toFixed(0)} mm,
+                As prov = {r.As_provided.toFixed(0)} mm²/m, φMn = {r.phiMn_provided.toFixed(2)} kN·m/m,
+                util = {r.utilization.toFixed(3)} {r.ok ? ' ✓' : ' ✗'}
+              </span>
             </summary>
+            {r.failures.length > 0 && (
+              <ul className="slab-fail-list">
+                {r.failures.map((f, i) => <li key={i}>⚠ {f}</li>)}
+              </ul>
+            )}
             {r.steps && <Steps steps={r.steps} />}
           </details>
         ))}
@@ -654,7 +722,7 @@ function CodeRefsTab({ result }: { result: ReturnType<typeof analyze> }) {
       ))}
       <div className="slab-card slab-card--validation">
         <h4>Validation</h4>
-        <p>Solver passes <strong>74/74</strong> unit tests against ACI 318-19, ACI 318-25 and EN 1992-1-1, including:</p>
+        <p>Solver passes <strong>90/90</strong> unit tests against ACI 318-19, ACI 318-25 and EN 1992-1-1, including:</p>
         <ul>
           <li>Closed-form one-way moments (SS, fixed-fixed)</li>
           <li>PCA Notes Method 3 coefficient lookup (Cases 1–9)</li>
