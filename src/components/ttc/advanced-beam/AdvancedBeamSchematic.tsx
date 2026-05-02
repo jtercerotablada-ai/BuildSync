@@ -136,7 +136,7 @@ export function AdvancedBeamSchematic({ model, deflection, showDeformed = false,
             <g key={h.id}>
               <circle cx={cx} cy={cy} r="6" fill="#0a0a0a" stroke="#c9a84c" strokeWidth="2" />
               <text x={cx} y={cy - 14} textAnchor="middle" fill="#c9a84c"
-                fontSize="11" fontFamily="var(--font-inter), sans-serif">hinge</text>
+                className="ab-svg-small">hinge</text>
             </g>
           );
         })}
@@ -158,7 +158,7 @@ export function AdvancedBeamSchematic({ model, deflection, showDeformed = false,
         <line x1={margin} y1="291" x2={margin} y2="299" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
         <line x1={W - margin} y1="291" x2={W - margin} y2="299" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
         <text x={W / 2} y="312" textAnchor="middle" fill="rgba(255,255,255,0.6)"
-          fontSize="12" fontFamily="var(--font-inter), sans-serif">
+          className="ab-svg-dim">
           {`L = ${L.toFixed(2)} m`}
         </text>
       </svg>
@@ -177,7 +177,7 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
           <line x1={cx - 22} y1={cy + 38} x2={cx + 22} y2={cy + 38} stroke={gold} strokeWidth="2" />
           <rect x={cx - 22} y={cy + 38} width="44" height="6" fill="url(#ab-hatch)" />
           <text x={cx} y={cy + 62} textAnchor="middle" fill="#c9a84c"
-            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
+            className="ab-svg-label">{label}</text>
         </g>
       );
     }
@@ -189,7 +189,7 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
           <line x1={cx - 22} y1={cy + 28} x2={cx + 22} y2={cy + 28} stroke={gold} strokeWidth="2" />
           <rect x={cx - 22} y={cy + 28} width="44" height="6" fill="url(#ab-hatch)" />
           <text x={cx} y={cy + 52} textAnchor="middle" fill="#c9a84c"
-            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
+            className="ab-svg-label">{label}</text>
         </g>
       );
     }
@@ -199,7 +199,7 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
           <rect x={cx - 4} y={cy - 28} width="8" height="56" fill={gold} />
           <rect x={cx + 4} y={cy - 32} width="14" height="64" fill="url(#ab-hatch)" />
           <text x={cx} y={cy + 54} textAnchor="middle" fill="#c9a84c"
-            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
+            className="ab-svg-label">{label}</text>
         </g>
       );
     }
@@ -211,7 +211,7 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
           <line x1={cx - 22} y1={cy + 50} x2={cx + 22} y2={cy + 50} stroke={gold} strokeWidth="2" />
           <rect x={cx - 22} y={cy + 50} width="44" height="6" fill="url(#ab-hatch)" />
           <text x={cx} y={cy + 74} textAnchor="middle" fill="#c9a84c"
-            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
+            className="ab-svg-label">{label}</text>
         </g>
       );
     }
@@ -220,7 +220,7 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
       return (
         <g>
           <text x={cx} y={cy + 24} textAnchor="middle" fill="#c9a84c"
-            fontSize="14" fontWeight="700" fontFamily="var(--font-inter), sans-serif">{label}</text>
+            className="ab-svg-label">{label}</text>
         </g>
       );
   }
@@ -271,7 +271,7 @@ function LoadSymbol({
           fill={color}
         />
         <text x={cx + 8} y={isDown ? baseY - 4 : baseY + 14} fill={color}
-          fontSize="12" fontFamily="var(--font-inter), sans-serif" fontWeight="600">
+          className="ab-svg-load">
           {`${load.magnitude} kN`}
         </text>
       </g>
@@ -323,7 +323,7 @@ function LoadSymbol({
         <polyline points={topPts.join(' ')} fill="none" stroke={color} strokeWidth="1.6" opacity="0.9" />
         {arrows}
         <text x={(x1 + x2) / 2} y={labelY} textAnchor="middle" fill={color}
-          fontSize="11" fontFamily="var(--font-inter), sans-serif" fontWeight="600">
+          className="ab-svg-load">
           {load.startMagnitude === load.endMagnitude
             ? `${load.startMagnitude} kN/m`
             : `${load.startMagnitude}→${load.endMagnitude} kN/m`}
@@ -354,7 +354,7 @@ function LoadSymbol({
           fill={color}
         />
         <text x={cx} y={cy - 24} textAnchor="middle" fill={color}
-          fontSize="12" fontFamily="var(--font-inter), sans-serif" fontWeight="600">
+          className="ab-svg-load">
           {`${load.magnitude} kN·m`}
         </text>
       </g>
@@ -366,7 +366,7 @@ function LoadSymbol({
     return (
       <g>
         <text x={cx} y={cy} textAnchor="middle" fill={color}
-          fontSize="11" fontFamily="var(--font-inter), sans-serif" fontWeight="600">
+          className="ab-svg-load">
           {`Δ T = ${load.deltaTGradient}°C`}
         </text>
       </g>

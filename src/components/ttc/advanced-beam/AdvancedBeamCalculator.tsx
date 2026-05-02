@@ -455,14 +455,14 @@ function SegmentsTab({ model, dispatch }: TabProps) {
             </tr>
           </thead>
           <tbody>
-            {model.segments.map((s) => (
+            {model.segments.map((s, idx) => (
               <tr key={s.id}>
-                <td className="ab-mono">{s.id.slice(0, 9)}</td>
-                <td><Num val={s.startPosition} step={0.1}
+                <td data-label="Segment" className="ab-mono">#{idx + 1}</td>
+                <td data-label="Start (m)"><Num val={s.startPosition} step={0.1}
                   onChange={(v) => dispatch({ type: 'UPDATE_SEGMENT', id: s.id, patch: { startPosition: v } })} /></td>
-                <td><Num val={s.endPosition} step={0.1}
+                <td data-label="End (m)"><Num val={s.endPosition} step={0.1}
                   onChange={(v) => dispatch({ type: 'UPDATE_SEGMENT', id: s.id, patch: { endPosition: v } })} /></td>
-                <td>
+                <td data-label="Material">
                   <select value={s.material ?? 'custom'}
                     onChange={(e) => dispatch({ type: 'APPLY_MATERIAL_TO_SEGMENT', id: s.id, material: e.target.value as MaterialPreset })}>
                     <option value="custom">Custom</option>
@@ -471,17 +471,17 @@ function SegmentsTab({ model, dispatch }: TabProps) {
                     ))}
                   </select>
                 </td>
-                <td><Num val={s.E} step={1000}
+                <td data-label="E (MPa)"><Num val={s.E} step={1000}
                   onChange={(v) => dispatch({ type: 'UPDATE_SEGMENT', id: s.id, patch: { E: v, material: 'custom' } })} /></td>
-                <td><Num val={s.I} step={1e6} sci
+                <td data-label="I (mm⁴)"><Num val={s.I} step={1e6} sci
                   onChange={(v) => dispatch({ type: 'UPDATE_SEGMENT', id: s.id, patch: { I: v } })} /></td>
-                <td><Num val={s.A ?? 0} step={100}
+                <td data-label="A (mm²)"><Num val={s.A ?? 0} step={100}
                   onChange={(v) => dispatch({ type: 'UPDATE_SEGMENT', id: s.id, patch: { A: v || undefined } })} /></td>
-                <td><Num val={s.h ?? 0} step={10}
+                <td data-label="h (mm)"><Num val={s.h ?? 0} step={10}
                   onChange={(v) => dispatch({ type: 'UPDATE_SEGMENT', id: s.id, patch: { h: v || undefined } })} /></td>
-                <td><Num val={s.alpha ?? 1.2e-5} step={1e-6} sci
+                <td data-label="α (1/°C)"><Num val={s.alpha ?? 1.2e-5} step={1e-6} sci
                   onChange={(v) => dispatch({ type: 'UPDATE_SEGMENT', id: s.id, patch: { alpha: v } })} /></td>
-                <td><input type="checkbox" checked={!!s.selfWeight}
+                <td data-label="Self weight"><input type="checkbox" checked={!!s.selfWeight}
                   onChange={(e) => dispatch({ type: 'UPDATE_SEGMENT', id: s.id, patch: { selfWeight: e.target.checked } })} /></td>
                 <td>
                   <button type="button" className="ab-btn ab-btn--danger" onClick={() => dispatch({ type: 'REMOVE_SEGMENT', id: s.id })}>×</button>
@@ -516,10 +516,10 @@ function SupportsTab({ model, dispatch, labels }: TabProps & { labels: Record<st
           <tbody>
             {model.supports.map((s) => (
               <tr key={s.id}>
-                <td className="ab-label">{labels[s.id] ?? s.id.slice(0, 4)}</td>
-                <td><Num val={s.position} step={0.1}
+                <td data-label="Label" className="ab-label">{labels[s.id] ?? s.id.slice(0, 4)}</td>
+                <td data-label="Position (m)"><Num val={s.position} step={0.1}
                   onChange={(v) => dispatch({ type: 'UPDATE_SUPPORT', id: s.id, patch: { position: v } })} /></td>
-                <td>
+                <td data-label="Type">
                   <select value={s.type}
                     onChange={(e) => dispatch({ type: 'UPDATE_SUPPORT', id: s.id, patch: { type: e.target.value as SupportType } })}>
                     <option value="pin">Pin</option>
@@ -529,19 +529,19 @@ function SupportsTab({ model, dispatch, labels }: TabProps & { labels: Record<st
                     <option value="free">Free</option>
                   </select>
                 </td>
-                <td>{s.type === 'spring' ?
+                <td data-label="k_v (kN/m)">{s.type === 'spring' ?
                   <Num val={s.kv ?? 0} step={100}
                     onChange={(v) => dispatch({ type: 'UPDATE_SUPPORT', id: s.id, patch: { kv: v || undefined } })} />
                   : <span className="ab-na">—</span>}
                 </td>
-                <td>{s.type === 'spring' ?
+                <td data-label="k_r (kN·m/rad)">{s.type === 'spring' ?
                   <Num val={s.kr ?? 0} step={100}
                     onChange={(v) => dispatch({ type: 'UPDATE_SUPPORT', id: s.id, patch: { kr: v || undefined } })} />
                   : <span className="ab-na">—</span>}
                 </td>
-                <td><Num val={s.settlement ?? 0} step={1}
+                <td data-label="Settle (mm)"><Num val={s.settlement ?? 0} step={1}
                   onChange={(v) => dispatch({ type: 'UPDATE_SUPPORT', id: s.id, patch: { settlement: v || undefined } })} /></td>
-                <td>{(s.type === 'fixed' || s.type === 'spring') ?
+                <td data-label="Rotation (rad)">{(s.type === 'fixed' || s.type === 'spring') ?
                   <Num val={s.rotation ?? 0} step={1e-3} sci
                     onChange={(v) => dispatch({ type: 'UPDATE_SUPPORT', id: s.id, patch: { rotation: v || undefined } })} />
                   : <span className="ab-na">—</span>}
@@ -572,8 +572,8 @@ function HingesTab({ model, dispatch, labels }: TabProps & { labels: Record<stri
             <tbody>
               {model.hinges.map((h) => (
                 <tr key={h.id}>
-                  <td className="ab-label">{labels[h.id] ?? h.id.slice(0, 4)}</td>
-                  <td><Num val={h.position} step={0.1}
+                  <td data-label="Label" className="ab-label">{labels[h.id] ?? h.id.slice(0, 4)}</td>
+                  <td data-label="Position (m)"><Num val={h.position} step={0.1}
                     onChange={(v) => dispatch({ type: 'UPDATE_HINGE', id: h.id, patch: { position: v } })} /></td>
                   <td><button type="button" className="ab-btn ab-btn--danger" onClick={() => dispatch({ type: 'REMOVE_HINGE', id: h.id })}>×</button></td>
                 </tr>
@@ -604,11 +604,11 @@ function LoadsTab({ model, dispatch }: TabProps) {
               <tr><th>ID</th><th>Type</th><th>Position / range (m)</th><th>Magnitude</th><th>Dir / Case</th><th></th></tr>
             </thead>
             <tbody>
-              {model.loads.map((ld) => (
+              {model.loads.map((ld, idx) => (
                 <tr key={ld.id}>
-                  <td className="ab-mono">{ld.id.slice(0, 9)}</td>
-                  <td>{ld.type === 'point' ? 'Point (kN)' : ld.type === 'distributed' ? 'Distributed (kN/m)' : ld.type === 'moment' ? 'Moment (kN·m)' : 'Thermal (°C)'}</td>
-                  <td>
+                  <td data-label="Load" className="ab-mono">#{idx + 1}</td>
+                  <td data-label="Type">{ld.type === 'point' ? 'Point (kN)' : ld.type === 'distributed' ? 'Distributed (kN/m)' : ld.type === 'moment' ? 'Moment (kN·m)' : 'Thermal (°C)'}</td>
+                  <td data-label="Position / range (m)">
                     {ld.type === 'point' || ld.type === 'moment' ? (
                       <Num val={ld.position} step={0.1}
                         onChange={(v) => dispatch({ type: 'UPDATE_LOAD', id: ld.id, patch: { position: v } as Partial<Load> })} />
@@ -629,7 +629,7 @@ function LoadsTab({ model, dispatch }: TabProps) {
                       </select>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Magnitude">
                     {ld.type === 'point' || ld.type === 'moment' ? (
                       <Num val={ld.magnitude} step={1}
                         onChange={(v) => dispatch({ type: 'UPDATE_LOAD', id: ld.id, patch: { magnitude: v } as Partial<Load> })} />
@@ -646,7 +646,7 @@ function LoadsTab({ model, dispatch }: TabProps) {
                         onChange={(v) => dispatch({ type: 'UPDATE_LOAD', id: ld.id, patch: { deltaTGradient: v } as Partial<Load> })} />
                     )}
                   </td>
-                  <td>
+                  <td data-label="Direction">
                     {ld.type === 'point' || ld.type === 'distributed' ? (
                       <select value={ld.direction}
                         onChange={(e) => dispatch({ type: 'UPDATE_LOAD', id: ld.id, patch: { direction: e.target.value as 'down' | 'up' } as Partial<Load> })}>
