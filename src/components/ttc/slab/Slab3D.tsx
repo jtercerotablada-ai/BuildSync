@@ -117,7 +117,7 @@ export function Slab3D({ result, input }: Props) {
               showDeformed={showDeformed} exaggeration={exaggeration} cutaway={cutaway} />
           </Suspense>
 
-          {showRebar && <RebarLayout result={result} />}
+          {showRebar && <RebarLayout result={result} input={input} />}
 
           {result.punching && input.punching && (
             <ColumnAssembly result={result} input={input} cutaway={cutaway} />
@@ -353,7 +353,7 @@ function Rebar({ start, end, db, color, hookEnds = 'none', hookLen }:
   );
 }
 
-function RebarLayout({ result }: { result: SlabAnalysis }) {
+function RebarLayout({ result, input }: { result: SlabAnalysis; input: SlabInput }) {
   const Lx = result.geometry.Lx;
   const Ly = result.geometry.Ly;
   const h = result.geometry.h / 1000;
@@ -443,6 +443,59 @@ function RebarLayout({ result }: { result: SlabAnalysis }) {
     }
   }
 
+  // ── TOP REINFORCEMENT OVER COLUMN (concentrated, both directions) ──
+  // Per ACI §8.7.2.3 / §8.10.5: at slab-column joint, concentrate column-strip
+  // negative moment reinforcement in a strip of width c + 2·1.5h on each side.
+  // Use the SAME bar size and TIGHTER spacing (~ s/2) of the supX/supY layout
+  // so the concentration is visually obvious.
+  if (input.punching && (midX || supX) && (midY || supY)) {
+    const inp = input.punching;
+    const c1 = inp.c1 / 1000;
+    const c2 = (inp.c2 ?? inp.c1) / 1000;
+    let cx = Lx / 2, cz = Ly / 2;
+    if (inp.position === 'edge')   cz = 0;
+    if (inp.position === 'corner') { cx = 0; cz = 0; }
+
+    // Strip width per direction: column dim + 2 · 1.5h, capped to panel
+    const stripX = Math.min(c1 + 2 * 1.5 * h, Lx);     // along x (top bars run x)
+    const stripY = Math.min(c2 + 2 * 1.5 * h, Ly);     // along y (top bars run y)
+
+    // Use the support spacing if defined, else half of mid spacing for concentration
+    const refSupX = supX ?? midX;
+    const refSupY = supY ?? midY;
+    const db_cx = (refSupX ? dbOf(refSupX.bar) : 16) / 1000;
+    const db_cy = (refSupY ? dbOf(refSupY.bar) : 16) / 1000;
+    const sp_cx = (refSupX ? refSupX.spacing : 150) / 1000;
+    const sp_cy = (refSupY ? refSupY.spacing : 150) / 1000;
+    const yPosX = -topCoverY_x - db_cx / 2;
+    const yPosY = -topCoverY_y - db_cy / 2 - db_cx - 0.002;
+
+    // Top-x over column (run in x direction, spaced in z near column)
+    const z0 = Math.max(0, cz - stripY / 2);
+    const z1 = Math.min(Ly, cz + stripY / 2);
+    let n = 0;
+    for (let z = z0 + sp_cx / 2; z < z1 && n < 40; z += sp_cx, n++) {
+      bars.push(
+        <Rebar key={`colTopX-${z.toFixed(3)}`}
+          start={[0.04, yPosX, z]} end={[Lx - 0.04, yPosX, z]}
+          db={db_cx} color="#e0c060"
+          hookEnds="both" hookLen={Math.max(12 * db_cx, h * 0.6)} />,
+      );
+    }
+    // Top-y over column (run in y direction, spaced in x near column)
+    const x0 = Math.max(0, cx - stripX / 2);
+    const x1 = Math.min(Lx, cx + stripX / 2);
+    n = 0;
+    for (let x = x0 + sp_cy / 2; x < x1 && n < 40; x += sp_cy, n++) {
+      bars.push(
+        <Rebar key={`colTopY-${x.toFixed(3)}`}
+          start={[x, yPosY, 0.04]} end={[x, yPosY, Ly - 0.04]}
+          db={db_cy} color="#5fb674"
+          hookEnds="both" hookLen={Math.max(12 * db_cy, h * 0.6)} />,
+      );
+    }
+  }
+
   return <group>{bars}</group>;
 }
 
@@ -489,7 +542,7 @@ function ColumnAssembly({ result, input, cutaway }: { result: SlabAnalysis; inpu
           c1={c1} c2={c2} />
       )}
       {inp.Vu > 0 && (
-        <ForceArrow x={cx} y={Math.max(Lx, Ly) * 0.45} z={cz} Vu={inp.Vu} />
+        <ForceArrow x={cx} y={Math.max(Lx, Ly) * 0.42} z={cz} Vu={inp.Vu} h={h} />
       )}
     </group>
   );
@@ -534,21 +587,54 @@ function StudRails({ cx, cz, h, numRails, rows, spacing, studDb, c1, c2 }:
   return <group>{items}</group>;
 }
 
-function ForceArrow({ x, y, z, Vu }: { x: number; y: number; z: number; Vu: number }) {
+function ForceArrow({ x, y, z, Vu, h }:
+  { x: number; y: number; z: number; Vu: number; h: number }) {
+  // Anchored: tip just above the slab top, shaft extending up by 'y' units.
+  // Proportions: shaft = thin tube, head = wider cone (~3× shaft radius).
+  const shaftR = 0.022;
+  const headR = 0.085;
+  const headLen = 0.22;
+  const shaftLen = Math.max(0.4, y - headLen);
+  const tipY = 0.005;             // 5 mm above slab top
   return (
     <group position={[x, 0, z]}>
-      <mesh position={[0, y / 2, 0]} castShadow>
-        <cylinderGeometry args={[0.022, 0.022, y, 14]} />
-        <meshStandardMaterial color="#e84c4c" emissive="#5a1e1e" emissiveIntensity={0.45} />
+      {/* Glowing arrow shaft (cylinder) */}
+      <mesh position={[0, tipY + headLen + shaftLen / 2, 0]} castShadow>
+        <cylinderGeometry args={[shaftR, shaftR, shaftLen, 16]} />
+        <meshStandardMaterial color="#ff5050" emissive="#a02020" emissiveIntensity={0.6}
+          roughness={0.35} metalness={0.2} />
       </mesh>
-      <mesh position={[0, 0.07, 0]} rotation={[Math.PI, 0, 0]} castShadow>
-        <coneGeometry args={[0.075, 0.18, 16]} />
-        <meshStandardMaterial color="#e84c4c" emissive="#5a1e1e" emissiveIntensity={0.45} />
+      {/* Cone head pointing DOWN at the slab/column */}
+      <mesh position={[0, tipY + headLen / 2, 0]} rotation={[Math.PI, 0, 0]} castShadow>
+        <coneGeometry args={[headR, headLen, 24]} />
+        <meshStandardMaterial color="#ff5050" emissive="#c02020" emissiveIntensity={0.65}
+          roughness={0.3} metalness={0.25} />
       </mesh>
-      <Text position={[0, y, 0]} fontSize={0.22} color="#ff8a72" anchorX="center"
-        outlineWidth={0.005} outlineColor="#000">
-        {`Vu = ${Vu} kN`}
+      {/* Bright disc at the tip (where the load 'enters' the slab) */}
+      <mesh position={[0, tipY - 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <ringGeometry args={[headR * 0.6, headR * 1.2, 32]} />
+        <meshStandardMaterial color="#ff7a3a" emissive="#ff4422" emissiveIntensity={0.8}
+          side={THREE.DoubleSide} transparent opacity={0.85} />
+      </mesh>
+      {/* Label with high-contrast outline */}
+      <Text position={[headR + 0.05, tipY + headLen + shaftLen + 0.08, 0]}
+        fontSize={0.26} color="#ffd6c8" anchorX="left" anchorY="middle"
+        outlineWidth={0.012} outlineColor="#1a0b07"
+        material-toneMapped={false}>
+        {`Vu = ${Vu.toFixed(0)} kN`}
       </Text>
+      {/* Sub-label */}
+      <Text position={[headR + 0.05, tipY + headLen + shaftLen + 0.06 - 0.16, 0]}
+        fontSize={0.13} color="#ff8a72" anchorX="left" anchorY="middle"
+        outlineWidth={0.007} outlineColor="#1a0b07"
+        material-toneMapped={false}>
+        column reaction
+      </Text>
+      {/* Subtle vertical 'load shadow' below the arrow (a thin glow line continuing under) */}
+      <mesh position={[0, -h - 0.05, 0]}>
+        <cylinderGeometry args={[shaftR * 0.5, shaftR * 0.5, h * 0.3, 12]} />
+        <meshBasicMaterial color="#a02020" transparent opacity={0.35} />
+      </mesh>
     </group>
   );
 }
