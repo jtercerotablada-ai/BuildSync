@@ -15,8 +15,8 @@ import {
   type UserRebar,
 } from '@/lib/slab/types';
 import dynamic from 'next/dynamic';
-import { SlabSchematic } from './SlabSchematic';
 import { SlabContour } from './SlabContour';
+import { SlabPrintReport } from './SlabPrintReport';
 const Slab3D = dynamic(() => import('./Slab3D').then((m) => m.Slab3D), {
   ssr: false,
   loading: () => <p className="ab-empty">Loading 3D viewer…</p>,
@@ -157,6 +157,9 @@ export function SlabCalculator() {
 
   return (
     <div className="ab-root">
+      {/* Print-only report (hidden on screen). Triggered by window.print(). */}
+      <SlabPrintReport input={model} result={result} />
+
       {/* Templates */}
       <section className="ab-section">
         <header className="ab-section__header">
@@ -254,25 +257,18 @@ export function SlabCalculator() {
 // ============================================================================
 function SlabViews({ input, result }:
   { input: SlabInput; result: ReturnType<typeof analyze> }) {
-  const [mode, setMode] = useState<'2d' | '3d'>('3d');
   return (
     <section className="ab-section">
-      <header className="ab-section__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h3>{mode === '3d' ? 'Live 3D model' : 'Plan view (2D)'}</h3>
-          <p className="ab-section__subtitle">{mode === '3d'
-            ? 'Drag to rotate · scroll to zoom · choose what to color the slab by'
-            : 'Top-down schematic with edge symbols and column position'}</p>
-        </div>
-        <div className="slab-contour__tabs">
-          <button type="button" className={`slab-contour__tab ${mode === '2d' ? 'slab-contour__tab--active' : ''}`}
-            onClick={() => setMode('2d')}>2D plan</button>
-          <button type="button" className={`slab-contour__tab ${mode === '3d' ? 'slab-contour__tab--active' : ''}`}
-            onClick={() => setMode('3d')}>3D model</button>
-        </div>
+      <header className="ab-section__header">
+        <h3>Live 3D model</h3>
+        <p className="ab-section__subtitle">
+          Drag to rotate · scroll to zoom · right-click drag to pan · choose what to color the slab by · toggle deformed shape
+        </p>
       </header>
       <div className="ab-schematic-wrap" style={{ padding: 0, border: 'none', background: 'transparent' }}>
-        {mode === '2d' ? <SlabSchematic input={input} /> : (result.solved ? <Slab3D result={result} input={input} /> : <p className="ab-empty">3D model awaits a solved analysis.</p>)}
+        {result.solved
+          ? <Slab3D result={result} input={input} />
+          : <p className="ab-empty">3D model awaits a solved analysis.</p>}
       </div>
     </section>
   );
@@ -292,9 +288,9 @@ function InputsTab({ model, dispatch }:
             onChange={(v) => dispatch({ type: 'SET_GEOM', patch: { Ly: v } })} /></Field>
           <Field label="Slab thickness h (mm)"><Num val={model.geometry.h} step={5}
             onChange={(v) => dispatch({ type: 'SET_GEOM', patch: { h: v } })} /></Field>
-          <Field label="Cover bottom-x (mm)"><Num val={model.geometry.cover_bottom_x ?? 25} step={5}
+          <Field label="Cover bottom (x-dir, mm)"><Num val={model.geometry.cover_bottom_x ?? 25} step={5}
             onChange={(v) => dispatch({ type: 'SET_GEOM', patch: { cover_bottom_x: v } })} /></Field>
-          <Field label="Cover bottom-y (mm)"><Num val={model.geometry.cover_bottom_y ?? 35} step={5}
+          <Field label="Cover bottom (y-dir, mm)"><Num val={model.geometry.cover_bottom_y ?? 35} step={5}
             onChange={(v) => dispatch({ type: 'SET_GEOM', patch: { cover_bottom_y: v } })} /></Field>
         </div>
       </div>
@@ -509,7 +505,7 @@ function ReinforcementTab({ result, model, dispatch }:
     <div>
       <p className="ab-section__subtitle" style={{ marginBottom: '0.75rem' }}>
         Toggle a row to <strong>Edit</strong> and override the auto-selected bar/spacing — the
-        solver re-computes As_provided, φMn and demand/capacity ratio. ✓ = compliant; ✗ = NOT
+        solver re-computes As provided, φMn and demand/capacity ratio. ✓ = compliant; ✗ = NOT
         compliant (reasons listed in the hand-calc panel below).
       </p>
       <div className="ab-table-scroll">
@@ -608,7 +604,7 @@ function ChecksTab({ result }: { result: ReturnType<typeof analyze> }) {
     <div className="slab-checks-grid">
       <div className="slab-card">
         <h4>Deflection</h4>
-        <Row label="Min thickness h_min" value={`${result.deflection.h_min.toFixed(0)} mm`}
+        <Row label="Minimum thickness h min" value={`${result.deflection.h_min.toFixed(0)} mm`}
           ok={result.deflection.h_min_ok} />
         {result.deflection.spanDepth !== undefined && (
           <Row label="L/d ratio (EN §7.4.2)" value={`${result.deflection.spanDepth.toFixed(1)} ≤ ${result.deflection.spanDepthLimit?.toFixed(1)}`}
@@ -687,7 +683,7 @@ function ChecksTab({ result }: { result: ReturnType<typeof analyze> }) {
           <>
             <Row label="Service stress fs (≈ 2/3·fy)" value={`${result.crackControl.fs.toFixed(0)} MPa`} />
             <Row label="Spacing used" value={`${result.crackControl.s.toFixed(0)} mm`} />
-            <Row label="Max spacing s_max" value={`${result.crackControl.s_max.toFixed(0)} mm`}
+            <Row label="Max spacing s max" value={`${result.crackControl.s_max.toFixed(0)} mm`}
               ok={result.crackControl.s <= result.crackControl.s_max} />
             {result.crackControl.wk !== undefined && (
               <Row label="Crack width wk (EN §7.3.4)" value={`${result.crackControl.wk.toFixed(3)} mm  ≤  ${result.crackControl.wk_limit?.toFixed(2)} mm`}

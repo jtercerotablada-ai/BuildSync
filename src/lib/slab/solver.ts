@@ -451,7 +451,7 @@ function designOneRebarLayer(
   if (As_provided + 1e-3 < As_design)
     failures.push(`As_provided (${As_provided.toFixed(0)}) < As_design (${As_design.toFixed(0)}) mm²/m`);
   if (chosenSpacing > s_max + 1e-3)
-    failures.push(`spacing (${chosenSpacing.toFixed(0)}) > s_max (${s_max.toFixed(0)}) mm`);
+    failures.push(`spacing (${chosenSpacing.toFixed(0)}) > s max (${s_max.toFixed(0)}) mm`);
   if (chosenSpacing < 50)
     failures.push(`spacing (${chosenSpacing.toFixed(0)}) < 50 mm minimum (rebar congestion)`);
   if (utilization > 1.0 + 1e-3)
@@ -478,7 +478,7 @@ function designOneRebarLayer(
       substitution: isACI(code)
         ? `φ=0.9, fy=${fy}, fc=${fc}, b=1000, d=${d.toFixed(0)} mm`
         : `fyd=${fyd.toFixed(0)} MPa, fcd=${fcd.toFixed(2)} MPa, γs=1.15, γc=1.5`,
-      result: `As_req = ${As_req.toFixed(0)} mm²/m`,
+      result: `As req = ${As_req.toFixed(0)} mm²/m`,
       ref: isACI(code) ? aciClause(code, '22.2.2') : 'EN 1992-1-1 §6.1',
     },
     {
@@ -489,20 +489,20 @@ function designOneRebarLayer(
       substitution: isACI(code)
         ? `ρ_min = max(0.0018·420/${fy}, 0.0014) = ${(Math.max(0.0018 * 420 / Math.max(fy, 420), 0.0014)).toFixed(5)}`
         : `fctm = 0.30·${fc}^(2/3) = ${(0.30 * Math.pow(fc, 2 / 3)).toFixed(2)} MPa,  ratio = ${(Math.max(0.26 * 0.30 * Math.pow(fc, 2 / 3) / fy, 0.0013)).toFixed(5)}`,
-      result: `As_min = ${As_min.toFixed(0)} mm²/m`,
+      result: `As min = ${As_min.toFixed(0)} mm²/m`,
       ref: refMin,
     },
     {
       title: 'Design As',
-      formula: 'As_design = max(As_req, As_min)',
+      formula: 'As design = max(As req, As min)',
       substitution: `max(${As_req.toFixed(0)}, ${As_min.toFixed(0)})`,
-      result: `As_design = ${As_design.toFixed(0)} mm²/m`,
+      result: `As design = ${As_design.toFixed(0)} mm²/m`,
     },
     {
       title: source === 'user' ? 'Bar selection (USER OVERRIDE)' : 'Bar selection',
-      formula: 's = Ab · b / As_provided',
+      formula: 's = Ab · b / As provided',
       substitution: `${chosenBar.label} (Ab = ${chosenBar.Ab} mm²),  s = ${chosenSpacing.toFixed(0)} mm c/c  ${source === 'user' ? '(user-specified)' : '(auto)'}`,
-      result: `${chosenBar.label} @ ${chosenSpacing.toFixed(0)} mm c/c  →  As_provided = ${As_provided.toFixed(0)} mm²/m`,
+      result: `${chosenBar.label} @ ${chosenSpacing.toFixed(0)} mm c/c  →  As prov = ${As_provided.toFixed(0)} mm²/m`,
       ref: isACI(code) ? aciClause(code, '7.7.2.3') : 'EN 1992-1-1 §9.3.1.1(3)',
     },
     {
@@ -670,12 +670,12 @@ function checkDeflection(
   const delta_longterm = delta_creep + delta_immediate_LL;     // total visible deflection
 
   const steps: import('./types').CalcStep[] = [
-    { title: 'Min thickness h_min',
+    { title: 'Minimum thickness h min',
       formula: isACI(code)
         ? 'h_min = L / factor  (Table 7.3.1.1 / 8.3.1.1)'
         : 'h_min = L / (basic L/d ratio)  (§7.4.2)',
       substitution: `L = ${L.toFixed(0)} mm,  factor = ${(L / h_min).toFixed(0)}`,
-      result: `h_min = ${h_min.toFixed(0)} mm  (provided ${g.h} → ${g.h >= h_min ? 'OK' : 'FAIL'})`,
+      result: `h min = ${h_min.toFixed(0)} mm  (provided ${g.h} → ${g.h >= h_min ? 'OK' : 'FAIL'})`,
       ref: isACI(code) ? `${aciLabel(code)} Table 7.3.1.1 / 8.3.1.1` : 'EN 1992-1-1 §7.4.2',
     },
     { title: 'Modulus of rupture / Mcr',
@@ -701,7 +701,7 @@ function checkDeflection(
       result: `Δi (D+L) = ${delta_immediate.toFixed(2)} mm   |   Δi (LL only) = ${delta_immediate_LL.toFixed(2)} mm`,
     },
     { title: 'Long-term creep+shrinkage (sustained loads)',
-      formula: 'λΔ = ξ/(1+50ρ′);  Δlt_creep = λΔ · Δi(sustained);  sustained = D + ψ·LL',
+      formula: 'λΔ = ξ/(1+50ρ′);  Δlt creep = λΔ · Δi(sustained);  sustained = D + ψ·LL',
       substitution: `period = ${periodMonths} mo → ξ = ${xi.toFixed(2)}, ρ′ = 0 → λΔ = ${lambdaDelta.toFixed(2)};  ψ = ${psi}`,
       result: `Δcreep = ${delta_creep.toFixed(2)} mm`,
       ref: aciClause(code, '24.2.4') + ' (Tabla 24.2.4.1.3)',
@@ -798,10 +798,10 @@ function checkPunching(
         substitution: `b₀ = 2(${c1}+${d.toFixed(0)}) + 2(${c2}+${d.toFixed(0)}) = ${bo.toFixed(0)} mm`,
         result: `b₀ = ${bo.toFixed(0)} mm`,
         ref: 'ACI §22.6.4.1' },
-      { title: 'Concrete shear capacity v_c',
-        formula: 'v_c = min(0.33·λs·√fc, (0.17 + 0.33/β)·λs·√fc, (αs·d/b₀/12 + 0.17)·λs·√fc)',
+      { title: 'Concrete shear capacity vc',
+        formula: 'vc = min(0.33·λs·√fc, (0.17 + 0.33/β)·λs·√fc, (αs·d/b₀/12 + 0.17)·λs·√fc)',
         substitution: `min(${v1.toFixed(3)}, ${v2.toFixed(3)}, ${v3.toFixed(3)}) MPa  (β=${beta_col.toFixed(2)}, αs=${alpha_s})`,
-        result: `v_c = ${vc.toFixed(3)} MPa`,
+        result: `vc = ${vc.toFixed(3)} MPa`,
         ref: aciClause(code, '22.6.5.2') },
     ];
   } else {
@@ -818,10 +818,10 @@ function checkPunching(
         substitution: `u₁ = 2(${c1}+${(4 * d).toFixed(0)}) + 2(${c2}+${(4 * d).toFixed(0)}) = ${bo.toFixed(0)} mm`,
         result: `u₁ = ${bo.toFixed(0)} mm`,
         ref: 'EN 1992-1-1 §6.4.2' },
-      { title: 'Punching capacity v_Rd,c',
-        formula: 'v_Rd,c = max(C_Rd,c · k · (100·ρl·fck)^(1/3), v_min)',
+      { title: 'Punching capacity vRd,c',
+        formula: 'vRd,c = max(CRd,c · k · (100·ρl·fck)^(1/3), vmin)',
         substitution: `k = 1+√(200/${d.toFixed(0)}) = ${k.toFixed(3)},  ρl = ${(rho_l * 100).toFixed(2)}%`,
-        result: `v_Rd,c = ${vc.toFixed(3)} MPa`,
+        result: `vRd,c = ${vc.toFixed(3)} MPa`,
         ref: 'EN 1992-1-1 §6.4.4(1)' },
     ];
   }
@@ -859,13 +859,13 @@ function checkPunching(
 
   const steps: import('./types').CalcStep[] = [
     ...stepsExtra,
-    { title: 'Demand stress v_u',
-      formula: 'v_u = β · V_u / (b₀ · d)',
-      substitution: `v_u = ${beta_factor.toFixed(2)} · ${(Vu / 1000).toFixed(0)}·1000 / (${bo.toFixed(0)} · ${d.toFixed(0)}) = ${vu.toFixed(3)} MPa`,
-      result: `v_u = ${vu.toFixed(3)} MPa`,
+    { title: 'Demand stress vu',
+      formula: 'vu = β · Vu / (b₀ · d)',
+      substitution: `vu = ${beta_factor.toFixed(2)} · ${(Vu / 1000).toFixed(0)}·1000 / (${bo.toFixed(0)} · ${d.toFixed(0)}) = ${vu.toFixed(3)} MPa`,
+      result: `vu = ${vu.toFixed(3)} MPa`,
     },
     { title: 'Demand / capacity ratio',
-      formula: 'r = v_u / (φ · v_c)',
+      formula: 'r = vu / (φ · vc)',
       substitution: `r = ${vu.toFixed(3)} / (${phi.toFixed(2)} · ${vc.toFixed(3)}) = ${ratio.toFixed(3)}`,
       result: ratio <= 1 ? `OK (r = ${ratio.toFixed(2)})` : `FAIL (r = ${ratio.toFixed(2)}) — add stud rails / drop panel / increase d`,
     },
@@ -945,29 +945,29 @@ function checkCrackControl(
 
   const steps: import('./types').CalcStep[] = isACI(code)
     ? [
-      { title: 'Service stress f_s',
-        formula: 'f_s ≈ (2/3)·f_y',
-        substitution: `f_s ≈ (2/3)·${mat.fy} = ${fs.toFixed(0)} MPa`,
-        result: `f_s = ${fs.toFixed(0)} MPa` },
+      { title: 'Service stress fs',
+        formula: 'fs ≈ (2/3)·fy',
+        substitution: `fs ≈ (2/3)·${mat.fy} = ${fs.toFixed(0)} MPa`,
+        result: `fs = ${fs.toFixed(0)} MPa` },
       { title: 'Max bar spacing',
-        formula: 's_max = min(380·(280/fs) − 2.5·cc,  300·(280/fs))',
-        substitution: `cc ≈ ${(geom.cover_bottom_x ?? 25) - 6} mm,  s_max = min(...) = ${s_max.toFixed(0)} mm`,
-        result: `s_max = ${s_max.toFixed(0)} mm  ${rebar.spacing <= s_max ? 'OK' : 'FAIL'}`,
+        formula: 's max = min(380·(280/fs) − 2.5·cc,  300·(280/fs))',
+        substitution: `cc ≈ ${(geom.cover_bottom_x ?? 25) - 6} mm,  s max = min(...) = ${s_max.toFixed(0)} mm`,
+        result: `s max = ${s_max.toFixed(0)} mm  ${rebar.spacing <= s_max ? 'OK' : 'FAIL'}`,
         ref: aciClause(code, '24.3.2') },
     ]
     : [
-      { title: 'Service stress f_s',
-        formula: 'f_s ≈ (2/3)·f_y',
-        substitution: `f_s = ${fs.toFixed(0)} MPa`,
-        result: `f_s = ${fs.toFixed(0)} MPa` },
+      { title: 'Service stress fs',
+        formula: 'fs ≈ (2/3)·fy',
+        substitution: `fs = ${fs.toFixed(0)} MPa`,
+        result: `fs = ${fs.toFixed(0)} MPa` },
       { title: 'Max bar spacing (Table 7.3N)',
         formula: 'Linear interpolation in Table 7.3N',
-        substitution: `f_s = ${fs.toFixed(0)} MPa`,
-        result: `s_max ≈ ${s_max.toFixed(0)} mm`,
+        substitution: `fs = ${fs.toFixed(0)} MPa`,
+        result: `s max ≈ ${s_max.toFixed(0)} mm`,
         ref: 'EN 1992-1-1 §7.3.3 Table 7.3N' },
       { title: 'Crack width wk',
-        formula: 'wk = sr_max · (εsm − εcm)',
-        substitution: `αe = Es/Ecm,  ρ_eff = As/(b·h_eff)`,
+        formula: 'wk = sr max · (εsm − εcm)',
+        substitution: `αe = Es/Ecm,  ρ eff = As/(b·h eff)`,
         result: wk !== undefined ? `wk = ${wk.toFixed(3)} mm  ≤  ${wk_limit?.toFixed(2)} mm  ${wk_ok ? 'OK' : 'FAIL'}` : '—',
         ref: 'EN 1992-1-1 §7.3.4' },
     ];

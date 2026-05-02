@@ -53,8 +53,8 @@ function getRibNormal(): THREE.Texture | null {
 export function Slab3D({ result, input }: Props) {
   const [field, setField] = useState<Field>('concrete');
   const [showRebar, setShowRebar] = useState(true);
-  const [showDeformed, setShowDeformed] = useState(false);
-  const [exaggeration, setExaggeration] = useState(50);
+  const [showDeformed, setShowDeformed] = useState(true);     // default ON so user sees deformation
+  const [exaggeration, setExaggeration] = useState(100);      // visual exaggeration ratio
   const [cutaway, setCutaway] = useState(true);
 
   const Lx = result.geometry.Lx;
@@ -184,6 +184,17 @@ function SlabPlate({ result, field, showDeformed, exaggeration, cutaway }:
     () => Math.max(...deflectionGrid.flat().map(Math.abs), 1e-9),
     [deflectionGrid],
   );
+  // Normalized exaggeration: at exaggeration=100, the largest deflection in the
+  // grid appears as 10% of the long span on screen — visible bowl shape.
+  // exaggeration=50  → 5%  (subtle)
+  // exaggeration=100 → 10% (default — clearly visible)
+  // exaggeration=200 → 20% (dramatic)
+  const slabSize = Math.max(Lx, Ly);
+  const visualScale = useMemo(() => {
+    if (!showDeformed || maxDef < 1e-6) return 0;
+    const targetMaxVisual = slabSize * (exaggeration / 1000);   // metres
+    return targetMaxVisual / (maxDef / 1000);                    // multiplier on (dy in m)
+  }, [showDeformed, exaggeration, maxDef, slabSize]);
 
   const activeField: ContourField = field === 'Mx' ? contours.Mx
     : field === 'My' ? contours.My
@@ -211,12 +222,12 @@ function SlabPlate({ result, field, showDeformed, exaggeration, cutaway }:
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
-      // Deformation
+      // Deformation — sample dy (mm) at this (x,z) and apply visualScale (×)
       const dy = sampleField({
         xs: contours.Mx.xs, ys: contours.Mx.ys, values: deflectionGrid,
         vmin: -maxDef, vmax: maxDef, label: '', unit: '',
       }, x, z, Lx, Ly);
-      pos.setY(i, (showDeformed ? -dy / 1000 : 0) * (exaggeration * 0.04));
+      pos.setY(i, -(dy / 1000) * visualScale);
 
       if (isConcrete) {
         // subtle off-white concrete with low-frequency noise
@@ -232,7 +243,7 @@ function SlabPlate({ result, field, showDeformed, exaggeration, cutaway }:
     geo.setAttribute('color', colors);
     geo.computeVertexNormals();
     return geo;
-  }, [Lx, Ly, isConcrete, activeField, isSigned, showDeformed, exaggeration, deflectionGrid, maxDef, contours.Mx.xs, contours.Mx.ys]);
+  }, [Lx, Ly, isConcrete, activeField, isSigned, visualScale, deflectionGrid, maxDef, contours.Mx.xs, contours.Mx.ys]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
 
