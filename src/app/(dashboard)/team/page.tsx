@@ -207,7 +207,7 @@ export default function TeamPage() {
   const completedSteps = Object.values(setupSteps).filter(Boolean).length;
   const shouldShowBanner = showSetupBanner && completedSteps < 3;
 
-  const tabs: { id: TabType; label: string; icon: React.ElementType }[] = [
+  const tabs: { id: TabType; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "overview", label: "Overview", icon: LayoutGrid },
     { id: "members", label: "Members", icon: Users },
     { id: "work", label: "All work", icon: FolderKanban },
