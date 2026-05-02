@@ -7996,6 +7996,51 @@ img, svg {
 /* Print button */
 .slab-print-btn { margin-left: auto; align-self: flex-end; }
 
+/* 3D viewer */
+.slab-3d {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+}
+.slab-3d__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.6rem 0.75rem;
+  background: rgba(0, 0, 0, 0.30);
+  border: 1px solid rgba(201, 168, 76, 0.18);
+  border-radius: 4px;
+}
+.slab-3d__canvas {
+  width: 100%;
+  height: 540px;
+  background: #0c0c0c;
+  border: 1px solid rgba(201, 168, 76, 0.30);
+  border-radius: 5px;
+  overflow: hidden;
+  position: relative;
+}
+.slab-3d__hint {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+  text-align: center;
+  font-style: italic;
+}
+.slab-3d__slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+.slab-3d__slider input[type="range"] { width: 110px; accent-color: #c9a84c; }
+@media (max-width: 720px) {
+  .slab-3d__canvas { height: 380px; }
+}
+
 /* Print styles — A4-friendly hand-calc report */
 @media print {
   body * { visibility: hidden; }

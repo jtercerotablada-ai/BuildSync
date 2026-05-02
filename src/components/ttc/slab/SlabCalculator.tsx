@@ -12,8 +12,13 @@ import {
   type RebarGrade,
   type ColumnPosition,
 } from '@/lib/slab/types';
+import dynamic from 'next/dynamic';
 import { SlabSchematic } from './SlabSchematic';
 import { SlabContour } from './SlabContour';
+const Slab3D = dynamic(() => import('./Slab3D').then((m) => m.Slab3D), {
+  ssr: false,
+  loading: () => <p className="ab-empty">Loading 3D viewer…</p>,
+});
 
 // ----------------------------------------------------------------------------
 // State
@@ -186,16 +191,14 @@ export function SlabCalculator() {
         </button>
       </section>
 
-      {/* Schematic */}
-      <section className="ab-section ab-schematic-wrap">
-        <SlabSchematic input={model} />
-      </section>
+      {/* View mode toggle + Schematic / 3D */}
+      <SlabViews input={model} result={result} />
 
       {/* Contour plots */}
       {result.solved && (
         <section className="ab-section">
           <header className="ab-section__header">
-            <h3>Contour plots</h3>
+            <h3>Contour plots (2D)</h3>
             <p className="ab-section__subtitle">Spatial distribution of moments and required reinforcement (Method 3 + shape reconstruction). Toggle Mx / My / As fields.</p>
           </header>
           <SlabContour result={result} />
@@ -238,6 +241,32 @@ export function SlabCalculator() {
 // ============================================================================
 // Inputs tab
 // ============================================================================
+function SlabViews({ input, result }:
+  { input: SlabInput; result: ReturnType<typeof analyze> }) {
+  const [mode, setMode] = useState<'2d' | '3d'>('3d');
+  return (
+    <section className="ab-section">
+      <header className="ab-section__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3>{mode === '3d' ? 'Live 3D model' : 'Plan view (2D)'}</h3>
+          <p className="ab-section__subtitle">{mode === '3d'
+            ? 'Drag to rotate · scroll to zoom · choose what to color the slab by'
+            : 'Top-down schematic with edge symbols and column position'}</p>
+        </div>
+        <div className="slab-contour__tabs">
+          <button type="button" className={`slab-contour__tab ${mode === '2d' ? 'slab-contour__tab--active' : ''}`}
+            onClick={() => setMode('2d')}>2D plan</button>
+          <button type="button" className={`slab-contour__tab ${mode === '3d' ? 'slab-contour__tab--active' : ''}`}
+            onClick={() => setMode('3d')}>3D model</button>
+        </div>
+      </header>
+      <div className="ab-schematic-wrap" style={{ padding: 0, border: 'none', background: 'transparent' }}>
+        {mode === '2d' ? <SlabSchematic input={input} /> : (result.solved ? <Slab3D result={result} input={input} /> : <p className="ab-empty">3D model awaits a solved analysis.</p>)}
+      </div>
+    </section>
+  );
+}
+
 function InputsTab({ model, dispatch }:
   { model: SlabInput; dispatch: React.Dispatch<Action> }) {
   return (
