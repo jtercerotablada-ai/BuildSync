@@ -140,11 +140,14 @@ function applyMaterialDefaults(mat: Materials): Materials {
     ? CONCRETE_PRESETS[mat.concreteGrade].fc : mat.fc;
   const fy = mat.rebarGrade && mat.rebarGrade !== 'custom'
     ? REBAR_PRESETS[mat.rebarGrade].fy : mat.fy;
+  const gammaC = mat.gammaC ?? 24;
+  const lambda = lambdaConcrete(gammaC);     // ACI §19.2.4 lightweight factor
   return {
     fc,
     fy,
-    fr: mat.fr ?? 0.62 * Math.sqrt(fc),
-    gammaC: mat.gammaC ?? 24,
+    // fr = 0.62·λ·√fc per ACI §19.2.3.1; λ=1 for normalweight, 0.75 for all-LWC
+    fr: mat.fr ?? 0.62 * lambda * Math.sqrt(fc),
+    gammaC,
     Es: mat.Es ?? 200_000,
     concreteGrade: mat.concreteGrade,
     rebarGrade: mat.rebarGrade,
@@ -161,6 +164,63 @@ function defaultFactor(kind: 'DL' | 'LL', code: Code): number {
 function isACI(c: Code): boolean { return c === 'ACI 318-19' || c === 'ACI 318-25'; }
 function aciLabel(c: Code): string { return c === 'ACI 318-25' ? 'ACI 318-25' : 'ACI 318-19'; }
 function aciClause(c: Code, n: string): string { return `${aciLabel(c)} §${n}`; }
+
+/**
+ * ACI 318-19 §22.2.2.4.3: equivalent rectangular stress block factor β1
+ *   fc ≤ 28 MPa → β1 = 0.85
+ *   28 < fc ≤ 55 MPa → β1 = 0.85 − 0.05·(fc − 28)/7
+ *   fc > 55 MPa → β1 = 0.65
+ */
+function computeBeta1(fc: number): number {
+  if (fc <= 28) return 0.85;
+  if (fc >= 55) return 0.65;
+  return 0.85 - 0.05 * (fc - 28) / 7;
+}
+
+/**
+ * ACI 318-19 §21.2.2 strength-reduction factor φ for tension-controlled and
+ * transition sections in flexure. εt is net tensile strain in extreme tension
+ * steel at nominal strength.
+ *   εt ≥ 0.005 (or εty + 0.003) → tension-controlled, φ = 0.90
+ *   εt = εty (compression-controlled) → φ = 0.65 (no spirals)
+ *   linear interpolation in between
+ */
+function phiFromStrain(eps_t: number, eps_ty: number): number {
+  const eps_TC = Math.max(0.005, eps_ty + 0.003);     // tension-controlled limit
+  if (eps_t >= eps_TC)  return 0.90;
+  if (eps_t <= eps_ty)  return 0.65;
+  return 0.65 + 0.25 * (eps_t - eps_ty) / (eps_TC - eps_ty);
+}
+
+/**
+ * ACI 318-19 §19.2.4 lightweight modification factor λ.
+ *   Normalweight (γc ≥ 22 kN/m³): λ = 1.0
+ *   Sand-lightweight: λ = 0.85
+ *   All-lightweight: λ = 0.75
+ * Linear interpolation per §19.2.4.1 for densities in between.
+ */
+function lambdaConcrete(gammaC_kNm3: number): number {
+  if (gammaC_kNm3 >= 22)   return 1.0;     // normalweight
+  if (gammaC_kNm3 <= 16)   return 0.75;    // all-lightweight
+  // Linear interpolation between 16 (λ=0.75) and 22 (λ=1.0)
+  return 0.75 + 0.25 * (gammaC_kNm3 - 16) / (22 - 16);
+}
+
+/**
+ * ACI 318-19 Table 24.2.4.1.3 long-term deflection multiplier ξ for sustained
+ * loads.
+ *   3 months → 1.0
+ *   6 months → 1.2
+ *   12 months → 1.4
+ *   5+ years → 2.0
+ */
+function xiSustained(periodMonths: number): number {
+  if (periodMonths >= 60)  return 2.0;
+  if (periodMonths >= 12)  return 1.4 + 0.6 * (periodMonths - 12) / 48;
+  if (periodMonths >= 6)   return 1.2 + 0.2 * (periodMonths - 6) / 6;
+  if (periodMonths >= 3)   return 1.0 + 0.2 * (periodMonths - 3) / 3;
+  return 1.0 * (periodMonths / 3);    // proportional below 3 months
+}
 
 // ================================================================
 // Moment computation
@@ -271,29 +331,42 @@ function designOneRebarLayer(
   // Compute As required from rectangular stress block (per unit metre width)
   const fc = mat.fc;
   const fy = mat.fy;
-  const phi = isACI(code) ? 0.9 : 1.0;       // EN uses material partial factors instead
-  const gamma_s = code === 'EN 1992-1-1' ? 1.15 : 1.0; // EN steel partial factor
-  const gamma_c = code === 'EN 1992-1-1' ? 1.5 : 1.0;  // EN concrete partial factor
-  const fyd = fy / gamma_s;                             // design yield (EN) or = fy (ACI)
-  const fcd = code === 'EN 1992-1-1' ? 0.85 * fc / gamma_c : 0.85 * fc;  // design conc. stress
+  const Es = mat.Es ?? 200_000;
+  const eps_ty = fy / Es;                              // yield strain ≈ 0.0021 for fy=420
+  const beta1 = computeBeta1(fc);                      // ACI §22.2.2.4.3
+  const gamma_s = code === 'EN 1992-1-1' ? 1.15 : 1.0;
+  const gamma_c = code === 'EN 1992-1-1' ? 1.5 : 1.0;
+  const fyd = fy / gamma_s;
+  const fcd = code === 'EN 1992-1-1' ? 0.85 * fc / gamma_c : 0.85 * fc;
 
-  const d = Math.max(10, h_mm - cover_mm);              // mm
-  const b = 1000;                                        // 1 m strip
-  const Mu_Nmm = Math.abs(Mu_kNm) * 1e6;                 // N·mm/m
+  const d = Math.max(10, h_mm - cover_mm);
+  const b = 1000;
+  const Mu_Nmm = Math.abs(Mu_kNm) * 1e6;
 
-  // Solve quadratic for As: Mu = phi * As * fyd * (d - a/2), a = As*fyd / (fcd*b)
-  // Substitute: Mu = phi * As * fyd * (d - As*fyd / (2*fcd*b))
-  //   → 0 = (phi*fyd^2/(2*fcd*b)) * As^2 - phi*fyd*d * As + Mu
-  const A = (phi * fyd * fyd) / (2 * fcd * b);
-  const B = -phi * fyd * d;
-  const C = Mu_Nmm;
-  const disc = B * B - 4 * A * C;
+  // Initial guess: φ = 0.9 (assume tension-controlled). Compute As, then iterate
+  // φ if εt < 0.005 (transition zone, ACI §21.2.2). For slabs this is rare but
+  // happens when the slab is too thin for the moment.
+  let phi = isACI(code) ? 0.9 : 1.0;
   let As_req = 0;
-  if (disc >= 0 && A > 0) {
-    As_req = (-B - Math.sqrt(disc)) / (2 * A);          // smaller root = under-reinforced
-  } else {
-    // Section can't carry moment with current d — recommend thicker slab; fall back to simplified
-    As_req = Mu_Nmm / (phi * fyd * 0.9 * d);
+  for (let iter = 0; iter < 4; iter++) {
+    const A = (phi * fyd * fyd) / (2 * fcd * b);
+    const B = -phi * fyd * d;
+    const C = Mu_Nmm;
+    const disc = B * B - 4 * A * C;
+    if (disc >= 0 && A > 0) {
+      As_req = (-B - Math.sqrt(disc)) / (2 * A);
+    } else {
+      As_req = Mu_Nmm / (phi * fyd * 0.9 * d);
+    }
+    if (!isACI(code)) break;            // EN doesn't iterate phi this way
+    // Compute c = a / β1, εt = 0.003 · (d − c)/c
+    const a_block_iter = (As_req * fyd) / (fcd * b);
+    const c_iter = a_block_iter / beta1;
+    if (c_iter <= 1e-3) break;
+    const eps_t = 0.003 * (d - c_iter) / c_iter;
+    const phi_new = phiFromStrain(eps_t, eps_ty);
+    if (Math.abs(phi_new - phi) < 0.001) { phi = phi_new; break; }
+    phi = phi_new;
   }
 
   // Minimum reinforcement
@@ -354,9 +427,20 @@ function designOneRebarLayer(
   // Provided steel area for the chosen (or overridden) bar+spacing
   const As_provided = (chosenBar.Ab * b) / Math.max(1, chosenSpacing);
 
-  // Provided moment capacity φMn  =  φ · As · fyd · (d − a/2)  with  a = As·fyd / (fcd·b)
+  // Re-compute φ for the PROVIDED steel: εt may differ from as-designed.
+  // ACI §21.2.2 — φ depends on tension steel strain at nominal strength.
   const a_block = (As_provided * fyd) / (fcd * b);
-  const phiMn_Nmm = phi * As_provided * fyd * (d - a_block / 2);
+  let phi_provided = phi;
+  if (isACI(code)) {
+    const c_block = a_block / beta1;
+    if (c_block > 1e-3) {
+      const eps_t_prov = 0.003 * (d - c_block) / c_block;
+      phi_provided = phiFromStrain(eps_t_prov, eps_ty);
+    }
+  }
+
+  // Provided moment capacity φMn  =  φ · As · fyd · (d − a/2)
+  const phiMn_Nmm = phi_provided * As_provided * fyd * (d - a_block / 2);
   const phiMn_provided = phiMn_Nmm / 1e6;     // → kN·m / m
 
   // Utilization = demand / capacity
@@ -459,7 +543,6 @@ function checkDeflection(
 ): DeflectionResult {
   const Lshort = Math.min(g.Lx, g.Ly);
   const L = Lshort * 1000;        // mm
-  const limit = L / 240;          // ACI default L/240 immediate, more stringent if interfering elements
 
   // h_min check
   let h_min = 0;
@@ -519,36 +602,72 @@ function checkDeflection(
     h_min = L / factor;
   }
 
-  // Branson immediate deflection (Mid-x location, simplified beam)
+  // Branson immediate deflection
   const fc = mat.fc;
-  const fr = mat.fr ?? 0.62 * Math.sqrt(fc);
+  const fr = mat.fr ?? 0.62 * lambdaConcrete(mat.gammaC ?? 24) * Math.sqrt(fc);
   const Ec = isACI(code)
-    ? 4700 * Math.sqrt(fc)              // ACI §19.2.2 (MPa)
-    : 22000 * Math.pow(Math.max(fc, 12) / 10 + 0.8, 0.3);   // EN §3.1.3 — simplified Ecm
-  const b = 1000;                                            // 1-m strip
-  const h = g.h;                                             // mm
-  const Ig = (b * Math.pow(h, 3)) / 12;                       // mm⁴/m  (gross section)
-  // Use a conservative cracked stiffness if Mservice > Mcr; assume ½ Ig as fallback.
-  // For midspan service moment estimate (one-way SS-like simplification):
-  const Mservice = (wService * Lshort * Lshort / 8) * 1e6;   // N·mm/m for SS span
-  const Mcr = (fr * Ig) / (h / 2);                            // N·mm/m
+    ? 4700 * Math.sqrt(fc)
+    : 22000 * Math.pow(Math.max(fc, 12) / 10 + 0.8, 0.3);
+  const b = 1000;
+  const h = g.h;
+  const Ig = (b * Math.pow(h, 3)) / 12;
+  // Service moment coefficient depends on edge condition (NOT always wL²/8)
+  const fixedCount = [edges.left, edges.right, edges.top, edges.bottom].filter((e) => e === 'fixed').length;
+  let serviceCoeff = 1 / 8;            // SS default
+  if (fixedCount >= 2) serviceCoeff = 1 / 14;          // approx for one-end-cont / fixed-fixed positive midspan
+  if (fixedCount === 4) serviceCoeff = 1 / 24;         // fully fixed, midspan deflection coeff
+  // Service moment (kN·m / m, then convert)
+  const Mservice = (wService * serviceCoeff * Lshort * Lshort / 1) * 1e6;   // N·mm/m
+  const Mcr = (fr * Ig) / (h / 2);
   let Ie = Ig;
   if (Mservice > Mcr) {
     const ratio = Math.pow(Mcr / Mservice, 3);
-    const Icr = 0.4 * Ig;                                     // approx for slabs
+    const Icr = 0.4 * Ig;
     Ie = ratio * Ig + (1 - ratio) * Icr;
   }
-  // Simply supported uniform load deflection: 5wL⁴/(384·E·I)
-  const w_per_m = wService * 1.0;                             // kN/m on 1-m strip = wService kN/m²·m
-  const w_Nm = w_per_m * 1000;                                // N/m
-  const L_m = Lshort;                                          // m
-  const delta_imm_m = (5 * w_Nm * Math.pow(L_m, 4)) / (384 * Ec * 1e6 * Ie * 1e-12);
-  const delta_immediate = delta_imm_m * 1000;                 // mm
 
-  // Long-term: ACI 318-19 §24.2.4.1.1 multiplier λ = ξ/(1+50ρ'), with ξ=2.0 (5+ years).
-  // Conservative: ρ' ≈ 0 → λ = 2.0; total long-term = (1 + λ) × immediate
-  const lambda = 2.0;
-  const delta_longterm = delta_immediate * (1 + lambda);
+  // Edge-condition-aware deflection coefficient α (δ = α·w·L⁴/(E·I))
+  // SS: 5/384  |  fixed-fixed: 1/384  |  one-end-cont: 1/185 (≈ 2.07/384)
+  let defCoeff = 5 / 384;
+  if (fixedCount === 4) defCoeff = 1 / 384;
+  else if (fixedCount >= 2) defCoeff = 1 / 185;
+
+  const w_Nm = wService * 1000;     // N/m on 1-m strip
+  const L_m = Lshort;
+  const delta_imm_m = (defCoeff * w_Nm * Math.pow(L_m, 4)) / (Ec * 1e6 * Ie * 1e-12);
+  const delta_immediate = delta_imm_m * 1000;     // mm — total service load deflection
+
+  // Live-load-only immediate deflection (used for L/360, L/180 checks)
+  const wLive = input.loads.LL ?? 0;
+  const delta_immediate_LL = wLive > 0
+    ? delta_immediate * (wLive / Math.max(wService, 1e-9))
+    : 0;
+
+  // Long-term: ACI Table 24.2.4.1.3 — ξ depends on time period
+  const periodMonths = input.loads.longTermPeriodMonths ?? 60;       // default 5+ years
+  const xi = isACI(code) ? xiSustained(periodMonths) : 2.0;
+  // ρ' assumed 0 (no compression steel in slabs)
+  const lambdaDelta = xi / (1 + 50 * 0);
+
+  // Sustained load = full DL + ψ·LL (default ψ = 0.25 typical office/residential)
+  const psi = input.loads.sustainedLLFraction ?? 0.25;
+  const wSustained = (input.loads.DL_super + (mat.gammaC ?? 24) * (g.h / 1000)) + psi * wLive;
+  const delta_immediate_sustained = wSustained > 0
+    ? delta_immediate * (wSustained / Math.max(wService, 1e-9))
+    : 0;
+  // Long-term creep+shrinkage = λΔ × sustained immediate
+  const delta_creep = lambdaDelta * delta_immediate_sustained;
+
+  // Pick the deflection limit per Table 24.2.2
+  const cat = input.loads.deflectionLimitCategory ?? 'floor-attached-likely-damage';
+  let delta_limit_ratio = 480;
+  let delta_check = delta_creep + delta_immediate_LL;     // long-term + immediate LL after partition
+  if (cat === 'flat-roof-no-attached')         { delta_limit_ratio = 180; delta_check = delta_immediate_LL; }
+  else if (cat === 'floor-no-attached')        { delta_limit_ratio = 360; delta_check = delta_immediate_LL; }
+  else if (cat === 'floor-attached-not-likely'){ delta_limit_ratio = 240; delta_check = delta_creep + delta_immediate_LL; }
+  else                                         { delta_limit_ratio = 480; delta_check = delta_creep + delta_immediate_LL; }
+  const limit = L / delta_limit_ratio;
+  const delta_longterm = delta_creep + delta_immediate_LL;     // total visible deflection
 
   const steps: import('./types').CalcStep[] = [
     { title: 'Min thickness h_min',
@@ -560,26 +679,38 @@ function checkDeflection(
       ref: isACI(code) ? `${aciLabel(code)} Table 7.3.1.1 / 8.3.1.1` : 'EN 1992-1-1 §7.4.2',
     },
     { title: 'Modulus of rupture / Mcr',
-      formula: 'fr = 0.62·√fc;  Mcr = fr · Ig / (h/2)',
-      substitution: `fr = 0.62·√${fc} = ${fr.toFixed(2)} MPa,  Ig = b·h³/12 = ${Ig.toExponential(3)} mm⁴`,
+      formula: 'fr = 0.62·λ·√fc;  Mcr = fr · Ig / (h/2)',
+      substitution: `fr = 0.62·${lambdaConcrete(mat.gammaC ?? 24).toFixed(2)}·√${fc} = ${fr.toFixed(2)} MPa,  Ig = b·h³/12 = ${Ig.toExponential(3)} mm⁴`,
       result: `Mcr = ${(Mcr / 1e6).toFixed(2)} kN·m/m`,
+      ref: aciClause(code, '19.2.3.1'),
+    },
+    { title: 'Service moment Ms (edge-aware)',
+      formula: 'Ms = α·w·L²,   α = 1/8 (SS), 1/14 (one-end-cont), 1/24 (fixed-fixed)',
+      substitution: `α = ${serviceCoeff.toFixed(4)} → Ms = ${(Mservice / 1e6).toFixed(2)} kN·m/m`,
+      result: Mservice > Mcr ? '> Mcr → cracked, use Branson Ie' : '≤ Mcr → use Ig (uncracked)',
     },
     { title: 'Effective Ie (Branson)',
-      formula: 'Ie = (Mcr/Ms)³·Ig + [1 − (Mcr/Ms)³]·Icr   if Ms > Mcr',
-      substitution: `Ms = ${(Mservice / 1e6).toFixed(2)} kN·m/m  ${Mservice > Mcr ? '> Mcr → cracked' : '< Mcr → use Ig'}`,
+      formula: 'Ie = (Mcr/Ms)³·Ig + [1 − (Mcr/Ms)³]·Icr',
+      substitution: `Mcr = ${(Mcr/1e6).toFixed(2)} kN·m,  Ms = ${(Mservice/1e6).toFixed(2)} kN·m`,
       result: `Ie = ${Ie.toExponential(3)} mm⁴/m`,
       ref: aciClause(code, '24.2.3') + ' (Branson)',
     },
-    { title: 'Immediate deflection Δi',
-      formula: 'Δi = 5·w·L⁴ / (384·E·Ie)  [SS UDL]',
-      substitution: `w = ${w_per_m.toFixed(2)} kN/m,  E = ${(Ec).toFixed(0)} MPa,  L = ${L_m.toFixed(2)} m`,
-      result: `Δi = ${delta_immediate.toFixed(2)} mm`,
+    { title: 'Immediate deflection (full service load)',
+      formula: 'Δi = α·w·L⁴ / (E·Ie),  α = 5/384 (SS), 1/185 (one-end-cont), 1/384 (fixed-fixed)',
+      substitution: `α = ${defCoeff.toFixed(5)},  w = ${wService.toFixed(2)} kN/m²,  E = ${Ec.toFixed(0)} MPa`,
+      result: `Δi (D+L) = ${delta_immediate.toFixed(2)} mm   |   Δi (LL only) = ${delta_immediate_LL.toFixed(2)} mm`,
     },
-    { title: 'Long-term deflection',
-      formula: 'Δlt = (1 + λ)·Δi,  λ = ξ/(1+50ρ′),  ξ = 2 (5+ years)',
-      substitution: `λ = 2.0 (assume ρ′ = 0)`,
-      result: `Δlt = ${delta_longterm.toFixed(2)} mm  ≤  L/240 = ${limit.toFixed(1)} mm  ${delta_longterm <= limit ? 'OK' : 'FAIL'}`,
-      ref: aciClause(code, '24.2.4'),
+    { title: 'Long-term creep+shrinkage (sustained loads)',
+      formula: 'λΔ = ξ/(1+50ρ′);  Δlt_creep = λΔ · Δi(sustained);  sustained = D + ψ·LL',
+      substitution: `period = ${periodMonths} mo → ξ = ${xi.toFixed(2)}, ρ′ = 0 → λΔ = ${lambdaDelta.toFixed(2)};  ψ = ${psi}`,
+      result: `Δcreep = ${delta_creep.toFixed(2)} mm`,
+      ref: aciClause(code, '24.2.4') + ' (Tabla 24.2.4.1.3)',
+    },
+    { title: `Total deflection vs limit (Table 24.2.2 — ${cat})`,
+      formula: `Δcheck = ${cat.startsWith('floor-attached') ? 'Δlong-term + Δimm,LL (after partitions)' : 'Δimm,LL only'};  limit = L/${delta_limit_ratio}`,
+      substitution: `Δcheck = ${delta_check.toFixed(2)} mm,  L/${delta_limit_ratio} = ${limit.toFixed(2)} mm`,
+      result: `${delta_check <= limit ? '✓ OK' : '✗ FAIL'}  (utilization = ${(delta_check / Math.max(limit, 1e-9)).toFixed(2)})`,
+      ref: aciClause(code, '24.2.2'),
     },
   ];
 
@@ -591,10 +722,16 @@ function checkDeflection(
     spanDepthOk: code === 'EN 1992-1-1' ? L / Math.max(1, g.h) <= L / h_min : undefined,
     Ie,
     delta_immediate,
-    longTermFactor: lambda,
+    delta_immediate_LL,
+    longTermFactor: lambdaDelta,
+    xi,
+    sustainedLLFraction: psi,
     delta_longterm,
+    delta_check,
+    limitCategory: cat,
     delta_limit: limit,
-    delta_ok: delta_longterm <= limit,
+    delta_limit_ratio,
+    delta_ok: delta_check <= limit,
     steps,
   };
 }
@@ -644,9 +781,11 @@ function checkPunching(
     // §22.6.5.2 size factor: λ_s = √(2 / (1 + 0.004·d)) ≤ 1.0  (d in mm).
     // Reduces vc for thick slabs (d > 250 mm). Same in 318-19 and 318-25.
     const lambda_s = Math.min(1.0, Math.sqrt(2 / (1 + 0.004 * d)));
+    // §19.2.4 lightweight modification factor λ
+    const lambda = lambdaConcrete(mat.gammaC ?? 24);
     // §22.6.3.1: √f'c used in vc calculation shall not exceed 8.3 MPa
     // (i.e. f'c effectively capped at ~70 MPa for shear strength).
-    const fc_root = Math.min(8.3, Math.sqrt(mat.fc));
+    const fc_root = lambda * Math.min(8.3, Math.sqrt(mat.fc));
     const v1 = 0.33 * lambda_s * fc_root;
     const v2 = (0.17 + 0.33 / beta_col) * lambda_s * fc_root;
     const v3 = (alpha_s * d / bo / 12 + 0.17) * lambda_s * fc_root;

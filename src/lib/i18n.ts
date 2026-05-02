@@ -223,7 +223,7 @@ export const dictionaries = {
     'tool.retaining': 'Retaining Wall',
     'tool.retaining.desc': 'Powerful retaining wall design software for gravity and cantilever walls.',
     'tool.slab': 'Slab Design',
-    'tool.slab.desc': 'One-way and two-way RC slab design per ACI 318-25, ACI 318-19 and EN 1992-1-1: Method 3 coefficients (9 cases), reinforcement with user-editable bar+spacing override and live φMn capacity verification, deflection (Branson Ie + min thickness with fy modifier and edge-beam/drop-panel differentiation), punching shear (with λ_s size factor and stud rails per ACI 421.1), crack control. Live 3D model. 90 unit tests.',
+    'tool.slab.desc': 'One-way and two-way RC slab design per ACI 318-25, ACI 318-19 and EN 1992-1-1: Method 3 coefficients (9 cases), reinforcement with user-editable bar+spacing override and live φMn capacity verification (with tension-controlled εt-based φ reduction per §21.2.2), deflection (Branson Ie + edge-aware service moment + sustained-LL ψ + selectable Tabla 24.2.2 limit + Tabla 24.2.4.1.3 ξ multiplier), punching shear (with λ_s size factor, lightweight λ, stud rails per ACI 421.1), crack control. Live 3D model with column top reinforcement. 105 unit tests.',
 
     // Footer
     'footer.tagline': 'International Structural Engineering Firm',
@@ -461,7 +461,7 @@ export const dictionaries = {
     'tool.retaining': 'Muro de Contencion',
     'tool.retaining.desc': 'Software de diseno de muros de contencion por gravedad y en voladizo.',
     'tool.slab': 'Diseno de Losas',
-    'tool.slab.desc': 'Diseno de losas RC en una y dos direcciones segun ACI 318-25, ACI 318-19 y EN 1992-1-1: coeficientes Method 3 (9 casos), refuerzo con barra y separacion editable por el usuario y verificacion de capacidad phi-Mn en vivo, deflexion (Ie de Branson + espesor minimo con modificador fy y diferenciacion edge-beams/drop panels), punzonamiento (con factor de tamano lambda_s y pernos ACI 421.1), control de fisuras. Modelo 3D en vivo. 90 tests unitarios.',
+    'tool.slab.desc': 'Diseno de losas RC en una y dos direcciones segun ACI 318-25, ACI 318-19 y EN 1992-1-1: coeficientes Method 3 (9 casos), refuerzo editable con verificacion phi-Mn en vivo (incluyendo reduccion de phi por strain epsilon-t segun §21.2.2), deflexion (Ie de Branson + momento de servicio segun apoyos + fraccion sostenida psi de LL + selector Tabla 24.2.2 + multiplicador xi de Tabla 24.2.4.1.3), punzonamiento (con factor de tamano lambda_s, factor lambda de hormigon ligero, pernos ACI 421.1), control de fisuras. Modelo 3D en vivo con refuerzo superior sobre la columna. 105 tests unitarios.',
 
     // Footer
     'footer.tagline': 'Despacho Internacional de Ingenieria Estructural',

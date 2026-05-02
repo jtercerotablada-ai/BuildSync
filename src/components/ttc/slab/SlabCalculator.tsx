@@ -367,10 +367,40 @@ function InputsTab({ model, dispatch }:
           <Field label="DL self-weight (auto, kN/m²)">
             <span className="ab-label">{((model.materials.gammaC ?? 24) * model.geometry.h / 1000).toFixed(2)}</span>
           </Field>
-          <Field label="Override factor DL (—)"><Num val={model.loads.factor_DL ?? (model.code === 'ACI 318-19' ? 1.2 : 1.35)} step={0.05}
+          <Field label="Override factor DL (—)"><Num val={model.loads.factor_DL ?? (model.code === 'EN 1992-1-1' ? 1.35 : 1.2)} step={0.05}
             onChange={(v) => dispatch({ type: 'SET_LOAD', patch: { factor_DL: v } })} /></Field>
-          <Field label="Override factor LL (—)"><Num val={model.loads.factor_LL ?? (model.code === 'ACI 318-19' ? 1.6 : 1.5)} step={0.05}
+          <Field label="Override factor LL (—)"><Num val={model.loads.factor_LL ?? (model.code === 'EN 1992-1-1' ? 1.5 : 1.6)} step={0.05}
             onChange={(v) => dispatch({ type: 'SET_LOAD', patch: { factor_LL: v } })} /></Field>
+        </div>
+      </div>
+
+      {/* Long-term deflection settings */}
+      <div className="slab-card">
+        <h4>Deflection settings</h4>
+        <p className="slab-card__hint">ACI Tabla 24.2.2 limits + Tabla 24.2.4.1.3 ξ multiplier</p>
+        <div className="slab-fields">
+          <Field label="Use case (deflection limit)">
+            <select value={model.loads.deflectionLimitCategory ?? 'floor-attached-likely-damage'}
+              onChange={(e) => dispatch({ type: 'SET_LOAD', patch: { deflectionLimitCategory: e.target.value as NonNullable<SlabInput['loads']['deflectionLimitCategory']> } })}>
+              <option value="flat-roof-no-attached">Flat roof, no attached non-struct (L/180)</option>
+              <option value="floor-no-attached">Floor, no attached non-struct (L/360)</option>
+              <option value="floor-attached-not-likely">Floor, attached not likely damage (L/240)</option>
+              <option value="floor-attached-likely-damage">Floor, attached likely to damage (L/480)</option>
+            </select>
+          </Field>
+          <Field label="Sustained load period (months)">
+            <select value={String(model.loads.longTermPeriodMonths ?? 60)}
+              onChange={(e) => dispatch({ type: 'SET_LOAD', patch: { longTermPeriodMonths: parseInt(e.target.value) } })}>
+              <option value="3">3 months (ξ = 1.0)</option>
+              <option value="6">6 months (ξ = 1.2)</option>
+              <option value="12">12 months (ξ = 1.4)</option>
+              <option value="60">5+ years (ξ = 2.0)</option>
+            </select>
+          </Field>
+          <Field label="Sustained LL fraction ψ (0–1)">
+            <Num val={model.loads.sustainedLLFraction ?? 0.25} step={0.05}
+              onChange={(v) => dispatch({ type: 'SET_LOAD', patch: { sustainedLLFraction: Math.max(0, Math.min(1, v)) } })} />
+          </Field>
         </div>
       </div>
 
@@ -585,12 +615,23 @@ function ChecksTab({ result }: { result: ReturnType<typeof analyze> }) {
             ok={result.deflection.spanDepthOk} />
         )}
         {result.deflection.delta_immediate !== undefined && (
-          <Row label="Immediate Δ (Branson Ie)"
-            value={`${result.deflection.delta_immediate.toFixed(2)} mm`} />
+          <Row label="Δi (full service load)" value={`${result.deflection.delta_immediate.toFixed(2)} mm`} />
         )}
-        {result.deflection.delta_longterm !== undefined && (
-          <Row label={`Long-term Δ (×${result.deflection.longTermFactor?.toFixed(1)})`}
-            value={`${result.deflection.delta_longterm.toFixed(2)} mm  ≤  ${result.deflection.delta_limit.toFixed(1)} mm`}
+        {result.deflection.delta_immediate_LL !== undefined && (
+          <Row label="Δi (LL only)" value={`${result.deflection.delta_immediate_LL.toFixed(2)} mm`} />
+        )}
+        {result.deflection.xi !== undefined && (
+          <Row label="ξ (sustained period)" value={`${result.deflection.xi.toFixed(2)}`} />
+        )}
+        {result.deflection.longTermFactor !== undefined && (
+          <Row label="λΔ = ξ/(1+50ρ′)" value={`${result.deflection.longTermFactor.toFixed(2)}`} />
+        )}
+        {result.deflection.sustainedLLFraction !== undefined && (
+          <Row label="ψ (sustained LL fraction)" value={`${result.deflection.sustainedLLFraction.toFixed(2)}`} />
+        )}
+        {result.deflection.delta_check !== undefined && (
+          <Row label={`Δcheck (Tabla 24.2.2 — L/${result.deflection.delta_limit_ratio})`}
+            value={`${result.deflection.delta_check.toFixed(2)} mm  ≤  ${result.deflection.delta_limit.toFixed(2)} mm`}
             ok={result.deflection.delta_ok} />
         )}
         {result.deflection.steps && (
@@ -722,7 +763,7 @@ function CodeRefsTab({ result }: { result: ReturnType<typeof analyze> }) {
       ))}
       <div className="slab-card slab-card--validation">
         <h4>Validation</h4>
-        <p>Solver passes <strong>90/90</strong> unit tests against ACI 318-19, ACI 318-25 and EN 1992-1-1, including:</p>
+        <p>Solver passes <strong>105/105</strong> unit tests against ACI 318-19, ACI 318-25 and EN 1992-1-1, including:</p>
         <ul>
           <li>Closed-form one-way moments (SS, fixed-fixed)</li>
           <li>PCA Notes Method 3 coefficient lookup (Cases 1–9)</li>
@@ -735,6 +776,14 @@ function CodeRefsTab({ result }: { result: ReturnType<typeof analyze> }) {
           <li>Min thickness Table 8.3.1.1 fy interpolation, edge-beam differentiation, drop-panel reduction</li>
           <li>Edge-condition rotational symmetry</li>
           <li>318-25 vs 318-19 numerical equivalence + edition-specific clause refs</li>
+          <li>User-editable bar+spacing override + φMn ≥ Mu compliance check (Mu/φMn utilization)</li>
+          <li>Tension-controlled φ check (§21.2.2) — εt iterated, φ reduces from 0.9 toward 0.65 in transition zone</li>
+          <li>λΔ time-period selector (3 mo/6 mo/12 mo/5+ years) per Tabla 24.2.4.1.3</li>
+          <li>Sustained-LL fraction ψ for long-term creep — only sustained portion gets λΔ multiplier</li>
+          <li>Tabla 24.2.2 deflection-limit selector (L/180 / L/240 / L/360 / L/480) by use case</li>
+          <li>Edge-condition-aware service moment (1/8 SS, 1/14 one-end-cont, 1/24 fixed-fixed)</li>
+          <li>Edge-condition-aware deflection coefficient (5/384, 1/185, 1/384)</li>
+          <li>Lightweight concrete λ factor (§19.2.4) propagated to fr and vc punching</li>
         </ul>
       </div>
     </div>

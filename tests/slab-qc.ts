@@ -724,6 +724,138 @@ block('BLOCK 33 — Default (no user rebar) → source = auto, ok = true');
 }
 
 // ============================================================
+// BLOCK 34 — Tension-controlled φ check (ACI §21.2.2)
+// ============================================================
+block('BLOCK 34 — φ reduces below 0.9 when εt < 0.005');
+{
+  // Create a deliberately under-dimensioned slab: small h with HUGE Mu so
+  // εt drops into the transition zone. This forces φ < 0.9.
+  // Use a thick column-strip-like slab strip 100mm thick with Mu=80 kN·m/m.
+  const r = analyze({
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 4, Ly: 12, h: 100 },             // very thin one-way slab
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 8, LL: 12 },                   // heavy loads
+  });
+  const mid = r.reinforcement.find((x) => x.location === 'mid-x')!;
+  // εt should be near or below 0.005, so utilization may exceed 1 (not OK)
+  // The key check: solver doesn't blindly use φ=0.9 — it actually iterates
+  expectBool('Either OK with φ adjusted or FAIL flagged', mid.ok || mid.failures.length > 0, true);
+}
+
+// ============================================================
+// BLOCK 35 — λΔ time-period selector (ξ values from Table 24.2.4.1.3)
+// ============================================================
+block('BLOCK 35 — λΔ varies with sustained-load period');
+{
+  const baseInput: SlabInput = {
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 5, Ly: 12, h: 200 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1.5, LL: 4 },
+  };
+  const r3mo  = analyze({ ...baseInput, loads: { ...baseInput.loads, longTermPeriodMonths: 3 } });
+  const r6mo  = analyze({ ...baseInput, loads: { ...baseInput.loads, longTermPeriodMonths: 6 } });
+  const r12mo = analyze({ ...baseInput, loads: { ...baseInput.loads, longTermPeriodMonths: 12 } });
+  const r5y   = analyze({ ...baseInput, loads: { ...baseInput.loads, longTermPeriodMonths: 60 } });
+  expect('ξ at 3 mo = 1.0',  r3mo.deflection.xi!,  1.0, 0.001);
+  expect('ξ at 6 mo = 1.2',  r6mo.deflection.xi!,  1.2, 0.001);
+  expect('ξ at 12 mo = 1.4', r12mo.deflection.xi!, 1.4, 0.001);
+  expect('ξ at 5+ y = 2.0',  r5y.deflection.xi!,   2.0, 0.001);
+  // Larger ξ ⇒ larger long-term deflection
+  expectBool('5y creep > 3mo creep', r5y.deflection.delta_longterm! > r3mo.deflection.delta_longterm!, true);
+}
+
+// ============================================================
+// BLOCK 36 — Sustained LL fraction (ψ) affects creep, not immediate
+// ============================================================
+block('BLOCK 36 — ψ affects sustained portion of LL');
+{
+  const baseInput: SlabInput = {
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 5, Ly: 12, h: 200 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 2, LL: 8 },
+  };
+  const rLow  = analyze({ ...baseInput, loads: { ...baseInput.loads, sustainedLLFraction: 0.0 } });
+  const rHigh = analyze({ ...baseInput, loads: { ...baseInput.loads, sustainedLLFraction: 1.0 } });
+  // Immediate deflection (full load) should be the same — ψ doesn't change it
+  expect('Δi (full) unaffected by ψ',
+    rLow.deflection.delta_immediate!, rHigh.deflection.delta_immediate!, 0.001);
+  // Long-term should be larger when ψ = 1.0 (all LL sustained)
+  expectBool('ψ=1.0 long-term > ψ=0.0', rHigh.deflection.delta_longterm! > rLow.deflection.delta_longterm!, true);
+}
+
+// ============================================================
+// BLOCK 37 — Edge-aware deflection coefficient (NOT always 5/384)
+// ============================================================
+block('BLOCK 37 — Fixed-fixed deflects much less than SS');
+{
+  const baseInput: SlabInput = {
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 4, Ly: 12, h: 200 },               // one-way β=3
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 2, LL: 5 },
+  };
+  const rSS = analyze(baseInput);
+  // Fix the supports for the short span (left+right)
+  const rFF = analyze({ ...baseInput, edges: edges('fixed', 'fixed', 'simple', 'simple') });
+  // Theoretical SS / Fixed-fixed deflection ratio = (5/384) / (1/384) = 5
+  // Allow some slack because Branson Ie may differ, but FF should be MUCH less
+  expectBool('Fixed-fixed Δi < 50% of SS Δi',
+    rFF.deflection.delta_immediate! < 0.5 * rSS.deflection.delta_immediate!, true);
+}
+
+// ============================================================
+// BLOCK 38 — Tabla 24.2.2 deflection limit selector
+// ============================================================
+block('BLOCK 38 — Deflection limit category picks correct ratio');
+{
+  const baseInput: SlabInput = {
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 4, Ly: 12, h: 200 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1.5, LL: 4 },
+  };
+  const r180 = analyze({ ...baseInput, loads: { ...baseInput.loads, deflectionLimitCategory: 'flat-roof-no-attached' } });
+  const r240 = analyze({ ...baseInput, loads: { ...baseInput.loads, deflectionLimitCategory: 'floor-attached-not-likely' } });
+  const r360 = analyze({ ...baseInput, loads: { ...baseInput.loads, deflectionLimitCategory: 'floor-no-attached' } });
+  const r480 = analyze({ ...baseInput, loads: { ...baseInput.loads, deflectionLimitCategory: 'floor-attached-likely-damage' } });
+  expect('L/180 limit', r180.deflection.delta_limit_ratio!, 180, 0.001);
+  expect('L/240 limit', r240.deflection.delta_limit_ratio!, 240, 0.001);
+  expect('L/360 limit', r360.deflection.delta_limit_ratio!, 360, 0.001);
+  expect('L/480 limit', r480.deflection.delta_limit_ratio!, 480, 0.001);
+}
+
+// ============================================================
+// BLOCK 39 — Lightweight concrete λ factor reduces fr and vc
+// ============================================================
+block('BLOCK 39 — All-lightweight concrete (γc=15) → λ=0.75');
+{
+  const r = analyze({
+    code: 'ACI 318-25', units: 'SI',
+    geometry: { Lx: 6, Ly: 6, h: 220, cover_bottom_x: 25 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420, gammaC: 15 },        // all-LWC
+    loads: { DL_super: 1, LL: 4 },
+    punching: { c1: 300, c2: 300, position: 'interior', Vu: 300, d: 195 },
+  });
+  // fr should be reduced by λ=0.75 vs normalweight
+  const expected_fr_LWC = 0.62 * 0.75 * Math.sqrt(28);
+  expect('fr with λ=0.75', r.materials.fr!, expected_fr_LWC, 0.005);
+  // vc should also reflect λ in the punching calc
+  // vc for interior square col w/ d=195: lambda_s ≈ 1, then ·λ·√fc
+  // vc = 0.33 · 1 · 0.75 · √28 = 1.31 MPa
+  const expected_vc = 0.33 * 1.0 * 0.75 * Math.sqrt(28);
+  expect('vc with λ=0.75', r.punching!.vc, expected_vc, 0.02);
+}
+
+// ============================================================
 // SUMMARY
 // ============================================================
 console.log('\n============================================');

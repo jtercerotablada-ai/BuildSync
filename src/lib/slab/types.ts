@@ -80,7 +80,22 @@ export interface Loads {
   /** Optional load factors — when missing, use code defaults. */
   factor_DL?: number;
   factor_LL?: number;
+  /** Sustained portion of LL for long-term deflection (0..1). Default 0.25 (typical
+   *  ASCE 7 office/residential ψ). Only the sustained fraction is multiplied by
+   *  λΔ for long-term deflection. */
+  sustainedLLFraction?: number;
+  /** Long-term deflection time period (months). Default 60 (5 years, ξ=2.0). */
+  longTermPeriodMonths?: number;
+  /** ACI Table 24.2.2 deflection-limit category — choose member type so the
+   *  solver picks L/180, L/240, L/360, or L/480 correctly. */
+  deflectionLimitCategory?: DeflectionLimitCategory;
 }
+
+export type DeflectionLimitCategory =
+  | 'flat-roof-no-attached'           // L/180 (immediate from LL)
+  | 'floor-no-attached'               // L/360 (immediate from LL)
+  | 'floor-attached-not-likely'       // L/240 (long-term + immediate LL)
+  | 'floor-attached-likely-damage';   // L/480 (long-term + immediate LL)
 
 export type ColumnPosition = 'interior' | 'edge' | 'corner';
 export interface PunchingInput {
@@ -211,15 +226,30 @@ export interface DeflectionResult {
   spanDepthOk?: boolean;
   /** Branson effective moment of inertia (mm⁴/m). */
   Ie?: number;
-  /** Immediate deflection under service load (mm). */
+  /** Immediate deflection under FULL service load (mm). */
   delta_immediate?: number;
-  /** Long-term deflection multiplier (per ACI 318-19 §24.2.4.1.1). */
+  /** Immediate deflection from LIVE load only (mm) — used for L/360 / L/180 limits. */
+  delta_immediate_LL?: number;
+  /** Long-term deflection multiplier λΔ = ξ/(1+50ρ′). */
   longTermFactor?: number;
-  /** Long-term deflection (mm). */
+  /** ξ used (depends on selected period: 1.0/1.2/1.4/2.0). */
+  xi?: number;
+  /** Sustained LL fraction ψ used. */
+  sustainedLLFraction?: number;
+  /** Long-term deflection (mm) — applies λΔ to sustained portion only. */
   delta_longterm?: number;
+  /** Total deflection that is checked against the limit (mm). For L/180 and
+   *  L/360 categories: immediate live-load only. For L/240 / L/480 categories:
+   *  long-term + immediate LL after partition installation. */
+  delta_check?: number;
+  /** Selected limit category. */
+  limitCategory?: 'flat-roof-no-attached' | 'floor-no-attached'
+    | 'floor-attached-not-likely' | 'floor-attached-likely-damage';
   /** Code limit (mm). */
   delta_limit: number;
-  /** Whether delta ≤ limit. */
+  /** Span-to-deflection ratio used (180/240/360/480). */
+  delta_limit_ratio?: number;
+  /** Whether delta_check ≤ limit. */
   delta_ok?: boolean;
   /** Hand-calc breakdown. */
   steps?: CalcStep[];
