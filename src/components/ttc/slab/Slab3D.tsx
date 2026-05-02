@@ -101,16 +101,16 @@ export function Slab3D({ result, input }: Props) {
           <color attach="background" args={['#0a0a0a']} />
 
           <Suspense fallback={null}>
-            <Environment files={warehouseHDR} background={false} environmentIntensity={0.55} />
+            <Environment files={warehouseHDR} background={false} environmentIntensity={0.18} />
           </Suspense>
 
-          {/* Lighting — soft fill + key directional */}
-          <ambientLight intensity={0.35} />
-          <directionalLight position={[Lx * 2, Lx * 3, Lx * 2]} intensity={1.0} castShadow
+          {/* Lighting — soft fill + a single muted key light, no harsh specular */}
+          <ambientLight intensity={0.55} />
+          <directionalLight position={[Lx * 2, Lx * 3, Lx * 2]} intensity={0.55} castShadow
             shadow-mapSize-width={1024} shadow-mapSize-height={1024}
             shadow-bias={-0.0005}
           />
-          <directionalLight position={[-Lx, Lx * 1.4, -Lx]} intensity={0.35} />
+          <directionalLight position={[-Lx, Lx * 1.4, -Lx]} intensity={0.18} />
 
           <Suspense fallback={null}>
             <SlabPlate result={result} field={field}
@@ -197,11 +197,14 @@ function SlabPlate({ result, field, showDeformed, exaggeration, cutaway }:
   const isSigned = field === 'Mx' || field === 'My' || field === 'deflection';
 
   // Geometry rebuilt whenever inputs change. Cleanup on unmount.
+  // Top surface lifted 2mm above the body's top face so the two coplanar
+  // meshes don't z-fight when rotating (especially in cutaway/transparent).
+  const TOP_LIFT = 0.002;
   const geometry = useMemo(() => {
     const SEG = 60;
     const geo = new THREE.PlaneGeometry(Lx, Ly, SEG, SEG);
     geo.rotateX(-Math.PI / 2);
-    geo.translate(Lx / 2, 0, Ly / 2);
+    geo.translate(Lx / 2, TOP_LIFT, Ly / 2);
     const pos = geo.attributes.position;
     const colors = new THREE.Float32BufferAttribute(new Float32Array(pos.count * 3), 3);
     const c = new THREE.Color();
@@ -235,26 +238,29 @@ function SlabPlate({ result, field, showDeformed, exaggeration, cutaway }:
 
   return (
     <group>
-      {/* Top deformed surface — colored by selected field */}
-      <mesh geometry={geometry} castShadow receiveShadow>
-        <meshPhysicalMaterial vertexColors
-          side={THREE.DoubleSide}
-          roughness={isConcrete ? 0.85 : 0.55}
+      {/* Top deformed surface — colored by selected field. Matte concrete look
+          using MeshStandardMaterial (no clearcoat) so reflections don't flash
+          across the surface as the camera rotates. */}
+      <mesh geometry={geometry} castShadow receiveShadow renderOrder={1}>
+        <meshStandardMaterial vertexColors
+          side={THREE.FrontSide}
+          roughness={isConcrete ? 0.95 : 0.7}
           metalness={0.0}
-          clearcoat={isConcrete ? 0.15 : 0.0}
-          clearcoatRoughness={0.7}
-          envMapIntensity={isConcrete ? 0.6 : 0.4}
-          transparent={cutaway} opacity={cutaway ? 0.30 : 1.0} />
+          envMapIntensity={isConcrete ? 0.15 : 0.25}
+          transparent={cutaway} opacity={cutaway ? 0.30 : 1.0}
+          depthWrite={!cutaway}
+          polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </mesh>
 
-      {/* Slab body — concrete-coloured box (semi-transparent in cutaway mode) */}
-      <mesh position={[Lx / 2, -h / 2, Ly / 2]} castShadow receiveShadow>
-        <boxGeometry args={[Lx, h, Ly]} />
-        <meshPhysicalMaterial color="#cdc8bf" roughness={0.85} metalness={0.0}
-          clearcoat={0.15} clearcoatRoughness={0.7}
-          envMapIntensity={0.6}
+      {/* Slab body — concrete-coloured box. Top face shifted 4mm DOWN so the
+          painted top surface above doesn't z-fight with the box's +y face. */}
+      <mesh position={[Lx / 2, -h / 2 - 0.002, Ly / 2]} castShadow receiveShadow>
+        <boxGeometry args={[Lx, h - 0.004, Ly]} />
+        <meshStandardMaterial color="#cdc8bf" roughness={0.95} metalness={0.0}
+          envMapIntensity={0.15}
           transparent={cutaway} opacity={cutaway ? 0.18 : 1.0}
-          side={THREE.DoubleSide} />
+          depthWrite={!cutaway}
+          side={THREE.FrontSide} />
       </mesh>
 
       {/* Gold edge rims */}
@@ -335,14 +341,13 @@ function Rebar({ start, end, db, color, hookEnds = 'none', hookLen }:
 
   return (
     <mesh geometry={geo} castShadow receiveShadow>
-      <meshPhysicalMaterial
+      <meshStandardMaterial
         color={color}
-        metalness={0.7}
-        roughness={0.45}
-        clearcoat={0.4}
-        clearcoatRoughness={0.6}
+        metalness={0.35}
+        roughness={0.65}
+        envMapIntensity={0.25}
         normalMap={ribNormal ?? undefined}
-        normalScale={ribNormal ? new THREE.Vector2(0.4, 0.4) : undefined}
+        normalScale={ribNormal ? new THREE.Vector2(0.3, 0.3) : undefined}
       />
     </mesh>
   );
