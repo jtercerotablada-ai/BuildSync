@@ -7889,5 +7889,145 @@ img, svg {
   .slab-row__value { font-size: 0.95rem; }
 }
 
+/* Contour plots */
+.slab-contour { display: flex; flex-direction: column; gap: 0.6rem; }
+.slab-contour__tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.slab-contour__tab {
+  background: transparent;
+  border: 1px solid rgba(201, 168, 76, 0.35);
+  color: rgba(255, 255, 255, 0.75);
+  border-radius: 4px;
+  padding: 0.4rem 0.85rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.slab-contour__tab:hover { background: rgba(201, 168, 76, 0.10); color: #c9a84c; }
+.slab-contour__tab--active { background: rgba(201, 168, 76, 0.25); color: #c9a84c; border-color: #c9a84c; }
+.slab-contour svg { width: 100%; height: auto; max-height: 480px; display: block; border-radius: 4px; }
+.slab-contour__legend {
+  display: flex;
+  width: 100%;
+  height: 24px;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 0.4rem;
+}
+.slab-contour__legend-cell {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  font-size: 0.65rem;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  padding-bottom: 2px;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+}
+
+/* Hand-calc collapsible */
+.slab-handcalcs { margin-top: 1rem; }
+.slab-handcalcs > h4 {
+  font-family: var(--font-playfair), 'Playfair Display', serif;
+  font-size: 1rem;
+  color: #c9a84c;
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+.slab-handcalc {
+  background: rgba(0, 0, 0, 0.30);
+  border: 1px solid rgba(201, 168, 76, 0.15);
+  border-radius: 4px;
+  padding: 0.55rem 0.8rem;
+  margin-bottom: 0.4rem;
+}
+.slab-handcalc > summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.75);
+  list-style: none;
+}
+.slab-handcalc > summary::-webkit-details-marker { display: none; }
+.slab-handcalc > summary::before { content: '▸ '; color: #c9a84c; }
+.slab-handcalc[open] > summary::before { content: '▾ '; }
+.slab-handcalc__sub { color: rgba(255, 255, 255, 0.55); font-size: 0.78rem; }
+.slab-steps {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+.slab-steps li {
+  background: rgba(0, 0, 0, 0.25);
+  border-left: 2px solid #c9a84c;
+  padding: 0.45rem 0.65rem;
+  border-radius: 2px;
+}
+.slab-step__title { color: #c9a84c; font-weight: 600; font-size: 0.82rem; margin-bottom: 0.15rem; }
+.slab-step__formula { color: rgba(255, 255, 255, 0.85); font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 0.78rem; }
+.slab-step__sub { color: rgba(255, 255, 255, 0.6); font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 0.74rem; padding-top: 0.1rem; }
+.slab-step__result { color: #5fb674; font-weight: 600; font-variant-numeric: tabular-nums; padding-top: 0.15rem; font-size: 0.84rem; }
+.slab-step__ref { color: rgba(255, 255, 255, 0.4); font-style: italic; font-size: 0.68rem; padding-top: 0.1rem; }
+
+/* Stud rail */
+.slab-studrail {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed rgba(201, 168, 76, 0.3);
+}
+.slab-studrail h5 {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  color: #c9a84c;
+  font-family: var(--font-inter), 'Inter', sans-serif;
+  font-weight: 600;
+}
+
+/* Print button */
+.slab-print-btn { margin-left: auto; align-self: flex-end; }
+
+/* Print styles — A4-friendly hand-calc report */
+@media print {
+  body * { visibility: hidden; }
+  .ab-root, .ab-root * { visibility: visible; }
+  .ab-root {
+    position: absolute; left: 0; top: 0;
+    width: 100%; padding: 1cm;
+    background: white !important;
+    color: black !important;
+  }
+  .ab-section, .slab-card, .slab-handcalc, .slab-steps li {
+    background: white !important;
+    border-color: #555 !important;
+    color: black !important;
+    page-break-inside: avoid;
+  }
+  .ab-section__header h3, .slab-card h4, .slab-handcalcs h4, .slab-step__title,
+  .ab-label, .slab-contour__tab--active, .slab-print-btn {
+    color: #b08833 !important;
+  }
+  .slab-step__formula, .slab-step__sub { color: #222 !important; }
+  .slab-step__result { color: #2a7a3a !important; }
+  .slab-print-btn, .ab-tabs, .ab-presets,
+  .slab-contour__tabs, .ab-row-actions { display: none !important; }
+  /* Force ALL details panels open in print */
+  .slab-handcalc { display: block !important; }
+  .slab-handcalc[open], .slab-handcalc:not([open]) { padding: 0.4cm !important; }
+  .slab-handcalc > summary { color: #222 !important; }
+  details > summary + * { display: block !important; }
+  /* Show all tab contents in print */
+  .ab-section { page-break-inside: avoid; margin-bottom: 0.5cm; }
+}
+
 
 

@@ -328,10 +328,56 @@ function designOneRebarLayer(
     ? `ACI 318-19 §22.2.2 (φ=0.9), ${refMin}`
     : `EN 1992-1-1 §6.1 (γs=1.15, γc=1.5), ${refMin}`;
 
+  // Build hand-calc breakdown
+  const steps = [
+    {
+      title: 'Effective depth d',
+      formula: 'd = h − cover',
+      substitution: `d = ${h_mm} − ${cover_mm} = ${d.toFixed(0)} mm`,
+      result: `d = ${d.toFixed(0)} mm`,
+    },
+    {
+      title: 'Required steel area Aₛ',
+      formula: code === 'ACI 318-19'
+        ? 'Mu = φ·As·fy·(d − a/2),  a = As·fy / (0.85·fc·b)  →  solve for As'
+        : 'Mu = As·fyd·(d − a/2),  a = As·fyd / (fcd·b),  fcd = 0.85·fc/γc',
+      substitution: code === 'ACI 318-19'
+        ? `φ=0.9, fy=${fy}, fc=${fc}, b=1000, d=${d.toFixed(0)} mm`
+        : `fyd=${fyd.toFixed(0)} MPa, fcd=${fcd.toFixed(2)} MPa, γs=1.15, γc=1.5`,
+      result: `As_req = ${As_req.toFixed(0)} mm²/m`,
+      ref: code === 'ACI 318-19' ? 'ACI 318-19 §22.2.2' : 'EN 1992-1-1 §6.1',
+    },
+    {
+      title: 'Minimum steel',
+      formula: code === 'ACI 318-19'
+        ? 'As_min = ρ_min · b · h,  ρ_min = max(0.0018·420/fy, 0.0014)'
+        : 'As_min = max(0.26·fctm/fyk, 0.0013) · b · d,  fctm = 0.30·fc^(2/3)',
+      substitution: code === 'ACI 318-19'
+        ? `ρ_min = max(0.0018·420/${fy}, 0.0014) = ${(Math.max(0.0018 * 420 / Math.max(fy, 420), 0.0014)).toFixed(5)}`
+        : `fctm = 0.30·${fc}^(2/3) = ${(0.30 * Math.pow(fc, 2 / 3)).toFixed(2)} MPa,  ratio = ${(Math.max(0.26 * 0.30 * Math.pow(fc, 2 / 3) / fy, 0.0013)).toFixed(5)}`,
+      result: `As_min = ${As_min.toFixed(0)} mm²/m`,
+      ref: refMin,
+    },
+    {
+      title: 'Design As',
+      formula: 'As_design = max(As_req, As_min)',
+      substitution: `max(${As_req.toFixed(0)}, ${As_min.toFixed(0)})`,
+      result: `As_design = ${As_design.toFixed(0)} mm²/m`,
+    },
+    {
+      title: 'Bar selection',
+      formula: 's = Ab · b / As_design  ≤  s_max',
+      substitution: `${chosen.label} (Ab = ${chosen.Ab} mm²),  s = ${chosen.Ab}·1000 / ${As_design.toFixed(0)} = ${spacing.toFixed(0)} mm  ≤  ${s_max.toFixed(0)} mm`,
+      result: `${chosen.label} @ ${spacing.toFixed(0)} mm c/c`,
+      ref: code === 'ACI 318-19' ? 'ACI 318-19 §7.7.2.3' : 'EN 1992-1-1 §9.3.1.1(3)',
+    },
+  ];
+
   return {
     location, Mu: Math.abs(Mu_kNm), d,
     As_req, As_min, As_design,
     bar: chosen.label, spacing, spacing_max: s_max, ref,
+    steps,
   };
 }
 
@@ -407,6 +453,39 @@ function checkDeflection(
   const lambda = 2.0;
   const delta_longterm = delta_immediate * (1 + lambda);
 
+  const steps: import('./types').CalcStep[] = [
+    { title: 'Min thickness h_min',
+      formula: code === 'ACI 318-19'
+        ? 'h_min = L / factor  (Table 7.3.1.1 / 8.3.1.1)'
+        : 'h_min = L / (basic L/d ratio)  (§7.4.2)',
+      substitution: `L = ${L.toFixed(0)} mm,  factor = ${(L / h_min).toFixed(0)}`,
+      result: `h_min = ${h_min.toFixed(0)} mm  (provided ${g.h} → ${g.h >= h_min ? 'OK' : 'FAIL'})`,
+      ref: code === 'ACI 318-19' ? 'ACI 318-19 Table 7.3.1.1 / 8.3.1.1' : 'EN 1992-1-1 §7.4.2',
+    },
+    { title: 'Modulus of rupture / Mcr',
+      formula: 'fr = 0.62·√fc;  Mcr = fr · Ig / (h/2)',
+      substitution: `fr = 0.62·√${fc} = ${fr.toFixed(2)} MPa,  Ig = b·h³/12 = ${Ig.toExponential(3)} mm⁴`,
+      result: `Mcr = ${(Mcr / 1e6).toFixed(2)} kN·m/m`,
+    },
+    { title: 'Effective Ie (Branson)',
+      formula: 'Ie = (Mcr/Ms)³·Ig + [1 − (Mcr/Ms)³]·Icr   if Ms > Mcr',
+      substitution: `Ms = ${(Mservice / 1e6).toFixed(2)} kN·m/m  ${Mservice > Mcr ? '> Mcr → cracked' : '< Mcr → use Ig'}`,
+      result: `Ie = ${Ie.toExponential(3)} mm⁴/m`,
+      ref: 'ACI 318-19 §24.2.3 (Branson)',
+    },
+    { title: 'Immediate deflection Δi',
+      formula: 'Δi = 5·w·L⁴ / (384·E·Ie)  [SS UDL]',
+      substitution: `w = ${w_per_m.toFixed(2)} kN/m,  E = ${(Ec).toFixed(0)} MPa,  L = ${L_m.toFixed(2)} m`,
+      result: `Δi = ${delta_immediate.toFixed(2)} mm`,
+    },
+    { title: 'Long-term deflection',
+      formula: 'Δlt = (1 + λ)·Δi,  λ = ξ/(1+50ρ′),  ξ = 2 (5+ years)',
+      substitution: `λ = 2.0 (assume ρ′ = 0)`,
+      result: `Δlt = ${delta_longterm.toFixed(2)} mm  ≤  L/240 = ${limit.toFixed(1)} mm  ${delta_longterm <= limit ? 'OK' : 'FAIL'}`,
+      ref: 'ACI 318-19 §24.2.4',
+    },
+  ];
+
   return {
     h_min,
     h_min_ok: g.h >= h_min - 1e-6,
@@ -419,6 +498,7 @@ function checkDeflection(
     delta_longterm,
     delta_limit: limit,
     delta_ok: delta_longterm <= limit,
+    steps,
   };
 }
 
@@ -433,58 +513,132 @@ function checkPunching(
 ): PunchingResult {
   const c1 = p.c1;
   const c2 = p.c2 ?? c1;
-  const d = p.d ?? Math.max(50, g.h - Math.max(g.cover_bottom_x ?? 25, g.cover_bottom_y ?? 35));
+
+  // Effective depth — augmented if drop panel present
+  let d = p.d ?? Math.max(50, g.h - Math.max(g.cover_bottom_x ?? 25, g.cover_bottom_y ?? 35));
+  let dropPanel: import('./types').DropPanel | undefined;
+  if (p.dropPanelSize && p.dropPanelThickness && p.dropPanelSize > 0 && p.dropPanelThickness > 0) {
+    const d_eff = d + p.dropPanelThickness;
+    dropPanel = { size: p.dropPanelSize, thickness: p.dropPanelThickness, d_eff };
+    d = d_eff;
+  }
+
   const Vu = Math.abs(p.Vu) * 1000;                          // N
 
   let bo = 0;       // mm
   if (code === 'ACI 318-19') {
-    // ACI critical perimeter at d/2 from column face
     if (p.position === 'interior') bo = 2 * (c1 + d) + 2 * (c2 + d);
     if (p.position === 'edge')     bo = 2 * (c1 + d / 2) + (c2 + d);
     if (p.position === 'corner')   bo = (c1 + d / 2) + (c2 + d / 2);
   } else {
-    // EN 1992 critical perimeter at 2d from column face (basic)
-    if (p.position === 'interior') bo = 2 * (c1 + 4 * d) + 2 * (c2 + 4 * d);  // approx, EN §6.4.2
+    if (p.position === 'interior') bo = 2 * (c1 + 4 * d) + 2 * (c2 + 4 * d);
     if (p.position === 'edge')     bo = 2 * (c1 + 2 * d) + (c2 + 4 * d);
     if (p.position === 'corner')   bo = (c1 + 2 * d) + (c2 + 2 * d);
   }
 
-  let vc = 0;       // MPa
+  let vc = 0;
   let phi = 0.75;
   let ref = '';
+  let stepsExtra: import('./types').CalcStep[] = [];
+
   if (code === 'ACI 318-19') {
-    // ACI §22.6.5.2: vc = least of 4λs√fc, (2+4/β)·λs·√fc, (αs·d/bo + 2)·λs·√fc; in psi → for MPa use 0.33
     const beta_col = Math.max(c1, c2) / Math.min(c1, c2);
     const alpha_s = p.position === 'interior' ? 40 : p.position === 'edge' ? 30 : 20;
-    const lambda_s = 1.0;       // size factor (slab-on-grade etc.) ≈ 1 for d ≤ 250 mm
+    const lambda_s = 1.0;
     const fc_root = Math.sqrt(mat.fc);
     const v1 = 0.33 * lambda_s * fc_root;
     const v2 = (0.17 + 0.33 / beta_col) * lambda_s * fc_root;
     const v3 = (alpha_s * d / bo / 12 + 0.17) * lambda_s * fc_root;
     vc = Math.min(v1, v2, v3);
-    phi = 0.75;       // §21.2.1
+    phi = 0.75;
     ref = 'ACI 318-19 §22.6.5.2';
+    stepsExtra = [
+      { title: 'Critical perimeter b₀',
+        formula: 'b₀ = 2(c1 + d) + 2(c2 + d)  [interior]',
+        substitution: `b₀ = 2(${c1}+${d.toFixed(0)}) + 2(${c2}+${d.toFixed(0)}) = ${bo.toFixed(0)} mm`,
+        result: `b₀ = ${bo.toFixed(0)} mm`,
+        ref: 'ACI §22.6.4.1' },
+      { title: 'Concrete shear capacity v_c',
+        formula: 'v_c = min(0.33·λs·√fc, (0.17 + 0.33/β)·λs·√fc, (αs·d/b₀/12 + 0.17)·λs·√fc)',
+        substitution: `min(${v1.toFixed(3)}, ${v2.toFixed(3)}, ${v3.toFixed(3)}) MPa  (β=${beta_col.toFixed(2)}, αs=${alpha_s})`,
+        result: `v_c = ${vc.toFixed(3)} MPa`,
+        ref: 'ACI 318-19 §22.6.5.2' },
+    ];
   } else {
-    // EN 1992-1-1 §6.4.4 — vRdc = CRdc · k · (100 ρl · fck)^(1/3) ≥ vmin
     const k = Math.min(2.0, 1 + Math.sqrt(200 / d));
-    const rho_l = 0.005;        // assume 0.5% for unreinforced punching check (typical for slabs)
+    const rho_l = 0.005;
     const CRdc = 0.18 / 1.5;
     const vmin = 0.035 * Math.pow(k, 1.5) * Math.sqrt(mat.fc);
     vc = Math.max(CRdc * k * Math.pow(100 * rho_l * mat.fc, 1 / 3), vmin);
-    phi = 1.0;                  // EN already includes partial factors
+    phi = 1.0;
     ref = 'EN 1992-1-1 §6.4.4';
+    stepsExtra = [
+      { title: 'Control perimeter u₁',
+        formula: 'u₁ = 2(c1 + 4d) + 2(c2 + 4d)  [interior, basic perimeter at 2d]',
+        substitution: `u₁ = 2(${c1}+${(4 * d).toFixed(0)}) + 2(${c2}+${(4 * d).toFixed(0)}) = ${bo.toFixed(0)} mm`,
+        result: `u₁ = ${bo.toFixed(0)} mm`,
+        ref: 'EN 1992-1-1 §6.4.2' },
+      { title: 'Punching capacity v_Rd,c',
+        formula: 'v_Rd,c = max(C_Rd,c · k · (100·ρl·fck)^(1/3), v_min)',
+        substitution: `k = 1+√(200/${d.toFixed(0)}) = ${k.toFixed(3)},  ρl = ${(rho_l * 100).toFixed(2)}%`,
+        result: `v_Rd,c = ${vc.toFixed(3)} MPa`,
+        ref: 'EN 1992-1-1 §6.4.4(1)' },
+    ];
   }
 
-  // Demand stress
-  const beta_factor = (p.Mu && p.Mu !== 0) ? 1.15 : 1.0;        // simplified eccentricity amplifier
-  const vu = (Vu * beta_factor) / (bo * d);                      // N/mm² = MPa
+  const beta_factor = (p.Mu && p.Mu !== 0) ? 1.15 : 1.0;
+  const vu = (Vu * beta_factor) / (bo * d);
   const ratio = vu / Math.max(1e-6, phi * vc);
+  const needsReinf = ratio > 1.0;
+
+  // Stud-rail design when ratio > 1 (ACI 421.1R-20)
+  let studRail: import('./types').StudRailDesign | undefined;
+  if (needsReinf && code === 'ACI 318-19') {
+    // φ vn = φ (vc/2 + Av·fy/(bo·s)) ≥ vu  → Av/s = (vu/φ − vc/2) · bo / fy
+    const studFy = p.studFy ?? 420;
+    const phi_v = 0.75;
+    const reqAvOverS = Math.max(0, (vu / phi_v - vc / 2) * bo / studFy);   // mm²/mm
+    // Choose stud diameter and spacing — typical 9.5 mm (#3) studs, 4 rails (square col → 4 sides)
+    const studDb = 9.5; const Ab_stud = 71;       // ASTM A1044 #3 stud
+    const numRails = p.position === 'interior' ? 8 : p.position === 'edge' ? 6 : 4;
+    // Each perimeter has numRails studs; required area per perimeter:
+    // s such that (numRails · Ab_stud) / s ≥ reqAvOverS  →  s ≤ numRails·Ab_stud / reqAvOverS
+    let s = reqAvOverS > 0 ? Math.min(d / 2, (numRails * Ab_stud) / reqAvOverS) : d / 2;
+    s = Math.max(50, Math.floor(s / 10) * 10);    // round down to 10-mm increments
+    // Number of rows — extend until punching is OK at outermost perimeter (~ 2d from col face)
+    const extendToFromColFace = 2 * d;             // mm (typ ACI §8.7.7)
+    const rows = Math.max(2, Math.ceil(extendToFromColFace / s));
+    const Avfy_provided = (numRails * Ab_stud * studFy / 1000) / s * d;   // approx kN per perimeter
+    const Avfy_required = (vu / phi_v - vc / 2) * bo * d / 1000;
+    studRail = {
+      studDiameter: studDb, numRails, spacing: s, rows,
+      Avfy_required, Avfy_provided,
+      ref: 'ACI 318-19 §22.6.7 + ACI 421.1R-20',
+    };
+  }
+
+  const steps: import('./types').CalcStep[] = [
+    ...stepsExtra,
+    { title: 'Demand stress v_u',
+      formula: 'v_u = β · V_u / (b₀ · d)',
+      substitution: `v_u = ${beta_factor.toFixed(2)} · ${(Vu / 1000).toFixed(0)}·1000 / (${bo.toFixed(0)} · ${d.toFixed(0)}) = ${vu.toFixed(3)} MPa`,
+      result: `v_u = ${vu.toFixed(3)} MPa`,
+    },
+    { title: 'Demand / capacity ratio',
+      formula: 'r = v_u / (φ · v_c)',
+      substitution: `r = ${vu.toFixed(3)} / (${phi.toFixed(2)} · ${vc.toFixed(3)}) = ${ratio.toFixed(3)}`,
+      result: ratio <= 1 ? `OK (r = ${ratio.toFixed(2)})` : `FAIL (r = ${ratio.toFixed(2)}) — add stud rails / drop panel / increase d`,
+    },
+  ];
 
   return {
     bo, d, vc, vu, ratio,
     ok: ratio <= 1.0,
     ref,
-    needsReinf: ratio > 1.0,
+    needsReinf,
+    steps,
+    studRail,
+    dropPanel,
   };
 }
 
@@ -520,12 +674,72 @@ function checkCrackControl(
     else s_max = 100;
     ref = 'EN 1992-1-1 §7.3.3 Table 7.3N';
   }
+
+  // EN 1992-1-1 §7.3.4 — direct crack-width calculation wk
+  let wk: number | undefined;
+  let wk_limit: number | undefined;
+  let wk_ok: boolean | undefined;
+  if (code === 'EN 1992-1-1') {
+    const fc = mat.fc;
+    const fy = mat.fy;
+    const fctm = 0.30 * Math.pow(fc, 2 / 3);
+    const Ec = 22000 * Math.pow(Math.max(fc, 12) / 10 + 0.8, 0.3);
+    const Es = mat.Es ?? 200_000;
+    const alpha_e = Es / Ec;
+    const rho_eff = Math.max(0.002, rebar.As_design / (1000 * Math.min(rebar.d * 2.5, 1000)));
+    const phi_bar = 16;     // assume ϕ16 typical bar diameter for slab
+    const cover = 25;       // conservative
+    const k1 = 0.8;          // ribbed bars
+    const k2 = 0.5;          // bending
+    const k3 = 3.4;
+    const k4 = 0.425;
+    const sr_max = k3 * cover + k1 * k2 * k4 * phi_bar / rho_eff;     // mm
+    const eps_sm_minus_eps_cm = Math.max(
+      (fs - 0.4 * fctm * (1 + alpha_e * rho_eff) / rho_eff) / Es,
+      0.6 * fs / Es,
+    );
+    wk = sr_max * eps_sm_minus_eps_cm;     // mm
+    wk_limit = 0.3;        // typical for XC2/XC3 reinforced concrete (EN Table 7.1N)
+    wk_ok = wk <= wk_limit;
+  }
+
+  const steps: import('./types').CalcStep[] = code === 'ACI 318-19'
+    ? [
+      { title: 'Service stress f_s',
+        formula: 'f_s ≈ (2/3)·f_y',
+        substitution: `f_s ≈ (2/3)·${mat.fy} = ${fs.toFixed(0)} MPa`,
+        result: `f_s = ${fs.toFixed(0)} MPa` },
+      { title: 'Max bar spacing',
+        formula: 's_max = min(380·(280/fs) − 2.5·cc,  300·(280/fs))',
+        substitution: `cc ≈ ${(geom.cover_bottom_x ?? 25) - 6} mm,  s_max = min(...) = ${s_max.toFixed(0)} mm`,
+        result: `s_max = ${s_max.toFixed(0)} mm  ${rebar.spacing <= s_max ? 'OK' : 'FAIL'}`,
+        ref: 'ACI 318-19 §24.3.2' },
+    ]
+    : [
+      { title: 'Service stress f_s',
+        formula: 'f_s ≈ (2/3)·f_y',
+        substitution: `f_s = ${fs.toFixed(0)} MPa`,
+        result: `f_s = ${fs.toFixed(0)} MPa` },
+      { title: 'Max bar spacing (Table 7.3N)',
+        formula: 'Linear interpolation in Table 7.3N',
+        substitution: `f_s = ${fs.toFixed(0)} MPa`,
+        result: `s_max ≈ ${s_max.toFixed(0)} mm`,
+        ref: 'EN 1992-1-1 §7.3.3 Table 7.3N' },
+      { title: 'Crack width wk',
+        formula: 'wk = sr_max · (εsm − εcm)',
+        substitution: `αe = Es/Ecm,  ρ_eff = As/(b·h_eff)`,
+        result: wk !== undefined ? `wk = ${wk.toFixed(3)} mm  ≤  ${wk_limit?.toFixed(2)} mm  ${wk_ok ? 'OK' : 'FAIL'}` : '—',
+        ref: 'EN 1992-1-1 §7.3.4' },
+    ];
+
   return {
     fs,
     s_max,
     s: rebar.spacing,
-    ok: rebar.spacing <= s_max,
+    ok: rebar.spacing <= s_max && (wk_ok !== false),
     ref,
+    wk, wk_limit, wk_ok,
+    steps,
   };
 }
 

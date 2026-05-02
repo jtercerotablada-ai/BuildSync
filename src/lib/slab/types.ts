@@ -96,6 +96,12 @@ export interface PunchingInput {
   d?: number;
   /** Optional unbalanced moment (kN·m) — increases eccentric shear. */
   Mu?: number;
+  /** Optional drop panel (square, centred on column). */
+  dropPanelSize?: number;
+  /** Drop panel additional thickness (mm). */
+  dropPanelThickness?: number;
+  /** Optional stud-rail material yield (MPa). Defaults to 420. */
+  studFy?: number;
 }
 
 export interface SlabInput {
@@ -127,6 +133,19 @@ export interface MomentSet {
   Vy: number;
 }
 
+export interface CalcStep {
+  /** Short title (e.g. "As required"). */
+  title: string;
+  /** Human-readable formula (e.g. "As = Mu / (φ · fy · jd)"). */
+  formula: string;
+  /** Substitution with numeric values. */
+  substitution: string;
+  /** Result string (with units). */
+  result: string;
+  /** Code clause reference. */
+  ref?: string;
+}
+
 export interface ReinforcementResult {
   location: 'mid-x' | 'mid-y' | 'sup-x' | 'sup-y';
   /** Design factored moment (kN·m / m). */
@@ -147,6 +166,8 @@ export interface ReinforcementResult {
   spacing_max: number;
   /** Code reference clause. */
   ref: string;
+  /** Hand-calculation breakdown. */
+  steps?: CalcStep[];
 }
 
 export interface DeflectionResult {
@@ -172,6 +193,8 @@ export interface DeflectionResult {
   delta_limit: number;
   /** Whether delta ≤ limit. */
   delta_ok?: boolean;
+  /** Hand-calc breakdown. */
+  steps?: CalcStep[];
 }
 
 export interface PunchingResult {
@@ -191,6 +214,38 @@ export interface PunchingResult {
   ref: string;
   /** Whether shear reinforcement is needed (ratio > 1). */
   needsReinf: boolean;
+  /** Hand-calc breakdown. */
+  steps?: CalcStep[];
+  /** Stud-rail / shear-reinforcement design (filled when needsReinf). */
+  studRail?: StudRailDesign;
+  /** Drop panel applied to extend d / improve capacity. */
+  dropPanel?: DropPanel;
+}
+
+export interface DropPanel {
+  /** Plan dimension (mm) — square; centred on column. */
+  size: number;
+  /** Added thickness (mm) on top of the slab. */
+  thickness: number;
+  /** Effective d at the column with drop panel (mm). */
+  d_eff: number;
+}
+
+export interface StudRailDesign {
+  /** Stud diameter (mm). */
+  studDiameter: number;
+  /** Number of rails (radial lines from column). */
+  numRails: number;
+  /** Spacing along each rail (mm). */
+  spacing: number;
+  /** Number of rows of studs per rail. */
+  rows: number;
+  /** Required Av·fy per perimeter (kN). */
+  Avfy_required: number;
+  /** Provided Av·fy per perimeter (kN). */
+  Avfy_provided: number;
+  /** Code reference. */
+  ref: string;
 }
 
 export interface CrackControlResult {
@@ -202,6 +257,14 @@ export interface CrackControlResult {
   s: number;
   ok: boolean;
   ref: string;
+  /** EN 1992-1-1 §7.3.4 calculated crack width wk (mm), only for EN code. */
+  wk?: number;
+  /** Crack width limit per exposure (mm). */
+  wk_limit?: number;
+  /** Whether wk ≤ limit (EN only). */
+  wk_ok?: boolean;
+  /** Hand-calc breakdown. */
+  steps?: CalcStep[];
 }
 
 export interface SlabAnalysis {

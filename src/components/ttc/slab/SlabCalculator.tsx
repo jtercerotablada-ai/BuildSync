@@ -13,6 +13,7 @@ import {
   type ColumnPosition,
 } from '@/lib/slab/types';
 import { SlabSchematic } from './SlabSchematic';
+import { SlabContour } from './SlabContour';
 
 // ----------------------------------------------------------------------------
 // State
@@ -179,12 +180,27 @@ export function SlabCalculator() {
           <label>w_u (factored)</label>
           <span className="ab-label">{result.wu.toFixed(2)} kN/m²</span>
         </div>
+        <button type="button" className="ab-btn ab-btn--primary slab-print-btn"
+          onClick={() => window.print()}>
+          ⎙ Print full report
+        </button>
       </section>
 
       {/* Schematic */}
       <section className="ab-section ab-schematic-wrap">
         <SlabSchematic input={model} />
       </section>
+
+      {/* Contour plots */}
+      {result.solved && (
+        <section className="ab-section">
+          <header className="ab-section__header">
+            <h3>Contour plots</h3>
+            <p className="ab-section__subtitle">Spatial distribution of moments and required reinforcement (Method 3 + shape reconstruction). Toggle Mx / My / As fields.</p>
+          </header>
+          <SlabContour result={result} />
+        </section>
+      )}
 
       {/* Warnings */}
       {result.warnings.length > 0 && (
@@ -344,8 +360,14 @@ function InputsTab({ model, dispatch }:
               onChange={(v) => dispatch({ type: 'SET_PUNCH', patch: { c2: v } })} /></Field>
             <Field label="Vu (kN)"><Num val={model.punching.Vu} step={10}
               onChange={(v) => dispatch({ type: 'SET_PUNCH', patch: { Vu: v } })} /></Field>
-            <Field label="Mu transfer (kN·m, optional)"><Num val={model.punching.Mu ?? 0} step={5}
+            <Field label="Mu transfer (kN·m)"><Num val={model.punching.Mu ?? 0} step={5}
               onChange={(v) => dispatch({ type: 'SET_PUNCH', patch: { Mu: v || undefined } })} /></Field>
+            <Field label="Drop panel size (mm, 0 = none)"><Num val={model.punching.dropPanelSize ?? 0} step={100}
+              onChange={(v) => dispatch({ type: 'SET_PUNCH', patch: { dropPanelSize: v || undefined } })} /></Field>
+            <Field label="Drop panel +thickness (mm)"><Num val={model.punching.dropPanelThickness ?? 0} step={25}
+              onChange={(v) => dispatch({ type: 'SET_PUNCH', patch: { dropPanelThickness: v || undefined } })} /></Field>
+            <Field label="Stud-rail fy (MPa)"><Num val={model.punching.studFy ?? 420} step={10}
+              onChange={(v) => dispatch({ type: 'SET_PUNCH', patch: { studFy: v } })} /></Field>
           </div>
         ) : (
           <p className="ab-empty">Disabled — toggle on to add a column and compute v_u / φ·v_c.</p>
@@ -407,31 +429,45 @@ function MomentsTab({ result }: { result: ReturnType<typeof analyze> }) {
 function ReinforcementTab({ result }: { result: ReturnType<typeof analyze> }) {
   if (result.reinforcement.length === 0) return <p className="ab-empty">No reinforcement computed.</p>;
   return (
-    <div className="ab-table-scroll">
-      <table className="ab-result-table">
-        <thead>
-          <tr>
-            <th>Location</th><th>Mu (kN·m/m)</th><th>d (mm)</th>
-            <th>As req (mm²/m)</th><th>As min (mm²/m)</th><th>As design (mm²/m)</th>
-            <th>Bar</th><th>Spacing (mm)</th><th>s_max (mm)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {result.reinforcement.map((r) => (
-            <tr key={r.location}>
-              <td data-label="Location" className="ab-label">{labelLoc(r.location)}</td>
-              <td data-label="Mu">{r.Mu.toFixed(3)}</td>
-              <td data-label="d">{r.d.toFixed(0)}</td>
-              <td data-label="As req">{r.As_req.toFixed(0)}</td>
-              <td data-label="As min">{r.As_min.toFixed(0)}</td>
-              <td data-label="As design" className="ab-label">{r.As_design.toFixed(0)}</td>
-              <td data-label="Bar">{r.bar}</td>
-              <td data-label="Spacing">{r.spacing.toFixed(0)}</td>
-              <td data-label="s_max">{r.spacing_max.toFixed(0)}</td>
+    <div>
+      <div className="ab-table-scroll">
+        <table className="ab-result-table">
+          <thead>
+            <tr>
+              <th>Location</th><th>Mu (kN·m/m)</th><th>d (mm)</th>
+              <th>As req (mm²/m)</th><th>As min (mm²/m)</th><th>As design (mm²/m)</th>
+              <th>Bar</th><th>Spacing (mm)</th><th>s_max (mm)</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {result.reinforcement.map((r) => (
+              <tr key={r.location}>
+                <td data-label="Location" className="ab-label">{labelLoc(r.location)}</td>
+                <td data-label="Mu">{r.Mu.toFixed(3)}</td>
+                <td data-label="d">{r.d.toFixed(0)}</td>
+                <td data-label="As req">{r.As_req.toFixed(0)}</td>
+                <td data-label="As min">{r.As_min.toFixed(0)}</td>
+                <td data-label="As design" className="ab-label">{r.As_design.toFixed(0)}</td>
+                <td data-label="Bar">{r.bar}</td>
+                <td data-label="Spacing">{r.spacing.toFixed(0)}</td>
+                <td data-label="s_max">{r.spacing_max.toFixed(0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="slab-handcalcs">
+        <h4>Hand calculations (per location)</h4>
+        {result.reinforcement.map((r) => (
+          <details key={r.location} className="slab-handcalc">
+            <summary>
+              <span className="ab-label">{labelLoc(r.location)}</span>
+              <span className="slab-handcalc__sub">Mu = {r.Mu.toFixed(2)} kN·m/m → As = {r.As_design.toFixed(0)} mm²/m, {r.bar} @ {r.spacing.toFixed(0)} mm</span>
+            </summary>
+            {r.steps && <Steps steps={r.steps} />}
+          </details>
+        ))}
+      </div>
     </div>
   );
 }
@@ -459,22 +495,47 @@ function ChecksTab({ result }: { result: ReturnType<typeof analyze> }) {
             value={`${result.deflection.delta_longterm.toFixed(2)} mm  ≤  ${result.deflection.delta_limit.toFixed(1)} mm`}
             ok={result.deflection.delta_ok} />
         )}
+        {result.deflection.steps && (
+          <details className="slab-handcalc">
+            <summary><span className="ab-label">Hand calculation</span></summary>
+            <Steps steps={result.deflection.steps} />
+          </details>
+        )}
       </div>
 
       <div className="slab-card">
         <h4>Punching shear</h4>
         {result.punching ? (
           <>
+            {result.punching.dropPanel && (
+              <p className="slab-card__hint">Drop panel: {result.punching.dropPanel.size}×{result.punching.dropPanel.size} mm × +{result.punching.dropPanel.thickness} mm thk → d_eff = {result.punching.dropPanel.d_eff.toFixed(0)} mm</p>
+            )}
             <Row label="b₀ (critical perimeter)" value={`${result.punching.bo.toFixed(0)} mm`} />
             <Row label="d (effective depth)" value={`${result.punching.d.toFixed(0)} mm`} />
             <Row label="v_c capacity" value={`${result.punching.vc.toFixed(3)} MPa`} />
             <Row label="v_u demand" value={`${result.punching.vu.toFixed(3)} MPa`} />
             <Row label="Demand / capacity" value={`${result.punching.ratio.toFixed(3)}`}
               ok={result.punching.ok} />
-            {result.punching.needsReinf && (
-              <p className="slab-card__warn">⚠ v_u &gt; φ·v_c — punching shear reinforcement (stud rails or stirrups) required, or increase d / column size / f&apos;c.</p>
+            {result.punching.studRail && (
+              <div className="slab-studrail">
+                <h5>Stud rail design (ACI 421.1R-20)</h5>
+                <Row label="Stud diameter" value={`${result.punching.studRail.studDiameter} mm`} />
+                <Row label="Number of rails" value={`${result.punching.studRail.numRails}`} />
+                <Row label="Spacing along rail" value={`${result.punching.studRail.spacing.toFixed(0)} mm`} />
+                <Row label="Rows per rail" value={`${result.punching.studRail.rows}`} />
+                <p className="slab-card__hint">Extend stud rails until punching is satisfied at the outermost perimeter (~ 2d from column).</p>
+              </div>
+            )}
+            {result.punching.needsReinf && !result.punching.studRail && (
+              <p className="slab-card__warn">⚠ v_u &gt; φ·v_c — add stud rails / drop panel / increase d / f&apos;c.</p>
             )}
             <p className="slab-card__ref">{result.punching.ref}</p>
+            {result.punching.steps && (
+              <details className="slab-handcalc">
+                <summary><span className="ab-label">Hand calculation</span></summary>
+                <Steps steps={result.punching.steps} />
+              </details>
+            )}
           </>
         ) : (
           <p className="ab-empty">No punching column defined. Enable in Inputs tab.</p>
@@ -488,14 +549,40 @@ function ChecksTab({ result }: { result: ReturnType<typeof analyze> }) {
             <Row label="Service stress fs (≈ 2/3·fy)" value={`${result.crackControl.fs.toFixed(0)} MPa`} />
             <Row label="Spacing used" value={`${result.crackControl.s.toFixed(0)} mm`} />
             <Row label="Max spacing s_max" value={`${result.crackControl.s_max.toFixed(0)} mm`}
-              ok={result.crackControl.ok} />
+              ok={result.crackControl.s <= result.crackControl.s_max} />
+            {result.crackControl.wk !== undefined && (
+              <Row label="Crack width wk (EN §7.3.4)" value={`${result.crackControl.wk.toFixed(3)} mm  ≤  ${result.crackControl.wk_limit?.toFixed(2)} mm`}
+                ok={result.crackControl.wk_ok} />
+            )}
             <p className="slab-card__ref">{result.crackControl.ref}</p>
+            {result.crackControl.steps && (
+              <details className="slab-handcalc">
+                <summary><span className="ab-label">Hand calculation</span></summary>
+                <Steps steps={result.crackControl.steps} />
+              </details>
+            )}
           </>
         ) : (
           <p className="ab-empty">—</p>
         )}
       </div>
     </div>
+  );
+}
+
+function Steps({ steps }: { steps: { title: string; formula: string; substitution: string; result: string; ref?: string }[] }) {
+  return (
+    <ol className="slab-steps">
+      {steps.map((s, i) => (
+        <li key={i}>
+          <div className="slab-step__title">{s.title}</div>
+          <div className="slab-step__formula">{s.formula}</div>
+          <div className="slab-step__sub">{s.substitution}</div>
+          <div className="slab-step__result">{s.result}</div>
+          {s.ref && <div className="slab-step__ref">{s.ref}</div>}
+        </li>
+      ))}
+    </ol>
   );
 }
 
