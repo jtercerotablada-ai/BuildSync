@@ -86,7 +86,7 @@ export function analyze(input: SlabInput): SlabAnalysis {
   const reinforcement = designReinforcement(moments, g, m, code);
 
   // ---- Deflection ----
-  const deflection = checkDeflection(g, m, e, classification, beta, wService, code);
+  const deflection = checkDeflection(g, m, e, classification, beta, wService, code, input);
 
   // ---- Punching shear (optional) ----
   let punching: PunchingResult | undefined;
@@ -152,10 +152,15 @@ function applyMaterialDefaults(mat: Materials): Materials {
 }
 
 function defaultFactor(kind: 'DL' | 'LL', code: Code): number {
-  if (code === 'ACI 318-19') return kind === 'DL' ? 1.2 : 1.6;       // ACI §5.3.1 basic
+  if (isACI(code) || code === 'ACI 318-25')
+    return kind === 'DL' ? 1.2 : 1.6;                                 // ACI §5.3.1 basic combo
   /* EN 1992-1-1, Eurocode partial safety factors */
   return kind === 'DL' ? 1.35 : 1.5;                                  // EN 1990 Table A1.2(B)
 }
+
+function isACI(c: Code): boolean { return c === 'ACI 318-19' || c === 'ACI 318-25'; }
+function aciLabel(c: Code): string { return c === 'ACI 318-25' ? 'ACI 318-25' : 'ACI 318-19'; }
+function aciClause(c: Code, n: string): string { return `${aciLabel(c)} §${n}`; }
 
 // ================================================================
 // Moment computation
@@ -263,7 +268,7 @@ function designOneRebarLayer(
   // Compute As required from rectangular stress block (per unit metre width)
   const fc = mat.fc;
   const fy = mat.fy;
-  const phi = code === 'ACI 318-19' ? 0.9 : 1.0;       // EN uses material partial factors instead
+  const phi = isACI(code) ? 0.9 : 1.0;       // EN uses material partial factors instead
   const gamma_s = code === 'EN 1992-1-1' ? 1.15 : 1.0; // EN steel partial factor
   const gamma_c = code === 'EN 1992-1-1' ? 1.5 : 1.0;  // EN concrete partial factor
   const fyd = fy / gamma_s;                             // design yield (EN) or = fy (ACI)
@@ -291,14 +296,14 @@ function designOneRebarLayer(
   // Minimum reinforcement
   let As_min = 0;
   let refMin = '';
-  if (code === 'ACI 318-19') {
+  if (isACI(code)) {
     // ACI 318-19 §7.6.1.1: shrinkage and temperature reinf
     //   for fy ≤ 420: 0.0018 * Ag (per unit width)
     //   for fy > 420: 0.0018 * 420 / fy * Ag, but ≥ 0.0014 * Ag
     let rho_st = 0.0018 * 420 / Math.max(fy, 420);
     rho_st = Math.max(rho_st, 0.0014);
     As_min = rho_st * b * h_mm;
-    refMin = 'ACI 318-19 §7.6.1.1 (S&T) and §9.6.1 (flexural)';
+    refMin = `${aciClause(code, '7.6.1.1')} (S&T) and ${aciClause(code, '9.6.1')} (flexural)`;
     // Also flexural minimum (ACI §9.6.1.2) for slabs is implicitly satisfied by S&T
   } else {
     // EN 1992-1-1 §9.3.1.1: As_min = 0.26 * (fctm/fyk) * b * d ≥ 0.0013 * b * d
@@ -311,10 +316,10 @@ function designOneRebarLayer(
   const As_design = Math.max(As_req, As_min);
 
   // Bar selection — choose smallest bar that gives spacing ≤ s_max
-  const s_max = code === 'ACI 318-19'
+  const s_max = isACI(code)
     ? Math.min(3 * h_mm, 450)               // ACI 318-19 §7.7.2.3 for slabs: 3h or 18 in (450 mm)
     : Math.min(3 * h_mm, 400);              // EN 1992-1-1 §9.3.1.1(3)
-  const candidates = code === 'ACI 318-19'
+  const candidates = isACI(code)
     ? BAR_CATALOG.filter((bar) => bar.system === 'imperial' && bar.db >= 9.5)
     : BAR_CATALOG.filter((bar) => bar.system === 'metric'   && bar.db >= 8);
   let chosen = candidates[0];
@@ -324,7 +329,7 @@ function designOneRebarLayer(
     if (s <= s_max && s >= 50) { chosen = bar; spacing = s; break; }
   }
 
-  const ref = code === 'ACI 318-19'
+  const ref = isACI(code)
     ? `ACI 318-19 §22.2.2 (φ=0.9), ${refMin}`
     : `EN 1992-1-1 §6.1 (γs=1.15, γc=1.5), ${refMin}`;
 
@@ -338,21 +343,21 @@ function designOneRebarLayer(
     },
     {
       title: 'Required steel area Aₛ',
-      formula: code === 'ACI 318-19'
+      formula: isACI(code)
         ? 'Mu = φ·As·fy·(d − a/2),  a = As·fy / (0.85·fc·b)  →  solve for As'
         : 'Mu = As·fyd·(d − a/2),  a = As·fyd / (fcd·b),  fcd = 0.85·fc/γc',
-      substitution: code === 'ACI 318-19'
+      substitution: isACI(code)
         ? `φ=0.9, fy=${fy}, fc=${fc}, b=1000, d=${d.toFixed(0)} mm`
         : `fyd=${fyd.toFixed(0)} MPa, fcd=${fcd.toFixed(2)} MPa, γs=1.15, γc=1.5`,
       result: `As_req = ${As_req.toFixed(0)} mm²/m`,
-      ref: code === 'ACI 318-19' ? 'ACI 318-19 §22.2.2' : 'EN 1992-1-1 §6.1',
+      ref: isACI(code) ? aciClause(code, '22.2.2') : 'EN 1992-1-1 §6.1',
     },
     {
       title: 'Minimum steel',
-      formula: code === 'ACI 318-19'
+      formula: isACI(code)
         ? 'As_min = ρ_min · b · h,  ρ_min = max(0.0018·420/fy, 0.0014)'
         : 'As_min = max(0.26·fctm/fyk, 0.0013) · b · d,  fctm = 0.30·fc^(2/3)',
-      substitution: code === 'ACI 318-19'
+      substitution: isACI(code)
         ? `ρ_min = max(0.0018·420/${fy}, 0.0014) = ${(Math.max(0.0018 * 420 / Math.max(fy, 420), 0.0014)).toFixed(5)}`
         : `fctm = 0.30·${fc}^(2/3) = ${(0.30 * Math.pow(fc, 2 / 3)).toFixed(2)} MPa,  ratio = ${(Math.max(0.26 * 0.30 * Math.pow(fc, 2 / 3) / fy, 0.0013)).toFixed(5)}`,
       result: `As_min = ${As_min.toFixed(0)} mm²/m`,
@@ -369,7 +374,7 @@ function designOneRebarLayer(
       formula: 's = Ab · b / As_design  ≤  s_max',
       substitution: `${chosen.label} (Ab = ${chosen.Ab} mm²),  s = ${chosen.Ab}·1000 / ${As_design.toFixed(0)} = ${spacing.toFixed(0)} mm  ≤  ${s_max.toFixed(0)} mm`,
       result: `${chosen.label} @ ${spacing.toFixed(0)} mm c/c`,
-      ref: code === 'ACI 318-19' ? 'ACI 318-19 §7.7.2.3' : 'EN 1992-1-1 §9.3.1.1(3)',
+      ref: isACI(code) ? aciClause(code, '7.7.2.3') : 'EN 1992-1-1 §9.3.1.1(3)',
     },
   ];
 
@@ -392,6 +397,7 @@ function checkDeflection(
   beta: number,
   wService: number,
   code: Code,
+  input: SlabInput,
 ): DeflectionResult {
   const Lshort = Math.min(g.Lx, g.Ly);
   const L = Lshort * 1000;        // mm
@@ -399,19 +405,52 @@ function checkDeflection(
 
   // h_min check
   let h_min = 0;
-  if (code === 'ACI 318-19') {
-    // ACI 318-19 Table 7.3.1.1 (one-way) and Table 8.3.1.1 (two-way without interior beams).
+  if (isACI(code)) {
+    // ACI 318-19 / 318-25: identical tables.
+    // One-way: Table 7.3.1.1 — SS L/20, one end cont L/24, both cont L/28, cantilever L/10
+    //          Modifier §7.3.1.1.1 for fy ≠ 420 MPa: × (0.4 + fy/700)
+    // Two-way: Table 8.3.1.1 (flat plate without interior beams). For fy=420:
+    //          • Exterior, no edge beam: ℓn/30
+    //          • Exterior, with edge beam OR Interior: ℓn/33
+    //          • Drop panels reduce these to ℓn/33 and ℓn/36 respectively
+    //          fy interpolation: 280 → ÷33/36/36, 420 → ÷30/33/33, 550 → ÷27/30/30
+    const fixedCount = [edges.left, edges.right, edges.top, edges.bottom].filter((e) => e === 'fixed').length;
+    const fy = mat.fy;
+    const fyMod = (0.4 + fy / 700);     // §7.3.1.1.1 modifier (=1.0 at fy=420)
+
     if (classification === 'one-way') {
-      // Both edges discontinuous (SS): L/20.  Both continuous: L/28.  Cantilever: L/10.
-      const fixedCount = [edges.left, edges.right, edges.top, edges.bottom].filter((e) => e === 'fixed').length;
-      const factor = fixedCount >= 2 ? 28 : 20;
-      h_min = L / factor;
+      const factor = fixedCount >= 2 ? 28 : (fixedCount === 1 ? 24 : 20);
+      h_min = (L / factor) * fyMod;
     } else {
-      // Two-way without interior beams (flat plate): from Table 8.3.1.1
-      // Simplified — exterior: L/30, interior: L/33 with edge beams; use L/30 conservative
-      const fixedCount = [edges.left, edges.right, edges.top, edges.bottom].filter((e) => e === 'fixed').length;
-      const factor = fixedCount === 4 ? 36 : fixedCount >= 2 ? 33 : 30;
-      h_min = L / factor;
+      // Determine effective denominator from Table 8.3.1.1 by fy + edge condition + drop
+      // We treat 4 fixed edges as INTERIOR PANEL (no exterior edge); ≥2 fixed → with edge
+      // beams; otherwise without edge beams (most conservative, smallest denominator).
+      const isInterior   = fixedCount === 4;
+      const hasEdgeBeam  = fixedCount >= 2 && !isInterior;
+      const hasDropPanel = !!input.punching?.dropPanelSize && (input.punching.dropPanelThickness ?? 0) > 0;
+      // Linear-interpolate the denominator between fy values 280, 420, 550
+      const interp = (lo: number, mid: number, hi: number): number => {
+        if (fy <= 280) return lo;
+        if (fy >= 550) return hi;
+        if (fy < 420) return lo + (mid - lo) * (fy - 280) / (420 - 280);
+        return mid + (hi - mid) * (fy - 420) / (550 - 420);
+      };
+      let denom: number;
+      if (hasDropPanel) {
+        // With drop panels row: interior 40/36/33; with edge beam 40/36/33; without 36/33/30
+        denom = isInterior   ? interp(40, 36, 33)
+              : hasEdgeBeam  ? interp(40, 36, 33)
+              :                interp(36, 33, 30);
+      } else {
+        // Without drop panels row: interior 36/33/30; with edge beam 36/33/30; without 33/30/27
+        denom = isInterior   ? interp(36, 33, 30)
+              : hasEdgeBeam  ? interp(36, 33, 30)
+              :                interp(33, 30, 27);
+      }
+      h_min = L / denom;
+      // Slabs without drop panels also have absolute minimum 125 mm (8.3.1.1(a)),
+      // with drop panels 100 mm (8.3.1.1(b))
+      h_min = Math.max(h_min, hasDropPanel ? 100 : 125);
     }
   } else {
     // EN 1992-1-1 §7.4.2 — span/depth
@@ -425,7 +464,7 @@ function checkDeflection(
   // Branson immediate deflection (Mid-x location, simplified beam)
   const fc = mat.fc;
   const fr = mat.fr ?? 0.62 * Math.sqrt(fc);
-  const Ec = code === 'ACI 318-19'
+  const Ec = isACI(code)
     ? 4700 * Math.sqrt(fc)              // ACI §19.2.2 (MPa)
     : 22000 * Math.pow(Math.max(fc, 12) / 10 + 0.8, 0.3);   // EN §3.1.3 — simplified Ecm
   const b = 1000;                                            // 1-m strip
@@ -455,12 +494,12 @@ function checkDeflection(
 
   const steps: import('./types').CalcStep[] = [
     { title: 'Min thickness h_min',
-      formula: code === 'ACI 318-19'
+      formula: isACI(code)
         ? 'h_min = L / factor  (Table 7.3.1.1 / 8.3.1.1)'
         : 'h_min = L / (basic L/d ratio)  (§7.4.2)',
       substitution: `L = ${L.toFixed(0)} mm,  factor = ${(L / h_min).toFixed(0)}`,
       result: `h_min = ${h_min.toFixed(0)} mm  (provided ${g.h} → ${g.h >= h_min ? 'OK' : 'FAIL'})`,
-      ref: code === 'ACI 318-19' ? 'ACI 318-19 Table 7.3.1.1 / 8.3.1.1' : 'EN 1992-1-1 §7.4.2',
+      ref: isACI(code) ? `${aciLabel(code)} Table 7.3.1.1 / 8.3.1.1` : 'EN 1992-1-1 §7.4.2',
     },
     { title: 'Modulus of rupture / Mcr',
       formula: 'fr = 0.62·√fc;  Mcr = fr · Ig / (h/2)',
@@ -471,7 +510,7 @@ function checkDeflection(
       formula: 'Ie = (Mcr/Ms)³·Ig + [1 − (Mcr/Ms)³]·Icr   if Ms > Mcr',
       substitution: `Ms = ${(Mservice / 1e6).toFixed(2)} kN·m/m  ${Mservice > Mcr ? '> Mcr → cracked' : '< Mcr → use Ig'}`,
       result: `Ie = ${Ie.toExponential(3)} mm⁴/m`,
-      ref: 'ACI 318-19 §24.2.3 (Branson)',
+      ref: aciClause(code, '24.2.3') + ' (Branson)',
     },
     { title: 'Immediate deflection Δi',
       formula: 'Δi = 5·w·L⁴ / (384·E·Ie)  [SS UDL]',
@@ -482,7 +521,7 @@ function checkDeflection(
       formula: 'Δlt = (1 + λ)·Δi,  λ = ξ/(1+50ρ′),  ξ = 2 (5+ years)',
       substitution: `λ = 2.0 (assume ρ′ = 0)`,
       result: `Δlt = ${delta_longterm.toFixed(2)} mm  ≤  L/240 = ${limit.toFixed(1)} mm  ${delta_longterm <= limit ? 'OK' : 'FAIL'}`,
-      ref: 'ACI 318-19 §24.2.4',
+      ref: aciClause(code, '24.2.4'),
     },
   ];
 
@@ -526,7 +565,7 @@ function checkPunching(
   const Vu = Math.abs(p.Vu) * 1000;                          // N
 
   let bo = 0;       // mm
-  if (code === 'ACI 318-19') {
+  if (isACI(code)) {
     if (p.position === 'interior') bo = 2 * (c1 + d) + 2 * (c2 + d);
     if (p.position === 'edge')     bo = 2 * (c1 + d / 2) + (c2 + d);
     if (p.position === 'corner')   bo = (c1 + d / 2) + (c2 + d / 2);
@@ -541,17 +580,21 @@ function checkPunching(
   let ref = '';
   let stepsExtra: import('./types').CalcStep[] = [];
 
-  if (code === 'ACI 318-19') {
+  if (isACI(code)) {
     const beta_col = Math.max(c1, c2) / Math.min(c1, c2);
     const alpha_s = p.position === 'interior' ? 40 : p.position === 'edge' ? 30 : 20;
-    const lambda_s = 1.0;
-    const fc_root = Math.sqrt(mat.fc);
+    // §22.6.5.2 size factor: λ_s = √(2 / (1 + 0.004·d)) ≤ 1.0  (d in mm).
+    // Reduces vc for thick slabs (d > 250 mm). Same in 318-19 and 318-25.
+    const lambda_s = Math.min(1.0, Math.sqrt(2 / (1 + 0.004 * d)));
+    // §22.6.3.1: √f'c used in vc calculation shall not exceed 8.3 MPa
+    // (i.e. f'c effectively capped at ~70 MPa for shear strength).
+    const fc_root = Math.min(8.3, Math.sqrt(mat.fc));
     const v1 = 0.33 * lambda_s * fc_root;
     const v2 = (0.17 + 0.33 / beta_col) * lambda_s * fc_root;
     const v3 = (alpha_s * d / bo / 12 + 0.17) * lambda_s * fc_root;
     vc = Math.min(v1, v2, v3);
     phi = 0.75;
-    ref = 'ACI 318-19 §22.6.5.2';
+    ref = aciClause(code, '22.6.5.2');
     stepsExtra = [
       { title: 'Critical perimeter b₀',
         formula: 'b₀ = 2(c1 + d) + 2(c2 + d)  [interior]',
@@ -562,7 +605,7 @@ function checkPunching(
         formula: 'v_c = min(0.33·λs·√fc, (0.17 + 0.33/β)·λs·√fc, (αs·d/b₀/12 + 0.17)·λs·√fc)',
         substitution: `min(${v1.toFixed(3)}, ${v2.toFixed(3)}, ${v3.toFixed(3)}) MPa  (β=${beta_col.toFixed(2)}, αs=${alpha_s})`,
         result: `v_c = ${vc.toFixed(3)} MPa`,
-        ref: 'ACI 318-19 §22.6.5.2' },
+        ref: aciClause(code, '22.6.5.2') },
     ];
   } else {
     const k = Math.min(2.0, 1 + Math.sqrt(200 / d));
@@ -593,7 +636,7 @@ function checkPunching(
 
   // Stud-rail design when ratio > 1 (ACI 421.1R-20)
   let studRail: import('./types').StudRailDesign | undefined;
-  if (needsReinf && code === 'ACI 318-19') {
+  if (needsReinf && isACI(code)) {
     // φ vn = φ (vc/2 + Av·fy/(bo·s)) ≥ vu  → Av/s = (vu/φ − vc/2) · bo / fy
     const studFy = p.studFy ?? 420;
     const phi_v = 0.75;
@@ -613,7 +656,7 @@ function checkPunching(
     studRail = {
       studDiameter: studDb, numRails, spacing: s, rows,
       Avfy_required, Avfy_provided,
-      ref: 'ACI 318-19 §22.6.7 + ACI 421.1R-20',
+      ref: `${aciClause(code, '22.6.7')} + ACI 421.1R-20`,
     };
   }
 
@@ -655,7 +698,7 @@ function checkCrackControl(
   const fs = (2 / 3) * mat.fy;
   let s_max = 0;
   let ref = '';
-  if (code === 'ACI 318-19') {
+  if (isACI(code)) {
     // ACI 318-19 §24.3.2: s_max = least of 380·(280/fs) − 2.5·cc and 300·(280/fs).
     // cc = clear cover from concrete surface to outermost bar surface (mm).
     // Slabs typically have small cc (~20 mm); approximate from cover-to-centroid minus
@@ -666,7 +709,7 @@ function checkCrackControl(
     const cc = Math.max(15, cover - 6);
     const ratio = 280 / fs;
     s_max = Math.min(380 * ratio - 2.5 * cc, 300 * ratio);
-    ref = 'ACI 318-19 §24.3.2';
+    ref = aciClause(code, '24.3.2');
   } else {
     // EN 1992-1-1 §7.3.3 Table 7.3N — s_max for fs = 280 MPa is ≈ 200 mm; use linear interp
     if (fs <= 240) s_max = 250;
@@ -703,7 +746,7 @@ function checkCrackControl(
     wk_ok = wk <= wk_limit;
   }
 
-  const steps: import('./types').CalcStep[] = code === 'ACI 318-19'
+  const steps: import('./types').CalcStep[] = isACI(code)
     ? [
       { title: 'Service stress f_s',
         formula: 'f_s ≈ (2/3)·f_y',
@@ -713,7 +756,7 @@ function checkCrackControl(
         formula: 's_max = min(380·(280/fs) − 2.5·cc,  300·(280/fs))',
         substitution: `cc ≈ ${(geom.cover_bottom_x ?? 25) - 6} mm,  s_max = min(...) = ${s_max.toFixed(0)} mm`,
         result: `s_max = ${s_max.toFixed(0)} mm  ${rebar.spacing <= s_max ? 'OK' : 'FAIL'}`,
-        ref: 'ACI 318-19 §24.3.2' },
+        ref: aciClause(code, '24.3.2') },
     ]
     : [
       { title: 'Service stress f_s',

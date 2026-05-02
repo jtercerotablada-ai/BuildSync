@@ -523,6 +523,145 @@ block('BLOCK 23 — Two-way Case 4 corner panel m=1.0');
 }
 
 // ============================================================
+// BLOCK 24 — ACI 318-25 selection produces identical numerical result
+// (formulas unchanged for these provisions; only ref labels differ)
+// ============================================================
+block('BLOCK 24 — ACI 318-25 vs 318-19 numerical equivalence');
+{
+  const inputs: SlabInput = {
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 5, Ly: 5, h: 200 },
+    edges: edges('fixed', 'fixed', 'fixed', 'fixed'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1.5, LL: 5 },
+  };
+  const r19 = analyze(inputs);
+  const r25 = analyze({ ...inputs, code: 'ACI 318-25' });
+  expect('Mx_pos identical', r25.moments.Mx_pos, r19.moments.Mx_pos, 0.0001);
+  expect('h_min identical', r25.deflection.h_min, r19.deflection.h_min, 0.0001);
+  // Reference label should now mention 318-25
+  if (r25.reinforcement[0].steps?.some((s) => s.ref?.includes('318-25'))) PASS++;
+  else { FAIL++; fails.push('  FAIL: 318-25 ref not in reinforcement steps'); }
+  console.log(`  ${r25.reinforcement[0].steps?.some((s) => s.ref?.includes('318-25')) ? 'PASS' : 'FAIL'} 318-25 ref present in citations`);
+}
+
+// ============================================================
+// BLOCK 25 — Punching size factor λ_s reduces vc on THICK slab (d > 250 mm)
+// ============================================================
+block('BLOCK 25 — λ_s size factor for thick slab');
+{
+  // d = 500 mm slab. λ_s = √(2 / (1 + 0.004·500)) = √(2/3) = 0.816 → ~18% reduction
+  const r = analyze({
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 8, Ly: 8, h: 600, cover_bottom_x: 50 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1, LL: 4 },
+    punching: { c1: 400, c2: 400, position: 'interior', Vu: 600, d: 500 },
+  });
+  const lambda_s = Math.sqrt(2 / (1 + 0.004 * 500));    // ≈ 0.816
+  const expected_vc = lambda_s * 0.33 * Math.sqrt(28);   // ≈ 1.426 MPa
+  expect('vc reduced by λ_s', r.punching!.vc, expected_vc, 0.02);
+}
+
+// ============================================================
+// BLOCK 26 — One-way h_min fy modifier for fy ≠ 420
+// ============================================================
+block('BLOCK 26 — h_min fy modifier (one-way), fy = 550 MPa');
+{
+  // SS one-way slab L=5m, fy=550 → factor (0.4 + 550/700) = 1.186
+  // h_min = (5000/20) · 1.186 = 296 mm
+  const r = analyze({
+    code: 'ACI 318-25', units: 'SI',
+    geometry: { Lx: 5, Ly: 12, h: 300 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 550 },
+    loads: { DL_super: 1.5, LL: 5 },
+  });
+  const expected = (5000 / 20) * (0.4 + 550 / 700);
+  expect('h_min one-way fy=550', r.deflection.h_min, expected, 0.005);
+}
+
+// ============================================================
+// BLOCK 27 — Two-way h_min: edge beam differentiation
+// ============================================================
+block('BLOCK 27 — Two-way h_min — interior panel (4 fixed) at fy=420');
+{
+  // Interior 5×5 panel (4 fixed), fy=420 → ℓn/33 = 5000/33 ≈ 151.5 mm
+  const r = analyze({
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 5, Ly: 5, h: 200 },
+    edges: edges('fixed', 'fixed', 'fixed', 'fixed'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1.5, LL: 5 },
+  });
+  expect('h_min interior fy=420', r.deflection.h_min, 5000 / 33, 0.005);
+}
+
+block('BLOCK 28 — Two-way h_min — without edge beams (all simple) at fy=420');
+{
+  // 5×5 with all SS edges → "without edge beams", denom 30 → h_min = 167 mm
+  // But minimum 125 mm absolute floor.
+  const r = analyze({
+    code: 'ACI 318-19', units: 'SI',
+    geometry: { Lx: 5, Ly: 5, h: 200 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1.5, LL: 5 },
+  });
+  expect('h_min without edge beams', r.deflection.h_min, 5000 / 30, 0.005);
+}
+
+// ============================================================
+// BLOCK 29 — Punching √fc cap at 8.3 MPa (ACI §22.6.3.1)
+// ============================================================
+block('BLOCK 29 — √fc cap at 8.3 MPa for vc (high-strength concrete)');
+{
+  // f'c = 100 MPa → √fc = 10, but capped at 8.3
+  const r = analyze({
+    code: 'ACI 318-25', units: 'SI',
+    geometry: { Lx: 6, Ly: 6, h: 220, cover_bottom_x: 25 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 100, fy: 420 },
+    loads: { DL_super: 1, LL: 4 },
+    punching: { c1: 300, c2: 300, position: 'interior', Vu: 500, d: 195 },
+  });
+  // vc least of three; with √fc capped at 8.3, basic v1 = 0.33·1·8.3 = 2.74 MPa max
+  // (the size factor and other terms still apply, but the √fc itself is capped)
+  // λs = √(2/(1+0.004·195)) ≈ 1.0 (since d < 250)
+  // v1 = 0.33 · 1.0 · 8.3 = 2.739
+  const expected_v1 = 0.33 * Math.min(1, Math.sqrt(2 / (1 + 0.004 * 195))) * 8.3;
+  expectBool('vc ≤ 0.33·8.3', r.punching!.vc <= expected_v1 + 1e-6, true);
+}
+
+// ============================================================
+// BLOCK 30 — Drop panel reduces two-way h_min (ACI Table 8.3.1.1)
+// ============================================================
+block('BLOCK 30 — Drop panel reduces h_min');
+{
+  // 5×5 with all simple edges; without drop = ℓn/30 = 167; with drop = ℓn/33 = 151.5
+  const noDrop = analyze({
+    code: 'ACI 318-25', units: 'SI',
+    geometry: { Lx: 5, Ly: 5, h: 200 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1.5, LL: 5 },
+  });
+  const withDrop = analyze({
+    code: 'ACI 318-25', units: 'SI',
+    geometry: { Lx: 5, Ly: 5, h: 200 },
+    edges: edges('simple', 'simple', 'simple', 'simple'),
+    materials: { fc: 28, fy: 420 },
+    loads: { DL_super: 1.5, LL: 5 },
+    punching: { c1: 300, c2: 300, position: 'interior', Vu: 200,
+      dropPanelSize: 1500, dropPanelThickness: 75 },
+  });
+  expect('without-drop h_min = ℓn/30', noDrop.deflection.h_min, 5000 / 30, 0.005);
+  expect('with-drop h_min = ℓn/33', withDrop.deflection.h_min, 5000 / 33, 0.005);
+  expectBool('with-drop is smaller', withDrop.deflection.h_min < noDrop.deflection.h_min, true);
+}
+
+// ============================================================
 // SUMMARY
 // ============================================================
 console.log('\n============================================');

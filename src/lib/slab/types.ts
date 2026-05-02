@@ -10,7 +10,7 @@
 //   bar size                metric (#10, #12, #16…) or imperial (#3-#11)
 //   deflection δ            mm
 
-export type Code = 'ACI 318-19' | 'EN 1992-1-1';
+export type Code = 'ACI 318-19' | 'ACI 318-25' | 'EN 1992-1-1';
 export type SystemUnits = 'SI';                   // (US to be added later)
 
 export type EdgeCondition = 'free' | 'simple' | 'fixed';

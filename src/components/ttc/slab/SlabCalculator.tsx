@@ -169,6 +169,7 @@ export function SlabCalculator() {
           <label htmlFor="slab-code">Design Code</label>
           <select id="slab-code" value={model.code}
             onChange={(e) => dispatch({ type: 'SET_CODE', code: e.target.value as Code })}>
+            <option value="ACI 318-25">ACI 318-25 (US, latest)</option>
             <option value="ACI 318-19">ACI 318-19 (US)</option>
             <option value="EN 1992-1-1">EN 1992-1-1 (Eurocode 2)</option>
           </select>
@@ -620,17 +621,19 @@ function Steps({ steps }: { steps: { title: string; formula: string; substitutio
 // ============================================================================
 function CodeRefsTab({ result }: { result: ReturnType<typeof analyze> }) {
   const code = result.code;
-  const refs: { area: string; clauses: string[] }[] = code === 'ACI 318-19' ? [
+  const aciHeader = code === 'ACI 318-25' ? 'ACI 318-25' : 'ACI 318-19';
+  const refs: { area: string; clauses: string[] }[] = (code === 'ACI 318-19' || code === 'ACI 318-25') ? [
+    { area: 'Code edition',          clauses: [`${aciHeader} (SI) — same provisions as 318-19 for these checks (§§ identical)`] },
     { area: 'Load factors',          clauses: ['§5.3.1 — basic 1.2D + 1.6L'] },
-    { area: 'Two-way moments',       clauses: ['Method 3 (PCA Notes / Appendix A) — coefficient method, accepted under §8.10.1.2 alternative analysis'] },
-    { area: 'One-way coefficients',  clauses: ['§6.5.2 — simplified coefficients for continuous beams/one-way slabs'] },
-    { area: 'Flexure φ',             clauses: ['§22.2.2 — strength reduction φ = 0.9 for tension-controlled'] },
-    { area: 'Min reinforcement',     clauses: ['§7.6.1.1 — shrinkage & temperature ρ ≥ 0.0018 (fy=420)', '§9.6.1 — flexural minimum'] },
-    { area: 'Max bar spacing',       clauses: ['§7.7.2.3 — slabs: 3h or 450 mm'] },
+    { area: 'Two-way moments',       clauses: ['DDM and EFM removed from main text in 318-25 (R6.2.4.1) but permitted via §8.2.1', 'Method 3 (PCA Notes / Appendix A from 318-99) used here as accepted equilibrium-based analysis'] },
+    { area: 'One-way coefficients',  clauses: ['§6.5 — simplified coefficients for continuous one-way slabs/beams'] },
+    { area: 'Flexure φ',             clauses: ['§22.2.2 — φ = 0.9 for tension-controlled'] },
+    { area: 'Min reinforcement',     clauses: ['§7.6.1.1 — shrinkage & temperature ρ ≥ 0.0018·420/fy ≥ 0.0014', '§9.6.1 — flexural minimum'] },
+    { area: 'Max bar spacing',       clauses: ['§7.7.2.3 — slabs: lesser of 3h or 450 mm'] },
     { area: 'Crack control',         clauses: ['§24.3.2 — s ≤ 380(280/fs) − 2.5cc and ≤ 300(280/fs)'] },
-    { area: 'Min thickness',         clauses: ['Table 7.3.1.1 (one-way)', 'Table 8.3.1.1 (two-way without interior beams)'] },
+    { area: 'Min thickness',         clauses: ['Table 7.3.1.1 (one-way), modified by §7.3.1.1.1 factor (0.4 + fy/700)', 'Table 8.3.1.1 (two-way without beams) — interpolated for fy and adjusted for edge beams + drop panels'] },
     { area: 'Deflection',            clauses: ['§24.2.4 — long-term multiplier λ = ξ/(1+50ρ′), ξ=2.0 (5+ years)', 'Branson Ie via Eq. 24.2.3.5a'] },
-    { area: 'Punching shear',        clauses: ['§22.6.5.2 — vc = 0.33λs√fc (interior, square)', '§21.2.1 — φ = 0.75 for shear', '§22.6.5.3 — eccentric shear adjustment for unbalanced moment'] },
+    { area: 'Punching shear',        clauses: ['§22.6.5.2 — vc = least of 0.33·λs·√fc, (0.17+0.33/β)·λs·√fc, (αs·d/(12·b₀)+0.17)·λs·√fc', '§22.6.5.2.1 — λs = √(2/(1+0.004·d)) ≤ 1', '§22.6.3.1 — √fc capped at 8.3 MPa', '§21.2.1 — φ = 0.75 for shear', '§22.6.7 + ACI 421.1R-20 — stud rails when v_u > φv_c'] },
   ] : [
     { area: 'Load factors',          clauses: ['EN 1990 Table A1.2(B) — γG = 1.35, γQ = 1.5'] },
     { area: 'Two-way moments',       clauses: ['Method 3 (PCA) used as elastic plate analysis acceptable under §5.1.3 simplified analysis'] },
@@ -651,16 +654,19 @@ function CodeRefsTab({ result }: { result: ReturnType<typeof analyze> }) {
       ))}
       <div className="slab-card slab-card--validation">
         <h4>Validation</h4>
-        <p>Solver passes <strong>63/63</strong> unit tests against:</p>
+        <p>Solver passes <strong>74/74</strong> unit tests against ACI 318-19, ACI 318-25 and EN 1992-1-1, including:</p>
         <ul>
           <li>Closed-form one-way moments (SS, fixed-fixed)</li>
           <li>PCA Notes Method 3 coefficient lookup (Cases 1–9)</li>
           <li>Hand-calc flexural design (As req, As min)</li>
           <li>Branson Ie cracked-section deflection</li>
-          <li>ACI 318-19 §22.6 punching shear at interior column</li>
+          <li>ACI 318 §22.6 punching shear with λ_s size factor and √fc ≤ 8.3 MPa cap</li>
           <li>EN 1992 §6.4.4 punching with basic perimeter at 2d</li>
           <li>Crack-control max spacing per §24.3.2 / §7.3.3</li>
+          <li>Min thickness Table 7.3.1.1 with fy modifier (0.4+fy/700)</li>
+          <li>Min thickness Table 8.3.1.1 fy interpolation, edge-beam differentiation, drop-panel reduction</li>
           <li>Edge-condition rotational symmetry</li>
+          <li>318-25 vs 318-19 numerical equivalence + edition-specific clause refs</li>
         </ul>
       </div>
     </div>
