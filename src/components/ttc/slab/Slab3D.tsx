@@ -5,7 +5,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, GizmoHelper, GizmoViewport, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { buildContours, colorFor, type ContourField } from '@/lib/slab/contour';
-import type { SlabAnalysis, SlabInput } from '@/lib/slab/types';
+import { BAR_CATALOG, type SlabAnalysis, type SlabInput } from '@/lib/slab/types';
 
 type Field = 'Mx' | 'My' | 'Asx' | 'Asy' | 'deflection';
 
@@ -18,7 +18,8 @@ export function Slab3D({ result, input }: Props) {
   const [field, setField] = useState<Field>('Mx');
   const [showRebar, setShowRebar] = useState(true);
   const [showDeformed, setShowDeformed] = useState(true);
-  const [exaggeration, setExaggeration] = useState(50);   // multiplier for deformed shape
+  const [exaggeration, setExaggeration] = useState(50);
+  const [cutaway, setCutaway] = useState(false);
 
   const Lx = result.geometry.Lx;
   const Ly = result.geometry.Ly;
@@ -42,6 +43,8 @@ export function Slab3D({ result, input }: Props) {
           onChange={(e) => setShowDeformed(e.target.checked)} /> <span>Deformed</span></label>
         <label className="ab-toggle"><input type="checkbox" checked={showRebar}
           onChange={(e) => setShowRebar(e.target.checked)} /> <span>Rebar layout</span></label>
+        <label className="ab-toggle"><input type="checkbox" checked={cutaway}
+          onChange={(e) => setCutaway(e.target.checked)} /> <span>Cutaway slab</span></label>
         <label className="slab-3d__slider">
           <span>Exaggeration ×{exaggeration}</span>
           <input type="range" min="1" max="200" step="1" value={exaggeration}
@@ -61,7 +64,7 @@ export function Slab3D({ result, input }: Props) {
           <directionalLight position={[-Lx, Lx, -Lx]} intensity={0.25} />
 
           <SlabMesh result={result} field={field}
-            showDeformed={showDeformed} exaggeration={exaggeration} />
+            showDeformed={showDeformed} exaggeration={exaggeration} cutaway={cutaway} />
 
           {result.punching && input.punching && <ColumnMesh result={result} input={input} />}
           {showRebar && <RebarLayout result={result} />}
@@ -91,8 +94,8 @@ export function Slab3D({ result, input }: Props) {
 // =============================================================================
 // Slab plate mesh with deformation + vertex colors
 // =============================================================================
-function SlabMesh({ result, field, showDeformed, exaggeration }:
-  { result: SlabAnalysis; field: Field; showDeformed: boolean; exaggeration: number }) {
+function SlabMesh({ result, field, showDeformed, exaggeration, cutaway }:
+  { result: SlabAnalysis; field: Field; showDeformed: boolean; exaggeration: number; cutaway: boolean }) {
 
   const Lx = result.geometry.Lx;
   const Ly = result.geometry.Ly;
@@ -159,16 +162,18 @@ function SlabMesh({ result, field, showDeformed, exaggeration }:
 
   return (
     <group>
-      {/* Top deformed surface */}
+      {/* Top deformed surface — colored by selected field */}
       <mesh geometry={geometry} castShadow receiveShadow>
         <meshStandardMaterial vertexColors side={THREE.DoubleSide}
-          roughness={0.55} metalness={0.05} />
+          roughness={0.55} metalness={0.05}
+          transparent={cutaway} opacity={cutaway ? 0.30 : 1.0} />
       </mesh>
-      {/* Bottom flat plate to suggest thickness */}
-      <mesh position={[Lx / 2, -h, Ly / 2]} castShadow receiveShadow>
+      {/* Slab body — concrete-coloured box (semi-transparent in cutaway mode) */}
+      <mesh position={[Lx / 2, -h / 2, Ly / 2]} castShadow receiveShadow>
         <boxGeometry args={[Lx, h, Ly]} />
-        <meshStandardMaterial color="#2a2418" transparent opacity={0.35}
-          roughness={0.9} />
+        <meshStandardMaterial color="#c8c2b5" roughness={0.95} metalness={0.02}
+          transparent={cutaway} opacity={cutaway ? 0.20 : 1.0}
+          side={THREE.DoubleSide} />
       </mesh>
       {/* Edge band — thin gold rim around the plate */}
       <EdgeBand Lx={Lx} Ly={Ly} />
@@ -263,48 +268,76 @@ function RebarLayout({ result }: { result: SlabAnalysis }) {
   const topCoverY = (result.geometry.cover_top_x ?? 25) / 1000;
 
   const bars: React.ReactElement[] = [];
-  const barRadius = 0.008;
 
-  // Bottom bars in x-direction (run along x at constant y position, spaced in z)
+  // Resolve actual bar diameter (mm) from the chosen bar label, fall back to 12mm
+  const dbOf = (label?: string): number => {
+    if (!label) return 12;
+    const bar = BAR_CATALOG.find((b) => b.label === label);
+    return bar ? bar.db : 12;
+  };
+
+  // Bottom bars in x-direction (run along x at constant y position, spaced in z) — bright RED
   if (midX) {
     const sp = midX.spacing / 1000;
-    const yPos = -h + bottomCoverY;
-    for (let z = sp / 2; z < Ly; z += sp) {
+    const r = dbOf(midX.bar) / 2 / 1000;
+    const yPos = -h + bottomCoverY + r;
+    let n = 0;
+    for (let z = sp / 2; z < Ly && n < 200; z += sp, n++) {
       bars.push(
         <mesh key={`bx-${z.toFixed(3)}`} position={[Lx / 2, yPos, z]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[barRadius, barRadius, Lx, 8]} />
-          <meshStandardMaterial color="#5fb674" metalness={0.5} roughness={0.4} />
-        </mesh>
+          <cylinderGeometry args={[r, r, Lx, 10]} />
+          <meshStandardMaterial color="#c94c4c" metalness={0.65} roughness={0.32} />
+        </mesh>,
       );
     }
   }
-  // Bottom bars in y-direction
+  // Bottom bars in y-direction stacked above x layer — BLUE
   if (midY) {
     const sp = midY.spacing / 1000;
-    const yPos = -h + bottomCoverY + 2 * barRadius + 0.005;
-    for (let x = sp / 2; x < Lx; x += sp) {
+    const r = dbOf(midY.bar) / 2 / 1000;
+    const yPos = -h + bottomCoverY + (dbOf(midX?.bar) / 1000) + r + 0.002;
+    let n = 0;
+    for (let x = sp / 2; x < Lx && n < 200; x += sp, n++) {
       bars.push(
         <mesh key={`by-${x.toFixed(3)}`} position={[x, yPos, Ly / 2]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[barRadius, barRadius, Ly, 8]} />
-          <meshStandardMaterial color="#4a90c9" metalness={0.5} roughness={0.4} />
-        </mesh>
+          <cylinderGeometry args={[r, r, Ly, 10]} />
+          <meshStandardMaterial color="#4a90c9" metalness={0.65} roughness={0.32} />
+        </mesh>,
       );
     }
   }
-  // Top bars at edges (only if non-zero negative moment)
+  // Top bars at long edges (only if non-zero negative moment) — GOLD
   if (supX && Math.abs(result.moments.Mx_neg) > 0.1) {
     const sp = supX.spacing / 1000;
-    const yPos = -topCoverY;
-    // Top bars only at the 2 long edges (where the negative moment is)
+    const r = dbOf(supX.bar) / 2 / 1000;
+    const yPos = -topCoverY - r;
     const stripWidth = Math.min(Ly / 4, 1.5);
-    const zPositions = [stripWidth / 2, Ly - stripWidth / 2];
-    for (const zCenter of zPositions) {
-      for (let z = zCenter - stripWidth / 2 + sp / 2; z < zCenter + stripWidth / 2; z += sp) {
+    for (const zCenter of [stripWidth / 2, Ly - stripWidth / 2]) {
+      let n = 0;
+      for (let z = zCenter - stripWidth / 2 + sp / 2; z < zCenter + stripWidth / 2 && n < 60; z += sp, n++) {
         bars.push(
-          <mesh key={`tx-${z.toFixed(3)}`} position={[Lx / 2, yPos, z]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[barRadius, barRadius, Lx, 8]} />
-            <meshStandardMaterial color="#c9a84c" metalness={0.6} roughness={0.3} />
-          </mesh>
+          <mesh key={`tx-${zCenter.toFixed(2)}-${z.toFixed(3)}`} position={[Lx / 2, yPos, z]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[r, r, Lx, 10]} />
+            <meshStandardMaterial color="#e0c060" metalness={0.7} roughness={0.28} />
+          </mesh>,
+        );
+      }
+    }
+  }
+  // Top bars at short edges (My_neg) — GREEN
+  if (supY && Math.abs(result.moments.My_neg) > 0.1) {
+    const sp = supY.spacing / 1000;
+    const r = dbOf(supY.bar) / 2 / 1000;
+    const yPos = -topCoverY - r - (dbOf(supX?.bar) / 1000) - 0.005;
+    const stripWidth = Math.min(Lx / 4, 1.5);
+    for (const xCenter of [stripWidth / 2, Lx - stripWidth / 2]) {
+      let n = 0;
+      for (let x = xCenter - stripWidth / 2 + sp / 2; x < xCenter + stripWidth / 2 && n < 60; x += sp, n++) {
+        bars.push(
+          <mesh key={`ty-${xCenter.toFixed(2)}-${x.toFixed(3)}`} position={[x, yPos, Ly / 2]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[r, r, Ly, 10]} />
+            <meshStandardMaterial color="#5fb674" metalness={0.7} roughness={0.28} />
+          </mesh>,
         );
       }
     }
