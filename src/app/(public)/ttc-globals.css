@@ -8116,9 +8116,9 @@ img, svg {
     size: A4;
     margin: 1.7cm 1cm 1.5cm;
     @top-left {
-      content: "TERCERO TABLADA · Civil & Structural Eng Inc";
+      content: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.";
       font-family: 'Inter', system-ui, sans-serif;
-      font-size: 8pt; color: #666;
+      font-size: 7.5pt; color: #666; letter-spacing: 0.04em;
       vertical-align: bottom; padding-bottom: 4pt;
     }
     @top-center {
@@ -8135,9 +8135,9 @@ img, svg {
       vertical-align: bottom; padding-bottom: 4pt;
     }
     @bottom-center {
-      content: "Tercero Tablada Civil & Structural Engineering Inc · ttcivilstructural.com";
+      content: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. · ttcivilstructural.com";
       font-family: 'Inter', system-ui, sans-serif;
-      font-size: 7.5pt; color: #888;
+      font-size: 7pt; color: #888; letter-spacing: 0.04em;
     }
   }
 
@@ -8333,17 +8333,40 @@ img, svg {
   .slab-print-portal .pr-bar-schedule th:nth-child(6),
   .slab-print-portal .pr-bar-schedule td:nth-child(6) { width: 20%; text-align: right; }
 
-  /* ================ Figures ================ */
+  /* ================ Figures ================
+     CENTERING STRATEGY:
+       - .pr-fig-wrap is a block that fills the full content width (margin: auto
+         is irrelevant on a 100%-wide block but kept for explicitness) and
+         centers its inline children with text-align: center.
+       - The svg is forced to display: block + margin: 0 auto so it centers
+         itself horizontally regardless of the parent's text-align (some
+         browsers don't honor text-align on block-level SVG).
+       - max-width: 16cm leaves visible whitespace on both sides of every
+         figure (vs A4 19cm content area) so the reader perceives clear
+         left/right balance instead of edge-to-edge stretching.
+       - The caption uses display: block + text-align: center so it sits
+         directly under the figure on its own line.                      */
   .slab-print-portal .pr-fig-wrap {
-    margin: 0.25cm auto 0.4cm; text-align: center;
+    display: block;
+    width: 100%;
+    margin: 0.3cm auto 0.4cm;
+    text-align: center;
     page-break-inside: avoid; break-inside: avoid;
   }
   .slab-print-portal .pr-fig-wrap svg {
-    width: 100%; max-width: 17cm; height: auto;
-    border: 0.4pt solid #ccc; background: #fff;
+    display: block;
+    margin: 0 auto;                    /* centre the svg block horizontally */
+    width: 100%;                       /* fill parent up to max-width */
+    max-width: 16cm;                   /* visible whitespace on either side */
+    height: auto;
+    border: 0.4pt solid #ccc;
+    background: #fff;
   }
   .slab-print-portal .pr-fig-caption {
-    font-size: 8.5pt; color: #555; margin-top: 0.1cm; font-style: italic;
+    display: block;
+    text-align: center;
+    margin: 0.15cm auto 0;
+    font-size: 8.5pt; color: #555; font-style: italic;
   }
 
   /* ================ Hand-calc steps ================ */

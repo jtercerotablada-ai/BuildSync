@@ -139,7 +139,7 @@ export const dictionaries = {
     'about.title': 'About Us',
     'about.subtitle': 'An international structural engineering firm committed to innovation, safety, and excellence.',
     'about.heading': 'Building with Precision, Designing with Purpose',
-    'about.p1': 'Tercero Tablada Civil & Structural Engineering Inc. is an international structural engineering firm with projects spanning residential, vertical, commercial, industrial, and public works sectors. Our success is driven by the academic preparation of our team, cutting-edge technology, commitment to excellence in quality, and collaboration with top-tier architecture firms.',
+    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. is an international structural engineering firm with projects spanning residential, vertical, commercial, industrial, and public works sectors. Our success is driven by the academic preparation of our team, cutting-edge technology, commitment to excellence in quality, and collaboration with top-tier architecture firms.',
     'about.p2': 'Our team brings combined experience of more than 30 years in high-rise, commercial, and residential projects constructed in different cities. We remain at the forefront of technology, techniques, and products to deliver the best results for our clients.',
     'about.p3': 'We offer our clients first-class services adapted to the specific needs of their projects and management requirements at highly competitive rates.',
 
@@ -237,7 +237,7 @@ export const dictionaries = {
     'footer.postTension': 'Post-Tension',
     'footer.digitalConstruction': 'Digital Construction',
     'footer.clashDetection': 'Clash Detection',
-    'footer.copyright': 'ALL RIGHTS RESERVED \u2014 TERCERO TABLADA CIVIL & STRUCTURAL ENGINEERING INC., 2026',
+    'footer.copyright': 'ALL RIGHTS RESERVED \u2014 TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC., 2026',
   },
   es: {
     // Nav
@@ -377,7 +377,7 @@ export const dictionaries = {
     'about.title': 'Sobre Nosotros',
     'about.subtitle': 'Un despacho internacional de ingenieria estructural comprometido con la innovacion, seguridad y excelencia.',
     'about.heading': 'Construyendo con Precision, Disenando con Proposito',
-    'about.p1': 'Tercero Tablada Civil & Structural Engineering Inc. es un despacho internacional de ingenieria estructural con proyectos en los sectores residencial, vertical, comercial, industrial y de obras publicas. Nuestro exito se basa en la preparacion academica de nuestro equipo, tecnologia de punta, compromiso con la excelencia en calidad y colaboracion con firmas de arquitectura de primer nivel.',
+    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. es un despacho internacional de ingenieria estructural con proyectos en los sectores residencial, vertical, comercial, industrial y de obras publicas. Nuestro exito se basa en la preparacion academica de nuestro equipo, tecnologia de punta, compromiso con la excelencia en calidad y colaboracion con firmas de arquitectura de primer nivel.',
     'about.p2': 'Nuestro equipo cuenta con una experiencia combinada de mas de 30 anos en proyectos de gran altura, comerciales y residenciales construidos en diferentes ciudades. Nos mantenemos a la vanguardia de la tecnologia, tecnicas y productos para entregar los mejores resultados a nuestros clientes.',
     'about.p3': 'Ofrecemos a nuestros clientes servicios de primera linea adaptados a las necesidades especificas de sus proyectos y requisitos de gestion a tarifas muy competitivas.',
 
@@ -475,7 +475,7 @@ export const dictionaries = {
     'footer.postTension': 'Postensado',
     'footer.digitalConstruction': 'Construccion Digital',
     'footer.clashDetection': 'Deteccion de Interferencias',
-    'footer.copyright': 'TODOS LOS DERECHOS RESERVADOS \u2014 TERCERO TABLADA CIVIL & STRUCTURAL ENGINEERING INC., 2026',
+    'footer.copyright': 'TODOS LOS DERECHOS RESERVADOS \u2014 TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC., 2026',
   },
 } as const;
 

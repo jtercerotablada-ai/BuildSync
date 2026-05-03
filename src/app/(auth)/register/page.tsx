@@ -53,7 +53,7 @@ export default function RegisterPage() {
     <Card>
       <CardHeader className="space-y-1">
         <div className="flex items-center justify-center">
-          <img src="/ttc/img/logo-icon-dark.svg" alt="TT Civil & Structural" className="w-20 h-20" />
+          <img src="/ttc/img/logo-icon-dark.svg" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-20 h-20" />
         </div>
         <CardDescription className="text-center">
           Enter your email to get started

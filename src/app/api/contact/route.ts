@@ -8,7 +8,7 @@ function getResend() {
   return new Resend(key);
 }
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@ttcivilstructural.com";
-const FROM = process.env.EMAIL_FROM || "TT Civil & Structural <noreply@ttcivilstructural.com>";
+const FROM = process.env.EMAIL_FROM || "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. <noreply@ttcivilstructural.com>";
 
 export async function POST(request: Request) {
   try {
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
   <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
     <div style="background:#000;padding:24px;text-align:center">
       <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
-      <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">TT Civil & Structural</span>
+      <span style="color:#fff;font-size:20px;font-weight:600;margin-left:8px">TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</span>
     </div>
     <div style="padding:32px 24px">
       <h1 style="margin:0 0 16px;font-size:20px;color:#0f172a">New Contact Submission</h1>

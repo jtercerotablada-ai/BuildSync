@@ -14,8 +14,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "TT Civil & Structural | Project Management",
-  description: "Tercero Tablada Civil & Structural Engineering - Project Management Platform",
+  title: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. | Project Management",
+  description: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Project Management Platform",
   icons: {
     icon: "/ttc/img/logo-icon-favicon.svg",
     shortcut: "/ttc/img/logo-icon-favicon.svg",

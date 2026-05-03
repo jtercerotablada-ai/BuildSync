@@ -41,7 +41,7 @@ export async function GET(req: Request) {
         taskId: data?.taskId as string | undefined,
         projectId: data?.projectId as string | undefined,
         sender: {
-          name: (data?.authorName as string) || "TT Civil & Structural",
+          name: (data?.authorName as string) || "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.",
           color: "#000000",
         },
       };

@@ -21,9 +21,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Tercero Tablada | Civil & Structural Engineering',
+  title: 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.',
   description:
-    'Tercero Tablada Civil & Structural Engineering Inc. International structural engineering firm. Registered P.E., S.E. Residential, commercial, industrial, and public works.',
+    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — International structural engineering firm. Registered P.E., S.E. Residential, commercial, industrial, and public works.',
 };
 
 export default function PublicLayout({

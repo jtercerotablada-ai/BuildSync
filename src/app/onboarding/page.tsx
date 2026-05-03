@@ -276,12 +276,12 @@ function OnboardingForm() {
         <div className="max-w-md w-full mx-auto">
           {/* Logo */}
           <div className="flex items-center mb-8">
-            <img src="/ttc/img/logo-icon-dark.svg" alt="TT Civil & Structural" className="w-16 h-16" />
+            <img src="/ttc/img/logo-icon-dark.svg" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-16 h-16" />
           </div>
 
           {/* Welcome text */}
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            Welcome to TT Civil & Structural!
+            Welcome to TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.!
           </h1>
           {email && (
             <p className="text-slate-600 mb-8">
@@ -408,7 +408,7 @@ function OnboardingForm() {
           {/* Info box */}
           <div className="mt-8 p-4 bg-slate-50 rounded-lg border-l-4 border-slate-900">
             <p className="text-sm text-slate-600">
-              You&apos;re getting started with TT Civil & Structural. You&apos;ll be able to manage projects,
+              You&apos;re getting started with TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.. You&apos;ll be able to manage projects,
               tasks, and collaborate with your team efficiently.
             </p>
           </div>

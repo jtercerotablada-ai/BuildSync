@@ -15,7 +15,7 @@ export function TTCFooter() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/ttc/img/logo-tt-v2.svg"
-              alt="Tercero Tablada"
+              alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC."
               className="footer__logo-img"
             />
             <p className="footer__tagline">{t('footer.tagline')}</p>

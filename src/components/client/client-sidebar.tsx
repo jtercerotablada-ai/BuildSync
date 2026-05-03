@@ -118,7 +118,7 @@ export function ClientSidebar({ onClose }: ClientSidebarProps) {
       {/* Footer */}
       <div className="border-t border-white/10 px-5 py-4">
         <p className="text-[10px] text-white/30 uppercase tracking-widest">
-          TT Civil & Structural
+          TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.
         </p>
       </div>
     </aside>

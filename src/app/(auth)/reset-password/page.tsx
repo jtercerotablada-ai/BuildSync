@@ -75,7 +75,7 @@ function ResetPasswordForm() {
       <Card>
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center">
-            <img src="/ttc/img/logo-icon-dark.svg" alt="TT Civil & Structural" className="w-20 h-20" />
+            <img src="/ttc/img/logo-icon-dark.svg" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-20 h-20" />
           </div>
         </CardHeader>
         <CardContent className="text-center py-8">
@@ -95,7 +95,7 @@ function ResetPasswordForm() {
       <Card>
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center">
-            <img src="/ttc/img/logo-icon-dark.svg" alt="TT Civil & Structural" className="w-20 h-20" />
+            <img src="/ttc/img/logo-icon-dark.svg" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-20 h-20" />
           </div>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4 py-8">
@@ -120,7 +120,7 @@ function ResetPasswordForm() {
     <Card>
       <CardHeader className="space-y-1">
         <div className="flex items-center justify-center">
-          <img src="/ttc/img/logo-icon-dark.svg" alt="TT Civil & Structural" className="w-20 h-20" />
+          <img src="/ttc/img/logo-icon-dark.svg" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-20 h-20" />
         </div>
         <CardDescription className="text-center">
           Set a new password for your account
