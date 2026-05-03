@@ -7841,33 +7841,130 @@ img, svg {
 .slab-card ul { margin: 0; padding-left: 1.1rem; }
 .slab-card li { font-size: 0.83rem; line-height: 1.55; color: rgba(255, 255, 255, 0.78); }
 
-/* Branding card — preview row (logo + remove btn) and the action row (clear all)
-   live OUTSIDE the .slab-fields label/value grid so the buttons get full row
-   width and never wrap. white-space: nowrap on the button keeps the label on
-   one line.                                                                  */
-.slab-branding-preview {
+/* ============================================================
+   BRANDING CARD — drop-zone + stacked inputs + polished footer
+   ============================================================ */
+
+/* Logo zone: switches between a dashed drop area (empty) and a filled
+   preview with action buttons. Sits at the TOP of the card as the visual
+   anchor, before the text inputs.                                       */
+.slab-brand-zone { margin: 0.85rem 0 0.95rem; }
+
+/* ----- EMPTY state (dashed drop area) ----- */
+.slab-brand-zone__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.4rem 1rem;
+  border: 1.5px dashed rgba(176, 136, 51, 0.45);
+  border-radius: 10px;
+  background: rgba(176, 136, 51, 0.04);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  user-select: none;
+}
+.slab-brand-zone__empty:hover,
+.slab-brand-zone__empty--over {
+  border-color: rgba(176, 136, 51, 0.85);
+  background: rgba(176, 136, 51, 0.10);
+  transform: translateY(-1px);
+}
+.slab-brand-zone__icon {
+  color: #b08833;
+  margin-bottom: 0.4rem;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  margin-top: 0.6rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  flex-wrap: wrap;
+  justify-content: center;
 }
-.slab-branding-preview__img {
-  max-height: 56px;
-  max-width: 200px;
+.slab-brand-zone__text {
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 500;
+  letter-spacing: 0.1px;
+}
+.slab-brand-zone__hint {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 0.35rem;
+  letter-spacing: 0.3px;
+}
+
+/* The native <input type="file"> is visually hidden — the surrounding label
+   is what the user actually clicks/sees. */
+.slab-brand-zone__input {
+  position: absolute;
+  width: 1px; height: 1px; padding: 0;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ----- FILLED state (logo preview + actions) ----- */
+.slab-brand-zone__filled {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1.1rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.slab-brand-zone__img {
+  max-height: 90px;
+  max-width: 260px;
   object-fit: contain;
   background: #fff;
-  padding: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
-.slab-branding-actions {
+.slab-brand-zone__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+/* Make a <label> behave/look exactly like a button (so the file picker can be
+   triggered without showing the native control). */
+.slab-brand-zone__actions > label.ab-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ----- Stacked text inputs (full width, label above) ----- */
+.slab-brand-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.slab-brand-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.slab-brand-row > label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+.slab-brand-input {
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+/* ----- Footer action row (Clear all branding) ----- */
+.slab-brand-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.7rem;
+  margin-top: 0.95rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
+
 .slab-branding-btn {
   white-space: nowrap;
   flex-shrink: 0;

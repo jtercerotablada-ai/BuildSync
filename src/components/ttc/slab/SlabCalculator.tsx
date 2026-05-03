@@ -470,69 +470,118 @@ function InputsTab({ model, dispatch }:
       </div>
 
       {/* Branding (white-label the print report with your firm's logo) */}
-      <div className="slab-card">
-        <h4>Print report branding (your firm)</h4>
-        <p className="slab-card__hint">
-          Optional. Upload your firm logo and name — they will appear on the
-          PDF / printed report cover. Leave blank for an unbranded report. Your
-          logo is embedded in the report only; nothing is uploaded to a server.
-        </p>
-        <div className="slab-fields">
-          <Field label="Company name">
-            <input type="text" className="ab-input"
-              value={model.branding?.companyName ?? ''}
-              placeholder="e.g. ACME Structural Engineers"
-              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyName: e.target.value } })} />
-          </Field>
-          <Field label="Tagline / subtitle">
-            <input type="text" className="ab-input"
-              value={model.branding?.companyTagline ?? ''}
-              placeholder="e.g. Structural Engineering · Licensed P.E."
-              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyTagline: e.target.value } })} />
-          </Field>
-          <Field label="Logo (PNG / JPG / SVG, ≤ 1 MB)">
-            <input type="file" className="ab-input" accept="image/png,image/jpeg,image/svg+xml"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                if (file.size > 1024 * 1024) {
-                  alert('Logo file is too large (max 1 MB).');
-                  return;
-                }
-                const dataUrl = await new Promise<string>((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve(reader.result as string);
-                  reader.onerror = () => reject(reader.error);
-                  reader.readAsDataURL(file);
-                });
-                dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: dataUrl } });
-              }} />
-          </Field>
-        </div>
+      <BrandingCard model={model} dispatch={dispatch} />
+    </div>
+  );
+}
 
-        {/* Logo preview + action buttons live OUTSIDE the label/value grid so
-            the buttons get full row width and never get squeezed into the
-            narrow value column. */}
-        {model.branding?.logoDataUrl && (
-          <div className="slab-branding-preview">
+// ============================================================================
+// BrandingCard — white-label the print report. Drop-zone logo uploader,
+// stacked full-width text inputs, polished action footer.
+// ============================================================================
+function BrandingCard({ model, dispatch }: { model: SlabInput; dispatch: React.Dispatch<Action> }) {
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      alert('Logo file is too large (max 1 MB).');
+      return;
+    }
+    if (!/^image\/(png|jpeg|svg\+xml)$/.test(file.type)) {
+      alert('Logo must be PNG, JPG, or SVG.');
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: dataUrl } });
+  };
+
+  const hasAny = !!(model.branding?.companyName || model.branding?.companyTagline || model.branding?.logoDataUrl);
+
+  return (
+    <div className="slab-card">
+      <h4>Print report branding (your firm)</h4>
+      <p className="slab-card__hint">
+        Optional. Add your firm logo and name — they appear on the PDF / printed
+        report cover. Your logo is embedded in the report only; nothing is uploaded
+        to a server.
+      </p>
+
+      {/* ---------- Logo zone — drop area or filled preview ---------- */}
+      <div className="slab-brand-zone">
+        {model.branding?.logoDataUrl ? (
+          <div className="slab-brand-zone__filled">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={model.branding.logoDataUrl} alt="Company logo preview"
-                 className="slab-branding-preview__img" />
-            <button type="button" className="ab-btn ab-btn--ghost slab-branding-btn"
-              onClick={() => dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: undefined } })}>
-              Remove logo
-            </button>
+                 className="slab-brand-zone__img" />
+            <div className="slab-brand-zone__actions">
+              <label className="ab-btn ab-btn--ghost slab-branding-btn">
+                Replace
+                <input type="file" accept="image/png,image/jpeg,image/svg+xml"
+                  className="slab-brand-zone__input"
+                  onChange={(e) => handleFile(e.target.files?.[0])} />
+              </label>
+              <button type="button" className="ab-btn ab-btn--ghost slab-branding-btn"
+                onClick={() => dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: undefined } })}>
+                Remove
+              </button>
+            </div>
           </div>
-        )}
-        {(model.branding?.companyName || model.branding?.companyTagline || model.branding?.logoDataUrl) && (
-          <div className="slab-branding-actions">
-            <button type="button" className="ab-btn ab-btn--ghost slab-branding-btn"
-              onClick={() => dispatch({ type: 'CLEAR_BRANDING' })}>
-              Clear all branding
-            </button>
-          </div>
+        ) : (
+          <label className="slab-brand-zone__empty"
+            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('slab-brand-zone__empty--over'); }}
+            onDragLeave={(e) => { e.currentTarget.classList.remove('slab-brand-zone__empty--over'); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.currentTarget.classList.remove('slab-brand-zone__empty--over');
+              handleFile(e.dataTransfer.files?.[0]);
+            }}>
+            <input type="file" accept="image/png,image/jpeg,image/svg+xml"
+              className="slab-brand-zone__input"
+              onChange={(e) => handleFile(e.target.files?.[0])} />
+            <div className="slab-brand-zone__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 4v12" />
+                <path d="m6 10 6-6 6 6" />
+                <path d="M5 20h14" />
+              </svg>
+            </div>
+            <div className="slab-brand-zone__text">Drop your logo here or click to browse</div>
+            <div className="slab-brand-zone__hint">PNG · JPG · SVG · max 1 MB</div>
+          </label>
         )}
       </div>
+
+      {/* ---------- Company name + tagline — stacked full-width ---------- */}
+      <div className="slab-brand-stack">
+        <div className="slab-brand-row">
+          <label htmlFor="brand-company">Company name</label>
+          <input id="brand-company" type="text" className="ab-input slab-brand-input"
+            value={model.branding?.companyName ?? ''}
+            placeholder="e.g. ACME Structural Engineers"
+            onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyName: e.target.value } })} />
+        </div>
+        <div className="slab-brand-row">
+          <label htmlFor="brand-tagline">Tagline / subtitle</label>
+          <input id="brand-tagline" type="text" className="ab-input slab-brand-input"
+            value={model.branding?.companyTagline ?? ''}
+            placeholder="e.g. Structural Engineering · Licensed P.E."
+            onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyTagline: e.target.value } })} />
+        </div>
+      </div>
+
+      {/* ---------- Footer action ---------- */}
+      {hasAny && (
+        <div className="slab-brand-footer">
+          <button type="button" className="ab-btn ab-btn--ghost slab-branding-btn"
+            onClick={() => dispatch({ type: 'CLEAR_BRANDING' })}>
+            Clear all branding
+          </button>
+        </div>
+      )}
     </div>
   );
 }
