@@ -10,12 +10,64 @@ import {
   ContactShadows,
   Environment,
   Text,
-  Instances,
-  Instance,
 } from '@react-three/drei';
 import * as THREE from 'three';
 import warehouseHDR from '@pmndrs/assets/hdri/warehouse.exr';
 import type { BasePlateInput, BasePlateAnalysis } from '@/lib/baseplate/types';
+
+// ============================================================================
+// MODULE-LEVEL: thread normal map for anchor rod shafts (created once)
+// Tiled vertically along the rod, gives the visual impression of UNC threads.
+// ============================================================================
+let _threadNormalMap: THREE.Texture | null = null;
+function getThreadNormalMap(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  if (_threadNormalMap) return _threadNormalMap;
+  const c = document.createElement('canvas');
+  c.width = 32; c.height = 64;
+  const g = c.getContext('2d')!;
+  // Flat blue (no normal change)
+  g.fillStyle = '#8080ff';
+  g.fillRect(0, 0, c.width, c.height);
+  // Alternating bright/dark stripes = thread peak / valley
+  for (let y = 0; y < c.height; y += 4) {
+    g.fillStyle = '#a8a8ff';        // peak (slight +Z)
+    g.fillRect(0, y, c.width, 1);
+    g.fillStyle = '#5858ff';        // valley (slight -Z)
+    g.fillRect(0, y + 2, c.width, 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  _threadNormalMap = t;
+  return t;
+}
+
+// ============================================================================
+// MODULE-LEVEL: galvanized-steel base color map (subtle dappling)
+// ============================================================================
+let _galvMap: THREE.Texture | null = null;
+function getGalvMap(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  if (_galvMap) return _galvMap;
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#9b9da0';
+  g.fillRect(0, 0, c.width, c.height);
+  // Random dappled spangles
+  for (let i = 0; i < 200; i++) {
+    const x = Math.random() * c.width, y = Math.random() * c.height;
+    const r = Math.random() * 2 + 0.5;
+    const shade = 140 + Math.random() * 80;
+    g.fillStyle = `rgb(${shade},${shade + 4},${shade + 8})`;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  _galvMap = t;
+  return t;
+}
 
 interface Props {
   input: BasePlateInput;
@@ -221,41 +273,252 @@ function ColumnW({ d, bf, tf, tw, yBase, height }: {
 }
 
 // ============================================================================
-// Anchor rod — a vertical cylinder embedded in the pedestal, sticking up
-// through the base plate with a hex nut on top.
+// MEGA-PRO Anchor rod assembly — true engineering detail
 // ============================================================================
+//
+// Top of plate (going UP from plate top surface):
+//   1) Round washer (SAE flat washer) just on top of plate
+//   2) Square plate washer above round washer
+//   3) Heavy hex nut threaded on
+//   4) Rod thread projection above nut
+//
+// Bottom (embedded in concrete):
+//   1) Heavy hex nut at the very tip (anchor head)
+//
+// Shaft visualization:
+//   • Smooth shaft on the embedded portion + middle (for grout adhesion)
+//   • Threaded portion on the top ~3" with thread normal map
+//
+// Real engineering proportions per ASME B18.2.2 Heavy Hex:
+//   Nut across-flats  F ≈ 1.625·da
+//   Nut height        H ≈ da
+//   Plate washer side ≈ 3·da (or ≥ 3" min)
+//   Plate washer thk  ≈ da/2 (or ≥ 1/4")
+//   Round washer OD   ≈ 2.25·da
+//   Round washer thk  ≈ da/8
+// ============================================================================
+
+// Hex-nut geometry helper — flat-side facing X axis
+const HEX_R_FROM_F = 1 / Math.sqrt(3);     // r (vertex distance) = F·(1/√3) for flat-side hex
+function makeHexShape(acrossFlats: number): THREE.Shape {
+  const r = acrossFlats * HEX_R_FROM_F;
+  const s = new THREE.Shape();
+  for (let i = 0; i < 6; i++) {
+    // Vertices at 30°, 90°, 150°, ... (flats parallel to axes)
+    const a = (Math.PI / 3) * i + Math.PI / 6;
+    const x = r * Math.cos(a);
+    const y = r * Math.sin(a);
+    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
+  }
+  s.closePath();
+  return s;
+}
+
+function HeavyHexNut({ da, y }: { da: number; y: number }) {
+  // ASME B18.2.2 heavy hex nut proportions
+  const F = 1.625 * da;       // across flats
+  const H = da;               // nut height (heavy hex ≈ da)
+  const shape = useMemo(() => makeHexShape(F), [F]);
+
+  const extrudeSettings = useMemo(() => ({
+    depth: H,
+    bevelEnabled: true,
+    bevelThickness: H * 0.10,
+    bevelSize: F * 0.025,
+    bevelOffset: 0,
+    bevelSegments: 2,
+    curveSegments: 1,
+  }), [F, H]);
+
+  return (
+    <mesh position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+      <extrudeGeometry args={[shape, extrudeSettings]} />
+      <meshStandardMaterial
+        color="#6a6a6a" roughness={0.42} metalness={0.95}
+        envMapIntensity={0.6}
+      />
+    </mesh>
+  );
+}
+
+function PlateWasher({ da, y }: { da: number; y: number }) {
+  // Square plate washer with central hole 1/8" oversize for the rod
+  const side = Math.max(0.0762, 3 * da);    // ≥ 3" or 3·da, in metres if da is metres
+  const thk = Math.max(0.00635, da / 2);    // ≥ 1/4"
+  const hole = da * 1.125;                  // 1/8" oversize
+
+  const shape = useMemo(() => {
+    const s = new THREE.Shape();
+    const half = side / 2;
+    s.moveTo(-half, -half);
+    s.lineTo(+half, -half);
+    s.lineTo(+half, +half);
+    s.lineTo(-half, +half);
+    s.closePath();
+    const holePath = new THREE.Path();
+    holePath.absarc(0, 0, hole / 2, 0, Math.PI * 2, false);
+    s.holes.push(holePath);
+    return s;
+  }, [side, hole]);
+
+  const extrudeSettings = useMemo(() => ({
+    depth: thk,
+    bevelEnabled: true,
+    bevelThickness: thk * 0.15,
+    bevelSize: thk * 0.15,
+    bevelOffset: 0,
+    bevelSegments: 1,
+    curveSegments: 16,
+  }), [thk]);
+
+  return (
+    <mesh position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+      <extrudeGeometry args={[shape, extrudeSettings]} />
+      <meshStandardMaterial
+        color="#7a7a7a" roughness={0.55} metalness={0.92}
+        envMapIntensity={0.5}
+      />
+    </mesh>
+  );
+}
+
+function RoundWasher({ da, y }: { da: number; y: number }) {
+  // SAE flat washer
+  const od = 2.25 * da;
+  const id = da * 1.0625;     // 1/16" oversize
+  const thk = Math.max(0.00318, da / 8);  // ≥ 1/8"
+
+  const shape = useMemo(() => {
+    const s = new THREE.Shape();
+    s.absarc(0, 0, od / 2, 0, Math.PI * 2, false);
+    const holePath = new THREE.Path();
+    holePath.absarc(0, 0, id / 2, 0, Math.PI * 2, false);
+    s.holes.push(holePath);
+    return s;
+  }, [od, id]);
+
+  const extrudeSettings = useMemo(() => ({
+    depth: thk,
+    bevelEnabled: false,
+    curveSegments: 32,
+  }), [thk]);
+
+  return (
+    <mesh position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+      <extrudeGeometry args={[shape, extrudeSettings]} />
+      <meshStandardMaterial
+        color="#8a8a8a" roughness={0.50} metalness={0.95}
+        envMapIntensity={0.5}
+      />
+    </mesh>
+  );
+}
+
+function ThreadedShaft({
+  da, yBottom, yTop, threadStartY, threadEndY,
+}: {
+  da: number; yBottom: number; yTop: number; threadStartY: number; threadEndY: number;
+}) {
+  const totalLen = yTop - yBottom;
+  const threadLen = Math.max(0, threadEndY - threadStartY);
+  const smoothLen = totalLen - threadLen;
+  const r = da / 2;
+  const galv = useMemo(() => getGalvMap(), []);
+  const threadMap = useMemo(() => getThreadNormalMap(), []);
+  // Repeat thread texture vertically based on length so threads are visible
+  const threadMapClone = useMemo(() => {
+    if (!threadMap) return null;
+    const t = threadMap.clone();
+    t.repeat.set(2, threadLen / (da * 0.4));   // ~2.5 visible threads per da
+    t.needsUpdate = true;
+    return t;
+  }, [threadMap, threadLen, da]);
+
+  return (
+    <group>
+      {/* SMOOTH portion (embedded + middle, below the threaded top) */}
+      {smoothLen > 0 && (
+        <mesh position={[0, yBottom + smoothLen / 2, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[r, r, smoothLen, 24]} />
+          <meshStandardMaterial
+            color="#909090"
+            roughness={0.45} metalness={0.92}
+            envMapIntensity={0.6}
+            map={galv ?? undefined}
+          />
+        </mesh>
+      )}
+      {/* THREADED portion (top, where the nut engages) */}
+      {threadLen > 0 && (
+        <mesh position={[0, threadStartY + threadLen / 2, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[r, r, threadLen, 24]} />
+          <meshStandardMaterial
+            color="#888"
+            roughness={0.55} metalness={0.92}
+            envMapIntensity={0.55}
+            normalMap={threadMapClone ?? undefined}
+            normalScale={threadMapClone ? new THREE.Vector2(1.4, 1.4) : undefined}
+          />
+        </mesh>
+      )}
+      {/* Slight chamfer at top of rod */}
+      <mesh position={[0, yTop, 0]} castShadow>
+        <coneGeometry args={[r * 0.96, r * 0.25, 24, 1, true]} />
+        <meshStandardMaterial color="#888" roughness={0.55} metalness={0.92} />
+      </mesh>
+    </group>
+  );
+}
+
 function AnchorRod({ x, z, da, embedment, plateTopY, pedestalTopY }: {
   x: number; z: number; da: number; embedment: number;
   plateTopY: number; pedestalTopY: number;
 }) {
-  // Total rod length = embedment (in pedestal) + plate clearance + projection above
-  const projection = 0.05;     // 50 mm above plate for nut + washer
-  const totalLen = embedment + (plateTopY - pedestalTopY) + projection;
-  const yMid = pedestalTopY - embedment / 2 + (totalLen / 2) - (plateTopY - pedestalTopY) / 2 + projection / 2;
-  // Simplification: render the rod centered between embedded base and top
+  // VERTICAL ASSEMBLY (in metres):
+  //   yBottom              = pedestal top - embedment        (anchor head plane)
+  //   yPedestalTop         = pedestal top
+  //   yPlateBottom         = pedestal top  (no grout in viz)
+  //   yPlateTop            = plate top surface
+  //   yRoundWasherTop      = plate top + roundWasherThk
+  //   yPlateWasherTop      = ... + plateWasherThk
+  //   yNutTop              = ... + nutHeight
+  //   yRodTop              = nutTop + thread projection (~1/4" beyond nut)
+  // The threaded portion of the rod covers the topmost ~4·da above the plate.
+
   const yBottom = pedestalTopY - embedment;
-  const yTop = plateTopY + projection;
-  const yCenter = (yBottom + yTop) / 2;
-  const len = yTop - yBottom;
-  void yMid;
+  const roundWasherThk = Math.max(0.00318, da / 8);
+  const plateWasherThk = Math.max(0.00635, da / 2);
+  const nutH = da;
+  const projection = 0.25 * 0.0254;        // 1/4" thread projection above nut
+
+  const yRoundWasherBase = plateTopY;
+  const yPlateWasherBase = yRoundWasherBase + roundWasherThk;
+  const yNutBase = yPlateWasherBase + plateWasherThk;
+  const yRodTop = yNutBase + nutH + projection;
+
+  // Threaded portion: from just below the round washer through the rod tip,
+  // so the threads engage the nut visibly. Use ~4·da above the plate.
+  const threadEndY = yRodTop;
+  const threadStartY = Math.max(yBottom, plateTopY - 0.5 * da);
 
   return (
     <group position={[x, 0, z]}>
-      {/* Shaft */}
-      <mesh position={[0, yCenter, 0]} castShadow>
-        <cylinderGeometry args={[da / 2, da / 2, len, 16]} />
-        <meshStandardMaterial color="#888" roughness={0.45} metalness={0.9} />
-      </mesh>
-      {/* Hex nut on top */}
-      <mesh position={[0, plateTopY + 0.015, 0]} castShadow>
-        <cylinderGeometry args={[da * 0.8, da * 0.8, 0.025, 6]} />
-        <meshStandardMaterial color="#5a5a5a" roughness={0.4} metalness={0.95} />
-      </mesh>
-      {/* Hex nut on embedded end */}
-      <mesh position={[0, yBottom + 0.015, 0]} castShadow>
-        <cylinderGeometry args={[da * 0.85, da * 0.85, 0.025, 6]} />
-        <meshStandardMaterial color="#5a5a5a" roughness={0.4} metalness={0.95} />
-      </mesh>
+      {/* Shaft (smooth bottom + middle, threaded top) */}
+      <ThreadedShaft
+        da={da}
+        yBottom={yBottom}
+        yTop={yRodTop}
+        threadStartY={threadStartY}
+        threadEndY={threadEndY}
+      />
+
+      {/* TOP assembly: round washer, plate washer, heavy hex nut */}
+      <RoundWasher da={da} y={yRoundWasherBase} />
+      <PlateWasher da={da} y={yPlateWasherBase} />
+      <HeavyHexNut  da={da} y={yNutBase} />
+
+      {/* BOTTOM (embedded): heavy hex nut as anchor head */}
+      <HeavyHexNut da={da} y={yBottom} />
     </group>
   );
 }
