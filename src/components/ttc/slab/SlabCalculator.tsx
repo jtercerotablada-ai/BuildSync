@@ -35,7 +35,9 @@ type Action =
   | { type: 'TOGGLE_PUNCHING'; on: boolean }
   | { type: 'SET_PUNCH'; patch: Partial<NonNullable<SlabInput['punching']>> }
   | { type: 'SET_USER_REBAR'; location: UserRebar['location']; bar: string; spacing: number }
-  | { type: 'CLEAR_USER_REBAR'; location: UserRebar['location'] };
+  | { type: 'CLEAR_USER_REBAR'; location: UserRebar['location'] }
+  | { type: 'SET_BRANDING'; patch: Partial<NonNullable<SlabInput['branding']>> }
+  | { type: 'CLEAR_BRANDING' };
 
 function reducer(state: SlabInput, action: Action): SlabInput {
   switch (action.type) {
@@ -67,6 +69,13 @@ function reducer(state: SlabInput, action: Action): SlabInput {
     }
     case 'CLEAR_USER_REBAR':
       return { ...state, userRebar: (state.userRebar ?? []).filter((u) => u.location !== action.location) };
+    case 'SET_BRANDING':
+      return { ...state, branding: { ...(state.branding ?? {}), ...action.patch } };
+    case 'CLEAR_BRANDING': {
+      const { branding, ...rest } = state;
+      void branding;
+      return rest as SlabInput;
+    }
   }
 }
 
@@ -438,6 +447,69 @@ function InputsTab({ model, dispatch }:
         ) : (
           <p className="ab-empty">Disabled — toggle on to add a column and compute vu / φ·vc.</p>
         )}
+      </div>
+
+      {/* Branding (white-label the print report with your firm's logo) */}
+      <div className="slab-card">
+        <h4>Print report branding (your firm)</h4>
+        <p className="slab-card__hint">
+          Optional. Upload your firm logo and name — they will appear on the
+          PDF / printed report cover. Leave blank for an unbranded report. Your
+          logo is embedded in the report only; nothing is uploaded to a server.
+        </p>
+        <div className="slab-fields">
+          <Field label="Company name">
+            <input type="text" className="ab-input"
+              value={model.branding?.companyName ?? ''}
+              placeholder="e.g. ACME Structural Engineers"
+              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyName: e.target.value } })} />
+          </Field>
+          <Field label="Tagline / subtitle">
+            <input type="text" className="ab-input"
+              value={model.branding?.companyTagline ?? ''}
+              placeholder="e.g. Structural Engineering · Licensed P.E."
+              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyTagline: e.target.value } })} />
+          </Field>
+          <Field label="Logo (PNG / JPG / SVG, ≤ 1 MB)">
+            <input type="file" className="ab-input" accept="image/png,image/jpeg,image/svg+xml"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                if (file.size > 1024 * 1024) {
+                  alert('Logo file is too large (max 1 MB).');
+                  return;
+                }
+                const dataUrl = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result as string);
+                  reader.onerror = () => reject(reader.error);
+                  reader.readAsDataURL(file);
+                });
+                dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: dataUrl } });
+              }} />
+          </Field>
+          {model.branding?.logoDataUrl && (
+            <Field label="Logo preview">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={model.branding.logoDataUrl} alt="Company logo preview"
+                     style={{ maxHeight: 56, maxWidth: 160, objectFit: 'contain', background: '#fff', padding: 4, border: '1px solid #ccc', borderRadius: 4 }} />
+                <button type="button" className="ab-btn ab-btn--ghost"
+                  onClick={() => dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: undefined } })}>
+                  Remove logo
+                </button>
+              </div>
+            </Field>
+          )}
+          {(model.branding?.companyName || model.branding?.companyTagline || model.branding?.logoDataUrl) && (
+            <Field label="">
+              <button type="button" className="ab-btn ab-btn--ghost"
+                onClick={() => dispatch({ type: 'CLEAR_BRANDING' })}>
+                Clear all branding
+              </button>
+            </Field>
+          )}
+        </div>
       </div>
     </div>
   );

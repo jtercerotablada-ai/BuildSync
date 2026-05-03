@@ -42,14 +42,30 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 1 — COVER                                                */}
       {/* ============================================================ */}
       <section className="pr-page pr-cover">
-        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</div>
-        <div className="pr-cover__brand">
-          <div className="pr-logo">TT</div>
-          <div className="pr-cover__company">
-            <h1>TERCERO TABLADA</h1>
-            <div className="pr-cover__sub">CIVIL AND STRUCTURAL ENGINEERING INC.</div>
-          </div>
+        <div className="pr-page-strip">
+          {projectId} · {dateStr}
+          {input.branding?.companyName ? ` · ${input.branding.companyName}` : ''}
         </div>
+        {/* Optional firm branding — only renders if the user supplied a logo
+            and/or company name in the calculator's "Print report branding"
+            section. If not, the cover stays neutral. */}
+        {(input.branding?.logoDataUrl || input.branding?.companyName) && (
+          <div className="pr-cover__brand">
+            {input.branding.logoDataUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={input.branding.logoDataUrl} alt={input.branding.companyName ?? 'Company logo'}
+                   className="pr-cover__userlogo" />
+            )}
+            {input.branding.companyName && (
+              <div className="pr-cover__company">
+                <h1>{input.branding.companyName}</h1>
+                {input.branding.companyTagline && (
+                  <div className="pr-cover__sub">{input.branding.companyTagline}</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <h2 className="pr-cover__title">REINFORCED CONCRETE<br/>SLAB DESIGN REPORT</h2>
 
@@ -119,7 +135,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 2 — INPUTS + DRAWINGS                                    */}
       {/* ============================================================ */}
       <section className="pr-page">
-        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</div>
+        <div className="pr-page-strip">{projectId} · {dateStr}{input.branding?.companyName ? ' · ' + input.branding.companyName : ''}</div>
         <h2>1. Project inputs</h2>
 
         <div className="pr-row-2col">
@@ -176,7 +192,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 3 — MOMENTS + DEFORMED SHAPE                             */}
       {/* ============================================================ */}
       <section className="pr-page">
-        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</div>
+        <div className="pr-page-strip">{projectId} · {dateStr}{input.branding?.companyName ? ' · ' + input.branding.companyName : ''}</div>
         <h2>2. Analysis results</h2>
 
         <h3>2.1 Design moments &amp; shears (per metre of slab width)</h3>
@@ -209,7 +225,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 4 — REINFORCEMENT DESIGN + DETAIL                        */}
       {/* ============================================================ */}
       <section className="pr-page">
-        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</div>
+        <div className="pr-page-strip">{projectId} · {dateStr}{input.branding?.companyName ? ' · ' + input.branding.companyName : ''}</div>
         <h2>3. Reinforcement design</h2>
 
         <h3>3.1 Section detail with reinforcement layout</h3>
@@ -288,7 +304,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 5 — DEFLECTION + PUNCHING                                */}
       {/* ============================================================ */}
       <section className="pr-page">
-        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</div>
+        <div className="pr-page-strip">{projectId} · {dateStr}{input.branding?.companyName ? ' · ' + input.branding.companyName : ''}</div>
         <h2>4. Deflection check</h2>
         <table>
           <tbody>
@@ -350,7 +366,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 6+ — HAND-CALC APPENDIX                                  */}
       {/* ============================================================ */}
       <section className="pr-page">
-        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.</div>
+        <div className="pr-page-strip">{projectId} · {dateStr}{input.branding?.companyName ? ' · ' + input.branding.companyName : ''}</div>
         <h2>A. Hand-calculation appendix</h2>
         <p className="pr-meta">All calculations shown in full per design code provisions.</p>
 
@@ -429,7 +445,8 @@ export function SlabPrintReport({ input, result }: Props) {
         )}
 
         <div className="pr-footer">
-          End of report · Generated {dateStr} · <strong>For verification —
+          End of report · Generated on {dateStr} by{' '}
+          <strong>ttcivilstructural.com</strong> · <strong>For verification —
           must be reviewed and signed by a licensed P.E. / S.E.</strong>
         </div>
       </section>

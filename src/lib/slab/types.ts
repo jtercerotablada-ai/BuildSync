@@ -130,6 +130,21 @@ export interface SlabInput {
   /** Optional user-supplied bar+spacing per critical location. The solver verifies
    *  the user's choice against the required As, max spacing, and φMn ≥ Mu. */
   userRebar?: UserRebar[];
+  /** Optional branding for the print report — the user (firm using this tool)
+   *  can supply their own logo + company name so reports come out white-labelled. */
+  branding?: ReportBranding;
+}
+
+/** Optional firm branding shown on the print report cover. All fields optional;
+ *  if none provided, the report renders without a logo/company name (neutral). */
+export interface ReportBranding {
+  /** Data URL of the firm's logo (PNG/JPG/SVG). Embedded in the print HTML so
+   *  the report works fully offline / when downloaded as PDF. */
+  logoDataUrl?: string;
+  /** Firm name to print under (or beside) the logo. */
+  companyName?: string;
+  /** Optional one-line subtitle (e.g., "Structural Engineering · Licensed P.E."). */
+  companyTagline?: string;
 }
 
 // ---------------------------------------------------------------------------
