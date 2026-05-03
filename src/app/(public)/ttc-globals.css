@@ -8135,9 +8135,9 @@ img, svg {
       vertical-align: bottom; padding-bottom: 4pt;
     }
     @bottom-center {
-      content: "FOR VERIFICATION ONLY — MUST BE REVIEWED & SIGNED BY A LICENSED P.E. / S.E. · TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. · ttcivilstructural.com";
+      content: "FOR VERIFICATION ONLY — MUST BE REVIEWED & SIGNED BY A LICENSED P.E. / S.E.";
       font-family: 'Inter', system-ui, sans-serif;
-      font-size: 6.5pt; color: #888; letter-spacing: 0.03em;
+      font-size: 7pt; color: #888; letter-spacing: 0.04em;
     }
   }
 

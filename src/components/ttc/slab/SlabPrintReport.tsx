@@ -429,8 +429,7 @@ export function SlabPrintReport({ input, result }: Props) {
         )}
 
         <div className="pr-footer">
-          End of report — TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. ·
-          ttcivilstructural.com · Generated {dateStr} · <strong>For verification —
+          End of report · Generated {dateStr} · <strong>For verification —
           must be reviewed and signed by a licensed P.E. / S.E.</strong>
         </div>
       </section>
