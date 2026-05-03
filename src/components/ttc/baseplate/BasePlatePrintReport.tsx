@@ -779,32 +779,50 @@ function Balloon({ n, cx, cy, r = 9 }: { n: number; cx: number; cy: number; r?: 
   );
 }
 
-// Leader line from balloon edge to a target point on the part
+// Leader line from balloon edge to a target point on the part.
+// `side` tells us WHICH edge of the balloon the leader exits — pick the side
+// that faces the target so the leader is straight and doesn't double-back.
 function BalloonLeader({ balloon, target, side = 'right' }: {
   balloon: { x: number; y: number; r?: number };
   target: [number, number];
-  side?: 'left' | 'right';
+  side?: 'left' | 'right' | 'top' | 'bottom' | 'auto';
 }) {
   const r = balloon.r ?? 9;
-  // Start at balloon edge facing the target side
-  const x0 = side === 'right' ? balloon.x + r : balloon.x - r;
+  let actualSide = side;
+  if (side === 'auto') {
+    const dx = target[0] - balloon.x;
+    const dy = target[1] - balloon.y;
+    if (Math.abs(dx) > Math.abs(dy)) actualSide = dx > 0 ? 'right' : 'left';
+    else actualSide = dy > 0 ? 'bottom' : 'top';
+  }
+  let x0 = balloon.x, y0 = balloon.y;
+  if (actualSide === 'right')  x0 = balloon.x + r;
+  if (actualSide === 'left')   x0 = balloon.x - r;
+  if (actualSide === 'top')    y0 = balloon.y - r;
+  if (actualSide === 'bottom') y0 = balloon.y + r;
   return (
     <g>
-      <line x1={x0} y1={balloon.y} x2={target[0]} y2={target[1]}
+      <line x1={x0} y1={y0} x2={target[0]} y2={target[1]}
             stroke="#1a1a1a" strokeWidth="0.5" />
       <circle cx={target[0]} cy={target[1]} r="1.6" fill="#1a1a1a" />
     </g>
   );
 }
 
-// Dimension primitives (vertical with arrowheads + witness lines)
+// Vertical dimension — label is ROTATED 90° to read along the dim line.
+// This is engineering drafting convention and prevents text overlap when
+// multiple vertical dim lines are stacked side-by-side at the same height.
 function DimV({ x, y1, y2, label, side = 'right' }: {
   x: number; y1: number; y2: number; label: string; side?: 'left' | 'right';
 }) {
   const ymin = Math.min(y1, y2), ymax = Math.max(y1, y2);
-  const tx = side === 'right' ? x + 6 : x - 6;
-  const anchor = side === 'right' ? 'start' : 'end';
   const witnessLen = 6;
+  // Label sits BESIDE the dim line, vertically rotated.
+  // For 'left' side dims: label rotates -90° (reads bottom-to-top from the left).
+  // For 'right' side dims: label rotates 90° (reads top-to-bottom from the right).
+  const tx = side === 'right' ? x + 5 : x - 5;
+  const ty = (ymin + ymax) / 2;
+  const rot = side === 'right' ? 90 : -90;
   return (
     <g>
       <line x1={x} y1={ymin} x2={x} y2={ymax} stroke="#222" strokeWidth="0.6" />
@@ -812,8 +830,9 @@ function DimV({ x, y1, y2, label, side = 'right' }: {
       <polygon points={`${x},${ymax} ${x - 3},${ymax - 7} ${x + 3},${ymax - 7}`} fill="#222" />
       <line x1={x - witnessLen} y1={ymin} x2={x + witnessLen} y2={ymin} stroke="#222" strokeWidth="0.4" />
       <line x1={x - witnessLen} y1={ymax} x2={x + witnessLen} y2={ymax} stroke="#222" strokeWidth="0.4" />
-      <text x={tx} y={(ymin + ymax) / 2 + 3} fontSize="9" fontWeight="600"
-            fill="#222" textAnchor={anchor} fontFamily="Inter, sans-serif">{label}</text>
+      <text x={tx} y={ty} fontSize="9" fontWeight="600"
+            fill="#222" textAnchor="middle" fontFamily="Inter, sans-serif"
+            transform={`rotate(${rot}, ${tx}, ${ty})`}>{label}</text>
     </g>
   );
 }
@@ -915,7 +934,6 @@ function LegendTable({ x, y, items, title = 'PARTS LEGEND' }: {
 // 1) SvgAnchorAssembly — vertical section through one anchor
 // ============================================================================
 function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
-  // === Geometry (inches) ===
   const da = input.anchors.da;
   const hef = input.anchors.hef;
   const tp = input.plate.tp;
@@ -927,7 +945,6 @@ function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
   const roundThk = Math.max(0.125, da / 8);
   const projection = 0.50;
 
-  // Y-coordinate origin: y=0 at concrete top
   const yEmbBot = -hef;
   const yHeadTop = yEmbBot + nut.height;
   const yConTop = 0;
@@ -939,35 +956,40 @@ function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
   const yRodTop = yNutTop + projection;
 
   const yMax = yRodTop + 0.6;
-  const yMin = yEmbBot - 0.6;
+  const yMin = yEmbBot - 0.8;
   const totalIn = yMax - yMin;
 
-  // === Canvas (engineering shop drawing layout) ===
-  const W = 900, H = 760;
-  const drawX = 60, drawY = 60;
-  const drawH = 540;
+  // === CANVAS — drawing CENTERED horizontally ===
+  const W = 900, H = 950;
+  const drawY = 70;
+  const drawH = 600;
   const SCALE = drawH / totalIn;
-  const cx = drawX + 200;
+  const cx = W / 2;                                    // centered!
   const yPx = (y: number) => drawY + (yMax - y) * SCALE;
+  const concW = 230;
 
-  const concW = 220;
+  // === BALLOONS — distributed LEFT and RIGHT around the centered drawing ===
+  type Bal = {
+    n: number; bx: number; by: number;
+    targetX: number; targetY: number;
+    side: 'left' | 'right' | 'top' | 'bottom';
+  };
+  const xL = cx - 250;       // LEFT balloon column
+  const xR = cx + 250;       // RIGHT balloon column
 
-  const balX = drawX + 360;
-  const balRowH = 36;
-  const balYStart = drawY + 18;
-
-  type Bal = { n: number; targetX: number; targetY: number };
   const balloons: Bal[] = [
-    { n: 1,  targetX: cx,                                    targetY: yPx(yRodTop - projection / 2) },
-    { n: 2,  targetX: cx + nut.acrossFlats / 2 * SCALE,      targetY: yPx((yNutTop + yPwTop) / 2) },
-    { n: 3,  targetX: cx + hw.washerWidth / 2 * SCALE,       targetY: yPx((yPwTop + yRwTop) / 2) },
-    { n: 4,  targetX: cx + roundOD / 2 * SCALE,              targetY: yPx((yRwTop + yPlTop) / 2) },
-    { n: 5,  targetX: cx + (concW / 2 - 30),                 targetY: yPx((yPlTop + yGrtTop) / 2) },
-    { n: 6,  targetX: cx + hw.holeDia / 2 * SCALE + 2,       targetY: yPx((yPlTop + yGrtTop) / 2) },
-    { n: 7,  targetX: cx + (concW / 2 - 35),                 targetY: yPx((yGrtTop + yConTop) / 2) },
-    { n: 8,  targetX: cx + concW / 2 - 6,                    targetY: yPx(-hef * 0.30) },
-    { n: 9,  targetX: cx + da / 2 * SCALE + 2,               targetY: yPx(-hef * 0.55) },
-    { n: 10, targetX: cx + nut.acrossFlats / 2 * SCALE,      targetY: yPx((yEmbBot + yHeadTop) / 2) },
+    // RIGHT side (numbered in vertical order along the assembly)
+    { n: 1,  bx: xR, by: drawY + 30,  targetX: cx,                                   targetY: yPx(yRodTop),                          side: 'left' },
+    { n: 2,  bx: xR, by: drawY + 75,  targetX: cx + nut.acrossFlats / 2 * SCALE,     targetY: yPx((yNutTop + yPwTop) / 2),           side: 'left' },
+    { n: 4,  bx: xR, by: drawY + 120, targetX: cx + roundOD / 2 * SCALE,             targetY: yPx((yRwTop + yPlTop) / 2),            side: 'left' },
+    { n: 6,  bx: xR, by: drawY + 175, targetX: cx + hw.holeDia / 2 * SCALE - 0.5,    targetY: yPx(yPlTop - tp / 2),                  side: 'left' },
+    { n: 8,  bx: xR, by: drawY + 280, targetX: cx + concW / 2 - 5,                   targetY: yPx(-hef * 0.30),                      side: 'left' },
+    { n: 10, bx: xR, by: drawY + 540, targetX: cx + nut.acrossFlats / 2 * SCALE,     targetY: yPx((yEmbBot + yHeadTop) / 2),         side: 'left' },
+    // LEFT side
+    { n: 3,  bx: xL, by: drawY + 75,  targetX: cx - hw.washerWidth / 2 * SCALE,      targetY: yPx((yPwTop + yRwTop) / 2),            side: 'right' },
+    { n: 5,  bx: xL, by: drawY + 130, targetX: cx - (concW / 2 - 14),                targetY: yPx(yPlTop - tp / 2),                  side: 'right' },
+    { n: 7,  bx: xL, by: drawY + 200, targetX: cx - (concW / 2 - 8),                 targetY: yPx(yGrtTop - grout / 2),              side: 'right' },
+    { n: 9,  bx: xL, by: drawY + 380, targetX: cx - da / 2 * SCALE - 0.5,            targetY: yPx(-hef * 0.55),                      side: 'right' },
   ];
 
   const legendItems = [
@@ -989,7 +1011,7 @@ function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
 
       {/* Concrete pedestal */}
       <rect x={cx - concW / 2} y={yPx(yConTop)}
-            width={concW} height={(yConTop - yMin + 0.6) * SCALE}
+            width={concW} height={(yConTop - yMin + 0.8) * SCALE}
             fill="url(#hatch-conc)" stroke="#666" strokeWidth="0.8" />
 
       {/* Grout layer */}
@@ -1003,7 +1025,7 @@ function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
             fill="#5a5a5a" stroke="#1a1a1a" strokeWidth="1" />
       <rect x={cx - hw.holeDia / 2 * SCALE} y={yPx(yPlTop)}
             width={hw.holeDia * SCALE} height={tp * SCALE}
-            fill="#fff" stroke="#1a1a1a" strokeWidth="0.5" />
+            fill="#ffffff" stroke="#1a1a1a" strokeWidth="0.5" />
 
       {/* Round washer */}
       <rect x={cx - roundOD / 2 * SCALE} y={yPx(yRwTop)}
@@ -1034,7 +1056,7 @@ function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
             width={da * SCALE} height={(yRodTop - yEmbBot) * SCALE}
             fill="#9a9a9a" stroke="#222" strokeWidth="0.6" />
 
-      {/* Threaded portion (hatch) */}
+      {/* Threaded portion */}
       {(() => {
         const lines: React.ReactElement[] = [];
         const yStart = yPx(yRodTop);
@@ -1057,37 +1079,28 @@ function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
             width={nut.acrossFlats * SCALE} height={nut.height * SCALE}
             fill="#4a4a4a" stroke="#1a1a1a" strokeWidth="1" />
 
-      {/* Balloons + leaders */}
-      {balloons.map((b, idx) => {
-        const balY = balYStart + idx * balRowH;
-        return (
-          <g key={b.n}>
-            <BalloonLeader
-              balloon={{ x: balX, y: balY }}
-              target={[b.targetX, b.targetY]}
-              side="left" />
-            <Balloon n={b.n} cx={balX} cy={balY} />
-          </g>
-        );
-      })}
+      {/* === DIMENSIONS — far left of drawing area === */}
+      <DimV x={cx - concW / 2 - 50} y1={yPx(yConTop)} y2={yPx(yEmbBot)}
+            label={`hef = ${hef.toFixed(2)}"`} side="left" />
 
-      {/* Dimensions */}
-      <DimV x={drawX - 30} y1={yPx(yConTop)} y2={yPx(yEmbBot)}
-            label={`hef = ${hef.toFixed(2)}″`} side="left" />
-      <DimV x={drawX + 20} y1={yPx(yPlTop)} y2={yPx(yGrtTop)}
-            label={`tp ${tp.toFixed(3)}″`} side="left" />
-      <DimV x={cx - nut.acrossFlats / 2 * SCALE - 30}
-            y1={yPx(yNutTop)} y2={yPx(yPwTop)}
-            label={`H ${nut.height.toFixed(3)}″`} side="left" />
-      <DimV x={cx - nut.acrossFlats / 2 * SCALE - 30}
-            y1={yPx(yRodTop)} y2={yPx(yNutTop)}
-            label={`proj ${projection.toFixed(2)}″`} side="left" />
+      {/* === BALLOONS === */}
+      {balloons.map((b) => (
+        <g key={b.n}>
+          <BalloonLeader
+            balloon={{ x: b.bx, y: b.by }}
+            target={[b.targetX, b.targetY]}
+            side={b.side} />
+          <Balloon n={b.n} cx={b.bx} cy={b.by} />
+        </g>
+      ))}
 
-      <LegendTable x={drawX} y={drawY + drawH + 30} items={legendItems} />
+      {/* === LEGEND TABLE — bottom LEFT === */}
+      <LegendTable x={50} y={drawY + drawH + 40} items={legendItems} />
 
+      {/* === TITLE BLOCK — bottom RIGHT === */}
       <TitleBlock
         title="ANCHOR ASSEMBLY DETAIL"
-        subtitle={`⌀${da.toFixed(3)}″ ${input.anchors.grade} · 1 of ${input.anchors.N} rods`}
+        subtitle={`⌀${da.toFixed(3)}" ${input.anchors.grade} · 1 of ${input.anchors.N} rods`}
         w={W} h={H} />
     </svg>
   );
@@ -1104,12 +1117,14 @@ function SvgPlanView({ input }: { input: BasePlateInput }) {
   const da = input.anchors.da;
   const hw = lookupHoleWasher(da);
 
-  const W = 900, H = 760;
-  const drawX = 60, drawY = 50;
-  const drawW = 460, drawH = 440;
+  // CANVAS — plate centered
+  const W = 900, H = 850;
+  const drawW = 460, drawH = 420;
+  const cx = W / 2;
+  const drawY = 110;
+  const cy = drawY + drawH / 2;
 
   const scale = Math.min(drawW / B, drawH / N) * 0.85;
-  const cx = drawX + drawW / 2, cy = drawY + drawH / 2;
   const x = (xIn: number) => cx + xIn * scale;
   const y = (yIn: number) => cy - yIn * scale;
 
@@ -1118,17 +1133,31 @@ function SvgPlanView({ input }: { input: BasePlateInput }) {
     [-sx / 2, +sy / 2], [+sx / 2, +sy / 2],
   ];
 
-  const balX = drawX + drawW + 30;
-  const balRowH = 36;
-  const balYStart = drawY + 30;
+  // Right column for balloons
+  const xR = cx + drawW / 2 + 60;
+  const yTopBalloon = drawY - 80;
 
-  type Bal = { n: number; targetX: number; targetY: number };
+  type Bal = {
+    n: number; bx: number; by: number;
+    targetX: number; targetY: number;
+    side: 'left' | 'right' | 'top' | 'bottom';
+  };
   const balloons: Bal[] = [
-    { n: 1, targetX: x(0),                            targetY: y(N / 2) },
-    { n: 2, targetX: x(0),                            targetY: y(0) },
-    { n: 3, targetX: x(sx / 2 + hw.holeDia / 2 + 0.1), targetY: y(sy / 2) },
-    { n: 4, targetX: x(-B / 2),                       targetY: y(-sy / 2) },
-    { n: 5, targetX: x(0),                            targetY: y(-sy / 2 - 0.5) },
+    // TOP — Plate (above plate)
+    { n: 1, bx: cx, by: yTopBalloon, targetX: x(0), targetY: y(N / 2),
+      side: 'bottom' },
+    // RIGHT — Column, anchor (top-right), plate hole
+    { n: 2, bx: xR, by: drawY + 40, targetX: x(colTw / 2 + 0.05), targetY: y(0),
+      side: 'left' },
+    { n: 3, bx: xR, by: drawY + 90, targetX: x(sx / 2),            targetY: y(sy / 2),
+      side: 'left' },
+    { n: 5, bx: xR, by: drawY + 160, targetX: x(sx / 2) + hw.holeDia / 2 * scale - 0.5,
+      targetY: y(sy / 2),
+      side: 'left' },
+    // BOTTOM-LEFT — edge distance
+    { n: 4, bx: cx - drawW / 2 - 60, by: drawY + drawH + 30, targetX: x(-B / 2),
+      targetY: y(-sy / 2),
+      side: 'top' },
   ];
 
   const legendItems = [
@@ -1177,39 +1206,33 @@ function SvgPlanView({ input }: { input: BasePlateInput }) {
         </g>
       ))}
 
-      {/* Dimensions */}
-      <DimH y={y(N / 2) - 24} x1={x(-sx / 2)} x2={x(sx / 2)} label={`sx = ${sx.toFixed(2)}″`} />
-      <DimH y={y(N / 2) - 50} x1={x(-B / 2)} x2={x(B / 2)} label={`B = ${B.toFixed(2)}″`} />
-      <DimH y={y(-N / 2) + 30} x1={x(-B / 2)} x2={x(-sx / 2)} label={`ca = ${input.anchors.edgeDist.toFixed(2)}″`} side="bottom" />
-      <DimH y={y(-N / 2) + 30} x1={x(sx / 2)} x2={x(B / 2)} label={`ca = ${input.anchors.edgeDist.toFixed(2)}″`} side="bottom" />
-      <DimV x={x(-B / 2) - 24} y1={y(sy / 2)} y2={y(-sy / 2)} label={`sy = ${sy.toFixed(2)}″`} side="left" />
-      <DimV x={x(-B / 2) - 50} y1={y(N / 2)} y2={y(-N / 2)} label={`N = ${N.toFixed(2)}″`} side="left" />
+      {/* === DIMENSIONS — TOP: sx (inner) and B (outer), well separated === */}
+      <DimH y={y(N / 2) - 24} x1={x(-sx / 2)} x2={x(sx / 2)} label={`sx = ${sx.toFixed(2)}"`} />
+      <DimH y={y(N / 2) - 56} x1={x(-B / 2)} x2={x(B / 2)} label={`B = ${B.toFixed(2)}"`} />
 
-      {/* Balloons */}
-      {balloons.map((b, idx) => {
-        const balY = balYStart + idx * balRowH;
-        return (
-          <g key={b.n}>
-            <BalloonLeader
-              balloon={{ x: balX, y: balY }}
-              target={[b.targetX, b.targetY]}
-              side="left" />
-            <Balloon n={b.n} cx={balX} cy={balY} />
-          </g>
-        );
-      })}
+      {/* === DIMENSIONS — BOTTOM: edge distance left + right === */}
+      <DimH y={y(-N / 2) + 30} x1={x(-B / 2)} x2={x(-sx / 2)} label={`ca = ${input.anchors.edgeDist.toFixed(2)}"`} side="bottom" />
+      <DimH y={y(-N / 2) + 30} x1={x(sx / 2)} x2={x(B / 2)} label={`ca = ${input.anchors.edgeDist.toFixed(2)}"`} side="bottom" />
 
-      {/* Legend */}
-      <LegendTable x={drawX} y={drawY + drawH + 50} items={legendItems} />
+      {/* === DIMENSIONS — LEFT: sy (inner) and N (outer), labels rotated, well-separated columns === */}
+      <DimV x={x(-B / 2) - 28} y1={y(sy / 2)} y2={y(-sy / 2)} label={`sy = ${sy.toFixed(2)}"`} side="left" />
+      <DimV x={x(-B / 2) - 60} y1={y(N / 2)} y2={y(-N / 2)} label={`N = ${N.toFixed(2)}"`} side="left" />
 
-      {/* Compass */}
-      <g transform={`translate(${drawX + drawW - 30}, ${drawY + drawH - 30})`}>
-        <circle cx="0" cy="0" r="18" fill="#fafafa" stroke="#333" strokeWidth="0.8" />
-        <text x="0" y="-8" textAnchor="middle" fontSize="9" fontWeight="700" fill="#222">N</text>
-        <line x1="0" y1="-3" x2="0" y2="10" stroke="#333" strokeWidth="0.8" />
-        <polygon points="0,-3 -3,5 3,5" fill="#a02020" />
-      </g>
+      {/* === BALLOONS === */}
+      {balloons.map((b) => (
+        <g key={b.n}>
+          <BalloonLeader
+            balloon={{ x: b.bx, y: b.by }}
+            target={[b.targetX, b.targetY]}
+            side={b.side} />
+          <Balloon n={b.n} cx={b.bx} cy={b.by} />
+        </g>
+      ))}
 
+      {/* === LEGEND === */}
+      <LegendTable x={50} y={drawY + drawH + 90} items={legendItems} />
+
+      {/* === TITLE BLOCK === */}
       <TitleBlock
         title="BASE PLATE — PLAN VIEW"
         subtitle={`${input.column.label ?? `W${colD.toFixed(1)}×${colBf.toFixed(1)}`} · PL ${B.toFixed(0)}″×${N.toFixed(0)}″×${input.plate.tp.toFixed(3)}″`}
@@ -1246,28 +1269,41 @@ function SvgElevationView({ input }: { input: BasePlateInput }) {
   const yMin = yPedBot - 0.5;
   const totalIn = yMax - yMin;
 
-  const W = 900, H = 800;
-  const drawX = 80, drawY = 60;
-  const drawW = 480;
+  // CANVAS — column centered horizontally
+  const W = 900, H = 920;
+  const drawY = 110;
+  const drawW = 460;
   const drawH = 580;
   const SCALE = drawH / totalIn;
-  const cx = drawX + drawW / 2;
+  const cx = W / 2;          // CENTERED
   const yPx = (y: number) => drawY + (yMax - y) * SCALE;
   const xPx = (x: number) => cx + x * SCALE;
 
-  const balX = drawX + drawW + 30;
-  const balRowH = 36;
-  const balYStart = drawY + 20;
-
-  type Bal = { n: number; targetX: number; targetY: number };
+  type Bal = {
+    n: number; bx: number; by: number;
+    targetX: number; targetY: number;
+    side: 'left' | 'right' | 'top' | 'bottom';
+  };
+  const xR = cx + drawW / 2 + 60;
+  const xL = cx - drawW / 2 - 60;
   const balloons: Bal[] = [
-    { n: 1, targetX: cx,                                       targetY: yPx(yPlTop + colHeight * 0.7) },
-    { n: 2, targetX: xPx(N / 2 * 0.9),                         targetY: yPx(yPlTop + tp * 0.5) },
-    { n: 3, targetX: xPx(N / 2 * 0.92),                        targetY: yPx(yGrtTop + grout * 0.5) },
-    { n: 4, targetX: xPx(pedN / 2 - 0.6),                      targetY: yPx(-hef * 0.35) },
-    { n: 5, targetX: xPx(sy / 2),                              targetY: yPx(yNutTop + 0.5) },
-    { n: 6, targetX: xPx(sy / 2 + da / 2 + 0.3),               targetY: yPx(-hef * 0.55) },
-    { n: 7, targetX: xPx(sy / 2),                              targetY: yPx((yEmbBot + yHeadTop) / 2) },
+    // TOP — Column (centered above)
+    { n: 1, bx: cx, by: drawY - 50, targetX: cx, targetY: yPx(yColTop - 0.5), side: 'bottom' },
+    // RIGHT — plate, grout, pedestal, top nut
+    { n: 2, bx: xR, by: yPx(yPlTop + tp / 2), targetX: xPx(N / 2 - 0.3),
+      targetY: yPx(yPlTop + tp / 2), side: 'left' },
+    { n: 3, bx: xR, by: yPx(yGrtTop + grout / 2) + 12, targetX: xPx(N / 2 * 1.04),
+      targetY: yPx(yGrtTop + grout / 2), side: 'left' },
+    { n: 4, bx: xR, by: yPx(-hef * 0.30), targetX: xPx(pedN / 2 - 0.6),
+      targetY: yPx(-hef * 0.30), side: 'left' },
+    { n: 5, bx: xR, by: yPx(yNutTop) - 10, targetX: xPx(sy / 2 + nut.acrossFlats / 2),
+      targetY: yPx(yNutTop), side: 'left' },
+    // LEFT — embedded shaft, anchor head
+    { n: 6, bx: xL, by: yPx(-hef * 0.55), targetX: xPx(-sy / 2 - da / 2),
+      targetY: yPx(-hef * 0.55), side: 'right' },
+    { n: 7, bx: xL, by: yPx((yEmbBot + yHeadTop) / 2),
+      targetX: xPx(-sy / 2 - nut.acrossFlats / 2),
+      targetY: yPx((yEmbBot + yHeadTop) / 2), side: 'right' },
   ];
 
   const legendItems = [
@@ -1328,36 +1364,34 @@ function SvgElevationView({ input }: { input: BasePlateInput }) {
         </g>
       ))}
 
-      {/* Dimensions */}
+      {/* === DIMENSIONS — left, well-separated columns === */}
       <DimV x={xPx(-pedN / 2) - 30} y1={yPx(yConTop)} y2={yPx(yEmbBot)}
-            label={`hef = ${hef.toFixed(2)}″`} side="left" />
-      <DimV x={xPx(-pedN / 2) - 60} y1={yPx(yPlTop)} y2={yPx(yGrtTop)}
-            label={`tp ${tp.toFixed(3)}″`} side="left" />
-      <DimV x={xPx(-pedN / 2) - 60} y1={yPx(yGrtTop)} y2={yPx(yConTop)}
-            label={`grout ${grout.toFixed(2)}″`} side="left" />
+            label={`hef = ${hef.toFixed(2)}"`} side="left" />
+      <DimV x={xPx(-N / 2) - 22} y1={yPx(yPlTop)} y2={yPx(yGrtTop)}
+            label={`tp ${tp.toFixed(3)}"`} side="left" />
+      <DimV x={xPx(-N / 2 * 1.05) - 22} y1={yPx(yGrtTop)} y2={yPx(yConTop)}
+            label={`grout ${grout.toFixed(2)}"`} side="left" />
 
-      <DimH y={yPx(yColTop) - 25} x1={xPx(-sy / 2)} x2={xPx(sy / 2)}
-            label={`sy = ${sy.toFixed(2)}″`} />
-      <DimH y={yPx(yColTop) - 50} x1={xPx(-N / 2)} x2={xPx(N / 2)}
-            label={`N = ${N.toFixed(2)}″ (plate)`} />
-      <DimH y={yPx(yColTop) - 75} x1={xPx(-pedN / 2)} x2={xPx(pedN / 2)}
-            label={`N2 = ${pedN.toFixed(2)}″ (pedestal)`} />
+      {/* === DIMENSIONS — top, stacked with comfortable spacing === */}
+      <DimH y={yPx(yColTop) - 28} x1={xPx(-sy / 2)} x2={xPx(sy / 2)}
+            label={`sy = ${sy.toFixed(2)}"`} />
+      <DimH y={yPx(yColTop) - 60} x1={xPx(-N / 2)} x2={xPx(N / 2)}
+            label={`N = ${N.toFixed(2)}" (plate)`} />
+      <DimH y={yPx(yColTop) - 92} x1={xPx(-pedN / 2)} x2={xPx(pedN / 2)}
+            label={`N2 = ${pedN.toFixed(2)}" (pedestal)`} />
 
-      {/* Balloons */}
-      {balloons.map((b, idx) => {
-        const balY = balYStart + idx * balRowH;
-        return (
-          <g key={b.n}>
-            <BalloonLeader
-              balloon={{ x: balX, y: balY }}
-              target={[b.targetX, b.targetY]}
-              side="left" />
-            <Balloon n={b.n} cx={balX} cy={balY} />
-          </g>
-        );
-      })}
+      {/* === BALLOONS === */}
+      {balloons.map((b) => (
+        <g key={b.n}>
+          <BalloonLeader
+            balloon={{ x: b.bx, y: b.by }}
+            target={[b.targetX, b.targetY]}
+            side={b.side} />
+          <Balloon n={b.n} cx={b.bx} cy={b.by} />
+        </g>
+      ))}
 
-      <LegendTable x={drawX} y={drawY + drawH + 30} items={legendItems} />
+      <LegendTable x={50} y={drawY + drawH + 40} items={legendItems} />
 
       <TitleBlock
         title="BASE PLATE — ELEVATION"
