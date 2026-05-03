@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useMemo } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
   OrbitControls,
@@ -128,10 +128,30 @@ export function BasePlate3D({ input, result }: Props) {
 
   const overallOk = result.ok;
 
+  // VIEW CONTROLS — let the user see embedded anchor detail
+  const [cutaway, setCutaway] = useState(true);    // pedestal becomes glassy by default
+  const [showGrid, setShowGrid] = useState(true);
+  const [showGrout, setShowGrout] = useState(true);
+  const [halfSection, setHalfSection] = useState(false);  // remove the +X half of the pedestal
+
   const camDist = Math.max(B, N, pedB, pedN) * 3.5;
 
   return (
     <div className="bp-3d slab-3d">
+      {/* Control bar */}
+      <div className="slab-3d__controls">
+        <div className="slab-contour__tabs" style={{ flexWrap: 'wrap' }}>
+          <span className="slab-3d__hint" style={{ marginRight: '0.4rem', alignSelf: 'center' }}>VIEW —</span>
+          <label className="ab-toggle"><input type="checkbox" checked={cutaway}
+            onChange={(e) => setCutaway(e.target.checked)} /> <span>Glass concrete (see anchors)</span></label>
+          <label className="ab-toggle"><input type="checkbox" checked={halfSection}
+            onChange={(e) => setHalfSection(e.target.checked)} /> <span>Half cutaway</span></label>
+          <label className="ab-toggle"><input type="checkbox" checked={showGrout}
+            onChange={(e) => setShowGrout(e.target.checked)} /> <span>Grout layer</span></label>
+          <label className="ab-toggle"><input type="checkbox" checked={showGrid}
+            onChange={(e) => setShowGrid(e.target.checked)} /> <span>Floor grid</span></label>
+        </div>
+      </div>
       <div className="bp-3d__canvas slab-3d__canvas">
         <Canvas
           shadows
@@ -150,15 +170,23 @@ export function BasePlate3D({ input, result }: Props) {
             shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-bias={-0.0005} />
           <directionalLight position={[-B * 2, B * 3, -B * 2]} intensity={0.18} />
 
-          {/* Concrete pedestal */}
-          <Pedestal w={pedB} d={pedN} h={pedH} />
+          {/* Concrete pedestal — glassy when cutaway, optionally half-cut */}
+          <Pedestal w={pedB} d={pedN} h={pedH}
+            cutaway={cutaway} halfSection={halfSection} />
 
-          {/* Base plate (above pedestal top) */}
-          <BasePlateMesh B={B} N={N} t={tp} y={pedH / 2 + tp / 2} ok={overallOk} />
+          {/* Grout layer between pedestal top and base plate (typical 1" non-shrink) */}
+          {showGrout && (
+            <GroutLayer w={B * 1.05} d={N * 1.05} thickness={0.0254}
+              y={pedH / 2 + 0.0127} cutaway={cutaway} halfSection={halfSection} />
+          )}
+
+          {/* Base plate (above pedestal top + grout) */}
+          <BasePlateMesh B={B} N={N} t={tp}
+            y={pedH / 2 + (showGrout ? 0.0254 : 0) + tp / 2} ok={overallOk} />
 
           {/* Column stub (above plate) */}
           <ColumnW d={colD} bf={colBf} tf={colTf} tw={colTw}
-            yBase={pedH / 2 + tp} height={colHeight} />
+            yBase={pedH / 2 + (showGrout ? 0.0254 : 0) + tp} height={colHeight} />
 
           {/* Anchor rods (embedded into pedestal, sticking up through plate) */}
           {anchorPositions.map((p, i) => (
@@ -166,9 +194,18 @@ export function BasePlate3D({ input, result }: Props) {
               x={p[0]} z={p[1]}
               da={da}
               embedment={hef}
-              plateTopY={pedH / 2 + tp}
+              plateTopY={pedH / 2 + (showGrout ? 0.0254 : 0) + tp}
               pedestalTopY={pedH / 2}
             />
+          ))}
+
+          {/* CUTAWAY visual aids — when concrete is glassy, draw a clear
+              indicator of the embedment depth on each anchor */}
+          {cutaway && anchorPositions.map((p, i) => (
+            <EmbedmentIndicator key={`emb-${i}`}
+              x={p[0]} z={p[1]} da={da}
+              embedment={hef}
+              pedestalTopY={pedH / 2} />
           ))}
 
           {/* Force arrow (axial load on top of column) */}
@@ -187,11 +224,13 @@ export function BasePlate3D({ input, result }: Props) {
           )}
 
           {/* Floor grid */}
-          <Grid args={[pedB * 6, pedN * 6]}
-            cellSize={0.1} cellThickness={0.45} cellColor="#3a3320"
-            sectionSize={0.5} sectionThickness={0.9} sectionColor="#5a4f30"
-            fadeDistance={Math.max(pedB, pedN) * 8} fadeStrength={1.4}
-            position={[0, -pedH / 2 - 0.005, 0]} infiniteGrid={false} />
+          {showGrid && (
+            <Grid args={[pedB * 6, pedN * 6]}
+              cellSize={0.1} cellThickness={0.45} cellColor="#3a3320"
+              sectionSize={0.5} sectionThickness={0.9} sectionColor="#5a4f30"
+              fadeDistance={Math.max(pedB, pedN) * 8} fadeStrength={1.4}
+              position={[0, -pedH / 2 - 0.005, 0]} infiniteGrid={false} />
+          )}
 
           {/* Soft contact shadow */}
           <ContactShadows
@@ -218,14 +257,132 @@ export function BasePlate3D({ input, result }: Props) {
 }
 
 // ============================================================================
-// Pedestal (concrete)
+// Pedestal (concrete) — supports glass-mode (cutaway) and half-section
 // ============================================================================
-function Pedestal({ w, d, h }: { w: number; d: number; h: number }) {
+function Pedestal({ w, d, h, cutaway, halfSection }: {
+  w: number; d: number; h: number; cutaway: boolean; halfSection: boolean;
+}) {
+  // When halfSection is on, render the +X half WIDTH/2 narrower so you see
+  // straight into the concrete. We keep two faces (back panel + bottom slab)
+  // visible so the cut reads cleanly.
+  if (halfSection) {
+    const halfW = w / 2;
+    return (
+      <group>
+        {/* Remaining (+X removed → keep -X half) */}
+        <mesh position={[-halfW / 2, 0, 0]} receiveShadow castShadow>
+          <boxGeometry args={[halfW, h, d]} />
+          <meshStandardMaterial
+            color="#cdc8bf" roughness={0.92} metalness={0.0}
+            transparent={cutaway} opacity={cutaway ? 0.35 : 1.0}
+            depthWrite={!cutaway}
+            side={THREE.DoubleSide} />
+        </mesh>
+        {/* Cut face hatch lines (visual cue showing the section cut) */}
+        <SectionCutHatch x={0} y={0} d={d} h={h} />
+      </group>
+    );
+  }
+
   return (
     <mesh position={[0, 0, 0]} receiveShadow castShadow>
       <boxGeometry args={[w, h, d]} />
-      <meshStandardMaterial color="#cdc8bf" roughness={0.92} metalness={0.0} />
+      <meshStandardMaterial
+        color="#cdc8bf" roughness={0.92} metalness={0.0}
+        transparent={cutaway} opacity={cutaway ? 0.22 : 1.0}
+        depthWrite={!cutaway}
+        side={cutaway ? THREE.DoubleSide : THREE.FrontSide} />
     </mesh>
+  );
+}
+
+// Hatch lines drawn at x=0 plane to indicate the section cut on the half-section view
+function SectionCutHatch({ x, y, d, h }: { x: number; y: number; d: number; h: number }) {
+  const lines = useMemo(() => {
+    const pts: number[] = [];
+    const N = 14;                  // number of hatch lines
+    for (let i = 1; i < N; i++) {
+      const t = i / N;
+      // diagonal stripes, full height/depth, 45°
+      pts.push(-d / 2, y - h / 2 + t * h, 0);
+      pts.push(-d / 2 + t * d, y - h / 2, 0);
+      pts.push(-d / 2 + t * d, y + h / 2, 0);
+      pts.push(d / 2, y + h / 2 - (1 - t) * h, 0);
+    }
+    return new Float32Array(pts);
+  }, [y, d, h]);
+  const geom = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(lines, 3));
+    return g;
+  }, [lines]);
+  return (
+    <group position={[x, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+      <lineSegments geometry={geom}>
+        <lineBasicMaterial color="#8a7a5a" />
+      </lineSegments>
+    </group>
+  );
+}
+
+// ============================================================================
+// Grout layer between pedestal top and base plate
+// ============================================================================
+function GroutLayer({ w, d, thickness, y, cutaway, halfSection }: {
+  w: number; d: number; thickness: number; y: number; cutaway: boolean; halfSection: boolean;
+}) {
+  const renderW = halfSection ? w / 2 : w;
+  const x = halfSection ? -w / 4 : 0;
+  return (
+    <mesh position={[x, y, 0]} receiveShadow={!cutaway} castShadow={!cutaway}>
+      <boxGeometry args={[renderW, thickness, d]} />
+      <meshStandardMaterial
+        color="#bdb8ad" roughness={0.95} metalness={0.0}
+        transparent={cutaway} opacity={cutaway ? 0.55 : 1.0}
+        depthWrite={!cutaway} />
+    </mesh>
+  );
+}
+
+// ============================================================================
+// Embedment indicator — vertical dimension line + label showing hef visible
+// when the pedestal is glassy. Engineering-drawing style.
+// ============================================================================
+function EmbedmentIndicator({ x, z, da, embedment, pedestalTopY }: {
+  x: number; z: number; da: number; embedment: number; pedestalTopY: number;
+}) {
+  const yTop = pedestalTopY;
+  const yBot = pedestalTopY - embedment;
+  const off = da * 1.8;     // offset the dim line to the side of the rod
+
+  const dimGeom = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    // Main vertical extension line + arrowheads (line-segments pairs)
+    const v = [
+      0, yTop, 0,  0, yBot, 0,                         // main line
+      -da * 0.45, yTop - da * 0.55, 0,  0, yTop, 0,   // top arrow left
+      0, yTop, 0,  da * 0.45, yTop - da * 0.55, 0,    // top arrow right
+      -da * 0.45, yBot + da * 0.55, 0,  0, yBot, 0,   // bot arrow left
+      0, yBot, 0,  da * 0.45, yBot + da * 0.55, 0,    // bot arrow right
+    ];
+    g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+    return g;
+  }, [yTop, yBot, da]);
+
+  return (
+    <group position={[x + off, 0, z]}>
+      <lineSegments geometry={dimGeom}>
+        <lineBasicMaterial color="#c94c4c" linewidth={2} />
+      </lineSegments>
+      <Text
+        position={[da * 0.7, (yTop + yBot) / 2, 0]}
+        fontSize={Math.max(da * 0.7, 0.018)}
+        color="#c94c4c"
+        anchorX="left" anchorY="middle"
+        outlineColor="#000" outlineWidth={da * 0.04}>
+        {`hef = ${(embedment / 0.0254).toFixed(1)}"`}
+      </Text>
+    </group>
   );
 }
 
