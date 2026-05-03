@@ -759,390 +759,610 @@ function computeChecks(result: BasePlateAnalysis): CheckRow[] {
 }
 
 // ============================================================================
-// SVG DETAIL DRAWINGS — engineering-shop-drawing style
+// SVG DETAIL DRAWINGS — engineering shop-drawing quality
+// Conventions:
+//   • All callouts use numbered BALLOONS (circle + number) tied to a
+//     LEGEND TABLE — never free-floating crossing leader lines.
+//   • Dimensions are stacked OUTSIDE the part on dedicated dim columns.
+//   • Hatch patterns: concrete = diagonal lines, grout = dotted, steel = solid.
+//   • Title block at the bottom with scale + drawing ID.
 // ============================================================================
 
-/**
- * SvgAnchorAssembly — Side view of one anchor with full detail:
- *   Round washer → plate washer → heavy hex nut → rod → embedment → anchor head
- * Engineering-drawing convention: dimensions on the right with arrowheads,
- * material callouts on the left.
- */
-function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
-  const da = input.anchors.da;            // in
-  const hef = input.anchors.hef;
-  const tp = input.plate.tp;
-  const nut = lookupHexNut(da);
-  const hw = lookupHoleWasher(da);
-  const wt = washerThicknessForGrade(hw, input.anchors.grade);
-  const roundWasherOD = da * 2.25;
-  const roundWasherThk = Math.max(0.125, da / 8);
-  const projection = 0.25;                // 1/4" projection above nut
-
-  // Coordinate system: y=0 at concrete top surface (= bottom of plate)
-  // Above (positive y): plate, washer stack, nut, rod projection
-  // Below (negative y): grout (omitted for simplicity), embedded rod, anchor head nut
-  const yPlateTop = tp;
-  const yRoundWasherTop = yPlateTop + roundWasherThk;
-  const yPlateWasherTop = yRoundWasherTop + wt;
-  const yNutTop = yPlateWasherTop + nut.height;
-  const yRodTop = yNutTop + projection;
-  const yEmbedTop = 0;
-  const yEmbedBot = -hef;
-  const yHeadTop = yEmbedBot;
-  const yHeadBot = yEmbedBot - nut.height;
-
-  // SVG plotting: choose scale so total assembly fits in ~280 mm height
-  const totalHeightIn = yRodTop - yHeadBot;
-  const SCALE = 220 / totalHeightIn;          // px per inch
-  const W = 700, H = 540;
-  const cx = 240;                              // assembly centerline x
-  const yOffset = 30 + (yRodTop * SCALE);     // shift so y=yRodTop maps to top of viewBox
-
-  const yPx = (y: number) => yOffset - y * SCALE;
-  const xPx = (x: number) => cx + x * SCALE;
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <pattern id="bp-hatch-conc" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <line x1="0" y1="0" x2="0" y2="6" stroke="#999" strokeWidth="0.6" />
-        </pattern>
-        <pattern id="bp-hatch-steel" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <line x1="0" y1="0" x2="0" y2="4" stroke="#444" strokeWidth="0.5" />
-        </pattern>
-      </defs>
-
-      {/* CONCRETE — semi-transparent so we see embedded portion */}
-      <rect x={cx - 100} y={yPx(0)} width={200} height={(0 - yEmbedBot - 0.5) * SCALE + 30}
-            fill="url(#bp-hatch-conc)" stroke="#777" strokeWidth="0.6" />
-      <text x={cx - 95} y={yPx(0) + 14} fontSize="9" fill="#666">CONCRETE PEDESTAL</text>
-      <text x={cx - 95} y={yPx(0) + 24} fontSize="9" fill="#666">{`fʹc = ${input.concrete.fc.toFixed(2)} ksi`}</text>
-
-      {/* BASE PLATE */}
-      <rect x={cx - 110} y={yPx(yPlateTop)} width={220} height={tp * SCALE}
-            fill="#7a7a7a" stroke="#333" strokeWidth="1" />
-      {/* Plate hole — visible as gap */}
-      <rect x={cx - hw.holeDia / 2 * SCALE} y={yPx(yPlateTop)} width={hw.holeDia * SCALE} height={tp * SCALE}
-            fill="#fff" stroke="#333" strokeWidth="0.5" />
-      <text x={cx - 105} y={yPx(yPlateTop / 2)} fontSize="9" fill="#fff" fontWeight="600">{`PL ${input.plate.tp.toFixed(3)}″`}</text>
-
-      {/* ROUND WASHER (SAE flat) */}
-      <rect x={cx - roundWasherOD / 2 * SCALE} y={yPx(yRoundWasherTop)}
-            width={roundWasherOD * SCALE} height={roundWasherThk * SCALE}
-            fill="#8a8a8a" stroke="#333" strokeWidth="0.6" />
-
-      {/* PLATE WASHER */}
-      <rect x={cx - hw.washerWidth / 2 * SCALE} y={yPx(yPlateWasherTop)}
-            width={hw.washerWidth * SCALE} height={wt * SCALE}
-            fill="#7a7a7a" stroke="#333" strokeWidth="0.7" />
-
-      {/* HEAVY HEX NUT — top */}
-      <rect x={cx - nut.acrossFlats / 2 * SCALE} y={yPx(yNutTop)}
-            width={nut.acrossFlats * SCALE} height={nut.height * SCALE}
-            fill="#5a5a5a" stroke="#222" strokeWidth="1" />
-      {/* hex chamfer indication */}
-      <line x1={cx - nut.acrossFlats / 2 * SCALE} y1={yPx(yNutTop) + 3}
-            x2={cx + nut.acrossFlats / 2 * SCALE} y2={yPx(yNutTop) + 3} stroke="#888" strokeWidth="0.4" />
-
-      {/* ROD — full length, drawn as cylinder front */}
-      <rect x={cx - da / 2 * SCALE} y={yPx(yRodTop)} width={da * SCALE} height={(yRodTop - yHeadBot) * SCALE}
-            fill="#9a9a9a" stroke="#333" strokeWidth="0.6" />
-      {/* THREAD HATCH on top portion */}
-      {Array.from({ length: 30 }, (_, i) => {
-        const tStart = yPx(yRodTop);
-        const tEnd = yPx(yPlateTop - 0.5);
-        const yL = tStart + (tEnd - tStart) * (i / 30);
-        if (yL > yPx(yPlateTop - 0.5)) return null;
-        return (
-          <line key={i} x1={cx - da / 2 * SCALE + 0.5} y1={yL} x2={cx + da / 2 * SCALE - 0.5} y2={yL + 1.5}
-                stroke="#666" strokeWidth="0.4" />
-        );
-      })}
-
-      {/* ANCHOR HEAD (heavy hex nut at the bottom) */}
-      <rect x={cx - nut.acrossFlats / 2 * SCALE} y={yPx(yHeadTop)}
-            width={nut.acrossFlats * SCALE} height={nut.height * SCALE}
-            fill="#5a5a5a" stroke="#222" strokeWidth="1" />
-
-      {/* DIMENSION LINES — right side */}
-      {/* Embedment hef */}
-      <DimVertical x={xPx(0) + 130} y1={yPx(yEmbedTop)} y2={yPx(yEmbedBot)}
-        label={`hef = ${hef.toFixed(2)}″`} />
-      {/* Plate thickness */}
-      <DimVertical x={xPx(0) + 100} y1={yPx(yPlateTop)} y2={yPx(0)}
-        label={`tp = ${tp.toFixed(3)}″`} />
-      {/* Nut height */}
-      <DimVertical x={xPx(0) + 130} y1={yPx(yNutTop)} y2={yPx(yPlateWasherTop)}
-        label={`H = ${nut.height.toFixed(3)}″`} />
-      {/* Plate washer thickness */}
-      <DimVertical x={xPx(0) + 100} y1={yPx(yPlateWasherTop)} y2={yPx(yRoundWasherTop)}
-        label={`PL washer ${wt.toFixed(3)}″`} />
-      {/* Rod projection */}
-      <DimVertical x={xPx(0) + 100} y1={yPx(yRodTop)} y2={yPx(yNutTop)}
-        label={`proj. ${projection.toFixed(2)}″`} />
-
-      {/* CALLOUTS — left side */}
-      <Callout x={cx - 200} y={yPx(yRodTop)} text={`ASTM F1554 ${input.anchors.grade.replace('F1554-', 'Gr ')}`} target={[cx, yPx(yRodTop) + 5]} />
-      <Callout x={cx - 200} y={yPx(yNutTop) + 8} text={`Heavy hex nut F = ${nut.acrossFlats.toFixed(3)}″`} target={[cx + nut.acrossFlats / 2 * SCALE, yPx(yNutTop) + nut.height * SCALE / 2]} />
-      <Callout x={cx - 200} y={yPx(yPlateWasherTop) + 6} text={`Plate washer ${hw.washerWidth.toFixed(2)}×${hw.washerWidth.toFixed(2)}×${wt.toFixed(3)}″`} target={[cx + hw.washerWidth / 2 * SCALE, yPx(yPlateWasherTop) + wt * SCALE / 2]} />
-      <Callout x={cx - 200} y={yPx(yPlateTop) - 4} text={`Round washer OD ${roundWasherOD.toFixed(2)}″`} target={[cx + roundWasherOD / 2 * SCALE, yPx(yRoundWasherTop) + roundWasherThk * SCALE / 2]} />
-      <Callout x={cx - 200} y={yPx(yPlateTop) + 8} text={`Base plate PL ${tp.toFixed(3)}″ (A572 Gr 50)`} target={[cx - hw.holeDia / 2 * SCALE - 3, yPx(yPlateTop / 2)]} />
-      <Callout x={cx - 200} y={yPx(0) + 16} text={`Plate hole ⌀${hw.holeDia.toFixed(4)}″ (oversize)`} target={[cx + hw.holeDia / 2 * SCALE + 2, yPx(yPlateTop / 2)]} />
-      <Callout x={cx - 200} y={yPx(yEmbedTop) + 26} text={`Smooth shaft (no threads in concrete)`} target={[cx + da / 2 * SCALE, yPx(yEmbedTop / 2 + yEmbedBot / 2)]} />
-      <Callout x={cx - 200} y={yPx(yHeadBot) - 6} text={`Anchor head: heavy hex nut`} target={[cx + nut.acrossFlats / 2 * SCALE, yPx(yHeadBot + nut.height / 2)]} />
-
-      {/* TITLE BLOCK */}
-      <text x={W / 2} y={H - 10} textAnchor="middle" fontSize="9" fill="#666">
-        {`ANCHOR ASSEMBLY DETAIL · ⌀${da.toFixed(3)}″ ${input.anchors.grade} · scale not to scale`}
-      </text>
-    </svg>
-  );
-}
-
-/**
- * SvgPlanView — Top-down view of the base plate showing column footprint,
- * anchor pattern, plate dimensions B × N.
- */
-function SvgPlanView({ input }: { input: BasePlateInput }) {
-  const B = input.plate.B, N = input.plate.N;
-  const colD = input.column.d, colBf = input.column.bf, colTw = input.column.tw, colTf = input.column.tf;
-  const sx = input.anchors.sx, sy = input.anchors.sy;
-  const da = input.anchors.da;
-  const hw = lookupHoleWasher(da);
-
-  // Canvas + scale
-  const W = 720, H = 460;
-  const drawW = W - 200, drawH = H - 160;
-  const scale = Math.min(drawW / B, drawH / N) * 0.95;
-  const cx = W / 2, cy = H / 2;
-  const x = (xIn: number) => cx + xIn * scale;
-  const y = (yIn: number) => cy - yIn * scale;
-
-  // 4-rod pattern positions (centered)
-  const anchorPositions: [number, number][] = [
-    [-sx / 2, -sy / 2], [+sx / 2, -sy / 2],
-    [-sx / 2, +sy / 2], [+sx / 2, +sy / 2],
-  ];
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-      {/* Plate outline */}
-      <rect x={x(-B / 2)} y={y(N / 2)} width={B * scale} height={N * scale}
-            fill="#f5f1e6" stroke="#222" strokeWidth="1.5" />
-
-      {/* Column footprint (W-shape) — 3 rectangles: top flange, web, bottom flange */}
-      {/* Top flange */}
-      <rect x={x(-colBf / 2)} y={y(colD / 2)} width={colBf * scale} height={colTf * scale}
-            fill="#a0a0a0" stroke="#333" strokeWidth="0.6" />
-      {/* Bottom flange */}
-      <rect x={x(-colBf / 2)} y={y(-colD / 2 + colTf)} width={colBf * scale} height={colTf * scale}
-            fill="#a0a0a0" stroke="#333" strokeWidth="0.6" />
-      {/* Web */}
-      <rect x={x(-colTw / 2)} y={y(colD / 2 - colTf)} width={colTw * scale} height={(colD - 2 * colTf) * scale}
-            fill="#a0a0a0" stroke="#333" strokeWidth="0.6" />
-
-      {/* Anchor rod holes (circles) */}
-      {anchorPositions.map(([px, py], i) => (
-        <g key={i}>
-          {/* Hole */}
-          <circle cx={x(px)} cy={y(py)} r={hw.holeDia / 2 * scale} fill="#fff" stroke="#666" strokeWidth="0.5" />
-          {/* Rod (smaller circle inside) */}
-          <circle cx={x(px)} cy={y(py)} r={da / 2 * scale} fill="#5a5a5a" stroke="#222" strokeWidth="0.7" />
-          {/* Centerlines + */}
-          <line x1={x(px) - 8} y1={y(py)} x2={x(px) + 8} y2={y(py)} stroke="#c94c4c" strokeWidth="0.5" />
-          <line x1={x(px)} y1={y(py) - 8} x2={x(px)} y2={y(py) + 8} stroke="#c94c4c" strokeWidth="0.5" />
-        </g>
-      ))}
-
-      {/* DIMENSION LINES */}
-      {/* B (overall width, top) */}
-      <DimHorizontal y={y(N / 2) - 30} x1={x(-B / 2)} x2={x(B / 2)} label={`B = ${B.toFixed(2)}″`} />
-      {/* N (overall length, right) */}
-      <DimVerticalRight x={x(B / 2) + 30} y1={y(N / 2)} y2={y(-N / 2)} label={`N = ${N.toFixed(2)}″`} />
-      {/* sx (anchor spacing X, top) */}
-      <DimHorizontal y={y(N / 2) - 60} x1={x(-sx / 2)} x2={x(sx / 2)} label={`sx = ${sx.toFixed(2)}″`} small />
-      {/* sy (anchor spacing Y, left) */}
-      <DimVerticalLeft x={x(-B / 2) - 30} y1={y(-sy / 2)} y2={y(sy / 2)} label={`sy = ${sy.toFixed(2)}″`} small />
-
-      {/* Edge distance callout */}
-      <Callout x={20} y={H - 50} text={`Edge dist. = ${input.anchors.edgeDist.toFixed(2)}″`} target={[x(-B / 2 + input.anchors.edgeDist), y(-sy / 2)]} />
-      <Callout x={20} y={H - 30} text={`${input.anchors.N} anchors @ ⌀${da.toFixed(3)}″`} target={[x(sx / 2), y(sy / 2)]} />
-
-      {/* Title */}
-      <text x={W / 2} y={H - 10} textAnchor="middle" fontSize="9" fill="#666">
-        {`PLAN VIEW · ${input.column.label ?? `W ${colD.toFixed(1)}×${colBf.toFixed(1)}`} · PL ${B.toFixed(0)}×${N.toFixed(0)}×${input.plate.tp.toFixed(3)}″`}
-      </text>
-    </svg>
-  );
-}
-
-/**
- * SvgElevationView — Side view of column-plate-grout-pedestal assembly with
- * embedded anchors visible (cutaway concrete).
- */
-function SvgElevationView({ input }: { input: BasePlateInput }) {
-  const colD = input.column.d, colTf = input.column.tf, colTw = input.column.tw;
-  void colTf; void colTw;
-  const tp = input.plate.tp, hef = input.anchors.hef;
-  const N = input.plate.N, sy = input.anchors.sy;
-  const pedN = input.concrete.N2;
-  const grout = 1.0;            // 1" grout layer
-  const colHeight = N * 0.8;
-
-  const totalH = colHeight + tp + grout + hef + 4;       // +4 for pedestal below embedment
-  const totalW = Math.max(N * 1.6, pedN);
-
-  const W = 700, H = 480;
-  const drawW = W - 100, drawH = H - 120;
-  const scale = Math.min(drawW / totalW, drawH / totalH) * 0.92;
-
-  // Coord system: y=0 at concrete top (plate bottom = grout top)
-  const cx = W / 2;
-  const yOffset = 50 + colHeight * scale + tp * scale + grout * scale;  // y=concrete top
-  const xPx = (x: number) => cx + x * scale;
-  const yPx = (y: number) => yOffset - y * scale;
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <pattern id="bp-elev-conc" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <line x1="0" y1="0" x2="0" y2="6" stroke="#999" strokeWidth="0.5" />
-        </pattern>
-      </defs>
-
-      {/* PEDESTAL */}
-      <rect x={xPx(-pedN / 2)} y={yPx(0)} width={pedN * scale} height={(hef + 4) * scale}
-            fill="url(#bp-elev-conc)" stroke="#666" strokeWidth="1" />
-
-      {/* GROUT LAYER */}
-      <rect x={xPx(-N / 2 * 1.05)} y={yPx(grout)} width={N * 1.05 * scale} height={grout * scale}
-            fill="#bdb8ad" stroke="#666" strokeWidth="0.5" opacity="0.7" />
-
-      {/* BASE PLATE */}
-      <rect x={xPx(-N / 2)} y={yPx(grout + tp)} width={N * scale} height={tp * scale}
-            fill="#7a7a7a" stroke="#222" strokeWidth="1" />
-
-      {/* COLUMN STUB (W-shape side view = just a rectangle of width = bf) */}
-      <rect x={xPx(-input.column.bf / 2)} y={yPx(grout + tp + colHeight)}
-            width={input.column.bf * scale} height={colHeight * scale}
-            fill="#6a6a6a" stroke="#222" strokeWidth="1" />
-
-      {/* EMBEDDED ANCHORS — left and right */}
-      {[-sy / 2, +sy / 2].map((yA, i) => {
-        const nut = lookupHexNut(input.anchors.da);
-        const projAbove = grout + tp + 1.5;     // approx top of nut
-        const yRodTop = projAbove;
-        const yEmbedBot = -hef;
-        return (
-          <g key={i}>
-            {/* Rod */}
-            <rect x={xPx(yA - input.anchors.da / 2)} y={yPx(yRodTop)}
-                  width={input.anchors.da * scale} height={(yRodTop - yEmbedBot) * scale}
-                  fill="#9a9a9a" stroke="#333" strokeWidth="0.5" />
-            {/* Top nut */}
-            <rect x={xPx(yA - nut.acrossFlats / 2)} y={yPx(grout + tp + nut.height)}
-                  width={nut.acrossFlats * scale} height={nut.height * scale}
-                  fill="#5a5a5a" stroke="#222" strokeWidth="0.7" />
-            {/* Anchor head */}
-            <rect x={xPx(yA - nut.acrossFlats / 2)} y={yPx(yEmbedBot)}
-                  width={nut.acrossFlats * scale} height={nut.height * scale}
-                  fill="#5a5a5a" stroke="#222" strokeWidth="0.7" />
-          </g>
-        );
-      })}
-
-      {/* DIMENSIONS */}
-      {/* hef on right */}
-      <DimVertical x={xPx(pedN / 2) + 40} y1={yPx(0)} y2={yPx(-hef)}
-        label={`hef = ${hef.toFixed(2)}″`} />
-      {/* sy at top */}
-      <DimHorizontal y={yPx(grout + tp + colHeight) - 25} x1={xPx(-sy / 2)} x2={xPx(sy / 2)}
-        label={`sy = ${sy.toFixed(2)}″`} />
-      {/* N (plate) at top */}
-      <DimHorizontal y={yPx(grout + tp + colHeight) - 50} x1={xPx(-N / 2)} x2={xPx(N / 2)}
-        label={`N = ${N.toFixed(2)}″`} />
-      {/* Grout thickness on left */}
-      <DimVerticalLeft x={xPx(-N / 2 * 1.05) - 18} y1={yPx(grout)} y2={yPx(0)} small label={`${grout.toFixed(2)}″ grout`} />
-
-      {/* CALLOUTS */}
-      <Callout x={20} y={H - 60} text={`Concrete pedestal fʹc = ${input.concrete.fc.toFixed(2)} ksi`} target={[xPx(-pedN / 4), yPx(-hef / 2)]} />
-      <Callout x={20} y={H - 40} text={`Non-shrink grout per ASTM C1107`} target={[xPx(-N / 4), yPx(grout / 2)]} />
-      <Callout x={W - 200} y={H - 60} text={`Anchor head: heavy hex nut`} target={[xPx(sy / 2), yPx(-hef + 0.5)]} />
-
-      {/* Title */}
-      <text x={W / 2} y={H - 10} textAnchor="middle" fontSize="9" fill="#666">
-        {`ELEVATION · column · plate · grout · pedestal · embedded anchors (1 of ${input.anchors.N / 2} pairs shown)`}
-      </text>
-    </svg>
-  );
-}
-
-// ============================================================================
-// SVG dimension-line helpers (engineering-drawing style)
-// ============================================================================
-function DimVertical({ x, y1, y2, label }: { x: number; y1: number; y2: number; label: string }) {
-  const ymin = Math.min(y1, y2), ymax = Math.max(y1, y2);
+// Shared balloon helper — circled number used to tag parts
+function Balloon({ n, cx, cy, r = 9 }: { n: number; cx: number; cy: number; r?: number }) {
   return (
     <g>
-      <line x1={x} y1={ymin} x2={x} y2={ymax} stroke="#222" strokeWidth="0.6" />
-      {/* Arrowheads */}
-      <polygon points={`${x},${ymin} ${x - 3},${ymin + 7} ${x + 3},${ymin + 7}`} fill="#222" />
-      <polygon points={`${x},${ymax} ${x - 3},${ymax - 7} ${x + 3},${ymax - 7}`} fill="#222" />
-      {/* Witness lines */}
-      <line x1={x - 8} y1={ymin} x2={x + 8} y2={ymin} stroke="#222" strokeWidth="0.4" />
-      <line x1={x - 8} y1={ymax} x2={x + 8} y2={ymax} stroke="#222" strokeWidth="0.4" />
-      {/* Label */}
-      <text x={x + 6} y={(ymin + ymax) / 2 + 3} fontSize="9" fill="#222" fontWeight="600">{label}</text>
+      <circle cx={cx} cy={cy} r={r} fill="#ffffff" stroke="#1a1a1a" strokeWidth="1.2" />
+      <text x={cx} y={cy + 3.6} textAnchor="middle" fontSize={r * 1.05}
+            fontWeight="700" fill="#1a1a1a" fontFamily="Inter, sans-serif">{n}</text>
     </g>
   );
 }
 
-function DimVerticalRight({ x, y1, y2, label, small }: { x: number; y1: number; y2: number; label: string; small?: boolean }) {
-  return <DimVerticalLabel x={x} y1={y1} y2={y2} label={label} small={small} side="right" />;
+// Leader line from balloon edge to a target point on the part
+function BalloonLeader({ balloon, target, side = 'right' }: {
+  balloon: { x: number; y: number; r?: number };
+  target: [number, number];
+  side?: 'left' | 'right';
+}) {
+  const r = balloon.r ?? 9;
+  // Start at balloon edge facing the target side
+  const x0 = side === 'right' ? balloon.x + r : balloon.x - r;
+  return (
+    <g>
+      <line x1={x0} y1={balloon.y} x2={target[0]} y2={target[1]}
+            stroke="#1a1a1a" strokeWidth="0.5" />
+      <circle cx={target[0]} cy={target[1]} r="1.6" fill="#1a1a1a" />
+    </g>
+  );
 }
-function DimVerticalLeft({ x, y1, y2, label, small }: { x: number; y1: number; y2: number; label: string; small?: boolean }) {
-  return <DimVerticalLabel x={x} y1={y1} y2={y2} label={label} small={small} side="left" />;
-}
-function DimVerticalLabel({ x, y1, y2, label, small, side }: { x: number; y1: number; y2: number; label: string; small?: boolean; side: 'left' | 'right' }) {
+
+// Dimension primitives (vertical with arrowheads + witness lines)
+function DimV({ x, y1, y2, label, side = 'right' }: {
+  x: number; y1: number; y2: number; label: string; side?: 'left' | 'right';
+}) {
   const ymin = Math.min(y1, y2), ymax = Math.max(y1, y2);
-  const fs = small ? 8 : 10;
-  const tx = side === 'right' ? x + 5 : x - 5;
+  const tx = side === 'right' ? x + 6 : x - 6;
   const anchor = side === 'right' ? 'start' : 'end';
+  const witnessLen = 6;
   return (
     <g>
       <line x1={x} y1={ymin} x2={x} y2={ymax} stroke="#222" strokeWidth="0.6" />
       <polygon points={`${x},${ymin} ${x - 3},${ymin + 7} ${x + 3},${ymin + 7}`} fill="#222" />
       <polygon points={`${x},${ymax} ${x - 3},${ymax - 7} ${x + 3},${ymax - 7}`} fill="#222" />
-      <line x1={x - 8} y1={ymin} x2={x + 8} y2={ymin} stroke="#222" strokeWidth="0.4" />
-      <line x1={x - 8} y1={ymax} x2={x + 8} y2={ymax} stroke="#222" strokeWidth="0.4" />
-      <text x={tx} y={(ymin + ymax) / 2 + 3} fontSize={fs} fill="#222" fontWeight="600" textAnchor={anchor}>{label}</text>
+      <line x1={x - witnessLen} y1={ymin} x2={x + witnessLen} y2={ymin} stroke="#222" strokeWidth="0.4" />
+      <line x1={x - witnessLen} y1={ymax} x2={x + witnessLen} y2={ymax} stroke="#222" strokeWidth="0.4" />
+      <text x={tx} y={(ymin + ymax) / 2 + 3} fontSize="9" fontWeight="600"
+            fill="#222" textAnchor={anchor} fontFamily="Inter, sans-serif">{label}</text>
     </g>
   );
 }
 
-function DimHorizontal({ y, x1, x2, label, small }: { y: number; x1: number; x2: number; label: string; small?: boolean }) {
+function DimH({ y, x1, x2, label, side = 'top' }: {
+  y: number; x1: number; x2: number; label: string; side?: 'top' | 'bottom';
+}) {
   const xmin = Math.min(x1, x2), xmax = Math.max(x1, x2);
-  const fs = small ? 8 : 10;
+  const ty = side === 'top' ? y - 5 : y + 13;
   return (
     <g>
       <line x1={xmin} y1={y} x2={xmax} y2={y} stroke="#222" strokeWidth="0.6" />
       <polygon points={`${xmin},${y} ${xmin + 7},${y - 3} ${xmin + 7},${y + 3}`} fill="#222" />
       <polygon points={`${xmax},${y} ${xmax - 7},${y - 3} ${xmax - 7},${y + 3}`} fill="#222" />
-      <line x1={xmin} y1={y - 8} x2={xmin} y2={y + 8} stroke="#222" strokeWidth="0.4" />
-      <line x1={xmax} y1={y - 8} x2={xmax} y2={y + 8} stroke="#222" strokeWidth="0.4" />
-      <text x={(xmin + xmax) / 2} y={y - 5} fontSize={fs} fill="#222" fontWeight="600" textAnchor="middle">{label}</text>
+      <line x1={xmin} y1={y - 6} x2={xmin} y2={y + 6} stroke="#222" strokeWidth="0.4" />
+      <line x1={xmax} y1={y - 6} x2={xmax} y2={y + 6} stroke="#222" strokeWidth="0.4" />
+      <text x={(xmin + xmax) / 2} y={ty} fontSize="9" fontWeight="600"
+            fill="#222" textAnchor="middle" fontFamily="Inter, sans-serif">{label}</text>
     </g>
   );
 }
 
-function Callout({ x, y, text, target }: { x: number; y: number; text: string; target: [number, number] }) {
+// Standard hatch + pattern definitions used across all drawings
+function DrawingDefs() {
+  return (
+    <defs>
+      <pattern id="hatch-conc" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#9a9a9a" strokeWidth="0.5" />
+      </pattern>
+      <pattern id="hatch-grout" width="5" height="5" patternUnits="userSpaceOnUse">
+        <circle cx="2.5" cy="2.5" r="0.6" fill="#7a7a7a" />
+      </pattern>
+      <pattern id="hatch-steel" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="3" stroke="#3a3a3a" strokeWidth="0.4" />
+      </pattern>
+      {/* Title-block frame stroke */}
+      <marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
+              markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#222" />
+      </marker>
+    </defs>
+  );
+}
+
+// Title block at the bottom of every drawing
+function TitleBlock({ title, subtitle, w, h }: {
+  title: string; subtitle: string; w: number; h: number;
+}) {
   return (
     <g>
-      <line x1={x + text.length * 3.2} y1={y - 3} x2={target[0]} y2={target[1]}
-            stroke="#444" strokeWidth="0.4" />
-      <circle cx={target[0]} cy={target[1]} r="1.5" fill="#444" />
-      <text x={x} y={y} fontSize="8" fill="#222" fontWeight="500">{text}</text>
+      <rect x={w - 280} y={h - 50} width={270} height={40}
+            fill="#fafafa" stroke="#222" strokeWidth="0.8" />
+      <line x1={w - 280} y1={h - 30} x2={w - 10} y2={h - 30}
+            stroke="#222" strokeWidth="0.4" />
+      <line x1={w - 90} y1={h - 50} x2={w - 90} y2={h - 30}
+            stroke="#222" strokeWidth="0.4" />
+      <text x={w - 275} y={h - 36} fontSize="9" fontWeight="700" fill="#222"
+            fontFamily="Inter, sans-serif">{title}</text>
+      <text x={w - 85} y={h - 36} fontSize="8" fontWeight="600" fill="#444"
+            fontFamily="Inter, sans-serif">SCALE: NTS</text>
+      <text x={w - 275} y={h - 17} fontSize="8" fill="#444"
+            fontFamily="Inter, sans-serif">{subtitle}</text>
+      <text x={w - 85} y={h - 17} fontSize="7" fill="#666"
+            fontFamily="Inter, sans-serif">DWG. NO. — AUTO</text>
     </g>
+  );
+}
+
+// Legend-table renderer with numbered balloons matching drawing
+function LegendTable({ x, y, items, title = 'PARTS LEGEND' }: {
+  x: number; y: number; items: { n: number; text: string }[]; title?: string;
+}) {
+  const rowH = 14;
+  const tableW = 380;
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      {/* Header bar */}
+      <rect x={0} y={0} width={tableW} height={18} fill="#1a1a1a" />
+      <text x={8} y={13} fontSize="10" fontWeight="700" fill="#fff"
+            letterSpacing="1.2" fontFamily="Inter, sans-serif">{title}</text>
+      {/* Rows */}
+      {items.map((it, i) => (
+        <g key={it.n} transform={`translate(0, ${18 + i * rowH})`}>
+          <rect x={0} y={0} width={tableW} height={rowH}
+                fill={i % 2 ? '#f4f4f4' : '#ffffff'} stroke="#bbb" strokeWidth="0.3" />
+          <Balloon n={it.n} cx={14} cy={rowH / 2} r={6.5} />
+          <text x={28} y={rowH / 2 + 3.2} fontSize="8" fill="#222"
+                fontFamily="Inter, sans-serif">{it.text}</text>
+        </g>
+      ))}
+      {/* Outer border */}
+      <rect x={0} y={0} width={tableW} height={18 + items.length * rowH}
+            fill="none" stroke="#222" strokeWidth="0.7" />
+    </g>
+  );
+}
+
+// ============================================================================
+// 1) SvgAnchorAssembly — vertical section through one anchor
+// ============================================================================
+function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
+  // === Geometry (inches) ===
+  const da = input.anchors.da;
+  const hef = input.anchors.hef;
+  const tp = input.plate.tp;
+  const grout = 1.0;
+  const nut = lookupHexNut(da);
+  const hw = lookupHoleWasher(da);
+  const wt = washerThicknessForGrade(hw, input.anchors.grade);
+  const roundOD = da * 2.25;
+  const roundThk = Math.max(0.125, da / 8);
+  const projection = 0.50;
+
+  // Y-coordinate origin: y=0 at concrete top
+  const yEmbBot = -hef;
+  const yHeadTop = yEmbBot + nut.height;
+  const yConTop = 0;
+  const yGrtTop = grout;
+  const yPlTop = yGrtTop + tp;
+  const yRwTop = yPlTop + roundThk;
+  const yPwTop = yRwTop + wt;
+  const yNutTop = yPwTop + nut.height;
+  const yRodTop = yNutTop + projection;
+
+  const yMax = yRodTop + 0.6;
+  const yMin = yEmbBot - 0.6;
+  const totalIn = yMax - yMin;
+
+  // === Canvas (engineering shop drawing layout) ===
+  const W = 900, H = 760;
+  const drawX = 60, drawY = 60;
+  const drawH = 540;
+  const SCALE = drawH / totalIn;
+  const cx = drawX + 200;
+  const yPx = (y: number) => drawY + (yMax - y) * SCALE;
+
+  const concW = 220;
+
+  const balX = drawX + 360;
+  const balRowH = 36;
+  const balYStart = drawY + 18;
+
+  type Bal = { n: number; targetX: number; targetY: number };
+  const balloons: Bal[] = [
+    { n: 1,  targetX: cx,                                    targetY: yPx(yRodTop - projection / 2) },
+    { n: 2,  targetX: cx + nut.acrossFlats / 2 * SCALE,      targetY: yPx((yNutTop + yPwTop) / 2) },
+    { n: 3,  targetX: cx + hw.washerWidth / 2 * SCALE,       targetY: yPx((yPwTop + yRwTop) / 2) },
+    { n: 4,  targetX: cx + roundOD / 2 * SCALE,              targetY: yPx((yRwTop + yPlTop) / 2) },
+    { n: 5,  targetX: cx + (concW / 2 - 30),                 targetY: yPx((yPlTop + yGrtTop) / 2) },
+    { n: 6,  targetX: cx + hw.holeDia / 2 * SCALE + 2,       targetY: yPx((yPlTop + yGrtTop) / 2) },
+    { n: 7,  targetX: cx + (concW / 2 - 35),                 targetY: yPx((yGrtTop + yConTop) / 2) },
+    { n: 8,  targetX: cx + concW / 2 - 6,                    targetY: yPx(-hef * 0.30) },
+    { n: 9,  targetX: cx + da / 2 * SCALE + 2,               targetY: yPx(-hef * 0.55) },
+    { n: 10, targetX: cx + nut.acrossFlats / 2 * SCALE,      targetY: yPx((yEmbBot + yHeadTop) / 2) },
+  ];
+
+  const legendItems = [
+    { n: 1,  text: `Anchor rod ⌀${da.toFixed(3)}″ — ASTM F1554 ${input.anchors.grade.replace('F1554-', 'Gr ')} (UNC threads, Class 2A)` },
+    { n: 2,  text: `Heavy hex nut, ASTM A563 — F = ${nut.acrossFlats.toFixed(3)}″, H = ${nut.height.toFixed(3)}″ (ASME B18.2.2)` },
+    { n: 3,  text: `Plate washer — ${hw.washerWidth.toFixed(2)}″×${hw.washerWidth.toFixed(2)}″×${wt.toFixed(3)}″ thk (A572 Gr 50)` },
+    { n: 4,  text: `Round washer — SAE flat, OD ${roundOD.toFixed(2)}″ × ${roundThk.toFixed(3)}″ thk` },
+    { n: 5,  text: `Base plate — PL ${tp.toFixed(3)}″ thk, ASTM A572/A572M Grade 50` },
+    { n: 6,  text: `Plate hole — ⌀${hw.holeDia.toFixed(4)}″ (oversize per DG1 Table 4-3)` },
+    { n: 7,  text: `Non-shrink grout — 1.00″ thk min, per ASTM C1107 (fʹc grout ≥ 2·fʹc concrete)` },
+    { n: 8,  text: `Concrete pedestal — fʹc = ${input.concrete.fc.toFixed(2)} ksi (cracked condition assumed)` },
+    { n: 9,  text: `Smooth shaft — no threads in concrete embedment zone` },
+    { n: 10, text: `Anchor head — heavy hex nut providing bearing area Abrg per ACI 17.6.3` },
+  ];
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+      <DrawingDefs />
+
+      {/* Concrete pedestal */}
+      <rect x={cx - concW / 2} y={yPx(yConTop)}
+            width={concW} height={(yConTop - yMin + 0.6) * SCALE}
+            fill="url(#hatch-conc)" stroke="#666" strokeWidth="0.8" />
+
+      {/* Grout layer */}
+      <rect x={cx - concW / 2 + 6} y={yPx(yGrtTop)}
+            width={concW - 12} height={grout * SCALE}
+            fill="url(#hatch-grout)" stroke="#777" strokeWidth="0.6" />
+
+      {/* Base plate */}
+      <rect x={cx - (concW / 2 - 12)} y={yPx(yPlTop)}
+            width={concW - 24} height={tp * SCALE}
+            fill="#5a5a5a" stroke="#1a1a1a" strokeWidth="1" />
+      <rect x={cx - hw.holeDia / 2 * SCALE} y={yPx(yPlTop)}
+            width={hw.holeDia * SCALE} height={tp * SCALE}
+            fill="#fff" stroke="#1a1a1a" strokeWidth="0.5" />
+
+      {/* Round washer */}
+      <rect x={cx - roundOD / 2 * SCALE} y={yPx(yRwTop)}
+            width={roundOD * SCALE} height={roundThk * SCALE}
+            fill="#888" stroke="#222" strokeWidth="0.7" />
+
+      {/* Plate washer */}
+      <rect x={cx - hw.washerWidth / 2 * SCALE} y={yPx(yPwTop)}
+            width={hw.washerWidth * SCALE} height={wt * SCALE}
+            fill="#777" stroke="#222" strokeWidth="0.8" />
+      <line x1={cx - hw.washerWidth / 2 * SCALE} y1={yPx(yPwTop) + 1.5}
+            x2={cx + hw.washerWidth / 2 * SCALE} y2={yPx(yPwTop) + 1.5}
+            stroke="#aaa" strokeWidth="0.4" />
+
+      {/* Heavy hex nut (top) */}
+      <rect x={cx - nut.acrossFlats / 2 * SCALE} y={yPx(yNutTop)}
+            width={nut.acrossFlats * SCALE} height={nut.height * SCALE}
+            fill="#4a4a4a" stroke="#1a1a1a" strokeWidth="1" />
+      <line x1={cx - nut.acrossFlats / 2 * SCALE} y1={yPx(yNutTop) + 2.5}
+            x2={cx + nut.acrossFlats / 2 * SCALE} y2={yPx(yNutTop) + 2.5}
+            stroke="#888" strokeWidth="0.5" />
+      <line x1={cx - nut.acrossFlats / 2 * SCALE} y1={yPx(yPwTop) - 2.5}
+            x2={cx + nut.acrossFlats / 2 * SCALE} y2={yPx(yPwTop) - 2.5}
+            stroke="#888" strokeWidth="0.5" />
+
+      {/* Anchor rod */}
+      <rect x={cx - da / 2 * SCALE} y={yPx(yRodTop)}
+            width={da * SCALE} height={(yRodTop - yEmbBot) * SCALE}
+            fill="#9a9a9a" stroke="#222" strokeWidth="0.6" />
+
+      {/* Threaded portion (hatch) */}
+      {(() => {
+        const lines: React.ReactElement[] = [];
+        const yStart = yPx(yRodTop);
+        const yEnd = yPx(yPwTop);
+        const step = 2.4;
+        let i = 0;
+        for (let y = yStart; y < yEnd; y += step, i++) {
+          lines.push(
+            <line key={i}
+              x1={cx - da / 2 * SCALE + 0.5} y1={y}
+              x2={cx + da / 2 * SCALE - 0.5} y2={y + 1.4}
+              stroke="#3a3a3a" strokeWidth="0.4" />
+          );
+        }
+        return lines;
+      })()}
+
+      {/* Anchor head */}
+      <rect x={cx - nut.acrossFlats / 2 * SCALE} y={yPx(yHeadTop)}
+            width={nut.acrossFlats * SCALE} height={nut.height * SCALE}
+            fill="#4a4a4a" stroke="#1a1a1a" strokeWidth="1" />
+
+      {/* Balloons + leaders */}
+      {balloons.map((b, idx) => {
+        const balY = balYStart + idx * balRowH;
+        return (
+          <g key={b.n}>
+            <BalloonLeader
+              balloon={{ x: balX, y: balY }}
+              target={[b.targetX, b.targetY]}
+              side="left" />
+            <Balloon n={b.n} cx={balX} cy={balY} />
+          </g>
+        );
+      })}
+
+      {/* Dimensions */}
+      <DimV x={drawX - 30} y1={yPx(yConTop)} y2={yPx(yEmbBot)}
+            label={`hef = ${hef.toFixed(2)}″`} side="left" />
+      <DimV x={drawX + 20} y1={yPx(yPlTop)} y2={yPx(yGrtTop)}
+            label={`tp ${tp.toFixed(3)}″`} side="left" />
+      <DimV x={cx - nut.acrossFlats / 2 * SCALE - 30}
+            y1={yPx(yNutTop)} y2={yPx(yPwTop)}
+            label={`H ${nut.height.toFixed(3)}″`} side="left" />
+      <DimV x={cx - nut.acrossFlats / 2 * SCALE - 30}
+            y1={yPx(yRodTop)} y2={yPx(yNutTop)}
+            label={`proj ${projection.toFixed(2)}″`} side="left" />
+
+      <LegendTable x={drawX} y={drawY + drawH + 30} items={legendItems} />
+
+      <TitleBlock
+        title="ANCHOR ASSEMBLY DETAIL"
+        subtitle={`⌀${da.toFixed(3)}″ ${input.anchors.grade} · 1 of ${input.anchors.N} rods`}
+        w={W} h={H} />
+    </svg>
+  );
+}
+
+// ============================================================================
+// 2) SvgPlanView
+// ============================================================================
+function SvgPlanView({ input }: { input: BasePlateInput }) {
+  const B = input.plate.B, N = input.plate.N;
+  const colD = input.column.d, colBf = input.column.bf;
+  const colTw = input.column.tw, colTf = input.column.tf;
+  const sx = input.anchors.sx, sy = input.anchors.sy;
+  const da = input.anchors.da;
+  const hw = lookupHoleWasher(da);
+
+  const W = 900, H = 760;
+  const drawX = 60, drawY = 50;
+  const drawW = 460, drawH = 440;
+
+  const scale = Math.min(drawW / B, drawH / N) * 0.85;
+  const cx = drawX + drawW / 2, cy = drawY + drawH / 2;
+  const x = (xIn: number) => cx + xIn * scale;
+  const y = (yIn: number) => cy - yIn * scale;
+
+  const anchors: [number, number][] = [
+    [-sx / 2, -sy / 2], [+sx / 2, -sy / 2],
+    [-sx / 2, +sy / 2], [+sx / 2, +sy / 2],
+  ];
+
+  const balX = drawX + drawW + 30;
+  const balRowH = 36;
+  const balYStart = drawY + 30;
+
+  type Bal = { n: number; targetX: number; targetY: number };
+  const balloons: Bal[] = [
+    { n: 1, targetX: x(0),                            targetY: y(N / 2) },
+    { n: 2, targetX: x(0),                            targetY: y(0) },
+    { n: 3, targetX: x(sx / 2 + hw.holeDia / 2 + 0.1), targetY: y(sy / 2) },
+    { n: 4, targetX: x(-B / 2),                       targetY: y(-sy / 2) },
+    { n: 5, targetX: x(0),                            targetY: y(-sy / 2 - 0.5) },
+  ];
+
+  const legendItems = [
+    { n: 1, text: `Base plate — B × N × tp = ${B.toFixed(2)}″ × ${N.toFixed(2)}″ × ${input.plate.tp.toFixed(3)}″ (A572 Gr 50)` },
+    { n: 2, text: `Column ${input.column.label ?? `W${colD.toFixed(1)}×${colBf.toFixed(1)}`} (oriented as shown)` },
+    { n: 3, text: `${input.anchors.N} anchor rods ⌀${da.toFixed(3)}″ ${input.anchors.grade} on ${sx.toFixed(2)}″ × ${sy.toFixed(2)}″ pattern` },
+    { n: 4, text: `Edge distance ca = ${input.anchors.edgeDist.toFixed(2)}″ (from plate edge to rod ¢, all sides)` },
+    { n: 5, text: `Plate holes ⌀${hw.holeDia.toFixed(4)}″ (oversize for setting tolerance per DG1 Table 4-3)` },
+  ];
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+      <DrawingDefs />
+
+      {/* Plate */}
+      <rect x={x(-B / 2)} y={y(N / 2)} width={B * scale} height={N * scale}
+            fill="#f5f1e6" stroke="#1a1a1a" strokeWidth="1.6" />
+
+      {/* Plate centerlines */}
+      <line x1={x(-B / 2) - 8} y1={y(0)} x2={x(B / 2) + 8} y2={y(0)}
+            stroke="#a02020" strokeWidth="0.4" strokeDasharray="6 3 1 3" />
+      <line x1={x(0)} y1={y(N / 2) - 8} x2={x(0)} y2={y(-N / 2) + 8}
+            stroke="#a02020" strokeWidth="0.4" strokeDasharray="6 3 1 3" />
+
+      {/* Column W-shape */}
+      <rect x={x(-colBf / 2)} y={y(colD / 2)} width={colBf * scale} height={colTf * scale}
+            fill="#7a7a7a" stroke="#1a1a1a" strokeWidth="0.7" />
+      <rect x={x(-colBf / 2)} y={y(-colD / 2 + colTf)} width={colBf * scale} height={colTf * scale}
+            fill="#7a7a7a" stroke="#1a1a1a" strokeWidth="0.7" />
+      <rect x={x(-colTw / 2)} y={y(colD / 2 - colTf)} width={colTw * scale} height={(colD - 2 * colTf) * scale}
+            fill="#7a7a7a" stroke="#1a1a1a" strokeWidth="0.7" />
+
+      {/* Anchors */}
+      {anchors.map(([px, py], i) => (
+        <g key={i}>
+          <circle cx={x(px)} cy={y(py)} r={hw.holeDia / 2 * scale}
+                  fill="#fff" stroke="#666" strokeWidth="0.6" />
+          <circle cx={x(px)} cy={y(py)} r={da / 2 * scale}
+                  fill="#4a4a4a" stroke="#1a1a1a" strokeWidth="0.7" />
+          <line x1={x(px) - hw.holeDia / 2 * scale - 8} y1={y(py)}
+                x2={x(px) + hw.holeDia / 2 * scale + 8} y2={y(py)}
+                stroke="#a02020" strokeWidth="0.4" strokeDasharray="6 3 1 3" />
+          <line x1={x(px)} y1={y(py) - hw.holeDia / 2 * scale - 8}
+                x2={x(px)} y2={y(py) + hw.holeDia / 2 * scale + 8}
+                stroke="#a02020" strokeWidth="0.4" strokeDasharray="6 3 1 3" />
+        </g>
+      ))}
+
+      {/* Dimensions */}
+      <DimH y={y(N / 2) - 24} x1={x(-sx / 2)} x2={x(sx / 2)} label={`sx = ${sx.toFixed(2)}″`} />
+      <DimH y={y(N / 2) - 50} x1={x(-B / 2)} x2={x(B / 2)} label={`B = ${B.toFixed(2)}″`} />
+      <DimH y={y(-N / 2) + 30} x1={x(-B / 2)} x2={x(-sx / 2)} label={`ca = ${input.anchors.edgeDist.toFixed(2)}″`} side="bottom" />
+      <DimH y={y(-N / 2) + 30} x1={x(sx / 2)} x2={x(B / 2)} label={`ca = ${input.anchors.edgeDist.toFixed(2)}″`} side="bottom" />
+      <DimV x={x(-B / 2) - 24} y1={y(sy / 2)} y2={y(-sy / 2)} label={`sy = ${sy.toFixed(2)}″`} side="left" />
+      <DimV x={x(-B / 2) - 50} y1={y(N / 2)} y2={y(-N / 2)} label={`N = ${N.toFixed(2)}″`} side="left" />
+
+      {/* Balloons */}
+      {balloons.map((b, idx) => {
+        const balY = balYStart + idx * balRowH;
+        return (
+          <g key={b.n}>
+            <BalloonLeader
+              balloon={{ x: balX, y: balY }}
+              target={[b.targetX, b.targetY]}
+              side="left" />
+            <Balloon n={b.n} cx={balX} cy={balY} />
+          </g>
+        );
+      })}
+
+      {/* Legend */}
+      <LegendTable x={drawX} y={drawY + drawH + 50} items={legendItems} />
+
+      {/* Compass */}
+      <g transform={`translate(${drawX + drawW - 30}, ${drawY + drawH - 30})`}>
+        <circle cx="0" cy="0" r="18" fill="#fafafa" stroke="#333" strokeWidth="0.8" />
+        <text x="0" y="-8" textAnchor="middle" fontSize="9" fontWeight="700" fill="#222">N</text>
+        <line x1="0" y1="-3" x2="0" y2="10" stroke="#333" strokeWidth="0.8" />
+        <polygon points="0,-3 -3,5 3,5" fill="#a02020" />
+      </g>
+
+      <TitleBlock
+        title="BASE PLATE — PLAN VIEW"
+        subtitle={`${input.column.label ?? `W${colD.toFixed(1)}×${colBf.toFixed(1)}`} · PL ${B.toFixed(0)}″×${N.toFixed(0)}″×${input.plate.tp.toFixed(3)}″`}
+        w={W} h={H} />
+    </svg>
+  );
+}
+
+// ============================================================================
+// 3) SvgElevationView
+// ============================================================================
+function SvgElevationView({ input }: { input: BasePlateInput }) {
+  const colD = input.column.d, colBf = input.column.bf;
+  const colTf = input.column.tf, colTw = input.column.tw;
+  const tp = input.plate.tp, hef = input.anchors.hef;
+  const N = input.plate.N, sy = input.anchors.sy;
+  const pedN = input.concrete.N2;
+  const grout = 1.0;
+  const da = input.anchors.da;
+  const nut = lookupHexNut(da);
+  const colHeight = N * 1.4;
+
+  const yPedBot = -hef - 4;
+  const yConTop = 0;
+  const yGrtTop = grout;
+  const yPlTop = yGrtTop + tp;
+  const yColTop = yPlTop + colHeight;
+  const yNutTop = yPlTop + nut.height + 0.5;
+  const yRodTop = yNutTop + 0.25;
+  const yEmbBot = -hef;
+  const yHeadTop = yEmbBot + nut.height;
+
+  const yMax = yColTop + 1;
+  const yMin = yPedBot - 0.5;
+  const totalIn = yMax - yMin;
+
+  const W = 900, H = 800;
+  const drawX = 80, drawY = 60;
+  const drawW = 480;
+  const drawH = 580;
+  const SCALE = drawH / totalIn;
+  const cx = drawX + drawW / 2;
+  const yPx = (y: number) => drawY + (yMax - y) * SCALE;
+  const xPx = (x: number) => cx + x * SCALE;
+
+  const balX = drawX + drawW + 30;
+  const balRowH = 36;
+  const balYStart = drawY + 20;
+
+  type Bal = { n: number; targetX: number; targetY: number };
+  const balloons: Bal[] = [
+    { n: 1, targetX: cx,                                       targetY: yPx(yPlTop + colHeight * 0.7) },
+    { n: 2, targetX: xPx(N / 2 * 0.9),                         targetY: yPx(yPlTop + tp * 0.5) },
+    { n: 3, targetX: xPx(N / 2 * 0.92),                        targetY: yPx(yGrtTop + grout * 0.5) },
+    { n: 4, targetX: xPx(pedN / 2 - 0.6),                      targetY: yPx(-hef * 0.35) },
+    { n: 5, targetX: xPx(sy / 2),                              targetY: yPx(yNutTop + 0.5) },
+    { n: 6, targetX: xPx(sy / 2 + da / 2 + 0.3),               targetY: yPx(-hef * 0.55) },
+    { n: 7, targetX: xPx(sy / 2),                              targetY: yPx((yEmbBot + yHeadTop) / 2) },
+  ];
+
+  const legendItems = [
+    { n: 1, text: `Steel column ${input.column.label ?? `W${colD.toFixed(1)}×${colBf.toFixed(1)}`} — ASTM A992 (Fy = 50 ksi)` },
+    { n: 2, text: `Base plate PL ${input.plate.B.toFixed(2)}″×${N.toFixed(2)}″×${tp.toFixed(3)}″ — A572 Gr 50` },
+    { n: 3, text: `Non-shrink grout 1.00″ thick — ASTM C1107 (fʹc grout ≥ 2·fʹc concrete)` },
+    { n: 4, text: `Concrete pedestal — fʹc = ${input.concrete.fc.toFixed(2)} ksi, B2 × N2 = ${input.concrete.B2.toFixed(1)}″×${input.concrete.N2.toFixed(1)}″` },
+    { n: 5, text: `Heavy hex nut + plate washer + round washer (top of plate)` },
+    { n: 6, text: `Anchor rod ${input.anchors.N} × ⌀${da.toFixed(3)}″ ${input.anchors.grade} (smooth in concrete)` },
+    { n: 7, text: `Anchor head — heavy hex nut at embedment tip (bearing area for pullout)` },
+  ];
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+      <DrawingDefs />
+
+      {/* Concrete pedestal */}
+      <rect x={xPx(-pedN / 2)} y={yPx(yConTop)}
+            width={pedN * SCALE} height={(yConTop - yPedBot) * SCALE}
+            fill="url(#hatch-conc)" stroke="#666" strokeWidth="1" />
+
+      {/* Grout layer */}
+      <rect x={xPx(-N / 2 * 1.05)} y={yPx(yGrtTop)}
+            width={N * 1.05 * SCALE} height={grout * SCALE}
+            fill="url(#hatch-grout)" stroke="#777" strokeWidth="0.6" />
+
+      {/* Base plate */}
+      <rect x={xPx(-N / 2)} y={yPx(yPlTop)}
+            width={N * SCALE} height={tp * SCALE}
+            fill="#5a5a5a" stroke="#1a1a1a" strokeWidth="1.2" />
+
+      {/* Column */}
+      <rect x={xPx(-colBf / 2)} y={yPx(yColTop)}
+            width={colBf * SCALE} height={colHeight * SCALE}
+            fill="#6a6a6a" stroke="#1a1a1a" strokeWidth="1.2" />
+      <line x1={xPx(-colTw / 2 - 0.05)} y1={yPx(yPlTop + tp + 0.001)}
+            x2={xPx(-colTw / 2 - 0.05)} y2={yPx(yColTop)}
+            stroke="#1a1a1a" strokeWidth="0.4" strokeDasharray="3 2" />
+      <line x1={xPx(colTw / 2 + 0.05)} y1={yPx(yPlTop + tp + 0.001)}
+            x2={xPx(colTw / 2 + 0.05)} y2={yPx(yColTop)}
+            stroke="#1a1a1a" strokeWidth="0.4" strokeDasharray="3 2" />
+
+      {/* Anchors */}
+      {[-sy / 2, +sy / 2].map((xA, i) => (
+        <g key={i}>
+          <rect x={xPx(xA - da / 2)} y={yPx(yRodTop)}
+                width={da * SCALE} height={(yRodTop - yEmbBot) * SCALE}
+                fill="#9a9a9a" stroke="#222" strokeWidth="0.5" />
+          <rect x={xPx(xA - nut.acrossFlats / 2)} y={yPx(yNutTop)}
+                width={nut.acrossFlats * SCALE} height={nut.height * SCALE}
+                fill="#4a4a4a" stroke="#1a1a1a" strokeWidth="0.7" />
+          <rect x={xPx(xA - nut.acrossFlats / 2)} y={yPx(yHeadTop)}
+                width={nut.acrossFlats * SCALE} height={nut.height * SCALE}
+                fill="#4a4a4a" stroke="#1a1a1a" strokeWidth="0.7" />
+          <line x1={xPx(xA)} y1={yPx(yRodTop) - 8}
+                x2={xPx(xA)} y2={yPx(yEmbBot) + 8}
+                stroke="#a02020" strokeWidth="0.4" strokeDasharray="6 3 1 3" />
+        </g>
+      ))}
+
+      {/* Dimensions */}
+      <DimV x={xPx(-pedN / 2) - 30} y1={yPx(yConTop)} y2={yPx(yEmbBot)}
+            label={`hef = ${hef.toFixed(2)}″`} side="left" />
+      <DimV x={xPx(-pedN / 2) - 60} y1={yPx(yPlTop)} y2={yPx(yGrtTop)}
+            label={`tp ${tp.toFixed(3)}″`} side="left" />
+      <DimV x={xPx(-pedN / 2) - 60} y1={yPx(yGrtTop)} y2={yPx(yConTop)}
+            label={`grout ${grout.toFixed(2)}″`} side="left" />
+
+      <DimH y={yPx(yColTop) - 25} x1={xPx(-sy / 2)} x2={xPx(sy / 2)}
+            label={`sy = ${sy.toFixed(2)}″`} />
+      <DimH y={yPx(yColTop) - 50} x1={xPx(-N / 2)} x2={xPx(N / 2)}
+            label={`N = ${N.toFixed(2)}″ (plate)`} />
+      <DimH y={yPx(yColTop) - 75} x1={xPx(-pedN / 2)} x2={xPx(pedN / 2)}
+            label={`N2 = ${pedN.toFixed(2)}″ (pedestal)`} />
+
+      {/* Balloons */}
+      {balloons.map((b, idx) => {
+        const balY = balYStart + idx * balRowH;
+        return (
+          <g key={b.n}>
+            <BalloonLeader
+              balloon={{ x: balX, y: balY }}
+              target={[b.targetX, b.targetY]}
+              side="left" />
+            <Balloon n={b.n} cx={balX} cy={balY} />
+          </g>
+        );
+      })}
+
+      <LegendTable x={drawX} y={drawY + drawH + 30} items={legendItems} />
+
+      <TitleBlock
+        title="BASE PLATE — ELEVATION"
+        subtitle={`${input.column.label ?? `W${colD.toFixed(1)}×${colBf.toFixed(1)}`} on PL ${input.plate.B.toFixed(0)}″×${N.toFixed(0)}″ pedestal ${pedN.toFixed(0)}″`}
+        w={W} h={H} />
+    </svg>
   );
 }
