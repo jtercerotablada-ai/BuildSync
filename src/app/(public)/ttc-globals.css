@@ -8420,6 +8420,27 @@ img, svg {
   /* The h3 above the compliance table on the cover */
   .slab-print-portal .pr-cover h3 { text-align: left; }
 
+  /* ================ Construction notes list (DG1 §4.5/§4.6 content) ===
+     Used by the new Material Specifications, Tolerances, Grouting, Welding,
+     Erection, Inspection, Repair, and General Notes pages. Compact
+     bullet/numbered list with comfortable line-height for legal-quality
+     reading.                                                             */
+  .slab-print-portal .pr-notes-list {
+    margin: 0.1cm 0 0.35cm;
+    padding-left: 0.55cm;
+    font-size: 9pt;
+    line-height: 1.45;
+    color: #333;
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+  .slab-print-portal .pr-notes-list > li {
+    margin: 0.08cm 0;
+    padding-left: 0.05cm;
+  }
+  .slab-print-portal .pr-notes-list > li > strong { color: #553; font-weight: 600; }
+  .slab-print-portal ol.pr-notes-list { padding-left: 0.7cm; }
+
   /* ================ Compliance summary table ================ */
   .slab-print-portal .pr-checks-table {
     font-size: 9pt;
