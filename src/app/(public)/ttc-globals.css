@@ -8101,12 +8101,20 @@ img, svg {
     font-family: 'Inter', system-ui, sans-serif;
     font-size: 10.5pt;
     line-height: 1.4;
+    width: 100%;
+    margin: 0 auto;
   }
+  /* Box-sizing everywhere keeps cell padding from pushing tables past the
+     page right edge. Without this, padding adds to the declared width. */
+  .slab-print-portal,
+  .slab-print-portal * { box-sizing: border-box !important; }
 
-  /* Page setup — A4 with margin boxes for repeating header / page numbers */
+  /* Page setup — A4 with margin boxes for repeating header / page numbers.
+     Slightly tighter horizontal margins so the 13-col rebar table fits cleanly
+     and nothing sticks past the right edge.                                    */
   @page {
     size: A4;
-    margin: 1.8cm 1.2cm 1.6cm;
+    margin: 1.7cm 1cm 1.5cm;
     @top-left {
       content: "TERCERO TABLADA · Civil & Structural Eng Inc";
       font-family: 'Inter', system-ui, sans-serif;
@@ -8148,6 +8156,9 @@ img, svg {
     page-break-after: always;
     break-after: page;
     padding: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;       /* clip any rogue overflow at page edge */
   }
   .slab-print-portal .pr-page:last-child { page-break-after: auto; break-after: auto; }
 
@@ -8162,12 +8173,13 @@ img, svg {
 
   /* ================ COVER PAGE ================ */
   .slab-print-portal .pr-cover {
-    text-align: left;
+    text-align: center;          /* center brand + title visually */
   }
   .slab-print-portal .pr-cover__brand {
-    display: flex; align-items: center; gap: 0.4cm;
+    display: flex; align-items: center; justify-content: center; gap: 0.4cm;
     border-bottom: 2pt solid #b08833;
     padding-bottom: 0.3cm; margin-bottom: 0.5cm;
+    text-align: left;            /* but logo + company are left-aligned within the centered flex */
   }
   .slab-print-portal .pr-logo {
     width: 1.6cm; height: 1.6cm;
@@ -8176,26 +8188,47 @@ img, svg {
     display: flex; align-items: center; justify-content: center;
     font-size: 18pt; font-weight: 700; letter-spacing: 0.05em;
     border-radius: 4pt;
+    flex-shrink: 0;
   }
   .slab-print-portal .pr-cover__company h1 { font-size: 20pt; margin-bottom: 0; line-height: 1.05; }
   .slab-print-portal .pr-cover__sub { font-size: 10pt; color: #666; letter-spacing: 0.04em; }
   .slab-print-portal .pr-cover__title {
     font-size: 24pt; color: #222; font-weight: 700;
     margin: 0.7cm 0 0.6cm; line-height: 1.1; letter-spacing: 0.02em;
-    border: none;
+    border: none; text-align: center;
   }
-  .slab-print-portal .pr-cover-table { font-size: 9.5pt; margin-bottom: 0.6cm; }
+  .slab-print-portal .pr-cover-table {
+    font-size: 9.5pt; margin: 0 auto 0.6cm; table-layout: fixed;
+    text-align: left;
+  }
   .slab-print-portal .pr-cover-table th { width: 18%; }
-  .slab-print-portal .pr-cover-table td { width: 32%; }
+  .slab-print-portal .pr-cover-table td { width: 32%; word-wrap: break-word; }
   .slab-print-portal .pr-cover__notes {
     font-size: 8.5pt; color: #555; line-height: 1.4;
     background: #faf6e8; border-left: 2pt solid #b08833;
-    padding: 0.2cm 0.3cm; margin-top: 0.5cm;
+    padding: 0.2cm 0.3cm; margin-top: 0.5cm; text-align: left;
   }
+  /* The h3 above the compliance table on the cover */
+  .slab-print-portal .pr-cover h3 { text-align: left; }
 
   /* ================ Compliance summary table ================ */
-  .slab-print-portal .pr-checks-table { font-size: 9pt; }
+  .slab-print-portal .pr-checks-table {
+    font-size: 9pt;
+    table-layout: fixed;     /* explicit column widths so Status column always fits */
+    text-align: left;
+  }
   .slab-print-portal .pr-checks-table th { background: #b08833; color: #fff; }
+  /* Column widths: Check / Demand / Capacity / Ratio / Status (sums to 100%) */
+  .slab-print-portal .pr-checks-table th:nth-child(1),
+  .slab-print-portal .pr-checks-table td:nth-child(1) { width: 30%; }
+  .slab-print-portal .pr-checks-table th:nth-child(2),
+  .slab-print-portal .pr-checks-table td:nth-child(2) { width: 24%; }
+  .slab-print-portal .pr-checks-table th:nth-child(3),
+  .slab-print-portal .pr-checks-table td:nth-child(3) { width: 26%; }
+  .slab-print-portal .pr-checks-table th:nth-child(4),
+  .slab-print-portal .pr-checks-table td:nth-child(4) { width: 9%; text-align: right; }
+  .slab-print-portal .pr-checks-table th:nth-child(5),
+  .slab-print-portal .pr-checks-table td:nth-child(5) { width: 11%; text-align: center; }
   .slab-print-portal tr.pr-row-pass td { background: #f0f7ec; }
   .slab-print-portal tr.pr-row-fail td { background: #ffe6e0; }
 
@@ -8205,30 +8238,100 @@ img, svg {
   }
 
   /* ================ Tables (general) ================ */
-  .slab-print-portal table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 0.18cm 0; }
+  .slab-print-portal table {
+    width: 100%; max-width: 100%;
+    border-collapse: collapse; font-size: 9pt; margin: 0.18cm 0;
+    table-layout: auto;
+  }
   .slab-print-portal th, .slab-print-portal td {
-    border: 0.4pt solid #aaa; padding: 0.1cm 0.18cm; text-align: left;
+    border: 0.4pt solid #aaa; padding: 0.1cm 0.16cm; text-align: left;
     font-variant-numeric: tabular-nums; vertical-align: top;
+    word-wrap: break-word; overflow-wrap: break-word;
   }
   .slab-print-portal th { background: #f0e8d0; font-weight: 600; color: #553; font-size: 8.5pt; }
 
-  /* ================ Rebar / moments tables — tighter, more dense ================ */
-  .slab-print-portal .pr-rebar-table { font-size: 8.5pt; }
-  .slab-print-portal .pr-rebar-table th,
-  .slab-print-portal .pr-rebar-table td { padding: 0.07cm 0.12cm; }
+  /* ================ Rebar tables — fixed layout, dense, fits 13 cols on A4 ===== */
+  .slab-print-portal .pr-rebar-table {
+    font-size: 7pt;
+    table-layout: fixed;
+  }
+  .slab-print-portal .pr-rebar-table th {
+    font-size: 6.5pt; padding: 0.05cm 0.06cm;
+    line-height: 1.15;
+  }
+  .slab-print-portal .pr-rebar-table td {
+    padding: 0.05cm 0.06cm; word-break: break-word;
+    line-height: 1.2;
+  }
+  /* Bar mark / Location / Mu / d / As req / As min / As design / Bar / Spacing /
+     As prov / φMn / Mu/φMn / Status — sums to 100%                                */
+  .slab-print-portal .pr-rebar-table th:nth-child(1),
+  .slab-print-portal .pr-rebar-table td:nth-child(1) { width: 6%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(2),
+  .slab-print-portal .pr-rebar-table td:nth-child(2) { width: 13%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(3),
+  .slab-print-portal .pr-rebar-table td:nth-child(3) { width: 8%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(4),
+  .slab-print-portal .pr-rebar-table td:nth-child(4) { width: 6%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(5),
+  .slab-print-portal .pr-rebar-table td:nth-child(5) { width: 7%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(6),
+  .slab-print-portal .pr-rebar-table td:nth-child(6) { width: 7%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(7),
+  .slab-print-portal .pr-rebar-table td:nth-child(7) { width: 8%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(8),
+  .slab-print-portal .pr-rebar-table td:nth-child(8) { width: 9%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(9),
+  .slab-print-portal .pr-rebar-table td:nth-child(9) { width: 8%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(10),
+  .slab-print-portal .pr-rebar-table td:nth-child(10) { width: 7%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(11),
+  .slab-print-portal .pr-rebar-table td:nth-child(11) { width: 8%; }
+  .slab-print-portal .pr-rebar-table th:nth-child(12),
+  .slab-print-portal .pr-rebar-table td:nth-child(12) { width: 7%; text-align: right; }
+  .slab-print-portal .pr-rebar-table th:nth-child(13),
+  .slab-print-portal .pr-rebar-table td:nth-child(13) { width: 6%; text-align: center; }
   .slab-print-portal .pr-mark {
     font-family: 'Cascadia Code', Consolas, monospace; font-weight: 700;
     background: #fbf3d6; color: #6a4f15; text-align: center;
   }
   .slab-print-portal .pr-tag {
-    display: inline-block; font-size: 7pt; padding: 0 3pt;
+    display: inline-block; font-size: 6.5pt; padding: 0 2pt;
     background: #b08833; color: #fff; border-radius: 2pt;
-    margin-left: 3pt; letter-spacing: 0.06em;
+    margin-left: 2pt; letter-spacing: 0.06em;
   }
   .slab-print-portal tr.pr-total td { background: #faf6e8; font-weight: 600; }
   .slab-print-portal .pr-num { text-align: right; font-variant-numeric: tabular-nums; }
 
-  .slab-print-portal .pr-moments th { width: 22%; }
+  /* Moments table: 4 cols (Quantity, X, Y, Notes) */
+  .slab-print-portal .pr-moments { table-layout: fixed; }
+  .slab-print-portal .pr-moments th:nth-child(1),
+  .slab-print-portal .pr-moments td:nth-child(1) { width: 28%; }
+  .slab-print-portal .pr-moments th:nth-child(2),
+  .slab-print-portal .pr-moments td:nth-child(2) { width: 22%; }
+  .slab-print-portal .pr-moments th:nth-child(3),
+  .slab-print-portal .pr-moments td:nth-child(3) { width: 22%; }
+  .slab-print-portal .pr-moments th:nth-child(4),
+  .slab-print-portal .pr-moments td:nth-child(4) { width: 28%; }
+
+  /* Bar schedule: 6 cols (Mark, Bar, Diameter, Spacing, Quantity, Mass) */
+  .slab-print-portal .pr-bar-schedule {
+    font-size: 8.5pt; table-layout: fixed;
+  }
+  .slab-print-portal .pr-bar-schedule th,
+  .slab-print-portal .pr-bar-schedule td { padding: 0.07cm 0.12cm; }
+  .slab-print-portal .pr-bar-schedule th:nth-child(1),
+  .slab-print-portal .pr-bar-schedule td:nth-child(1) { width: 12%; }
+  .slab-print-portal .pr-bar-schedule th:nth-child(2),
+  .slab-print-portal .pr-bar-schedule td:nth-child(2) { width: 14%; }
+  .slab-print-portal .pr-bar-schedule th:nth-child(3),
+  .slab-print-portal .pr-bar-schedule td:nth-child(3) { width: 16%; text-align: right; }
+  .slab-print-portal .pr-bar-schedule th:nth-child(4),
+  .slab-print-portal .pr-bar-schedule td:nth-child(4) { width: 16%; text-align: right; }
+  .slab-print-portal .pr-bar-schedule th:nth-child(5),
+  .slab-print-portal .pr-bar-schedule td:nth-child(5) { width: 22%; text-align: right; }
+  .slab-print-portal .pr-bar-schedule th:nth-child(6),
+  .slab-print-portal .pr-bar-schedule td:nth-child(6) { width: 20%; text-align: right; }
 
   /* ================ Figures ================ */
   .slab-print-portal .pr-fig-wrap {

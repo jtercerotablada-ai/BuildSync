@@ -197,15 +197,15 @@ export function SlabPrintReport({ input, result }: Props) {
           <div className="pr-fig-caption">Fig. 4 — Slab cross-section showing top &amp; bottom reinforcement with concrete cover (each metre of slab width).</div>
         </div>
 
-        <h3>3.2 Design table</h3>
+        <h3>3.2 Design table (As in mm²/m, Mu &amp; φMn in kN·m/m)</h3>
         <table className="pr-rebar-table">
           <thead>
             <tr>
-              <th>Bar mark</th><th>Location</th>
-              <th>Mu (kN·m/m)</th><th>d (mm)</th>
+              <th>Mark</th><th>Location</th>
+              <th>Mu</th><th>d (mm)</th>
               <th>As req</th><th>As min</th><th>As design</th>
-              <th>Bar size</th><th>Spacing (mm)</th>
-              <th>As prov</th><th>φMn (kN·m/m)</th><th>Mu/φMn</th><th>Status</th>
+              <th>Bar</th><th>s (mm)</th>
+              <th>As prov</th><th>φMn</th><th>Mu/φMn</th><th>Chk</th>
             </tr>
           </thead>
           <tbody>
@@ -222,15 +222,15 @@ export function SlabPrintReport({ input, result }: Props) {
                 <td>{r.spacing.toFixed(0)}</td>
                 <td>{r.As_provided.toFixed(0)}</td>
                 <td>{r.phiMn_provided.toFixed(2)}</td>
-                <td className={r.utilization > 1 ? 'pr-fail' : 'pr-pass'}>{r.utilization.toFixed(3)}</td>
-                <td className={r.ok ? 'pr-pass' : 'pr-fail'}>{r.ok ? '✓ OK' : '✗ FAIL'}</td>
+                <td className={r.utilization > 1 ? 'pr-fail' : 'pr-pass'}>{r.utilization.toFixed(2)}</td>
+                <td className={r.ok ? 'pr-pass' : 'pr-fail'}>{r.ok ? '✓' : '✗'}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
         <h3>3.3 Bar schedule (per metre of slab width)</h3>
-        <table className="pr-rebar-table">
+        <table className="pr-bar-schedule">
           <thead>
             <tr><th>Mark</th><th>Bar</th><th>Diameter (mm)</th><th>Spacing (mm)</th><th>Quantity per metre</th><th>Mass (kg/m²)</th></tr>
           </thead>
