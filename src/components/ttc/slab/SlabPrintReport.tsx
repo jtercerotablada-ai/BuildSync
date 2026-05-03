@@ -487,10 +487,12 @@ function SvgPlanView({ input, result }: { input: SlabInput; result: SlabAnalysis
 
 function SvgLoadingDiagram({ input, result }: { input: SlabInput; result: SlabAnalysis }) {
   const Lx = input.geometry.Lx;
-  // Extended height so the L = ... dim text isn't clipped under the viewBox.
-  const W = 700, H = 290, m = 70;
+  // Tightened vertical box. beamY moved up to 80 so the [wu label · arrows ·
+  // beam · supports · span dim · footnote] all fit cleanly without dead space
+  // at the top of the figure.
+  const W = 700, H = 220, m = 70;
   const drawW = W - 2 * m;
-  const beamY = 170;
+  const beamY = 100;
   const x0 = m, x1 = W - m;
   const arrowSpacing = drawW / 12;
   return (
@@ -530,9 +532,11 @@ function SvgLoadingDiagram({ input, result }: { input: SlabInput; result: SlabAn
 
 function SvgDeformedSection({ input, result }: { input: SlabInput; result: SlabAnalysis }) {
   const Lx = input.geometry.Lx;
-  const W = 700, H = 240, m = 80;
+  // Tight vertical box: enough for [δi label · undeformed line · deformed body ·
+  // supports · span dim].  Top cushion 30 px, bottom cushion 30 px.
+  const W = 700, H = 170, m = 80;
   const drawW = W - 2 * m;
-  const beamY = 100;            // top of undeformed beam
+  const beamY = 40;             // top of undeformed beam (close to top of viewBox)
   const beamThk = 22;           // visual thickness (px) of slab cross-section
   const x0 = m, x1 = W - m;
   // Parabolic deflection (sin-based for SS-like). Sample N+1 points; build a

@@ -8334,18 +8334,11 @@ img, svg {
   .slab-print-portal .pr-bar-schedule td:nth-child(6) { width: 20%; text-align: right; }
 
   /* ================ Figures ================
-     CENTERING STRATEGY:
-       - .pr-fig-wrap is a block that fills the full content width (margin: auto
-         is irrelevant on a 100%-wide block but kept for explicitness) and
-         centers its inline children with text-align: center.
-       - The svg is forced to display: block + margin: 0 auto so it centers
-         itself horizontally regardless of the parent's text-align (some
-         browsers don't honor text-align on block-level SVG).
-       - max-width: 16cm leaves visible whitespace on both sides of every
-         figure (vs A4 19cm content area) so the reader perceives clear
-         left/right balance instead of edge-to-edge stretching.
-       - The caption uses display: block + text-align: center so it sits
-         directly under the figure on its own line.                      */
+     CENTERING STRATEGY (made obvious):
+       The page content area on A4 with @page margin 1cm L/R is ~19cm. We
+       cap each figure at 14cm and force it to centre with margin:0 auto
+       on a display:block svg. That leaves a visible 2.5cm of whitespace on
+       each side — the centring is obvious instead of edge-to-edge.        */
   .slab-print-portal .pr-fig-wrap {
     display: block;
     width: 100%;
@@ -8353,18 +8346,26 @@ img, svg {
     text-align: center;
     page-break-inside: avoid; break-inside: avoid;
   }
+  /* FIXED WIDTH (not 100% with max-width — that was being eaten by something
+     else). At exactly 14cm wide, with display:block + margin:0 auto, the svg
+     centres deterministically inside the ~19cm content area, leaving 2.5cm of
+     visible whitespace on each side. max-width: 100% keeps it safe on narrow
+     viewports.                                                              */
   .slab-print-portal .pr-fig-wrap svg {
     display: block;
-    margin: 0 auto;                    /* centre the svg block horizontally */
-    width: 100%;                       /* fill parent up to max-width */
-    max-width: 16cm;                   /* visible whitespace on either side */
+    width: 14cm;
+    max-width: 100%;
     height: auto;
+    margin-left: auto;
+    margin-right: auto;
     border: 0.4pt solid #ccc;
     background: #fff;
   }
   .slab-print-portal .pr-fig-caption {
     display: block;
     text-align: center;
+    width: 14cm;
+    max-width: 100%;
     margin: 0.15cm auto 0;
     font-size: 8.5pt; color: #555; font-style: italic;
   }
