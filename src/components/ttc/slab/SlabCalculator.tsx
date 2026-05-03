@@ -488,28 +488,30 @@ function InputsTab({ model, dispatch }:
                 dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: dataUrl } });
               }} />
           </Field>
-          {model.branding?.logoDataUrl && (
-            <Field label="Logo preview">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={model.branding.logoDataUrl} alt="Company logo preview"
-                     style={{ maxHeight: 56, maxWidth: 160, objectFit: 'contain', background: '#fff', padding: 4, border: '1px solid #ccc', borderRadius: 4 }} />
-                <button type="button" className="ab-btn ab-btn--ghost"
-                  onClick={() => dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: undefined } })}>
-                  Remove logo
-                </button>
-              </div>
-            </Field>
-          )}
-          {(model.branding?.companyName || model.branding?.companyTagline || model.branding?.logoDataUrl) && (
-            <Field label="">
-              <button type="button" className="ab-btn ab-btn--ghost"
-                onClick={() => dispatch({ type: 'CLEAR_BRANDING' })}>
-                Clear all branding
-              </button>
-            </Field>
-          )}
         </div>
+
+        {/* Logo preview + action buttons live OUTSIDE the label/value grid so
+            the buttons get full row width and never get squeezed into the
+            narrow value column. */}
+        {model.branding?.logoDataUrl && (
+          <div className="slab-branding-preview">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={model.branding.logoDataUrl} alt="Company logo preview"
+                 className="slab-branding-preview__img" />
+            <button type="button" className="ab-btn ab-btn--ghost slab-branding-btn"
+              onClick={() => dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: undefined } })}>
+              Remove logo
+            </button>
+          </div>
+        )}
+        {(model.branding?.companyName || model.branding?.companyTagline || model.branding?.logoDataUrl) && (
+          <div className="slab-branding-actions">
+            <button type="button" className="ab-btn ab-btn--ghost slab-branding-btn"
+              onClick={() => dispatch({ type: 'CLEAR_BRANDING' })}>
+              Clear all branding
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

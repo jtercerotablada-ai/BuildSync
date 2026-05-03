@@ -7841,6 +7841,39 @@ img, svg {
 .slab-card ul { margin: 0; padding-left: 1.1rem; }
 .slab-card li { font-size: 0.83rem; line-height: 1.55; color: rgba(255, 255, 255, 0.78); }
 
+/* Branding card — preview row (logo + remove btn) and the action row (clear all)
+   live OUTSIDE the .slab-fields label/value grid so the buttons get full row
+   width and never wrap. white-space: nowrap on the button keeps the label on
+   one line.                                                                  */
+.slab-branding-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+.slab-branding-preview__img {
+  max-height: 56px;
+  max-width: 200px;
+  object-fit: contain;
+  background: #fff;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.slab-branding-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.7rem;
+}
+.slab-branding-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 0.45rem 0.9rem;
+}
+
 .slab-fields {
   display: flex;
   flex-direction: column;
