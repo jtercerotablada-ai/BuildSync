@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { SlabAnalysis, SlabInput, ReinforcementResult } from '@/lib/slab/types';
 import { BAR_CATALOG } from '@/lib/slab/types';
 
@@ -11,18 +12,23 @@ interface Props {
 
 /**
  * Engineering-firm-quality print report.
- * - Cover sheet with project info + revision block
- * - Executive summary with PASS/FAIL gate of every check
- * - Section drawings (plan, cross-section with rebar layout, loading, deformed)
- * - Punching perimeter sketch with stud rail plan (when applicable)
- * - Bar schedule (mark, size, qty per metre, length, mass)
- * - Hand-calc appendix with every step + clause
- * - Page header / footer on every printed page
  *
- * Hidden on screen via .slab-print-report { display: none }.
- * `window.print()` shows just this and hides everything else.
+ * RENDERED VIA REACT PORTAL into document.body so:
+ *  - Layout/positioning is independent of the calculator's React tree
+ *  - We can hide every other top-level body child via display:none in @media print
+ *
+ * Repeating header / page numbers are produced by @page margin boxes (CSS Paged
+ * Media Module), which Chrome supports — no `running()` declaration needed.
+ *
+ * Hidden on screen via .slab-print-portal { display: none }.
+ * `window.print()` hides every other body child and shows just this.
  */
 export function SlabPrintReport({ input, result }: Props) {
+  // Portal target — only available client-side after first mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
+
   const today = new Date();
   const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const Lx = input.geometry.Lx, Ly = input.geometry.Ly, h = input.geometry.h;
@@ -30,21 +36,13 @@ export function SlabPrintReport({ input, result }: Props) {
 
   const checks = computeChecks(result);
 
-  return (
-    <div className="slab-print-report" id="slab-print-report">
-      {/* ===== Repeating page header (CSS @page-area) ===== */}
-      <div className="pr-page-header">
-        <div className="pr-ph-left">
-          <strong>TERCERO TABLADA</strong> · Civil &amp; Structural Engineering Inc
-        </div>
-        <div className="pr-ph-mid">SLAB DESIGN REPORT</div>
-        <div className="pr-ph-right">{projectId} · {dateStr}</div>
-      </div>
-
+  const body = (
+    <div className="slab-print-portal" id="slab-print-portal">
       {/* ============================================================ */}
       {/* PAGE 1 — COVER                                                */}
       {/* ============================================================ */}
       <section className="pr-page pr-cover">
+        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA</div>
         <div className="pr-cover__brand">
           <div className="pr-logo">TT</div>
           <div className="pr-cover__company">
@@ -100,6 +98,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 2 — INPUTS + DRAWINGS                                    */}
       {/* ============================================================ */}
       <section className="pr-page">
+        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA</div>
         <h2>1. Project inputs</h2>
 
         <div className="pr-row-2col">
@@ -156,6 +155,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 3 — MOMENTS + DEFORMED SHAPE                             */}
       {/* ============================================================ */}
       <section className="pr-page">
+        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA</div>
         <h2>2. Analysis results</h2>
 
         <h3>2.1 Design moments &amp; shears (per metre of slab width)</h3>
@@ -188,6 +188,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 4 — REINFORCEMENT DESIGN + DETAIL                        */}
       {/* ============================================================ */}
       <section className="pr-page">
+        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA</div>
         <h2>3. Reinforcement design</h2>
 
         <h3>3.1 Section detail with reinforcement layout</h3>
@@ -266,6 +267,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 5 — DEFLECTION + PUNCHING                                */}
       {/* ============================================================ */}
       <section className="pr-page">
+        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA</div>
         <h2>4. Deflection check</h2>
         <table>
           <tbody>
@@ -327,6 +329,7 @@ export function SlabPrintReport({ input, result }: Props) {
       {/* PAGE 6+ — HAND-CALC APPENDIX                                  */}
       {/* ============================================================ */}
       <section className="pr-page">
+        <div className="pr-page-strip">{projectId} · {dateStr} · TERCERO TABLADA</div>
         <h2>A. Hand-calculation appendix</h2>
         <p className="pr-meta">All calculations shown in full per design code provisions.</p>
 
@@ -411,6 +414,8 @@ export function SlabPrintReport({ input, result }: Props) {
       </section>
     </div>
   );
+
+  return createPortal(body, document.body);
 }
 
 // ============================================================================
@@ -419,34 +424,40 @@ export function SlabPrintReport({ input, result }: Props) {
 
 function SvgPlanView({ input, result }: { input: SlabInput; result: SlabAnalysis }) {
   const Lx = input.geometry.Lx, Ly = input.geometry.Ly;
-  const W = 700, H = 480, m = 70;
-  const drawW = W - 2 * m, drawH = H - 2 * m - 30;
+  // Wider canvas + asymmetric margins so the Ly dim has its own clear strip on the
+  // right (past the edge label) without overlapping anything.
+  const W = 760, H = 460;
+  const mL = 90, mR = 130, mT = 60, mB = 90;       // left/right/top/bottom margins
+  const drawW = W - mL - mR, drawH = H - mT - mB;
   const ratio = Lx / Ly;
   let pxW: number, pxH: number;
   if (ratio >= drawW / drawH) { pxW = drawW; pxH = pxW / ratio; }
   else { pxH = drawH; pxW = pxH * ratio; }
-  const x0 = (W - pxW) / 2, y0 = m;
+  const x0 = mL + (drawW - pxW) / 2, y0 = mT + (drawH - pxH) / 2;
   const labelOf = (e: 'free' | 'simple' | 'fixed') => e === 'fixed' ? 'F (fixed)' : e === 'simple' ? 'S (simple)' : 'X (free)';
+  // Dim offsets from slab edges
+  const lxDimY = y0 + pxH + 36;
+  const lyDimX = x0 + pxW + 70;          // far past the right edge label
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-      {/* Slab outline */}
-      <rect x={x0} y={y0} width={pxW} height={pxH} fill="#f5f1e6" stroke="#333" strokeWidth="1.5" />
-      {/* Edge labels */}
-      <text x={(x0 + pxW / 2)} y={y0 - 12} textAnchor="middle" fontSize="11" fill="#333">{labelOf(input.edges.top)}</text>
-      <text x={(x0 + pxW / 2)} y={y0 + pxH + 22} textAnchor="middle" fontSize="11" fill="#333">{labelOf(input.edges.bottom)}</text>
-      <text x={x0 - 8} y={y0 + pxH / 2 + 4} textAnchor="end" fontSize="11" fill="#333">{labelOf(input.edges.left)}</text>
-      <text x={x0 + pxW + 8} y={y0 + pxH / 2 + 4} textAnchor="start" fontSize="11" fill="#333">{labelOf(input.edges.right)}</text>
-      {/* Hatch pattern for fixed edges */}
       <defs>
         <pattern id="pr-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <line x1="0" y1="0" x2="0" y2="6" stroke="#666" strokeWidth="1" />
         </pattern>
       </defs>
+      {/* Slab outline */}
+      <rect x={x0} y={y0} width={pxW} height={pxH} fill="#f5f1e6" stroke="#333" strokeWidth="1.5" />
+      {/* Hatch pattern for fixed edges */}
       {input.edges.top    === 'fixed' && <rect x={x0} y={y0 - 8} width={pxW} height="6" fill="url(#pr-hatch)" />}
       {input.edges.bottom === 'fixed' && <rect x={x0} y={y0 + pxH + 2} width={pxW} height="6" fill="url(#pr-hatch)" />}
       {input.edges.left   === 'fixed' && <rect x={x0 - 8} y={y0} width="6" height={pxH} fill="url(#pr-hatch)" />}
       {input.edges.right  === 'fixed' && <rect x={x0 + pxW + 2} y={y0} width="6" height={pxH} fill="url(#pr-hatch)" />}
-      {/* Column dot if punching */}
+      {/* Edge labels */}
+      <text x={(x0 + pxW / 2)} y={y0 - 14} textAnchor="middle" fontSize="11" fill="#333">{labelOf(input.edges.top)}</text>
+      <text x={(x0 + pxW / 2)} y={y0 + pxH + 18} textAnchor="middle" fontSize="11" fill="#333">{labelOf(input.edges.bottom)}</text>
+      <text x={x0 - 12} y={y0 + pxH / 2 + 4} textAnchor="end" fontSize="11" fill="#333">{labelOf(input.edges.left)}</text>
+      <text x={x0 + pxW + 12} y={y0 + pxH / 2 + 4} textAnchor="start" fontSize="11" fill="#333">{labelOf(input.edges.right)}</text>
+      {/* Column footprint (if punching) */}
       {input.punching && (
         <rect x={(x0 + pxW / 2) - input.punching.c1 / Lx * pxW / 2}
               y={(y0 + pxH / 2) - (input.punching.c2 ?? input.punching.c1) / Ly * pxH / 2}
@@ -454,21 +465,21 @@ function SvgPlanView({ input, result }: { input: SlabInput; result: SlabAnalysis
               height={(input.punching.c2 ?? input.punching.c1) / Ly * pxH}
               fill="#666" stroke="#222" strokeWidth="1" />
       )}
-      {/* Dimensions Lx (bottom) */}
-      <line x1={x0} y1={y0 + pxH + 50} x2={x0 + pxW} y2={y0 + pxH + 50} stroke="#333" strokeWidth="0.7" />
-      <line x1={x0} y1={y0 + pxH + 45} x2={x0} y2={y0 + pxH + 55} stroke="#333" strokeWidth="0.7" />
-      <line x1={x0 + pxW} y1={y0 + pxH + 45} x2={x0 + pxW} y2={y0 + pxH + 55} stroke="#333" strokeWidth="0.7" />
-      <text x={x0 + pxW / 2} y={y0 + pxH + 70} textAnchor="middle" fontSize="11" fill="#222" fontWeight="600">{`Lx = ${Lx.toFixed(2)} m`}</text>
-      {/* Dimensions Ly (right) */}
-      <line x1={x0 + pxW + 40} y1={y0} x2={x0 + pxW + 40} y2={y0 + pxH} stroke="#333" strokeWidth="0.7" />
-      <line x1={x0 + pxW + 35} y1={y0} x2={x0 + pxW + 45} y2={y0} stroke="#333" strokeWidth="0.7" />
-      <line x1={x0 + pxW + 35} y1={y0 + pxH} x2={x0 + pxW + 45} y2={y0 + pxH} stroke="#333" strokeWidth="0.7" />
-      <text x={x0 + pxW + 55} y={y0 + pxH / 2}
+      {/* Dimension Lx (bottom) */}
+      <line x1={x0} y1={lxDimY} x2={x0 + pxW} y2={lxDimY} stroke="#333" strokeWidth="0.7" />
+      <line x1={x0} y1={lxDimY - 5} x2={x0} y2={lxDimY + 5} stroke="#333" strokeWidth="0.7" />
+      <line x1={x0 + pxW} y1={lxDimY - 5} x2={x0 + pxW} y2={lxDimY + 5} stroke="#333" strokeWidth="0.7" />
+      <text x={x0 + pxW / 2} y={lxDimY + 18} textAnchor="middle" fontSize="11" fill="#222" fontWeight="600">{`Lx = ${Lx.toFixed(2)} m`}</text>
+      {/* Dimension Ly (right) — far enough out to clear the edge label */}
+      <line x1={lyDimX} y1={y0} x2={lyDimX} y2={y0 + pxH} stroke="#333" strokeWidth="0.7" />
+      <line x1={lyDimX - 5} y1={y0} x2={lyDimX + 5} y2={y0} stroke="#333" strokeWidth="0.7" />
+      <line x1={lyDimX - 5} y1={y0 + pxH} x2={lyDimX + 5} y2={y0 + pxH} stroke="#333" strokeWidth="0.7" />
+      <text x={lyDimX + 16} y={y0 + pxH / 2}
         textAnchor="middle" fontSize="11" fill="#222" fontWeight="600"
-        transform={`rotate(90, ${x0 + pxW + 55}, ${y0 + pxH / 2})`}>{`Ly = ${Ly.toFixed(2)} m`}</text>
+        transform={`rotate(90, ${lyDimX + 16}, ${y0 + pxH / 2})`}>{`Ly = ${Ly.toFixed(2)} m`}</text>
       {/* Title */}
-      <text x={W / 2} y={H - 8} textAnchor="middle" fontSize="9" fill="#666">
-        {`Two-way Method 3 case ${result.case ?? '?'} · h = ${input.geometry.h} mm`}
+      <text x={W / 2} y={H - 14} textAnchor="middle" fontSize="9" fill="#666">
+        {`${result.classification === 'one-way' ? 'One-way slab' : `Two-way Method 3 case ${result.case ?? '?'}`} · h = ${input.geometry.h} mm`}
       </text>
     </svg>
   );
@@ -476,7 +487,8 @@ function SvgPlanView({ input, result }: { input: SlabInput; result: SlabAnalysis
 
 function SvgLoadingDiagram({ input, result }: { input: SlabInput; result: SlabAnalysis }) {
   const Lx = input.geometry.Lx;
-  const W = 700, H = 250, m = 70;
+  // Extended height so the L = ... dim text isn't clipped under the viewBox.
+  const W = 700, H = 290, m = 70;
   const drawW = W - 2 * m;
   const beamY = 170;
   const x0 = m, x1 = W - m;
@@ -508,6 +520,10 @@ function SvgLoadingDiagram({ input, result }: { input: SlabInput; result: SlabAn
       <line x1={x0} y1={beamY + 60} x2={x0} y2={beamY + 70} stroke="#333" strokeWidth="0.7" />
       <line x1={x1} y1={beamY + 60} x2={x1} y2={beamY + 70} stroke="#333" strokeWidth="0.7" />
       <text x={W / 2} y={beamY + 85} textAnchor="middle" fontSize="11" fill="#222" fontWeight="600">{`L = ${Lx.toFixed(2)} m`}</text>
+      {/* Footnote inside viewBox */}
+      <text x={W / 2} y={H - 14} textAnchor="middle" fontSize="9" fill="#666">
+        Factored uniform load applied to the slab strip.
+      </text>
     </svg>
   );
 }

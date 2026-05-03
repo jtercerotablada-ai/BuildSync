@@ -8076,69 +8076,100 @@ img, svg {
 }
 
 /* ============================================================ */
-/* PRINT REPORT (A4) — slab-print-report container               */
+/* PRINT REPORT (A4) — slab-print-portal (rendered via portal)   */
 /* Engineering-firm-quality multi-page report                    */
 /* ============================================================ */
-.slab-print-report {
-  display: none;            /* hidden on screen, shown only when printing */
-}
+
+/* Hidden on screen — only appears in @media print */
+.slab-print-portal { display: none; }
 
 @media print {
-  /* Hide everything on screen except the dedicated print view */
-  body * { visibility: hidden; }
-  .slab-print-report, .slab-print-report * { visibility: visible; }
-  .slab-print-report {
+  /* Hide every other top-level body child; show only the print portal.
+     Because the portal is mounted directly to document.body, every other
+     screen element is a sibling we can collapse with display:none.       */
+  body > *:not(#slab-print-portal) { display: none !important; }
+
+  html, body {
+    background: white !important;
+    margin: 0 !important; padding: 0 !important;
+  }
+
+  .slab-print-portal {
     display: block !important;
-    position: absolute; left: 0; top: 0;
-    width: 100%;
     background: white !important;
     color: #111 !important;
     font-family: 'Inter', system-ui, sans-serif;
     font-size: 10.5pt;
     line-height: 1.4;
   }
-  /* Page setup — A4, narrow margins so figures breathe */
-  @page { size: A4; margin: 1.4cm 1.2cm; }
 
-  /* ================ Page header (repeats on every page) ================ */
-  .slab-print-report .pr-page-header {
-    position: running(prHeader);
-    display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 0.6pt solid #b08833;
-    padding-bottom: 2pt; margin-bottom: 0.3cm;
-    font-size: 8pt; color: #666;
+  /* Page setup — A4 with margin boxes for repeating header / page numbers */
+  @page {
+    size: A4;
+    margin: 1.8cm 1.2cm 1.6cm;
+    @top-left {
+      content: "TERCERO TABLADA · Civil & Structural Eng Inc";
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 8pt; color: #666;
+      vertical-align: bottom; padding-bottom: 4pt;
+    }
+    @top-center {
+      content: "SLAB DESIGN REPORT";
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 8pt; color: #b08833; font-weight: 600;
+      letter-spacing: 0.08em;
+      vertical-align: bottom; padding-bottom: 4pt;
+    }
+    @top-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 8pt; color: #666;
+      vertical-align: bottom; padding-bottom: 4pt;
+    }
+    @bottom-center {
+      content: "Tercero Tablada Civil & Structural Engineering Inc · ttcivilstructural.com";
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 7.5pt; color: #888;
+    }
   }
-  .slab-print-report .pr-ph-left  { flex: 1; text-align: left; }
-  .slab-print-report .pr-ph-mid   { flex: 1; text-align: center; color: #b08833; font-weight: 600; letter-spacing: 0.06em; }
-  .slab-print-report .pr-ph-right { flex: 1; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* In-page strip with project ID + date (since @page boxes can't take
+     dynamic React content). Lives at top of every pr-page section.       */
+  .slab-print-portal .pr-page-strip {
+    font-family: 'Cascadia Code', Consolas, monospace;
+    font-size: 8pt; color: #b08833; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    border-bottom: 0.4pt solid #d6c898;
+    padding-bottom: 2pt; margin-bottom: 0.3cm;
+  }
 
   /* ================ Pages ================ */
-  .slab-print-report .pr-page {
+  .slab-print-portal .pr-page {
     page-break-after: always;
     break-after: page;
-    padding: 0.2cm 0 0.4cm;
+    padding: 0;
   }
-  .slab-print-report .pr-page:last-child { page-break-after: auto; break-after: auto; }
+  .slab-print-portal .pr-page:last-child { page-break-after: auto; break-after: auto; }
 
   /* ================ Headings ================ */
-  .slab-print-report h1 { font-size: 22pt; color: #b08833; margin: 0 0 0.2cm; font-weight: 700; letter-spacing: 0.02em; }
-  .slab-print-report h2 { font-size: 14pt; color: #b08833; border-bottom: 1.2pt solid #b08833;
+  .slab-print-portal h1 { font-size: 22pt; color: #b08833; margin: 0 0 0.2cm; font-weight: 700; letter-spacing: 0.02em; }
+  .slab-print-portal h2 { font-size: 14pt; color: #b08833; border-bottom: 1.2pt solid #b08833;
                           padding-bottom: 0.08cm; margin: 0.5cm 0 0.25cm; font-weight: 600; letter-spacing: 0.02em; }
-  .slab-print-report h3 { font-size: 11pt; color: #444; margin: 0.4cm 0 0.18cm; font-weight: 600; }
-  .slab-print-report h4 { font-size: 10pt; color: #553; margin: 0.25cm 0 0.1cm; font-weight: 600; }
-  .slab-print-report p  { margin: 0.15cm 0; }
-  .slab-print-report .pr-meta { font-size: 9pt; color: #666; margin-bottom: 0.4cm; font-style: italic; }
+  .slab-print-portal h3 { font-size: 11pt; color: #444; margin: 0.4cm 0 0.18cm; font-weight: 600; }
+  .slab-print-portal h4 { font-size: 10pt; color: #553; margin: 0.25cm 0 0.1cm; font-weight: 600; }
+  .slab-print-portal p  { margin: 0.15cm 0; }
+  .slab-print-portal .pr-meta { font-size: 9pt; color: #666; margin-bottom: 0.4cm; font-style: italic; }
 
   /* ================ COVER PAGE ================ */
-  .slab-print-report .pr-cover {
+  .slab-print-portal .pr-cover {
     text-align: left;
   }
-  .slab-print-report .pr-cover__brand {
+  .slab-print-portal .pr-cover__brand {
     display: flex; align-items: center; gap: 0.4cm;
     border-bottom: 2pt solid #b08833;
     padding-bottom: 0.3cm; margin-bottom: 0.5cm;
   }
-  .slab-print-report .pr-logo {
+  .slab-print-portal .pr-logo {
     width: 1.6cm; height: 1.6cm;
     background: linear-gradient(135deg, #b08833 0%, #8a6620 100%);
     color: #fff;
@@ -8146,94 +8177,94 @@ img, svg {
     font-size: 18pt; font-weight: 700; letter-spacing: 0.05em;
     border-radius: 4pt;
   }
-  .slab-print-report .pr-cover__company h1 { font-size: 20pt; margin-bottom: 0; line-height: 1.05; }
-  .slab-print-report .pr-cover__sub { font-size: 10pt; color: #666; letter-spacing: 0.04em; }
-  .slab-print-report .pr-cover__title {
+  .slab-print-portal .pr-cover__company h1 { font-size: 20pt; margin-bottom: 0; line-height: 1.05; }
+  .slab-print-portal .pr-cover__sub { font-size: 10pt; color: #666; letter-spacing: 0.04em; }
+  .slab-print-portal .pr-cover__title {
     font-size: 24pt; color: #222; font-weight: 700;
     margin: 0.7cm 0 0.6cm; line-height: 1.1; letter-spacing: 0.02em;
     border: none;
   }
-  .slab-print-report .pr-cover-table { font-size: 9.5pt; margin-bottom: 0.6cm; }
-  .slab-print-report .pr-cover-table th { width: 18%; }
-  .slab-print-report .pr-cover-table td { width: 32%; }
-  .slab-print-report .pr-cover__notes {
+  .slab-print-portal .pr-cover-table { font-size: 9.5pt; margin-bottom: 0.6cm; }
+  .slab-print-portal .pr-cover-table th { width: 18%; }
+  .slab-print-portal .pr-cover-table td { width: 32%; }
+  .slab-print-portal .pr-cover__notes {
     font-size: 8.5pt; color: #555; line-height: 1.4;
     background: #faf6e8; border-left: 2pt solid #b08833;
     padding: 0.2cm 0.3cm; margin-top: 0.5cm;
   }
 
   /* ================ Compliance summary table ================ */
-  .slab-print-report .pr-checks-table { font-size: 9pt; }
-  .slab-print-report .pr-checks-table th { background: #b08833; color: #fff; }
-  .slab-print-report tr.pr-row-pass td { background: #f0f7ec; }
-  .slab-print-report tr.pr-row-fail td { background: #ffe6e0; }
+  .slab-print-portal .pr-checks-table { font-size: 9pt; }
+  .slab-print-portal .pr-checks-table th { background: #b08833; color: #fff; }
+  .slab-print-portal tr.pr-row-pass td { background: #f0f7ec; }
+  .slab-print-portal tr.pr-row-fail td { background: #ffe6e0; }
 
   /* ================ Two-column layout for inputs ================ */
-  .slab-print-report .pr-row-2col {
+  .slab-print-portal .pr-row-2col {
     display: grid; grid-template-columns: 1fr 1fr; gap: 0.4cm;
   }
 
   /* ================ Tables (general) ================ */
-  .slab-print-report table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 0.18cm 0; }
-  .slab-print-report th, .slab-print-report td {
+  .slab-print-portal table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 0.18cm 0; }
+  .slab-print-portal th, .slab-print-portal td {
     border: 0.4pt solid #aaa; padding: 0.1cm 0.18cm; text-align: left;
     font-variant-numeric: tabular-nums; vertical-align: top;
   }
-  .slab-print-report th { background: #f0e8d0; font-weight: 600; color: #553; font-size: 8.5pt; }
+  .slab-print-portal th { background: #f0e8d0; font-weight: 600; color: #553; font-size: 8.5pt; }
 
   /* ================ Rebar / moments tables — tighter, more dense ================ */
-  .slab-print-report .pr-rebar-table { font-size: 8.5pt; }
-  .slab-print-report .pr-rebar-table th,
-  .slab-print-report .pr-rebar-table td { padding: 0.07cm 0.12cm; }
-  .slab-print-report .pr-mark {
+  .slab-print-portal .pr-rebar-table { font-size: 8.5pt; }
+  .slab-print-portal .pr-rebar-table th,
+  .slab-print-portal .pr-rebar-table td { padding: 0.07cm 0.12cm; }
+  .slab-print-portal .pr-mark {
     font-family: 'Cascadia Code', Consolas, monospace; font-weight: 700;
     background: #fbf3d6; color: #6a4f15; text-align: center;
   }
-  .slab-print-report .pr-tag {
+  .slab-print-portal .pr-tag {
     display: inline-block; font-size: 7pt; padding: 0 3pt;
     background: #b08833; color: #fff; border-radius: 2pt;
     margin-left: 3pt; letter-spacing: 0.06em;
   }
-  .slab-print-report tr.pr-total td { background: #faf6e8; font-weight: 600; }
-  .slab-print-report .pr-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .slab-print-portal tr.pr-total td { background: #faf6e8; font-weight: 600; }
+  .slab-print-portal .pr-num { text-align: right; font-variant-numeric: tabular-nums; }
 
-  .slab-print-report .pr-moments th { width: 22%; }
+  .slab-print-portal .pr-moments th { width: 22%; }
 
   /* ================ Figures ================ */
-  .slab-print-report .pr-fig-wrap {
+  .slab-print-portal .pr-fig-wrap {
     margin: 0.25cm auto 0.4cm; text-align: center;
     page-break-inside: avoid; break-inside: avoid;
   }
-  .slab-print-report .pr-fig-wrap svg {
+  .slab-print-portal .pr-fig-wrap svg {
     width: 100%; max-width: 17cm; height: auto;
     border: 0.4pt solid #ccc; background: #fff;
   }
-  .slab-print-report .pr-fig-caption {
+  .slab-print-portal .pr-fig-caption {
     font-size: 8.5pt; color: #555; margin-top: 0.1cm; font-style: italic;
   }
 
   /* ================ Hand-calc steps ================ */
-  .slab-print-report .pr-block { page-break-inside: avoid; break-inside: avoid; margin-bottom: 0.3cm; }
-  .slab-print-report .pr-steps { margin: 0.15cm 0 0.3cm; padding-left: 0; list-style: none; }
-  .slab-print-report .pr-step { border-left: 2pt solid #b08833; padding: 0.08cm 0.22cm;
+  .slab-print-portal .pr-block { page-break-inside: avoid; break-inside: avoid; margin-bottom: 0.3cm; }
+  .slab-print-portal .pr-steps { margin: 0.15cm 0 0.3cm; padding-left: 0; list-style: none; }
+  .slab-print-portal .pr-step { border-left: 2pt solid #b08833; padding: 0.08cm 0.22cm;
                                 margin-bottom: 0.12cm; background: #faf6e8; page-break-inside: avoid; break-inside: avoid; }
-  .slab-print-report .pr-step__title { font-weight: 600; color: #553; font-size: 9.2pt; }
-  .slab-print-report .pr-step__formula { font-family: 'Cascadia Code', Consolas, monospace;
+  .slab-print-portal .pr-step__title { font-weight: 600; color: #553; font-size: 9.2pt; }
+  .slab-print-portal .pr-step__formula { font-family: 'Cascadia Code', Consolas, monospace;
                                           font-size: 8.5pt; color: #222; }
-  .slab-print-report .pr-step__sub { font-family: 'Cascadia Code', Consolas, monospace;
+  .slab-print-portal .pr-step__sub { font-family: 'Cascadia Code', Consolas, monospace;
                                       font-size: 8pt; color: #555; padding-top: 1pt; }
-  .slab-print-report .pr-step__result { color: #1f6a36; font-weight: 600; padding-top: 1pt;
+  .slab-print-portal .pr-step__result { color: #1f6a36; font-weight: 600; padding-top: 1pt;
                                         font-size: 9pt; }
-  .slab-print-report .pr-step__ref { color: #888; font-style: italic; font-size: 7.5pt; padding-top: 1pt; }
+  .slab-print-portal .pr-step__ref { color: #888; font-style: italic; font-size: 7.5pt; padding-top: 1pt; }
 
-  .slab-print-report .pr-failures { background: #ffece6; border-left: 2pt solid #b03030;
+  .slab-print-portal .pr-failures { background: #ffece6; border-left: 2pt solid #b03030;
                                     padding: 0.1cm 0.25cm; margin-top: 0.15cm; font-size: 9pt; }
 
   /* ================ Signature blanks ================ */
-  .slab-print-report .pr-blank { color: #888; letter-spacing: 0.1em; font-family: 'Cascadia Code', Consolas, monospace; font-size: 8pt; }
+  .slab-print-portal .pr-blank { color: #888; letter-spacing: 0.1em; font-family: 'Cascadia Code', Consolas, monospace; font-size: 8pt; }
 
   /* ================ Footer ================ */
-  .slab-print-report .pr-footer { font-size: 8pt; color: #888; text-align: center;
+  .slab-print-portal .pr-footer { font-size: 8pt; color: #888; text-align: center;
                                   margin-top: 0.5cm; border-top: 0.4pt solid #ccc; padding-top: 0.18cm; }
 
   /* ================ Status colours ================ */
