@@ -8206,6 +8206,97 @@ img, svg {
 }
 
 /* ============================================================ */
+/* BASE PLATE DESIGN (.bp-*) — mobile-first responsive          */
+/* The base plate tool reuses .slab-3d__canvas + .slab-card +   */
+/* .slab-fields + .slab-inputs-grid (already mobile-friendly),  */
+/* but its 3D viewer wrapper uses .bp-3d / .bp-3d__canvas and   */
+/* the branding card adds .slab-brand-* classes that need to    */
+/* collapse properly on phones.                                  */
+/* ============================================================ */
+
+/* Branding card — drop zone, preview, and inputs                */
+@media (max-width: 720px) {
+  /* Drop zone padding gets cramped on small screens — relax it. */
+  .slab-brand-zone__empty {
+    padding: 1rem 0.75rem;
+  }
+  .slab-brand-zone__text { font-size: 0.80rem; }
+  .slab-brand-zone__hint { font-size: 0.68rem; }
+
+  /* Logo preview shrinks; actions wrap below the image */
+  .slab-brand-zone__filled {
+    padding: 0.85rem 0.75rem;
+    gap: 0.6rem;
+  }
+  .slab-brand-zone__img {
+    max-height: 70px;
+    max-width: 100%;
+  }
+  .slab-brand-zone__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .slab-brand-zone__actions > .ab-btn,
+  .slab-brand-zone__actions > label.ab-btn {
+    flex: 1;
+    min-height: 44px;       /* iOS tap target */
+    justify-content: center;
+  }
+
+  /* Stacked text inputs — full width, larger touch targets */
+  .slab-brand-stack { gap: 0.65rem; }
+  .slab-brand-row > label { font-size: 0.72rem; }
+  .slab-brand-input {
+    font-size: 16px !important;   /* prevents iOS zoom on focus */
+    padding: 0.6rem 0.7rem;
+    min-height: 44px;
+  }
+  .slab-brand-footer { justify-content: stretch; }
+  .slab-brand-footer .slab-branding-btn {
+    flex: 1;
+    min-height: 44px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Even smaller phones — tighten further */
+  .slab-brand-zone__empty { padding: 0.85rem 0.6rem; }
+  .slab-brand-zone__icon svg { width: 22px; height: 22px; }
+  .slab-brand-zone__filled { padding: 0.7rem 0.5rem; }
+  .slab-brand-zone__img { max-height: 60px; }
+  .slab-brand-zone__actions { gap: 0.4rem; flex-wrap: nowrap; }
+  .slab-brand-zone__actions > .ab-btn,
+  .slab-brand-zone__actions > label.ab-btn {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.78rem;
+  }
+}
+
+/* ---------- Base plate 3D viewer wrapper ---------- */
+/* The base plate tool wraps the canvas in .bp-3d__canvas which inherits
+   styles from .slab-3d__canvas (already mobile-styled). But we explicitly
+   re-state the height in case the .bp-3d__canvas selector wins specificity
+   somewhere. Phone: 320px. Small phone: 280px. */
+@media (max-width: 720px) {
+  .bp-3d__canvas,
+  .bp-3d .slab-3d__canvas { height: 360px !important; }
+}
+@media (max-width: 480px) {
+  .bp-3d__canvas,
+  .bp-3d .slab-3d__canvas { height: 300px !important; }
+}
+
+/* ---------- Hero on the resources/base-plate page ---------- */
+/* Make sure long subtitle text wraps cleanly on phones */
+@media (max-width: 720px) {
+  .page-hero--compact .page-hero__subtitle {
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+}
+
+/* ============================================================ */
 /* PRINT REPORT (A4) — slab-print-portal (rendered via portal)   */
 /* Engineering-firm-quality multi-page report                    */
 /* ============================================================ */
