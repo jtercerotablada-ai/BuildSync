@@ -333,26 +333,30 @@ function buildContinuousStirrupPath(
 ): THREE.Vector3[] {
   const hookLen = Math.max(6 * stirrupDb, 0.075);
   const c = 1 / Math.SQRT2;                   // cos 45° = sin 45°
-  const epsilon = stirrupDb * 0.65;            // depth offset between front and back hooks
+  // Asymmetric depth offsets — back hook stays close to the rectangle plane
+  // (X ≈ -ε_back); front hook is pushed clearly FORWARD of the top longitudinal
+  // bar so it doesn't visually pass underneath it. The top long-bar tube has
+  // half-thickness ≈ db_top/2 ≈ 6-12 mm; ε_front = 2·db_stirrup ≈ 19 mm gives
+  // clear forward-of-bar separation while keeping the hook visually close
+  // to the closing corner.
+  const epsBack = stirrupDb * 0.65;
+  const epsFront = stirrupDb * 2.0;
 
   const pts: THREE.Vector3[] = [];
   const push = (x: number, y: number, z: number) => pts.push(new THREE.Vector3(x, y, z));
 
-  // ── HOOK 1 (front, X = -ε) — straight 45° line into the section ──────────
-  // Inner end is deep inside the section, down-left from TR corner.
+  // ── HOOK 1 (back, X = -ε_back) — REAR hook (kept as reference; do not alter) ──
   const h1iY = (cy - r) - hookLen * c;
   const h1iZ = cz - hookLen * c;
   for (let i = 0; i <= 20; i++) {
     const t = i / 20;
-    push(-epsilon, h1iY + (cy - r - h1iY) * t, h1iZ + (cz - h1iZ) * t);
+    push(-epsBack, h1iY + (cy - r - h1iY) * t, h1iZ + (cz - h1iZ) * t);
   }
 
-  // ── BEND 1 — smooth 135° turn at TR corner; X transitions from -ε to 0 ──
-  // Cubic Bezier: hook tangent (c, c) → top-edge tangent (0, -1) in YZ plane.
-  // Control points extend tangents outward from the rectangle corner (cy, cz).
+  // ── BEND 1 — smooth 135° turn at TR corner; X transitions from -ε_back to 0 ──
   {
-    const P0 = [-epsilon, cy - r, cz];
-    const C1 = [-epsilon * 0.4, cy - r + r * c * 1.0, cz + r * c * 0.5];
+    const P0 = [-epsBack, cy - r, cz];
+    const C1 = [-epsBack * 0.4, cy - r + r * c * 1.0, cz + r * c * 0.5];
     const C2 = [0, cy + r * 0.05, cz];
     const P3 = [0, cy, cz - r];
     const N = 28;
@@ -435,13 +439,17 @@ function buildContinuousStirrupPath(
     push(0, (-cy + r) + 2 * (cy - r) * t, cz);
   }
 
-  // ── BEND 2 — smooth 135° turn at TR corner; X transitions from 0 to +ε ──
-  // Right-edge tangent (0, +1) → hook2 tangent (-c, -c) in YZ plane.
+  // ── BEND 2 — FRONT hook bend at TR corner — X transitions from 0 to +ε_front ──
+  // The bar leaves the right edge going +Y at X=0, then curves OUT FORWARD
+  // (+X) and DOWN-LEFT in YZ as it transitions into the front 135° hook.
+  // The bend lifts UP slightly past Y=cy (above the top edge) so the hook
+  // anchors at the very top of the section — clearance from the top
+  // longitudinal bar is built in by the larger ε_front and a higher anchor Y.
   {
     const P0 = [0, cy - r, cz];
-    const C1 = [epsilon * 0.4, cy - r + r * c * 1.0, cz];
-    const C2 = [epsilon, cy - r + r * c * 0.5, cz - r * c * 0.5];
-    const P3 = [epsilon, cy - r - hookLen * c * 0.05, cz - hookLen * c * 0.05];   // start of hook2
+    const C1 = [epsFront * 0.35, cy - r + r * c * 1.1, cz];
+    const C2 = [epsFront, cy + r * 0.15, cz - r * c * 0.4];          // peak above top edge & shifted in
+    const P3 = [epsFront, cy - r * 0.5, cz - r * 0.15];               // hook2 anchor — high & forward
     const N = 28;
     for (let i = 1; i <= N; i++) {
       const t = i / N;
@@ -453,12 +461,23 @@ function buildContinuousStirrupPath(
     }
   }
 
-  // ── HOOK 2 (back, X = +ε) — straight 45° line into the section ──────────
-  const h2iY = (cy - r) - hookLen * c;
-  const h2iZ = cz - hookLen * c;
+  // ── HOOK 2 (front, X = +ε_front) — 45° line that ALSO tilts further forward
+  // toward +X as it goes inward. The tail ends clearly in front of the top
+  // longitudinal bar (large +X), at a Y above where the top bar sits. ──────
+  const h2_anchorY = cy - r * 0.5;
+  const h2_anchorZ = cz - r * 0.15;
+  // Inner-end position: forward in X, slightly down in Y, inward in Z.
+  // Tail X = epsFront + extra forward tilt → hook tip is well-clear of any longitudinal bar.
+  const h2iX = epsFront + stirrupDb * 0.9;
+  const h2iY = h2_anchorY - hookLen * c * 0.85;     // descends less steeply than rear hook
+  const h2iZ = h2_anchorZ - hookLen * c * 0.6;
   for (let i = 1; i <= 20; i++) {
     const t = i / 20;
-    push(epsilon, (cy - r) + (h2iY - (cy - r)) * t, cz + (h2iZ - cz) * t);
+    push(
+      epsFront + (h2iX - epsFront) * t,
+      h2_anchorY + (h2iY - h2_anchorY) * t,
+      h2_anchorZ + (h2iZ - h2_anchorZ) * t
+    );
   }
 
   return pts;
