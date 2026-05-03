@@ -8162,7 +8162,21 @@ img, svg {
   }
   .slab-print-portal .pr-page:last-child { page-break-after: auto; break-after: auto; }
 
-  /* ================ Headings ================ */
+  /* ================ Headings ================
+     ORPHAN PREVENTION: every heading uses page-break-after: avoid +
+     break-after: avoid so the print engine refuses to leave a heading
+     stranded at the bottom of a page with its content pushed to the next.
+     If the content following the heading doesn't fit on the current page,
+     the heading will be pulled to the next page along with it.            */
+  .slab-print-portal h1,
+  .slab-print-portal h2,
+  .slab-print-portal h3,
+  .slab-print-portal h4 {
+    page-break-after: avoid;
+    break-after: avoid;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
   .slab-print-portal h1 { font-size: 22pt; color: #b08833; margin: 0 0 0.2cm; font-weight: 700; letter-spacing: 0.02em; }
   .slab-print-portal h2 { font-size: 14pt; color: #b08833; border-bottom: 1.2pt solid #b08833;
                           padding-bottom: 0.08cm; margin: 0.5cm 0 0.25cm; font-weight: 600; letter-spacing: 0.02em; }
@@ -8170,6 +8184,13 @@ img, svg {
   .slab-print-portal h4 { font-size: 10pt; color: #553; margin: 0.25cm 0 0.1cm; font-weight: 600; }
   .slab-print-portal p  { margin: 0.15cm 0; }
   .slab-print-portal .pr-meta { font-size: 9pt; color: #666; margin-bottom: 0.4cm; font-style: italic; }
+
+  /* Tables and figures should also stay together with the heading right above
+     them. We already have page-break-inside: avoid on .pr-fig-wrap; add the
+     same to tables and to .pr-row-2col so a section heading + its first table
+     never split.                                                           */
+  .slab-print-portal table { page-break-inside: avoid; break-inside: avoid; }
+  .slab-print-portal .pr-row-2col { page-break-inside: avoid; break-inside: avoid; }
 
   /* ================ COVER PAGE ================ */
   .slab-print-portal .pr-cover {
