@@ -28,7 +28,7 @@ const designTools: Tool[] = [
   { iconKey: 'connection', titleKey: 'tool.connection', descKey: 'tool.connection.desc', status: 'coming-soon' },
   { iconKey: 'basePlate', titleKey: 'tool.basePlate', descKey: 'tool.basePlate.desc', status: 'available', href: '/resources/base-plate' },
   { iconKey: 'foundation', titleKey: 'tool.foundation', descKey: 'tool.foundation.desc', status: 'coming-soon' },
-  { iconKey: 'rcDesign', titleKey: 'tool.rcDesign', descKey: 'tool.rcDesign.desc', status: 'coming-soon' },
+  { iconKey: 'rcDesign', titleKey: 'tool.rcDesign', descKey: 'tool.rcDesign.desc', status: 'available', href: '/resources/rc-design' },
   { iconKey: 'memberDesign', titleKey: 'tool.memberDesign', descKey: 'tool.memberDesign.desc', status: 'coming-soon' },
   { iconKey: 'composite', titleKey: 'tool.composite', descKey: 'tool.composite.desc', status: 'coming-soon' },
   { iconKey: 'retaining', titleKey: 'tool.retaining', descKey: 'tool.retaining.desc', status: 'available', href: '/resources/retaining-wall' },
