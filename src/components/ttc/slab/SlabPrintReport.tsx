@@ -446,20 +446,26 @@ export function SlabPrintReport({ input, result }: Props) {
 
 function SvgPlanView({ input, result }: { input: SlabInput; result: SlabAnalysis }) {
   const Lx = input.geometry.Lx, Ly = input.geometry.Ly;
-  // Symmetric margins so the slab is in the visual centre of the SVG. Dim line
-  // and rotated text still fit inside the (large enough) right margin.
-  const W = 760, H = 460;
-  const mL = 130, mR = 130, mT = 60, mB = 90;
+  // Wider canvas (W=820) with SYMMETRIC margins (mL=mR=130) so the slab is
+  // visually centred in the SVG AND the Ly dim has 100 px clearance past the
+  // right edge label.
+  const W = 820, H = 490;
+  const mL = 130, mR = 130, mT = 60, mB = 110;
   const drawW = W - mL - mR, drawH = H - mT - mB;
   const ratio = Lx / Ly;
   let pxW: number, pxH: number;
   if (ratio >= drawW / drawH) { pxW = drawW; pxH = pxW / ratio; }
   else { pxH = drawH; pxW = pxH * ratio; }
+  // Slab centred symmetrically in the drawing area (and therefore in the SVG).
   const x0 = mL + (drawW - pxW) / 2, y0 = mT + (drawH - pxH) / 2;
   const labelOf = (e: 'free' | 'simple' | 'fixed') => e === 'fixed' ? 'F (fixed)' : e === 'simple' ? 'S (simple)' : 'X (free)';
-  // Dim lines just outside the edge labels.
-  const lxDimY = y0 + pxH + 38;
-  const lyDimX = x0 + pxW + 60;
+  // DIM positions — pushed past the edge labels with comfortable gaps:
+  //   Edge label "S (simple)" sits ~75 px to the right of the slab edge.
+  //   Ly dim line:  100 px past slab edge (≈ 25 px gap past the label end).
+  //   Ly dim text:  rotated, 16 px past the dim line.
+  //   Lx dim line:  44 px below the slab (well past the bottom edge label).
+  const lxDimY = y0 + pxH + 44;
+  const lyDimX = x0 + pxW + 100;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
       <defs>
