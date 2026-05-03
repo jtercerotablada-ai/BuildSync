@@ -76,6 +76,9 @@ export function Rc3D({ input, result }: Props) {
             <CompressionRebar input={input} bw={bw} L={L} cover={cover} />
           )}
 
+          {/* Skin rebar (h > 900 mm, ACI §9.7.2.3) */}
+          {showRebar && <SkinRebar input={input} bw={bw} h={h} L={L} cover={cover} />}
+
           {/* Stirrups */}
           {showStirrups && <Stirrups input={input} bw={bw} h={h} L={L} cover={cover} />}
 
@@ -151,7 +154,7 @@ function BeamConcrete({ bw, h, L, bf, hf, shape, cutaway }: {
 }
 
 // ============================================================================
-// Tension rebar (along the bottom)
+// Tension rebar (along the bottom) — placed INSIDE the stirrup inner envelope
 // ============================================================================
 function TensionRebar({ input, bw, h, L, cover }: {
   input: BeamInput; bw: number; h: number; L: number; cover: number;
@@ -159,20 +162,20 @@ function TensionRebar({ input, bw, h, L, cover }: {
   const total = input.reinforcement.tension.reduce((s, b) => s + b.count, 0);
   const dbT = (input.reinforcement.tension[0]?.bar
     ? lookupBar(input.reinforcement.tension[0].bar)?.db ?? 25 : 25) * MM_TO_M;
-  const stirrupDb = (input.reinforcement.stirrup.bar
-    ? lookupBar(input.reinforcement.stirrup.bar)?.db ?? 10 : 10) * MM_TO_M;
+  const stirrupDb = (lookupBar(input.reinforcement.stirrup.bar)?.db ?? 10) * MM_TO_M;
 
-  // y position: bottom side, at d_t = h - cover - stirrup - db/2
+  // Bar centerline must be at: (cover) + (stirrupDb) + (dbT/2) from outer face
   const y = -h / 2 + cover + stirrupDb + dbT / 2;
-  const usableW = bw - 2 * (cover + stirrupDb);
-  const sBars = total > 1 ? usableW / (total - 1) : 0;
-  const startZ = -usableW / 2;
+  // Centerline-to-centerline span across width
+  const cToCSpan = bw - 2 * (cover + stirrupDb + dbT / 2);
+  const sBars = total > 1 ? cToCSpan / (total - 1) : 0;
+  const startZ = -cToCSpan / 2;
 
   return (
     <group>
       {Array.from({ length: total }, (_, i) => (
-        // Rotate cylinder to lie along the X axis (beam length)
-        <mesh key={i} position={[0, y, startZ + i * sBars]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <mesh key={i} position={[0, y, total === 1 ? 0 : startZ + i * sBars]}
+              rotation={[0, 0, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[dbT / 2, dbT / 2, L * 0.96, 12]} />
           <meshStandardMaterial color="#c94c4c" roughness={0.55} metalness={0.85} />
         </mesh>
@@ -182,7 +185,7 @@ function TensionRebar({ input, bw, h, L, cover }: {
 }
 
 // ============================================================================
-// Compression rebar (along the top, doubly reinforced)
+// Compression / hanger rebar (along the top) — INSIDE stirrup top inner edge
 // ============================================================================
 function CompressionRebar({ input, bw, L, cover }: {
   input: BeamInput; bw: number; L: number; cover: number;
@@ -190,18 +193,18 @@ function CompressionRebar({ input, bw, L, cover }: {
   const totalC = (input.reinforcement.compression ?? []).reduce((s, b) => s + b.count, 0);
   const dbC = (input.reinforcement.compression?.[0]?.bar
     ? lookupBar(input.reinforcement.compression[0].bar)?.db ?? 20 : 20) * MM_TO_M;
-  const stirrupDb = (input.reinforcement.stirrup.bar
-    ? lookupBar(input.reinforcement.stirrup.bar)?.db ?? 10 : 10) * MM_TO_M;
+  const stirrupDb = (lookupBar(input.reinforcement.stirrup.bar)?.db ?? 10) * MM_TO_M;
 
   const y = input.geometry.h * MM_TO_M / 2 - cover - stirrupDb - dbC / 2;
-  const usableW = bw - 2 * (cover + stirrupDb);
-  const sBars = totalC > 1 ? usableW / (totalC - 1) : 0;
-  const startZ = -usableW / 2;
+  const cToCSpan = bw - 2 * (cover + stirrupDb + dbC / 2);
+  const sBars = totalC > 1 ? cToCSpan / (totalC - 1) : 0;
+  const startZ = -cToCSpan / 2;
 
   return (
     <group>
       {Array.from({ length: totalC }, (_, i) => (
-        <mesh key={i} position={[0, y, startZ + i * sBars]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <mesh key={i} position={[0, y, totalC === 1 ? 0 : startZ + i * sBars]}
+              rotation={[0, 0, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[dbC / 2, dbC / 2, L * 0.96, 12]} />
           <meshStandardMaterial color="#e0c060" roughness={0.55} metalness={0.85} />
         </mesh>
@@ -211,62 +214,321 @@ function CompressionRebar({ input, bw, L, cover }: {
 }
 
 // ============================================================================
-// Stirrups (closed rectangular hoops at intervals)
+// Skin rebar (h > 900 mm) — inside both vertical stirrup legs
+// ============================================================================
+function SkinRebar({ input, bw, h, L, cover }: {
+  input: BeamInput; bw: number; h: number; L: number; cover: number;
+}) {
+  const sk = input.reinforcement.skin;
+  if (!sk || sk.countPerFace === 0) return null;
+  const dbS = (lookupBar(sk.bar)?.db ?? 12) * MM_TO_M;
+  const stirrupDb = (lookupBar(input.reinforcement.stirrup.bar)?.db ?? 10) * MM_TO_M;
+  // z position: just inside the stirrup vertical legs
+  const zL = -bw / 2 + cover + stirrupDb + dbS / 2;
+  const zR = bw / 2 - cover - stirrupDb - dbS / 2;
+  // Skin bars distributed over h/2 from tension face up
+  const yBot = -h / 2 + cover + stirrupDb + (input.reinforcement.tension[0]
+    ? (lookupBar(input.reinforcement.tension[0].bar)?.db ?? 25) * MM_TO_M : 0) + 0.05;
+  const yTop = 0;     // up to mid-height (h/2 from tension face)
+  const span = Math.max(yTop - yBot, 0.001);
+  const dy = sk.countPerFace > 1 ? span / (sk.countPerFace - 1) : 0;
+
+  return (
+    <group>
+      {Array.from({ length: sk.countPerFace }, (_, i) => (
+        <React.Fragment key={i}>
+          <mesh position={[0, yBot + i * dy, zL]} rotation={[0, 0, Math.PI / 2]} castShadow>
+            <cylinderGeometry args={[dbS / 2, dbS / 2, L * 0.96, 10]} />
+            <meshStandardMaterial color="#5fa3c9" roughness={0.55} metalness={0.85} />
+          </mesh>
+          <mesh position={[0, yBot + i * dy, zR]} rotation={[0, 0, Math.PI / 2]} castShadow>
+            <cylinderGeometry args={[dbS / 2, dbS / 2, L * 0.96, 10]} />
+            <meshStandardMaterial color="#5fa3c9" roughness={0.55} metalness={0.85} />
+          </mesh>
+        </React.Fragment>
+      ))}
+    </group>
+  );
+}
+
+// ============================================================================
+// One realistic stirrup — ONE continuous rebar swept along a single 3D path.
+//
+// The path traces:
+//   hook1 (front, X = -ε)  →  smooth 135° bend at TR corner with X transitioning
+//   to 0  →  full rectangle perimeter (top, TL, left, BL, bottom, BR, right)
+//   →  smooth 135° bend at TR corner with X transitioning to +ε  →  hook2
+//   (back, X = +ε)
+//
+// One hook is "in front" (X = -ε) and the other "behind" (X = +ε); they're
+// close together at the same physical corner and naturally come out of the
+// same continuous bar. All bends are smooth circular/bezier transitions with
+// inside bend radius ≥ 4·db (ACI §25.3.2). Hook length = max(6·db, 75 mm).
+//
+// A procedural normal map adds spiral rib deformations across the tube
+// surface — the bar reads as ribbed reinforcing steel, not a smooth pipe.
+// ============================================================================
+
+function makeRebarNormalMap(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const W = 128, H = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  // Neutral normal (RGB 128, 128, 255 → flat surface pointing +Z)
+  ctx.fillStyle = '#8080ff';
+  ctx.fillRect(0, 0, W, H);
+  // Diagonal helical ribs — alternating bright (rib peak) and dark (groove)
+  ctx.lineCap = 'round';
+  for (let i = -W; i < W * 2; i += 14) {
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#aaaaff';   // brighter normal: rib peak (raised)
+    ctx.beginPath();
+    ctx.moveTo(i, 0); ctx.lineTo(i + H * 1.5, H);
+    ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#5060ff';   // darker normal: groove
+    ctx.beginPath();
+    ctx.moveTo(i + 7, 0); ctx.lineTo(i + 7 + H * 1.5, H);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+// Curve subclass that samples a manually-built polyline at uniform t along arc length.
+class PolylineCurve extends THREE.Curve<THREE.Vector3> {
+  private pts: THREE.Vector3[];
+  private cumLen: number[];     // cumulative arc length up to point i
+  private total: number;
+  constructor(pts: THREE.Vector3[]) {
+    super();
+    this.pts = pts;
+    this.cumLen = [0];
+    for (let i = 1; i < pts.length; i++) {
+      this.cumLen.push(this.cumLen[i - 1] + pts[i].distanceTo(pts[i - 1]));
+    }
+    this.total = this.cumLen[this.cumLen.length - 1] || 1;
+  }
+  getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
+    const target_d = t * this.total;
+    // Binary search for the segment containing target_d
+    let lo = 0, hi = this.cumLen.length - 1;
+    while (lo + 1 < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.cumLen[mid] <= target_d) lo = mid;
+      else hi = mid;
+    }
+    const segLen = this.cumLen[hi] - this.cumLen[lo] || 1;
+    const local = (target_d - this.cumLen[lo]) / segLen;
+    return target.lerpVectors(this.pts[lo], this.pts[hi], local);
+  }
+}
+
+function buildContinuousStirrupPath(
+  cy: number, cz: number, r: number, stirrupDb: number
+): THREE.Vector3[] {
+  const hookLen = Math.max(6 * stirrupDb, 0.075);
+  const c = 1 / Math.SQRT2;                   // cos 45° = sin 45°
+  const epsilon = stirrupDb * 0.65;            // depth offset between front and back hooks
+
+  const pts: THREE.Vector3[] = [];
+  const push = (x: number, y: number, z: number) => pts.push(new THREE.Vector3(x, y, z));
+
+  // ── HOOK 1 (front, X = -ε) — straight 45° line into the section ──────────
+  // Inner end is deep inside the section, down-left from TR corner.
+  const h1iY = (cy - r) - hookLen * c;
+  const h1iZ = cz - hookLen * c;
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    push(-epsilon, h1iY + (cy - r - h1iY) * t, h1iZ + (cz - h1iZ) * t);
+  }
+
+  // ── BEND 1 — smooth 135° turn at TR corner; X transitions from -ε to 0 ──
+  // Cubic Bezier: hook tangent (c, c) → top-edge tangent (0, -1) in YZ plane.
+  // Control points extend tangents outward from the rectangle corner (cy, cz).
+  {
+    const P0 = [-epsilon, cy - r, cz];
+    const C1 = [-epsilon * 0.4, cy - r + r * c * 1.0, cz + r * c * 0.5];
+    const C2 = [0, cy + r * 0.05, cz];
+    const P3 = [0, cy, cz - r];
+    const N = 28;
+    for (let i = 1; i <= N; i++) {
+      const t = i / N;
+      const omt = 1 - t;
+      const px = omt * omt * omt * P0[0] + 3 * omt * omt * t * C1[0] + 3 * omt * t * t * C2[0] + t * t * t * P3[0];
+      const py = omt * omt * omt * P0[1] + 3 * omt * omt * t * C1[1] + 3 * omt * t * t * C2[1] + t * t * t * P3[1];
+      const pz = omt * omt * omt * P0[2] + 3 * omt * omt * t * C1[2] + 3 * omt * t * t * C2[2] + t * t * t * P3[2];
+      push(px, py, pz);
+    }
+  }
+
+  // ── TOP EDGE (X = 0) ─────────────────────────────────────────────────────
+  for (let i = 1; i <= 40; i++) {
+    const t = i / 40;
+    push(0, cy, (cz - r) - 2 * (cz - r) * t);
+  }
+
+  // ── TL CORNER (90° quad-bezier with control at the geometric corner) ─────
+  {
+    const P0 = [0, cy, -cz + r];
+    const C  = [0, cy, -cz];
+    const P2 = [0, cy - r, -cz];
+    const N = 20;
+    for (let i = 1; i <= N; i++) {
+      const t = i / N;
+      const omt = 1 - t;
+      const py = omt * omt * P0[1] + 2 * omt * t * C[1] + t * t * P2[1];
+      const pz = omt * omt * P0[2] + 2 * omt * t * C[2] + t * t * P2[2];
+      push(0, py, pz);
+    }
+  }
+
+  // ── LEFT EDGE ────────────────────────────────────────────────────────────
+  for (let i = 1; i <= 60; i++) {
+    const t = i / 60;
+    push(0, (cy - r) - 2 * (cy - r) * t, -cz);
+  }
+
+  // ── BL CORNER ────────────────────────────────────────────────────────────
+  {
+    const P0 = [0, -cy + r, -cz];
+    const C  = [0, -cy, -cz];
+    const P2 = [0, -cy, -cz + r];
+    const N = 20;
+    for (let i = 1; i <= N; i++) {
+      const t = i / N;
+      const omt = 1 - t;
+      const py = omt * omt * P0[1] + 2 * omt * t * C[1] + t * t * P2[1];
+      const pz = omt * omt * P0[2] + 2 * omt * t * C[2] + t * t * P2[2];
+      push(0, py, pz);
+    }
+  }
+
+  // ── BOTTOM EDGE ──────────────────────────────────────────────────────────
+  for (let i = 1; i <= 40; i++) {
+    const t = i / 40;
+    push(0, -cy, (-cz + r) + 2 * (cz - r) * t);
+  }
+
+  // ── BR CORNER ────────────────────────────────────────────────────────────
+  {
+    const P0 = [0, -cy, cz - r];
+    const C  = [0, -cy, cz];
+    const P2 = [0, -cy + r, cz];
+    const N = 20;
+    for (let i = 1; i <= N; i++) {
+      const t = i / N;
+      const omt = 1 - t;
+      const py = omt * omt * P0[1] + 2 * omt * t * C[1] + t * t * P2[1];
+      const pz = omt * omt * P0[2] + 2 * omt * t * C[2] + t * t * P2[2];
+      push(0, py, pz);
+    }
+  }
+
+  // ── RIGHT EDGE ───────────────────────────────────────────────────────────
+  for (let i = 1; i <= 60; i++) {
+    const t = i / 60;
+    push(0, (-cy + r) + 2 * (cy - r) * t, cz);
+  }
+
+  // ── BEND 2 — smooth 135° turn at TR corner; X transitions from 0 to +ε ──
+  // Right-edge tangent (0, +1) → hook2 tangent (-c, -c) in YZ plane.
+  {
+    const P0 = [0, cy - r, cz];
+    const C1 = [epsilon * 0.4, cy - r + r * c * 1.0, cz];
+    const C2 = [epsilon, cy - r + r * c * 0.5, cz - r * c * 0.5];
+    const P3 = [epsilon, cy - r - hookLen * c * 0.05, cz - hookLen * c * 0.05];   // start of hook2
+    const N = 28;
+    for (let i = 1; i <= N; i++) {
+      const t = i / N;
+      const omt = 1 - t;
+      const px = omt * omt * omt * P0[0] + 3 * omt * omt * t * C1[0] + 3 * omt * t * t * C2[0] + t * t * t * P3[0];
+      const py = omt * omt * omt * P0[1] + 3 * omt * omt * t * C1[1] + 3 * omt * t * t * C2[1] + t * t * t * P3[1];
+      const pz = omt * omt * omt * P0[2] + 3 * omt * omt * t * C1[2] + 3 * omt * t * t * C2[2] + t * t * t * P3[2];
+      push(px, py, pz);
+    }
+  }
+
+  // ── HOOK 2 (back, X = +ε) — straight 45° line into the section ──────────
+  const h2iY = (cy - r) - hookLen * c;
+  const h2iZ = cz - hookLen * c;
+  for (let i = 1; i <= 20; i++) {
+    const t = i / 20;
+    push(epsilon, (cy - r) + (h2iY - (cy - r)) * t, cz + (h2iZ - cz) * t);
+  }
+
+  return pts;
+}
+
+function OneStirrup({ x, bw, h, cover, stirrupDb, ribsTexture }: {
+  x: number; bw: number; h: number; cover: number; stirrupDb: number;
+  ribsTexture: THREE.CanvasTexture | null;
+}) {
+  // Stirrup centerline rectangle in YZ plane (cross-section plane of the beam).
+  const cz = bw / 2 - cover - stirrupDb / 2;
+  const cy = h / 2 - cover - stirrupDb / 2;
+  // Inside bend radius ≥ 4·db (§25.3.2.1 Table); centerline radius = inside + db/2 ≈ 2.5·db
+  const r = Math.min(2.5 * stirrupDb, Math.min(cy, cz) * 0.4);
+  const visRadius = (stirrupDb / 2) * 1.65;
+
+  const tubeGeom = useMemo(() => {
+    const pts = buildContinuousStirrupPath(cy, cz, r, stirrupDb);
+    const curve = new PolylineCurve(pts);
+    // 480 segments along the path = ~1 segment per pt; 12 radial = smooth tube
+    return new THREE.TubeGeometry(curve, 480, visRadius, 12, false);
+  }, [cy, cz, r, visRadius, stirrupDb]);
+
+  return (
+    <group position={[x, 0, 0]}>
+      <mesh geometry={tubeGeom} castShadow>
+        <meshStandardMaterial
+          color="#5aa86c"
+          roughness={0.55} metalness={0.75}
+          normalMap={ribsTexture ?? undefined}
+          normalScale={ribsTexture ? new THREE.Vector2(0.8, 0.8) : undefined}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// ============================================================================
+// Stirrups (multiple realistic stirrups along beam length)
 // ============================================================================
 function Stirrups({ input, bw, h, L, cover }: {
   input: BeamInput; bw: number; h: number; L: number; cover: number;
 }) {
   const stirrupDb = (lookupBar(input.reinforcement.stirrup.bar)?.db ?? 10) * MM_TO_M;
   const sSpacing = input.reinforcement.stirrup.spacing * MM_TO_M;
-  const innerW = bw - 2 * cover;
-  const innerH = h - 2 * cover;
-
-  // Number of stirrups along the beam
   const nStirrups = Math.max(2, Math.floor(L / sSpacing) + 1);
+
+  // One shared rib normal map for ALL stirrups in this beam
+  const ribsTexture = useMemo(() => makeRebarNormalMap(), []);
+
   const stirrups = useMemo(() => {
     const items: React.ReactElement[] = [];
     const startX = -L / 2 + cover;
     for (let i = 0; i < nStirrups; i++) {
       const xPos = startX + i * sSpacing;
       if (xPos > L / 2 - cover) break;
-      // Render stirrup as 4 thin rods forming a rectangle
-      // Top
       items.push(
-        <mesh key={`top-${i}`} position={[xPos, h / 2 - cover - stirrupDb / 2, 0]} castShadow>
-          <boxGeometry args={[stirrupDb, stirrupDb, innerW]} />
-          <meshStandardMaterial color="#5fb674" roughness={0.55} metalness={0.85} />
-        </mesh>
-      );
-      // Bottom
-      items.push(
-        <mesh key={`bot-${i}`} position={[xPos, -h / 2 + cover + stirrupDb / 2, 0]} castShadow>
-          <boxGeometry args={[stirrupDb, stirrupDb, innerW]} />
-          <meshStandardMaterial color="#5fb674" roughness={0.55} metalness={0.85} />
-        </mesh>
-      );
-      // Left side
-      items.push(
-        <mesh key={`L-${i}`} position={[xPos, 0, -innerW / 2 + stirrupDb / 2]} castShadow>
-          <boxGeometry args={[stirrupDb, innerH, stirrupDb]} />
-          <meshStandardMaterial color="#5fb674" roughness={0.55} metalness={0.85} />
-        </mesh>
-      );
-      // Right side
-      items.push(
-        <mesh key={`R-${i}`} position={[xPos, 0, innerW / 2 - stirrupDb / 2]} castShadow>
-          <boxGeometry args={[stirrupDb, innerH, stirrupDb]} />
-          <meshStandardMaterial color="#5fb674" roughness={0.55} metalness={0.85} />
-        </mesh>
+        <OneStirrup key={`s-${i}`} x={xPos} bw={bw} h={h} cover={cover}
+          stirrupDb={stirrupDb} ribsTexture={ribsTexture} />
       );
     }
     return items;
-  }, [bw, h, L, cover, sSpacing, stirrupDb, nStirrups, innerW, innerH]);
+  }, [bw, h, L, cover, sSpacing, stirrupDb, nStirrups, ribsTexture]);
 
   return <group>{stirrups}</group>;
 }
 
 // ============================================================================
-// Load arrows (UDL representation)
+// Load arrows (UDL representation) — placed entirely ABOVE the beam top face,
+// arrowhead tip touching the concrete (not piercing it).
 // ============================================================================
 function LoadArrows({ L, h }: { L: number; h: number }) {
   const arrows = useMemo(() => {
@@ -274,19 +536,32 @@ function LoadArrows({ L, h }: { L: number; h: number }) {
     const n = 9;
     const startX = -L / 2 + L * 0.1;
     const span = L * 0.8;
+    const topY = h / 2;          // beam top face
+    const headHeight = 0.08;     // cone height
+    const stemLen = 0.40;        // stem length
+
+    // Arrowhead: tip at topY (just above), base at topY + headHeight
+    // ConeGeometry default points +Y. Rotation [Math.PI, 0, 0] flips it to point -Y.
+    // After rotation, cone's tip is at -headHeight/2 from cone center.
+    // To put tip exactly at topY, cone center must be at topY + headHeight/2.
+    const headCenterY = topY + headHeight / 2 + 0.005;     // tiny offset to avoid z-fighting
+    // Stem: cylinder extends UP from arrowhead base. Base at headCenterY + headHeight/2.
+    const stemBottomY = headCenterY + headHeight / 2;
+    const stemCenterY = stemBottomY + stemLen / 2;
+
     for (let i = 0; i <= n; i++) {
       const x = startX + (i / n) * span;
       items.push(
-        <group key={i} position={[x, h / 2 + 0.3, 0]}>
-          {/* Arrow stem */}
-          <mesh position={[0, -0.2, 0]} castShadow>
-            <cylinderGeometry args={[0.005, 0.005, 0.4, 8]} />
-            <meshStandardMaterial color="#c94c4c" emissive="#c94c4c" emissiveIntensity={0.4} />
+        <group key={i}>
+          {/* Stem (cylinder, vertical) */}
+          <mesh position={[x, stemCenterY, 0]} castShadow>
+            <cylinderGeometry args={[0.006, 0.006, stemLen, 10]} />
+            <meshStandardMaterial color="#e25b5b" emissive="#c94c4c" emissiveIntensity={0.5} />
           </mesh>
-          {/* Arrowhead */}
-          <mesh position={[0, -0.4, 0]} rotation={[Math.PI, 0, 0]} castShadow>
-            <coneGeometry args={[0.02, 0.08, 12]} />
-            <meshStandardMaterial color="#c94c4c" emissive="#c94c4c" emissiveIntensity={0.4} />
+          {/* Arrowhead (cone pointing down) */}
+          <mesh position={[x, headCenterY, 0]} rotation={[Math.PI, 0, 0]} castShadow>
+            <coneGeometry args={[0.022, headHeight, 14]} />
+            <meshStandardMaterial color="#e25b5b" emissive="#c94c4c" emissiveIntensity={0.6} />
           </mesh>
         </group>
       );

@@ -8,8 +8,8 @@
  * Run:   npx tsx tests/rc-qc.ts
  */
 
-import { analyze, computeBeta1, computeEc, computeFr, phiFromStrain, xiFromMonths } from '../src/lib/rc/solver';
-import type { BeamInput } from '../src/lib/rc/types';
+import { analyze, analyzeEnvelope, resolveStations, checkDetailing, computeBeta1, computeEc, computeFr, phiFromStrain, xiFromMonths } from '../src/lib/rc/solver';
+import type { BeamInput, BeamEnvelopeInput } from '../src/lib/rc/types';
 
 let pass = 0, fail = 0;
 const failures: string[] = [];
@@ -272,6 +272,7 @@ block('Sanity: well-designed beam passes all checks', () => {
     materials: { fc: 28, fy: 420 },
     reinforcement: {
       tension: [{ bar: '#9', count: 4 }],     // 2580 mm²
+      compression: [{ bar: '#4', count: 2 }], // hanger bars per §9.7.6.4 / Wight §5-3
       stirrup: { bar: '#3', legs: 2, spacing: 200 },
     },
     loads: { Mu: 200, Vu: 100, Ma: 130, M_DL: 80, M_LL: 50 },
@@ -280,6 +281,7 @@ block('Sanity: well-designed beam passes all checks', () => {
   check('flexure OK', r.flexure.ok);
   check('shear OK', r.shear.ok);
   check('crack control OK', r.crack.ok);
+  check('detailing OK', r.detailing.ok);
   check('overall OK', r.ok);
 });
 
@@ -332,6 +334,439 @@ block('T-beam, NA in flange (bf=600, hf=120, bw=300, 4#9)', () => {
   near('a (NA in flange, b=bf)', r.flexure.a, 75.9, 0.02);
   near('c', r.flexure.c, 89.3, 0.02);
   near('Mn', r.flexure.Mn, 543.8, 0.02);
+});
+
+// ============================================================================
+// ENVELOPE — multi-section design (Phase 1)
+// ============================================================================
+
+block('Envelope: simply-supported UDL only — Mu(x), Vu(x) closed form', () => {
+  // SS beam, L=6 m, wu=60 kN/m, no point loads
+  // M_max = w·L²/8 = 60·36/8 = 270 kN·m at x=L/2
+  // V_max = w·L/2 = 180 kN at supports, V=0 at midspan
+  const stations = resolveStations(
+    { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 11 },
+    6000,
+  );
+  const mid = stations.find((s) => Math.abs(s.x - 3000) < 1)!;
+  const left = stations[0];
+  const right = stations[stations.length - 1];
+  near('Mu at midspan (kN·m)', mid.Mu, 270, 0.001);
+  near('Vu at left support (kN)', left.Vu, 180, 0.001);
+  near('Vu at right support (kN)', right.Vu, 180, 0.001);
+  near('Vu at midspan (kN)', mid.Vu, 0, 0.001);
+  near('Mu at supports (kN·m)', left.Mu, 0, 0.001);
+});
+
+block('Envelope: SS UDL + midspan point load', () => {
+  // L=6 m, wu=40 kN/m, P=60 kN at x=3 m
+  // R_A = R_B = 40·6/2 + 60/2 = 150 kN
+  // M(L/2) = 40·6²/8 + 60·6/4 = 180 + 90 = 270 kN·m
+  // V at left (just inside) = 150 kN
+  // V just left of midspan = 150 - 40·3 = 30 kN
+  // V just right of midspan = 30 - 60 = -30 kN  (|V|=30)
+  const stations = resolveStations(
+    { kind: 'simply-supported', udl: { wu: 40 }, point: [{ x: 3000, Pu: 60 }], nStations: 21 },
+    6000,
+  );
+  const left = stations[0];
+  near('R_A reaction proxy via V(0)', left.Vu, 150, 0.001);
+  // Find a station at x=2999 to be JUST left of P; resolveStations injects x=3000 explicitly
+  // Find the entry exactly at x=3000 — there will be 2 (one from grid, one from injection)
+  const allAt3000 = stations.filter((s) => Math.abs(s.x - 3000) < 1e-6);
+  check('At least one station at x=3000', allAt3000.length >= 1);
+  const mid = allAt3000[0];
+  near('Mu at midspan (kN·m)', mid.Mu, 270, 0.001);
+});
+
+block('Envelope: manual stations passthrough', () => {
+  const stations = resolveStations(
+    {
+      kind: 'manual',
+      stations: [
+        { x: 0, Mu: 0, Vu: 200 },
+        { x: 3000, Mu: 350, Vu: 0 },
+        { x: 6000, Mu: 0, Vu: 200 },
+      ],
+    },
+    6000,
+  );
+  check('3 stations passed through', stations.length === 3);
+  near('Mu midspan', stations[1].Mu, 350, 0.001);
+});
+
+block('Envelope analysis: SS UDL — flexure & shear pass at every station', () => {
+  // Use a less-aggressive limit category so deflection doesn't dominate the test
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0, Ma: 230, M_DL: 140, M_LL: 90, deflectionLimitCategory: 'floor-no-attached' },
+  };
+  const r = analyzeEnvelope(input);
+  check('solver completed', r.solved);
+  check('21+ stations', r.stations.length >= 21);
+  check('every station passes flexure (ratio ≤ 1)', r.stations.every((s) => s.flexureRatio <= 1));
+  check('every station passes shear (ratio ≤ 1)', r.stations.every((s) => s.shearRatio <= 1));
+  check('governing kind is flexure or shear (well-designed)', r.governing.kind === 'flexure' || r.governing.kind === 'shear');
+  near('worst flexure ratio matches Mu_max/φMn', r.maxFlexureRatio, 270 / r.flexureWorst.phiMn, 0.05);
+});
+
+block('Envelope analysis: SS UDL — under-reinforced fails at midspan', () => {
+  // Same beam but 2#9 instead of 4 — should fail flexure at midspan
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0, Ma: 230, M_DL: 140, M_LL: 90, deflectionLimitCategory: 'floor-attached-likely-damage' },
+  };
+  const r = analyzeEnvelope(input);
+  check('solver completed', r.solved);
+  check('overall fails', !r.ok);
+  // Could govern as flexure OR deflection (under-reinforced beams crack badly).
+  check('governing is flexure or deflection', r.governing.kind === 'flexure' || r.governing.kind === 'deflection');
+  check('worst x is near midspan', Math.abs(r.governing.x - 3000) < 50);
+  check('action message in EN', r.governing.actionEn !== undefined && r.governing.actionEn.length > 0);
+  check('action message in ES', r.governing.actionEs !== undefined && r.governing.actionEs.length > 0);
+});
+
+block('Envelope analysis: SS UDL — under-stirruped fails at supports (shear)', () => {
+  // High UDL, sparse stirrups → shear governs near supports
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 5 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 600 },   // very wide spacing → low Vs
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 200 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0 },
+  };
+  const r = analyzeEnvelope(input);
+  check('solver completed', r.solved);
+  check('overall fails', !r.ok);
+  // Worst shear is at the supports (x=0 or x=L)
+  const worstShr = r.stations.reduce((a, b) => (b.shearRatio > a.shearRatio ? b : a));
+  check('worst shear at a support', worstShr.x < 100 || worstShr.x > 5900);
+});
+
+block('Envelope analysis: manual mode reproduces single-section result', () => {
+  // If we pass exactly one station at x=midspan, the worst-station capacity should
+  // match a single analyze() call with the same Mu, Vu.
+  const baseInput: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 270, Vu: 180, Ma: 200, M_DL: 130, M_LL: 70, deflectionLimitCategory: 'floor-attached-likely-damage' },
+  };
+  const single = analyze(baseInput);
+  const env = analyzeEnvelope({
+    ...baseInput,
+    demand: {
+      kind: 'manual',
+      stations: [
+        { x: 0, Mu: 0, Vu: 180 },
+        { x: 3000, Mu: 270, Vu: 0 },
+        { x: 6000, Mu: 0, Vu: 180 },
+      ],
+    },
+  });
+  near('worst flexure phiMn matches single-section', env.flexureWorst.phiMn, single.flexure.phiMn, 0.001);
+  near('worst shear phiVn matches single-section', env.shearWorst.phiVn, single.shear.phiVn, 0.001);
+});
+
+block('Envelope analysis: governing narrative is bilingual', () => {
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 11 },
+    loads: { Mu: 0, Vu: 0 },
+  };
+  const r = analyzeEnvelope(input);
+  check('English narrative non-empty', r.governing.narrativeEn.length > 10);
+  check('Spanish narrative non-empty', r.governing.narrativeEs.length > 10);
+  check('English mentions ratio %', /\d+\.\d+%/.test(r.governing.narrativeEn));
+});
+
+block('Envelope analysis: ratios increase quadratically with UDL (sanity)', () => {
+  const make = (wu: number) => analyzeEnvelope({
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420 },
+    reinforcement: { tension: [{ bar: '#9', count: 4 }], stirrup: { bar: '#3', legs: 2, spacing: 200 } },
+    demand: { kind: 'simply-supported', udl: { wu }, point: [], nStations: 11 },
+    loads: { Mu: 0, Vu: 0 },
+  });
+  const r1 = make(40);
+  const r2 = make(80);
+  // Mu_max scales linearly with w. ratio also scales linearly (capacity is constant).
+  near('flexure ratio doubles when w doubles', r2.maxFlexureRatio / r1.maxFlexureRatio, 2.0, 0.05);
+  near('shear ratio doubles when w doubles', r2.maxShearRatio / r1.maxShearRatio, 2.0, 0.05);
+});
+
+// ============================================================================
+// DETAILING — Code-mandated rules (ACI 318-25)
+// ============================================================================
+//
+// Tests cover the 8 sub-checks added in Phase 2:
+//   1. Cover §20.5.1.3 (interior, exterior, cast-against-ground)
+//   2. Bar fit in one row (Wight Eq 5-25 + §25.2.1)
+//   3. Bar clear spacing §25.2.1
+//   4. Hanger bars (Wight §5-3 — practical)
+//   5. Skin reinforcement §9.7.2.3 (h > 900 mm)
+//   6. Stirrup min size §25.7.2.2
+//   7. Stirrup leg spacing across width §9.7.6.2.2
+//   8. Compression bar lateral support §9.7.6.4
+//
+// Each test uses a typical 300×600 beam unless otherwise noted.
+
+function baseBeam(over: Partial<BeamInput> = {}): BeamInput {
+  return {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 200, Vu: 100 },
+    ...over,
+  };
+}
+
+block('Detailing: well-designed beam — all 8 checks pass', () => {
+  const r = checkDetailing(baseBeam());
+  check('cover OK', r.cover.ok);
+  check('barFit OK', r.barFit.ok);
+  check('barSpacing OK', r.barSpacing.ok);
+  check('hangerBars OK', r.hangerBars.ok);
+  check('skinReinf OK (h≤900)', r.skinReinf.ok);
+  check('stirrupSize OK', r.stirrupSize.ok);
+  check('stirrupLegSpacing OK', r.stirrupLegSpacing.ok);
+  check('compressionLateral OK', r.compressionLateral.ok);
+  check('overall detailing OK', r.ok);
+});
+
+block('Detailing CHECK 1 — cover §20.5.1.3', () => {
+  // Interior: min 40 mm. With 40 → pass; with 30 → fail.
+  const ok = checkDetailing(baseBeam({ geometry: { ...baseBeam().geometry, coverClear: 40 } }));
+  check('interior 40 mm passes', ok.cover.ok);
+  const bad = checkDetailing(baseBeam({ geometry: { ...baseBeam().geometry, coverClear: 30 } }));
+  check('interior 30 mm fails', !bad.cover.ok);
+  // Exterior: min 50 mm. With 40 → fails.
+  const ext = checkDetailing(baseBeam({
+    geometry: { ...baseBeam().geometry, coverClear: 40 },
+    materials: { ...baseBeam().materials, exposure: 'exterior' },
+  }));
+  check('exterior 40 mm fails (need 50)', !ext.cover.ok);
+  const extOk = checkDetailing(baseBeam({
+    geometry: { ...baseBeam().geometry, coverClear: 50 },
+    materials: { ...baseBeam().materials, exposure: 'exterior' },
+  }));
+  check('exterior 50 mm passes', extOk.cover.ok);
+  // Cast-against-ground: min 75 mm.
+  const gnd = checkDetailing(baseBeam({
+    geometry: { ...baseBeam().geometry, coverClear: 50 },
+    materials: { ...baseBeam().materials, exposure: 'cast-against-ground' },
+  }));
+  check('cast-against-ground 50 mm fails (need 75)', !gnd.cover.ok);
+});
+
+block('Detailing CHECK 2 — bar fit (Wight Eq 5-25)', () => {
+  // 300 mm wide beam with 8 #9 bars: doesn't fit
+  const tight = checkDetailing(baseBeam({
+    reinforcement: {
+      ...baseBeam().reinforcement,
+      tension: [{ bar: '#9', count: 8 }],
+    },
+  }));
+  check('8#9 in 300mm beam does NOT fit in one row', !tight.barFit.ok);
+  // 4 #9 → fits
+  const fits = checkDetailing(baseBeam({
+    reinforcement: {
+      ...baseBeam().reinforcement,
+      tension: [{ bar: '#9', count: 4 }],
+    },
+  }));
+  check('4#9 in 300mm beam fits', fits.barFit.ok);
+});
+
+block('Detailing CHECK 3 — bar clear spacing §25.2.1', () => {
+  // Standard test: 4 #9 in 300 mm → spacing should be ≥ max(25, 28.7, 4/3·19=25.3) = 28.7
+  // Available = 300 - 2·40 - 2·9.5 = 201 mm. Bar widths = 4·28.7 = 114.8. Free space = 86.2 mm.
+  // Clear spacing = 86.2/3 = 28.7 mm. Required = 28.7 mm → just at boundary, should pass.
+  const r = checkDetailing(baseBeam());
+  check('4#9 in 300mm meets §25.2.1 spacing', r.barSpacing.ok);
+  // 5 #9 in 300mm → spacing < required → fail
+  const tight = checkDetailing(baseBeam({
+    geometry: { ...baseBeam().geometry, bw: 300 },
+    reinforcement: {
+      ...baseBeam().reinforcement,
+      tension: [{ bar: '#9', count: 5 }],
+    },
+  }));
+  // 5 bars: required width = 5·28.7 + 4·28.7 = 9·28.7 = 258.3 mm > 201 mm available → barFit fails first
+  // barSpacing becomes informational for multi-row case
+  check('5#9 in 300mm: rowsNeeded > 1 (informational spacing)', !tight.barFit.ok);
+});
+
+block('Detailing CHECK 4 — hanger bars (Wight §5-3)', () => {
+  const noTop = checkDetailing(baseBeam({
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+  }));
+  check('beam without top bars fails', !noTop.hangerBars.ok);
+  const oneBar = checkDetailing(baseBeam({
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 1 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+  }));
+  check('beam with only 1 top bar fails', !oneBar.hangerBars.ok);
+  const twoBar = checkDetailing(baseBeam({
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+  }));
+  check('beam with 2 top hanger bars passes', twoBar.hangerBars.ok);
+});
+
+block('Detailing CHECK 5 — skin reinforcement §9.7.2.3 (h > 900)', () => {
+  // h = 600 → not required → informational pass
+  const small = checkDetailing(baseBeam());
+  check('h=600 → skin not required', small.skinReinf.ok);
+  // h = 1000 with no skin → fails
+  const deepNoSkin = checkDetailing(baseBeam({
+    geometry: { ...baseBeam().geometry, h: 1000, d: 920 },
+  }));
+  check('h=1000 with no skin → fails', !deepNoSkin.skinReinf.ok);
+  // h = 1000 with skin → passes
+  const deepWithSkin = checkDetailing(baseBeam({
+    geometry: { ...baseBeam().geometry, h: 1000, d: 920 },
+    reinforcement: {
+      ...baseBeam().reinforcement,
+      skin: { bar: '#4', countPerFace: 4 },
+    },
+  }));
+  check('h=1000 with 4 skin bars/face → passes', deepWithSkin.skinReinf.ok);
+});
+
+block('Detailing CHECK 6 — stirrup min size §25.7.2.2', () => {
+  // #9 longitudinal + #3 stirrup → OK
+  const ok = checkDetailing(baseBeam());
+  check('#3 stirrup with #9 longit OK', ok.stirrupSize.ok);
+  // #14 longitudinal + #3 stirrup → fails (need #4)
+  const big = checkDetailing(baseBeam({
+    reinforcement: {
+      ...baseBeam().reinforcement,
+      tension: [{ bar: '#14', count: 2 }],
+    },
+  }));
+  check('#3 stirrup with #14 longit fails', !big.stirrupSize.ok);
+  // #14 longitudinal + #4 stirrup → passes
+  const bigOk = checkDetailing(baseBeam({
+    reinforcement: {
+      ...baseBeam().reinforcement,
+      tension: [{ bar: '#14', count: 2 }],
+      stirrup: { bar: '#4', legs: 2, spacing: 200 },
+    },
+  }));
+  check('#4 stirrup with #14 longit passes', bigOk.stirrupSize.ok);
+});
+
+block('Detailing CHECK 7 — stirrup leg spacing across width §9.7.6.2.2', () => {
+  // Wide beam with only 2 legs may exceed leg spacing limit
+  const wide = checkDetailing(baseBeam({
+    geometry: { ...baseBeam().geometry, bw: 800 },
+    loads: { Mu: 200, Vu: 50 },     // low Vu so threshold is d=540 (lesser of d, 600)
+  }));
+  // Inner span = 800 - 2·40 - 2·9.5 = 701 mm (with 2 legs).
+  // Limit (low Vs) = min(540, 600) = 540 mm. 701 > 540 → fails
+  check('800mm wide with 2 legs fails leg spacing', !wide.stirrupLegSpacing.ok);
+  // Same beam with 4 legs → 701/3 = 234 mm < 540 → passes
+  const wide4legs = checkDetailing(baseBeam({
+    geometry: { ...baseBeam().geometry, bw: 800 },
+    reinforcement: {
+      ...baseBeam().reinforcement,
+      stirrup: { bar: '#3', legs: 4, spacing: 200 },
+    },
+    loads: { Mu: 200, Vu: 50 },
+  }));
+  check('800mm wide with 4 legs passes', wide4legs.stirrupLegSpacing.ok);
+});
+
+block('Detailing CHECK 8 — compression bar lateral support §9.7.6.4', () => {
+  // No compression bars → informational pass
+  const noComp = checkDetailing(baseBeam({
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],   // Add hangers so other checks pass
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+  }));
+  check('with hanger compression bars, lateral support OK', noComp.compressionLateral.ok);
+});
+
+block('Detailing: integration — well-designed deep beam (h=1100, with skin)', () => {
+  const r = checkDetailing({
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 500, h: 1100, d: 1020, dPrime: 50, L: 9000, coverClear: 50 },
+    materials: { fc: 35, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#10', count: 6 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#4', legs: 2, spacing: 200 },
+      skin: { bar: '#4', countPerFace: 4 },
+    },
+    loads: { Mu: 1200, Vu: 500 },
+  });
+  check('deep beam with skin reinforcement passes detailing', r.ok);
+});
+
+block('Detailing: bilingual narratives populated', () => {
+  const ok = checkDetailing(baseBeam());
+  check('passing narrative EN', ok.narrativeEn.includes('Detailing OK'));
+  check('passing narrative ES', ok.narrativeEs.includes('Detallado OK'));
+  const fail = checkDetailing(baseBeam({
+    reinforcement: { tension: [{ bar: '#9', count: 4 }], stirrup: { bar: '#3', legs: 2, spacing: 200 } },
+  }));
+  check('failing narrative EN', fail.narrativeEn.includes('issues'));
+  check('failing narrative ES', fail.narrativeEs.includes('Problemas'));
+});
+
+block('Detailing: analyze() output includes detailing', () => {
+  const r = analyze(baseBeam());
+  check('detailing present', !!r.detailing);
+  check('detailing.ok present', typeof r.detailing.ok === 'boolean');
+  check('detailing has all 8 sub-checks', !!(r.detailing.cover && r.detailing.barFit && r.detailing.barSpacing
+    && r.detailing.hangerBars && r.detailing.skinReinf && r.detailing.stirrupSize
+    && r.detailing.stirrupLegSpacing && r.detailing.compressionLateral));
 });
 
 // ============================================================================

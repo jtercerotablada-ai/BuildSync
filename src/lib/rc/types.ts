@@ -63,6 +63,10 @@ export interface Materials {
   gammaC?: number;
   /** Concrete λ factor (ACI §19.2.4): 1.0 normal, 0.75 sand-LW, 0.85 LW. */
   lambdaC?: number;
+  /** Maximum aggregate size dagg (mm). Default 19 (3/4"). Used for §25.2.1 spacing. */
+  aggSize?: number;
+  /** Exposure category (drives min cover §20.5.1.3). Default 'interior'. */
+  exposure?: 'interior' | 'exterior' | 'cast-against-ground';
 }
 
 // ============================================================================
@@ -87,12 +91,16 @@ export interface StirrupConfig {
 export interface Reinforcement {
   /** Tension steel — array of bar groups (e.g. [{bar:"#9", count:3}]). */
   tension: BarGroup[];
-  /** Compression steel (doubly reinforced) — optional. */
+  /** Compression / top steel — optional. Used both for doubly-reinforced flexure
+   *  AND as required hanger reinforcement to support stirrups (practical detailing). */
   compression?: BarGroup[];
   /** Stirrups (transverse reinforcement). */
   stirrup: StirrupConfig;
   /** Number of rows of tension bars. Default 1. Used to estimate d when not specified. */
   tensionRows?: number;
+  /** Skin reinforcement on side faces (ACI §9.7.2.3, required for h > 900 mm).
+   *  Each face gets `count` bars, spaced uniformly over h/2 from tension face. */
+  skin?: { bar: string; countPerFace: number };
 }
 
 // ============================================================================
@@ -124,6 +132,126 @@ export type DeflectionLimitCategory =
   | 'floor-no-attached'
   | 'floor-attached-not-likely'
   | 'floor-attached-likely-damage';
+
+// ============================================================================
+// Envelope inputs (Phase 1: simply-supported with UDL + point loads, or manual)
+// ============================================================================
+
+export type LoadModel = 'manual' | 'simply-supported';
+
+export interface UDL {
+  /** Factored uniform load wu (kN/m). Includes self-weight if you choose. */
+  wu: number;
+  /** Service UDL ws (kN/m) — for serviceability if you want envelope deflections later. */
+  ws?: number;
+}
+
+export interface PointLoad {
+  /** Position from left support (mm). */
+  x: number;
+  /** Factored load Pu (kN). */
+  Pu: number;
+  /** Service load Ps (kN) — optional. */
+  Ps?: number;
+}
+
+export interface ManualStation {
+  /** Position from left support (mm). */
+  x: number;
+  /** Factored moment Mu at this station (kN·m). + tension at bottom. */
+  Mu: number;
+  /** Factored shear Vu at this station (kN). */
+  Vu: number;
+}
+
+/** Demand source: how to derive Mu(x), Vu(x). */
+export type DemandSource =
+  | { kind: 'simply-supported'; udl?: UDL; point: PointLoad[]; nStations?: number }
+  | { kind: 'manual'; stations: ManualStation[] };
+
+export interface BeamEnvelopeInput {
+  code: Code;
+  method: DesignMethod;
+  geometry: Geometry;
+  materials: Materials;
+  reinforcement: Reinforcement;
+  /** Demand source (replaces Loads.Mu/Vu single-point for envelope mode). */
+  demand: DemandSource;
+  /** Loads block kept for serviceability (Ma, M_DL, M_LL, deflectionLimitCategory). */
+  loads: Loads;
+  branding?: ReportBranding;
+}
+
+// ============================================================================
+// Envelope outputs
+// ============================================================================
+export interface StationResult {
+  /** Position from left support (mm). */
+  x: number;
+  /** Factored moment Mu (kN·m). */
+  Mu: number;
+  /** Factored shear Vu (kN). */
+  Vu: number;
+  /** Available flexural strength φMn (kN·m). */
+  phiMn: number;
+  /** Available shear strength φVn (kN). */
+  phiVn: number;
+  /** Mu / φMn at this station. */
+  flexureRatio: number;
+  /** Vu / φVn at this station. */
+  shearRatio: number;
+  /** Both flexure & shear pass at this station. */
+  ok: boolean;
+}
+
+export interface GoverningFailure {
+  /** What governs the design (highest ratio across all checks). */
+  kind: 'flexure' | 'shear' | 'deflection' | 'crack' | 'none';
+  /** Position of the worst station (mm). For deflection/crack, set to L/2 (midspan). */
+  x: number;
+  /** Demand at that station (kN·m for flexure, kN for shear). */
+  demand: number;
+  /** Capacity at that station. */
+  capacity: number;
+  /** Worst ratio (max along beam). */
+  ratio: number;
+  /** Bilingual narrative. */
+  narrativeEn: string;
+  narrativeEs: string;
+  /** Suggested action if it fails. */
+  actionEn?: string;
+  actionEs?: string;
+}
+
+export interface EnvelopeAnalysis {
+  /** Echo of inputs (after defaulting). */
+  input: BeamEnvelopeInput;
+  /** Resolved stations. */
+  stations: StationResult[];
+  /** Worst (max) ratios along the beam. */
+  maxFlexureRatio: number;
+  maxShearRatio: number;
+  /** What governs and where. */
+  governing: GoverningFailure;
+  /** Section flexure check — same shape as single-section, evaluated at worst flexure station. */
+  flexureWorst: FlexureCheck;
+  /** Section shear check — evaluated at worst shear station. */
+  shearWorst: ShearCheck;
+  /** Deflection (single-point, uses Loads.Ma). Always present. */
+  deflection: DeflectionCheck;
+  /** Crack control. */
+  crack: CrackControlCheck;
+  /** Detailing checks (code-mandated). */
+  detailing: DetailingCheck;
+  /** Self-weight (kN/m). */
+  selfWeight: number;
+  /** Section type. */
+  sectionType: SectionShape;
+  warnings: string[];
+  /** Overall pass/fail. */
+  ok: boolean;
+  solved: boolean;
+}
 
 // ============================================================================
 // Aggregate input
@@ -275,6 +403,54 @@ export interface CrackControlCheck {
   steps: CalcStep[];
 }
 
+// ============================================================================
+// Detailing checks (code-mandated code-mandated rules)
+// ============================================================================
+
+/** Single sub-check — one ACI provision, pass/fail + bilingual notes. */
+export interface DetailingItem {
+  /** Provision label, e.g. 'Cover §20.5.1.3'. */
+  label: string;
+  /** ACI code reference for the provision. */
+  ref: string;
+  /** Whether this sub-check passes. */
+  ok: boolean;
+  /** Whether this sub-check is just informational (no fail penalty). */
+  informational?: boolean;
+  /** Required value (units in note). Optional. */
+  required?: number;
+  /** Provided value (units in note). Optional. */
+  provided?: number;
+  /** Plain-language English explanation. */
+  noteEn: string;
+  /** Plain-language Spanish explanation. */
+  noteEs: string;
+}
+
+export interface DetailingCheck {
+  /** Min clear concrete cover §20.5.1.3 — driven by exposure. */
+  cover: DetailingItem;
+  /** Bar physically fits in bw with required clear spacing §25.2.1 + Wight Eq 5-25. */
+  barFit: DetailingItem;
+  /** Min clear bar spacing §25.2.1 — max(25mm, db, 4/3·dagg). */
+  barSpacing: DetailingItem;
+  /** Hanger bars (practical) — at least 2 top bars to hold stirrups. */
+  hangerBars: DetailingItem;
+  /** Skin reinforcement required when h > 900 mm §9.7.2.3. */
+  skinReinf: DetailingItem;
+  /** Min stirrup bar size §25.7.2.2 (≥#3 for #11 & smaller longit; ≥#4 for #14, #18). */
+  stirrupSize: DetailingItem;
+  /** Stirrup leg spacing across the width §9.7.6.2.2. */
+  stirrupLegSpacing: DetailingItem;
+  /** Lateral support of compression reinforcement §9.7.6.4 (closed stirrups + size). */
+  compressionLateral: DetailingItem;
+  /** Aggregate ok flag (logical AND of non-informational items). */
+  ok: boolean;
+  /** Bilingual aggregated narrative. */
+  narrativeEn: string;
+  narrativeEs: string;
+}
+
 export interface BeamAnalysis {
   /** Echo of inputs (after defaulting). */
   input: BeamInput;
@@ -286,13 +462,15 @@ export interface BeamAnalysis {
   deflection: DeflectionCheck;
   /** Crack-control check (always present). */
   crack: CrackControlCheck;
+  /** Detailing checks (code-mandated code-mandated rules). */
+  detailing: DetailingCheck;
   /** Self-weight (kN/m). */
   selfWeight: number;
   /** Section type detected. */
   sectionType: SectionShape;
   /** Whether the design is compression-controlled (warning). */
   warnings: string[];
-  /** Overall pass/fail (logical AND of flexure, shear, deflection, crack). */
+  /** Overall pass/fail (logical AND of flexure, shear, deflection, crack, detailing). */
   ok: boolean;
   /** Solver completed without errors. */
   solved: boolean;

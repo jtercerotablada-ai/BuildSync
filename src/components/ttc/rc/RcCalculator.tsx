@@ -2,9 +2,14 @@
 
 import React, { useMemo, useReducer, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { analyze } from '@/lib/rc/solver';
+import { analyze, analyzeEnvelope } from '@/lib/rc/solver';
 import {
   type BeamInput,
+  type BeamAnalysis,
+  type BeamEnvelopeInput,
+  type DemandSource,
+  type PointLoad,
+  type ManualStation,
   type SectionShape,
   type Code,
   type DesignMethod,
@@ -12,9 +17,11 @@ import {
   BAR_CATALOG,
   CONCRETE_PRESETS,
   REBAR_PRESETS,
+  lookupBar,
 } from '@/lib/rc/types';
 import { RcPrintReport } from './RcPrintReport';
 import { RcSection2D } from './RcSection2D';
+import { RcEnvelopeDiagram } from './RcEnvelopeDiagram';
 
 const Rc3D = dynamic(() => import('./Rc3D').then((m) => m.Rc3D), {
   ssr: false, loading: () => <p className="ab-empty">Loading 3D viewer…</p>,
@@ -35,6 +42,8 @@ type Action =
   | { type: 'ADD_TENSION_GROUP' }
   | { type: 'DEL_TENSION_GROUP'; index: number }
   | { type: 'SET_STIRRUP'; patch: Partial<BeamInput['reinforcement']['stirrup']> }
+  | { type: 'SET_COMPRESSION'; list: NonNullable<BeamInput['reinforcement']['compression']> }
+  | { type: 'SET_SKIN'; skin: NonNullable<BeamInput['reinforcement']['skin']> }
   | { type: 'SET_BRANDING'; patch: Partial<NonNullable<BeamInput['branding']>> }
   | { type: 'CLEAR_BRANDING' };
 
@@ -65,6 +74,10 @@ function reducer(state: BeamInput, action: Action): BeamInput {
     }
     case 'SET_STIRRUP':
       return { ...state, reinforcement: { ...state.reinforcement, stirrup: { ...state.reinforcement.stirrup, ...action.patch } } };
+    case 'SET_COMPRESSION':
+      return { ...state, reinforcement: { ...state.reinforcement, compression: action.list } };
+    case 'SET_SKIN':
+      return { ...state, reinforcement: { ...state.reinforcement, skin: action.skin } };
     case 'SET_BRANDING':
       return { ...state, branding: { ...(state.branding ?? {}), ...action.patch } };
     case 'CLEAR_BRANDING': {
@@ -83,10 +96,11 @@ const PRESETS: { label: string; build: () => BeamInput }[] = [
     label: 'Singly Rectangular — b=300, h=600, 4#9 (textbook example)',
     build: () => ({
       code: 'ACI 318-25', method: 'LRFD',
-      geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, L: 6000, coverClear: 40 },
-      materials: { fc: 28, fy: 420, fyt: 420 },
+      geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+      materials: { fc: 28, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
       reinforcement: {
         tension: [{ bar: '#9', count: 4 }],
+        compression: [{ bar: '#4', count: 2 }],   // hanger bars
         stirrup: { bar: '#3', legs: 2, spacing: 200 },
       },
       loads: { Mu: 350, Vu: 200, Ma: 230, M_DL: 140, M_LL: 90, deflectionLimitCategory: 'floor-attached-likely-damage' },
@@ -96,10 +110,11 @@ const PRESETS: { label: string; build: () => BeamInput }[] = [
     label: 'T-Beam — bf=600, hf=120, bw=300, 4#9',
     build: () => ({
       code: 'ACI 318-25', method: 'LRFD',
-      geometry: { shape: 'T-beam', bw: 300, h: 600, d: 540, bf: 600, hf: 120, L: 7000, coverClear: 40 },
-      materials: { fc: 28, fy: 420, fyt: 420 },
+      geometry: { shape: 'T-beam', bw: 300, h: 600, d: 540, bf: 600, hf: 120, dPrime: 50, L: 7000, coverClear: 40 },
+      materials: { fc: 28, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
       reinforcement: {
         tension: [{ bar: '#9', count: 4 }],
+        compression: [{ bar: '#4', count: 2 }],   // hanger bars
         stirrup: { bar: '#3', legs: 2, spacing: 200 },
       },
       loads: { Mu: 400, Vu: 220, Ma: 270, M_DL: 160, M_LL: 110, deflectionLimitCategory: 'floor-attached-likely-damage' },
@@ -110,7 +125,7 @@ const PRESETS: { label: string; build: () => BeamInput }[] = [
     build: () => ({
       code: 'ACI 318-25', method: 'LRFD',
       geometry: { shape: 'rectangular', bw: 300, h: 500, d: 440, dPrime: 60, L: 5500, coverClear: 40 },
-      materials: { fc: 35, fy: 420, fyt: 420 },
+      materials: { fc: 35, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
       reinforcement: {
         tension: [{ bar: '#10', count: 5 }],
         compression: [{ bar: '#7', count: 2 }],
@@ -123,25 +138,103 @@ const PRESETS: { label: string; build: () => BeamInput }[] = [
     label: 'High-strength concrete — fc=42 MPa, b=350, h=700, 5#10',
     build: () => ({
       code: 'ACI 318-25', method: 'LRFD',
-      geometry: { shape: 'rectangular', bw: 350, h: 700, d: 630, L: 8000, coverClear: 40 },
-      materials: { fc: 42, fy: 420, fyt: 420 },
+      geometry: { shape: 'rectangular', bw: 350, h: 700, d: 630, dPrime: 50, L: 8000, coverClear: 40 },
+      materials: { fc: 42, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
       reinforcement: {
         tension: [{ bar: '#10', count: 5 }],
+        compression: [{ bar: '#4', count: 2 }],
         stirrup: { bar: '#4', legs: 2, spacing: 200 },
       },
       loads: { Mu: 700, Vu: 350, Ma: 470, M_DL: 280, M_LL: 190, deflectionLimitCategory: 'floor-attached-likely-damage' },
     }),
   },
+  {
+    label: 'Deep beam (h=1100) — skin reinforcement required',
+    build: () => ({
+      code: 'ACI 318-25', method: 'LRFD',
+      geometry: { shape: 'rectangular', bw: 500, h: 1100, d: 1020, dPrime: 50, L: 9000, coverClear: 50 },
+      materials: { fc: 35, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
+      reinforcement: {
+        tension: [{ bar: '#10', count: 6 }],
+        compression: [{ bar: '#4', count: 2 }],
+        stirrup: { bar: '#4', legs: 2, spacing: 200 },
+        skin: { bar: '#4', countPerFace: 4 },
+      },
+      loads: { Mu: 1200, Vu: 500, Ma: 800, M_DL: 480, M_LL: 320, deflectionLimitCategory: 'floor-attached-likely-damage' },
+    }),
+  },
 ];
+
+// ============================================================================
+// Default demand (simply-supported, derived to roughly match the first preset)
+// ============================================================================
+const DEFAULT_DEMAND: DemandSource = {
+  kind: 'simply-supported',
+  udl: { wu: 60 },
+  point: [{ x: 3000, Pu: 30 }],
+  nStations: 21,
+};
 
 // ============================================================================
 // Component
 // ============================================================================
+type Engine = 'single' | 'envelope';
+type Tab = 'inputs' | 'stations' | 'section' | 'checks' | 'detailing' | 'refs';
+
 export function RcCalculator() {
   const [model, dispatch] = useReducer(reducer, undefined, () => PRESETS[0].build());
-  const [tab, setTab] = useState<'inputs' | 'results' | 'section' | 'checks' | 'refs'>('inputs');
-  const result = useMemo(() => analyze(model), [model]);
+  const [engine, setEngine] = useState<Engine>('envelope');
+  const [demand, setDemand] = useState<DemandSource>(DEFAULT_DEMAND);
+  const [tab, setTab] = useState<Tab>('inputs');
   const [cover3dDataUrl, setCover3dDataUrl] = useState<string | undefined>(undefined);
+
+  // Single-section result (always computed; cheap)
+  const singleResult = useMemo(() => analyze(model), [model]);
+
+  // Envelope result (only when in envelope mode)
+  const envInput: BeamEnvelopeInput = useMemo(() => ({
+    code: model.code,
+    method: model.method,
+    geometry: model.geometry,
+    materials: model.materials,
+    reinforcement: model.reinforcement,
+    demand,
+    loads: model.loads,
+    branding: model.branding,
+  }), [model, demand]);
+  const envResult = useMemo(() => analyzeEnvelope(envInput), [envInput]);
+
+  // The result object the existing tabs (Section, Checks, Results, 3D, Print) consume.
+  // In envelope mode we synthesize a BeamAnalysis from the worst-station checks.
+  const result: BeamAnalysis = useMemo(() => {
+    if (engine === 'single') return singleResult;
+    // Synthesize a BeamInput at the worst station so 3D/Section components show governing case
+    const worstFlexStn = envResult.stations.reduce(
+      (a, b) => (b.flexureRatio > a.flexureRatio ? b : a),
+      envResult.stations[0] ?? { Mu: 0, Vu: 0, x: 0, phiMn: 0, phiVn: 0, flexureRatio: 0, shearRatio: 0, ok: true } as never,
+    );
+    const worstShrStn = envResult.stations.reduce(
+      (a, b) => (b.shearRatio > a.shearRatio ? b : a),
+      envResult.stations[0] ?? { Mu: 0, Vu: 0, x: 0, phiMn: 0, phiVn: 0, flexureRatio: 0, shearRatio: 0, ok: true } as never,
+    );
+    const synthInput: BeamInput = {
+      ...model,
+      loads: { ...model.loads, Mu: Math.abs(worstFlexStn.Mu), Vu: Math.abs(worstShrStn.Vu) },
+    };
+    return {
+      input: synthInput,
+      flexure: envResult.flexureWorst,
+      shear: envResult.shearWorst,
+      deflection: envResult.deflection,
+      crack: envResult.crack,
+      detailing: envResult.detailing,
+      selfWeight: envResult.selfWeight,
+      sectionType: envResult.sectionType,
+      warnings: envResult.warnings,
+      ok: envResult.ok,
+      solved: envResult.solved,
+    };
+  }, [engine, singleResult, envResult, model]);
 
   const handlePrint = () => {
     const canvas = document.querySelector('.rc-3d__canvas canvas') as HTMLCanvasElement | null;
@@ -172,8 +265,31 @@ export function RcCalculator() {
         </div>
       </section>
 
+      {/* Status banner — semáforo with governing-failure narrative (envelope mode) */}
+      {engine === 'envelope' && envResult.solved && (
+        <section className={`rc-status ${envResult.ok ? 'rc-status--pass' : 'rc-status--fail'}`}>
+          <div className="rc-status__icon">{envResult.ok ? '✓' : '✗'}</div>
+          <div className="rc-status__text">
+            <strong>{envResult.governing.narrativeEn}</strong>
+            <span className="rc-status__es">{envResult.governing.narrativeEs}</span>
+            {envResult.governing.actionEn && (
+              <span className="rc-status__action">→ {envResult.governing.actionEn} / {envResult.governing.actionEs}</span>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Top bar */}
       <section className="ab-section ab-topbar">
+        <div className="ab-input-group">
+          <label>Engine</label>
+          <select value={engine} onChange={(e) => {
+            setEngine(e.target.value as Engine);
+          }}>
+            <option value="envelope">Envelope (multi-section)</option>
+            <option value="single">Single section</option>
+          </select>
+        </div>
         <div className="ab-input-group">
           <label>Design code</label>
           <select value={model.code} onChange={(e) => dispatch({ type: 'SET_CODE', code: e.target.value as Code })}>
@@ -193,15 +309,17 @@ export function RcCalculator() {
           </select>
         </div>
         <div className="ab-input-group">
-          <label>φMn provided</label>
+          <label>{engine === 'envelope' ? 'Worst Mu/φMn' : 'φMn provided'}</label>
           <span className={`ab-label ${result.flexure.ok ? 'ab-pass' : 'ab-fail'}`}>
-            {result.flexure.phiMn.toFixed(2)} kN·m
+            {engine === 'envelope'
+              ? `${(envResult.maxFlexureRatio * 100).toFixed(1)}%`
+              : `${result.flexure.phiMn.toFixed(2)} kN·m`}
           </span>
         </div>
         <div className="ab-input-group">
           <label>Overall</label>
-          <span className={`ab-label ${result.ok ? 'ab-pass' : 'ab-fail'}`}>
-            {result.ok ? '✓ PASS' : '✗ FAIL'}
+          <span className={`ab-label ${(engine === 'envelope' ? envResult.ok : result.ok) ? 'ab-pass' : 'ab-fail'}`}>
+            {(engine === 'envelope' ? envResult.ok : result.ok) ? '✓ PASS' : '✗ FAIL'}
           </span>
         </div>
         <button type="button" className="ab-btn ab-btn--primary slab-print-btn" onClick={handlePrint}>
@@ -214,23 +332,212 @@ export function RcCalculator() {
         <Rc3D input={model} result={result} />
       </section>
 
-      {/* Tabs */}
+      {/* ALWAYS-VISIBLE envelope diagram (engine=envelope) — visual headline */}
+      {engine === 'envelope' && (
+        <section className="ab-section rc-env-headline">
+          <RcEnvelopeDiagram result={envResult} lang="en" />
+        </section>
+      )}
+
+      {/* Tabs — workflow order: Inputs → Stations → Section → Checks → Detailing → Refs */}
       <section className="ab-section">
         <div className="ab-tabs">
-          {(['inputs', 'results', 'section', 'checks', 'refs'] as const).map((t) => (
+          {(engine === 'envelope'
+            ? (['inputs', 'stations', 'section', 'checks', 'detailing', 'refs'] as const)
+            : (['inputs', 'section', 'checks', 'detailing', 'refs'] as const)
+          ).map((t) => (
             <button key={t} type="button"
               className={`ab-tab ${tab === t ? 'ab-tab--active' : ''}`}
-              onClick={() => setTab(t)}>
+              onClick={() => setTab(t as Tab)}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
-        {tab === 'inputs'   && <InputsTab model={model} dispatch={dispatch} />}
-        {tab === 'results'  && <ResultsTab result={result} />}
-        {tab === 'section'  && <SectionTab input={model} result={result} />}
-        {tab === 'checks'   && <ChecksTab result={result} />}
-        {tab === 'refs'     && <RefsTab />}
+        {tab === 'inputs'    && <InputsTab model={model} dispatch={dispatch} engine={engine} demand={demand} setDemand={setDemand} />}
+        {tab === 'stations'  && engine === 'envelope' && <StationsTab envResult={envResult} />}
+        {tab === 'section'   && <SectionTab input={model} result={result} />}
+        {tab === 'checks'    && <ChecksTab result={result} />}
+        {tab === 'detailing' && <DetailingTab input={model} result={result} />}
+        {tab === 'refs'      && <RefsTab />}
       </section>
+    </div>
+  );
+}
+
+// ============================================================================
+// STATIONS TAB — table of all envelope stations
+// ============================================================================
+function StationsTab({ envResult }: { envResult: ReturnType<typeof analyzeEnvelope> }) {
+  return (
+    <div className="rc-env-tab__table-wrap">
+      <h4 className="rc-env-tab__sub">Stations (x in m, ratios as Mu/φMn or Vu/φVn)</h4>
+      <div className="ab-table-scroll">
+        <table className="ab-result-table">
+          <thead>
+            <tr>
+              <th>x (m)</th>
+              <th>Mu (kN·m)</th>
+              <th>φMn (kN·m)</th>
+              <th>Mu/φMn</th>
+              <th>Vu (kN)</th>
+              <th>φVn (kN)</th>
+              <th>Vu/φVn</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {envResult.stations.map((s, i) => (
+              <tr key={i} className={!s.ok ? 'ab-row-fail' : undefined}>
+                <td>{(s.x / 1000).toFixed(2)}</td>
+                <td>{s.Mu.toFixed(1)}</td>
+                <td>{s.phiMn.toFixed(1)}</td>
+                <td className={s.flexureRatio > 1 ? 'ab-fail' : 'ab-pass'}>{(s.flexureRatio * 100).toFixed(1)}%</td>
+                <td>{s.Vu.toFixed(1)}</td>
+                <td>{s.phiVn.toFixed(1)}</td>
+                <td className={s.shearRatio > 1 ? 'ab-fail' : 'ab-pass'}>{(s.shearRatio * 100).toFixed(1)}%</td>
+                <td>{s.ok ? '✓' : '✗'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// DEMAND CARD — choose source (manual / simply-supported) + edit values
+// ============================================================================
+function DemandCard({
+  demand, setDemand, L,
+}: {
+  demand: DemandSource;
+  setDemand: (d: DemandSource) => void;
+  L: number;
+}) {
+  const kind = demand.kind;
+  return (
+    <div className="slab-card rc-demand">
+      <h4>Demand source</h4>
+      <div className="slab-fields">
+        <Field label="Mode">
+          <select value={kind} onChange={(e) => {
+            const next = e.target.value as DemandSource['kind'];
+            if (next === 'simply-supported') {
+              setDemand({ kind: 'simply-supported', udl: { wu: 60 }, point: [{ x: L / 2, Pu: 30 }], nStations: 21 });
+            } else {
+              setDemand({
+                kind: 'manual',
+                stations: [
+                  { x: 0, Mu: 0, Vu: 200 },
+                  { x: L / 2, Mu: 350, Vu: 0 },
+                  { x: L, Mu: 0, Vu: 200 },
+                ],
+              });
+            }
+          }}>
+            <option value="simply-supported">Simply-supported (UDL + point loads)</option>
+            <option value="manual">Manual stations (x, Mu, Vu)</option>
+          </select>
+        </Field>
+      </div>
+
+      {kind === 'simply-supported' && demand.kind === 'simply-supported' && (
+        <>
+          <div className="slab-fields" style={{ marginTop: '0.5rem' }}>
+            <Field label="wu — UDL (kN/m)">
+              <Num val={demand.udl?.wu ?? 0} step={5}
+                onChange={(v) => setDemand({ ...demand, udl: { wu: v } })} />
+            </Field>
+            <Field label="N stations">
+              <Num val={demand.nStations ?? 21} step={1}
+                onChange={(v) => setDemand({ ...demand, nStations: Math.max(3, Math.min(101, Math.round(v))) })} />
+            </Field>
+          </div>
+          <div className="rc-demand__points">
+            <div className="rc-demand__points-hdr">
+              <h5>Point loads</h5>
+              <button type="button" className="ab-btn ab-btn--ghost"
+                onClick={() => setDemand({ ...demand, point: [...demand.point, { x: L / 2, Pu: 20 }] })}>
+                + Add point load
+              </button>
+            </div>
+            {demand.point.length === 0 && <p className="ab-empty">No point loads. Use UDL only or add some.</p>}
+            {demand.point.map((p: PointLoad, i: number) => (
+              <div key={i} className="slab-fields">
+                <Field label={`P${i + 1} — x (mm)`}>
+                  <Num val={p.x} step={250}
+                    onChange={(v) => {
+                      const np = [...demand.point];
+                      np[i] = { ...np[i], x: Math.max(0, Math.min(L, v)) };
+                      setDemand({ ...demand, point: np });
+                    }} />
+                </Field>
+                <Field label={`P${i + 1} — Pu (kN)`}>
+                  <Num val={p.Pu} step={5}
+                    onChange={(v) => {
+                      const np = [...demand.point];
+                      np[i] = { ...np[i], Pu: v };
+                      setDemand({ ...demand, point: np });
+                    }} />
+                </Field>
+                <Field label="">
+                  <button type="button" className="ab-btn ab-btn--ghost"
+                    onClick={() => setDemand({ ...demand, point: demand.point.filter((_: PointLoad, j: number) => j !== i) })}>
+                    Remove
+                  </button>
+                </Field>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {kind === 'manual' && demand.kind === 'manual' && (
+        <div className="rc-demand__points">
+          <div className="rc-demand__points-hdr">
+            <h5>Stations (x_mm, Mu_kNm, Vu_kN)</h5>
+            <button type="button" className="ab-btn ab-btn--ghost"
+              onClick={() => setDemand({ ...demand, stations: [...demand.stations, { x: L / 2, Mu: 0, Vu: 0 }] })}>
+              + Add station
+            </button>
+          </div>
+          {demand.stations.map((s: ManualStation, i: number) => (
+            <div key={i} className="slab-fields">
+              <Field label="x (mm)">
+                <Num val={s.x} step={250}
+                  onChange={(v) => {
+                    const ns = [...demand.stations];
+                    ns[i] = { ...ns[i], x: Math.max(0, Math.min(L, v)) };
+                    setDemand({ ...demand, stations: ns });
+                  }} />
+              </Field>
+              <Field label="Mu (kN·m)">
+                <Num val={s.Mu} step={10}
+                  onChange={(v) => {
+                    const ns = [...demand.stations];
+                    ns[i] = { ...ns[i], Mu: v };
+                    setDemand({ ...demand, stations: ns });
+                  }} />
+              </Field>
+              <Field label="Vu (kN)">
+                <Num val={s.Vu} step={10}
+                  onChange={(v) => {
+                    const ns = [...demand.stations];
+                    ns[i] = { ...ns[i], Vu: v };
+                    setDemand({ ...demand, stations: ns });
+                  }} />
+              </Field>
+              <Field label="">
+                <button type="button" className="ab-btn ab-btn--ghost"
+                  onClick={() => setDemand({ ...demand, stations: demand.stations.filter((_: ManualStation, j: number) => j !== i) })}>
+                  Remove
+                </button>
+              </Field>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -238,7 +545,13 @@ export function RcCalculator() {
 // ============================================================================
 // INPUTS TAB
 // ============================================================================
-function InputsTab({ model, dispatch }: { model: BeamInput; dispatch: React.Dispatch<Action> }) {
+function InputsTab({ model, dispatch, engine, demand, setDemand }: {
+  model: BeamInput;
+  dispatch: React.Dispatch<Action>;
+  engine: Engine;
+  demand: DemandSource;
+  setDemand: (d: DemandSource) => void;
+}) {
   return (
     <div className="slab-inputs-grid">
       {/* Geometry */}
@@ -332,6 +645,18 @@ function InputsTab({ model, dispatch }: { model: BeamInput; dispatch: React.Disp
             <Num val={model.materials.lambdaC ?? 1.0} step={0.05}
               onChange={(v) => dispatch({ type: 'SET_MAT', patch: { lambdaC: v } })} />
           </Field>
+          <Field label="dagg — max aggregate (mm)">
+            <Num val={model.materials.aggSize ?? 19} step={1}
+              onChange={(v) => dispatch({ type: 'SET_MAT', patch: { aggSize: v } })} />
+          </Field>
+          <Field label="Exposure (cover §20.5.1.3)">
+            <select value={model.materials.exposure ?? 'interior'}
+              onChange={(e) => dispatch({ type: 'SET_MAT', patch: { exposure: e.target.value as 'interior' | 'exterior' | 'cast-against-ground' } })}>
+              <option value="interior">Interior (40 mm min)</option>
+              <option value="exterior">Exterior (50 mm min)</option>
+              <option value="cast-against-ground">Cast against ground (75 mm min)</option>
+            </select>
+          </Field>
         </div>
       </div>
 
@@ -393,18 +718,93 @@ function InputsTab({ model, dispatch }: { model: BeamInput; dispatch: React.Disp
         </div>
       </div>
 
+      {/* Compression / hanger bars */}
+      <div className="slab-card">
+        <h4>Top bars (compression / hangers §9.7.6.4)</h4>
+        <p className="ab-empty" style={{ marginBottom: '0.4rem' }}>
+          At least 2 top bars are needed to support the stirrup cage (Wight §5-3). They also act as compression
+          steel if the section is doubly-reinforced.
+        </p>
+        {(model.reinforcement.compression ?? []).map((bg, i) => (
+          <div key={i} className="slab-fields">
+            <Field label={`Top group ${i + 1} — bar`}>
+              <select value={bg.bar}
+                onChange={(e) => {
+                  const arr = [...(model.reinforcement.compression ?? [])];
+                  arr[i] = { ...arr[i], bar: e.target.value };
+                  dispatch({ type: 'SET_COMPRESSION', list: arr });
+                }}>
+                {BAR_CATALOG.map((b) => <option key={b.label} value={b.label}>{b.label} ({b.db.toFixed(1)} mm)</option>)}
+              </select>
+            </Field>
+            <Field label="Count">
+              <Num val={bg.count} step={1}
+                onChange={(v) => {
+                  const arr = [...(model.reinforcement.compression ?? [])];
+                  arr[i] = { ...arr[i], count: Math.max(1, Math.round(v)) };
+                  dispatch({ type: 'SET_COMPRESSION', list: arr });
+                }} />
+            </Field>
+            <Field label="">
+              <button type="button" className="ab-btn ab-btn--ghost"
+                onClick={() => {
+                  const arr = (model.reinforcement.compression ?? []).filter((_, j) => j !== i);
+                  dispatch({ type: 'SET_COMPRESSION', list: arr });
+                }}>
+                Remove
+              </button>
+            </Field>
+          </div>
+        ))}
+        <div style={{ marginTop: '0.6rem' }}>
+          <button type="button" className="ab-btn ab-btn--ghost"
+            onClick={() => {
+              const arr = [...(model.reinforcement.compression ?? []), { bar: '#4', count: 2 }];
+              dispatch({ type: 'SET_COMPRESSION', list: arr });
+            }}>
+            + Add top bar group
+          </button>
+        </div>
+      </div>
+
+      {/* Skin reinforcement (h > 900 mm) */}
+      <div className="slab-card">
+        <h4>Skin reinforcement §9.7.2.3 {model.geometry.h > 900 ? '(REQUIRED, h > 900 mm)' : '(optional, h ≤ 900 mm)'}</h4>
+        <div className="slab-fields">
+          <Field label="Bar">
+            <select value={model.reinforcement.skin?.bar ?? '#4'}
+              onChange={(e) => dispatch({ type: 'SET_SKIN', skin: { bar: e.target.value, countPerFace: model.reinforcement.skin?.countPerFace ?? 0 } })}>
+              {BAR_CATALOG.filter((b) => b.db <= 19).map((b) => <option key={b.label} value={b.label}>{b.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Count per face">
+            <Num val={model.reinforcement.skin?.countPerFace ?? 0} step={1}
+              onChange={(v) => dispatch({ type: 'SET_SKIN', skin: { bar: model.reinforcement.skin?.bar ?? '#4', countPerFace: Math.max(0, Math.round(v)) } })} />
+          </Field>
+        </div>
+      </div>
+
       {/* Loads */}
       <div className="slab-card">
         <h4>Loads</h4>
+        {engine === 'envelope' && (
+          <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
+            Envelope mode: Mu and Vu are derived from the demand source. Edit them in the <strong>Envelope</strong> tab.
+          </p>
+        )}
         <div className="slab-fields">
-          <Field label="Mu (kN·m) — factored">
-            <Num val={model.loads.Mu} step={10}
-              onChange={(v) => dispatch({ type: 'SET_LOADS', patch: { Mu: v } })} />
-          </Field>
-          <Field label="Vu (kN) — factored">
-            <Num val={model.loads.Vu} step={10}
-              onChange={(v) => dispatch({ type: 'SET_LOADS', patch: { Vu: v } })} />
-          </Field>
+          {engine === 'single' && (
+            <Field label="Mu (kN·m) — factored">
+              <Num val={model.loads.Mu} step={10}
+                onChange={(v) => dispatch({ type: 'SET_LOADS', patch: { Mu: v } })} />
+            </Field>
+          )}
+          {engine === 'single' && (
+            <Field label="Vu (kN) — factored">
+              <Num val={model.loads.Vu} step={10}
+                onChange={(v) => dispatch({ type: 'SET_LOADS', patch: { Vu: v } })} />
+            </Field>
+          )}
           <Field label="Ma (kN·m) — service">
             <Num val={model.loads.Ma ?? 0} step={10}
               onChange={(v) => dispatch({ type: 'SET_LOADS', patch: { Ma: v } })} />
@@ -437,6 +837,11 @@ function InputsTab({ model, dispatch }: { model: BeamInput; dispatch: React.Disp
           </Field>
         </div>
       </div>
+
+      {/* Demand source (envelope mode only) */}
+      {engine === 'envelope' && (
+        <DemandCard demand={demand} setDemand={setDemand} L={model.geometry.L} />
+      )}
 
       {/* Branding */}
       <BrandingCard model={model} dispatch={dispatch} />
@@ -581,6 +986,141 @@ function RefsTab() {
         <strong> 50/50 numerical tests pass</strong> across β1, Ec, fr, φ, ξ, flexure (singly + T-beam),
         shear (Vc + Vs + s,max), and section properties.
       </p>
+    </div>
+  );
+}
+
+// ============================================================================
+// DETAILING TAB — full code-mandated breakdown
+// ============================================================================
+function DetailingTab({ input, result }: { input: BeamInput; result: ReturnType<typeof analyze> }) {
+  const r = result;
+  const det = r.detailing;
+  const tens = input.reinforcement.tension;
+  const comp = input.reinforcement.compression ?? [];
+  const skin = input.reinforcement.skin;
+  const stir = input.reinforcement.stirrup;
+  const g = input.geometry;
+
+  const items = [
+    { key: 'cover',              item: det.cover },
+    { key: 'barFit',             item: det.barFit },
+    { key: 'barSpacing',         item: det.barSpacing },
+    { key: 'hangerBars',         item: det.hangerBars },
+    { key: 'skinReinf',          item: det.skinReinf },
+    { key: 'stirrupSize',        item: det.stirrupSize },
+    { key: 'stirrupLegSpacing',  item: det.stirrupLegSpacing },
+    { key: 'compressionLateral', item: det.compressionLateral },
+  ];
+
+  return (
+    <div className="rc-detailing">
+      {/* Status header */}
+      <div className={`rc-status ${det.ok ? 'rc-status--pass' : 'rc-status--fail'}`} style={{ marginBottom: '0.8rem' }}>
+        <div className="rc-status__icon">{det.ok ? '✓' : '✗'}</div>
+        <div className="rc-status__text">
+          <strong>{det.narrativeEn}</strong>
+          <span className="rc-status__es">{det.narrativeEs}</span>
+        </div>
+      </div>
+
+      {/* The 8 detailing sub-checks */}
+      <div className="slab-card">
+        <h4>Code-mandated detailing checks (ACI 318-25)</h4>
+        <div className="rc-detailing__grid">
+          {items.map(({ key, item }) => {
+            const status = item.informational ? 'info' : (item.ok ? 'pass' : 'fail');
+            return (
+              <div key={key} className={`rc-detailing-item rc-detailing-item--${status}`}>
+                <div className="rc-detailing-item__hdr">
+                  <span className="rc-detailing-item__icon">
+                    {item.informational ? 'ⓘ' : (item.ok ? '✓' : '✗')}
+                  </span>
+                  <strong className="rc-detailing-item__label">{item.label}</strong>
+                  <span className="rc-detailing-item__ref">{item.ref}</span>
+                </div>
+                <p className="rc-detailing-item__note">{item.noteEn}</p>
+                <p className="rc-detailing-item__note rc-detailing-item__note--es">{item.noteEs}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Bar schedule */}
+      <div className="slab-card">
+        <h4>Bar schedule</h4>
+        <div className="ab-table-scroll">
+          <table className="ab-result-table">
+            <thead>
+              <tr><th>Mark</th><th>Position</th><th>Bar</th><th>Count</th><th>Length (mm)</th><th>Total mass (kg)</th></tr>
+            </thead>
+            <tbody>
+              {tens.map((bg, i) => (
+                <tr key={`t${i}`}>
+                  <td>T{i + 1}</td>
+                  <td>Bottom (tension)</td>
+                  <td>{bg.bar}</td>
+                  <td>{bg.count}</td>
+                  <td>{g.L.toFixed(0)}</td>
+                  <td>{(bg.count * (g.L / 1000) * (lookupBar(bg.bar)?.mass ?? 0)).toFixed(2)}</td>
+                </tr>
+              ))}
+              {comp.map((bg, i) => (
+                <tr key={`c${i}`}>
+                  <td>C{i + 1}</td>
+                  <td>Top (compression / hangers)</td>
+                  <td>{bg.bar}</td>
+                  <td>{bg.count}</td>
+                  <td>{g.L.toFixed(0)}</td>
+                  <td>{(bg.count * (g.L / 1000) * (lookupBar(bg.bar)?.mass ?? 0)).toFixed(2)}</td>
+                </tr>
+              ))}
+              {skin && skin.countPerFace > 0 && (
+                <tr>
+                  <td>K1</td>
+                  <td>Skin (both faces, per §9.7.2.3)</td>
+                  <td>{skin.bar}</td>
+                  <td>{skin.countPerFace * 2}</td>
+                  <td>{g.L.toFixed(0)}</td>
+                  <td>{(skin.countPerFace * 2 * (g.L / 1000) * (lookupBar(skin.bar)?.mass ?? 0)).toFixed(2)}</td>
+                </tr>
+              )}
+              <tr>
+                <td>S1</td>
+                <td>Stirrup ({stir.legs} legs)</td>
+                <td>{stir.bar}</td>
+                <td>{Math.ceil(g.L / stir.spacing) + 1}</td>
+                <td>{stir.spacing} c/c</td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Strength checks (lighter, tied to flexure/shear/crack) */}
+      <div className="slab-card">
+        <h4>Strength checks (ACI 318-25)</h4>
+        <ul style={{ lineHeight: 1.8, marginLeft: '1rem' }}>
+          <li><strong>Min reinforcement §9.6.1.2</strong>: As,min = <code>{r.flexure.AsMin.toFixed(0)} mm²</code> &nbsp;
+            ({r.flexure.As >= r.flexure.AsMin ? <span className="ab-pass">✓ provided {r.flexure.As.toFixed(0)} mm²</span> : <span className="ab-fail">✗ provided {r.flexure.As.toFixed(0)} mm²</span>})
+          </li>
+          <li><strong>Min stirrups §9.6.3.4</strong>: Av,min = <code>{r.shear.AvMin.toFixed(0)} mm²</code> &nbsp;
+            ({r.shear.Av >= r.shear.AvMin ? <span className="ab-pass">✓ provided {r.shear.Av.toFixed(0)} mm²</span> : <span className="ab-fail">✗ provided {r.shear.Av.toFixed(0)} mm²</span>})
+          </li>
+          <li><strong>Max stirrup spacing §10.7.6.5</strong>: s,max = <code>{r.shear.sMax.toFixed(0)} mm</code> &nbsp;
+            ({stir.spacing <= r.shear.sMax ? <span className="ab-pass">✓ s = {stir.spacing} mm</span> : <span className="ab-fail">✗ s = {stir.spacing} mm exceeds limit</span>})
+          </li>
+          <li><strong>Crack control §24.3.2</strong>: s,max = <code>{r.crack.sMax.toFixed(0)} mm</code> &nbsp;
+            ({r.crack.s <= r.crack.sMax ? <span className="ab-pass">✓ s = {r.crack.s.toFixed(0)} mm</span> : <span className="ab-fail">✗ s = {r.crack.s.toFixed(0)} mm exceeds limit</span>})
+          </li>
+        </ul>
+        <p className="slab-card__hint" style={{ marginTop: '0.5rem' }}>
+          <em>Coming in Phase 3:</em> bar curtailment per §9.7.3, development length §25.4 with hook tables,
+          lap splice §25.5, full elevation drawings, and stirrup zoning.
+        </p>
+      </div>
     </div>
   );
 }

@@ -26,6 +26,8 @@ import type {
   ShearCheck,
   DeflectionCheck,
   CrackControlCheck,
+  DetailingCheck,
+  DetailingItem,
   CalcStep,
   Materials,
   Reinforcement,
@@ -33,6 +35,11 @@ import type {
   Loads,
   DeflectionLimitCategory,
   Code,
+  BeamEnvelopeInput,
+  EnvelopeAnalysis,
+  StationResult,
+  GoverningFailure,
+  DemandSource,
 } from './types';
 import { lookupBar, barArea, barDiameter } from './types';
 
@@ -185,6 +192,7 @@ export function analyze(input: BeamInput): BeamAnalysis {
     const shear = checkShear(input);
     const deflection = checkDeflection(input, flexure);
     const crack = checkCrackControl(input);
+    const detailing = checkDetailing(input);
 
     const selfWeight = (input.materials.gammaC ?? 24) * sectionArea(input.geometry) * 1e-6;
 
@@ -201,10 +209,10 @@ export function analyze(input: BeamInput): BeamAnalysis {
       warnings.push(`Provided stirrup area Av = ${shear.Av.toFixed(0)} mm² < Av,min = ${shear.AvMin.toFixed(0)} mm² — increase stirrup size or decrease spacing.`);
     }
 
-    const ok = flexure.ok && shear.ok && deflection.ok && crack.ok;
+    const ok = flexure.ok && shear.ok && deflection.ok && crack.ok && detailing.ok;
 
     return {
-      input, flexure, shear, deflection, crack,
+      input, flexure, shear, deflection, crack, detailing,
       selfWeight,
       sectionType: input.geometry.shape,
       warnings,
@@ -219,6 +227,7 @@ export function analyze(input: BeamInput): BeamAnalysis {
       shear: emptyShear(),
       deflection: emptyDeflection(input),
       crack: emptyCrack(),
+      detailing: emptyDetailing(),
       selfWeight: 0,
       sectionType: input.geometry.shape,
       warnings: [`Solver error: ${msg}`],
@@ -764,6 +773,571 @@ function checkCrackControl(input: BeamInput): CrackControlCheck {
 }
 
 // ============================================================================
+// DETAILING — Code-mandated rules (ACI 318-25)
+// ============================================================================
+//
+// Implements the 7 most-critical rules NOT covered by flexure/shear/deflection/crack:
+//
+//   §20.5.1.3 — Min concrete cover (40 mm typical interior, 50 mm exterior, 75 mm cast-against-ground)
+//   §25.2.1   — Min clear bar spacing (max(25, db, 4/3·dagg))
+//   §9.7.2.1  — refers to §25.2 for spacing
+//   §9.7.2.3  — Skin reinforcement when h > 900 mm
+//   §9.7.6.4  — Compression bars need closed stirrups + min stirrup size
+//   §25.7.2.2 — Min stirrup bar size (≥#3 for #11 & smaller; ≥#4 for #14, #18)
+//   §9.7.6.2.2 — Stirrup leg spacing across width (depends on Vs threshold)
+//
+// PLUS one practical-engineering rule (universally accepted, not strictly in code):
+//   "Hanger bars" — every beam with stirrups needs at least 2 top bars to support the
+//   stirrup cage during construction (Wight & MacGregor §5-3, "stirrup support bars").
+// ============================================================================
+
+function passItem(label: string, ref: string, en: string, es: string, opts?: Partial<DetailingItem>): DetailingItem {
+  return { label, ref, ok: true, noteEn: en, noteEs: es, ...(opts ?? {}) };
+}
+function failItem(label: string, ref: string, en: string, es: string, opts?: Partial<DetailingItem>): DetailingItem {
+  return { label, ref, ok: false, noteEn: en, noteEs: es, ...(opts ?? {}) };
+}
+
+function minCoverByExposure(exposure: 'interior' | 'exterior' | 'cast-against-ground'): number {
+  // ACI 318-25 §20.5.1.3 — typical primary reinforcement
+  switch (exposure) {
+    case 'cast-against-ground': return 75;
+    case 'exterior': return 50;
+    case 'interior':
+    default: return 40;
+  }
+}
+
+export function checkDetailing(input: BeamInput): DetailingCheck {
+  const { code, geometry: g, materials: m, reinforcement: r } = input;
+  const exposure = m.exposure ?? 'interior';
+  const dagg = m.aggSize ?? 19;     // mm — default 3/4"
+  const stirDb = barDiameter(r.stirrup.bar);
+  const tens = r.tension;
+  const comp = r.compression ?? [];
+
+  // Bar dimensions for tension (use largest bar diameter for spacing/fit)
+  const dbMaxTens = tens.reduce((d, bg) => Math.max(d, barDiameter(bg.bar)), 0);
+  const nBarsTens = tens.reduce((n, bg) => n + bg.count, 0);
+
+  // ============================================================================
+  // CHECK 1 — Concrete cover §20.5.1.3
+  // ============================================================================
+  const minCover = minCoverByExposure(exposure);
+  const cover: DetailingItem = g.coverClear >= minCover
+    ? passItem(
+        `Cover §20.5.1.3 (${exposure})`,
+        ref(code, '20.5.1.3'),
+        `Clear cover ${g.coverClear} mm ≥ required ${minCover} mm.`,
+        `Recubrimiento libre ${g.coverClear} mm ≥ requerido ${minCover} mm.`,
+        { required: minCover, provided: g.coverClear })
+    : failItem(
+        `Cover §20.5.1.3 (${exposure})`,
+        ref(code, '20.5.1.3'),
+        `Clear cover ${g.coverClear} mm < ${minCover} mm required for ${exposure} exposure. Increase cover.`,
+        `Recubrimiento ${g.coverClear} mm < ${minCover} mm requerido para exposición ${exposure}. Aumenta el recubrimiento.`,
+        { required: minCover, provided: g.coverClear });
+
+  // ============================================================================
+  // CHECK 2 — Bar fit (do tension bars fit in one row?) — Wight Eq 5-25 + §25.2.1
+  // ============================================================================
+  const sClearMin = Math.max(25, dbMaxTens, (4 / 3) * dagg);
+  const bAvailable = g.bw - 2 * g.coverClear - 2 * stirDb;
+  // Required width for n bars in one row
+  const widthRequired_1row = nBarsTens * dbMaxTens + (nBarsTens - 1) * sClearMin;
+  const fitsInOneRow = nBarsTens <= 1 || widthRequired_1row <= bAvailable;
+  // Provided clear spacing (if 1 row): (bAvailable - n·db) / (n-1)
+  const sClearProvided_1row = nBarsTens > 1 ? (bAvailable - nBarsTens * dbMaxTens) / (nBarsTens - 1) : 1e9;
+  const rowsNeeded = nBarsTens <= 1 ? 1 : Math.ceil(widthRequired_1row / Math.max(bAvailable, 1));
+
+  const barFit: DetailingItem = fitsInOneRow
+    ? passItem(
+        'Bar fit in one row',
+        ref(code, '25.2.1') + ' / Wight 5-25',
+        `${nBarsTens} bars (db=${dbMaxTens.toFixed(1)} mm) fit in available width ${bAvailable.toFixed(0)} mm; required width ${widthRequired_1row.toFixed(0)} mm.`,
+        `${nBarsTens} barras (db=${dbMaxTens.toFixed(1)} mm) caben en el ancho disponible ${bAvailable.toFixed(0)} mm; ancho requerido ${widthRequired_1row.toFixed(0)} mm.`,
+        { required: widthRequired_1row, provided: bAvailable })
+    : failItem(
+        'Bar fit in one row',
+        ref(code, '25.2.1') + ' / Wight 5-25',
+        `${nBarsTens} bars do not fit in one row: required ${widthRequired_1row.toFixed(0)} mm > available ${bAvailable.toFixed(0)} mm. Use multiple rows (${rowsNeeded} rows) or widen the beam.`,
+        `${nBarsTens} barras no caben en una fila: requerido ${widthRequired_1row.toFixed(0)} mm > disponible ${bAvailable.toFixed(0)} mm. Usa varias capas (${rowsNeeded}) o ensancha la viga.`,
+        { required: widthRequired_1row, provided: bAvailable });
+
+  // ============================================================================
+  // CHECK 3 — Min clear bar spacing §25.2.1
+  // ============================================================================
+  const barSpacing: DetailingItem = !fitsInOneRow
+    ? passItem(
+        'Bar clear spacing §25.2.1',
+        ref(code, '25.2.1'),
+        `Bars in multiple rows — vertical spacing handled by §25.2.2.`,
+        `Barras en varias capas — espaciamiento vertical regido por §25.2.2.`,
+        { informational: true })
+    : sClearProvided_1row >= sClearMin || nBarsTens <= 1
+      ? passItem(
+          'Bar clear spacing §25.2.1',
+          ref(code, '25.2.1'),
+          `Provided clear spacing ${sClearProvided_1row.toFixed(0)} mm ≥ required ${sClearMin.toFixed(0)} mm (max of 25, db=${dbMaxTens.toFixed(1)}, 4/3·dagg=${((4/3)*dagg).toFixed(1)}).`,
+          `Espaciamiento libre ${sClearProvided_1row.toFixed(0)} mm ≥ requerido ${sClearMin.toFixed(0)} mm (máx de 25, db=${dbMaxTens.toFixed(1)}, 4/3·dagg=${((4/3)*dagg).toFixed(1)}).`,
+          { required: sClearMin, provided: sClearProvided_1row })
+      : failItem(
+          'Bar clear spacing §25.2.1',
+          ref(code, '25.2.1'),
+          `Provided clear spacing ${sClearProvided_1row.toFixed(0)} mm < required ${sClearMin.toFixed(0)} mm. Use fewer/smaller bars or widen.`,
+          `Espaciamiento ${sClearProvided_1row.toFixed(0)} mm < requerido ${sClearMin.toFixed(0)} mm. Usa menos barras / más finas, o ensancha.`,
+          { required: sClearMin, provided: sClearProvided_1row });
+
+  // ============================================================================
+  // CHECK 4 — Hanger bars (practical) — at least 2 top bars to support stirrups
+  // ============================================================================
+  const nTopBars = comp.reduce((n, bg) => n + bg.count, 0);
+  const hangerBars: DetailingItem = nTopBars >= 2
+    ? passItem(
+        'Stirrup-support bars (practical)',
+        'Wight & MacGregor §5-3',
+        `${nTopBars} top bars provide stirrup support during construction.`,
+        `${nTopBars} barras superiores sostienen los estribos durante la construcción.`,
+        { provided: nTopBars, required: 2 })
+    : failItem(
+        'Stirrup-support bars (practical)',
+        'Wight & MacGregor §5-3',
+        `Only ${nTopBars} top bar(s). Add at least 2 small top bars (e.g. 2#4) to hold the stirrup cage. Required even when no compression steel is needed for flexure.`,
+        `Solo ${nTopBars} barra(s) superior(es). Agrega al menos 2 barras superiores (p.ej. 2#4) para sostener los estribos. Requerido aunque no se necesite acero a compresión por flexión.`,
+        { provided: nTopBars, required: 2 });
+
+  // ============================================================================
+  // CHECK 5 — Skin reinforcement §9.7.2.3 (h > 900 mm)
+  // ============================================================================
+  const needsSkin = g.h > 900;
+  const skinBarsPerFace = r.skin?.countPerFace ?? 0;
+  const skinReinf: DetailingItem = !needsSkin
+    ? passItem(
+        'Skin reinforcement §9.7.2.3',
+        ref(code, '9.7.2.3'),
+        `h = ${g.h} mm ≤ 900 mm — skin reinforcement not required.`,
+        `h = ${g.h} mm ≤ 900 mm — no se requiere armadura de piel.`,
+        { informational: true })
+    : skinBarsPerFace >= 2
+      ? passItem(
+          'Skin reinforcement §9.7.2.3',
+          ref(code, '9.7.2.3'),
+          `h = ${g.h} mm > 900 mm — ${skinBarsPerFace} skin bars per face provided over h/2 from tension face.`,
+          `h = ${g.h} mm > 900 mm — ${skinBarsPerFace} barras de piel por cara distribuidas sobre h/2 desde la cara traccionada.`,
+          { provided: skinBarsPerFace, required: 2 })
+      : failItem(
+          'Skin reinforcement §9.7.2.3',
+          ref(code, '9.7.2.3'),
+          `h = ${g.h} mm > 900 mm. Skin reinforcement REQUIRED on both side faces over h/2 from tension face. Spacing ≤ s per §24.3.2. Bars #10–#16 typical.`,
+          `h = ${g.h} mm > 900 mm. Se REQUIERE armadura de piel en ambas caras laterales sobre h/2 desde la cara traccionada. Espaciamiento ≤ s por §24.3.2. Barras #10–#16 típicas.`,
+          { provided: skinBarsPerFace, required: 2 });
+
+  // ============================================================================
+  // CHECK 6 — Min stirrup bar size §25.7.2.2
+  // ============================================================================
+  const needsLarger = dbMaxTens >= 43;     // #14 (43mm) or #18 (57mm) → stirrup ≥ #4 (12.7mm)
+  const minStirDb = needsLarger ? 12.7 : 9.5;
+  const minStirLabel = needsLarger ? '#4 (12.7 mm)' : '#3 (9.5 mm)';
+  const stirrupSize: DetailingItem = stirDb >= minStirDb
+    ? passItem(
+        'Stirrup min size §25.7.2.2',
+        ref(code, '25.7.2.2'),
+        `Stirrup ${r.stirrup.bar} (db=${stirDb.toFixed(1)} mm) ≥ required ${minStirLabel} for longitudinal db=${dbMaxTens.toFixed(1)} mm.`,
+        `Estribo ${r.stirrup.bar} (db=${stirDb.toFixed(1)} mm) ≥ requerido ${minStirLabel} para barra longitudinal db=${dbMaxTens.toFixed(1)} mm.`,
+        { provided: stirDb, required: minStirDb })
+    : failItem(
+        'Stirrup min size §25.7.2.2',
+        ref(code, '25.7.2.2'),
+        `Stirrup ${r.stirrup.bar} too small. Use at least ${minStirLabel} for longitudinal bars db=${dbMaxTens.toFixed(1)} mm.`,
+        `Estribo ${r.stirrup.bar} demasiado pequeño. Usa al menos ${minStirLabel} para barras longitudinales db=${dbMaxTens.toFixed(1)} mm.`,
+        { provided: stirDb, required: minStirDb });
+
+  // ============================================================================
+  // CHECK 7 — Stirrup leg spacing across width §9.7.6.2.2
+  // ============================================================================
+  // For Vs ≤ 0.33·√fc·bw·d: max across-width = lesser(d, 600)
+  // For Vs > 0.33·√fc·bw·d: max across-width = lesser(d/2, 300)
+  // Across-width spacing for n legs: (bw - 2·cover - 2·dbs - dbs)/(n-1) when legs > 1
+  // For 2 legs the inner span is just bw - 2·cover - 2·dbs (one inter-leg distance).
+  const lambdaCfac = m.lambdaC ?? 1.0;
+  const VsPerStirrup = (() => {
+    // Use the worst-case Vs from the input.loads.Vu if computed, else estimate using s,max
+    const Vc = 0.17 * lambdaCfac * Math.sqrt(m.fc) * g.bw * g.d / 1000;
+    const phi = 0.75;
+    const VsRequired = Math.max(0, input.loads.Vu / phi - Vc);
+    return VsRequired;
+  })();
+  const VsThresh = 0.33 * Math.sqrt(m.fc) * g.bw * g.d / 1000;
+  const heavyShear = VsPerStirrup > VsThresh;
+  const sLegMax = heavyShear ? Math.min(g.d / 2, 300) : Math.min(g.d, 600);
+  const innerSpan = g.bw - 2 * g.coverClear - 2 * stirDb;     // mm
+  const sLegProvided = r.stirrup.legs <= 1 ? innerSpan : innerSpan / Math.max(r.stirrup.legs - 1, 1);
+  const stirrupLegSpacing: DetailingItem = sLegProvided <= sLegMax
+    ? passItem(
+        'Stirrup leg spacing across width §9.7.6.2.2',
+        ref(code, '9.7.6.2.2'),
+        `Across-width leg spacing ${sLegProvided.toFixed(0)} mm ≤ limit ${sLegMax.toFixed(0)} mm (${heavyShear ? 'high Vs' : 'low Vs'}).`,
+        `Espaciamiento transversal entre ramas ${sLegProvided.toFixed(0)} mm ≤ límite ${sLegMax.toFixed(0)} mm (${heavyShear ? 'Vs alto' : 'Vs bajo'}).`,
+        { provided: sLegProvided, required: sLegMax })
+    : failItem(
+        'Stirrup leg spacing across width §9.7.6.2.2',
+        ref(code, '9.7.6.2.2'),
+        `Across-width leg spacing ${sLegProvided.toFixed(0)} mm > limit ${sLegMax.toFixed(0)} mm. Add additional stirrup legs (use 3 or 4 legs) for wide beams.`,
+        `Espaciamiento transversal entre ramas ${sLegProvided.toFixed(0)} mm > límite ${sLegMax.toFixed(0)} mm. Agrega ramas adicionales (3 o 4) en vigas anchas.`,
+        { provided: sLegProvided, required: sLegMax });
+
+  // ============================================================================
+  // CHECK 8 — Lateral support of compression reinforcement §9.7.6.4
+  // ============================================================================
+  // If compression bars exist, stirrups must be CLOSED and min size per 9.7.6.4.2.
+  // Our stirrup type is treated as closed; just verify min size matches §9.7.6.4.2.
+  const hasComp = nTopBars > 0;
+  const compMinStirDb = hasComp ? minStirDb : 0;
+  const compressionLateral: DetailingItem = !hasComp
+    ? passItem(
+        'Compression bar lateral support §9.7.6.4',
+        ref(code, '9.7.6.4'),
+        `No compression bars → no lateral-support requirement.`,
+        `Sin barras de compresión → no aplica el soporte lateral.`,
+        { informational: true })
+    : stirDb >= compMinStirDb
+      ? passItem(
+          'Compression bar lateral support §9.7.6.4',
+          ref(code, '9.7.6.4'),
+          `Closed stirrups ${r.stirrup.bar} provide lateral support; size ≥ §25.7.2.2 minimum.`,
+          `Estribos cerrados ${r.stirrup.bar} aportan soporte lateral; tamaño ≥ mínimo §25.7.2.2.`)
+      : failItem(
+          'Compression bar lateral support §9.7.6.4',
+          ref(code, '9.7.6.4'),
+          `Stirrup size insufficient to laterally support compression bars. Increase stirrup bar to ≥ ${minStirLabel}.`,
+          `El tamaño del estribo no es suficiente para soportar lateralmente las barras de compresión. Aumenta a ≥ ${minStirLabel}.`);
+
+  // ============================================================================
+  // Aggregate
+  // ============================================================================
+  const items: DetailingItem[] = [
+    cover, barFit, barSpacing, hangerBars, skinReinf, stirrupSize, stirrupLegSpacing, compressionLateral,
+  ];
+  // Aggregate ok ignores informational items
+  const ok = items.filter((i) => !i.informational).every((i) => i.ok);
+  const failing = items.filter((i) => !i.ok && !i.informational);
+
+  const narrativeEn = ok
+    ? `Detailing OK — all ${items.length} code-mandated checks pass.`
+    : `Detailing issues: ${failing.length} of ${items.length} checks fail (${failing.map((i) => i.label).join(', ')}).`;
+  const narrativeEs = ok
+    ? `Detallado OK — los ${items.length} chequeos del código cumplen.`
+    : `Problemas de detallado: ${failing.length} de ${items.length} chequeos no cumplen (${failing.map((i) => i.label).join(', ')}).`;
+
+  return {
+    cover, barFit, barSpacing, hangerBars, skinReinf, stirrupSize, stirrupLegSpacing, compressionLateral,
+    ok, narrativeEn, narrativeEs,
+  };
+}
+
+// ============================================================================
+// ENVELOPE — multi-section design along beam length
+// ============================================================================
+//
+// Phase 1 scope:
+//   • Demand sources:
+//       - 'simply-supported': closed-form Mu(x), Vu(x) from UDL + N point loads
+//       - 'manual':           user provides (x, Mu, Vu) tuples
+//   • Reinforcement is constant along the length (no curtailment yet — Phase 3)
+//   • For each station, run flexure + shear checks independently and aggregate.
+//   • Report governing failure with Wight & MacGregor §8-7 conventions
+//     (capacity envelope φMn(x), φVn(x) must envelop demand Mu(x), Vu(x)).
+//
+// Sign convention:
+//   x        mm  measured from left support
+//   wu       kN/m positive downward
+//   Pu       kN  positive downward
+//   Mu(x)    kN·m positive = tension at bottom (sagging)
+//   Vu(x)    kN  envelope reported as |V(x)| (max-magnitude)
+//
+// Reference: ACI 318-25 §9.4.3 (factored loads), §22 (sectional strength),
+//            Wight & MacGregor Fig 8-19g (moment-strength vs required moment).
+// ============================================================================
+
+/** Internal: simply-supported beam reactions and (M, V) at a station. */
+function ssDemand(
+  L_mm: number,
+  wu: number,
+  point: { x: number; Pu: number }[],
+  x_mm: number
+): { Mu: number; Vu: number } {
+  const L = L_mm / 1000;       // m
+  const x = x_mm / 1000;       // m
+  // Reactions (L is span between supports)
+  const wL = wu * L;
+  const sumP = point.reduce((s, p) => s + p.Pu, 0);
+  const momentAboutA = wu * L * L / 2 + point.reduce((s, p) => s + p.Pu * (p.x / 1000), 0);
+  const RB = momentAboutA / L;
+  const RA = wL + sumP - RB;
+  // Shear at x (just to the right of x): V(x) = RA - wu·x - Σ Pu_i (where x_i < x)
+  // We use ≤ to include loads exactly at x in the "left" portion.
+  const V_right = RA - wu * x - point.reduce((s, p) => s + (p.x / 1000 < x ? p.Pu : 0), 0);
+  // Moment at x: M(x) = RA·x - wu·x²/2 - Σ Pu_i·(x - x_i_m) (where x_i ≤ x)
+  const M = RA * x - wu * x * x / 2
+    - point.reduce((s, p) => {
+        const xi = p.x / 1000;
+        return s + (xi <= x ? p.Pu * (x - xi) : 0);
+      }, 0);
+  return { Mu: M, Vu: Math.abs(V_right) };
+}
+
+/** Resolve demand into N station tuples (x_mm, Mu, Vu). */
+export function resolveStations(
+  demand: DemandSource,
+  L_mm: number
+): { x: number; Mu: number; Vu: number }[] {
+  if (demand.kind === 'manual') {
+    // Sort by x just in case
+    return [...demand.stations].sort((a, b) => a.x - b.x).map((s) => ({
+      x: s.x, Mu: s.Mu, Vu: s.Vu,
+    }));
+  }
+  // simply-supported
+  const N = demand.nStations ?? 21;
+  const wu = demand.udl?.wu ?? 0;
+  const points = demand.point;
+  const out: { x: number; Mu: number; Vu: number }[] = [];
+  for (let i = 0; i < N; i++) {
+    const x = (i / (N - 1)) * L_mm;
+    const { Mu, Vu } = ssDemand(L_mm, wu, points, x);
+    out.push({ x, Mu, Vu });
+  }
+  // Also inject point-load locations explicitly so the diagram captures them.
+  for (const p of points) {
+    if (p.x > 0 && p.x < L_mm) {
+      const { Mu, Vu } = ssDemand(L_mm, wu, points, p.x);
+      out.push({ x: p.x, Mu, Vu });
+    }
+  }
+  out.sort((a, b) => a.x - b.x);
+  return out;
+}
+
+/** Build a shadow BeamInput with a station's demand for re-using checkFlexure/checkShear. */
+function shadowSingleSection(input: BeamEnvelopeInput, Mu: number, Vu: number): BeamInput {
+  return {
+    code: input.code,
+    method: input.method,
+    geometry: input.geometry,
+    materials: input.materials,
+    reinforcement: input.reinforcement,
+    loads: { ...input.loads, Mu: Math.abs(Mu), Vu: Math.abs(Vu) },
+    branding: input.branding,
+  };
+}
+
+/** Build governing-failure narrative considering flexure, shear, deflection, and crack. */
+function governingFromStations(
+  stations: StationResult[],
+  flexureWorst: FlexureCheck,
+  shearWorst: ShearCheck,
+  deflection: DeflectionCheck,
+  crack: CrackControlCheck,
+  L_mm: number
+): GoverningFailure {
+  if (stations.length === 0) {
+    return {
+      kind: 'none', x: 0, demand: 0, capacity: 0, ratio: 0,
+      narrativeEn: 'No stations resolved.',
+      narrativeEs: 'Sin estaciones resueltas.',
+    };
+  }
+  const worstFlex = stations.reduce((a, b) => (b.flexureRatio > a.flexureRatio ? b : a));
+  const worstShr = stations.reduce((a, b) => (b.shearRatio > a.shearRatio ? b : a));
+
+  // Build the four candidate governing checks
+  type Cand = {
+    kind: 'flexure' | 'shear' | 'deflection' | 'crack';
+    ratio: number; x: number; demand: number; capacity: number;
+    nameEn: string; nameEs: string;
+    demandLabel: string; capacityLabel: string;
+    unit: string;
+    actionEn?: string; actionEs?: string;
+  };
+  const cands: Cand[] = [
+    {
+      kind: 'flexure',
+      ratio: worstFlex.flexureRatio, x: worstFlex.x,
+      demand: worstFlex.Mu, capacity: worstFlex.phiMn,
+      nameEn: 'flexure', nameEs: 'flexión',
+      demandLabel: 'Mu', capacityLabel: 'φMn', unit: 'kN·m',
+      actionEn: flexureWorst.needsDouble
+        ? 'Add compression steel (doubly reinforced) OR increase d / b.'
+        : 'Add tension bars OR increase d.',
+      actionEs: flexureWorst.needsDouble
+        ? 'Agrega acero de compresión (doblemente reforzada) O aumenta d / b.'
+        : 'Agrega barras de tracción O aumenta d.',
+    },
+    {
+      kind: 'shear',
+      ratio: worstShr.shearRatio, x: worstShr.x,
+      demand: worstShr.Vu, capacity: worstShr.phiVn,
+      nameEn: 'shear', nameEs: 'corte',
+      demandLabel: 'Vu', capacityLabel: 'φVn', unit: 'kN',
+      actionEn: shearWorst.Vs > shearWorst.VsMax
+        ? 'Vs exceeds Vs,max → enlarge bw or h.'
+        : 'Reduce stirrup spacing OR add legs.',
+      actionEs: shearWorst.Vs > shearWorst.VsMax
+        ? 'Vs supera Vs,máx → aumenta bw o h.'
+        : 'Reduce el espaciamiento de estribos O añade ramas.',
+    },
+    {
+      kind: 'deflection',
+      ratio: deflection.ratio, x: L_mm / 2,
+      demand: deflection.deltaCheck, capacity: deflection.deltaLimit,
+      nameEn: 'deflection', nameEs: 'deflexión',
+      demandLabel: 'Δ', capacityLabel: `L/${deflection.deltaLimitRatio}`, unit: 'mm',
+      actionEn: 'Increase h (depth) — deflection scales as h³. OR raise the limit category if non-structural elements aren\'t attached.',
+      actionEs: 'Aumenta h (peralte) — la deflexión escala con h³. O cambia la categoría de límite si no hay elementos no-estructurales adheridos.',
+    },
+    {
+      kind: 'crack',
+      ratio: crack.ratio, x: L_mm / 2,
+      demand: crack.s, capacity: crack.sMax,
+      nameEn: 'crack control', nameEs: 'fisuración',
+      demandLabel: 's_actual', capacityLabel: 's_max', unit: 'mm',
+      actionEn: 'Reduce bar spacing (use more, smaller bars) OR increase fy / cover per §24.3.2.',
+      actionEs: 'Reduce el espaciamiento (usa más barras más finas) O cambia fy / recubrimiento por §24.3.2.',
+    },
+  ];
+
+  // Pick the candidate with the highest ratio
+  const gov = cands.reduce((a, b) => (b.ratio > a.ratio ? b : a));
+  const fails = gov.ratio > 1;
+  const overpct = (gov.ratio - 1) * 100;
+  const xKm = (gov.x / 1000).toFixed(2);
+
+  return {
+    kind: gov.kind,
+    x: gov.x,
+    demand: gov.demand,
+    capacity: gov.capacity,
+    ratio: gov.ratio,
+    narrativeEn: fails
+      ? `Beam FAILS — ${gov.nameEn} deficit at x=${xKm} m: ${gov.demandLabel}=${gov.demand.toFixed(2)} ${gov.unit} > ${gov.capacityLabel}=${gov.capacity.toFixed(2)} ${gov.unit} (+${overpct.toFixed(1)}%).`
+      : `Beam passes — governing ${gov.nameEn} at x=${xKm} m, utilization ${(gov.ratio * 100).toFixed(1)}%.`,
+    narrativeEs: fails
+      ? `Viga NO CUMPLE — déficit de ${gov.nameEs} en x=${xKm} m: ${gov.demandLabel}=${gov.demand.toFixed(2)} ${gov.unit} > ${gov.capacityLabel}=${gov.capacity.toFixed(2)} ${gov.unit} (+${overpct.toFixed(1)}%).`
+      : `Viga cumple — ${gov.nameEs} gobernante en x=${xKm} m, utilización ${(gov.ratio * 100).toFixed(1)}%.`,
+    actionEn: fails ? gov.actionEn : undefined,
+    actionEs: fails ? gov.actionEs : undefined,
+  };
+}
+
+/** Multi-section envelope analysis. */
+export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
+  const warnings: string[] = [];
+  try {
+    // 1. Resolve demand stations
+    const stations0 = resolveStations(input.demand, input.geometry.L);
+
+    // 2. For each station, compute capacity (constant for now — same reinforcement everywhere)
+    //    Optimization: capacity is the same at every station with constant rebar, so we compute once
+    //    using checkFlexure/checkShear with that station's Mu/Vu (only ratio differs).
+    const stations: StationResult[] = stations0.map((stn) => {
+      const shadow = shadowSingleSection(input, stn.Mu, stn.Vu);
+      const flex = checkFlexure(shadow);
+      const shr = checkShear(shadow);
+      return {
+        x: stn.x,
+        Mu: stn.Mu,
+        Vu: stn.Vu,
+        phiMn: flex.phiMn,
+        phiVn: shr.phiVn,
+        flexureRatio: flex.ratio,
+        shearRatio: shr.ratio,
+        ok: flex.ok && shr.ok,
+      };
+    });
+
+    const maxFlexureRatio = stations.reduce((m, s) => Math.max(m, s.flexureRatio), 0);
+    const maxShearRatio = stations.reduce((m, s) => Math.max(m, s.shearRatio), 0);
+
+    // 3. Re-run full checks at the worst stations to populate FlexureCheck/ShearCheck objects
+    const worstFlexStn = stations.reduce((a, b) => (b.flexureRatio > a.flexureRatio ? b : a), stations[0]);
+    const worstShrStn = stations.reduce((a, b) => (b.shearRatio > a.shearRatio ? b : a), stations[0]);
+    const flexureWorst = checkFlexure(shadowSingleSection(input, worstFlexStn.Mu, worstFlexStn.Vu));
+    const shearWorst = checkShear(shadowSingleSection(input, worstShrStn.Mu, worstShrStn.Vu));
+
+    // 4. Deflection + crack: single-point semantics (use Loads.Ma at midspan for simply-supported,
+    //    or whatever the user provided in input.loads.Ma).
+    const shadowDeflInput: BeamInput = {
+      code: input.code, method: input.method,
+      geometry: input.geometry, materials: input.materials, reinforcement: input.reinforcement,
+      loads: { ...input.loads, Mu: worstFlexStn.Mu, Vu: worstShrStn.Vu },
+    };
+    const deflection = checkDeflection(shadowDeflInput, flexureWorst);
+    const crack = checkCrackControl(shadowDeflInput);
+    const detailing = checkDetailing(shadowDeflInput);
+
+    const selfWeight = (input.materials.gammaC ?? 24) * sectionArea(input.geometry) * 1e-6;
+
+    if (flexureWorst.section === 'compression-controlled') {
+      warnings.push('Worst flexure station is compression-controlled — increase d, b, or use compression steel.');
+    }
+    if (flexureWorst.needsDouble) {
+      warnings.push('Worst-station Mu exceeds singly-reinforced capacity — add compression steel.');
+    }
+    if (shearWorst.stirrupsRequired && shearWorst.AvMin > shearWorst.Av) {
+      warnings.push(`Provided Av = ${shearWorst.Av.toFixed(0)} mm² < Av,min = ${shearWorst.AvMin.toFixed(0)} mm² — increase stirrup size or decrease spacing.`);
+    }
+
+    const ok = stations.every((s) => s.ok) && deflection.ok && crack.ok && detailing.ok;
+    const governing = governingFromStations(stations, flexureWorst, shearWorst, deflection, crack, input.geometry.L);
+
+    return {
+      input,
+      stations,
+      maxFlexureRatio,
+      maxShearRatio,
+      governing,
+      flexureWorst,
+      shearWorst,
+      deflection,
+      crack,
+      detailing,
+      selfWeight,
+      sectionType: input.geometry.shape,
+      warnings,
+      ok,
+      solved: true,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      input,
+      stations: [],
+      maxFlexureRatio: 0,
+      maxShearRatio: 0,
+      governing: {
+        kind: 'none', x: 0, demand: 0, capacity: 0, ratio: 0,
+        narrativeEn: `Solver error: ${msg}`,
+        narrativeEs: `Error del solver: ${msg}`,
+      },
+      flexureWorst: emptyFlexure(),
+      shearWorst: emptyShear(),
+      deflection: emptyDeflection({
+        code: input.code, method: input.method, geometry: input.geometry,
+        materials: input.materials, reinforcement: input.reinforcement,
+        loads: input.loads,
+      } as BeamInput),
+      crack: emptyCrack(),
+      detailing: emptyDetailing(),
+      selfWeight: 0,
+      sectionType: input.geometry.shape,
+      warnings: [`Solver error: ${msg}`],
+      ok: false,
+      solved: false,
+    };
+  }
+}
+
+// ============================================================================
 // EMPTY OUTPUT (for error cases)
 // ============================================================================
 function emptyFlexure(): FlexureCheck {
@@ -793,4 +1367,12 @@ function emptyDeflection(input: BeamInput): DeflectionCheck {
 }
 function emptyCrack(): CrackControlCheck {
   return { fs: 0, sMax: 0, s: 0, cc: 0, ratio: 0, ok: false, ref: '', steps: [] };
+}
+function emptyDetailing(): DetailingCheck {
+  const empty: DetailingItem = { label: '', ref: '', ok: false, noteEn: '', noteEs: '' };
+  return {
+    cover: empty, barFit: empty, barSpacing: empty, hangerBars: empty,
+    skinReinf: empty, stirrupSize: empty, stirrupLegSpacing: empty, compressionLateral: empty,
+    ok: false, narrativeEn: '', narrativeEs: '',
+  };
 }

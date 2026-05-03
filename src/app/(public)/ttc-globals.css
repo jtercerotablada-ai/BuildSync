@@ -8722,5 +8722,196 @@ img, svg {
   .pr-key  { color: #b08833; font-weight: 600; }
 }
 
+/* ============================================================================
+   RC Design v2 — pass/fail tints + envelope diagram + status banner
+   ============================================================================ */
+
+/* Inline pass/fail tints used inside ab-label, table cells, etc. */
+.ab-pass { color: #5fb674; }
+.ab-fail { color: #ff6a55; }
+.ab-row-fail td { background: rgba(201, 76, 76, 0.10); }
+
+/* ----- Status banner (semáforo) ----- */
+.rc-status {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1.2rem;
+}
+.rc-status--pass {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.16), rgba(34, 197, 94, 0.04));
+  border-color: rgba(34, 197, 94, 0.5);
+}
+.rc-status--fail {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.18), rgba(220, 38, 38, 0.05));
+  border-color: rgba(220, 38, 38, 0.55);
+}
+.rc-status__icon {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  font-size: 1.4rem; font-weight: 800;
+  background: rgba(0,0,0,0.25);
+  color: white;
+}
+.rc-status--pass .rc-status__icon { background: rgba(34, 197, 94, 0.85); }
+.rc-status--fail .rc-status__icon { background: rgba(220, 38, 38, 0.85); }
+.rc-status__text {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  font-size: 0.95rem; line-height: 1.4;
+  color: rgba(255,255,255,0.92);
+}
+.rc-status__text strong { font-weight: 700; }
+.rc-status__es { opacity: 0.75; font-size: 0.86rem; }
+.rc-status__action {
+  margin-top: 0.3rem;
+  font-size: 0.86rem;
+  color: #f5d56b;
+}
+
+/* ----- Envelope diagram ----- */
+.rc-env { display: flex; flex-direction: column; gap: 1rem; }
+.rc-env__panel {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 0.9rem 1rem 1rem;
+}
+.rc-env__hdr {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 0.75rem; flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+.rc-env__title {
+  margin: 0;
+  font-size: 0.95rem; font-weight: 700;
+  color: #c9a84c;
+  letter-spacing: 0.4px;
+}
+.rc-env__badge {
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem; font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.rc-env__badge--pass {
+  background: rgba(34, 197, 94, 0.16);
+  color: #6fd58a;
+  border: 1px solid rgba(34, 197, 94, 0.45);
+}
+.rc-env__badge--fail {
+  background: rgba(220, 38, 38, 0.18);
+  color: #ff7a6a;
+  border: 1px solid rgba(220, 38, 38, 0.55);
+}
+.rc-env__svg {
+  width: 100%;
+  height: auto;
+  background: white;
+  border-radius: 6px;
+}
+.rc-env__caption {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.55);
+  margin: 0.2rem 0 0;
+}
+
+/* ----- Envelope tab table + demand card ----- */
+.rc-env-tab { display: flex; flex-direction: column; gap: 1rem; }
+.rc-env-tab__sub {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.7);
+  letter-spacing: 0.3px;
+}
+.rc-env-tab__table-wrap { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 0.9rem 1rem; }
+
+.rc-demand { /* extends slab-card */ }
+.rc-demand__points { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid rgba(255,255,255,0.06); }
+.rc-demand__points-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+.rc-demand__points-hdr h5 {
+  margin: 0; font-size: 0.85rem; font-weight: 600;
+  color: rgba(255,255,255,0.8); letter-spacing: 0.3px;
+}
+
+@media (max-width: 700px) {
+  .rc-status { flex-direction: column; padding: 0.85rem; gap: 0.6rem; }
+  .rc-status__icon { width: 36px; height: 36px; font-size: 1.1rem; }
+  .rc-env__hdr { flex-direction: column; align-items: flex-start; }
+  .rc-env__panel { padding: 0.7rem; }
+}
+
+/* ----- Always-visible envelope headline (top of tool, above tabs) ----- */
+.rc-env-headline { margin-bottom: 0.5rem; }
+
+/* ----- Detailing tab — 8 sub-checks grid ----- */
+.rc-detailing { display: flex; flex-direction: column; gap: 1rem; }
+.rc-detailing__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.6rem;
+}
+.rc-detailing-item {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+}
+.rc-detailing-item--pass { border-left-color: #5fb674; }
+.rc-detailing-item--fail { border-left-color: #ff6a55; background: rgba(220, 38, 38, 0.05); }
+.rc-detailing-item--info { border-left-color: #c9a84c; opacity: 0.85; }
+.rc-detailing-item__hdr {
+  display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+.rc-detailing-item__icon {
+  display: inline-grid; place-items: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  font-size: 0.8rem; font-weight: 700;
+  flex: 0 0 auto;
+}
+.rc-detailing-item--pass .rc-detailing-item__icon { background: rgba(95, 182, 116, 0.25); color: #5fb674; }
+.rc-detailing-item--fail .rc-detailing-item__icon { background: rgba(255, 106, 85, 0.25); color: #ff6a55; }
+.rc-detailing-item--info .rc-detailing-item__icon { background: rgba(201, 168, 76, 0.25); color: #c9a84c; }
+.rc-detailing-item__label {
+  flex: 1 1 auto;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.92);
+  letter-spacing: 0.2px;
+}
+.rc-detailing-item__ref {
+  font-size: 0.72rem;
+  font-family: ui-monospace, monospace;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.3px;
+}
+.rc-detailing-item__note {
+  margin: 0.1rem 0 0;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.82);
+}
+.rc-detailing-item__note--es {
+  font-style: italic;
+  color: rgba(255,255,255,0.55);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 700px) {
+  .rc-detailing__grid { grid-template-columns: 1fr; }
+}
+
+
+
 
 
