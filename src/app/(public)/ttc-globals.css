@@ -8135,9 +8135,9 @@ img, svg {
       vertical-align: bottom; padding-bottom: 4pt;
     }
     @bottom-center {
-      content: "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. · ttcivilstructural.com";
+      content: "FOR VERIFICATION ONLY — MUST BE REVIEWED & SIGNED BY A LICENSED P.E. / S.E. · TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. · ttcivilstructural.com";
       font-family: 'Inter', system-ui, sans-serif;
-      font-size: 7pt; color: #888; letter-spacing: 0.04em;
+      font-size: 6.5pt; color: #888; letter-spacing: 0.03em;
     }
   }
 
@@ -8228,6 +8228,32 @@ img, svg {
     font-size: 8.5pt; color: #555; line-height: 1.4;
     background: #faf6e8; border-left: 2pt solid #b08833;
     padding: 0.2cm 0.3cm; margin-top: 0.5cm; text-align: left;
+  }
+
+  /* ================ Liability disclaimer box (cover) ================
+     A high-contrast red-bordered box that the eye cannot miss. Sits at the
+     bottom of the cover page right after the compliance summary. Has
+     break-inside: avoid so it never splits across pages.                   */
+  .slab-print-portal .pr-disclaimer {
+    margin-top: 0.5cm;
+    border: 1.2pt solid #b03030;
+    background: #fff4f0;
+    padding: 0.25cm 0.35cm;
+    text-align: left;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .slab-print-portal .pr-disclaimer__title {
+    font-size: 11pt; font-weight: 700; color: #b03030;
+    letter-spacing: 0.04em; margin-bottom: 0.15cm;
+  }
+  .slab-print-portal .pr-disclaimer p {
+    font-size: 8.5pt; color: #333; line-height: 1.4;
+    margin: 0.1cm 0;
+  }
+  .slab-print-portal .pr-disclaimer p strong { color: #7a1f1f; }
+  .slab-print-portal .pr-disclaimer__es {
+    font-size: 7.5pt; color: #555; padding-top: 0.1cm;
+    border-top: 0.4pt dashed #b03030; margin-top: 0.1cm;
   }
   /* The h3 above the compliance table on the cover */
   .slab-print-portal .pr-cover h3 { text-align: left; }

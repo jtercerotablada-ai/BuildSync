@@ -60,7 +60,6 @@ export function SlabPrintReport({ input, result }: Props) {
             <tr><th>Design code</th><td><strong>{result.code}</strong></td><th>Classification</th>
                 <td>{result.classification === 'one-way' ? 'One-way' : `Two-way (Method 3 case ${result.case ?? '?'})`}</td></tr>
             <tr><th>Concrete</th><td>fʹc = {input.materials.fc} MPa</td><th>Reinforcement</th><td>fy = {input.materials.fy} MPa</td></tr>
-            <tr><th>Designed by</th><td>TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — automated solver v1.0</td><th>Validation</th><td>105 unit tests</td></tr>
             <tr><th>Reviewed by</th><td className="pr-blank">__________________________</td><th>Sign / date</th><td className="pr-blank">__________________________</td></tr>
             <tr><th>Approved by</th><td className="pr-blank">__________________________</td><th>Sign / date</th><td className="pr-blank">__________________________</td></tr>
           </tbody>
@@ -82,16 +81,38 @@ export function SlabPrintReport({ input, result }: Props) {
           </tbody>
         </table>
 
-        <p className="pr-cover__notes">
-          <strong>Notes:</strong> Calculations comply with the chosen design code. The
-          solver implements ACI 318-19 / ACI 318-25 / EN 1992-1-1 provisions for one-way
-          and two-way slabs (Method 3 coefficients per PCA Notes), reinforcement design
-          (with tension-controlled φ check), Branson Ie deflection (with edge-aware
-          coefficient, sustained-LL ψ, λΔ time-period, Tabla 24.2.2 limit selector),
-          punching shear (with λs size factor and lightweight λ), and crack control. The
-          structural engineer of record must review and sign these calculations prior to
-          construction.
-        </p>
+        {/* ============== STRONG LIABILITY DISCLAIMER ============== */}
+        <div className="pr-disclaimer">
+          <div className="pr-disclaimer__title">⚠ DISCLAIMER — DESCARGO DE RESPONSABILIDAD</div>
+          <p>
+            <strong>This software is in active development</strong> and is provided
+            <strong> AS-IS without warranty of any kind</strong>, express or implied. Results may
+            contain errors, omissions, or numerical inaccuracies. Calculations <strong>MUST be
+            independently verified</strong> using established structural engineering software
+            (such as SAP2000, ETABS, SAFE, RAM Concept, Autodesk Robot, RISA, SkyCiv, or
+            equivalent) and <strong>reviewed, signed, and sealed by a licensed
+            Professional Engineer (P.E. / S.E.)</strong> in the jurisdiction of the project
+            prior to any use in design, construction, or permitting.
+          </p>
+          <p>
+            The user assumes full responsibility for verification of every input, every
+            assumption, and every output. <strong>TERCERO TABLADA CIVIL AND STRUCTURAL
+            ENGINEERING INC.</strong>, its principals, employees, and contributors expressly
+            disclaim any and all liability for direct, indirect, incidental, consequential,
+            or punitive damages arising from the use or inability to use these calculations.
+          </p>
+          <p className="pr-disclaimer__es">
+            <em>
+              Este software está en desarrollo activo y se proporciona TAL CUAL, sin garantía
+              de ningún tipo. Los resultados deben verificarse independientemente con software
+              estructural establecido (SAP2000, ETABS, SAFE, etc.) y ser revisados, firmados y
+              sellados por un Ingeniero Profesional licenciado (P.E. / S.E.) antes de cualquier
+              uso en diseño, construcción o trámites. El usuario asume toda la responsabilidad.
+              TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. se exime expresamente de
+              toda responsabilidad por daños derivados del uso de estos cálculos.
+            </em>
+          </p>
+        </div>
       </section>
 
       {/* ============================================================ */}
@@ -408,8 +429,9 @@ export function SlabPrintReport({ input, result }: Props) {
         )}
 
         <div className="pr-footer">
-          End of report — TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. · ttcivilstructural.com ·
-          Solver validated by 105 unit tests · Generated {dateStr}
+          End of report — TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. ·
+          ttcivilstructural.com · Generated {dateStr} · <strong>For verification —
+          must be reviewed and signed by a licensed P.E. / S.E.</strong>
         </div>
       </section>
     </div>
