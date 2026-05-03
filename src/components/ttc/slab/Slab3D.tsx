@@ -96,7 +96,10 @@ export function Slab3D({ result, input }: Props) {
         <Canvas
           shadows
           camera={{ position: [camDist, camDist * 0.85, camDist], fov: 38, near: 0.05, far: 200 }}
-          gl={{ antialias: true, preserveDrawingBuffer: false }}
+          /* preserveDrawingBuffer: true so the canvas can be captured to a PNG
+             for the print-report cover hero (canvas.toDataURL would return
+             blank otherwise). Small perf cost is acceptable for a design tool. */
+          gl={{ antialias: true, preserveDrawingBuffer: true }}
         >
           <color attach="background" args={['#0a0a0a']} />
 

@@ -8260,6 +8260,29 @@ img, svg {
     margin: 0.7cm 0 0.6cm; line-height: 1.1; letter-spacing: 0.02em;
     border: none; text-align: center;
   }
+  /* Hero 3D snapshot on the cover — sits between the title and the
+     project-info table. PNG comes from canvas.toDataURL() right before
+     window.print(). Centred, capped to keep the cover compact.            */
+  .slab-print-portal .pr-cover__hero {
+    margin: 0.5cm auto 0.6cm;
+    text-align: center;
+    page-break-inside: avoid; break-inside: avoid;
+  }
+  .slab-print-portal .pr-cover__hero img {
+    display: block;
+    margin: 0 auto;
+    width: 14cm;
+    max-width: 100%;
+    height: auto;
+    max-height: 9cm;
+    object-fit: contain;
+    border: 0.4pt solid #ccc;
+    background: #0a0a0a;             /* matches the live viewer background */
+  }
+  .slab-print-portal .pr-cover__hero-caption {
+    font-size: 8.5pt; color: #555; font-style: italic; margin-top: 0.15cm;
+  }
+
   .slab-print-portal .pr-cover-table {
     font-size: 9.5pt; margin: 0 auto 0.6cm; table-layout: fixed;
     text-align: left;

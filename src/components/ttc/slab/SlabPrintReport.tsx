@@ -8,6 +8,9 @@ import { BAR_CATALOG } from '@/lib/slab/types';
 interface Props {
   input: SlabInput;
   result: SlabAnalysis;
+  /** PNG data URL of the live 3D viewer captured right before window.print().
+   *  Rendered as a hero image on the cover page above the project info table. */
+  cover3dDataUrl?: string;
 }
 
 /**
@@ -23,7 +26,7 @@ interface Props {
  * Hidden on screen via .slab-print-portal { display: none }.
  * `window.print()` hides every other body child and shows just this.
  */
-export function SlabPrintReport({ input, result }: Props) {
+export function SlabPrintReport({ input, result, cover3dDataUrl }: Props) {
   // Portal target — only available client-side after first mount.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -68,6 +71,17 @@ export function SlabPrintReport({ input, result }: Props) {
         )}
 
         <h2 className="pr-cover__title">REINFORCED CONCRETE<br/>SLAB DESIGN REPORT</h2>
+
+        {/* HERO 3D — snapshot of the live viewer captured right before print */}
+        {cover3dDataUrl && (
+          <div className="pr-cover__hero">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={cover3dDataUrl} alt="3D model snapshot of the slab" />
+            <div className="pr-cover__hero-caption">
+              3D model of the analysed slab — rendered live in the design tool
+            </div>
+          </div>
+        )}
 
         <table className="pr-cover-table">
           <tbody>

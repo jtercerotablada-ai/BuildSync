@@ -163,11 +163,31 @@ export function SlabCalculator() {
   const [model, dispatch] = useReducer(reducer, undefined, () => PRESETS[2].build());
   const [tab, setTab] = useState<'inputs' | 'results' | 'rebar' | 'checks' | 'refs'>('inputs');
   const result = useMemo(() => analyze(model), [model]);
+  // Snapshot of the live 3D viewer captured right before window.print(). Used
+  // as the hero image on the print-report cover.
+  const [cover3dDataUrl, setCover3dDataUrl] = useState<string | undefined>(undefined);
+
+  const handlePrint = () => {
+    // Find the live Three.js canvas (rendered inside .slab-3d__canvas).
+    const canvas = document.querySelector('.slab-3d__canvas canvas') as HTMLCanvasElement | null;
+    if (canvas) {
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        setCover3dDataUrl(dataUrl);
+      } catch (e) {
+        console.warn('3D canvas capture failed:', e);
+        setCover3dDataUrl(undefined);
+      }
+    }
+    // Defer print() one tick so React commits the new cover3dDataUrl into the
+    // print-report DOM before the print dialog opens.
+    setTimeout(() => window.print(), 60);
+  };
 
   return (
     <div className="ab-root">
-      {/* Print-only report (hidden on screen). Triggered by window.print(). */}
-      <SlabPrintReport input={model} result={result} />
+      {/* Print-only report (hidden on screen). Triggered by handlePrint(). */}
+      <SlabPrintReport input={model} result={result} cover3dDataUrl={cover3dDataUrl} />
 
       {/* Templates */}
       <section className="ab-section">
@@ -209,7 +229,7 @@ export function SlabCalculator() {
           <span className="ab-label">{result.wu.toFixed(2)} kN/m²</span>
         </div>
         <button type="button" className="ab-btn ab-btn--primary slab-print-btn"
-          onClick={() => window.print()}>
+          onClick={handlePrint}>
           ⎙ Print full report
         </button>
       </section>
