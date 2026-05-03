@@ -989,7 +989,10 @@ function SvgAnchorAssembly({ input }: { input: BasePlateInput }) {
     { n: 3,  bx: xL, by: drawY + 75,  targetX: cx - hw.washerWidth / 2 * SCALE,      targetY: yPx((yPwTop + yRwTop) / 2),            side: 'right' },
     { n: 5,  bx: xL, by: drawY + 130, targetX: cx - (concW / 2 - 14),                targetY: yPx(yPlTop - tp / 2),                  side: 'right' },
     { n: 7,  bx: xL, by: drawY + 200, targetX: cx - (concW / 2 - 8),                 targetY: yPx(yGrtTop - grout / 2),              side: 'right' },
-    { n: 9,  bx: xL, by: drawY + 380, targetX: cx - da / 2 * SCALE - 0.5,            targetY: yPx(-hef * 0.55),                      side: 'right' },
+    // Balloon 9 placed in upper embedded zone (y = -hef·0.25) so its
+    // purely-horizontal leader passes ABOVE the rotated 'hef = 12.00"' dim
+    // label (which is centered at the midpoint of the embedment ≈ -hef/2).
+    { n: 9,  bx: xL, by: yPx(-hef * 0.25), targetX: cx - da / 2 * SCALE - 0.5,    targetY: yPx(-hef * 0.25),                      side: 'right' },
   ];
 
   const legendItems = [
@@ -1146,14 +1149,14 @@ function SvgPlanView({ input }: { input: BasePlateInput }) {
     // TOP — Plate (above plate)
     { n: 1, bx: cx, by: yTopBalloon, targetX: x(0), targetY: y(N / 2),
       side: 'bottom' },
-    // RIGHT — Column, anchor (top-right), plate hole
-    { n: 2, bx: xR, by: drawY + 40, targetX: x(colTw / 2 + 0.05), targetY: y(0),
-      side: 'left' },
-    { n: 3, bx: xR, by: drawY + 90, targetX: x(sx / 2),            targetY: y(sy / 2),
-      side: 'left' },
-    { n: 5, bx: xR, by: drawY + 160, targetX: x(sx / 2) + hw.holeDia / 2 * scale - 0.5,
-      targetY: y(sy / 2),
-      side: 'left' },
+    // RIGHT — Anchor (top-right), plate hole, then column at center
+    // Stacked top→bottom following the plate geometry, all leaders horizontal:
+    //   3 → top-right anchor centerline      (y = top anchor row)
+    //   5 → top-right anchor hole edge       (just below balloon 3)
+    //   2 → column right flange edge         (at plate center y)
+    { n: 3, bx: xR, by: y(sy / 2),       targetX: x(sx / 2),                                       targetY: y(sy / 2), side: 'left' },
+    { n: 5, bx: xR, by: y(sy / 2) + 28,  targetX: x(sx / 2) + hw.holeDia / 2 * scale - 0.5,        targetY: y(sy / 2), side: 'left' },
+    { n: 2, bx: xR, by: y(0),            targetX: x(colBf / 2),                                    targetY: y(0),       side: 'left' },
     // BOTTOM-LEFT — edge distance
     { n: 4, bx: cx - drawW / 2 - 60, by: drawY + drawH + 30, targetX: x(-B / 2),
       targetY: y(-sy / 2),
@@ -1287,9 +1290,12 @@ function SvgElevationView({ input }: { input: BasePlateInput }) {
   const xR = cx + drawW / 2 + 60;
   const xL = cx - drawW / 2 - 60;
   const balloons: Bal[] = [
-    // TOP — Column (centered above)
-    { n: 1, bx: cx, by: drawY - 50, targetX: cx, targetY: yPx(yColTop - 0.5), side: 'bottom' },
-    // RIGHT — plate, grout, pedestal, top nut
+    // RIGHT — column (high up), plate, grout, pedestal, top nut.
+    // Balloon 1 (column) moved to RIGHT side at upper-column y so its short
+    // horizontal leader points to the column edge — clears the top cota stack
+    // (sy/N/N2) entirely.
+    { n: 1, bx: xR, by: yPx(yPlTop + colHeight * 0.65), targetX: xPx(colBf / 2),
+      targetY: yPx(yPlTop + colHeight * 0.65), side: 'left' },
     { n: 2, bx: xR, by: yPx(yPlTop + tp / 2), targetX: xPx(N / 2 - 0.3),
       targetY: yPx(yPlTop + tp / 2), side: 'left' },
     { n: 3, bx: xR, by: yPx(yGrtTop + grout / 2) + 12, targetX: xPx(N / 2 * 1.04),
@@ -1364,12 +1370,17 @@ function SvgElevationView({ input }: { input: BasePlateInput }) {
         </g>
       ))}
 
-      {/* === DIMENSIONS — left, well-separated columns === */}
+      {/* === DIMENSIONS — left, with WELL-SEPARATED x columns so the rotated
+           labels can't collide with each other ===
+           tp dim is the THINNEST (1.5") — its rotated label is short.
+           grout is also short (1"). Putting them in different x columns
+           with comfortable separation prevents the rotated text strips
+           from overlapping vertically. */}
       <DimV x={xPx(-pedN / 2) - 30} y1={yPx(yConTop)} y2={yPx(yEmbBot)}
             label={`hef = ${hef.toFixed(2)}"`} side="left" />
-      <DimV x={xPx(-N / 2) - 22} y1={yPx(yPlTop)} y2={yPx(yGrtTop)}
+      <DimV x={xPx(-N / 2 * 1.05) - 25} y1={yPx(yPlTop)} y2={yPx(yGrtTop)}
             label={`tp ${tp.toFixed(3)}"`} side="left" />
-      <DimV x={xPx(-N / 2 * 1.05) - 22} y1={yPx(yGrtTop)} y2={yPx(yConTop)}
+      <DimV x={xPx(-N / 2 * 1.05) - 70} y1={yPx(yGrtTop)} y2={yPx(yConTop)}
             label={`grout ${grout.toFixed(2)}"`} side="left" />
 
       {/* === DIMENSIONS — top, stacked with comfortable spacing === */}
