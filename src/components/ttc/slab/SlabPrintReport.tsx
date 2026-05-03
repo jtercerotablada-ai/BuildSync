@@ -424,10 +424,10 @@ export function SlabPrintReport({ input, result }: Props) {
 
 function SvgPlanView({ input, result }: { input: SlabInput; result: SlabAnalysis }) {
   const Lx = input.geometry.Lx, Ly = input.geometry.Ly;
-  // Wider canvas + asymmetric margins so the Ly dim has its own clear strip on the
-  // right (past the edge label) without overlapping anything.
+  // Symmetric margins so the slab is in the visual centre of the SVG. Dim line
+  // and rotated text still fit inside the (large enough) right margin.
   const W = 760, H = 460;
-  const mL = 90, mR = 130, mT = 60, mB = 90;       // left/right/top/bottom margins
+  const mL = 130, mR = 130, mT = 60, mB = 90;
   const drawW = W - mL - mR, drawH = H - mT - mB;
   const ratio = Lx / Ly;
   let pxW: number, pxH: number;
@@ -435,9 +435,9 @@ function SvgPlanView({ input, result }: { input: SlabInput; result: SlabAnalysis
   else { pxH = drawH; pxW = pxH * ratio; }
   const x0 = mL + (drawW - pxW) / 2, y0 = mT + (drawH - pxH) / 2;
   const labelOf = (e: 'free' | 'simple' | 'fixed') => e === 'fixed' ? 'F (fixed)' : e === 'simple' ? 'S (simple)' : 'X (free)';
-  // Dim offsets from slab edges
-  const lxDimY = y0 + pxH + 36;
-  const lyDimX = x0 + pxW + 70;          // far past the right edge label
+  // Dim lines just outside the edge labels.
+  const lxDimY = y0 + pxH + 38;
+  const lyDimX = x0 + pxW + 60;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -470,14 +470,14 @@ function SvgPlanView({ input, result }: { input: SlabInput; result: SlabAnalysis
       <line x1={x0} y1={lxDimY - 5} x2={x0} y2={lxDimY + 5} stroke="#333" strokeWidth="0.7" />
       <line x1={x0 + pxW} y1={lxDimY - 5} x2={x0 + pxW} y2={lxDimY + 5} stroke="#333" strokeWidth="0.7" />
       <text x={x0 + pxW / 2} y={lxDimY + 18} textAnchor="middle" fontSize="11" fill="#222" fontWeight="600">{`Lx = ${Lx.toFixed(2)} m`}</text>
-      {/* Dimension Ly (right) — far enough out to clear the edge label */}
+      {/* Dimension Ly (right) — sits in the right margin, well clear of edge labels */}
       <line x1={lyDimX} y1={y0} x2={lyDimX} y2={y0 + pxH} stroke="#333" strokeWidth="0.7" />
       <line x1={lyDimX - 5} y1={y0} x2={lyDimX + 5} y2={y0} stroke="#333" strokeWidth="0.7" />
       <line x1={lyDimX - 5} y1={y0 + pxH} x2={lyDimX + 5} y2={y0 + pxH} stroke="#333" strokeWidth="0.7" />
       <text x={lyDimX + 16} y={y0 + pxH / 2}
         textAnchor="middle" fontSize="11" fill="#222" fontWeight="600"
         transform={`rotate(90, ${lyDimX + 16}, ${y0 + pxH / 2})`}>{`Ly = ${Ly.toFixed(2)} m`}</text>
-      {/* Title */}
+      {/* Title — clearly separated from the Lx dim text */}
       <text x={W / 2} y={H - 14} textAnchor="middle" fontSize="9" fill="#666">
         {`${result.classification === 'one-way' ? 'One-way slab' : `Two-way Method 3 case ${result.case ?? '?'}`} · h = ${input.geometry.h} mm`}
       </text>
@@ -530,119 +530,174 @@ function SvgLoadingDiagram({ input, result }: { input: SlabInput; result: SlabAn
 
 function SvgDeformedSection({ input, result }: { input: SlabInput; result: SlabAnalysis }) {
   const Lx = input.geometry.Lx;
-  const W = 700, H = 220, m = 70;
+  const W = 700, H = 240, m = 80;
   const drawW = W - 2 * m;
-  const beamY = 110;
+  const beamY = 100;            // top of undeformed beam
+  const beamThk = 22;           // visual thickness (px) of slab cross-section
   const x0 = m, x1 = W - m;
-  // Deformed shape: parabolic for SS-like, scaled visually
-  const peakOffset = 35;
-  const N = 40;
-  const pts: string[] = [];
+  // Parabolic deflection (sin-based for SS-like). Sample N+1 points; build a
+  // single closed polygon so the deformed slab renders as a SOLID body, not
+  // two thin outline curves.
+  const peakOffset = 32;
+  const N = 60;
+  const top: { x: number; y: number }[] = [];
   for (let i = 0; i <= N; i++) {
     const t = i / N;
-    const sin = Math.sin(Math.PI * t);
-    const x = x0 + t * drawW;
-    const y = beamY + peakOffset * sin;
-    pts.push(`${x},${y}`);
+    const sag = Math.sin(Math.PI * t);
+    top.push({ x: x0 + t * drawW, y: beamY + peakOffset * sag });
   }
+  // Build a single closed polygon: top curve left→right, then bottom curve right→left
+  const polyPts = [
+    ...top,
+    ...top.slice().reverse().map((p) => ({ x: p.x, y: p.y + beamThk })),
+  ].map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-      {/* Original undeformed slab outline (dashed) */}
-      <line x1={x0} y1={beamY} x2={x1} y2={beamY} stroke="#999" strokeWidth="0.7" strokeDasharray="3 3" />
-      {/* Deformed shape */}
-      <polyline points={pts.join(' ')} fill="none" stroke="#c9a84c" strokeWidth="2.2" />
-      {/* Slab thickness following deformation */}
-      <polyline
-        points={pts.map((p) => { const [x, y] = p.split(',').map(Number); return `${x},${y + 16}`; }).join(' ')}
-        fill="none" stroke="#c9a84c" strokeWidth="1.2" />
-      {/* Supports */}
-      <polygon points={`${x0},${beamY + 18} ${x0 - 12},${beamY + 38} ${x0 + 12},${beamY + 38}`} fill="none" stroke="#333" />
-      <polygon points={`${x1},${beamY + 18} ${x1 - 12},${beamY + 38} ${x1 + 12},${beamY + 38}`} fill="none" stroke="#333" />
-      {/* Δi label at midspan */}
-      <line x1={W / 2} y1={beamY} x2={W / 2} y2={beamY + peakOffset} stroke="#c94c4c" strokeWidth="0.8" />
-      <text x={W / 2 + 8} y={beamY + peakOffset / 2 + 4} fontSize="12" fill="#a02020" fontWeight="600">
+      {/* Undeformed reference outline (dashed rectangle showing the slab in its
+          original position) */}
+      <rect x={x0} y={beamY} width={drawW} height={beamThk}
+            fill="none" stroke="#bbb" strokeWidth="0.6" strokeDasharray="3 3" />
+      {/* SOLID deformed slab body — filled polygon */}
+      <polygon points={polyPts}
+               fill="#e7d4a3" fillOpacity="0.9"
+               stroke="#a8842b" strokeWidth="1.2" strokeLinejoin="round" />
+      {/* Supports (triangles) — beneath the deformed bottom face at the ends */}
+      <polygon points={`${x0},${beamY + beamThk + 4} ${x0 - 12},${beamY + beamThk + 24} ${x0 + 12},${beamY + beamThk + 24}`}
+               fill="#fafafa" stroke="#333" strokeWidth="1" />
+      <polygon points={`${x1},${beamY + beamThk + 4} ${x1 - 12},${beamY + beamThk + 24} ${x1 + 12},${beamY + beamThk + 24}`}
+               fill="#fafafa" stroke="#333" strokeWidth="1" />
+      {/* Δi indicator at midspan — vertical from undeformed top to deformed top */}
+      <line x1={W / 2} y1={beamY} x2={W / 2} y2={beamY + peakOffset}
+            stroke="#c94c4c" strokeWidth="1" strokeDasharray="2 2" />
+      <line x1={W / 2 - 4} y1={beamY} x2={W / 2 + 4} y2={beamY}
+            stroke="#c94c4c" strokeWidth="1" />
+      <line x1={W / 2 - 4} y1={beamY + peakOffset} x2={W / 2 + 4} y2={beamY + peakOffset}
+            stroke="#c94c4c" strokeWidth="1" />
+      <text x={W / 2 + 10} y={beamY + peakOffset / 2 + 4}
+            fontSize="12" fill="#a02020" fontWeight="600">
         Δi = {result.deflection.delta_immediate?.toFixed(2) ?? '—'} mm
       </text>
-      {/* Span */}
-      <text x={W / 2} y={beamY + 70} textAnchor="middle" fontSize="11" fill="#222" fontWeight="600">{`L = ${Lx.toFixed(2)} m`}</text>
+      {/* Span dim (below the supports) */}
+      <line x1={x0} y1={beamY + beamThk + 50} x2={x1} y2={beamY + beamThk + 50}
+            stroke="#333" strokeWidth="0.7" />
+      <line x1={x0} y1={beamY + beamThk + 45} x2={x0} y2={beamY + beamThk + 55}
+            stroke="#333" strokeWidth="0.7" />
+      <line x1={x1} y1={beamY + beamThk + 45} x2={x1} y2={beamY + beamThk + 55}
+            stroke="#333" strokeWidth="0.7" />
+      <text x={W / 2} y={beamY + beamThk + 70} textAnchor="middle"
+            fontSize="11" fill="#222" fontWeight="600">{`L = ${Lx.toFixed(2)} m`}</text>
     </svg>
   );
 }
 
 function SvgSectionDetail({ input, result }: { input: SlabInput; result: SlabAnalysis }) {
-  const W = 720, H = 320;
+  // Layout regions (top → bottom):
+  //   Top labels         (y < y0)
+  //   SLAB BODY          (y0 to y0 + pxH)         <-- only rebar circles inside
+  //   Bottom labels      (y0+pxH+8  to y0+pxH+50)
+  //   "1.00 m of slab width"  at y0+pxH+78
+  //   Perpendicular layer note at H-50
+  //   SECTION A-A title at H-12
+  const W = 800, H = 320;
   const slabH = input.geometry.h;
   const slabW = 1000;            // 1 m strip shown
-  const scale = 0.5;             // mm → display px (1 mm = 0.5 px)
+  const scale = 0.55;            // mm → px so 1 m of slab = 550 px
   const pxW = slabW * scale, pxH = slabH * scale;
-  const x0 = (W - pxW) / 2, y0 = 80;
+  const x0 = (W - pxW) / 2, y0 = 60;
   const coverB = (input.geometry.cover_bottom_x ?? 25) * scale;
   const coverT = (input.geometry.cover_top_x ?? 25) * scale;
   const midX = result.reinforcement.find((r) => r.location === 'mid-x');
   const midY = result.reinforcement.find((r) => r.location === 'mid-y');
   const supX = result.reinforcement.find((r) => r.location === 'sup-x');
 
+  // Bar circles — sized larger than scale so they're visibly distinguishable
+  // even for small bars at low scale (otherwise #3 = 9.5 mm × 0.55 = 5.2 px diameter
+  // is visually invisible). Use a minimum visible radius.
+  const drawBarRadius = (bar: { db: number } | undefined) =>
+    Math.max((bar?.db ?? 12) * scale * 1.3, 4);
+
+  const showTopRebar = supX && Math.abs(result.moments.Mx_neg) > 0.1;
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-      {/* Concrete slab cross-section */}
+      {/* TOP REBAR LABEL — placed ABOVE the slab so it never overlaps */}
+      {showTopRebar && supX && (
+        <text x={x0 + pxW / 2} y={y0 - 14} textAnchor="middle" fontSize="10" fill="#7a5e1f" fontWeight="600">
+          {`TOP: ${supX.bar} @ ${supX.spacing.toFixed(0)} mm c/c (concentrated at edges per ACI §8.7.2.3)`}
+        </text>
+      )}
+
+      {/* SLAB BODY — concrete cross-section */}
       <rect x={x0} y={y0} width={pxW} height={pxH} fill="#cdc8bf" stroke="#333" strokeWidth="1.5" />
-      {/* Bottom rebar — circles representing bars in cross-section, evenly spaced */}
+
+      {/* TOP REBAR CIRCLES — concentrated at the edges (1/4 strip on each side) */}
+      {showTopRebar && supX && (() => {
+        const sp = supX.spacing * scale;
+        const bar = BAR_CATALOG.find((b) => b.label === supX.bar);
+        const r = drawBarRadius(bar);
+        const yPos = y0 + coverT + r;
+        const items: React.ReactElement[] = [];
+        for (let x = x0 + sp / 2; x < x0 + pxW * 0.25; x += sp) {
+          items.push(<circle key={`tx1-${x}`} cx={x} cy={yPos} r={r} fill="#e0c060" stroke="#7a5e1f" strokeWidth="0.6" />);
+        }
+        for (let x = x0 + pxW * 0.75 + sp / 2; x < x0 + pxW; x += sp) {
+          items.push(<circle key={`tx2-${x}`} cx={x} cy={yPos} r={r} fill="#e0c060" stroke="#7a5e1f" strokeWidth="0.6" />);
+        }
+        return items;
+      })()}
+
+      {/* BOTTOM REBAR CIRCLES — full width */}
       {midX && (() => {
         const sp = midX.spacing * scale;
         const bar = BAR_CATALOG.find((b) => b.label === midX.bar);
-        const r = (bar?.db ?? 12) * scale / 2;
+        const r = drawBarRadius(bar);
         const yPos = y0 + pxH - coverB - r;
         const items: React.ReactElement[] = [];
         for (let x = x0 + sp / 2; x < x0 + pxW; x += sp) {
-          items.push(<circle key={`bx-${x}`} cx={x} cy={yPos} r={r * 1.5} fill="#c94c4c" stroke="#7a1f1f" strokeWidth="0.5" />);
+          items.push(<circle key={`bx-${x}`} cx={x} cy={yPos} r={r} fill="#c94c4c" stroke="#7a1f1f" strokeWidth="0.6" />);
         }
-        items.push(
-          <text key="lbl-bx" x={x0 + pxW / 2} y={yPos + 18} textAnchor="middle" fontSize="9" fill="#7a1f1f" fontWeight="600">
-            {`${midX.bar} @ ${midX.spacing.toFixed(0)} mm c/c (bottom-x)`}
-          </text>,
-        );
         return items;
       })()}
-      {/* Top rebar at edges */}
-      {supX && Math.abs(result.moments.Mx_neg) > 0.1 && (() => {
-        const sp = supX.spacing * scale;
-        const bar = BAR_CATALOG.find((b) => b.label === supX.bar);
-        const r = (bar?.db ?? 12) * scale / 2;
-        const yPos = y0 + coverT + r;
-        const items: React.ReactElement[] = [];
-        // Concentrated near edges — 1/4 of strip on each side
-        for (let x = x0 + sp / 2; x < x0 + pxW * 0.25; x += sp) {
-          items.push(<circle key={`tx1-${x}`} cx={x} cy={yPos} r={r * 1.5} fill="#e0c060" stroke="#7a5e1f" strokeWidth="0.5" />);
-        }
-        for (let x = x0 + pxW * 0.75 + sp / 2; x < x0 + pxW; x += sp) {
-          items.push(<circle key={`tx2-${x}`} cx={x} cy={yPos} r={r * 1.5} fill="#e0c060" stroke="#7a5e1f" strokeWidth="0.5" />);
-        }
-        items.push(
-          <text key="lbl-tx" x={x0 + pxW / 2} y={yPos - 5} textAnchor="middle" fontSize="9" fill="#7a5e1f" fontWeight="600">
-            {`${supX.bar} @ ${supX.spacing.toFixed(0)} mm c/c (top-x, edges)`}
-          </text>,
-        );
-        return items;
-      })()}
-      {/* Cover annotations */}
+
+      {/* COVER DIMS (right side, just outside the slab) */}
       <line x1={x0 + pxW + 12} y1={y0} x2={x0 + pxW + 12} y2={y0 + coverT} stroke="#333" strokeWidth="0.5" />
+      <line x1={x0 + pxW + 9} y1={y0} x2={x0 + pxW + 15} y2={y0} stroke="#333" strokeWidth="0.5" />
+      <line x1={x0 + pxW + 9} y1={y0 + coverT} x2={x0 + pxW + 15} y2={y0 + coverT} stroke="#333" strokeWidth="0.5" />
       <text x={x0 + pxW + 18} y={y0 + coverT / 2 + 3} fontSize="9" fill="#444">{`top cover ${input.geometry.cover_top_x ?? 25} mm`}</text>
+
       <line x1={x0 + pxW + 12} y1={y0 + pxH - coverB} x2={x0 + pxW + 12} y2={y0 + pxH} stroke="#333" strokeWidth="0.5" />
+      <line x1={x0 + pxW + 9} y1={y0 + pxH - coverB} x2={x0 + pxW + 15} y2={y0 + pxH - coverB} stroke="#333" strokeWidth="0.5" />
+      <line x1={x0 + pxW + 9} y1={y0 + pxH} x2={x0 + pxW + 15} y2={y0 + pxH} stroke="#333" strokeWidth="0.5" />
       <text x={x0 + pxW + 18} y={y0 + pxH - coverB / 2 + 3} fontSize="9" fill="#444">{`btm cover ${input.geometry.cover_bottom_x ?? 25} mm`}</text>
-      {/* Total depth */}
-      <line x1={x0 - 18} y1={y0} x2={x0 - 18} y2={y0 + pxH} stroke="#333" strokeWidth="0.5" />
+
+      {/* TOTAL DEPTH h (left side, with arrows) */}
+      <line x1={x0 - 18} y1={y0} x2={x0 - 18} y2={y0 + pxH} stroke="#333" strokeWidth="0.6" />
+      <line x1={x0 - 22} y1={y0} x2={x0 - 14} y2={y0} stroke="#333" strokeWidth="0.6" />
+      <line x1={x0 - 22} y1={y0 + pxH} x2={x0 - 14} y2={y0 + pxH} stroke="#333" strokeWidth="0.6" />
       <text x={x0 - 26} y={y0 + pxH / 2 + 4} textAnchor="end" fontSize="11" fill="#222" fontWeight="600">{`h = ${slabH} mm`}</text>
-      <text x={x0 + pxW / 2} y={y0 + pxH + 30} textAnchor="middle" fontSize="11" fill="#222" fontWeight="600">{'1.00 m of slab width'}</text>
-      {/* Title */}
-      <text x={W / 2} y={H - 8} textAnchor="middle" fontSize="9" fill="#666">
-        {`SECTION A-A · ${result.code} · scale ~1:5`}
-      </text>
-      {/* Mention y-direction layer below */}
-      {midY && (
-        <text x={x0 + pxW / 2} y={H - 30} textAnchor="middle" fontSize="9" fill="#0a4a8a">
-          {`(perpendicular layer y-dir: ${midY.bar} @ ${midY.spacing.toFixed(0)} mm c/c — see Bar schedule §3.3)`}
+
+      {/* BOTTOM REBAR LABEL — below the slab so it doesn't overlap circles */}
+      {midX && (
+        <text x={x0 + pxW / 2} y={y0 + pxH + 18} textAnchor="middle" fontSize="10" fill="#7a1f1f" fontWeight="600">
+          {`BOTTOM: ${midX.bar} @ ${midX.spacing.toFixed(0)} mm c/c (full width)`}
         </text>
       )}
+
+      {/* WIDTH NOTE — below the rebar label, well clear of everything */}
+      <text x={x0 + pxW / 2} y={y0 + pxH + 38} textAnchor="middle" fontSize="11" fill="#222" fontWeight="600">{'1.00 m of slab width'}</text>
+
+      {/* PERPENDICULAR LAYER NOTE — separated row */}
+      {midY && (
+        <text x={W / 2} y={H - 32} textAnchor="middle" fontSize="9" fill="#0a4a8a">
+          {`Perpendicular layer (y-dir): ${midY.bar} @ ${midY.spacing.toFixed(0)} mm c/c — see Bar schedule §3.3`}
+        </text>
+      )}
+
+      {/* TITLE — bottom of the SVG */}
+      <text x={W / 2} y={H - 12} textAnchor="middle" fontSize="9" fill="#666">
+        {`SECTION A-A · ${result.code} · scale ~1:5`}
+      </text>
     </svg>
   );
 }
