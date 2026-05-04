@@ -695,6 +695,19 @@ function checkDeflection(input: BeamInput, _flexure: FlexureCheck): DeflectionCh
   const ratio = deltaCheck / Math.max(deltaLimit, 1e-9);
   const ok = ratio <= 1;
 
+  // Time-step long-term deflection curve — Δ at standard milestones per
+  // ACI Table 24.2.4.1.3. Per ACI R24.2.4.1.1, total deflection at time t is:
+  //     Δ_total(t) = Δ_immediate + λΔ(t)·Δ_sustained
+  // where λΔ(t) = ξ(t)/(1+50·ρ′). At t = 0 we take ξ = 0 (no time-dependent
+  // multiplier yet) → Δ = Δ_immediate. Curve is monotonically non-decreasing.
+  const milestones = [0, 3, 6, 12, 24, 36, 60];
+  const deltaCurve = milestones.map((months) => {
+    const xi_t = months === 0 ? 0 : xiFromMonths(months);
+    const ld_t = xi_t / (1 + 50 * rhoComp);
+    const dlt_t = deltaI + ld_t * deltaSustained;
+    return { months, xi: xi_t, lambdaDelta: ld_t, delta: dlt_t };
+  });
+
   const steps: CalcStep[] = [
     {
       title: 'Modulus of elasticity Ec',
@@ -765,7 +778,7 @@ function checkDeflection(input: BeamInput, _flexure: FlexureCheck): DeflectionCh
 
   return {
     Ig, Icr, fr, Mcr, Ie, Ec, n, rhoComp, lambdaDelta, xi,
-    deltaI, deltaLt, deltaCheck, deltaLimit, deltaLimitRatio: limitRatio,
+    deltaI, deltaLt, deltaCurve, deltaCheck, deltaLimit, deltaLimitRatio: limitRatio,
     limitCategory: cat,
     ratio, ok,
     ref: ref(code, '24.2'),
@@ -779,6 +792,7 @@ function checkDeflection(input: BeamInput, _flexure: FlexureCheck): DeflectionCh
 function checkCrackControl(input: BeamInput): CrackControlCheck {
   const { code, geometry: g, materials: m, reinforcement: r } = input;
   const fy = m.fy;
+  const Es = m.Es ?? 200000;
 
   // Service stress fs (per §24.3.2.1, can be calculated; default 2/3·fy)
   const fs = 2 / 3 * fy;        // Conservative default
@@ -800,7 +814,32 @@ function checkCrackControl(input: BeamInput): CrackControlCheck {
   const s = nBars > 1 ? usableWidth / (nBars - 1) : 0;
 
   const ratio = s / Math.max(sMax, 1e-9);
-  const ok = s <= sMax;
+  const okSpacing = s <= sMax;
+
+  // ── Quantitative crack width per Frosch (1999) — referenced in ACI 318-25
+  //    R24.3.1.  w (mm) = 2·(fs/Es)·β·√(dc² + (s/2)²)
+  //    where:
+  //      fs : service tensile stress in steel (MPa)
+  //      Es : steel modulus (MPa)
+  //      β  : strain ratio = (h − c)/(d − c). For service-load NA depth we use
+  //           a conservative estimate of c ≈ 0.4·d (typical singly-reinforced).
+  //      dc : clear cover to centre of nearest bar (mm) = clear cover + db,s + db/2
+  //      s  : centre-to-centre spacing of tension bars (mm)
+  //    Allowable w per ACI commentary R24.3.1: ~0.41 mm interior, ~0.33 mm
+  //    exterior, 0.18 mm aggressive.
+  const c_serv = 0.4 * g.d;                                // approx kd at service
+  const beta = (g.h - c_serv) / Math.max(g.d - c_serv, 1);
+  const dc = cc;                                            // = cover to bar centre
+  const wCrack = 2 * (fs / Es) * beta *
+                 Math.sqrt(dc * dc + (s / 2) * (s / 2));    // mm
+  const exposure = m.exposure ?? 'interior';
+  const wAllow =
+    exposure === 'cast-against-ground' ? 0.18 :
+    exposure === 'exterior'             ? 0.33 : 0.41;
+  const wRatio = wCrack / Math.max(wAllow, 1e-9);
+  const wOk = wCrack <= wAllow;
+
+  const ok = okSpacing && wOk;
 
   const steps: CalcStep[] = [
     {
@@ -826,11 +865,26 @@ function checkCrackControl(input: BeamInput): CrackControlCheck {
       title: 'Provided bar spacing',
       formula: 's = (bw − 2·(cover + db,stirrup) − db) / (n − 1)',
       substitution: `bars = ${nBars}, usable width = ${usableWidth.toFixed(0)}`,
-      result: `s = ${s.toFixed(0)} mm  ${s <= sMax ? '✓' : '✗'}`,
+      result: `s = ${s.toFixed(0)} mm  ${okSpacing ? '✓' : '✗'}`,
+    },
+    {
+      title: 'Quantitative crack width — Frosch (1999) / ACI R24.3.1',
+      formula: 'w = 2·(fs/Es)·β·√(dc² + (s/2)²)',
+      substitution:
+        `β = (h − c)/(d − c) = (${g.h} − ${c_serv.toFixed(0)})/(${g.d} − ${c_serv.toFixed(0)}) = ${beta.toFixed(3)}; ` +
+        `dc = ${dc.toFixed(1)} mm; s = ${s.toFixed(0)} mm`,
+      result: `w = ${wCrack.toFixed(3)} mm  (allow ${wAllow.toFixed(2)} mm for ${exposure}) ${wOk ? '✓' : '✗'}`,
+      ref: ref(code, 'R24.3.1'),
     },
   ];
 
-  return { fs, sMax, s, cc, ratio, ok, ref: ref(code, '24.3.2'), steps };
+  return {
+    fs, sMax, s, cc,
+    wCrack, wAllow, wRatio, wOk,
+    ratio, ok,
+    ref: ref(code, '24.3.2 / R24.3.1'),
+    steps,
+  };
 }
 
 // ============================================================================
@@ -1407,13 +1461,20 @@ function ssDemand(
 /** Resolve demand into N station tuples (x_mm, Mu, Vu). */
 export function resolveStations(
   demand: DemandSource,
-  L_mm: number
+  L_mm: number,
+  EI?: number,
 ): { x: number; Mu: number; Vu: number }[] {
   if (demand.kind === 'manual') {
     // Sort by x just in case
     return [...demand.stations].sort((a, b) => a.x - b.x).map((s) => ({
       x: s.x, Mu: s.Mu, Vu: s.Vu,
     }));
+  }
+  if (demand.kind === 'continuous') {
+    // Phase 5a — multi-span continuous beam with stiffness method + pattern LL
+    const { analyzeContinuous } = require('./continuous') as typeof import('./continuous');
+    const r = analyzeContinuous(demand.model, { EI: EI ?? 1e10 });
+    return r.stations.map((s) => ({ x: s.x, Mu: Math.abs(s.Mu), Vu: Math.abs(s.Vu) }));
   }
   // simply-supported
   const N = demand.nStations ?? 21;
@@ -1552,7 +1613,13 @@ export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
   const warnings: string[] = [];
   try {
     // 1. Resolve demand stations
-    const stations0 = resolveStations(input.demand, input.geometry.L);
+    // Compute EI for continuous-beam stiffness solver if needed.
+    // Ec is in MPa (N/mm²); for the stiffness method we use kN/mm and kN·mm,
+    // which requires E in kN/mm² (= MPa/1000).
+    const EcEnv = computeEc(input.materials.fc, input.materials.gammaC ?? 24);
+    const IgEnv = gross_Ig(input.geometry);
+    const EIenv = (EcEnv / 1000) * IgEnv;       // kN/mm² · mm⁴ = kN·mm²
+    const stations0 = resolveStations(input.demand, input.geometry.L, EIenv);
 
     // 2. For each station, compute capacity (constant for now — same reinforcement everywhere)
     //    Optimization: capacity is the same at every station with constant rebar, so we compute once
@@ -1709,14 +1776,19 @@ function emptyShear(): ShearCheck {
 function emptyDeflection(input: BeamInput): DeflectionCheck {
   return {
     Ig: 0, Icr: 0, fr: 0, Mcr: 0, Ie: 0, Ec: 0, n: 0, rhoComp: 0,
-    lambdaDelta: 0, xi: 0, deltaI: 0, deltaLt: 0, deltaCheck: 0,
+    lambdaDelta: 0, xi: 0, deltaI: 0, deltaLt: 0, deltaCurve: [],
+    deltaCheck: 0,
     deltaLimit: input.geometry.L / 360, deltaLimitRatio: 360,
     limitCategory: 'floor-attached-likely-damage',
     ratio: 0, ok: false, ref: '', steps: [],
   };
 }
 function emptyCrack(): CrackControlCheck {
-  return { fs: 0, sMax: 0, s: 0, cc: 0, ratio: 0, ok: false, ref: '', steps: [] };
+  return {
+    fs: 0, sMax: 0, s: 0, cc: 0,
+    wCrack: 0, wAllow: 0.41, wRatio: 0, wOk: true,
+    ratio: 0, ok: false, ref: '', steps: [],
+  };
 }
 function emptyDetailing(): DetailingCheck {
   const empty: DetailingItem = { label: '', ref: '', ok: false, noteEn: '', noteEs: '' };

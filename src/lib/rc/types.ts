@@ -171,10 +171,38 @@ export interface ManualStation {
   Vu: number;
 }
 
+// ─── Multi-span continuous beam (Phase 5a) ────────────────────────────────
+/** Support type at each interior / end node of a continuous beam. */
+export type SupportType = 'pin' | 'roller' | 'fix' | 'free';
+
+export interface ContinuousSpan {
+  /** Span length (mm). */
+  L: number;
+  /** Factored UDL on this span (kN/m). Includes self-weight if you want. */
+  wDL?: number;
+  /** Factored UDL live load on this span (kN/m). Used for pattern loading. */
+  wLL?: number;
+  /** Factored point loads on this span (x measured from LEFT end of span). */
+  point?: PointLoad[];
+}
+
+export interface ContinuousBeamModel {
+  /** Spans, listed left-to-right. */
+  spans: ContinuousSpan[];
+  /** Supports at each node (length = spans.length + 1). */
+  supports: SupportType[];
+  /** Number of integration stations PER SPAN (default 11). */
+  nStations?: number;
+  /** Apply ACI §6.4 pattern loading (LL on alternating spans for max +M
+   *  midspan / max −M support)? Default true. */
+  patternLL?: boolean;
+}
+
 /** Demand source: how to derive Mu(x), Vu(x). */
 export type DemandSource =
   | { kind: 'simply-supported'; udl?: UDL; point: PointLoad[]; nStations?: number }
-  | { kind: 'manual'; stations: ManualStation[] };
+  | { kind: 'manual'; stations: ManualStation[] }
+  | { kind: 'continuous'; model: ContinuousBeamModel };
 
 export interface BeamEnvelopeInput {
   code: Code;
@@ -385,6 +413,9 @@ export interface DeflectionCheck {
   deltaI: number;
   /** Long-term deflection Δlt (mm). */
   deltaLt: number;
+  /** Time-step deflection curve — Δ at typical milestones (mm). Each entry is
+   *  { months, xi, lambdaDelta, deltaLt } so the UI can plot Δ(t) growth. */
+  deltaCurve: Array<{ months: number; xi: number; lambdaDelta: number; delta: number }>;
   /** Deflection used to check vs limit (mm). */
   deltaCheck: number;
   /** Code limit Δlimit = L / ratio (mm). */
@@ -408,6 +439,18 @@ export interface CrackControlCheck {
   s: number;
   /** Concrete cover to centre of bar cc (mm). */
   cc: number;
+  /** Quantitative crack width w (mm) per Frosch (1999), referenced in
+   *  ACI 318-25 R24.3.1:
+   *    w = 2·(fs/Es)·β·√(dc² + (s/2)²)
+   *  where β = (h − c)/(d − c) and dc = clear cover to centre of nearest bar. */
+  wCrack: number;
+  /** Suggested allowable crack width w,allow (mm) — ACI commentary R24.3.1
+   *  guidance: 0.41 mm interior, 0.33 mm exterior, 0.18 mm aggressive. */
+  wAllow: number;
+  /** w/wAllow ratio. */
+  wRatio: number;
+  /** Whether the quantitative crack width is below the recommended limit. */
+  wOk: boolean;
   ratio: number;
   ok: boolean;
   ref: string;

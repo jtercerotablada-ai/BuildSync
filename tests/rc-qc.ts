@@ -1374,6 +1374,253 @@ block('Phase 4 — Torsion: envelope-mode propagates correctly', () => {
 });
 
 // ============================================================================
+// PHASE 5a — MULTI-SPAN CONTINUOUS BEAM SOLVER
+// ============================================================================
+//
+// Classic textbook references for closed-form validation:
+//   • Two equal spans, both UDL w, equal length L, simply supported at both
+//     ends + roller at the middle:
+//       Mmax,+ at midspan ≈  9·w·L²/128  (occurs at x = 3L/8 from each end)
+//       Mmax,−    at the middle support  =  w·L²/8
+//       V at the middle support, just left  =  −5·w·L/8
+//                                        right =  +5·w·L/8
+//
+// Test matrix uses w = 10 kN/m, L = 6 m → w·L² = 360 kN·m, w·L = 60 kN
+//   → Mmax,+ ≈ 360·9/128 = 25.31 kN·m (singled-loaded)
+//   → Mmax,− at middle support = 360·1/8 = 45.00 kN·m
+//   → Reactions: 3·w·L/8 ext, 5·w·L/4 mid → V = 5·w·L/8 = 37.5 kN
+//
+// We also check: 3-span continuous (alternating LL pattern), full-LL all
+// patterns, and basic single-span cantilever sanity.
+import { analyzeContinuous, defaultContinuousModel } from '../src/lib/rc/continuous';
+
+block('Phase 5a — Two-span continuous beam (UDL all spans)', () => {
+  const L = 6000;     // mm
+  const w = 10;       // kN/m
+  const model = {
+    spans: [{ L, wDL: w, wLL: 0 }, { L, wDL: w, wLL: 0 }],
+    supports: ['pin', 'roller', 'roller'] as ('pin' | 'roller')[],
+    nStations: 41,
+    patternLL: false,
+  };
+  // EI doesn't affect M/V for statically-determinate-after-reduction beams,
+  // but we use a realistic value for a 300×600 RC beam: Ec ≈ 24.87 GPa,
+  // Ig ≈ 5.4 × 10⁹ mm⁴ → EI ≈ 1.34 × 10¹³ N·mm² = 1.34 × 10¹⁰ kN·mm².
+  const EI = 1.34e10;
+  const r = analyzeContinuous(model, { EI });
+  // Mmax+ from textbook
+  const expMpos = 9 * w * (L / 1000) ** 2 / 128;        // 25.31 kN·m
+  const Mmax = Math.max(...r.Mmax);
+  near('Two-span Mmax,+ ≈ 9wL²/128 ≈ 25.31 kN·m', Mmax, expMpos, 0.05);
+  // Mmin (most negative) at the middle support
+  const expMneg = -w * (L / 1000) ** 2 / 8;             // -45.00 kN·m
+  const Mmin = Math.min(...r.Mmin);
+  near('Two-span Mmin,− at mid support ≈ −wL²/8 = −45 kN·m', Mmin, expMneg, 0.03);
+  // Number of stations matches expectation
+  check('station count = 2·(NS−1) + 1 = 81', r.stations.length === 2 * 40 + 1);
+});
+
+block('Phase 5a — Three-span continuous beam — pattern LL produces envelope', () => {
+  const L = 6000;
+  const wDL = 8, wLL = 12;
+  const model = {
+    spans: [
+      { L, wDL, wLL },
+      { L, wDL, wLL },
+      { L, wDL, wLL },
+    ],
+    supports: ['pin', 'roller', 'roller', 'roller'] as ('pin' | 'roller')[],
+    nStations: 21,
+    patternLL: true,
+  };
+  const r = analyzeContinuous(model, { EI: 1.34e10 });
+  const Mmax = Math.max(...r.Mmax);
+  const Mmin = Math.min(...r.Mmin);
+  const Vmax = Math.max(...r.Vabs);
+  // Envelope must be POSITIVE for max + and NEGATIVE for min -
+  check('Mmax envelope is positive', Mmax > 0);
+  check('Mmin envelope is negative', Mmin < 0);
+  check('Vmax envelope > 0', Vmax > 0);
+  // Pattern LL must produce a LARGER envelope than DL+LL all spans
+  const noPatModel = { ...model, patternLL: false };
+  const rNoPat = analyzeContinuous(noPatModel, { EI: 1.34e10 });
+  const MmaxNoPat = Math.max(...rNoPat.Mmax);
+  const MminNoPat = Math.min(...rNoPat.Mmin);
+  check('Pattern LL produces ≥ Mmax than DL+LL-all', Mmax >= MmaxNoPat - 0.01);
+  check('Pattern LL produces ≤ Mmin than DL+LL-all', Mmin <= MminNoPat + 0.01);
+});
+
+block('Phase 5a — Single-span cantilever (free + fix)', () => {
+  // Cantilever, P at tip:  M_root = −P·L
+  const L = 4000;
+  const P = 30;     // kN
+  const model = {
+    spans: [{ L, wDL: 0, wLL: 0, point: [{ x: L, Pu: P }] }],
+    supports: ['fix', 'free'] as ('fix' | 'free')[],
+    nStations: 21,
+    patternLL: false,
+  };
+  const r = analyzeContinuous(model, { EI: 1.34e10 });
+  // M at left (root) ≈ -P·L = -120 kN·m (sign per convention: V·x − P·... = -P·L)
+  const Mroot = r.Mmin[0];
+  near('Cantilever Mroot ≈ −P·L = −120 kN·m', Mroot, -P * L / 1000, 0.05);
+  // Tip moment ≈ 0
+  near('Cantilever Mtip ≈ 0', r.Mmax[r.Mmax.length - 1], 0, 0.5);
+  // V at root = P
+  near('Cantilever Vroot = P = 30 kN', r.Vabs[0], P, 0.05);
+});
+
+block('Phase 5a — defaultContinuousModel helper', () => {
+  const m = defaultContinuousModel(3, 5000, 10, 5);
+  check('3 spans created', m.spans.length === 3);
+  check('4 supports created', m.supports.length === 4);
+  check('left support is pin', m.supports[0] === 'pin');
+  check('right support is roller', m.supports[3] === 'roller');
+  check('span length copied', m.spans[0].L === 5000);
+  check('wDL copied', m.spans[0].wDL === 10);
+  check('wLL copied', m.spans[0].wLL === 5);
+});
+
+// ============================================================================
+// PHASE 5b — AUTO-DESIGN MODE
+// ============================================================================
+import { autoDesign } from '../src/lib/rc/autoDesign';
+
+block('Phase 5b — Auto-design picks bars that meet AsReq', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#5', count: 1 }],     // intentionally insufficient
+      compression: [],
+      stirrup: { bar: '#3', legs: 2, spacing: 300 },
+    },
+    loads: { Mu: 350, Vu: 200, Tu: 0 },
+  };
+  const r = autoDesign(input);
+  check('auto-design returned ok', r.ok);
+  check('AsProvided ≥ AsReq', r.AsProvided >= r.AsReq - 5);
+  check('hangers added (compression bars)', r.reinforcement.compression!.length > 0);
+  check('stirrups suggested', r.reinforcement.stirrup.spacing > 0);
+});
+
+block('Phase 5b — Auto-design adds skin reinforcement when h > 900 mm', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 400, h: 1100, d: 1020, dPrime: 50, L: 9000, coverClear: 50 },
+    materials: { fc: 35, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 1 }],
+      compression: [],
+      stirrup: { bar: '#3', legs: 2, spacing: 300 },
+    },
+    loads: { Mu: 600, Vu: 250, Tu: 0 },
+  };
+  const r = autoDesign(input);
+  check('skin reinforcement included for h > 900', !!r.reinforcement.skin);
+  check('skin count per face ≥ 2', (r.reinforcement.skin?.countPerFace ?? 0) >= 2);
+});
+
+block('Phase 5b — Auto-design escalates to doubly when Mu > Mn,max', () => {
+  // Very high Mu in a small section → should trigger doubly-reinforced
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 250, h: 400, d: 350, dPrime: 50, L: 4500, coverClear: 40 },
+    materials: { fc: 21, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#5', count: 1 }],
+      compression: [],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 350, Vu: 200, Tu: 0 },
+  };
+  const r = autoDesign(input);
+  check('auto-design flagged needsDouble', r.needsDouble);
+  check('compression steel placed (doubly)',
+        (r.reinforcement.compression?.length ?? 0) > 0 &&
+        (r.reinforcement.compression?.[0].count ?? 0) >= 2);
+});
+
+block('Phase 5b — Auto-design + analyze → recommendation passes flexure', () => {
+  // Round-trip test: feed auto-design output back into analyze() and confirm
+  // flexure now passes at the design demand.
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#5', count: 1 }],
+      compression: [],
+      stirrup: { bar: '#3', legs: 2, spacing: 300 },
+    },
+    loads: { Mu: 300, Vu: 180, Tu: 0 },
+  };
+  const r = autoDesign(input);
+  const newInput: BeamInput = { ...input, reinforcement: r.reinforcement };
+  const a = analyze(newInput);
+  check('round-trip flexure passes', a.flexure.ok);
+  check('round-trip φMn ≥ Mu', a.flexure.phiMn >= input.loads.Mu - 5);
+});
+
+// ============================================================================
+// PHASE 5c — QUANTITATIVE CRACK WIDTH + TIME-STEP DEFLECTION
+// ============================================================================
+
+block('Phase 5c — Quantitative crack width per Frosch (R24.3.1)', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 300, Vu: 150, Ma: 200, M_DL: 120, M_LL: 80 },
+  };
+  const r = analyze(input);
+  // Frosch closed form: w = 2·(fs/Es)·β·√(dc² + (s/2)²)
+  const fs = (2 / 3) * 420;    // 280 MPa
+  const Es = 200000;
+  const c_serv = 0.4 * 540;
+  const beta = (600 - c_serv) / (540 - c_serv);
+  const dc = 40 + 9.5 + 28.7 / 2;
+  const usable = 300 - 2 * (40 + 9.5) - 28.7;
+  const s = usable / (4 - 1);
+  const expW = 2 * (fs / Es) * beta * Math.sqrt(dc * dc + (s / 2) * (s / 2));
+  near('w = 2·(fs/Es)·β·√(dc²+(s/2)²)', r.crack.wCrack, expW, 0.02);
+  near('w,allow for interior = 0.41 mm', r.crack.wAllow, 0.41, 0.001);
+  check('w typically ≤ allowable for usual cover/spacing', r.crack.wCrack < 0.5);
+});
+
+block('Phase 5c — Time-step deflection curve covers 5-year horizon', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 250, Vu: 150, Ma: 200, M_DL: 120, M_LL: 80, longTermPeriodMonths: 60 },
+  };
+  const r = analyze(input);
+  check('deltaCurve has 7 milestones (0,3,6,12,24,36,60 mo)',
+        r.deflection.deltaCurve.length === 7);
+  // ξ at 60 months = 2.0
+  const last = r.deflection.deltaCurve[r.deflection.deltaCurve.length - 1];
+  near('ξ at 60 mo = 2.0', last.xi, 2.0, 0.001);
+  check('Δ grows monotonically with time',
+        r.deflection.deltaCurve.every(
+          (e, i, a) => i === 0 || e.delta >= a[i - 1].delta - 0.01,
+        ));
+  check('Δ at t=0 equals Δi (immediate)',
+        Math.abs(r.deflection.deltaCurve[0].delta - r.deflection.deltaI) < 0.5);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(60));

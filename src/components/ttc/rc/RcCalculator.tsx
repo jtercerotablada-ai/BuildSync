@@ -3,6 +3,7 @@
 import React, { useMemo, useReducer, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { analyze, analyzeEnvelope } from '@/lib/rc/solver';
+import { autoDesign } from '@/lib/rc/autoDesign';
 import {
   type BeamInput,
   type BeamAnalysis,
@@ -33,6 +34,7 @@ const Rc3D = dynamic(() => import('./Rc3D').then((m) => m.Rc3D), {
 // ============================================================================
 type Action =
   | { type: 'LOAD_PRESET'; input: BeamInput }
+  | { type: 'SET_REINF'; reinforcement: BeamInput['reinforcement'] }
   | { type: 'SET_CODE'; code: Code }
   | { type: 'SET_METHOD'; method: DesignMethod }
   | { type: 'SET_GEOM'; patch: Partial<BeamInput['geometry']> }
@@ -51,6 +53,7 @@ type Action =
 function reducer(state: BeamInput, action: Action): BeamInput {
   switch (action.type) {
     case 'LOAD_PRESET': return action.input;
+    case 'SET_REINF':   return { ...state, reinforcement: action.reinforcement };
     case 'SET_CODE':    return { ...state, code: action.code };
     case 'SET_METHOD':  return { ...state, method: action.method };
     case 'SET_GEOM': {
@@ -709,6 +712,9 @@ function InputsTab({ model, dispatch, engine, demand, setDemand }: {
         </div>
       </div>
 
+      {/* Auto-design — Phase 5b */}
+      <AutoDesignCard model={model} dispatch={dispatch} />
+
       {/* Reinforcement — Tension */}
       <div className="slab-card">
         <h4>Tension reinforcement</h4>
@@ -905,6 +911,70 @@ function InputsTab({ model, dispatch, engine, demand, setDemand }: {
 
       {/* Branding */}
       <BrandingCard model={model} dispatch={dispatch} />
+    </div>
+  );
+}
+
+// ============================================================================
+// AUTO-DESIGN CARD — Phase 5b
+// ============================================================================
+function AutoDesignCard({ model, dispatch }: {
+  model: BeamInput;
+  dispatch: React.Dispatch<Action>;
+}) {
+  const [recommendation, setRecommendation] = useState<ReturnType<typeof autoDesign> | null>(null);
+
+  const handleDesign = () => {
+    const rec = autoDesign(model);
+    setRecommendation(rec);
+  };
+
+  const handleApply = () => {
+    if (recommendation) dispatch({ type: 'SET_REINF', reinforcement: recommendation.reinforcement });
+  };
+
+  return (
+    <div className="slab-card" style={{ borderColor: 'rgba(95,182,116,0.35)' }}>
+      <h4>⚡ Auto-Design (Phase 5b)</h4>
+      <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
+        Given current Mu, Vu, Tu and geometry/materials, recommend bars, stirrup spacing,
+        and skin reinforcement that meet ACI 318-25 §22.2 + §22.5 + §22.7 + §9.6.
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+        <button type="button" className="ab-btn ab-btn--primary" onClick={handleDesign}>
+          ⚡ Run Auto-Design
+        </button>
+        {recommendation && (
+          <button type="button" className="ab-btn"
+                  onClick={handleApply}
+                  disabled={!recommendation.ok}>
+            ✓ Apply Recommendation
+          </button>
+        )}
+      </div>
+      {recommendation && (
+        <div className="ab-table-scroll">
+          <table className="ab-result-table" style={{ fontSize: '0.85rem' }}>
+            <thead>
+              <tr><th>Step</th><th>Substitution</th><th>Result</th></tr>
+            </thead>
+            <tbody>
+              {recommendation.steps.map((s, i) => (
+                <tr key={i}>
+                  <td><strong>{s.title}</strong><br /><small style={{ opacity: 0.7 }}>{s.formula}</small></td>
+                  <td><code>{s.substitution}</code></td>
+                  <td><strong>{s.result}</strong></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {recommendation.warnings.length > 0 && (
+            <ul style={{ marginTop: '0.6rem', color: '#c9a84c' }}>
+              {recommendation.warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
