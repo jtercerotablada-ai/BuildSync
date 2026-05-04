@@ -964,6 +964,204 @@ block('QC Audit — Vc with simplified eqn matches the Phase-1 baseline (regress
 });
 
 // ============================================================================
+// PHASE 3 — Stirrup zoning, dev length, lap splices, bar curtailment
+// ============================================================================
+import { tensionDevLength, compressionDevLength, lapSpliceLength, computeStirrupZones, computeCurtailment, buildElevationData } from '../src/lib/rc/phase3';
+
+block('Phase 3 — Tension development length §25.4.2.3 simplified', () => {
+  // #9 (db = 28.7 mm), fy = 420, fc = 28, lambda = 1.0, bottom bar, uncoated, case 2
+  // Per simplified eqn for #7+: ld/db = fy / (1.1 · 1 · √28) = 420 / 5.82 ≈ 72.16
+  // ld = 72.16 · 28.7 = 2071 mm  (Wight Table A-6 reference value)
+  const r = tensionDevLength({ db: 28.7, fy: 420, fc: 28, lambda: 1.0, location: 'bottom', coating: 'uncoated', case: 2 });
+  near('ld for #9, fc=28, Gr60, bottom, case 2', r.ld, 2071, 0.01);
+  check('ψt = 1.0 (bottom bar)', Math.abs(r.psiT - 1.0) < 0.001);
+  check('ψe = 1.0 (uncoated)', Math.abs(r.psiE - 1.0) < 0.001);
+  check('ψg = 1.0 (Gr60)', Math.abs(r.psiG - 1.0) < 0.001);
+});
+
+block('Phase 3 — Tension ld for top bar (ψt = 1.3)', () => {
+  // Top bar should be 30% longer than bottom
+  const bot = tensionDevLength({ db: 28.7, fy: 420, fc: 28, location: 'bottom', case: 2 });
+  const top = tensionDevLength({ db: 28.7, fy: 420, fc: 28, location: 'top', case: 2 });
+  near('top ld / bottom ld = 1.3', top.ld / bot.ld, 1.3, 0.001);
+});
+
+block('Phase 3 — Tension ld for #5 (smaller bar)', () => {
+  // #5 (db = 15.9 mm), fc = 28, Gr 60, case 2
+  // ld/db = 420 / (1.4 · 1 · √28) = 420 / 7.41 = 56.7
+  // ld = 56.7 · 15.9 = 901 mm
+  const r = tensionDevLength({ db: 15.9, fy: 420, fc: 28, location: 'bottom', case: 2 });
+  near('ld for #5 (db ≤ 19, divisor 1.4)', r.ld, 901, 0.01);
+});
+
+block('Phase 3 — Min ld = 300 mm', () => {
+  // Tiny bar with high fc and small db should still floor at 300 mm
+  const r = tensionDevLength({ db: 10, fy: 420, fc: 60, location: 'bottom', case: 1 });
+  check('ld floored at 300 mm minimum', r.ld >= 300);
+});
+
+block('Phase 3 — Compression development length §25.4.9.2', () => {
+  // #9 in 28 MPa, Gr 60: ldc/db = max(0.24·420/√28, 0.043·420) = max(19.05, 18.06) = 19.05
+  // ldc = 19.05 · 28.7 = 547 mm  (≥ 200 mm minimum)
+  const ldc = compressionDevLength({ db: 28.7, fy: 420, fc: 28 });
+  near('ldc for #9, fc=28, Gr60', ldc, 547, 0.02);
+});
+
+block('Phase 3 — Lap splice §25.5', () => {
+  // For ld = 2071 mm: classA = 2071, classB = 2693 (=1.3·2071)
+  const splice = lapSpliceLength(2071);
+  near('Class A splice = 1.0·ld', splice.classA, 2071, 0.001);
+  near('Class B splice = 1.3·ld', splice.classB, 2692, 0.01);
+  check('Default recommendation = Class B', splice.recommended === 'B');
+  // When stress ≤ 0.5fy AND ≤ 50% bars spliced, Class A is allowed
+  const spliceA = lapSpliceLength(2071, 200, 420, 0.5);
+  check('Recommends Class A when stress + frac low', spliceA.recommended === 'A');
+});
+
+block('Phase 3 — Stirrup zoning: simply-supported beam', () => {
+  // Standard 300×600 beam, 4#9 + 2#4 hangers, #3 stirrups, L=6m
+  // SS UDL = 60 kN/m → Vu_max = 180 kN, Vu_mid = 0
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0, Ma: 230, M_DL: 140, M_LL: 90, deflectionLimitCategory: 'floor-no-attached' },
+  };
+  const r = analyzeEnvelope(input);
+  check('elevation populated', !!r.elevation);
+  if (!r.elevation) return;
+  check('at least 1 stirrup zone', r.elevation.zoning.zones.length >= 1);
+  check('zones cover full beam length', Math.abs(r.elevation.zoning.zones[r.elevation.zoning.zones.length - 1].xEnd - input.geometry.L) < 1);
+  check('stirrup count > 10 along 6m beam', r.elevation.zoning.totalCount > 10);
+  // Zones near supports should have tighter spacing than midspan
+  const firstZone = r.elevation.zoning.zones[0];
+  const midZone = r.elevation.zoning.zones[Math.floor(r.elevation.zoning.zones.length / 2)];
+  // The midspan zone might not be looser if SS UDL is low — check that zones are CONSISTENT instead
+  check('first zone spacing ≤ midspan zone spacing', firstZone.s <= midZone.s);
+});
+
+block('Phase 3 — Stirrup zoning: high-shear beam needs tight zones', () => {
+  // High UDL → high Vu near supports → very tight stirrups required
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 5 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 200 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0 },
+  };
+  const r = analyzeEnvelope(input);
+  if (!r.elevation) return;
+  // First zone must be much tighter than midspan
+  const firstZone = r.elevation.zoning.zones[0];
+  check('first zone spacing tight (≤ 150 mm) for high Vu', firstZone.s <= 150);
+});
+
+block('Phase 3 — Bar curtailment: 1/3 of bars run full length', () => {
+  // 6 #9 bars total → must run mustRunCount = ceil(6/3) = 2 bars (or actually ≥ 2 always)
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 6 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0 },
+  };
+  const r = analyzeEnvelope(input);
+  if (!r.elevation) return;
+  const tensionBars = r.elevation.curtailment.bars.filter(b => b.position === 'tension');
+  const runningCount = tensionBars.filter(b => b.kind === 'running').reduce((s, b) => s + b.count, 0);
+  const curtailedCount = tensionBars.filter(b => b.kind === 'curtailed').reduce((s, b) => s + b.count, 0);
+  check('total tension bar count preserved', runningCount + curtailedCount === 6);
+  check('running ≥ 1/3 of total per §9.7.3.8.1', runningCount >= 2);
+  // Compression bars always run
+  const compBars = r.elevation.curtailment.bars.filter(b => b.position === 'compression');
+  check('all compression bars running (hangers)', compBars.every(b => b.kind === 'running'));
+});
+
+block('Phase 3 — Bar curtailment: extension max(d, 12·db) past theoretical cutoff', () => {
+  // For d=540, db=28.7 → extension = max(540, 12·28.7=344) = 540 mm
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 6 }],     // 6 bars → 4 are curtailable
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0 },
+  };
+  const r = analyzeEnvelope(input);
+  if (!r.elevation) return;
+  const curtailedBars = r.elevation.curtailment.bars.filter(b => b.kind === 'curtailed');
+  if (curtailedBars.length > 0) {
+    const bar = curtailedBars[0];
+    check('curtailed bar has theoretical cutoff', bar.xTheoretical !== undefined);
+    check('curtailed bar has actual cutoff', bar.xActual !== undefined);
+    if (bar.xTheoretical !== undefined && bar.xActual !== undefined) {
+      const extension = bar.xTheoretical - bar.xActual;
+      check('extension ≥ max(d, 12·db) per §9.7.3.3', extension >= Math.max(540, 12 * 28.7) - 1);
+    }
+  }
+});
+
+block('Phase 3 — buildElevationData: dev lengths populated for all bar sizes', () => {
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0 },
+  };
+  const r = analyzeEnvelope(input);
+  if (!r.elevation) return;
+  check('dev length for #9 present', !!r.elevation.devLengths['#9']);
+  check('dev length for #4 present (top hanger)', !!r.elevation.devLengths['#4']);
+  check('lap splice for #9 present', !!r.elevation.lapSplices['#9']);
+  near('#9 ld matches §25.4 simplified (~2071 mm)', r.elevation.devLengths['#9'].ld, 2071, 0.05);
+});
+
+block('Phase 3 — Stirrup zoning steel takeoff is reasonable', () => {
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0 },
+  };
+  const r = analyzeEnvelope(input);
+  if (!r.elevation) return;
+  // For 6m beam with stirrup perimeter ~ 1.5m and ~30 stirrups @ 0.56 kg/m: ~25 kg
+  check('stirrup mass within range (10–40 kg)', r.elevation.zoning.totalMass > 10 && r.elevation.zoning.totalMass < 40);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(60));

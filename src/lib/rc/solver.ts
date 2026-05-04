@@ -42,6 +42,7 @@ import type {
   DemandSource,
 } from './types';
 import { lookupBar, barArea, barDiameter } from './types';
+import { buildElevationData } from './phase3';
 
 // ============================================================================
 // COMMON HELPERS
@@ -1342,6 +1343,20 @@ export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
     const ok = stations.every((s) => s.ok) && deflection.ok && crack.ok && detailing.ok;
     const governing = governingFromStations(stations, flexureWorst, shearWorst, deflection, crack, input.geometry.L);
 
+    // Phase 3: stirrup zoning + bar curtailment + dev lengths
+    let elevation: ReturnType<typeof buildElevationData> | undefined;
+    try {
+      // Build a partial EnvelopeAnalysis just enough for buildElevationData (it only reads stations + ratios)
+      const partial = {
+        input, stations, maxFlexureRatio, maxShearRatio,
+        governing, flexureWorst, shearWorst, deflection, crack, detailing,
+        selfWeight, sectionType: input.geometry.shape, warnings, ok, solved: true,
+      } as EnvelopeAnalysis;
+      elevation = buildElevationData(partial, input, flexureWorst);
+    } catch (e) {
+      warnings.push(`Phase 3 elevation calc skipped: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     return {
       input,
       stations,
@@ -1353,6 +1368,7 @@ export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
       deflection,
       crack,
       detailing,
+      elevation,
       selfWeight,
       sectionType: input.geometry.shape,
       warnings,

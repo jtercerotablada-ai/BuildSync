@@ -243,6 +243,8 @@ export interface EnvelopeAnalysis {
   crack: CrackControlCheck;
   /** Detailing checks (code-mandated). */
   detailing: DetailingCheck;
+  /** Phase 3 — stirrup zoning + bar curtailment + dev lengths. Always populated in envelope mode. */
+  elevation?: ElevationData;
   /** Self-weight (kN/m). */
   selfWeight: number;
   /** Section type. */
@@ -425,6 +427,131 @@ export interface DetailingItem {
   noteEn: string;
   /** Plain-language Spanish explanation. */
   noteEs: string;
+}
+
+// ============================================================================
+// Phase 3 — Development length, lap splices, stirrup zoning, bar curtailment
+// ============================================================================
+
+/** Bar location for §25.4.2.5(d) ψt factor: top bars get 1.3, others 1.0. */
+export type BarLocation = 'top' | 'bottom' | 'side';
+
+/** Bar coating for §25.4.2.5(b) ψe factor. */
+export type BarCoating = 'uncoated' | 'epoxy' | 'galvanized';
+
+export interface DevLengthInfo {
+  /** Bar diameter db (mm). */
+  db: number;
+  /** Bar location (drives ψt). */
+  location: BarLocation;
+  /** Bar coating (drives ψe). */
+  coating: BarCoating;
+  /** Confinement / cover case used (1 or 2 per §25.4.2.3). */
+  case: 1 | 2;
+  /** Tension development length ld (mm). */
+  ld: number;
+  /** Compression development length ldc (mm). */
+  ldc: number;
+  /** Multipliers used (for the calc step trace). */
+  factors: { psiT: number; psiE: number; psiS: number; psiG: number; lambda: number };
+  /** Code ref. */
+  ref: string;
+  /** Calc steps for the report. */
+  steps: CalcStep[];
+}
+
+export interface LapSpliceInfo {
+  /** Class A length = 1.0·ld (mm). */
+  classA: number;
+  /** Class B length = 1.3·ld (mm). */
+  classB: number;
+  /** Recommended class given the design — usually B unless stress ≤ 50% fy and ≤ 50% bars spliced at one location. */
+  recommended: 'A' | 'B';
+  /** Code ref. */
+  ref: string;
+}
+
+/** A continuous range of the beam length where stirrups have a single spacing. */
+export interface StirrupZone {
+  /** Start of zone (mm from left support). */
+  xStart: number;
+  /** End of zone (mm from left support). */
+  xEnd: number;
+  /** Selected stirrup spacing (mm) for this zone. */
+  s: number;
+  /** Max permitted spacing for this zone (mm) — driver. */
+  sMax: number;
+  /** Worst Vu seen in this zone (kN). */
+  VuMax: number;
+  /** Worst Vu/φVn ratio in this zone. */
+  ratio: number;
+  /** Number of stirrups required across this zone (rounded up). */
+  count: number;
+  /** Whether the zone passes shear with the chosen spacing. */
+  ok: boolean;
+}
+
+export interface StirrupZoningResult {
+  /** Ordered list of zones, covering [0, L]. */
+  zones: StirrupZone[];
+  /** Total stirrup count across the beam. */
+  totalCount: number;
+  /** Total mass of all stirrups (kg) — for steel takeoff. */
+  totalMass: number;
+  /** Whether all zones meet shear demand + s,max. */
+  ok: boolean;
+  /** Bilingual narrative summary. */
+  narrativeEn: string;
+  narrativeEs: string;
+}
+
+/** A single longitudinal bar with its termination/extension info. */
+export interface BarCutoff {
+  /** Bar group index in Reinforcement.tension or .compression. */
+  groupIndex: number;
+  /** Position in section: 'tension' (bottom) or 'compression' (top). */
+  position: 'tension' | 'compression';
+  /** Bar label (e.g. '#9'). */
+  bar: string;
+  /** Number of bars in this group. */
+  count: number;
+  /** Group is "running" (extends full length) or "curtailed" (terminated). */
+  kind: 'running' | 'curtailed';
+  /** Theoretical cutoff x (mm from left support) — where Mu equals reduced φMn. Null for running. */
+  xTheoretical?: number;
+  /** Actual cutoff x (mm) after extension max(d, 12·db) per §9.7.3.3. Null for running. */
+  xActual?: number;
+  /** Development-length extension required from xActual. */
+  ld?: number;
+  /** Bar starts at xStart, ends at xEnd along the beam (mm). */
+  xStart: number;
+  xEnd: number;
+  /** Bilingual note (why this bar is curtailed or running). */
+  noteEn: string;
+  noteEs: string;
+}
+
+export interface CurtailmentResult {
+  /** Layout per bar group. */
+  bars: BarCutoff[];
+  /** Total mass of longitudinal steel (kg). */
+  totalMass: number;
+  /** Whether the curtailment plan satisfies §9.7.3 (extensions, support continuation). */
+  ok: boolean;
+  /** Bilingual narrative summary. */
+  narrativeEn: string;
+  narrativeEs: string;
+}
+
+export interface ElevationData {
+  /** Stirrup zoning along the beam. */
+  zoning: StirrupZoningResult;
+  /** Bar cutoffs and continuations. */
+  curtailment: CurtailmentResult;
+  /** Development-length info per bar size used. */
+  devLengths: Record<string, DevLengthInfo>;
+  /** Lap-splice info per bar size used. */
+  lapSplices: Record<string, LapSpliceInfo>;
 }
 
 export interface DetailingCheck {

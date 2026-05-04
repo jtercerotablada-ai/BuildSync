@@ -22,6 +22,7 @@ import {
 import { RcPrintReport } from './RcPrintReport';
 import { RcSection2D } from './RcSection2D';
 import { RcEnvelopeDiagram } from './RcEnvelopeDiagram';
+import { RcBeamElevation } from './RcBeamElevation';
 
 const Rc3D = dynamic(() => import('./Rc3D').then((m) => m.Rc3D), {
   ssr: false, loading: () => <p className="ab-empty">Loading 3D viewer…</p>,
@@ -179,7 +180,7 @@ const DEFAULT_DEMAND: DemandSource = {
 // Component
 // ============================================================================
 type Engine = 'single' | 'envelope';
-type Tab = 'inputs' | 'stations' | 'section' | 'checks' | 'detailing' | 'refs';
+type Tab = 'inputs' | 'stations' | 'section' | 'checks' | 'detailing' | 'elevation' | 'refs';
 
 export function RcCalculator() {
   const [model, dispatch] = useReducer(reducer, undefined, () => PRESETS[0].build());
@@ -339,11 +340,11 @@ export function RcCalculator() {
         </section>
       )}
 
-      {/* Tabs — workflow order: Inputs → Stations → Section → Checks → Detailing → Refs */}
+      {/* Tabs — workflow order: Inputs → Stations → Section → Checks → Detailing → Elevation → Refs */}
       <section className="ab-section">
         <div className="ab-tabs">
           {(engine === 'envelope'
-            ? (['inputs', 'stations', 'section', 'checks', 'detailing', 'refs'] as const)
+            ? (['inputs', 'stations', 'section', 'checks', 'detailing', 'elevation', 'refs'] as const)
             : (['inputs', 'section', 'checks', 'detailing', 'refs'] as const)
           ).map((t) => (
             <button key={t} type="button"
@@ -353,13 +354,37 @@ export function RcCalculator() {
             </button>
           ))}
         </div>
-        {tab === 'inputs'    && <InputsTab model={model} dispatch={dispatch} engine={engine} demand={demand} setDemand={setDemand} />}
-        {tab === 'stations'  && engine === 'envelope' && <StationsTab envResult={envResult} />}
-        {tab === 'section'   && <SectionTab input={model} result={result} />}
-        {tab === 'checks'    && <ChecksTab result={result} />}
-        {tab === 'detailing' && <DetailingTab input={model} result={result} />}
-        {tab === 'refs'      && <RefsTab />}
+        {tab === 'inputs'     && <InputsTab model={model} dispatch={dispatch} engine={engine} demand={demand} setDemand={setDemand} />}
+        {tab === 'stations'   && engine === 'envelope' && <StationsTab envResult={envResult} />}
+        {tab === 'section'    && <SectionTab input={model} result={result} />}
+        {tab === 'checks'     && <ChecksTab result={result} />}
+        {tab === 'detailing'  && <DetailingTab input={model} result={result} />}
+        {tab === 'elevation'  && engine === 'envelope' && envResult.elevation && (
+          <ElevationTab input={model} elevation={envResult.elevation} />
+        )}
+        {tab === 'refs'       && <RefsTab />}
       </section>
+    </div>
+  );
+}
+
+// ============================================================================
+// ELEVATION TAB — beam side-view drawing + bar schedule + zones (Phase 3)
+// ============================================================================
+function ElevationTab({ input, elevation }: {
+  input: BeamInput;
+  elevation: NonNullable<ReturnType<typeof analyzeEnvelope>['elevation']>;
+}) {
+  return (
+    <div className="rc-elevation-tab">
+      <div className={`rc-status ${elevation.zoning.ok && elevation.curtailment.ok ? 'rc-status--pass' : 'rc-status--fail'}`} style={{ marginBottom: '0.8rem' }}>
+        <div className="rc-status__icon">{elevation.zoning.ok && elevation.curtailment.ok ? '✓' : '⚠'}</div>
+        <div className="rc-status__text">
+          <strong>{elevation.zoning.narrativeEn} {elevation.curtailment.narrativeEn}</strong>
+          <span className="rc-status__es">{elevation.zoning.narrativeEs} {elevation.curtailment.narrativeEs}</span>
+        </div>
+      </div>
+      <RcBeamElevation input={input} elevation={elevation} lang="en" />
     </div>
   );
 }
