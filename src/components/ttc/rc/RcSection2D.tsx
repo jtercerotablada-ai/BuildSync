@@ -10,17 +10,24 @@ interface Props {
 }
 
 /**
- * RcSection2D — three-pane diagram showing a beam cross-section, the strain
- * distribution at ultimate, and the Whitney rectangular stress block.
- * Standard textbook (Wight & MacGregor / ACI MNL-17) presentation.
+ * RcSection2D — three-pane diagram (Cross Section · Strain · Whitney Stress Block).
+ *
+ * Style: textbook / academic (Wight & MacGregor, ACI MNL-17, SkyCiv reference).
+ * Conventions:
+ *   • Single shared Y axis: the neutral axis (NA) line is horizontal across all three panes.
+ *   • Strain diagram: εcu = +0.003 at top compression fiber, 0 at NA, εt at d.
+ *   • Whitney block: uniform 0.85·f'c over depth a = β1·c, with C and T force arrows.
+ *   • All dimensions drafted with extension lines + double-headed arrows + value text.
  */
 export function RcSection2D({ input, result }: Props) {
-  const W = 900, H = 460;
-  const padX = 30, padY = 50;
-  const sectionW = 240;
-  const strainW = 200;
-  const stressW = 280;
-  const gap = 40;
+  const W = 1100, H = 560;
+  const padX = 30, padY = 60, padBottom = 90;
+
+  // Pane widths
+  const sectionW = 290;
+  const strainW = 300;
+  const stressW = 340;
+  const gap = 30;
 
   const sectionX = padX;
   const strainX = sectionX + sectionW + gap;
@@ -30,13 +37,12 @@ export function RcSection2D({ input, result }: Props) {
   // Section dimensions
   const g = input.geometry;
   const r = input.reinforcement;
-  const beamH = H - 2 * padY;
+  const beamH = H - padY - padBottom;
   const scaleY = beamH / g.h;     // mm → px (vertical)
 
   // Horizontal scale: choose based on widest dimension (bf for T-beam)
   const widestSection = g.shape !== 'rectangular' ? Math.max(g.bf ?? g.bw, g.bw) : g.bw;
-  const scaleX = sectionW / widestSection * 0.85;
-  // Use a single uniform scale for bar diameters so circles look round
+  const scaleX = sectionW / widestSection * 0.55;     // tighter so dim lines fit
   const scaleBar = Math.min(scaleX, scaleY);
 
   const sectionCx = sectionX + sectionW / 2;
@@ -48,92 +54,113 @@ export function RcSection2D({ input, result }: Props) {
   const dbTens = lookupBar(r.tension[0]?.bar ?? '#9')?.db ?? 25;
   const dbComp = lookupBar(r.compression?.[0]?.bar ?? '#4')?.db ?? 12.7;
   const dbSkin = r.skin ? (lookupBar(r.skin.bar)?.db ?? 12) : 0;
+  void dbSkin;
 
-  // Inner stirrup envelope (mm from outer face)
-  const innerInset = g.coverClear + stirrupDb;
-
-  // Bar Y positions — kept inside the stirrup
-  // Tension: at user-specified d
+  // Bar Y positions
   const yTens = sectionTop + g.d * scaleY;
-  // Compression: at d' (default 50 mm)
   const yComp = sectionTop + (g.dPrime ?? 50) * scaleY;
-
-  // Stress block depth a (px)
+  const yNA = sectionTop + result.flexure.c * scaleY;     // Neutral axis Y (px)
   const aPx = result.flexure.a * scaleY;
   const cPx = result.flexure.c * scaleY;
 
-  // Section outer edges (px)
+  // Section outer/inner edges (px)
   const secLeft = sectionCx - g.bw * scaleX / 2;
   const secRight = sectionCx + g.bw * scaleX / 2;
-  // Stirrup outer edges (offset by cover from outer face)
   const stirOutLeft = secLeft + g.coverClear * scaleX;
   const stirOutRight = secRight - g.coverClear * scaleX;
-  const stirOutTop = sectionTop + g.coverClear * scaleY;
-  const stirOutBot = sectionTop + (g.h - g.coverClear) * scaleY;
-  // Stirrup INNER edges (offset by stirrup db from outer-face edges)
   const stirInLeft = stirOutLeft + stirrupDb * scaleX;
   const stirInRight = stirOutRight - stirrupDb * scaleX;
-  void stirOutBot; void stirOutTop;
+
+  // Strain diagram axis
+  const strainCx = strainX + 80;
+  const strainAxisX = strainCx;
+  const strainMaxOff = 100;     // max offset from axis (compression side)
+
+  // Stress diagram
+  const stressLeft = stressX + 30;
+  const stressBlockW = 130;
+  const stressRight = stressLeft + stressBlockW;
+
+  // Helper: Format
+  const fmt = (n: number, d = 1) => n.toFixed(d);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+         xmlns="http://www.w3.org/2000/svg"
          style={{ width: '100%', maxWidth: '100%', height: 'auto', background: '#fafafa', borderRadius: 6 }}>
-      {/* Title */}
-      <text x={W / 2} y={20} textAnchor="middle" fontSize="13" fontWeight="700" fill="#222">
-        BEAM SECTION · STRAIN DIAGRAM · WHITNEY STRESS BLOCK
+
+      <defs>
+        {/* Dimension arrow markers */}
+        <marker id="dim-arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#222" />
+        </marker>
+        <marker id="dim-arrow-start" viewBox="0 0 10 10" refX="1" refY="5"
+                markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 10 0 L 0 5 L 10 10 z" fill="#222" />
+        </marker>
+        {/* Force arrow markers */}
+        <marker id="force-c" viewBox="0 0 10 10" refX="2" refY="5"
+                markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 10 0 L 0 5 L 10 10 z" fill="#7a1f1f" />
+        </marker>
+        <marker id="force-t" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f6a36" />
+        </marker>
+      </defs>
+
+      {/* ═════════════════════════ TITLE ═════════════════════════ */}
+      <text x={W / 2} y={24} textAnchor="middle" fontSize="14" fontWeight="700" fill="#1e293b">
+        CROSS SECTION · STRAIN DIAGRAM · WHITNEY STRESS BLOCK
       </text>
 
-      {/* === PANE 1: CROSS SECTION === */}
+      {/* ═════════════════════════ SHARED NEUTRAL AXIS ═════════════════════════ */}
+      <line x1={padX} y1={yNA} x2={W - padX} y2={yNA}
+            stroke="#3a4a6a" strokeWidth="0.7" strokeDasharray="6 4" opacity="0.6" />
+      <text x={W - padX - 4} y={yNA - 4} textAnchor="end"
+            fontSize="9" fontStyle="italic" fill="#3a4a6a">
+        Neutral Axis · c = {fmt(result.flexure.c)} mm
+      </text>
+
+      {/* ═══════════════════ PANE 1 — CROSS SECTION ═══════════════════ */}
       <g>
-        <text x={sectionCx} y={padY - 10} textAnchor="middle" fontSize="10" fontWeight="700" fill="#222">
+        <text x={sectionCx} y={padY - 22} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1e293b">
           CROSS SECTION
         </text>
 
         {/* Section outline */}
         {g.shape === 'rectangular' ? (
-          <rect x={sectionCx - g.bw * scaleX / 2} y={sectionTop}
+          <rect x={secLeft} y={sectionTop}
                 width={g.bw * scaleX} height={g.h * scaleY}
-                fill="#cdc8bf" stroke="#333" strokeWidth="1.5" />
+                fill="#cdc8bf" fillOpacity="0.5" stroke="#333" strokeWidth="1.5" />
         ) : (
           <>
-            {/* T-beam: flange + web */}
             <rect x={sectionCx - (g.bf ?? g.bw) * scaleX / 2} y={sectionTop}
                   width={(g.bf ?? g.bw) * scaleX} height={(g.hf ?? 100) * scaleY}
-                  fill="#cdc8bf" stroke="#333" strokeWidth="1.5" />
-            <rect x={sectionCx - g.bw * scaleX / 2} y={sectionTop + (g.hf ?? 100) * scaleY}
+                  fill="#cdc8bf" fillOpacity="0.5" stroke="#333" strokeWidth="1.5" />
+            <rect x={secLeft} y={sectionTop + (g.hf ?? 100) * scaleY}
                   width={g.bw * scaleX} height={(g.h - (g.hf ?? 100)) * scaleY}
-                  fill="#cdc8bf" stroke="#333" strokeWidth="1.5" />
+                  fill="#cdc8bf" fillOpacity="0.5" stroke="#333" strokeWidth="1.5" />
           </>
         )}
 
-        {/* Stirrup — drawn as a real closed loop with proper thickness + 135° hook (ACI §25.3.2) */}
+        {/* Stirrup outline (light dashed inset, no hooks) */}
         {(() => {
-          const strW = Math.max(2, stirrupDb * scaleBar);   // visual stirrup line thickness
-          // Stirrup centerline rect (between outer and inner faces)
           const cx1 = stirOutLeft + (stirrupDb / 2) * scaleX;
           const cx2 = stirOutRight - (stirrupDb / 2) * scaleX;
           const cy1 = sectionTop + (g.coverClear + stirrupDb / 2) * scaleY;
           const cy2 = sectionTop + (g.h - g.coverClear - stirrupDb / 2) * scaleY;
-          const rxCorner = 2 * stirrupDb * scaleBar;     // §25.3.2 inside bend ≥ 4·db; centerline radius ≈ 2·db
-          // Hook: 135° hook at top-right corner extending inward to mid-section
-          const hookLen = 6 * stirrupDb * scaleBar;
-          const hookDx = -hookLen * Math.cos(Math.PI / 4);
-          const hookDy = +hookLen * Math.sin(Math.PI / 4);
+          const rxCorner = 2 * stirrupDb * scaleBar;
           return (
-            <g>
-              <rect x={cx1} y={cy1} width={cx2 - cx1} height={cy2 - cy1}
-                    rx={rxCorner} ry={rxCorner}
-                    fill="none" stroke="#3a4a6a" strokeWidth={strW}
-                    strokeLinejoin="round" strokeLinecap="round" />
-              {/* 135° hook detail at top-right corner */}
-              <line x1={cx2 - rxCorner * 0.3} y1={cy1 + rxCorner * 0.3}
-                    x2={cx2 - rxCorner * 0.3 + hookDx} y2={cy1 + rxCorner * 0.3 + hookDy}
-                    stroke="#3a4a6a" strokeWidth={strW} strokeLinecap="round" />
-            </g>
+            <rect x={cx1} y={cy1} width={cx2 - cx1} height={cy2 - cy1}
+                  rx={rxCorner} ry={rxCorner}
+                  fill="none" stroke="#3a4a6a" strokeWidth="1.2"
+                  strokeLinejoin="round" />
           );
         })()}
 
-        {/* Tension rebar — placed INSIDE stirrup inner envelope */}
+        {/* Tension bars */}
         {(() => {
           const total = r.tension.reduce((s, b) => s + b.count, 0);
           if (total === 0) return null;
@@ -142,9 +169,6 @@ export function RcSection2D({ input, result }: Props) {
           const xRight = stirInRight - halfBar;
           const xUsable = Math.max(xRight - xLeft, 1);
           const dx = total > 1 ? xUsable / (total - 1) : 0;
-          // Y position: keep at d but ensure inside stirrup
-          const yMin = stirInLeft;     // not used
-          void yMin;
           const yInnerBot = sectionTop + (g.h - g.coverClear - stirrupDb) * scaleY;
           const yBar = Math.min(yTens, yInnerBot - (dbTens / 2) * scaleY);
           return Array.from({ length: total }, (_, i) => (
@@ -152,11 +176,11 @@ export function RcSection2D({ input, result }: Props) {
               cx={total === 1 ? sectionCx : xLeft + i * dx}
               cy={yBar}
               r={(dbTens / 2) * scaleBar}
-              fill="#c94c4c" stroke="#5a1212" strokeWidth="0.6" />
+              fill="#222" stroke="#000" strokeWidth="0.6" />
           ));
         })()}
 
-        {/* Compression / hanger rebar — placed INSIDE stirrup top inner edge */}
+        {/* Compression bars */}
         {(r.compression?.length ?? 0) > 0 && (() => {
           const totalC = (r.compression ?? []).reduce((s, b) => s + b.count, 0);
           if (totalC === 0) return null;
@@ -172,18 +196,16 @@ export function RcSection2D({ input, result }: Props) {
               cx={totalC === 1 ? sectionCx : xLeft + i * dx}
               cy={yBar}
               r={(dbComp / 2) * scaleBar}
-              fill="#e0c060" stroke="#5a4710" strokeWidth="0.6" />
+              fill="#222" stroke="#000" strokeWidth="0.6" />
           ));
         })()}
 
-        {/* Skin reinforcement (h > 900 mm, ACI §9.7.2.3) — INSIDE stirrup vertical legs */}
+        {/* Skin reinforcement */}
         {r.skin && r.skin.countPerFace > 0 && (() => {
           const sk = r.skin!;
           const halfBar = (dbSkin / 2) * scaleX;
-          // Skin bars sit just inside the vertical legs of the stirrup
           const xL = stirInLeft + halfBar;
           const xR = stirInRight - halfBar;
-          // Distributed over h/2 from tension face up
           const skinBot = yTens - (dbTens / 2) * scaleY - 30 * scaleY;
           const skinTop = sectionTop + (g.h / 2) * scaleY;
           const span = Math.max(skinBot - skinTop, 1);
@@ -191,151 +213,331 @@ export function RcSection2D({ input, result }: Props) {
           return Array.from({ length: sk.countPerFace }, (_, i) => (
             <g key={`sk-${i}`}>
               <circle cx={xL} cy={skinTop + i * dy} r={(dbSkin / 2) * scaleBar}
-                      fill="#5fa3c9" stroke="#143b6a" strokeWidth="0.6" />
+                      fill="#5fa3c9" stroke="#143b6a" strokeWidth="0.5" />
               <circle cx={xR} cy={skinTop + i * dy} r={(dbSkin / 2) * scaleBar}
-                      fill="#5fa3c9" stroke="#143b6a" strokeWidth="0.6" />
+                      fill="#5fa3c9" stroke="#143b6a" strokeWidth="0.5" />
             </g>
           ));
         })()}
 
-        {/* Dimensions */}
-        <text x={sectionCx} y={sectionBot + 18} textAnchor="middle" fontSize="9" fill="#222" fontWeight="600">
-          {`bw = ${g.bw} mm`}
-        </text>
-        {g.shape !== 'rectangular' && g.bf && (
-          <text x={sectionCx} y={sectionTop - 18} textAnchor="middle" fontSize="9" fill="#222" fontWeight="600">
-            {`bf = ${g.bf} mm`}
-          </text>
-        )}
-        <text x={sectionCx + sectionW / 2 - 5} y={sectionTop + beamH / 2}
-              textAnchor="end" fontSize="9" fill="#222" fontWeight="600"
-              transform={`rotate(-90, ${sectionCx + sectionW / 2 - 5}, ${sectionTop + beamH / 2})`}>
-          {`h = ${g.h} mm`}
-        </text>
-        <text x={sectionCx + sectionW / 2 - 22} y={yTens + 2}
-              fontSize="8" fill="#a02020" fontWeight="600">
-          {`d = ${g.d} mm`}
-        </text>
+        {/* === DIMENSION LINES === */}
+        {/* b — width at bottom */}
+        <DimLineH y={sectionBot + 22} x1={secLeft} x2={secRight}
+                  label={`b = ${g.bw} mm`} />
+        {/* h — full height on left side */}
+        <DimLineV x={secLeft - 38} y1={sectionTop} y2={sectionBot}
+                  label={`h = ${g.h} mm`} />
+        {/* d — top to tension steel centroid (right side, inside) */}
+        <DimLineV x={secRight + 16} y1={sectionTop} y2={yTens}
+                  label={`d = ${g.d} mm`} color="#a02020" />
+        {/* c — top to neutral axis (left side, near beam) */}
+        <DimLineV x={secLeft - 12} y1={sectionTop} y2={yNA}
+                  label={`c = ${fmt(result.flexure.c)} mm`} color="#3a4a6a" textOffset={-4} />
+        {/* d-c — NA to tension steel (right side, outer) */}
+        <DimLineV x={secRight + 38} y1={yNA} y2={yTens}
+                  label={`d - c = ${fmt(g.d - result.flexure.c)}`} color="#666" textOffset={4} />
 
-        {/* d line indicator */}
-        <line x1={sectionCx + g.bw * scaleX / 2 + 4} y1={yTens}
-              x2={sectionCx + g.bw * scaleX / 2 + 14} y2={yTens}
-              stroke="#a02020" strokeWidth="0.6" />
+        {/* As label below */}
+        <text x={sectionCx} y={sectionBot + 50} textAnchor="middle"
+              fontSize="11" fontWeight="700" fill="#1e293b">
+          {`As = ${result.flexure.As.toFixed(0)} mm²`}
+        </text>
+        <text x={sectionCx} y={sectionBot + 64} textAnchor="middle"
+              fontSize="9" fill="#475569">
+          {r.tension.map((bg) => `${bg.count} ${bg.bar}`).join(' + ')}
+        </text>
       </g>
 
-      {/* === PANE 2: STRAIN DIAGRAM === */}
+      {/* ═══════════════════ PANE 2 — STRAIN DIAGRAM ═══════════════════ */}
       <g>
-        <text x={strainX + strainW / 2} y={padY - 10} textAnchor="middle" fontSize="10" fontWeight="700" fill="#222">
+        <text x={strainX + strainW / 2} y={padY - 22} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1e293b">
           STRAIN DIAGRAM
         </text>
 
-        {/* Vertical reference axis */}
-        <line x1={strainX + strainW / 2} y1={sectionTop} x2={strainX + strainW / 2} y2={sectionBot}
-              stroke="#888" strokeWidth="0.5" strokeDasharray="2 2" />
+        {/* Vertical reference axis (the section centroid axis projection) */}
+        <line x1={strainAxisX} y1={sectionTop} x2={strainAxisX} y2={sectionBot}
+              stroke="#444" strokeWidth="1" />
 
-        {/* Strain triangle: εcu = 0.003 (compression) at top, 0 at NA (c), εt (tension) at d */}
-        <polygon
-          points={`
-            ${strainX + strainW / 2 - 60},${sectionTop}
-            ${strainX + strainW / 2},${sectionTop + cPx}
-            ${strainX + strainW / 2 + Math.min(120, Math.abs(result.flexure.epsT) / 0.003 * 60)},${yTens}
-          `}
-          fill="rgba(201, 168, 76, 0.25)" stroke="#c9a84c" strokeWidth="1" />
+        {/* Horizontal top + bottom reference lines */}
+        <line x1={strainAxisX - 8} y1={sectionTop} x2={strainAxisX + strainMaxOff + 30} y2={sectionTop}
+              stroke="#888" strokeWidth="0.4" />
+        <line x1={strainAxisX - 8} y1={yTens} x2={strainAxisX + strainMaxOff + 30} y2={yTens}
+              stroke="#888" strokeWidth="0.4" />
 
-        {/* Neutral axis line */}
-        <line x1={strainX} y1={sectionTop + cPx}
-              x2={strainX + strainW} y2={sectionTop + cPx}
-              stroke="#a02020" strokeWidth="0.7" strokeDasharray="3 2" />
-        <text x={strainX + 6} y={sectionTop + cPx - 3} fontSize="8" fill="#a02020" fontWeight="600">
-          {`Neutral axis (c = ${result.flexure.c.toFixed(1)} mm)`}
+        {/* Strain triangle:
+            - Compression side (LEFT of axis): 0.003 at top, 0 at NA, then 0 below NA (compression only above NA)
+            - Tension side (RIGHT of axis): 0 at NA, εt at d (full tension below NA)
+            Convention: positive strain to the right (tension), negative to the left (compression).
+            BUT for visual clarity: draw 0.003 to the LEFT of axis (compression block), εt to the RIGHT.   */}
+
+        {(() => {
+          const epsCu = 0.003;
+          const epsT = result.flexure.epsT;
+          // Scale: 0.003 → strainMaxOff
+          const compOff = strainMaxOff;
+          const tensOff = Math.min(strainMaxOff * 1.4, (epsT / epsCu) * strainMaxOff);
+
+          return (
+            <>
+              {/* Compression triangle (above NA, to the left of axis) */}
+              <polygon
+                points={`
+                  ${strainAxisX},${sectionTop}
+                  ${strainAxisX - compOff},${sectionTop}
+                  ${strainAxisX},${yNA}
+                `}
+                fill="rgba(122, 31, 31, 0.18)" stroke="#7a1f1f" strokeWidth="1" />
+
+              {/* Tension triangle (below NA, to the right of axis) */}
+              <polygon
+                points={`
+                  ${strainAxisX},${yNA}
+                  ${strainAxisX + tensOff},${yTens}
+                  ${strainAxisX},${yTens}
+                `}
+                fill="rgba(31, 106, 54, 0.18)" stroke="#1f6a36" strokeWidth="1" />
+
+              {/* εcu = 0.003 label + tick at top compression edge */}
+              <line x1={strainAxisX - compOff} y1={sectionTop - 4}
+                    x2={strainAxisX - compOff} y2={sectionTop + 4}
+                    stroke="#7a1f1f" strokeWidth="1.2" />
+              <text x={strainAxisX - compOff - 8} y={sectionTop - 6} textAnchor="end"
+                    fontSize="11" fontWeight="700" fill="#7a1f1f">
+                {`εcu = ${epsCu.toFixed(3)}`}
+              </text>
+
+              {/* εt label + tick at tension steel level */}
+              <line x1={strainAxisX + tensOff} y1={yTens - 4}
+                    x2={strainAxisX + tensOff} y2={yTens + 4}
+                    stroke="#1f6a36" strokeWidth="1.2" />
+              <text x={strainAxisX + tensOff + 8} y={yTens + 4} textAnchor="start"
+                    fontSize="11" fontWeight="700" fill="#1f6a36">
+                {`εt = ${(epsT * 1000).toFixed(2)}‰`}
+              </text>
+
+              {/* εty (yield strain) reference dotted line */}
+              {(() => {
+                const epsTy = result.flexure.epsTy;
+                if (epsTy <= 0 || epsTy > epsT) return null;
+                const yYield = yNA + ((epsTy / epsCu) * cPx);
+                const yieldOff = Math.min(strainMaxOff * 1.4, (epsTy / epsCu) * strainMaxOff);
+                if (yYield > yTens) return null;
+                return (
+                  <g>
+                    <line x1={strainAxisX} y1={yYield}
+                          x2={strainAxisX + yieldOff} y2={yYield}
+                          stroke="#c9a84c" strokeWidth="0.5" strokeDasharray="3 2" />
+                    <text x={strainAxisX + yieldOff + 4} y={yYield + 3}
+                          fontSize="8" fontStyle="italic" fill="#c9a84c">
+                      {`εty = ${(epsTy * 1000).toFixed(2)}‰`}
+                    </text>
+                  </g>
+                );
+              })()}
+            </>
+          );
+        })()}
+
+        {/* "(compression)" / "(tension)" small labels */}
+        <text x={strainAxisX - strainMaxOff / 2} y={sectionTop - 28} textAnchor="middle"
+              fontSize="8.5" fill="#7a1f1f" fontStyle="italic">
+          ← compression
+        </text>
+        <text x={strainAxisX + strainMaxOff / 2 + 20} y={sectionBot + 24} textAnchor="middle"
+              fontSize="8.5" fill="#1f6a36" fontStyle="italic">
+          tension →
         </text>
 
-        {/* εcu label */}
-        <text x={strainX + strainW / 2 - 65} y={sectionTop + 4} textAnchor="end"
-              fontSize="9" fill="#222" fontWeight="600">
-          εcu = 0.003
-        </text>
-
-        {/* εt label */}
-        <text x={strainX + strainW / 2 + 65} y={yTens + 4}
-              fontSize="9" fill="#222" fontWeight="600">
-          εt = {(result.flexure.epsT * 1000).toFixed(2)}‰
-        </text>
-
-        {/* Top + tension labels */}
-        <text x={strainX + strainW / 2 - 75} y={sectionTop - 6} textAnchor="end" fontSize="8" fill="#666">
-          (compression)
-        </text>
-        <text x={strainX + strainW / 2 + 75} y={sectionBot + 12} textAnchor="end" fontSize="8" fill="#666">
-          (tension)
-        </text>
+        {/* Section classification badge */}
+        <g transform={`translate(${strainX + strainW / 2}, ${sectionBot + 50})`}>
+          <rect x={-90} y={-12} width="180" height="22" rx="11"
+                fill={result.flexure.section === 'tension-controlled' ? 'rgba(31,106,54,0.15)'
+                      : result.flexure.section === 'transition' ? 'rgba(201,168,76,0.18)'
+                      : 'rgba(122,31,31,0.15)'}
+                stroke={result.flexure.section === 'tension-controlled' ? '#1f6a36'
+                        : result.flexure.section === 'transition' ? '#c9a84c'
+                        : '#7a1f1f'}
+                strokeWidth="0.6" />
+          <text x="0" y="3" textAnchor="middle" fontSize="9.5" fontWeight="700"
+                fill={result.flexure.section === 'tension-controlled' ? '#1f6a36'
+                      : result.flexure.section === 'transition' ? '#9b8848'
+                      : '#7a1f1f'}>
+            {result.flexure.section.replace('-', ' ')} · φ = {result.flexure.phi.toFixed(3)}
+          </text>
+        </g>
       </g>
 
-      {/* === PANE 3: WHITNEY STRESS BLOCK === */}
+      {/* ═══════════════════ PANE 3 — WHITNEY STRESS BLOCK ═══════════════════ */}
       <g>
-        <text x={stressX + 140} y={padY - 10} textAnchor="middle" fontSize="10" fontWeight="700" fill="#222">
+        <text x={stressX + 170} y={padY - 22} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1e293b">
           WHITNEY STRESS BLOCK
         </text>
 
-        {/* Beam outline (shadow) */}
-        <rect x={stressX} y={sectionTop} width={g.bw * scaleX * 1.4} height={beamH}
-              fill="#f5f1e6" stroke="#333" strokeWidth="0.5" />
+        {/* Vertical reference axis at right side */}
+        <line x1={stressLeft - 8} y1={sectionTop} x2={stressLeft - 8} y2={sectionBot}
+              stroke="#444" strokeWidth="1" />
 
-        {/* Compressive stress block — solid 0.85·fc over depth a */}
-        <rect x={stressX} y={sectionTop} width={g.bw * scaleX * 1.4} height={aPx}
-              fill="rgba(201, 76, 76, 0.40)" stroke="#7a1f1f" strokeWidth="0.7" />
+        {/* Compressive stress block: solid 0.85·f'c rectangle from top to depth a */}
+        <rect x={stressLeft} y={sectionTop} width={stressBlockW} height={aPx}
+              fill="rgba(122, 31, 31, 0.55)" stroke="#7a1f1f" strokeWidth="1" />
 
-        {/* Stress arrow (compressive, pointing down on the block) */}
-        <line x1={stressX + g.bw * scaleX * 0.7} y1={sectionTop - 8}
-              x2={stressX + g.bw * scaleX * 0.7} y2={sectionTop + aPx / 2}
-              stroke="#7a1f1f" strokeWidth="1.5" markerEnd="url(#arrow-comp)" />
-        <defs>
-          <marker id="arrow-comp" viewBox="0 0 10 10" refX="5" refY="5"
-                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a1f1f" />
-          </marker>
-        </defs>
+        {/* Stress arrows inside the block (multiple, showing uniform distribution) */}
+        {Array.from({ length: 5 }).map((_, i) => {
+          const yArrow = sectionTop + aPx * (i + 0.5) / 5;
+          return (
+            <line key={i}
+              x1={stressRight} y1={yArrow}
+              x2={stressLeft + 8} y2={yArrow}
+              stroke="#7a1f1f" strokeWidth="1.2" markerEnd="url(#force-c)" />
+          );
+        })}
 
-        {/* "0.85·fc" label */}
-        <text x={stressX + g.bw * scaleX * 0.7 + 8} y={sectionTop + aPx / 2 - 5} fontSize="9" fill="#7a1f1f" fontWeight="600">
-          {`0.85·fʹc = ${(0.85 * input.materials.fc).toFixed(2)} MPa`}
+        {/* Top dimension: 0.85·f'c label with extension arrows */}
+        <DimLineH y={sectionTop - 18} x1={stressLeft} x2={stressRight}
+                  label={`0.85·fʹc = ${fmt(0.85 * input.materials.fc, 2)} MPa`}
+                  color="#7a1f1f" />
+
+        {/* a (depth) dimension on the right side */}
+        <DimLineV x={stressRight + 28} y1={sectionTop} y2={sectionTop + aPx}
+                  label={`a = β₁·c = ${fmt(result.flexure.a)} mm`}
+                  color="#7a1f1f" />
+
+        {/* a/2 lever-arm marker (where C resultant acts) */}
+        {(() => {
+          const yC = sectionTop + aPx / 2;
+          return (
+            <g>
+              <line x1={stressLeft - 16} y1={yC} x2={stressLeft - 4} y2={yC}
+                    stroke="#7a1f1f" strokeWidth="0.7" strokeDasharray="2 2" />
+              <text x={stressLeft - 18} y={yC + 3} textAnchor="end"
+                    fontSize="8.5" fontStyle="italic" fill="#7a1f1f">
+                a/2
+              </text>
+            </g>
+          );
+        })()}
+
+        {/* C force arrow (compression resultant) */}
+        {(() => {
+          const yC = sectionTop + aPx / 2;
+          const C_force = (0.85 * input.materials.fc * result.flexure.a * (g.shape === 'rectangular' ? g.bw : (g.bf ?? g.bw))) / 1000;
+          return (
+            <g>
+              <line x1={stressRight + 88} y1={yC}
+                    x2={stressRight + 60} y2={yC}
+                    stroke="#7a1f1f" strokeWidth="2" markerEnd="url(#force-c)" />
+              <text x={stressRight + 92} y={yC - 4}
+                    fontSize="11" fontWeight="700" fill="#7a1f1f">
+                {`C = ${fmt(C_force)} kN`}
+              </text>
+              <text x={stressRight + 92} y={yC + 10}
+                    fontSize="8" fontStyle="italic" fill="#7a1f1f">
+                C = 0.85·fʹc·a·b
+              </text>
+            </g>
+          );
+        })()}
+
+        {/* T force arrow (tension resultant) at d level */}
+        {(() => {
+          const T_force = (result.flexure.As * input.materials.fy) / 1000;
+          return (
+            <g>
+              <line x1={stressLeft + 60} y1={yTens}
+                    x2={stressLeft + 88} y2={yTens}
+                    stroke="#1f6a36" strokeWidth="2" markerEnd="url(#force-t)" />
+              <text x={stressLeft + 92} y={yTens - 4}
+                    fontSize="11" fontWeight="700" fill="#1f6a36">
+                {`T = ${fmt(T_force)} kN`}
+              </text>
+              <text x={stressLeft + 92} y={yTens + 10}
+                    fontSize="8" fontStyle="italic" fill="#1f6a36">
+                T = As·fy
+              </text>
+            </g>
+          );
+        })()}
+
+        {/* Lever arm jd = d - a/2 dimension */}
+        {(() => {
+          const yC = sectionTop + aPx / 2;
+          const jd = g.d - result.flexure.a / 2;
+          return (
+            <DimLineV x={stressLeft - 32} y1={yC} y2={yTens}
+                      label={`jd = d − a/2 = ${fmt(jd)} mm`}
+                      color="#3a4a6a" textOffset={-4} />
+          );
+        })()}
+      </g>
+
+      {/* ═════════════════ FOOTER: Mn / φMn summary ═════════════════ */}
+      <g>
+        <line x1={padX} y1={H - 60} x2={W - padX} y2={H - 60}
+              stroke="#cbd5e1" strokeWidth="0.5" />
+        <text x={padX} y={H - 38} fontSize="13" fontWeight="700" fill="#1e293b">
+          {`Mn = T · jd = ${fmt(result.flexure.Mn)} kN·m`}
         </text>
-
-        {/* a label */}
-        <line x1={stressX + g.bw * scaleX * 1.4 + 6} y1={sectionTop}
-              x2={stressX + g.bw * scaleX * 1.4 + 6} y2={sectionTop + aPx}
-              stroke="#222" strokeWidth="0.6" />
-        <line x1={stressX + g.bw * scaleX * 1.4 + 3} y1={sectionTop}
-              x2={stressX + g.bw * scaleX * 1.4 + 9} y2={sectionTop} stroke="#222" strokeWidth="0.5" />
-        <line x1={stressX + g.bw * scaleX * 1.4 + 3} y1={sectionTop + aPx}
-              x2={stressX + g.bw * scaleX * 1.4 + 9} y2={sectionTop + aPx} stroke="#222" strokeWidth="0.5" />
-        <text x={stressX + g.bw * scaleX * 1.4 + 12} y={sectionTop + aPx / 2 + 3}
-              fontSize="9" fill="#222" fontWeight="600">
-          {`a = ${result.flexure.a.toFixed(1)} mm`}
+        <text x={padX + 280} y={H - 38} fontSize="13" fontWeight="700" fill="#1e293b">
+          {`φMn = ${fmt(result.flexure.phiMn)} kN·m`}
         </text>
-
-        {/* Tension force line */}
-        <line x1={stressX + g.bw * scaleX * 0.7} y1={yTens}
-              x2={stressX + g.bw * scaleX * 0.7} y2={yTens + 30}
-              stroke="#1f6a36" strokeWidth="1.5" markerEnd="url(#arrow-tens)" />
-        <defs>
-          <marker id="arrow-tens" viewBox="0 0 10 10" refX="5" refY="5"
-                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f6a36" />
-          </marker>
-        </defs>
-
-        <text x={stressX + g.bw * scaleX * 0.7 + 8} y={yTens + 18}
-              fontSize="9" fill="#1f6a36" fontWeight="600">
-          T = As · fy = {((result.flexure.As * input.materials.fy) / 1000).toFixed(1)} kN
+        <text x={padX + 510} y={H - 38} fontSize="11" fill="#475569">
+          {`(φ = ${result.flexure.phi.toFixed(3)})`}
         </text>
-
-        {/* Mn annotation */}
-        <text x={stressX + 6} y={sectionBot + 18}
-              fontSize="9" fill="#222" fontWeight="600">
-          {`Mn = ${result.flexure.Mn.toFixed(1)} kN·m  →  φMn = ${result.flexure.phiMn.toFixed(1)} kN·m`}
+        <text x={padX} y={H - 18} fontSize="10" fill="#475569" fontStyle="italic">
+          β₁ = {result.flexure.beta1.toFixed(3)} · εt = {(result.flexure.epsT * 1000).toFixed(2)}‰ · εty = {(result.flexure.epsTy * 1000).toFixed(2)}‰ · Section: {result.flexure.section.replace('-', ' ')}
         </text>
       </g>
     </svg>
+  );
+}
+
+// ============================================================================
+// Helper components — drafting-style horizontal/vertical dimension lines
+// ============================================================================
+
+function DimLineH({ y, x1, x2, label, color = '#222', textOffset = 0 }: {
+  y: number; x1: number; x2: number; label: string;
+  color?: string; textOffset?: number;
+}) {
+  const ext = 6;
+  return (
+    <g>
+      {/* Extension lines */}
+      <line x1={x1} y1={y - ext} x2={x1} y2={y + ext} stroke={color} strokeWidth="0.5" />
+      <line x1={x2} y1={y - ext} x2={x2} y2={y + ext} stroke={color} strokeWidth="0.5" />
+      {/* Dim line with arrows on both sides */}
+      <line x1={x1 + 1} y1={y} x2={x2 - 1} y2={y}
+            stroke={color} strokeWidth="0.7"
+            markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow-end)" />
+      {/* Label centered above */}
+      <text x={(x1 + x2) / 2} y={y - 5 + textOffset} textAnchor="middle"
+            fontSize="10" fontWeight="600" fill={color}>
+        {label}
+      </text>
+    </g>
+  );
+}
+
+function DimLineV({ x, y1, y2, label, color = '#222', textOffset = 0 }: {
+  x: number; y1: number; y2: number; label: string;
+  color?: string; textOffset?: number;
+}) {
+  const ext = 6;
+  return (
+    <g>
+      {/* Extension ticks */}
+      <line x1={x - ext} y1={y1} x2={x + ext} y2={y1} stroke={color} strokeWidth="0.5" />
+      <line x1={x - ext} y1={y2} x2={x + ext} y2={y2} stroke={color} strokeWidth="0.5" />
+      {/* Dim line with arrows */}
+      <line x1={x} y1={y1 + 1} x2={x} y2={y2 - 1}
+            stroke={color} strokeWidth="0.7"
+            markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow-end)" />
+      {/* Label rotated, centered */}
+      <text x={x + textOffset} y={(y1 + y2) / 2} textAnchor="middle"
+            fontSize="10" fontWeight="600" fill={color}
+            transform={`rotate(-90, ${x + textOffset}, ${(y1 + y2) / 2})`}>
+        {label}
+      </text>
+    </g>
   );
 }
