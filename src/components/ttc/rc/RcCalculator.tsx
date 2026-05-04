@@ -4,6 +4,7 @@ import React, { useMemo, useReducer, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { analyze, analyzeEnvelope } from '@/lib/rc/solver';
 import { autoDesign } from '@/lib/rc/autoDesign';
+import { defaultContinuousModel } from '@/lib/rc/continuous';
 import {
   type BeamInput,
   type BeamAnalysis,
@@ -461,11 +462,14 @@ function StationsTab({ envResult }: { envResult: ReturnType<typeof analyzeEnvelo
 // DEMAND CARD — choose source (manual / simply-supported) + edit values
 // ============================================================================
 function DemandCard({
-  demand, setDemand, L,
+  demand, setDemand, L, onLengthChange,
 }: {
   demand: DemandSource;
   setDemand: (d: DemandSource) => void;
   L: number;
+  /** Optional callback fired when continuous-beam total length changes,
+   *  so the parent can keep geometry.L in sync. */
+  onLengthChange?: (newL: number) => void;
 }) {
   const kind = demand.kind;
   return (
@@ -477,6 +481,10 @@ function DemandCard({
             const next = e.target.value as DemandSource['kind'];
             if (next === 'simply-supported') {
               setDemand({ kind: 'simply-supported', udl: { wu: 60 }, point: [{ x: L / 2, Pu: 30 }], nStations: 21 });
+            } else if (next === 'continuous') {
+              // Default: 2 spans, half of geometry's L each, with the existing wu as DL
+              const spanL = L / 2;
+              setDemand({ kind: 'continuous', model: defaultContinuousModel(2, spanL, 30, 20) });
             } else {
               setDemand({
                 kind: 'manual',
@@ -489,6 +497,7 @@ function DemandCard({
             }
           }}>
             <option value="simply-supported">Simply-supported (UDL + point loads)</option>
+            <option value="continuous">Continuous beam (multi-span + pattern LL)</option>
             <option value="manual">Manual stations (x, Mu, Vu)</option>
           </select>
         </Field>
@@ -545,6 +554,10 @@ function DemandCard({
         </>
       )}
 
+      {kind === 'continuous' && demand.kind === 'continuous' && (
+        <ContinuousEditor demand={demand} setDemand={setDemand} onLengthChange={onLengthChange} />
+      )}
+
       {kind === 'manual' && demand.kind === 'manual' && (
         <div className="rc-demand__points">
           <div className="rc-demand__points-hdr">
@@ -590,6 +603,129 @@ function DemandCard({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// CONTINUOUS-BEAM EDITOR — Phase 5a UI
+// ============================================================================
+function ContinuousEditor({ demand, setDemand, onLengthChange }: {
+  demand: Extract<DemandSource, { kind: 'continuous' }>;
+  setDemand: (d: DemandSource) => void;
+  onLengthChange?: (newL: number) => void;
+}) {
+  const m = demand.model;
+  const update = (patch: Partial<typeof m>) => {
+    const next = { ...m, ...patch };
+    setDemand({ kind: 'continuous', model: next });
+    // Keep geometry.L in sync with the total beam length whenever spans
+    // change (so deflection limit, self-weight, and rendering all use
+    // the right length).
+    if (patch.spans) {
+      const totalL = patch.spans.reduce((s, sp) => s + sp.L, 0);
+      onLengthChange?.(totalL);
+    }
+  };
+  const updateSpan = (i: number, patch: Partial<typeof m.spans[number]>) => {
+    const next = [...m.spans];
+    next[i] = { ...next[i], ...patch };
+    update({ spans: next });
+    if (patch.L !== undefined) {
+      onLengthChange?.(next.reduce((s, sp) => s + sp.L, 0));
+    }
+  };
+  const updateSupport = (i: number, val: typeof m.supports[number]) => {
+    const next = [...m.supports];
+    next[i] = val;
+    update({ supports: next });
+  };
+  const addSpan = () => {
+    const lastL = m.spans[m.spans.length - 1]?.L ?? 5000;
+    update({
+      spans: [...m.spans, { L: lastL, wDL: 30, wLL: 20, point: [] }],
+      supports: [...m.supports, 'roller'],
+    });
+  };
+  const removeSpan = () => {
+    if (m.spans.length <= 1) return;
+    update({
+      spans: m.spans.slice(0, -1),
+      supports: m.supports.slice(0, -1),
+    });
+  };
+
+  return (
+    <div className="rc-demand__points">
+      <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
+        Multi-span continuous beam analyzed by stiffness method.
+        Pattern loading per ACI §6.4 (LL on alternating spans, on each pair, on each
+        single span, plus DL+LL all and DL only). Total beam length = Σ span L.
+      </p>
+      <div className="rc-demand__points-hdr">
+        <h5>Spans ({m.spans.length})</h5>
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <button type="button" className="ab-btn ab-btn--ghost" onClick={addSpan}>+ Add span</button>
+          <button type="button" className="ab-btn ab-btn--ghost"
+                  onClick={removeSpan} disabled={m.spans.length <= 1}>− Remove last</button>
+        </div>
+      </div>
+
+      <div className="slab-fields" style={{ marginBottom: '0.6rem' }}>
+        <Field label="Pattern LL (§6.4)">
+          <select value={m.patternLL === false ? 'no' : 'yes'}
+                  onChange={(e) => update({ patternLL: e.target.value === 'yes' })}>
+            <option value="yes">Yes (envelope all patterns)</option>
+            <option value="no">No (DL+LL all spans only)</option>
+          </select>
+        </Field>
+        <Field label="Stations / span">
+          <Num val={m.nStations ?? 11} step={2}
+               onChange={(v) => update({ nStations: Math.max(3, Math.min(41, Math.round(v))) })} />
+        </Field>
+      </div>
+
+      {/* Supports row */}
+      <div style={{ overflowX: 'auto', marginBottom: '0.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', minWidth: 'fit-content' }}>
+          {m.supports.map((sup, i) => (
+            <React.Fragment key={`sup-${i}`}>
+              <select value={sup}
+                      style={{ minWidth: 80 }}
+                      onChange={(e) => updateSupport(i, e.target.value as typeof sup)}>
+                <option value="pin">pin</option>
+                <option value="roller">roller</option>
+                <option value="fix">fix</option>
+                <option value="free">free</option>
+              </select>
+              {i < m.spans.length && (
+                <span style={{ flex: 1, textAlign: 'center', opacity: 0.6, fontSize: '0.85rem' }}>
+                  ── span {i + 1} (L = {m.spans[i].L} mm) ──
+                </span>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
+      {/* Span table */}
+      {m.spans.map((sp, i) => (
+        <div key={`span-${i}`} className="slab-fields"
+             style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none', paddingTop: i > 0 ? '0.4rem' : '0' }}>
+          <Field label={`Span ${i + 1} — L (mm)`}>
+            <Num val={sp.L} step={250}
+                 onChange={(v) => updateSpan(i, { L: Math.max(500, v) })} />
+          </Field>
+          <Field label="wDL (kN/m)">
+            <Num val={sp.wDL ?? 0} step={5}
+                 onChange={(v) => updateSpan(i, { wDL: v })} />
+          </Field>
+          <Field label="wLL (kN/m)">
+            <Num val={sp.wLL ?? 0} step={5}
+                 onChange={(v) => updateSpan(i, { wLL: v })} />
+          </Field>
+        </div>
+      ))}
     </div>
   );
 }
@@ -906,7 +1042,8 @@ function InputsTab({ model, dispatch, engine, demand, setDemand }: {
 
       {/* Demand source (envelope mode only) */}
       {engine === 'envelope' && (
-        <DemandCard demand={demand} setDemand={setDemand} L={model.geometry.L} />
+        <DemandCard demand={demand} setDemand={setDemand} L={model.geometry.L}
+                    onLengthChange={(newL) => dispatch({ type: 'SET_GEOM', patch: { L: newL } })} />
       )}
 
       {/* Branding */}

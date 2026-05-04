@@ -1621,6 +1621,132 @@ block('Phase 5c — Time-step deflection curve covers 5-year horizon', () => {
 });
 
 // ============================================================================
+// PHASE 5d — EUROCODE 2 (EN 1992-1-1) parallel solver
+// ============================================================================
+//
+// Validates that switching code to 'EN 1992-1-1' dispatches to the EC2
+// solver and reproduces classic textbook formulas (fcd, fyd, λ, η, As,min,
+// VRd,c, VRd,s closed forms).
+import { checkFlexureEC2, checkShearEC2 } from '../src/lib/rc/eurocode2';
+
+block('Phase 5d — EC2 design strengths fcd, fyd', () => {
+  const input: BeamInput = {
+    code: 'EN 1992-1-1', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 30, fy: 500, lambdaC: 1.0 },          // C30/37, B500
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 350, Vu: 200, Tu: 0 },
+  };
+  const r = checkFlexureEC2(input);
+  // fcd = αcc·fck/γc = 1·30/1.5 = 20 MPa
+  // fyd = fyk/γs = 500/1.15 = 434.78 MPa
+  // For doubly: x = (As − A's)·fyd/(η·fcd·b·λ)
+  //   As = 4·645 = 2580, A's = 2·129 = 258, AsNet = 2322
+  // For fck = 30: λ = 0.8, η = 1.0
+  const expFcd = 30 / 1.5;
+  const expFyd = 500 / 1.15;
+  const AsNet = 2580 - 258;
+  const expX = AsNet * expFyd / (1.0 * expFcd * 300 * 0.8);
+  near('EC2 NA depth x = (As−A\'s)·fyd/(η·fcd·b·λ)', r.c, expX, 0.02);
+  // β1 in shared API equals λ for EC2
+  near('β1 = λ (EC2)', r.beta1, 0.8, 0.001);
+});
+
+block('Phase 5d — EC2 As,min per §9.2.1.1', () => {
+  const input: BeamInput = {
+    code: 'EN 1992-1-1', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 30, fy: 500 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 1 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 100, Vu: 100 },
+  };
+  const r = checkFlexureEC2(input);
+  const fctm = 0.30 * Math.pow(30, 2 / 3);   // ≈ 2.90 MPa
+  const expAsMin = Math.max(
+    0.26 * (fctm / 500) * 300 * 540,
+    0.0013 * 300 * 540,
+  );
+  near('EC2 As,min = max(0.26·(fctm/fyk)·b·d, 0.0013·b·d)', r.AsMin, expAsMin, 0.01);
+});
+
+block('Phase 5d — EC2 shear VRd,c (no stirrups)', () => {
+  const input: BeamInput = {
+    code: 'EN 1992-1-1', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 30, fy: 500 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 100, Vu: 50 },     // small VEd → no stirrups required
+  };
+  const r = checkShearEC2(input);
+  // VRd,c = max(CRd,c·k·(100·ρl·fck)^(1/3), vmin)·bw·d
+  const k = Math.min(2.0, 1 + Math.sqrt(200 / 540));
+  const rhoL = Math.min(0.02, 4 * 645 / (300 * 540));
+  const CRdc = 0.18 / 1.5;
+  const vmin = 0.035 * Math.pow(k, 1.5) * Math.sqrt(30);
+  const vRdc = Math.max(CRdc * k * Math.pow(100 * rhoL * 30, 1 / 3), vmin);
+  const expVRdc = vRdc * 300 * 540 / 1000;
+  near('EC2 VRd,c closed-form match', r.Vc, expVRdc, 0.02);
+});
+
+block('Phase 5d — EC2 shear VRd,s (variable strut, cot θ = 2.5)', () => {
+  const input: BeamInput = {
+    code: 'EN 1992-1-1', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 30, fy: 500 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 150 },
+    },
+    loads: { Mu: 200, Vu: 250 },
+  };
+  const r = checkShearEC2(input);
+  // VRd,s = (Asw/s)·z·fywd·cot θ; Asw = 2·71 = 142, z = 0.9·540 = 486
+  const Asw = 2 * 71;
+  const z = 0.9 * 540;
+  const fywd = 500 / 1.15;
+  const expVRds = (Asw / 150) * z * fywd * 2.5 / 1000;
+  near('EC2 VRd,s = (Asw/s)·z·fywd·cot θ', r.Vs, expVRds, 0.02);
+});
+
+block('Phase 5d — EC2 dispatch: code switches solver', () => {
+  // Same beam analyzed under ACI vs EC2 must give DIFFERENT capacities
+  // (ACI uses φ·As·fy, EC2 uses partial factors). The two should differ
+  // by roughly the partial-factor ratio.
+  const inputBase = {
+    method: 'LRFD' as const,
+    geometry: { shape: 'rectangular' as const, bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 200, Vu: 100, Tu: 0 },
+  };
+  const aciResult = analyze({ ...inputBase, code: 'ACI 318-25' });
+  const ec2Result = analyze({ ...inputBase, code: 'EN 1992-1-1' });
+  check('ACI φMn vs EC2 MRd both > 0',
+        aciResult.flexure.phiMn > 0 && ec2Result.flexure.phiMn > 0);
+  check('ACI VRd vs EC2 VRd both > 0',
+        aciResult.shear.phiVn > 0 && ec2Result.shear.phiVn > 0);
+  check('Two codes produce DIFFERENT capacities',
+        Math.abs(aciResult.flexure.phiMn - ec2Result.flexure.phiMn) > 1);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(60));

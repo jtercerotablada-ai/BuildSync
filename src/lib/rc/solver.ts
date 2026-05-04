@@ -43,6 +43,7 @@ import type {
 } from './types';
 import { lookupBar, barArea, barDiameter } from './types';
 import { buildElevationData } from './phase3';
+import { checkFlexureEC2, checkShearEC2 } from './eurocode2';
 
 // ============================================================================
 // COMMON HELPERS
@@ -204,8 +205,12 @@ export function analyze(input: BeamInput): BeamAnalysis {
     const n = Es / Ec;
     void n;
 
-    const flexure = checkFlexure(input);
-    const shear = checkShear(input);
+    // Code dispatch — EC2 provides parallel flexure + shear; deflection /
+    // crack / detailing / torsion are still ACI-based for now (EC2 versions
+    // are a candidate for a follow-up phase).
+    const isEC2 = input.code === 'EN 1992-1-1';
+    const flexure = isEC2 ? checkFlexureEC2(input) : checkFlexure(input);
+    const shear = isEC2 ? checkShearEC2(input) : checkShear(input);
     const deflection = checkDeflection(input, flexure);
     const crack = checkCrackControl(input);
     const detailing = checkDetailing(input);
@@ -1626,8 +1631,12 @@ export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
     //    using checkFlexure/checkShear with that station's Mu/Vu (only ratio differs).
     const stations: StationResult[] = stations0.map((stn) => {
       const shadow = shadowSingleSection(input, stn.Mu, stn.Vu);
-      const flex = checkFlexure(shadow);
-      const shr = checkShear(shadow);
+      const flex = input.code === 'EN 1992-1-1'
+        ? checkFlexureEC2(shadow)
+        : checkFlexure(shadow);
+      const shr = input.code === 'EN 1992-1-1'
+        ? checkShearEC2(shadow)
+        : checkShear(shadow);
       return {
         x: stn.x,
         Mu: stn.Mu,
@@ -1646,8 +1655,13 @@ export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
     // 3. Re-run full checks at the worst stations to populate FlexureCheck/ShearCheck objects
     const worstFlexStn = stations.reduce((a, b) => (b.flexureRatio > a.flexureRatio ? b : a), stations[0]);
     const worstShrStn = stations.reduce((a, b) => (b.shearRatio > a.shearRatio ? b : a), stations[0]);
-    const flexureWorst = checkFlexure(shadowSingleSection(input, worstFlexStn.Mu, worstFlexStn.Vu));
-    const shearWorst = checkShear(shadowSingleSection(input, worstShrStn.Mu, worstShrStn.Vu));
+    const isEC2env = input.code === 'EN 1992-1-1';
+    const flexureWorst = isEC2env
+      ? checkFlexureEC2(shadowSingleSection(input, worstFlexStn.Mu, worstFlexStn.Vu))
+      : checkFlexure(shadowSingleSection(input, worstFlexStn.Mu, worstFlexStn.Vu));
+    const shearWorst = isEC2env
+      ? checkShearEC2(shadowSingleSection(input, worstShrStn.Mu, worstShrStn.Vu))
+      : checkShear(shadowSingleSection(input, worstShrStn.Mu, worstShrStn.Vu));
 
     // 4. Deflection + crack: single-point semantics (use Loads.Ma at midspan for simply-supported,
     //    or whatever the user provided in input.loads.Ma).
