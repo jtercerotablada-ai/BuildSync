@@ -20,8 +20,8 @@ interface Props {
  *   • All dimensions drafted with extension lines + double-headed arrows + value text.
  */
 export function RcSection2D({ input, result }: Props) {
-  const W = 1100, H = 560;
-  const padX = 30, padY = 60, padBottom = 90;
+  const W = 1100, H = 620;
+  const padX = 30, padY = 50, padBottom = 130;
 
   // Pane widths
   const sectionW = 290;
@@ -99,21 +99,17 @@ export function RcSection2D({ input, result }: Props) {
                 markerWidth="6" markerHeight="6" orient="auto">
           <path d="M 10 0 L 0 5 L 10 10 z" fill="#222" />
         </marker>
-        {/* Force arrow markers */}
-        <marker id="force-c" viewBox="0 0 10 10" refX="2" refY="5"
+        {/* Force arrow markers — both default points +X (apex on right) so
+            orient="auto" rotates them correctly to follow line direction. */}
+        <marker id="force-c" viewBox="0 0 10 10" refX="9" refY="5"
                 markerWidth="8" markerHeight="8" orient="auto">
-          <path d="M 10 0 L 0 5 L 10 10 z" fill="#7a1f1f" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a1f1f" />
         </marker>
         <marker id="force-t" viewBox="0 0 10 10" refX="9" refY="5"
                 markerWidth="8" markerHeight="8" orient="auto">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f6a36" />
         </marker>
       </defs>
-
-      {/* ═════════════════════════ TITLE ═════════════════════════ */}
-      <text x={W / 2} y={24} textAnchor="middle" fontSize="14" fontWeight="700" fill="#1e293b">
-        CROSS SECTION · STRAIN DIAGRAM · WHITNEY STRESS BLOCK
-      </text>
 
       {/* ═════════════════════════ SHARED NEUTRAL AXIS ═════════════════════════ */}
       <line x1={padX} y1={yNA} x2={W - padX} y2={yNA}
@@ -125,7 +121,7 @@ export function RcSection2D({ input, result }: Props) {
 
       {/* ═══════════════════ PANE 1 — CROSS SECTION ═══════════════════ */}
       <g>
-        <text x={sectionCx} y={padY - 22} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1e293b">
+        <text x={sectionCx} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1e293b">
           CROSS SECTION
         </text>
 
@@ -237,20 +233,16 @@ export function RcSection2D({ input, result }: Props) {
         <DimLineV x={secRight + 38} y1={yNA} y2={yTens}
                   label={`d - c = ${fmt(g.d - result.flexure.c)}`} color="#666" textOffset={4} />
 
-        {/* As label below */}
-        <text x={sectionCx} y={sectionBot + 50} textAnchor="middle"
+        {/* As label below the b-dimension line, with safe spacing from footer */}
+        <text x={sectionCx} y={sectionBot + 42} textAnchor="middle"
               fontSize="11" fontWeight="700" fill="#1e293b">
-          {`As = ${result.flexure.As.toFixed(0)} mm²`}
-        </text>
-        <text x={sectionCx} y={sectionBot + 64} textAnchor="middle"
-              fontSize="9" fill="#475569">
-          {r.tension.map((bg) => `${bg.count} ${bg.bar}`).join(' + ')}
+          {`As = ${result.flexure.As.toFixed(0)} mm² (${r.tension.map((bg) => `${bg.count} ${bg.bar}`).join(' + ')})`}
         </text>
       </g>
 
       {/* ═══════════════════ PANE 2 — STRAIN DIAGRAM ═══════════════════ */}
       <g>
-        <text x={strainX + strainW / 2} y={padY - 22} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1e293b">
+        <text x={strainX + strainW / 2} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1e293b">
           STRAIN DIAGRAM
         </text>
 
@@ -349,7 +341,7 @@ export function RcSection2D({ input, result }: Props) {
         </text>
 
         {/* Section classification badge */}
-        <g transform={`translate(${strainX + strainW / 2}, ${sectionBot + 50})`}>
+        <g transform={`translate(${strainX + strainW / 2}, ${sectionBot + 42})`}>
           <rect x={-90} y={-12} width="180" height="22" rx="11"
                 fill={result.flexure.section === 'tension-controlled' ? 'rgba(31,106,54,0.15)'
                       : result.flexure.section === 'transition' ? 'rgba(201,168,76,0.18)'
@@ -369,7 +361,7 @@ export function RcSection2D({ input, result }: Props) {
 
       {/* ═══════════════════ PANE 3 — WHITNEY STRESS BLOCK ═══════════════════ */}
       <g>
-        <text x={stressX + 170} y={padY - 22} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1e293b">
+        <text x={stressX + 170} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1e293b">
           WHITNEY STRESS BLOCK
         </text>
 
@@ -393,7 +385,7 @@ export function RcSection2D({ input, result }: Props) {
         })}
 
         {/* Top dimension: 0.85·f'c label with extension arrows */}
-        <DimLineH y={sectionTop - 18} x1={stressLeft} x2={stressRight}
+        <DimLineH y={sectionTop - 12} x1={stressLeft} x2={stressRight}
                   label={`0.85·fʹc = ${fmt(0.85 * input.materials.fc, 2)} MPa`}
                   color="#7a1f1f" />
 
@@ -477,11 +469,8 @@ export function RcSection2D({ input, result }: Props) {
         <text x={padX} y={H - 38} fontSize="13" fontWeight="700" fill="#1e293b">
           {`Mn = T · jd = ${fmt(result.flexure.Mn)} kN·m`}
         </text>
-        <text x={padX + 280} y={H - 38} fontSize="13" fontWeight="700" fill="#1e293b">
-          {`φMn = ${fmt(result.flexure.phiMn)} kN·m`}
-        </text>
-        <text x={padX + 510} y={H - 38} fontSize="11" fill="#475569">
-          {`(φ = ${result.flexure.phi.toFixed(3)})`}
+        <text x={W / 2} y={H - 38} textAnchor="middle" fontSize="13" fontWeight="700" fill="#1e293b">
+          {`φMn = ${fmt(result.flexure.phiMn)} kN·m  (φ = ${result.flexure.phi.toFixed(3)})`}
         </text>
         <text x={padX} y={H - 18} fontSize="10" fill="#475569" fontStyle="italic">
           β₁ = {result.flexure.beta1.toFixed(3)} · εt = {(result.flexure.epsT * 1000).toFixed(2)}‰ · εty = {(result.flexure.epsTy * 1000).toFixed(2)}‰ · Section: {result.flexure.section.replace('-', ' ')}
