@@ -252,21 +252,21 @@ function SkinRebar({ input, bw, h, L, cover }: {
 }
 
 // ============================================================================
-// One realistic stirrup — ONE continuous rebar swept along a single 3D path.
+// Stirrup 3D — CLEAN CLOSED-LOOP design (NO hooks in 3D).
 //
-// The path traces:
-//   hook1 (front, X = -ε)  →  smooth 135° bend at TR corner with X transitioning
-//   to 0  →  full rectangle perimeter (top, TL, left, BL, bottom, BR, right)
-//   →  smooth 135° bend at TR corner with X transitioning to +ε  →  hook2
-//   (back, X = +ε)
+// Design rationale: at the scale of the beam 3D viewer (a 6 m beam with 30+
+// stirrups), trying to render the 135° hooks at the closing corner produces
+// visual artifacts (hooks colliding with longitudinal bars, weird perspective).
 //
-// One hook is "in front" (X = -ε) and the other "behind" (X = +ε); they're
-// close together at the same physical corner and naturally come out of the
-// same continuous bar. All bends are smooth circular/bezier transitions with
-// inside bend radius ≥ 4·db (ACI §25.3.2). Hook length = max(6·db, 75 mm).
+// Professional structural engineering software (CYPECAD, ETABS, RAM Concept,
+// Tekla Structures) ALL render stirrups in the beam-level 3D as clean closed
+// hoops. The hook geometry detail belongs to the 2D bar bending schedule and
+// the cross-section detail drawing — both of which we already render correctly
+// (see RcSection2D and the Detailing tab bar schedule).
 //
-// A procedural normal map adds spiral rib deformations across the tube
-// surface — the bar reads as ribbed reinforcing steel, not a smooth pipe.
+// Implementation: ONE TubeGeometry with a closed perimeter path, rendered via
+// THREE.InstancedMesh for all stirrup positions along the beam. A procedural
+// normal map adds rebar ribs to the tube surface.
 // ============================================================================
 
 function makeRebarNormalMap(): THREE.CanvasTexture | null {
@@ -328,221 +328,135 @@ class PolylineCurve extends THREE.Curve<THREE.Vector3> {
   }
 }
 
-function buildContinuousStirrupPath(
-  cy: number, cz: number, r: number, stirrupDb: number
+// Build a closed-rectangle path with smooth rounded corners (in the YZ plane,
+// X = 0). The bar comes back to its starting point, so the TubeGeometry is
+// rendered with closed=true to produce a continuous loop without seams.
+function buildClosedStirrupPath(
+  cy: number, cz: number, r: number
 ): THREE.Vector3[] {
-  const hookLen = Math.max(6 * stirrupDb, 0.075);
-  const c = 1 / Math.SQRT2;                   // cos 45° = sin 45°
-  // Asymmetric depth offsets — back hook stays close to the rectangle plane
-  // (X ≈ -ε_back); front hook is pushed clearly FORWARD of the top longitudinal
-  // bar so it doesn't visually pass underneath it. The top long-bar tube has
-  // half-thickness ≈ db_top/2 ≈ 6-12 mm; ε_front = 2·db_stirrup ≈ 19 mm gives
-  // clear forward-of-bar separation while keeping the hook visually close
-  // to the closing corner.
-  const epsBack = stirrupDb * 0.65;
-  const epsFront = stirrupDb * 2.0;
-
   const pts: THREE.Vector3[] = [];
-  const push = (x: number, y: number, z: number) => pts.push(new THREE.Vector3(x, y, z));
+  const v = (y: number, z: number) => pts.push(new THREE.Vector3(0, y, z));
 
-  // ── HOOK 1 (back, X = -ε_back) — REAR hook (kept as reference; do not alter) ──
-  const h1iY = (cy - r) - hookLen * c;
-  const h1iZ = cz - hookLen * c;
-  for (let i = 0; i <= 20; i++) {
-    const t = i / 20;
-    push(-epsBack, h1iY + (cy - r - h1iY) * t, h1iZ + (cz - h1iZ) * t);
-  }
-
-  // ── BEND 1 — smooth 135° turn at TR corner; X transitions from -ε_back to 0 ──
-  {
-    const P0 = [-epsBack, cy - r, cz];
-    const C1 = [-epsBack * 0.4, cy - r + r * c * 1.0, cz + r * c * 0.5];
-    const C2 = [0, cy + r * 0.05, cz];
-    const P3 = [0, cy, cz - r];
-    const N = 28;
-    for (let i = 1; i <= N; i++) {
-      const t = i / N;
-      const omt = 1 - t;
-      const px = omt * omt * omt * P0[0] + 3 * omt * omt * t * C1[0] + 3 * omt * t * t * C2[0] + t * t * t * P3[0];
-      const py = omt * omt * omt * P0[1] + 3 * omt * omt * t * C1[1] + 3 * omt * t * t * C2[1] + t * t * t * P3[1];
-      const pz = omt * omt * omt * P0[2] + 3 * omt * omt * t * C1[2] + 3 * omt * t * t * C2[2] + t * t * t * P3[2];
-      push(px, py, pz);
-    }
-  }
-
-  // ── TOP EDGE (X = 0) ─────────────────────────────────────────────────────
-  for (let i = 1; i <= 40; i++) {
+  // Top edge: from (cy, -cz+r) right to (cy, cz-r)
+  for (let i = 0; i < 40; i++) {
     const t = i / 40;
-    push(0, cy, (cz - r) - 2 * (cz - r) * t);
+    v(cy, (-cz + r) + 2 * (cz - r) * t);
   }
-
-  // ── TL CORNER (90° quad-bezier with control at the geometric corner) ─────
-  {
-    const P0 = [0, cy, -cz + r];
-    const C  = [0, cy, -cz];
-    const P2 = [0, cy - r, -cz];
-    const N = 20;
-    for (let i = 1; i <= N; i++) {
-      const t = i / N;
-      const omt = 1 - t;
-      const py = omt * omt * P0[1] + 2 * omt * t * C[1] + t * t * P2[1];
-      const pz = omt * omt * P0[2] + 2 * omt * t * C[2] + t * t * P2[2];
-      push(0, py, pz);
-    }
+  // Top-right corner arc (PI/2 → 0)
+  for (let i = 0; i < 24; i++) {
+    const t = i / 24;
+    const a = Math.PI / 2 - t * Math.PI / 2;
+    v((cy - r) + r * Math.sin(a), (cz - r) + r * Math.cos(a));
   }
-
-  // ── LEFT EDGE ────────────────────────────────────────────────────────────
-  for (let i = 1; i <= 60; i++) {
+  // Right edge: from (cy-r, cz) down to (-cy+r, cz)
+  for (let i = 0; i < 60; i++) {
     const t = i / 60;
-    push(0, (cy - r) - 2 * (cy - r) * t, -cz);
+    v((cy - r) - 2 * (cy - r) * t, cz);
   }
-
-  // ── BL CORNER ────────────────────────────────────────────────────────────
-  {
-    const P0 = [0, -cy + r, -cz];
-    const C  = [0, -cy, -cz];
-    const P2 = [0, -cy, -cz + r];
-    const N = 20;
-    for (let i = 1; i <= N; i++) {
-      const t = i / N;
-      const omt = 1 - t;
-      const py = omt * omt * P0[1] + 2 * omt * t * C[1] + t * t * P2[1];
-      const pz = omt * omt * P0[2] + 2 * omt * t * C[2] + t * t * P2[2];
-      push(0, py, pz);
-    }
+  // Bottom-right corner arc (0 → -PI/2)
+  for (let i = 0; i < 24; i++) {
+    const t = i / 24;
+    const a = -t * Math.PI / 2;
+    v((-cy + r) + r * Math.sin(a), (cz - r) + r * Math.cos(a));
   }
-
-  // ── BOTTOM EDGE ──────────────────────────────────────────────────────────
-  for (let i = 1; i <= 40; i++) {
+  // Bottom edge: from (-cy, cz-r) left to (-cy, -cz+r)
+  for (let i = 0; i < 40; i++) {
     const t = i / 40;
-    push(0, -cy, (-cz + r) + 2 * (cz - r) * t);
+    v(-cy, (cz - r) - 2 * (cz - r) * t);
   }
-
-  // ── BR CORNER ────────────────────────────────────────────────────────────
-  {
-    const P0 = [0, -cy, cz - r];
-    const C  = [0, -cy, cz];
-    const P2 = [0, -cy + r, cz];
-    const N = 20;
-    for (let i = 1; i <= N; i++) {
-      const t = i / N;
-      const omt = 1 - t;
-      const py = omt * omt * P0[1] + 2 * omt * t * C[1] + t * t * P2[1];
-      const pz = omt * omt * P0[2] + 2 * omt * t * C[2] + t * t * P2[2];
-      push(0, py, pz);
-    }
+  // Bottom-left corner arc (-PI/2 → -PI)
+  for (let i = 0; i < 24; i++) {
+    const t = i / 24;
+    const a = -Math.PI / 2 - t * Math.PI / 2;
+    v((-cy + r) + r * Math.sin(a), (-cz + r) + r * Math.cos(a));
   }
-
-  // ── RIGHT EDGE ───────────────────────────────────────────────────────────
-  for (let i = 1; i <= 60; i++) {
+  // Left edge: from (-cy+r, -cz) up to (cy-r, -cz)
+  for (let i = 0; i < 60; i++) {
     const t = i / 60;
-    push(0, (-cy + r) + 2 * (cy - r) * t, cz);
+    v((-cy + r) + 2 * (cy - r) * t, -cz);
   }
-
-  // ── BEND 2 — FRONT hook bend at TR corner — X transitions from 0 to +ε_front ──
-  // The bar leaves the right edge going +Y at X=0, then curves OUT FORWARD
-  // (+X) and DOWN-LEFT in YZ as it transitions into the front 135° hook.
-  // The bend lifts UP slightly past Y=cy (above the top edge) so the hook
-  // anchors at the very top of the section — clearance from the top
-  // longitudinal bar is built in by the larger ε_front and a higher anchor Y.
-  {
-    const P0 = [0, cy - r, cz];
-    const C1 = [epsFront * 0.35, cy - r + r * c * 1.1, cz];
-    const C2 = [epsFront, cy + r * 0.15, cz - r * c * 0.4];          // peak above top edge & shifted in
-    const P3 = [epsFront, cy - r * 0.5, cz - r * 0.15];               // hook2 anchor — high & forward
-    const N = 28;
-    for (let i = 1; i <= N; i++) {
-      const t = i / N;
-      const omt = 1 - t;
-      const px = omt * omt * omt * P0[0] + 3 * omt * omt * t * C1[0] + 3 * omt * t * t * C2[0] + t * t * t * P3[0];
-      const py = omt * omt * omt * P0[1] + 3 * omt * omt * t * C1[1] + 3 * omt * t * t * C2[1] + t * t * t * P3[1];
-      const pz = omt * omt * omt * P0[2] + 3 * omt * omt * t * C1[2] + 3 * omt * t * t * C2[2] + t * t * t * P3[2];
-      push(px, py, pz);
-    }
-  }
-
-  // ── HOOK 2 (front, X = +ε_front) — 45° line that ALSO tilts further forward
-  // toward +X as it goes inward. The tail ends clearly in front of the top
-  // longitudinal bar (large +X), at a Y above where the top bar sits. ──────
-  const h2_anchorY = cy - r * 0.5;
-  const h2_anchorZ = cz - r * 0.15;
-  // Inner-end position: forward in X, slightly down in Y, inward in Z.
-  // Tail X = epsFront + extra forward tilt → hook tip is well-clear of any longitudinal bar.
-  const h2iX = epsFront + stirrupDb * 0.9;
-  const h2iY = h2_anchorY - hookLen * c * 0.85;     // descends less steeply than rear hook
-  const h2iZ = h2_anchorZ - hookLen * c * 0.6;
-  for (let i = 1; i <= 20; i++) {
-    const t = i / 20;
-    push(
-      epsFront + (h2iX - epsFront) * t,
-      h2_anchorY + (h2iY - h2_anchorY) * t,
-      h2_anchorZ + (h2iZ - h2_anchorZ) * t
-    );
+  // Top-left corner arc (-PI → -3PI/2)
+  for (let i = 0; i < 24; i++) {
+    const t = i / 24;
+    const a = -Math.PI - t * Math.PI / 2;
+    v((cy - r) + r * Math.sin(a), (-cz + r) + r * Math.cos(a));
   }
 
   return pts;
 }
 
-function OneStirrup({ x, bw, h, cover, stirrupDb, ribsTexture }: {
-  x: number; bw: number; h: number; cover: number; stirrupDb: number;
-  ribsTexture: THREE.CanvasTexture | null;
-}) {
-  // Stirrup centerline rectangle in YZ plane (cross-section plane of the beam).
-  const cz = bw / 2 - cover - stirrupDb / 2;
-  const cy = h / 2 - cover - stirrupDb / 2;
-  // Inside bend radius ≥ 4·db (§25.3.2.1 Table); centerline radius = inside + db/2 ≈ 2.5·db
-  const r = Math.min(2.5 * stirrupDb, Math.min(cy, cz) * 0.4);
-  const visRadius = (stirrupDb / 2) * 1.65;
-
-  const tubeGeom = useMemo(() => {
-    const pts = buildContinuousStirrupPath(cy, cz, r, stirrupDb);
-    const curve = new PolylineCurve(pts);
-    // 480 segments along the path = ~1 segment per pt; 12 radial = smooth tube
-    return new THREE.TubeGeometry(curve, 480, visRadius, 12, false);
-  }, [cy, cz, r, visRadius, stirrupDb]);
-
-  return (
-    <group position={[x, 0, 0]}>
-      <mesh geometry={tubeGeom} castShadow>
-        <meshStandardMaterial
-          color="#5aa86c"
-          roughness={0.55} metalness={0.75}
-          normalMap={ribsTexture ?? undefined}
-          normalScale={ribsTexture ? new THREE.Vector2(0.8, 0.8) : undefined}
-        />
-      </mesh>
-    </group>
-  );
-}
-
 // ============================================================================
-// Stirrups (multiple realistic stirrups along beam length)
+// Stirrups — INSTANCED MESH along the beam length.
+//
+// One closed-loop tube geometry is generated once and reused at every stirrup
+// position via THREE.InstancedMesh. This is the same technique used by
+// professional structural-engineering 3D tools to render reinforcement at
+// scale efficiently.
 // ============================================================================
 function Stirrups({ input, bw, h, L, cover }: {
   input: BeamInput; bw: number; h: number; L: number; cover: number;
 }) {
   const stirrupDb = (lookupBar(input.reinforcement.stirrup.bar)?.db ?? 10) * MM_TO_M;
   const sSpacing = input.reinforcement.stirrup.spacing * MM_TO_M;
-  const nStirrups = Math.max(2, Math.floor(L / sSpacing) + 1);
 
-  // One shared rib normal map for ALL stirrups in this beam
+  // Build the unit-stirrup geometry (one closed loop, in the YZ plane at X=0)
+  const tubeGeom = useMemo(() => {
+    const cz = bw / 2 - cover - stirrupDb / 2;
+    const cy = h / 2 - cover - stirrupDb / 2;
+    const r = Math.min(2.5 * stirrupDb, Math.min(cy, cz) * 0.4);
+    const visRadius = (stirrupDb / 2) * 1.65;
+    const pts = buildClosedStirrupPath(cy, cz, r);
+    const curve = new PolylineCurve(pts);
+    // closed=true → tube end joins back to start (clean seamless loop)
+    return new THREE.TubeGeometry(curve, 320, visRadius, 12, true);
+  }, [bw, h, cover, stirrupDb]);
+
   const ribsTexture = useMemo(() => makeRebarNormalMap(), []);
+  const material = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#5aa86c',
+    roughness: 0.55,
+    metalness: 0.75,
+    normalMap: ribsTexture ?? undefined,
+    normalScale: ribsTexture ? new THREE.Vector2(0.8, 0.8) : undefined,
+  }), [ribsTexture]);
 
-  const stirrups = useMemo(() => {
-    const items: React.ReactElement[] = [];
+  // Stirrup positions along the beam length
+  const positions = useMemo(() => {
+    const xs: number[] = [];
     const startX = -L / 2 + cover;
-    for (let i = 0; i < nStirrups; i++) {
-      const xPos = startX + i * sSpacing;
-      if (xPos > L / 2 - cover) break;
-      items.push(
-        <OneStirrup key={`s-${i}`} x={xPos} bw={bw} h={h} cover={cover}
-          stirrupDb={stirrupDb} ribsTexture={ribsTexture} />
-      );
+    const n = Math.max(2, Math.floor(L / sSpacing) + 1);
+    for (let i = 0; i < n; i++) {
+      const x = startX + i * sSpacing;
+      if (x > L / 2 - cover) break;
+      xs.push(x);
     }
-    return items;
-  }, [bw, h, L, cover, sSpacing, stirrupDb, nStirrups, ribsTexture]);
+    return xs;
+  }, [L, cover, sSpacing]);
 
-  return <group>{stirrups}</group>;
+  // Configure the InstancedMesh once positions/geometry change
+  const meshRef = React.useRef<THREE.InstancedMesh | null>(null);
+  React.useEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const tmp = new THREE.Object3D();
+    positions.forEach((x, i) => {
+      tmp.position.set(x, 0, 0);
+      tmp.rotation.set(0, 0, 0);
+      tmp.scale.set(1, 1, 1);
+      tmp.updateMatrix();
+      mesh.setMatrixAt(i, tmp.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [positions]);
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[tubeGeom, material, positions.length]}
+      castShadow
+      receiveShadow
+    />
+  );
 }
 
 // ============================================================================
