@@ -252,6 +252,7 @@ export function RcCalculator() {
       deflection: envResult.deflection,
       crack: envResult.crack,
       detailing: envResult.detailing,
+      torsion: envResult.torsion,
       selfWeight: envResult.selfWeight,
       sectionType: envResult.sectionType,
       warnings: envResult.warnings,
@@ -853,6 +854,17 @@ function InputsTab({ model, dispatch, engine, demand, setDemand }: {
                 onChange={(v) => dispatch({ type: 'SET_LOADS', patch: { Vu: v } })} />
             </Field>
           )}
+          <Field label="Tu (kN·m) — torsion">
+            <Num val={model.loads.Tu ?? 0} step={5}
+              onChange={(v) => dispatch({ type: 'SET_LOADS', patch: { Tu: v } })} />
+          </Field>
+          <Field label="Torsion type (§22.7.3)">
+            <select value={model.loads.torsionType ?? 'equilibrium'}
+              onChange={(e) => dispatch({ type: 'SET_LOADS', patch: { torsionType: e.target.value as 'equilibrium' | 'compatibility' } })}>
+              <option value="equilibrium">Equilibrium (Tu fixed)</option>
+              <option value="compatibility">Compatibility (Tu ≤ φ·Tcr)</option>
+            </select>
+          </Field>
           <Field label="Ma (kN·m) — service">
             <Num val={model.loads.Ma ?? 0} step={10}
               onChange={(v) => dispatch({ type: 'SET_LOADS', patch: { Ma: v } })} />
@@ -953,6 +965,43 @@ function ResultsTab({ result }: { result: ReturnType<typeof analyze> }) {
             <td className={r.crack.ok ? 'ab-pass' : 'ab-fail'}>{r.crack.ratio.toFixed(3)}</td>
             <td className={r.crack.ok ? 'ab-pass' : 'ab-fail'}>{r.crack.ok ? '✓' : '✗'}</td>
           </tr>
+          {/* Torsion (always shown — N/A row when Tu = 0) */}
+          {!r.torsion.applies ? (
+            <tr>
+              <td>Torsion (ACI §22.7)</td>
+              <td>Tu = 0</td>
+              <td>Tth = {r.torsion.Tth.toFixed(2)} kN·m, Tcr = {r.torsion.Tcr.toFixed(2)} kN·m</td>
+              <td>—</td>
+              <td className="ab-pass">N/A</td>
+            </tr>
+          ) : r.torsion.neglected ? (
+            <tr>
+              <td>Torsion (ACI §22.7)</td>
+              <td>Tu = {r.torsion.Tu.toFixed(2)} kN·m</td>
+              <td>Tth = {r.torsion.Tth.toFixed(2)} kN·m → may be neglected (§9.5.4.1)</td>
+              <td>{(r.torsion.Tu / Math.max(r.torsion.Tth, 0.001)).toFixed(3)}</td>
+              <td className="ab-pass">✓ neglect</td>
+            </tr>
+          ) : (
+            <>
+              <tr>
+                <td>Torsion (ACI §22.7)</td>
+                <td>Tu = {r.torsion.TuRed.toFixed(2)} kN·m</td>
+                <td>Tcr = {r.torsion.Tcr.toFixed(2)} kN·m, At/s = {r.torsion.AtPerS.toFixed(4)} mm²/mm, Al = {r.torsion.Al.toFixed(0)} mm²</td>
+                <td className={r.torsion.interactionOk ? 'ab-pass' : 'ab-fail'}>{r.torsion.interactionRatio.toFixed(3)}</td>
+                <td className={r.torsion.interactionOk ? 'ab-pass' : 'ab-fail'}>{r.torsion.interactionOk ? '✓' : '✗'}</td>
+              </tr>
+              <tr>
+                <td>Stirrup spacing (torsion §9.7.6.3.3)</td>
+                <td>s = {r.input.reinforcement.stirrup.spacing} mm</td>
+                <td>s,max = min(ph/8, 300) = {r.torsion.sMaxTorsion.toFixed(0)} mm</td>
+                <td>—</td>
+                <td className={r.input.reinforcement.stirrup.spacing <= r.torsion.sMaxTorsion ? 'ab-pass' : 'ab-fail'}>
+                  {r.input.reinforcement.stirrup.spacing <= r.torsion.sMaxTorsion ? '✓' : '✗'}
+                </td>
+              </tr>
+            </>
+          )}
         </tbody>
       </table>
 
@@ -991,6 +1040,9 @@ function ChecksTab({ result }: { result: ReturnType<typeof analyze> }) {
     { title: 'Shear (ACI §22.5 + §9.6.3)', steps: result.shear.steps },
     { title: 'Deflection (ACI §24.2)', steps: result.deflection.steps },
     { title: 'Crack control (ACI §24.3.2)', steps: result.crack.steps },
+    ...(result.torsion.steps.length > 0
+      ? [{ title: 'Torsion (ACI §22.7 + §9.5.4 + §9.6.4)', steps: result.torsion.steps }]
+      : []),
   ];
   return (
     <div className="slab-checks">

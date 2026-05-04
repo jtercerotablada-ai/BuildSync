@@ -1162,6 +1162,218 @@ block('Phase 3 — Stirrup zoning steel takeoff is reasonable', () => {
 });
 
 // ============================================================================
+// PHASE 4 — TORSION DESIGN per ACI 318-25 §22.7 + §9.5.4 + §9.6.4 + §9.7.6.3
+// ============================================================================
+//
+// Reference: Wight 7e Example 7-1 / textbook closed-form formulas.
+// All comparisons use first-principles ACI equations.
+//
+// Test bench: bw=350, h=550, d=480, fc=28, fy=420, cover=40, #3 stirrup.
+//   ccCL = 40 + 9.5/2 = 44.75 mm
+//   bo = 350 − 89.5 = 260.5 mm
+//   ho = 550 − 89.5 = 460.5 mm
+//   Aoh = 119,960 mm²
+//   ph  = 1442 mm
+//   Ao  = 0.85·Aoh = 101,966 mm²
+//   Acp = 350·550 = 192,500 mm²
+//   pcp = 1800 mm
+// Tcr = 0.33·1·√28·(192500²/1800) = 0.33·5.29·20586806 = 35.93 kN·m
+// Tth = φ·0.083/0.33·Tcr = 0.75·0.252·35.93 ≈ 6.79 kN·m
+//
+block('Phase 4 — Torsion: section properties + threshold + cracking', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 350, h: 550, d: 480, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 150 },
+    },
+    loads: { Mu: 200, Vu: 150, Tu: 0 },
+  };
+  const r = analyze(input);
+  // Section properties — independent of Tu
+  near('Acp (rectangular)', r.torsion.Acp, 350 * 550, 0.001);
+  near('pcp (rectangular)', r.torsion.pcp, 2 * (350 + 550), 0.001);
+  near('Aoh', r.torsion.Aoh, 260.5 * 460.5, 0.005);
+  near('ph',  r.torsion.ph,  2 * (260.5 + 460.5), 0.005);
+  near('Ao = 0.85·Aoh', r.torsion.Ao, 0.85 * r.torsion.Aoh, 0.001);
+  // Tcr from first principles
+  const sqrtFc = Math.sqrt(28);
+  const expTcr = 0.33 * 1.0 * sqrtFc * (350 * 550) ** 2 / (2 * (350 + 550)) / 1e6;
+  near('Tcr matches 0.33·λ·√fc·Acp²/pcp', r.torsion.Tcr, expTcr, 0.01);
+  // Tth = φ·(0.083/0.33)·Tcr
+  near('Tth = φ·0.083·λ·√fc·Acp²/pcp', r.torsion.Tth, 0.75 * 0.083 / 0.33 * expTcr, 0.01);
+  // sMaxTorsion = min(ph/8, 300)
+  near('sMaxTorsion = min(ph/8, 300)',
+       r.torsion.sMaxTorsion, Math.min(r.torsion.ph / 8, 300), 0.001);
+  // Tu = 0 → applies = false, neglected = true, ok
+  check('Tu = 0 → applies = false', !r.torsion.applies);
+  check('Tu = 0 → neglected', r.torsion.neglected);
+  check('Tu = 0 → ok', r.torsion.ok);
+});
+
+block('Phase 4 — Torsion: below-threshold (small Tu) is neglected', () => {
+  // Tu = 5 kN·m, well below Tth ≈ 6.79 kN·m
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 350, h: 550, d: 480, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 150 },
+    },
+    loads: { Mu: 200, Vu: 150, Tu: 5 },
+  };
+  const r = analyze(input);
+  check('Tu < Tth → applies', r.torsion.applies);
+  check('Tu < Tth → neglected', r.torsion.neglected);
+  check('No At/s required when neglected', r.torsion.AtPerS === 0);
+  check('No Al required when neglected', r.torsion.Al === 0);
+  check('Torsion check passes', r.torsion.ok);
+});
+
+block('Phase 4 — Torsion: above-threshold sizing (At/s, Al)', () => {
+  // Tu = 30 kN·m, well above Tth and below Tcr
+  const Tu = 30;
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 350, h: 550, d: 480, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 100 },
+    },
+    loads: { Mu: 200, Vu: 100, Tu },
+  };
+  const r = analyze(input);
+  check('Tu > Tth → applies & not neglected',
+        r.torsion.applies && !r.torsion.neglected);
+  // At/s = Tu / (φ·2·Ao·fyt·cot(45)) — closed form
+  const expAtPerS = (Tu * 1e6) / (0.75 * 2 * r.torsion.Ao * 420);
+  near('At/s = Tu/(φ·2·Ao·fyt)', r.torsion.AtPerS, expAtPerS, 0.005);
+  // Al = (At/s)·ph·(fyt/fy)·cot²(45) = (At/s)·ph
+  const expAl = expAtPerS * r.torsion.ph;
+  near('Al = (At/s)·ph (cot²θ=1, fyt=fy)', r.torsion.Al, expAl, 0.05);
+  // Combined transverse demand 2·At/s
+  near('AvtPerS = 2·At/s', r.torsion.AvtPerS, 2 * expAtPerS, 0.001);
+});
+
+block('Phase 4 — Torsion: compatibility-torsion reduction', () => {
+  // Tu = 50 kN·m, with compatibility — should reduce to φ·Tcr ≈ 27 kN·m
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 350, h: 550, d: 480, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 100 },
+    },
+    loads: { Mu: 200, Vu: 100, Tu: 50, torsionType: 'compatibility' },
+  };
+  const r = analyze(input);
+  near('TuRed = φ·Tcr (compatibility)', r.torsion.TuRed, 0.75 * r.torsion.Tcr, 0.005);
+  check('TuRed < Tu (was reduced)', r.torsion.TuRed < r.torsion.Tu);
+});
+
+block('Phase 4 — Torsion: equilibrium uses full Tu (no reduction)', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 350, h: 550, d: 480, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 100 },
+    },
+    loads: { Mu: 200, Vu: 100, Tu: 50, torsionType: 'equilibrium' },
+  };
+  const r = analyze(input);
+  near('TuRed = Tu (equilibrium torsion)', r.torsion.TuRed, 50, 0.001);
+});
+
+block('Phase 4 — Torsion: web-crushing interaction §22.7.7.1', () => {
+  // Massive Vu + Tu to force the §22.7.7.1 interaction limit to fail
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 250, h: 400, d: 350, dPrime: 50, L: 4000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 3 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 100 },
+    },
+    loads: { Mu: 100, Vu: 350, Tu: 60 },
+  };
+  const r = analyze(input);
+  check('Combined V+T overstresses web', !r.torsion.interactionOk);
+  check('Torsion check fails when web overstressed', !r.torsion.ok);
+});
+
+block('Phase 4 — Torsion: stirrup spacing limit §9.7.6.3.3', () => {
+  // s_max,torsion = min(ph/8, 300). Our ph ≈ 1442 mm → ph/8 ≈ 180 mm.
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 350, h: 550, d: 480, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 250 },     // exceeds ph/8 ≈ 180
+    },
+    loads: { Mu: 200, Vu: 100, Tu: 30 },
+  };
+  const r = analyze(input);
+  check('s_max,torsion < 250 mm (provided)', r.torsion.sMaxTorsion < 250);
+  check('Torsion check fails on s,max', !r.torsion.ok);
+});
+
+block('Phase 4 — Torsion: T-beam properties include flange in Acp/pcp', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'T-beam', bw: 300, h: 600, d: 540, bf: 900, hf: 120, dPrime: 50, L: 7000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 5 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 150 },
+    },
+    loads: { Mu: 300, Vu: 200, Tu: 25 },
+  };
+  const r = analyze(input);
+  // Acp_T = bf·hf + bw·(h - hf) = 900·120 + 300·480 = 108000 + 144000 = 252000 mm²
+  near('Acp (T-beam) = bf·hf + bw·(h-hf)', r.torsion.Acp, 900 * 120 + 300 * 480, 0.001);
+  // pcp_T = 2·(bf + h) = 2·(900 + 600) = 3000 mm
+  near('pcp (T-beam) = 2·(bf + h)', r.torsion.pcp, 2 * (900 + 600), 0.001);
+  // Aoh, ph based on web only — same as if it were a 300×600 rectangular
+  const ccCL = 40 + 9.5 / 2;
+  near('Aoh (web only)', r.torsion.Aoh, (300 - 2 * ccCL) * (600 - 2 * ccCL), 0.005);
+});
+
+block('Phase 4 — Torsion: envelope-mode propagates correctly', () => {
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 350, h: 550, d: 480, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 100 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 50 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0, Tu: 25 },
+  };
+  const r = analyzeEnvelope(input);
+  check('Envelope torsion populated', r.torsion.applies);
+  check('Envelope torsion sizes At/s', r.torsion.AtPerS > 0);
+  check('Envelope still passes when web OK', r.torsion.interactionOk);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(60));

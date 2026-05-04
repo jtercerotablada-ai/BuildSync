@@ -209,6 +209,7 @@ export function analyze(input: BeamInput): BeamAnalysis {
     const deflection = checkDeflection(input, flexure);
     const crack = checkCrackControl(input);
     const detailing = checkDetailing(input);
+    const torsion = checkTorsion(input);
 
     const selfWeight = (input.materials.gammaC ?? 24) * sectionArea(input.geometry) * 1e-6;
 
@@ -224,11 +225,17 @@ export function analyze(input: BeamInput): BeamAnalysis {
     if (shear.stirrupsRequired && shear.AvMin > shear.Av) {
       warnings.push(`Provided stirrup area Av = ${shear.Av.toFixed(0)} mm² < Av,min = ${shear.AvMin.toFixed(0)} mm² — increase stirrup size or decrease spacing.`);
     }
+    if (torsion.applies && !torsion.neglected && !torsion.interactionOk) {
+      warnings.push(`Torsion+shear web-crushing limit exceeded (§22.7.7.1, ratio ${torsion.interactionRatio.toFixed(2)}) — enlarge bw or h.`);
+    }
+    if (torsion.applies && !torsion.neglected && torsion.AtPerS > 0 && input.reinforcement.stirrup.spacing > torsion.sMaxTorsion) {
+      warnings.push(`Stirrup spacing ${input.reinforcement.stirrup.spacing} mm exceeds torsion s_max = ${torsion.sMaxTorsion.toFixed(0)} mm (§9.7.6.3.3).`);
+    }
 
-    const ok = flexure.ok && shear.ok && deflection.ok && crack.ok && detailing.ok;
+    const ok = flexure.ok && shear.ok && deflection.ok && crack.ok && detailing.ok && torsion.ok;
 
     return {
-      input, flexure, shear, deflection, crack, detailing,
+      input, flexure, shear, deflection, crack, detailing, torsion,
       selfWeight,
       sectionType: input.geometry.shape,
       warnings,
@@ -244,6 +251,7 @@ export function analyze(input: BeamInput): BeamAnalysis {
       deflection: emptyDeflection(input),
       crack: emptyCrack(),
       detailing: emptyDetailing(),
+      torsion: emptyTorsion(),
       selfWeight: 0,
       sectionType: input.geometry.shape,
       warnings: [`Solver error: ${msg}`],
@@ -861,6 +869,241 @@ function minCoverByExposure(exposure: 'interior' | 'exterior' | 'cast-against-gr
   }
 }
 
+// ============================================================================
+// TORSION CHECK — ACI 318-25 §22.7 + §9.5.4 + §9.6.4 + §9.7.6.3
+// ============================================================================
+//
+// Implements equilibrium and compatibility torsion design for solid sections.
+// Closed stirrup is assumed in the WEB; T/L/inv-T flanges are included in the
+// outside perimeter (Acp, pcp) per §22.7.6.1.1 but the stirrup enclosure
+// (Aoh, ph) is the WEB only — matching standard textbook practice.
+//
+// Threshold (§9.5.4.1):    Tth = φ·0.083·λ·√fc·Acp²/pcp
+// Cracking (§22.7.5):      Tcr = 0.33·λ·√fc·Acp²/pcp
+// Required At/s (Eq 22.7.6.1a):
+//   At/s = Tu / (φ · 2·Ao·fyt·cot(θ))     with θ = 45°, cot=1
+//   Ao = 0.85·Aoh
+// Required Al  (Eq 22.7.6.1b):
+//   Al = (At/s)·ph·(fyt/fy)·cot²(θ)
+//   Subject to §9.6.4 minimum:
+//     Al,min = 5·√fc·Acp/(12·fy) − (At/s)·ph·(fyt/fy)
+//   (this matches the SI form 0.42·√fc·Acp/fy — equal to the imperial 5·√fc/12)
+// Combined transverse demand: Av/s + 2·At/s
+// Max stirrup spacing for torsion (§9.7.6.3.3): min(ph/8, 300 mm)
+// Crushing-of-web (§22.7.7.1, solid):
+//   √[ (Vu/(bw·d))² + (Tu·ph/(1.7·Aoh²))² ] ≤ φ·(Vc/(bw·d) + 0.66·√fc)
+//
+function checkTorsion(input: BeamInput): import('./types').TorsionCheck {
+  const { code, geometry: g, materials: m, reinforcement: r, loads: L } = input;
+  const fc = m.fc;
+  const fy = m.fy;
+  const fyt = m.fyt ?? fy;
+  const lambda = m.lambdaC ?? 1.0;
+  const phi = 0.75;
+  const Tu_kNm = Math.abs(L.Tu ?? 0);
+  const Tu_Nmm = Tu_kNm * 1e6;          // kN·m → N·mm
+  const torsionType = L.torsionType ?? 'equilibrium';
+
+  // ── Section gross properties (Acp, pcp) ────────────────────────────────────
+  // Same as sectionArea/sectionPerimeter logic but kept inline for clarity.
+  let Acp: number;
+  let pcp: number;
+  if (g.shape === 'rectangular') {
+    Acp = g.bw * g.h;
+    pcp = 2 * (g.bw + g.h);
+  } else {
+    const bf = g.bf ?? g.bw;
+    const hf = g.hf ?? 120;
+    Acp = bf * hf + g.bw * (g.h - hf);
+    // Outline perimeter of T / L / inverted-T = 2·(bf + h) (same as bbox).
+    pcp = 2 * (bf + g.h);
+  }
+
+  // ── Closed-stirrup enclosure (Aoh, ph) — WEB ONLY ──────────────────────────
+  // Distance from outer face to centerline of the closed stirrup.
+  const stirDb = barDiameter(r.stirrup.bar);
+  const ccCL = g.coverClear + stirDb / 2;        // mm
+  const bo = Math.max(g.bw - 2 * ccCL, 1);
+  const ho = Math.max(g.h - 2 * ccCL, 1);
+  const Aoh = bo * ho;
+  const ph = 2 * (bo + ho);
+  const Ao = 0.85 * Aoh;
+
+  // ── Threshold and cracking torque (in N·mm; convert to kN·m for output) ────
+  const sqrtFc = Math.sqrt(fc);
+  const Tth_Nmm = phi * 0.083 * lambda * sqrtFc * (Acp * Acp / pcp);
+  const Tcr_Nmm = 0.33 * lambda * sqrtFc * (Acp * Acp / pcp);
+  const Tth_kNm = Tth_Nmm / 1e6;
+  const Tcr_kNm = Tcr_Nmm / 1e6;
+
+  // If Tu = 0 (no torsion input) → return zeroed but valid result
+  if (Tu_kNm === 0) {
+    return {
+      applies: false,
+      Acp, pcp, Aoh, ph, Ao,
+      Tth: Tth_kNm, Tcr: Tcr_kNm, Tu: 0, TuRed: 0,
+      neglected: true,
+      AtPerS: 0, Al: 0, AvtPerS: 0,
+      sMaxTorsion: Math.min(ph / 8, 300),
+      interactionRatio: 0, interactionOk: true,
+      ok: true,
+      ref: ref(code, '22.7'),
+      steps: [],
+    };
+  }
+
+  // Reduction for compatibility torsion (§22.7.3.2)
+  const phiTcr_Nmm = phi * Tcr_Nmm;
+  const TuRed_Nmm =
+    torsionType === 'compatibility' ? Math.min(Tu_Nmm, phiTcr_Nmm) : Tu_Nmm;
+  const TuRed_kNm = TuRed_Nmm / 1e6;
+
+  // Threshold check
+  const neglected = TuRed_Nmm <= Tth_Nmm;
+
+  // ── Required reinforcement (Eq 22.7.6.1, θ = 45° → cot = 1) ────────────────
+  // At/s = Tu / (φ · 2·Ao·fyt)            (mm²/mm)
+  const AtPerS = neglected ? 0 : TuRed_Nmm / (phi * 2 * Ao * fyt);
+  // Al = (At/s)·ph·(fyt/fy)               (mm²)
+  const AlBase = AtPerS * ph * (fyt / fy);
+  // Al,min per §9.6.4.3 (SI): 0.42·√fc·Acp/fy − (At/s)·ph·(fyt/fy), but At/s
+  // need not be taken less than 0.175·bw/fyt
+  const AtPerS_min = (0.175 * g.bw) / fyt;
+  const AtPerS_used = Math.max(AtPerS, AtPerS_min);
+  const AlMin =
+    (0.42 * sqrtFc * Acp) / fy - AtPerS_used * ph * (fyt / fy);
+  const Al = neglected ? 0 : Math.max(AlBase, Math.max(AlMin, 0));
+
+  // Combined transverse demand: Av/s + 2·(At/s)
+  // Av/s comes from the existing shear demand — but for the torsion result
+  // alone we report 2·At/s (the torsion contribution per spacing).
+  const AvtPerS = 2 * AtPerS;
+
+  // Max stirrup spacing
+  const sMaxTorsion = Math.min(ph / 8, 300);
+
+  // ── Cross-section dimensional check (§22.7.7.1, solid section) ─────────────
+  const d = g.d;
+  const Vu_N = Math.abs(L.Vu) * 1e3;                    // kN → N
+  // Re-compute Vc independently — reuse the §22.5.5 simplified formula.
+  // Vc_N = 0.17·λ·√fc·bw·d   (assumes Av ≥ Av,min, i.e. typical beam)
+  const Vc_N = 0.17 * lambda * sqrtFc * g.bw * d;
+  const stressShear = Vu_N / (g.bw * d);                // N/mm² = MPa
+  const stressTors = (TuRed_Nmm * ph) / (1.7 * Aoh * Aoh);
+  const lhs = Math.sqrt(stressShear * stressShear + stressTors * stressTors);
+  const rhs = phi * (Vc_N / (g.bw * d) + 0.66 * sqrtFc);
+  const interactionRatio = lhs / rhs;
+  const interactionOk = interactionRatio <= 1.0;
+
+  // ── Provided stirrup spacing vs torsion s,max ──────────────────────────────
+  const sProvided = r.stirrup.spacing;
+  const spacingOk = sProvided <= sMaxTorsion;
+
+  const ok = !neglected ? (interactionOk && spacingOk) : true;
+
+  const steps: CalcStep[] = [
+    {
+      title: 'Section properties — outside perimeter (Acp, pcp)',
+      formula: g.shape === 'rectangular'
+        ? 'Acp = bw·h, pcp = 2·(bw + h)'
+        : 'Acp = bf·hf + bw·(h − hf), pcp = 2·(bf + h)',
+      substitution:
+        g.shape === 'rectangular'
+          ? `Acp = ${g.bw}·${g.h}`
+          : `Acp = ${g.bf ?? g.bw}·${g.hf ?? 120} + ${g.bw}·(${g.h} − ${g.hf ?? 120})`,
+      result: `Acp = ${Acp.toFixed(0)} mm², pcp = ${pcp.toFixed(0)} mm`,
+      ref: ref(code, '22.7.6.1.1'),
+    },
+    {
+      title: 'Closed-stirrup enclosure — Aoh, ph, Ao = 0.85·Aoh',
+      formula: 'bo = bw − 2·(c + db_s/2),  ho = h − 2·(c + db_s/2)',
+      substitution: `bo = ${g.bw} − 2·${ccCL.toFixed(1)} = ${bo.toFixed(0)} mm; ho = ${g.h} − 2·${ccCL.toFixed(1)} = ${ho.toFixed(0)} mm`,
+      result: `Aoh = ${Aoh.toFixed(0)} mm², ph = ${ph.toFixed(0)} mm, Ao = ${Ao.toFixed(0)} mm²`,
+      ref: ref(code, '22.7.6.1'),
+    },
+    {
+      title: 'Threshold torsion Tth (below which torsion may be neglected)',
+      formula: 'Tth = φ·0.083·λ·√fʹc·(Acp²/pcp)',
+      substitution: `Tth = 0.75·0.083·${lambda}·√${fc}·(${Acp.toFixed(0)}²/${pcp.toFixed(0)})`,
+      result: `Tth = ${Tth_kNm.toFixed(2)} kN·m`,
+      ref: ref(code, '9.5.4.1'),
+    },
+    {
+      title: 'Cracking torque Tcr',
+      formula: 'Tcr = 0.33·λ·√fʹc·(Acp²/pcp)',
+      substitution: `Tcr = 0.33·${lambda}·√${fc}·(${Acp.toFixed(0)}²/${pcp.toFixed(0)})`,
+      result: `Tcr = ${Tcr_kNm.toFixed(2)} kN·m`,
+      ref: ref(code, '22.7.5'),
+    },
+    ...(torsionType === 'compatibility' && Tu_Nmm > phiTcr_Nmm ? [{
+      title: 'Compatibility-torsion reduction',
+      formula: 'Tu_design = min(Tu, φ·Tcr)',
+      substitution: `Tu = ${Tu_kNm.toFixed(2)} kN·m, φ·Tcr = ${(phiTcr_Nmm / 1e6).toFixed(2)} kN·m`,
+      result: `Tu_design = ${TuRed_kNm.toFixed(2)} kN·m  (reduced from ${Tu_kNm.toFixed(2)})`,
+      ref: ref(code, '22.7.3.2'),
+    }] : []),
+    {
+      title: neglected ? 'Threshold check — torsion may be neglected' : 'Threshold check — torsion governs',
+      formula: 'Tu ≤ Tth?',
+      substitution: `Tu = ${TuRed_kNm.toFixed(2)} kN·m, Tth = ${Tth_kNm.toFixed(2)} kN·m`,
+      result: neglected ? 'Tu ≤ Tth → torsion may be neglected (§9.5.4.1)' : 'Tu > Tth → design required',
+      ref: ref(code, '9.5.4.1'),
+    },
+    ...(neglected ? [] : [
+      {
+        title: 'Required transverse At/s — Eq 22.7.6.1a',
+        formula: 'At/s = Tu / (φ · 2·Ao·fyt·cot θ)   (θ = 45°, cot = 1)',
+        substitution: `At/s = ${TuRed_Nmm.toFixed(0)} / (0.75·2·${Ao.toFixed(0)}·${fyt})`,
+        result: `At/s = ${AtPerS.toFixed(4)} mm²/mm  (= ${(AtPerS * 1000).toFixed(1)} mm²/m per leg)`,
+        ref: ref(code, '22.7.6.1'),
+      },
+      {
+        title: 'Required longitudinal Al — Eq 22.7.6.1b',
+        formula: 'Al = (At/s)·ph·(fyt/fy)·cot²θ',
+        substitution: `Al = ${AtPerS.toFixed(4)}·${ph.toFixed(0)}·(${fyt}/${fy})·1²`,
+        result: `Al = ${Al.toFixed(0)} mm²  (governs vs Al,min = ${Math.max(AlMin, 0).toFixed(0)} mm² §9.6.4)`,
+        ref: ref(code, '22.7.6.1 / 9.6.4'),
+      },
+      {
+        title: 'Combined transverse demand (one stirrup per spacing s)',
+        formula: '(Av + 2·At) / s = (Av/s) + 2·(At/s)',
+        substitution: `Torsion contrib. 2·At/s = 2·${AtPerS.toFixed(4)} = ${AvtPerS.toFixed(4)} mm²/mm`,
+        result: `Add ${AvtPerS.toFixed(4)} mm²/mm to the shear stirrup demand for both legs.`,
+        ref: 'ACI R22.7.6.1',
+      },
+      {
+        title: 'Maximum stirrup spacing for torsion §9.7.6.3.3',
+        formula: 's_max,torsion = min(ph/8, 300 mm)',
+        substitution: `min(${(ph / 8).toFixed(0)}, 300)`,
+        result: `s_max,torsion = ${sMaxTorsion.toFixed(0)} mm — provided s = ${sProvided} mm ${spacingOk ? '✓' : '✗'}`,
+        ref: ref(code, '9.7.6.3.3'),
+      },
+      {
+        title: 'Cross-section dimensional check §22.7.7.1 (solid section)',
+        formula: '√[(Vu/bw·d)² + (Tu·ph/(1.7·Aoh²))²] ≤ φ·(Vc/bw·d + 0.66·√fʹc)',
+        substitution:
+          `LHS = √(${stressShear.toFixed(2)}² + ${stressTors.toFixed(2)}²) = ${lhs.toFixed(2)} MPa  ` +
+          `RHS = 0.75·(${(Vc_N / (g.bw * d)).toFixed(2)} + 0.66·√${fc}) = ${rhs.toFixed(2)} MPa`,
+        result: `LHS/RHS = ${interactionRatio.toFixed(3)} ${interactionOk ? '✓' : '✗ FAIL — increase bw·d (web crushing)'}`,
+        ref: ref(code, '22.7.7.1'),
+      },
+    ]),
+  ];
+
+  return {
+    applies: true,
+    Acp, pcp, Aoh, ph, Ao,
+    Tth: Tth_kNm, Tcr: Tcr_kNm, Tu: Tu_kNm, TuRed: TuRed_kNm,
+    neglected,
+    AtPerS, Al, AvtPerS,
+    sMaxTorsion,
+    interactionRatio, interactionOk,
+    ok,
+    ref: ref(code, '22.7 / 9.5.4'),
+    steps,
+  };
+}
+
 export function checkDetailing(input: BeamInput): DetailingCheck {
   const { code, geometry: g, materials: m, reinforcement: r } = input;
   const exposure = m.exposure ?? 'interior';
@@ -1349,6 +1592,15 @@ export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
     const deflection = checkDeflection(shadowDeflInput, flexureWorst);
     const crack = checkCrackControl(shadowDeflInput);
     const detailing = checkDetailing(shadowDeflInput);
+    // Torsion: Tu is constant for the design (envelope-mode tools typically
+    // pull a single design Tu from envelope analysis, but our model carries
+    // it on Loads). Use the worst shear station so the §22.7.7.1 interaction
+    // check uses the maximum coincident Vu.
+    const torsionInput: BeamInput = {
+      ...shadowDeflInput,
+      loads: { ...input.loads, Vu: worstShrStn.Vu },
+    };
+    const torsion = checkTorsion(torsionInput);
 
     const selfWeight = (input.materials.gammaC ?? 24) * sectionArea(input.geometry) * 1e-6;
 
@@ -1361,8 +1613,14 @@ export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
     if (shearWorst.stirrupsRequired && shearWorst.AvMin > shearWorst.Av) {
       warnings.push(`Provided Av = ${shearWorst.Av.toFixed(0)} mm² < Av,min = ${shearWorst.AvMin.toFixed(0)} mm² — increase stirrup size or decrease spacing.`);
     }
+    if (torsion.applies && !torsion.neglected && !torsion.interactionOk) {
+      warnings.push(`Torsion+shear web-crushing limit exceeded (§22.7.7.1, ratio ${torsion.interactionRatio.toFixed(2)}) — enlarge bw or h.`);
+    }
+    if (torsion.applies && !torsion.neglected && torsion.AtPerS > 0 && input.reinforcement.stirrup.spacing > torsion.sMaxTorsion) {
+      warnings.push(`Stirrup spacing ${input.reinforcement.stirrup.spacing} mm exceeds torsion s_max = ${torsion.sMaxTorsion.toFixed(0)} mm (§9.7.6.3.3).`);
+    }
 
-    const ok = stations.every((s) => s.ok) && deflection.ok && crack.ok && detailing.ok;
+    const ok = stations.every((s) => s.ok) && deflection.ok && crack.ok && detailing.ok && torsion.ok;
     const governing = governingFromStations(stations, flexureWorst, shearWorst, deflection, crack, input.geometry.L);
 
     // Phase 3: stirrup zoning + bar curtailment + dev lengths
@@ -1390,6 +1648,7 @@ export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
       deflection,
       crack,
       detailing,
+      torsion,
       elevation,
       selfWeight,
       sectionType: input.geometry.shape,
@@ -1418,6 +1677,7 @@ export function analyzeEnvelope(input: BeamEnvelopeInput): EnvelopeAnalysis {
       } as BeamInput),
       crack: emptyCrack(),
       detailing: emptyDetailing(),
+      torsion: emptyTorsion(),
       selfWeight: 0,
       sectionType: input.geometry.shape,
       warnings: [`Solver error: ${msg}`],
@@ -1464,5 +1724,19 @@ function emptyDetailing(): DetailingCheck {
     cover: empty, barFit: empty, barSpacing: empty, hangerBars: empty,
     skinReinf: empty, stirrupSize: empty, stirrupLegSpacing: empty, compressionLateral: empty,
     ok: false, narrativeEn: '', narrativeEs: '',
+  };
+}
+
+function emptyTorsion(): import('./types').TorsionCheck {
+  return {
+    applies: false,
+    Acp: 0, pcp: 0, Aoh: 0, ph: 0, Ao: 0,
+    Tth: 0, Tcr: 0, Tu: 0, TuRed: 0,
+    neglected: true,
+    AtPerS: 0, Al: 0, AvtPerS: 0,
+    sMaxTorsion: 300,
+    interactionRatio: 0, interactionOk: true,
+    ok: true,
+    ref: '', steps: [],
   };
 }

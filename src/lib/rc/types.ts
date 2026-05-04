@@ -113,6 +113,9 @@ export interface Loads {
   Vu: number;
   /** Factored axial Pu (kN) — usually 0 for beams. + compression. */
   Pu?: number;
+  /** Factored design torsion Tu (kN·m) — for spandrel / edge / eccentric-load
+   *  beams. ACI 318-25 §22.7. Defaults to 0 (most beams). */
+  Tu?: number;
   /** Service moment Ma (kN·m) — for deflection (full sustained + live). */
   Ma?: number;
   /** Dead-load moment M_DL (kN·m) — for sustained deflection. */
@@ -125,6 +128,10 @@ export interface Loads {
   longTermPeriodMonths?: number;
   /** Service load category (Tabla 24.2.2 limit selection). */
   deflectionLimitCategory?: DeflectionLimitCategory;
+  /** Torsion design assumption — equilibrium torsion (Tu cannot be reduced) or
+   *  compatibility torsion (Tu may be reduced to φ·Tcr per §22.7.3.2). Default
+   *  'equilibrium' (conservative). */
+  torsionType?: 'equilibrium' | 'compatibility';
 }
 
 export type DeflectionLimitCategory =
@@ -206,7 +213,7 @@ export interface StationResult {
 
 export interface GoverningFailure {
   /** What governs the design (highest ratio across all checks). */
-  kind: 'flexure' | 'shear' | 'deflection' | 'crack' | 'none';
+  kind: 'flexure' | 'shear' | 'deflection' | 'crack' | 'torsion' | 'none';
   /** Position of the worst station (mm). For deflection/crack, set to L/2 (midspan). */
   x: number;
   /** Demand at that station (kN·m for flexure, kN for shear). */
@@ -243,6 +250,8 @@ export interface EnvelopeAnalysis {
   crack: CrackControlCheck;
   /** Detailing checks (code-mandated). */
   detailing: DetailingCheck;
+  /** Torsion check (always present, fields zeroed if Tu = 0). */
+  torsion: TorsionCheck;
   /** Phase 3 — stirrup zoning + bar curtailment + dev lengths. Always populated in envelope mode. */
   elevation?: ElevationData;
   /** Self-weight (kN/m). */
@@ -402,6 +411,67 @@ export interface CrackControlCheck {
   ratio: number;
   ok: boolean;
   ref: string;
+  steps: CalcStep[];
+}
+
+// ============================================================================
+// Torsion check — ACI 318-25 §22.7 + §9.5.4 + §9.7.6.3
+// ============================================================================
+export interface TorsionCheck {
+  /** Whether the input torsion Tu is non-zero — false ⇒ skipped, all fields
+   *  echo the threshold but no design demand. */
+  applies: boolean;
+  /** Section gross properties (per §22.7.6.1, hollow sections handled w/ Aoh). */
+  /** Area enclosed by outside perimeter Acp (mm²). */
+  Acp: number;
+  /** Outside perimeter pcp (mm). */
+  pcp: number;
+  /** Area enclosed by centerline of outermost closed stirrup Aoh (mm²). */
+  Aoh: number;
+  /** Perimeter of centerline of outermost closed stirrup ph (mm). */
+  ph: number;
+  /** Gross area enclosed by shear flow path Ao (mm²) — taken as 0.85·Aoh. */
+  Ao: number;
+
+  /** Threshold torsion Tth = φ·0.083·λ·√fc·(Acp²/pcp) per §9.5.4.1 (kN·m).
+   *  If |Tu| ≤ Tth, torsion may be neglected. */
+  Tth: number;
+  /** Cracking torque Tcr = 0.33·λ·√fc·(Acp²/pcp) per §22.7.5 (kN·m). */
+  Tcr: number;
+  /** Torsion demand Tu (kN·m). */
+  Tu: number;
+  /** Reduced torsion Tu_red used in design — Tu for equilibrium torsion,
+   *  min(Tu, φ·Tcr) for compatibility torsion per §22.7.3.2. */
+  TuRed: number;
+  /** Whether torsion can be neglected (Tu ≤ Tth). */
+  neglected: boolean;
+
+  /** Required transverse At/s (mm²/mm) — area of one leg of closed stirrup
+   *  per unit length. ACI Eq 22.7.6.1a with cot(θ)=1, θ=45°. */
+  AtPerS: number;
+  /** Required longitudinal Al (mm²) — total additional area distributed
+   *  around the perimeter ph. Eq 22.7.6.1b. */
+  Al: number;
+  /** Combined transverse demand (Av/s + 2·At/s) — ACI Eq R22.7.6.1. */
+  AvtPerS: number;
+
+  /** Maximum stirrup spacing for torsion §9.7.6.3.3 — min(ph/8, 300 mm). */
+  sMaxTorsion: number;
+
+  /** Combined Vu + Tu interaction per §22.7.7.1: ratio of (left/right) of:
+   *    LHS = √[ (Vu/(bw·d))² + (Tu·ph/(1.7·Aoh²))² ]
+   *    RHS = φ·(Vc/(bw·d) + 0.66·√fc)                   (solid sections)
+   *  Compares as LHS/RHS — must be ≤ 1.0. */
+  interactionRatio: number;
+  /** Whether crushing-of-web check passes. */
+  interactionOk: boolean;
+
+  /** Final pass/fail (interaction + provided stirrup spacing limit). */
+  ok: boolean;
+
+  /** Code ref. */
+  ref: string;
+  /** Per-step calc trace for the report. */
   steps: CalcStep[];
 }
 
@@ -591,13 +661,15 @@ export interface BeamAnalysis {
   crack: CrackControlCheck;
   /** Detailing checks (code-mandated code-mandated rules). */
   detailing: DetailingCheck;
+  /** Torsion check (always present, but fields are zeroed if Tu = 0). */
+  torsion: TorsionCheck;
   /** Self-weight (kN/m). */
   selfWeight: number;
   /** Section type detected. */
   sectionType: SectionShape;
   /** Whether the design is compression-controlled (warning). */
   warnings: string[];
-  /** Overall pass/fail (logical AND of flexure, shear, deflection, crack, detailing). */
+  /** Overall pass/fail (logical AND of flexure, shear, deflection, crack, detailing, torsion). */
   ok: boolean;
   /** Solver completed without errors. */
   solved: boolean;
