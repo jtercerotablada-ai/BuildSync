@@ -220,18 +220,18 @@ export function RcSection2D({ input, result }: Props) {
         {/* b — width at bottom */}
         <DimLineH y={sectionBot + 22} x1={secLeft} x2={secRight}
                   label={`b = ${g.bw} mm`} />
-        {/* h — full height on left side */}
+        {/* h — full height on left side (text further LEFT of line) */}
         <DimLineV x={secLeft - 38} y1={sectionTop} y2={sectionBot}
-                  label={`h = ${g.h} mm`} />
-        {/* d — top to tension steel centroid (right side, inside) */}
+                  label={`h = ${g.h} mm`} textOffset={-14} />
+        {/* d — top to tension steel centroid (right side, text RIGHT of line) */}
         <DimLineV x={secRight + 16} y1={sectionTop} y2={yTens}
-                  label={`d = ${g.d} mm`} color="#a02020" />
-        {/* c — top to neutral axis (left side, near beam) */}
+                  label={`d = ${g.d} mm`} color="#a02020" textOffset={14} />
+        {/* c — top to neutral axis (left side, text LEFT of line) */}
         <DimLineV x={secLeft - 12} y1={sectionTop} y2={yNA}
-                  label={`c = ${fmt(result.flexure.c)} mm`} color="#3a4a6a" textOffset={-4} />
-        {/* d-c — NA to tension steel (right side, outer) */}
+                  label={`c = ${fmt(result.flexure.c)} mm`} color="#3a4a6a" textOffset={-14} />
+        {/* d-c — NA to tension steel (far right, text RIGHT of line) */}
         <DimLineV x={secRight + 38} y1={yNA} y2={yTens}
-                  label={`d - c = ${fmt(g.d - result.flexure.c)}`} color="#666" textOffset={4} />
+                  label={`d - c = ${fmt(g.d - result.flexure.c)}`} color="#666" textOffset={14} />
 
         {/* As label below the b-dimension line, with safe spacing from footer */}
         <text x={sectionCx} y={sectionBot + 42} textAnchor="middle"
@@ -389,10 +389,10 @@ export function RcSection2D({ input, result }: Props) {
                   label={`0.85·fʹc = ${fmt(0.85 * input.materials.fc, 2)} MPa`}
                   color="#7a1f1f" />
 
-        {/* a (depth) dimension on the right side */}
+        {/* a (depth) dimension on the right side (text RIGHT of line) */}
         <DimLineV x={stressRight + 28} y1={sectionTop} y2={sectionTop + aPx}
                   label={`a = β₁·c = ${fmt(result.flexure.a)} mm`}
-                  color="#7a1f1f" />
+                  color="#7a1f1f" textOffset={14} />
 
         {/* a/2 lever-arm marker (where C resultant acts) */}
         {(() => {
@@ -457,7 +457,7 @@ export function RcSection2D({ input, result }: Props) {
           return (
             <DimLineV x={stressLeft - 32} y1={yC} y2={yTens}
                       label={`jd = d − a/2 = ${fmt(jd)} mm`}
-                      color="#3a4a6a" textOffset={-4} />
+                      color="#3a4a6a" textOffset={-14} />
           );
         })()}
       </g>
@@ -507,11 +507,17 @@ function DimLineH({ y, x1, x2, label, color = '#222', textOffset = 0 }: {
   );
 }
 
-function DimLineV({ x, y1, y2, label, color = '#222', textOffset = 0 }: {
+function DimLineV({ x, y1, y2, label, color = '#222', textOffset = -14 }: {
   x: number; y1: number; y2: number; label: string;
-  color?: string; textOffset?: number;
+  color?: string;
+  /** Distance from dim line to TEXT center (perpendicular).
+   *  Negative → text on the LEFT of line; positive → text on the RIGHT.
+   *  |textOffset| should be ≥ 12 so the rotated text bbox doesn't overlap
+   *  the dim line itself. */
+  textOffset?: number;
 }) {
   const ext = 6;
+  const textX = x + textOffset;
   return (
     <g>
       {/* Extension ticks */}
@@ -521,10 +527,10 @@ function DimLineV({ x, y1, y2, label, color = '#222', textOffset = 0 }: {
       <line x1={x} y1={y1 + 1} x2={x} y2={y2 - 1}
             stroke={color} strokeWidth="0.7"
             markerStart="url(#dim-arrow-start)" markerEnd="url(#dim-arrow-end)" />
-      {/* Label rotated, centered */}
-      <text x={x + textOffset} y={(y1 + y2) / 2} textAnchor="middle"
+      {/* Label rotated 90° and offset perpendicular to the dim line */}
+      <text x={textX} y={(y1 + y2) / 2} textAnchor="middle"
             fontSize="10" fontWeight="600" fill={color}
-            transform={`rotate(-90, ${x + textOffset}, ${(y1 + y2) / 2})`}>
+            transform={`rotate(-90, ${textX}, ${(y1 + y2) / 2})`}>
         {label}
       </text>
     </g>
