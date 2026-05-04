@@ -34,6 +34,29 @@ export function Rc3D({ input, result }: Props) {
 
   const camDist = Math.max(L, bw * 4) * 1.5;
 
+  // ── Shared PBR material for all reinforcement bars (steel / oxidized rust look) ──
+  const rebarMaterial = useMemo(() => {
+    const normal = makeRebarNormalMap();
+    const rough = makeRebarRoughnessMap();
+    if (normal) { normal.repeat.set(60, 1); }
+    if (rough) { rough.repeat.set(60, 1); }
+    return new THREE.MeshPhysicalMaterial({
+      color: '#7a6450',          // dark steel with warm rust tint
+      roughness: 0.6,
+      metalness: 0.85,
+      clearcoat: 0.15,            // very subtle clearcoat — slight mill scale gloss
+      clearcoatRoughness: 0.7,
+      normalMap: normal ?? undefined,
+      normalScale: normal ? new THREE.Vector2(1.0, 1.0) : undefined,
+      roughnessMap: rough ?? undefined,
+    });
+  }, []);
+  const rebarStirrupMaterial = useMemo(() => {
+    const m = rebarMaterial.clone();
+    m.color = new THREE.Color('#5e5040');     // slightly darker for visual distinction
+    return m;
+  }, [rebarMaterial]);
+
   return (
     <div className="rc-3d slab-3d">
       <div className="slab-3d__controls">
@@ -57,30 +80,30 @@ export function Rc3D({ input, result }: Props) {
         >
           <color attach="background" args={['#0a0a0a']} />
           <Suspense fallback={null}>
-            <Environment files={warehouseHDR} background={false} environmentIntensity={0.18} />
+            <Environment files={warehouseHDR} background={false} environmentIntensity={0.55} />
           </Suspense>
-          <ambientLight intensity={0.55} />
-          <directionalLight position={[L, h * 4, bw * 4]} intensity={0.55} castShadow
-            shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-bias={-0.0005} />
-          <directionalLight position={[-L / 2, h * 3, -bw * 2]} intensity={0.18} />
+          <ambientLight intensity={0.4} />
+          <directionalLight position={[L, h * 4, bw * 4]} intensity={0.7} castShadow
+            shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-bias={-0.0005} />
+          <directionalLight position={[-L / 2, h * 3, -bw * 2]} intensity={0.25} />
 
           {/* Beam concrete (centered on Y=0 axis, length along X) */}
           <BeamConcrete bw={bw} h={h} L={L} bf={bf} hf={hf}
                         shape={g.shape} cutaway={cutaway} />
 
           {/* Tension rebar */}
-          {showRebar && <TensionRebar input={input} bw={bw} h={h} L={L} cover={cover} />}
+          {showRebar && <TensionRebar input={input} bw={bw} h={h} L={L} cover={cover} mat={rebarMaterial} />}
 
           {/* Compression rebar */}
           {showRebar && (input.reinforcement.compression?.length ?? 0) > 0 && (
-            <CompressionRebar input={input} bw={bw} L={L} cover={cover} />
+            <CompressionRebar input={input} bw={bw} L={L} cover={cover} mat={rebarMaterial} />
           )}
 
           {/* Skin rebar (h > 900 mm, ACI §9.7.2.3) */}
-          {showRebar && <SkinRebar input={input} bw={bw} h={h} L={L} cover={cover} />}
+          {showRebar && <SkinRebar input={input} bw={bw} h={h} L={L} cover={cover} mat={rebarMaterial} />}
 
           {/* Stirrups */}
-          {showStirrups && <Stirrups input={input} bw={bw} h={h} L={L} cover={cover} />}
+          {showStirrups && <Stirrups input={input} bw={bw} h={h} L={L} cover={cover} mat={rebarStirrupMaterial} />}
 
           {/* Load arrow (UDL representation) */}
           {showLoad && input.loads.Mu > 0 && (
@@ -128,7 +151,7 @@ function BeamConcrete({ bw, h, L, bf, hf, shape, cutaway }: {
       <mesh position={[0, 0, 0]} receiveShadow castShadow>
         <boxGeometry args={[L, h, bw]} />
         <meshStandardMaterial
-          color="#cdc8bf" roughness={0.92} metalness={0.0}
+          color="#a8a39a" roughness={0.95} metalness={0.0}
           transparent={cutaway} opacity={opacity}
           depthWrite={!cutaway} side={cutaway ? THREE.DoubleSide : THREE.FrontSide} />
       </mesh>
@@ -156,8 +179,9 @@ function BeamConcrete({ bw, h, L, bf, hf, shape, cutaway }: {
 // ============================================================================
 // Tension rebar (along the bottom) — placed INSIDE the stirrup inner envelope
 // ============================================================================
-function TensionRebar({ input, bw, h, L, cover }: {
+function TensionRebar({ input, bw, h, L, cover, mat }: {
   input: BeamInput; bw: number; h: number; L: number; cover: number;
+  mat: THREE.Material;
 }) {
   const total = input.reinforcement.tension.reduce((s, b) => s + b.count, 0);
   const dbT = (input.reinforcement.tension[0]?.bar
@@ -175,9 +199,8 @@ function TensionRebar({ input, bw, h, L, cover }: {
     <group>
       {Array.from({ length: total }, (_, i) => (
         <mesh key={i} position={[0, y, total === 1 ? 0 : startZ + i * sBars]}
-              rotation={[0, 0, Math.PI / 2]} castShadow>
+              rotation={[0, 0, Math.PI / 2]} castShadow material={mat}>
           <cylinderGeometry args={[dbT / 2, dbT / 2, L * 0.96, 12]} />
-          <meshStandardMaterial color="#c94c4c" roughness={0.55} metalness={0.85} />
         </mesh>
       ))}
     </group>
@@ -187,8 +210,9 @@ function TensionRebar({ input, bw, h, L, cover }: {
 // ============================================================================
 // Compression / hanger rebar (along the top) — INSIDE stirrup top inner edge
 // ============================================================================
-function CompressionRebar({ input, bw, L, cover }: {
+function CompressionRebar({ input, bw, L, cover, mat }: {
   input: BeamInput; bw: number; L: number; cover: number;
+  mat: THREE.Material;
 }) {
   const totalC = (input.reinforcement.compression ?? []).reduce((s, b) => s + b.count, 0);
   const dbC = (input.reinforcement.compression?.[0]?.bar
@@ -204,9 +228,8 @@ function CompressionRebar({ input, bw, L, cover }: {
     <group>
       {Array.from({ length: totalC }, (_, i) => (
         <mesh key={i} position={[0, y, totalC === 1 ? 0 : startZ + i * sBars]}
-              rotation={[0, 0, Math.PI / 2]} castShadow>
+              rotation={[0, 0, Math.PI / 2]} castShadow material={mat}>
           <cylinderGeometry args={[dbC / 2, dbC / 2, L * 0.96, 12]} />
-          <meshStandardMaterial color="#e0c060" roughness={0.55} metalness={0.85} />
         </mesh>
       ))}
     </group>
@@ -216,8 +239,9 @@ function CompressionRebar({ input, bw, L, cover }: {
 // ============================================================================
 // Skin rebar (h > 900 mm) — inside both vertical stirrup legs
 // ============================================================================
-function SkinRebar({ input, bw, h, L, cover }: {
+function SkinRebar({ input, bw, h, L, cover, mat }: {
   input: BeamInput; bw: number; h: number; L: number; cover: number;
+  mat: THREE.Material;
 }) {
   const sk = input.reinforcement.skin;
   if (!sk || sk.countPerFace === 0) return null;
@@ -237,13 +261,11 @@ function SkinRebar({ input, bw, h, L, cover }: {
     <group>
       {Array.from({ length: sk.countPerFace }, (_, i) => (
         <React.Fragment key={i}>
-          <mesh position={[0, yBot + i * dy, zL]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <mesh position={[0, yBot + i * dy, zL]} rotation={[0, 0, Math.PI / 2]} castShadow material={mat}>
             <cylinderGeometry args={[dbS / 2, dbS / 2, L * 0.96, 10]} />
-            <meshStandardMaterial color="#5fa3c9" roughness={0.55} metalness={0.85} />
           </mesh>
-          <mesh position={[0, yBot + i * dy, zR]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <mesh position={[0, yBot + i * dy, zR]} rotation={[0, 0, Math.PI / 2]} castShadow material={mat}>
             <cylinderGeometry args={[dbS / 2, dbS / 2, L * 0.96, 10]} />
-            <meshStandardMaterial color="#5fa3c9" roughness={0.55} metalness={0.85} />
           </mesh>
         </React.Fragment>
       ))}
@@ -271,31 +293,67 @@ function SkinRebar({ input, bw, h, L, cover }: {
 
 function makeRebarNormalMap(): THREE.CanvasTexture | null {
   if (typeof document === 'undefined') return null;
-  const W = 128, H = 64;
+  const W = 256, H = 128;
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d')!;
-  // Neutral normal (RGB 128, 128, 255 → flat surface pointing +Z)
+  // Neutral normal background
   ctx.fillStyle = '#8080ff';
   ctx.fillRect(0, 0, W, H);
-  // Diagonal helical ribs — alternating bright (rib peak) and dark (groove)
+  // Helical ribs — paired ridges with a transverse rib pattern, like real ASTM A615 rebar
   ctx.lineCap = 'round';
-  for (let i = -W; i < W * 2; i += 14) {
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = '#aaaaff';   // brighter normal: rib peak (raised)
+  // Diagonal ribs (every direction)
+  for (let i = -W; i < W * 2; i += 18) {
+    // Rib body — a soft gradient from groove to peak to groove
+    const grad = ctx.createLinearGradient(i, 0, i + H * 1.5, H);
+    grad.addColorStop(0, '#7080ff');
+    grad.addColorStop(0.5, '#a0a8ff');
+    grad.addColorStop(1, '#7080ff');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 7;
     ctx.beginPath();
     ctx.moveTo(i, 0); ctx.lineTo(i + H * 1.5, H);
     ctx.stroke();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#5060ff';   // darker normal: groove
+    // Sharp peak highlight
+    ctx.strokeStyle = '#b8c0ff';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(i + 7, 0); ctx.lineTo(i + 7 + H * 1.5, H);
+    ctx.moveTo(i, 0); ctx.lineTo(i + H * 1.5, H);
     ctx.stroke();
+  }
+  // Two longitudinal "running" ridges on opposite sides (real rebar has these)
+  ctx.fillStyle = '#9098ff';
+  ctx.fillRect(0, H * 0.10, W, 3);
+  ctx.fillRect(0, H * 0.90, W, 3);
+  ctx.fillStyle = '#aab0ff';
+  ctx.fillRect(0, H * 0.10 + 1, W, 1);
+  ctx.fillRect(0, H * 0.90 + 1, W, 1);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+function makeRebarRoughnessMap(): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const W = 256, H = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  // Slightly varying roughness for real-steel oxidation feel
+  ctx.fillStyle = '#888';
+  ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 600; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const v = 110 + Math.random() * 40;
+    ctx.fillStyle = `rgb(${v}, ${v}, ${v})`;
+    ctx.fillRect(x, y, 2 + Math.random() * 3, 2 + Math.random() * 3);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = 4;
   return tex;
 }
 
@@ -393,8 +451,9 @@ function buildClosedStirrupPath(
 // professional structural-engineering 3D tools to render reinforcement at
 // scale efficiently.
 // ============================================================================
-function Stirrups({ input, bw, h, L, cover }: {
+function Stirrups({ input, bw, h, L, cover, mat }: {
   input: BeamInput; bw: number; h: number; L: number; cover: number;
+  mat: THREE.Material;
 }) {
   const stirrupDb = (lookupBar(input.reinforcement.stirrup.bar)?.db ?? 10) * MM_TO_M;
   const sSpacing = input.reinforcement.stirrup.spacing * MM_TO_M;
@@ -410,15 +469,6 @@ function Stirrups({ input, bw, h, L, cover }: {
     // closed=true → tube end joins back to start (clean seamless loop)
     return new THREE.TubeGeometry(curve, 320, visRadius, 12, true);
   }, [bw, h, cover, stirrupDb]);
-
-  const ribsTexture = useMemo(() => makeRebarNormalMap(), []);
-  const material = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#5aa86c',
-    roughness: 0.55,
-    metalness: 0.75,
-    normalMap: ribsTexture ?? undefined,
-    normalScale: ribsTexture ? new THREE.Vector2(0.8, 0.8) : undefined,
-  }), [ribsTexture]);
 
   // Stirrup positions along the beam length
   const positions = useMemo(() => {
@@ -452,7 +502,7 @@ function Stirrups({ input, bw, h, L, cover }: {
   return (
     <instancedMesh
       ref={meshRef}
-      args={[tubeGeom, material, positions.length]}
+      args={[tubeGeom, mat, positions.length]}
       castShadow
       receiveShadow
     />
