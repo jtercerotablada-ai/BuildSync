@@ -158,19 +158,22 @@ function EnvelopePanel({
       </div>
 
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="rc-env__svg">
-        {/* Plot frame */}
-        <rect x={padL} y={padT} width={innerW} height={innerH} fill="#fafafa" stroke="#cbd5e1" strokeWidth="1" />
+        {/* Plot frame — dark theme */}
+        <rect x={padL} y={padT} width={innerW} height={innerH}
+              fill="rgba(255,255,255,0.025)" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
 
         {/* Y-axis grid + ticks */}
         {yTicks.map((v, i) => (
           <g key={`yt-${i}`}>
-            <line x1={padL} y1={sy(v)} x2={padL + innerW} y2={sy(v)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="2 3" />
-            <text x={padL - 8} y={sy(v) + 4} fontSize="11" fill="#475569" textAnchor="end" fontFamily="ui-sans-serif">
+            <line x1={padL} y1={sy(v)} x2={padL + innerW} y2={sy(v)}
+                  stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="2 3" />
+            <text x={padL - 8} y={sy(v) + 4} fontSize="11" fill="rgba(255,255,255,0.55)"
+                  textAnchor="end" fontFamily="ui-sans-serif">
               {v.toFixed(0)}
             </text>
           </g>
         ))}
-        <text x={20} y={padT + innerH / 2} fontSize="11" fill="#1e293b" textAnchor="middle"
+        <text x={20} y={padT + innerH / 2} fontSize="11" fill="rgba(255,255,255,0.85)" textAnchor="middle"
               transform={`rotate(-90, 20, ${padT + innerH / 2})`} fontFamily="ui-sans-serif">
           {unit}
         </text>
@@ -178,41 +181,47 @@ function EnvelopePanel({
         {/* X-axis grid + ticks */}
         {xTicks.map((xt, i) => (
           <g key={`xt-${i}`}>
-            <line x1={sx(xt * 1000)} y1={padT} x2={sx(xt * 1000)} y2={padT + innerH} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="2 3" />
-            <text x={sx(xt * 1000)} y={padT + innerH + 16} fontSize="11" fill="#475569" textAnchor="middle" fontFamily="ui-sans-serif">
+            <line x1={sx(xt * 1000)} y1={padT} x2={sx(xt * 1000)} y2={padT + innerH}
+                  stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="2 3" />
+            <text x={sx(xt * 1000)} y={padT + innerH + 16} fontSize="11" fill="rgba(255,255,255,0.55)"
+                  textAnchor="middle" fontFamily="ui-sans-serif">
               {xt.toFixed(tickStep < 1 ? 1 : 0)}
             </text>
           </g>
         ))}
-        <text x={padL + innerW / 2} y={H - 12} fontSize="11" fill="#1e293b" textAnchor="middle" fontFamily="ui-sans-serif">
+        <text x={padL + innerW / 2} y={H - 12} fontSize="11" fill="rgba(255,255,255,0.85)" textAnchor="middle" fontFamily="ui-sans-serif">
           x (m)
         </text>
 
-        {/* Demand area (filled) */}
-        <path d={demandPath} fill={kind === 'flexure' ? 'rgba(59,130,246,0.18)' : 'rgba(34,197,94,0.16)'} stroke="none" />
-        <path d={demandLine} fill="none" stroke={kind === 'flexure' ? '#2563eb' : '#16a34a'} strokeWidth="2.25" />
+        {/* Demand area (filled) — flexure: blue/cyan; shear: green */}
+        <path d={demandPath}
+              fill={kind === 'flexure' ? 'rgba(118, 182, 201, 0.22)' : 'rgba(95, 182, 116, 0.22)'}
+              stroke="none" />
+        <path d={demandLine} fill="none"
+              stroke={kind === 'flexure' ? '#76b6c9' : '#5fb674'} strokeWidth="2.25" />
 
-        {/* Capacity dashed line (φCap) */}
-        <path d={capLine} fill="none" stroke="#0f172a" strokeWidth="2" strokeDasharray="8 4" />
+        {/* Capacity dashed line (φCap) — gold for visibility on dark */}
+        <path d={capLine} fill="none" stroke="#c9a84c" strokeWidth="2" strokeDasharray="8 4" />
 
         {/* FAIL polygons (red) — overlaid */}
         {failPolys.map((d, i) => (
-          <path key={`fp-${i}`} d={d} fill="rgba(220,38,38,0.55)" stroke="#dc2626" strokeWidth="1.5" />
+          <path key={`fp-${i}`} d={d} fill="rgba(255, 106, 85, 0.55)" stroke="#ff6a55" strokeWidth="1.5" />
         ))}
 
         {/* Worst station marker */}
         <g>
           <line x1={sx(worst.x)} y1={padT} x2={sx(worst.x)} y2={padT + innerH}
-                stroke={worstFails ? '#dc2626' : '#f59e0b'} strokeWidth="1.5" strokeDasharray="4 3" />
+                stroke={worstFails ? '#ff6a55' : '#c9a84c'} strokeWidth="1.5" strokeDasharray="4 3" />
           <circle cx={sx(worst.x)} cy={sy(demand(worst))} r="4.5"
-                  fill={worstFails ? '#dc2626' : '#f59e0b'} stroke="white" strokeWidth="1.5" />
+                  fill={worstFails ? '#ff6a55' : '#c9a84c'} stroke="rgba(255,255,255,0.95)" strokeWidth="1.5" />
           <g transform={`translate(${sx(worst.x) + 10}, ${sy(demand(worst)) - 6})`}>
             <rect x={-2} y={-12} width={130} height={32} rx={4}
-                  fill="white" stroke={worstFails ? '#dc2626' : '#f59e0b'} strokeWidth="1" opacity="0.95" />
-            <text x={4} y={2} fontSize="11" fill="#0f172a" fontFamily="ui-sans-serif" fontWeight="600">
+                  fill="rgba(20,20,20,0.92)"
+                  stroke={worstFails ? '#ff6a55' : '#c9a84c'} strokeWidth="1" />
+            <text x={4} y={2} fontSize="11" fill="rgba(255,255,255,0.95)" fontFamily="ui-sans-serif" fontWeight="600">
               {worstLabel} x={(worst.x / 1000).toFixed(2)}m
             </text>
-            <text x={4} y={15} fontSize="10.5" fill="#0f172a" fontFamily="ui-sans-serif">
+            <text x={4} y={15} fontSize="10.5" fill="rgba(255,255,255,0.75)" fontFamily="ui-sans-serif">
               {kind === 'flexure'
                 ? `Mu=${worst.Mu.toFixed(1)}, φMn=${worst.phiMn.toFixed(1)}`
                 : `Vu=${worst.Vu.toFixed(1)}, φVn=${worst.phiVn.toFixed(1)}`}
@@ -220,16 +229,17 @@ function EnvelopePanel({
           </g>
         </g>
 
-        {/* Legend (top-right) */}
+        {/* Legend (top-right) — dark card */}
         <g transform={`translate(${padL + innerW - 230}, ${padT + 8})`}>
           <rect x={-6} y={-12} width={228} height={28} rx={3}
-                fill="white" stroke="#cbd5e1" strokeWidth="0.75" opacity="0.92" />
-          <line x1={0} y1={-2} x2={20} y2={-2} stroke={kind === 'flexure' ? '#2563eb' : '#16a34a'} strokeWidth="2.25" />
-          <text x={24} y={2} fontSize="10.5" fill="#1e293b" fontFamily="ui-sans-serif">
+                fill="rgba(20,20,20,0.85)" stroke="rgba(255,255,255,0.15)" strokeWidth="0.75" />
+          <line x1={0} y1={-2} x2={20} y2={-2}
+                stroke={kind === 'flexure' ? '#76b6c9' : '#5fb674'} strokeWidth="2.25" />
+          <text x={24} y={2} fontSize="10.5" fill="rgba(255,255,255,0.9)" fontFamily="ui-sans-serif">
             {kind === 'flexure' ? 'Mu (demand)' : 'Vu (demand)'}
           </text>
-          <line x1={108} y1={-2} x2={128} y2={-2} stroke="#0f172a" strokeWidth="2" strokeDasharray="6 3" />
-          <text x={132} y={2} fontSize="10.5" fill="#1e293b" fontFamily="ui-sans-serif">
+          <line x1={108} y1={-2} x2={128} y2={-2} stroke="#c9a84c" strokeWidth="2" strokeDasharray="6 3" />
+          <text x={132} y={2} fontSize="10.5" fill="rgba(255,255,255,0.9)" fontFamily="ui-sans-serif">
             {kind === 'flexure' ? 'φMn (capacity)' : 'φVn (capacity)'}
           </text>
         </g>

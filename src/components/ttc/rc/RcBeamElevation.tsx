@@ -88,24 +88,24 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
         <defs>
           {/* Hatching pattern for column ends */}
           <pattern id="col-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="6" stroke="#666" strokeWidth="0.7" />
+            <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(255,255,255,0.35)" strokeWidth="0.7" />
           </pattern>
           <pattern id="col-hatch-inset" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="4" stroke="#888" strokeWidth="0.5" />
+            <line x1="0" y1="0" x2="0" y2="4" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
           </pattern>
           {/* Arrow marker for dimension lines */}
           <marker id="arrow-dim" viewBox="0 0 10 10" refX="9" refY="5"
                   markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e293b" />
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(255,255,255,0.92)" />
           </marker>
           <marker id="arrow-dim-rev" viewBox="0 0 10 10" refX="1" refY="5"
                   markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M 10 0 L 0 5 L 10 10 z" fill="#1e293b" />
+            <path d="M 10 0 L 0 5 L 10 10 z" fill="rgba(255,255,255,0.92)" />
           </marker>
         </defs>
 
         {/* === TITLE === */}
-        <text x={W / 2} y={22} textAnchor="middle" fontSize="14" fontWeight="700" fill="#1e293b">
+        <text x={W / 2} y={22} textAnchor="middle" fontSize="14" fontWeight="700" fill="rgba(255,255,255,0.92)">
           {t(`BEAM ELEVATION — ${g.bw}×${g.h} mm — L = ${Lm.toFixed(2)} m`,
              `ELEVACIÓN DE VIGA — ${g.bw}×${g.h} mm — L = ${Lm.toFixed(2)} m`)}
         </text>
@@ -122,19 +122,19 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
           return (
             <g key={`tc-${bi}`}>
               {/* End ticks */}
-              <line x1={xs} y1={yLine - 4} x2={xs} y2={yLine + 4} stroke="#1e293b" strokeWidth="0.8" />
-              <line x1={xe} y1={yLine - 4} x2={xe} y2={yLine + 4} stroke="#1e293b" strokeWidth="0.8" />
+              <line x1={xs} y1={yLine - 4} x2={xs} y2={yLine + 4} stroke="rgba(255,255,255,0.85)" strokeWidth="0.8" />
+              <line x1={xe} y1={yLine - 4} x2={xe} y2={yLine + 4} stroke="rgba(255,255,255,0.85)" strokeWidth="0.8" />
               {/* Dimension line */}
-              <line x1={xs} y1={yLine} x2={xe} y2={yLine} stroke="#1e293b" strokeWidth="0.6" />
+              <line x1={xs} y1={yLine} x2={xe} y2={yLine} stroke="rgba(255,255,255,0.85)" strokeWidth="0.6" />
               {/* Callout text */}
               <text x={(xs + xe) / 2} y={yLine - 6} textAnchor="middle"
-                    fontSize="10" fontWeight="600" fill="#3a4a6a">
+                    fontSize="10" fontWeight="600" fill="#76b6c9">
                 {callout}
               </text>
               {/* Bar mark badge */}
               <g>
-                <circle cx={xs - 12} cy={yLine} r="9" fill="#7a6450" stroke="#3a3020" strokeWidth="0.7" />
-                <text x={xs - 12} y={yLine + 3} textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff">
+                <circle cx={xs - 12} cy={yLine} r="9" fill="#c0a890" stroke="rgba(20,20,20,0.85)" strokeWidth="0.7" />
+                <text x={xs - 12} y={yLine + 3} textAnchor="middle" fontSize="9" fontWeight="700" fill="#1a1a1a">
                   {`C${bi + 1}`}
                 </text>
               </g>
@@ -145,23 +145,23 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
         {/* ════════════ BEAM ELEVATION ════════════ */}
         {/* Column at left support */}
         <rect x={beamLeft - 28} y={beamTop - 6} width="28" height={beamVisH + 12}
-              fill="url(#col-hatch)" stroke="#444" strokeWidth="1" />
+              fill="url(#col-hatch)" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
         <rect x={beamLeft - 28} y={beamTop - 6} width="28" height={beamVisH + 12}
-              fill="rgba(180,180,180,0.15)" stroke="#444" strokeWidth="1" />
+              fill="rgba(180,180,180,0.15)" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
 
         {/* Column at right support */}
         <rect x={beamRight} y={beamTop - 6} width="28" height={beamVisH + 12}
-              fill="url(#col-hatch)" stroke="#444" strokeWidth="1" />
+              fill="url(#col-hatch)" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
         <rect x={beamRight} y={beamTop - 6} width="28" height={beamVisH + 12}
-              fill="rgba(180,180,180,0.15)" stroke="#444" strokeWidth="1" />
+              fill="rgba(180,180,180,0.15)" stroke="rgba(255,255,255,0.5)" strokeWidth="1" />
 
         {/* Concrete envelope */}
         <rect x={beamLeft} y={beamTop} width={beamW} height={beamVisH}
-              fill="#cdc8bf" fillOpacity="0.45" stroke="#5a4f30" strokeWidth="1.5" />
+              fill="rgba(180,180,180,0.15)" stroke="#c9a84c" strokeWidth="1.5" />
 
         {/* Cover band (dashed inset) */}
         <rect x={beamLeft} y={beamTop + coverPx} width={beamW} height={beamVisH - 2 * coverPx}
-              fill="none" stroke="#9b8848" strokeWidth="0.4" strokeDasharray="3 3" />
+              fill="none" stroke="rgba(201, 168, 76, 0.4)" strokeWidth="0.4" strokeDasharray="3 3" />
 
         {/* === STIRRUPS DRAWN AT REAL ZONE DENSITY === */}
         {zoning.zones.map((z, zi) => {
@@ -207,14 +207,14 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
           return (
             <g key={`top-bar-${bi}`}>
               <line x1={xs} y1={y} x2={xe} y2={y}
-                    stroke="#7a6450" strokeWidth={Math.max(1.6, dbBar / 5)}
+                    stroke="#c0a890" strokeWidth={Math.max(1.6, dbBar / 5)}
                     strokeDasharray={dashed ? '6 3' : 'none'}
                     strokeLinecap="round" />
               {/* Theoretical cutoff marker */}
               {bar.kind === 'curtailed' && bar.xTheoretical !== undefined && (
                 <line x1={sx(bar.xTheoretical)} y1={y - 5}
                       x2={sx(bar.xTheoretical)} y2={y + 5}
-                      stroke="#dc2626" strokeWidth="1.5" />
+                      stroke="#ff6a55" strokeWidth="1.5" />
               )}
             </g>
           );
@@ -230,13 +230,13 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
           return (
             <g key={`bot-bar-${bi}`}>
               <line x1={xs} y1={y} x2={xe} y2={y}
-                    stroke="#a02020" strokeWidth={Math.max(1.8, dbBar / 5)}
+                    stroke="#ff8a72" strokeWidth={Math.max(1.8, dbBar / 5)}
                     strokeDasharray={dashed ? '6 3' : 'none'}
                     strokeLinecap="round" />
               {bar.kind === 'curtailed' && bar.xTheoretical !== undefined && (
                 <line x1={sx(bar.xTheoretical)} y1={y - 5}
                       x2={sx(bar.xTheoretical)} y2={y + 5}
-                      stroke="#dc2626" strokeWidth="1.5" />
+                      stroke="#ff6a55" strokeWidth="1.5" />
               )}
             </g>
           );
@@ -249,9 +249,9 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
           return (
             <g>
               <line x1={beamLeft + 2} y1={y} x2={beamRight - 2} y2={y}
-                    stroke="#5fa3c9" strokeWidth="1.6" strokeDasharray="2 2" />
+                    stroke="#76b6c9" strokeWidth="1.6" strokeDasharray="2 2" />
               <text x={beamRight - 6} y={y - 3} textAnchor="end"
-                    fontSize="8.5" fill="#1f4a7a" fontStyle="italic">
+                    fontSize="8.5" fill="#76b6c9" fontStyle="italic">
                 {`${r.skin.countPerFace} × ${r.skin.bar} skin (each face)`}
               </text>
             </g>
@@ -269,17 +269,17 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
             : `${bar.count} ${bar.bar} (${lengthM.toFixed(2)} m)`;
           return (
             <g key={`bc-${bi}`}>
-              <line x1={xs} y1={yLine - 4} x2={xs} y2={yLine + 4} stroke="#1e293b" strokeWidth="0.8" />
-              <line x1={xe} y1={yLine - 4} x2={xe} y2={yLine + 4} stroke="#1e293b" strokeWidth="0.8" />
-              <line x1={xs} y1={yLine} x2={xe} y2={yLine} stroke="#1e293b" strokeWidth="0.6" />
+              <line x1={xs} y1={yLine - 4} x2={xs} y2={yLine + 4} stroke="rgba(255,255,255,0.85)" strokeWidth="0.8" />
+              <line x1={xe} y1={yLine - 4} x2={xe} y2={yLine + 4} stroke="rgba(255,255,255,0.85)" strokeWidth="0.8" />
+              <line x1={xs} y1={yLine} x2={xe} y2={yLine} stroke="rgba(255,255,255,0.85)" strokeWidth="0.6" />
               <text x={(xs + xe) / 2} y={yLine + 14} textAnchor="middle"
-                    fontSize="10" fontWeight="600" fill="#7a1f1f">
+                    fontSize="10" fontWeight="600" fill="#e2766b">
                 {callout}
               </text>
               {/* Bar mark badge */}
               <g>
-                <circle cx={xs - 12} cy={yLine} r="9" fill="#a02020" stroke="#5a1212" strokeWidth="0.7" />
-                <text x={xs - 12} y={yLine + 3} textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff">
+                <circle cx={xs - 12} cy={yLine} r="9" fill="#ff8a72" stroke="rgba(20,20,20,0.85)" strokeWidth="0.7" />
+                <text x={xs - 12} y={yLine + 3} textAnchor="middle" fontSize="9" fontWeight="700" fill="#1a1a1a">
                   {`T${bi + 1}`}
                 </text>
               </g>
@@ -315,7 +315,7 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
                 {callout}
               </text>
               <text x={(x0 + x1) / 2} y={yLine + 14} textAnchor="middle"
-                    fontSize="9" fill="#475569">
+                    fontSize="9" fill="rgba(255,255,255,0.55)">
                 {`${lengthM.toFixed(2)} m`}
               </text>
             </g>
@@ -334,7 +334,7 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
             <g>
               {/* Tiny distance from support to first stirrup */}
               <text x={beamLeft + 3} y={yLine} textAnchor="start"
-                    fontSize="8" fill="#475569" fontStyle="italic">
+                    fontSize="8" fill="rgba(255,255,255,0.55)" fontStyle="italic">
                 {`${(firstStirrupX).toFixed(0)} mm ${t('to 1st stirrup', 'al 1er estribo')}`}
               </text>
             </g>
@@ -348,16 +348,16 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
             <g>
               {/* Extension lines to columns */}
               <line x1={beamLeft - 14} y1={beamBot + 8} x2={beamLeft - 14} y2={yLine + 8}
-                    stroke="#1e293b" strokeWidth="0.5" />
+                    stroke="rgba(255,255,255,0.85)" strokeWidth="0.5" />
               <line x1={beamRight + 14} y1={beamBot + 8} x2={beamRight + 14} y2={yLine + 8}
-                    stroke="#1e293b" strokeWidth="0.5" />
+                    stroke="rgba(255,255,255,0.85)" strokeWidth="0.5" />
               {/* Column-to-column dim line */}
               <line x1={beamLeft - 14} y1={yLine} x2={beamRight + 14} y2={yLine}
-                    stroke="#1e293b" strokeWidth="0.8"
+                    stroke="rgba(255,255,255,0.85)" strokeWidth="0.8"
                     markerStart="url(#arrow-dim-rev)" markerEnd="url(#arrow-dim)" />
               {/* Dim text */}
               <text x={(beamLeft + beamRight) / 2} y={yLine - 6} textAnchor="middle"
-                    fontSize="11" fontWeight="700" fill="#1e293b">
+                    fontSize="11" fontWeight="700" fill="rgba(255,255,255,0.92)">
                 {`L = ${Lm.toFixed(2)} m`}
               </text>
             </g>
@@ -367,11 +367,11 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
         {/* ════════════ CROSS-SECTION INSET (right side) ════════════ */}
         <g transform={`translate(${W - sectionInsetW - 15}, ${padT + 10})`}>
           <text x={sectionInsetW / 2} y="16" textAnchor="middle"
-                fontSize="11" fontWeight="700" fill="#1e293b">
+                fontSize="11" fontWeight="700" fill="rgba(255,255,255,0.92)">
             {t('SECTION A-A', 'SECCIÓN A-A')}
           </text>
           <text x={sectionInsetW / 2} y="30" textAnchor="middle"
-                fontSize="9" fill="#475569">
+                fontSize="9" fill="rgba(255,255,255,0.6)">
             {`${g.bw} × ${g.h} mm`}
           </text>
           {/* Render mini cross-section */}
@@ -390,14 +390,14 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
           return (
             <g>
               <line x1={x_section} y1={beamTop - 4} x2={x_section} y2={beamBot + 4}
-                    stroke="#444" strokeWidth="0.6" strokeDasharray="4 2" />
+                    stroke="rgba(255,255,255,0.5)" strokeWidth="0.6" strokeDasharray="4 2" />
               <g transform={`translate(${x_section}, ${beamTop - 8})`}>
-                <circle cx="0" cy="-6" r="8" fill="#1e293b" />
-                <text x="0" y="-3" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff">A</text>
+                <circle cx="0" cy="-6" r="8" fill="rgba(255,255,255,0.92)" stroke="rgba(20,20,20,0.3)" strokeWidth="0.5" />
+                <text x="0" y="-3" textAnchor="middle" fontSize="9" fontWeight="700" fill="#1a1a1a">A</text>
               </g>
               <g transform={`translate(${x_section}, ${beamBot + 8})`}>
-                <circle cx="0" cy="6" r="8" fill="#1e293b" />
-                <text x="0" y="9" textAnchor="middle" fontSize="9" fontWeight="700" fill="#fff">A</text>
+                <circle cx="0" cy="6" r="8" fill="rgba(255,255,255,0.92)" stroke="rgba(20,20,20,0.3)" strokeWidth="0.5" />
+                <text x="0" y="9" textAnchor="middle" fontSize="9" fontWeight="700" fill="#1a1a1a">A</text>
               </g>
             </g>
           );
@@ -553,14 +553,14 @@ function CrossSectionInset({ input, originX, originY, width, height }: {
     <g>
       {/* Concrete outline */}
       <rect x={cx - drawW / 2} y={top} width={drawW} height={drawH}
-            fill="#cdc8bf" stroke="#5a4f30" strokeWidth="1" />
+            fill="rgba(180,180,180,0.18)" stroke="rgba(255,255,255,0.45)" strokeWidth="1" />
       {/* Stirrup outline (dashed inset) */}
       <rect
         x={cx - drawW / 2 + g.coverClear * scale}
         y={top + g.coverClear * scale}
         width={drawW - 2 * g.coverClear * scale}
         height={drawH - 2 * g.coverClear * scale}
-        fill="none" stroke="#3a4a6a" strokeWidth="1.3" rx={stirrupDb * scale} />
+        fill="none" stroke="#76b6c9" strokeWidth="1.3" rx={stirrupDb * scale} />
 
       {/* Tension bars (bottom row) */}
       {Array.from({ length: tensTotal }, (_, i) => {
@@ -572,7 +572,7 @@ function CrossSectionInset({ input, originX, originY, width, height }: {
             cx={tensTotal === 1 ? cx : startX + i * dx}
             cy={cy}
             r={Math.max(2, dbT * scale / 2)}
-            fill="#a02020" stroke="#5a1212" strokeWidth="0.4" />
+            fill="#cbd5e1" stroke="#e2e8f0" strokeWidth="0.4" />
         );
       })}
 
@@ -586,7 +586,7 @@ function CrossSectionInset({ input, originX, originY, width, height }: {
             cx={compTotal === 1 ? cx : startX + i * dx}
             cy={cy}
             r={Math.max(2, dbC * scale / 2)}
-            fill="#7a6450" stroke="#3a3020" strokeWidth="0.4" />
+            fill="#cbd5e1" stroke="#e2e8f0" strokeWidth="0.4" />
         );
       })}
 
@@ -602,19 +602,19 @@ function CrossSectionInset({ input, originX, originY, width, height }: {
         return Array.from({ length: r.skin.countPerFace }, (_, i) => (
           <g key={`skin-${i}`}>
             <circle cx={xL} cy={yTop + i * dy} r={Math.max(1.5, dbS * scale / 2)}
-                    fill="#5fa3c9" stroke="#143b6a" strokeWidth="0.4" />
+                    fill="#76b6c9" stroke="rgba(255,255,255,0.5)" strokeWidth="0.4" />
             <circle cx={xR} cy={yTop + i * dy} r={Math.max(1.5, dbS * scale / 2)}
-                    fill="#5fa3c9" stroke="#143b6a" strokeWidth="0.4" />
+                    fill="#76b6c9" stroke="rgba(255,255,255,0.5)" strokeWidth="0.4" />
           </g>
         ));
       })()}
 
       {/* Dimensions */}
-      <text x={cx} y={top + drawH + 14} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#1e293b">
+      <text x={cx} y={top + drawH + 14} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="rgba(255,255,255,0.92)">
         {`b = ${g.bw}`}
       </text>
       <text x={cx + drawW / 2 + 6} y={top + drawH / 2}
-            textAnchor="start" fontSize="8.5" fontWeight="600" fill="#1e293b"
+            textAnchor="start" fontSize="8.5" fontWeight="600" fill="rgba(255,255,255,0.92)"
             transform={`rotate(90, ${cx + drawW / 2 + 6}, ${top + drawH / 2})`}>
         {`h = ${g.h}`}
       </text>

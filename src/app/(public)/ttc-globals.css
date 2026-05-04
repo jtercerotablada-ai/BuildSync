@@ -8811,8 +8811,9 @@ img, svg {
 .rc-env__svg {
   width: 100%;
   height: auto;
-  background: white;
+  background: rgba(20, 20, 20, 0.5);
   border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 .rc-env__caption {
   font-size: 0.8rem;
@@ -8915,7 +8916,7 @@ img, svg {
 .rc-elevation { display: flex; flex-direction: column; gap: 1rem; }
 .rc-elevation__svg {
   width: 100%; height: auto;
-  background: #fafafa;
+  background: rgba(20, 20, 20, 0.5);
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.08);
 }

@@ -87,41 +87,43 @@ export function RcSection2D({ input, result }: Props) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
          xmlns="http://www.w3.org/2000/svg"
-         style={{ width: '100%', maxWidth: '100%', height: 'auto', background: '#fafafa', borderRadius: 6 }}>
+         style={{ width: '100%', maxWidth: '100%', height: 'auto',
+                  background: 'rgba(20, 20, 20, 0.5)', borderRadius: 6,
+                  border: '1px solid rgba(255,255,255,0.05)' }}>
 
       <defs>
-        {/* Dimension arrow markers */}
+        {/* Dimension arrow markers (light steel for dark theme) */}
         <marker id="dim-arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
                 markerWidth="6" markerHeight="6" orient="auto">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#222" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#cbd5e1" />
         </marker>
         <marker id="dim-arrow-start" viewBox="0 0 10 10" refX="1" refY="5"
                 markerWidth="6" markerHeight="6" orient="auto">
-          <path d="M 10 0 L 0 5 L 10 10 z" fill="#222" />
+          <path d="M 10 0 L 0 5 L 10 10 z" fill="#cbd5e1" />
         </marker>
         {/* Force arrow markers — both default points +X (apex on right) so
             orient="auto" rotates them correctly to follow line direction. */}
         <marker id="force-c" viewBox="0 0 10 10" refX="9" refY="5"
                 markerWidth="8" markerHeight="8" orient="auto">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a1f1f" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#e2766b" />
         </marker>
         <marker id="force-t" viewBox="0 0 10 10" refX="9" refY="5"
                 markerWidth="8" markerHeight="8" orient="auto">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f6a36" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#5fb674" />
         </marker>
       </defs>
 
       {/* ═════════════════════════ SHARED NEUTRAL AXIS ═════════════════════════ */}
       <line x1={padX} y1={yNA} x2={W - padX} y2={yNA}
-            stroke="#3a4a6a" strokeWidth="0.7" strokeDasharray="6 4" opacity="0.6" />
+            stroke="#76b6c9" strokeWidth="0.7" strokeDasharray="6 4" opacity="0.7" />
       <text x={W - padX - 4} y={yNA - 4} textAnchor="end"
-            fontSize="9" fontStyle="italic" fill="#3a4a6a">
+            fontSize="9" fontStyle="italic" fill="#76b6c9">
         Neutral Axis · c = {fmt(result.flexure.c)} mm
       </text>
 
       {/* ═══════════════════ PANE 1 — CROSS SECTION ═══════════════════ */}
       <g>
-        <text x={sectionCx} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1e293b">
+        <text x={sectionCx} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="rgba(255,255,255,0.92)">
           CROSS SECTION
         </text>
 
@@ -129,15 +131,15 @@ export function RcSection2D({ input, result }: Props) {
         {g.shape === 'rectangular' ? (
           <rect x={secLeft} y={sectionTop}
                 width={g.bw * scaleX} height={g.h * scaleY}
-                fill="#cdc8bf" fillOpacity="0.5" stroke="#333" strokeWidth="1.5" />
+                fill="rgba(180,180,180,0.18)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
         ) : (
           <>
             <rect x={sectionCx - (g.bf ?? g.bw) * scaleX / 2} y={sectionTop}
                   width={(g.bf ?? g.bw) * scaleX} height={(g.hf ?? 100) * scaleY}
-                  fill="#cdc8bf" fillOpacity="0.5" stroke="#333" strokeWidth="1.5" />
+                  fill="rgba(180,180,180,0.18)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
             <rect x={secLeft} y={sectionTop + (g.hf ?? 100) * scaleY}
                   width={g.bw * scaleX} height={(g.h - (g.hf ?? 100)) * scaleY}
-                  fill="#cdc8bf" fillOpacity="0.5" stroke="#333" strokeWidth="1.5" />
+                  fill="rgba(180,180,180,0.18)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
           </>
         )}
 
@@ -151,7 +153,7 @@ export function RcSection2D({ input, result }: Props) {
           return (
             <rect x={cx1} y={cy1} width={cx2 - cx1} height={cy2 - cy1}
                   rx={rxCorner} ry={rxCorner}
-                  fill="none" stroke="#3a4a6a" strokeWidth="1.2"
+                  fill="none" stroke="#76b6c9" strokeWidth="1.2"
                   strokeLinejoin="round" />
           );
         })()}
@@ -172,7 +174,7 @@ export function RcSection2D({ input, result }: Props) {
               cx={total === 1 ? sectionCx : xLeft + i * dx}
               cy={yBar}
               r={(dbTens / 2) * scaleBar}
-              fill="#222" stroke="#000" strokeWidth="0.6" />
+              fill="#cbd5e1" stroke="#e2e8f0" strokeWidth="0.6" />
           ));
         })()}
 
@@ -192,7 +194,7 @@ export function RcSection2D({ input, result }: Props) {
               cx={totalC === 1 ? sectionCx : xLeft + i * dx}
               cy={yBar}
               r={(dbComp / 2) * scaleBar}
-              fill="#222" stroke="#000" strokeWidth="0.6" />
+              fill="#cbd5e1" stroke="#e2e8f0" strokeWidth="0.6" />
           ));
         })()}
 
@@ -209,9 +211,9 @@ export function RcSection2D({ input, result }: Props) {
           return Array.from({ length: sk.countPerFace }, (_, i) => (
             <g key={`sk-${i}`}>
               <circle cx={xL} cy={skinTop + i * dy} r={(dbSkin / 2) * scaleBar}
-                      fill="#5fa3c9" stroke="#143b6a" strokeWidth="0.5" />
+                      fill="#76b6c9" stroke="#3a6a8a" strokeWidth="0.5" />
               <circle cx={xR} cy={skinTop + i * dy} r={(dbSkin / 2) * scaleBar}
-                      fill="#5fa3c9" stroke="#143b6a" strokeWidth="0.5" />
+                      fill="#76b6c9" stroke="#3a6a8a" strokeWidth="0.5" />
             </g>
           ));
         })()}
@@ -225,36 +227,36 @@ export function RcSection2D({ input, result }: Props) {
                   label={`h = ${g.h} mm`} textOffset={-14} />
         {/* d — top to tension steel centroid (right side, text RIGHT of line) */}
         <DimLineV x={secRight + 16} y1={sectionTop} y2={yTens}
-                  label={`d = ${g.d} mm`} color="#a02020" textOffset={14} />
+                  label={`d = ${g.d} mm`} color="#ff8a72" textOffset={14} />
         {/* c — top to neutral axis (left side, text LEFT of line) */}
         <DimLineV x={secLeft - 12} y1={sectionTop} y2={yNA}
-                  label={`c = ${fmt(result.flexure.c)} mm`} color="#3a4a6a" textOffset={-14} />
+                  label={`c = ${fmt(result.flexure.c)} mm`} color="#76b6c9" textOffset={-14} />
         {/* d-c — NA to tension steel (far right, text RIGHT of line) */}
         <DimLineV x={secRight + 38} y1={yNA} y2={yTens}
-                  label={`d - c = ${fmt(g.d - result.flexure.c)}`} color="#666" textOffset={14} />
+                  label={`d - c = ${fmt(g.d - result.flexure.c)}`} color="rgba(255,255,255,0.6)" textOffset={14} />
 
         {/* As label below the b-dimension line, with safe spacing from footer */}
         <text x={sectionCx} y={sectionBot + 42} textAnchor="middle"
-              fontSize="11" fontWeight="700" fill="#1e293b">
+              fontSize="11" fontWeight="700" fill="rgba(255,255,255,0.92)">
           {`As = ${result.flexure.As.toFixed(0)} mm² (${r.tension.map((bg) => `${bg.count} ${bg.bar}`).join(' + ')})`}
         </text>
       </g>
 
       {/* ═══════════════════ PANE 2 — STRAIN DIAGRAM ═══════════════════ */}
       <g>
-        <text x={strainX + strainW / 2} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1e293b">
+        <text x={strainX + strainW / 2} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="rgba(255,255,255,0.92)">
           STRAIN DIAGRAM
         </text>
 
         {/* Vertical reference axis (the section centroid axis projection) */}
         <line x1={strainAxisX} y1={sectionTop} x2={strainAxisX} y2={sectionBot}
-              stroke="#444" strokeWidth="1" />
+              stroke="rgba(255,255,255,0.55)" strokeWidth="1" />
 
         {/* Horizontal top + bottom reference lines */}
         <line x1={strainAxisX - 8} y1={sectionTop} x2={strainAxisX + strainMaxOff + 30} y2={sectionTop}
-              stroke="#888" strokeWidth="0.4" />
+              stroke="rgba(255,255,255,0.25)" strokeWidth="0.4" />
         <line x1={strainAxisX - 8} y1={yTens} x2={strainAxisX + strainMaxOff + 30} y2={yTens}
-              stroke="#888" strokeWidth="0.4" />
+              stroke="rgba(255,255,255,0.25)" strokeWidth="0.4" />
 
         {/* Strain triangle:
             - Compression side (LEFT of axis): 0.003 at top, 0 at NA, then 0 below NA (compression only above NA)
@@ -278,7 +280,7 @@ export function RcSection2D({ input, result }: Props) {
                   ${strainAxisX - compOff},${sectionTop}
                   ${strainAxisX},${yNA}
                 `}
-                fill="rgba(122, 31, 31, 0.18)" stroke="#7a1f1f" strokeWidth="1" />
+                fill="rgba(255, 138, 114, 0.25)" stroke="#e2766b" strokeWidth="1" />
 
               {/* Tension triangle (below NA, to the right of axis) */}
               <polygon
@@ -287,23 +289,23 @@ export function RcSection2D({ input, result }: Props) {
                   ${strainAxisX + tensOff},${yTens}
                   ${strainAxisX},${yTens}
                 `}
-                fill="rgba(31, 106, 54, 0.18)" stroke="#1f6a36" strokeWidth="1" />
+                fill="rgba(95, 182, 116, 0.25)" stroke="#5fb674" strokeWidth="1" />
 
               {/* εcu = 0.003 label + tick at top compression edge */}
               <line x1={strainAxisX - compOff} y1={sectionTop - 4}
                     x2={strainAxisX - compOff} y2={sectionTop + 4}
-                    stroke="#7a1f1f" strokeWidth="1.2" />
+                    stroke="#e2766b" strokeWidth="1.2" />
               <text x={strainAxisX - compOff - 8} y={sectionTop - 6} textAnchor="end"
-                    fontSize="11" fontWeight="700" fill="#7a1f1f">
+                    fontSize="11" fontWeight="700" fill="#ff8a72">
                 {`εcu = ${epsCu.toFixed(3)}`}
               </text>
 
               {/* εt label + tick at tension steel level */}
               <line x1={strainAxisX + tensOff} y1={yTens - 4}
                     x2={strainAxisX + tensOff} y2={yTens + 4}
-                    stroke="#1f6a36" strokeWidth="1.2" />
+                    stroke="#5fb674" strokeWidth="1.2" />
               <text x={strainAxisX + tensOff + 8} y={yTens + 4} textAnchor="start"
-                    fontSize="11" fontWeight="700" fill="#1f6a36">
+                    fontSize="11" fontWeight="700" fill="#5fb674">
                 {`εt = ${(epsT * 1000).toFixed(2)}‰`}
               </text>
 
@@ -332,28 +334,28 @@ export function RcSection2D({ input, result }: Props) {
 
         {/* "(compression)" / "(tension)" small labels */}
         <text x={strainAxisX - strainMaxOff / 2} y={sectionTop - 28} textAnchor="middle"
-              fontSize="8.5" fill="#7a1f1f" fontStyle="italic">
+              fontSize="8.5" fill="#ff8a72" fontStyle="italic">
           ← compression
         </text>
         <text x={strainAxisX + strainMaxOff / 2 + 20} y={sectionBot + 24} textAnchor="middle"
-              fontSize="8.5" fill="#1f6a36" fontStyle="italic">
+              fontSize="8.5" fill="#5fb674" fontStyle="italic">
           tension →
         </text>
 
         {/* Section classification badge */}
         <g transform={`translate(${strainX + strainW / 2}, ${sectionBot + 42})`}>
           <rect x={-90} y={-12} width="180" height="22" rx="11"
-                fill={result.flexure.section === 'tension-controlled' ? 'rgba(31,106,54,0.15)'
+                fill={result.flexure.section === 'tension-controlled' ? 'rgba(95,182,116,0.18)'
                       : result.flexure.section === 'transition' ? 'rgba(201,168,76,0.18)'
-                      : 'rgba(122,31,31,0.15)'}
-                stroke={result.flexure.section === 'tension-controlled' ? '#1f6a36'
+                      : 'rgba(255,138,114,0.15)'}
+                stroke={result.flexure.section === 'tension-controlled' ? '#5fb674'
                         : result.flexure.section === 'transition' ? '#c9a84c'
-                        : '#7a1f1f'}
+                        : '#ff8a72'}
                 strokeWidth="0.6" />
           <text x="0" y="3" textAnchor="middle" fontSize="9.5" fontWeight="700"
-                fill={result.flexure.section === 'tension-controlled' ? '#1f6a36'
-                      : result.flexure.section === 'transition' ? '#9b8848'
-                      : '#7a1f1f'}>
+                fill={result.flexure.section === 'tension-controlled' ? '#6fd58a'
+                      : result.flexure.section === 'transition' ? '#e0bf5e'
+                      : '#ff8a72'}>
             {result.flexure.section.replace('-', ' ')} · φ = {result.flexure.phi.toFixed(3)}
           </text>
         </g>
@@ -361,17 +363,17 @@ export function RcSection2D({ input, result }: Props) {
 
       {/* ═══════════════════ PANE 3 — WHITNEY STRESS BLOCK ═══════════════════ */}
       <g>
-        <text x={stressX + 170} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="#1e293b">
+        <text x={stressX + 170} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="rgba(255,255,255,0.92)">
           WHITNEY STRESS BLOCK
         </text>
 
         {/* Vertical reference axis at right side */}
         <line x1={stressLeft - 8} y1={sectionTop} x2={stressLeft - 8} y2={sectionBot}
-              stroke="#444" strokeWidth="1" />
+              stroke="rgba(255,255,255,0.55)" strokeWidth="1" />
 
         {/* Compressive stress block: solid 0.85·f'c rectangle from top to depth a */}
         <rect x={stressLeft} y={sectionTop} width={stressBlockW} height={aPx}
-              fill="rgba(122, 31, 31, 0.55)" stroke="#7a1f1f" strokeWidth="1" />
+              fill="rgba(226, 118, 107, 0.45)" stroke="#e2766b" strokeWidth="1" />
 
         {/* Stress arrows inside the block (multiple, showing uniform distribution) */}
         {Array.from({ length: 5 }).map((_, i) => {
@@ -380,19 +382,19 @@ export function RcSection2D({ input, result }: Props) {
             <line key={i}
               x1={stressRight} y1={yArrow}
               x2={stressLeft + 8} y2={yArrow}
-              stroke="#7a1f1f" strokeWidth="1.2" markerEnd="url(#force-c)" />
+              stroke="#e2766b" strokeWidth="1.2" markerEnd="url(#force-c)" />
           );
         })}
 
         {/* Top dimension: 0.85·f'c label with extension arrows */}
         <DimLineH y={sectionTop - 12} x1={stressLeft} x2={stressRight}
                   label={`0.85·fʹc = ${fmt(0.85 * input.materials.fc, 2)} MPa`}
-                  color="#7a1f1f" />
+                  color="#e2766b" />
 
         {/* a (depth) dimension on the right side (text RIGHT of line) */}
         <DimLineV x={stressRight + 28} y1={sectionTop} y2={sectionTop + aPx}
                   label={`a = β₁·c = ${fmt(result.flexure.a)} mm`}
-                  color="#7a1f1f" textOffset={14} />
+                  color="#e2766b" textOffset={14} />
 
         {/* a/2 lever-arm marker (where C resultant acts) */}
         {(() => {
@@ -400,9 +402,9 @@ export function RcSection2D({ input, result }: Props) {
           return (
             <g>
               <line x1={stressLeft - 16} y1={yC} x2={stressLeft - 4} y2={yC}
-                    stroke="#7a1f1f" strokeWidth="0.7" strokeDasharray="2 2" />
+                    stroke="#e2766b" strokeWidth="0.7" strokeDasharray="2 2" />
               <text x={stressLeft - 18} y={yC + 3} textAnchor="end"
-                    fontSize="8.5" fontStyle="italic" fill="#7a1f1f">
+                    fontSize="8.5" fontStyle="italic" fill="#ff8a72">
                 a/2
               </text>
             </g>
@@ -417,13 +419,13 @@ export function RcSection2D({ input, result }: Props) {
             <g>
               <line x1={stressRight + 88} y1={yC}
                     x2={stressRight + 60} y2={yC}
-                    stroke="#7a1f1f" strokeWidth="2" markerEnd="url(#force-c)" />
+                    stroke="#e2766b" strokeWidth="2" markerEnd="url(#force-c)" />
               <text x={stressRight + 92} y={yC - 4}
-                    fontSize="11" fontWeight="700" fill="#7a1f1f">
+                    fontSize="11" fontWeight="700" fill="#ff8a72">
                 {`C = ${fmt(C_force)} kN`}
               </text>
               <text x={stressRight + 92} y={yC + 10}
-                    fontSize="8" fontStyle="italic" fill="#7a1f1f">
+                    fontSize="8" fontStyle="italic" fill="#ff8a72">
                 C = 0.85·fʹc·a·b
               </text>
             </g>
@@ -437,13 +439,13 @@ export function RcSection2D({ input, result }: Props) {
             <g>
               <line x1={stressLeft + 60} y1={yTens}
                     x2={stressLeft + 88} y2={yTens}
-                    stroke="#1f6a36" strokeWidth="2" markerEnd="url(#force-t)" />
+                    stroke="#5fb674" strokeWidth="2" markerEnd="url(#force-t)" />
               <text x={stressLeft + 92} y={yTens - 4}
-                    fontSize="11" fontWeight="700" fill="#1f6a36">
+                    fontSize="11" fontWeight="700" fill="#5fb674">
                 {`T = ${fmt(T_force)} kN`}
               </text>
               <text x={stressLeft + 92} y={yTens + 10}
-                    fontSize="8" fontStyle="italic" fill="#1f6a36">
+                    fontSize="8" fontStyle="italic" fill="#5fb674">
                 T = As·fy
               </text>
             </g>
@@ -457,7 +459,7 @@ export function RcSection2D({ input, result }: Props) {
           return (
             <DimLineV x={stressLeft - 32} y1={yC} y2={yTens}
                       label={`jd = d − a/2 = ${fmt(jd)} mm`}
-                      color="#3a4a6a" textOffset={-14} />
+                      color="#76b6c9" textOffset={-14} />
           );
         })()}
       </g>
@@ -466,13 +468,13 @@ export function RcSection2D({ input, result }: Props) {
       <g>
         <line x1={padX} y1={H - 60} x2={W - padX} y2={H - 60}
               stroke="#cbd5e1" strokeWidth="0.5" />
-        <text x={padX} y={H - 38} fontSize="13" fontWeight="700" fill="#1e293b">
+        <text x={padX} y={H - 38} fontSize="13" fontWeight="700" fill="rgba(255,255,255,0.92)">
           {`Mn = T · jd = ${fmt(result.flexure.Mn)} kN·m`}
         </text>
-        <text x={W / 2} y={H - 38} textAnchor="middle" fontSize="13" fontWeight="700" fill="#1e293b">
+        <text x={W / 2} y={H - 38} textAnchor="middle" fontSize="13" fontWeight="700" fill="rgba(255,255,255,0.92)">
           {`φMn = ${fmt(result.flexure.phiMn)} kN·m  (φ = ${result.flexure.phi.toFixed(3)})`}
         </text>
-        <text x={padX} y={H - 18} fontSize="10" fill="#475569" fontStyle="italic">
+        <text x={padX} y={H - 18} fontSize="10" fill="rgba(255,255,255,0.6)" fontStyle="italic">
           β₁ = {result.flexure.beta1.toFixed(3)} · εt = {(result.flexure.epsT * 1000).toFixed(2)}‰ · εty = {(result.flexure.epsTy * 1000).toFixed(2)}‰ · Section: {result.flexure.section.replace('-', ' ')}
         </text>
       </g>
@@ -484,7 +486,7 @@ export function RcSection2D({ input, result }: Props) {
 // Helper components — drafting-style horizontal/vertical dimension lines
 // ============================================================================
 
-function DimLineH({ y, x1, x2, label, color = '#222', textOffset = 0 }: {
+function DimLineH({ y, x1, x2, label, color = '#cbd5e1', textOffset = 0 }: {
   y: number; x1: number; x2: number; label: string;
   color?: string; textOffset?: number;
 }) {
@@ -507,7 +509,7 @@ function DimLineH({ y, x1, x2, label, color = '#222', textOffset = 0 }: {
   );
 }
 
-function DimLineV({ x, y1, y2, label, color = '#222', textOffset = -14 }: {
+function DimLineV({ x, y1, y2, label, color = '#cbd5e1', textOffset = -14 }: {
   x: number; y1: number; y2: number; label: string;
   color?: string;
   /** Distance from dim line to TEXT center (perpendicular).
