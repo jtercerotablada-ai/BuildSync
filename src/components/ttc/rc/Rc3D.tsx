@@ -386,58 +386,139 @@ class PolylineCurve extends THREE.Curve<THREE.Vector3> {
   }
 }
 
-// Build a closed-rectangle path with smooth rounded corners (in the YZ plane,
-// X = 0). The bar comes back to its starting point, so the TubeGeometry is
-// rendered with closed=true to produce a continuous loop without seams.
-function buildClosedStirrupPath(
-  cy: number, cz: number, r: number
+// ============================================================================
+// Build the centerline of ONE continuous bent rebar that traces a closed
+// rectangular stirrup with two 135° hooks at the closing corner (top-right).
+//
+// Path: hook1 line (X=-ε) → bend1 arc 135° (X transitions -ε → 0)
+//       → top edge (X=0) → TL corner 90° → left edge → BL corner 90°
+//       → bottom edge → BR corner 90° → right edge
+//       → bend2 arc 135° (X transitions 0 → +ε) → hook2 line (X=+ε).
+//
+// Bend1 and bend2 are 135° circular arcs centered at the same point as the
+// rectangle's TR corner-curve center: (cy-r, cz-r). The arc parameterization
+// is point(θ) = (Cy + r·sinθ, Cz + r·cosθ); θ=0 at right-edge entry,
+// θ=π/2 at top-edge entry, θ=-π/4 at hook1 entry, θ=3π/4 at hook2 exit.
+//
+// X transitions during the bends use a smoothstep so the two hooks emerge
+// at distinctly different depths (one in front, one behind).
+// ============================================================================
+function buildStirrupWithHooks(
+  cy: number, cz: number, r: number, stirrupDb: number
 ): THREE.Vector3[] {
-  const pts: THREE.Vector3[] = [];
-  const v = (y: number, z: number) => pts.push(new THREE.Vector3(0, y, z));
+  const hookLen = Math.max(6 * stirrupDb, 0.075);
+  const c = 1 / Math.SQRT2;
+  const eps = 0.65 * stirrupDb;            // depth offset between front and back hooks
 
-  // Top edge: from (cy, -cz+r) right to (cy, cz-r)
-  for (let i = 0; i < 40; i++) {
-    const t = i / 40;
-    v(cy, (-cz + r) + 2 * (cz - r) * t);
+  // TR corner-curve center (also the center for both 135° hook bends)
+  const Cy = cy - r;
+  const Cz = cz - r;
+
+  // Bend1 START: θ = -π/4 (point above-and-outside TR corner)
+  const bend1_start_y = Cy + r * Math.sin(-Math.PI / 4);     // = cy - r - r/√2
+  const bend1_start_z = Cz + r * Math.cos(-Math.PI / 4);     // = cz - r + r/√2
+  // Hook1 inner end: continue tangent direction (-Y, -Z)/√2 from bend1_start by hookLen
+  const h1_inner_y = bend1_start_y - hookLen * c;
+  const h1_inner_z = bend1_start_z - hookLen * c;
+
+  // Bend2 END: θ = 3π/4 (point below-and-outside TR corner)
+  const bend2_end_y = Cy + r * Math.sin(3 * Math.PI / 4);    // = cy - r + r/√2
+  const bend2_end_z = Cz + r * Math.cos(3 * Math.PI / 4);    // = cz - r - r/√2
+  // Hook2 inner end: continue tangent direction (-Y, -Z)/√2 from bend2_end by hookLen
+  const h2_inner_y = bend2_end_y - hookLen * c;
+  const h2_inner_z = bend2_end_z - hookLen * c;
+
+  const pts: THREE.Vector3[] = [];
+  const push = (x: number, y: number, z: number) => pts.push(new THREE.Vector3(x, y, z));
+  // Smoothstep for X transitions during bends
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+
+  // ── 1. HOOK 1 LINE (X = -ε): from inner end up-right toward bend1 start ──
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12;
+    push(-eps, h1_inner_y + (bend1_start_y - h1_inner_y) * t,
+              h1_inner_z + (bend1_start_z - h1_inner_z) * t);
   }
-  // Top-right corner arc (PI/2 → 0)
-  for (let i = 0; i < 24; i++) {
-    const t = i / 24;
-    const a = Math.PI / 2 - t * Math.PI / 2;
-    v((cy - r) + r * Math.sin(a), (cz - r) + r * Math.cos(a));
+
+  // ── 2. BEND 1: 135° arc, θ from -π/4 to π/2; X transitions -ε → 0 ──
+  for (let i = 1; i <= 36; i++) {
+    const t = i / 36;
+    const theta = -Math.PI / 4 + t * (3 * Math.PI / 4);
+    const y = Cy + r * Math.sin(theta);
+    const z = Cz + r * Math.cos(theta);
+    const x = -eps * (1 - smooth(t));
+    push(x, y, z);
   }
-  // Right edge: from (cy-r, cz) down to (-cy+r, cz)
-  for (let i = 0; i < 60; i++) {
-    const t = i / 60;
-    v((cy - r) - 2 * (cy - r) * t, cz);
+
+  // ── 3. TOP EDGE (X = 0) ───────────────────────────────────────────────
+  for (let i = 1; i <= 36; i++) {
+    const t = i / 36;
+    push(0, cy, (cz - r) - 2 * (cz - r) * t);
   }
-  // Bottom-right corner arc (0 → -PI/2)
-  for (let i = 0; i < 24; i++) {
-    const t = i / 24;
-    const a = -t * Math.PI / 2;
-    v((-cy + r) + r * Math.sin(a), (cz - r) + r * Math.cos(a));
+
+  // ── 4. TL CORNER (90° arc, θ from π/2 to π around (cy-r, -cz+r)) ──────
+  {
+    const TLCy = cy - r, TLCz = -cz + r;
+    for (let i = 1; i <= 18; i++) {
+      const t = i / 18;
+      const theta = Math.PI / 2 + t * Math.PI / 2;
+      push(0, TLCy + r * Math.sin(theta), TLCz + r * Math.cos(theta));
+    }
   }
-  // Bottom edge: from (-cy, cz-r) left to (-cy, -cz+r)
-  for (let i = 0; i < 40; i++) {
-    const t = i / 40;
-    v(-cy, (cz - r) - 2 * (cz - r) * t);
+
+  // ── 5. LEFT EDGE ──────────────────────────────────────────────────────
+  for (let i = 1; i <= 50; i++) {
+    const t = i / 50;
+    push(0, (cy - r) - 2 * (cy - r) * t, -cz);
   }
-  // Bottom-left corner arc (-PI/2 → -PI)
-  for (let i = 0; i < 24; i++) {
-    const t = i / 24;
-    const a = -Math.PI / 2 - t * Math.PI / 2;
-    v((-cy + r) + r * Math.sin(a), (-cz + r) + r * Math.cos(a));
+
+  // ── 6. BL CORNER (90° arc, θ from π to 3π/2 around (-cy+r, -cz+r)) ────
+  {
+    const BLCy = -cy + r, BLCz = -cz + r;
+    for (let i = 1; i <= 18; i++) {
+      const t = i / 18;
+      const theta = Math.PI + t * Math.PI / 2;
+      push(0, BLCy + r * Math.sin(theta), BLCz + r * Math.cos(theta));
+    }
   }
-  // Left edge: from (-cy+r, -cz) up to (cy-r, -cz)
-  for (let i = 0; i < 60; i++) {
-    const t = i / 60;
-    v((-cy + r) + 2 * (cy - r) * t, -cz);
+
+  // ── 7. BOTTOM EDGE ────────────────────────────────────────────────────
+  for (let i = 1; i <= 36; i++) {
+    const t = i / 36;
+    push(0, -cy, (-cz + r) + 2 * (cz - r) * t);
   }
-  // Top-left corner arc (-PI → -3PI/2)
-  for (let i = 0; i < 24; i++) {
-    const t = i / 24;
-    const a = -Math.PI - t * Math.PI / 2;
-    v((cy - r) + r * Math.sin(a), (-cz + r) + r * Math.cos(a));
+
+  // ── 8. BR CORNER (90° arc, θ from 3π/2 to 2π around (-cy+r, cz-r)) ────
+  {
+    const BRCy = -cy + r, BRCz = cz - r;
+    for (let i = 1; i <= 18; i++) {
+      const t = i / 18;
+      const theta = 3 * Math.PI / 2 + t * Math.PI / 2;
+      push(0, BRCy + r * Math.sin(theta), BRCz + r * Math.cos(theta));
+    }
+  }
+
+  // ── 9. RIGHT EDGE ─────────────────────────────────────────────────────
+  for (let i = 1; i <= 50; i++) {
+    const t = i / 50;
+    push(0, (-cy + r) + 2 * (cy - r) * t, cz);
+  }
+
+  // ── 10. BEND 2: 135° arc, θ from 0 to 3π/4; X transitions 0 → +ε ─────
+  for (let i = 1; i <= 36; i++) {
+    const t = i / 36;
+    const theta = t * (3 * Math.PI / 4);
+    const y = Cy + r * Math.sin(theta);
+    const z = Cz + r * Math.cos(theta);
+    const x = eps * smooth(t);
+    push(x, y, z);
+  }
+
+  // ── 11. HOOK 2 LINE (X = +ε): from bend2 end down-left to inner end ──
+  for (let i = 1; i <= 12; i++) {
+    const t = i / 12;
+    push(eps, bend2_end_y + (h2_inner_y - bend2_end_y) * t,
+              bend2_end_z + (h2_inner_z - bend2_end_z) * t);
   }
 
   return pts;
@@ -458,16 +539,17 @@ function Stirrups({ input, bw, h, L, cover, mat }: {
   const stirrupDb = (lookupBar(input.reinforcement.stirrup.bar)?.db ?? 10) * MM_TO_M;
   const sSpacing = input.reinforcement.stirrup.spacing * MM_TO_M;
 
-  // Build the unit-stirrup geometry (one closed loop, in the YZ plane at X=0)
+  // Build the unit-stirrup geometry — ONE continuous bent rebar with two 135°
+  // hooks at the closing corner (top-right), at slightly different X depths.
   const tubeGeom = useMemo(() => {
     const cz = bw / 2 - cover - stirrupDb / 2;
     const cy = h / 2 - cover - stirrupDb / 2;
     const r = Math.min(2.5 * stirrupDb, Math.min(cy, cz) * 0.4);
-    const visRadius = (stirrupDb / 2) * 1.65;
-    const pts = buildClosedStirrupPath(cy, cz, r);
+    const visRadius = (stirrupDb / 2) * 1.6;
+    const pts = buildStirrupWithHooks(cy, cz, r, stirrupDb);
     const curve = new PolylineCurve(pts);
-    // closed=true → tube end joins back to start (clean seamless loop)
-    return new THREE.TubeGeometry(curve, 320, visRadius, 12, true);
+    // closed=false → the path is OPEN (hook ends are the bar termini, not joined)
+    return new THREE.TubeGeometry(curve, 480, visRadius, 14, false);
   }, [bw, h, cover, stirrupDb]);
 
   // Stirrup positions along the beam length
