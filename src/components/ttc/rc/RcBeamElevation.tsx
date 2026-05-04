@@ -366,9 +366,6 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
 
         {/* ════════════ CROSS-SECTION INSET (right side) ════════════ */}
         <g transform={`translate(${W - sectionInsetW - 15}, ${padT + 10})`}>
-          {/* Inset frame */}
-          <rect x="0" y="0" width={sectionInsetW} height={sectionInsetW + 80}
-                fill="#fafafa" stroke="#888" strokeWidth="0.7" />
           <text x={sectionInsetW / 2} y="16" textAnchor="middle"
                 fontSize="11" fontWeight="700" fill="#1e293b">
             {t('SECTION A-A', 'SECCIÓN A-A')}
