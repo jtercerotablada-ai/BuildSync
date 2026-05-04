@@ -157,7 +157,51 @@ function BeamConcrete({ bw, h, L, bf, hf, shape, cutaway }: {
       </mesh>
     );
   }
-  // T-beam: flange on top + web below
+  // T-beam, L-beam, inverted-T — each rendered as flange + web boxes
+  // Top of beam = +h/2, bottom = -h/2 in local frame
+  if (shape === 'inverted-T') {
+    // Flange at the BOTTOM, web on top (centered)
+    return (
+      <group>
+        <mesh position={[0, -h / 2 + hf / 2, 0]} receiveShadow castShadow>
+          <boxGeometry args={[L, hf, bf]} />
+          <meshStandardMaterial color="#cdc8bf" roughness={0.92} metalness={0.0}
+            transparent={cutaway} opacity={opacity}
+            depthWrite={!cutaway} side={cutaway ? THREE.DoubleSide : THREE.FrontSide} />
+        </mesh>
+        <mesh position={[0, hf / 2, 0]} receiveShadow castShadow>
+          <boxGeometry args={[L, h - hf, bw]} />
+          <meshStandardMaterial color="#cdc8bf" roughness={0.92} metalness={0.0}
+            transparent={cutaway} opacity={opacity}
+            depthWrite={!cutaway} side={cutaway ? THREE.DoubleSide : THREE.FrontSide} />
+        </mesh>
+      </group>
+    );
+  }
+  if (shape === 'L-beam') {
+    // Asymmetric: flange extends only to one side (-Z direction) of the web.
+    // Web is centered on Z=0. Flange sits flush on +Z edge of web and extends in +Z.
+    // Effective flange width = bf, web width = bw → flange overhang = bf - bw
+    const overhang = Math.max(bf - bw, 0);
+    const flangeZcenter = bw / 2 + overhang / 2;       // flange shifted to +Z side
+    return (
+      <group>
+        <mesh position={[0, h / 2 - hf / 2, flangeZcenter]} receiveShadow castShadow>
+          <boxGeometry args={[L, hf, overhang]} />
+          <meshStandardMaterial color="#cdc8bf" roughness={0.92} metalness={0.0}
+            transparent={cutaway} opacity={opacity}
+            depthWrite={!cutaway} side={cutaway ? THREE.DoubleSide : THREE.FrontSide} />
+        </mesh>
+        <mesh position={[0, 0, 0]} receiveShadow castShadow>
+          <boxGeometry args={[L, h, bw]} />
+          <meshStandardMaterial color="#cdc8bf" roughness={0.92} metalness={0.0}
+            transparent={cutaway} opacity={opacity}
+            depthWrite={!cutaway} side={cutaway ? THREE.DoubleSide : THREE.FrontSide} />
+        </mesh>
+      </group>
+    );
+  }
+  // Default: T-beam — flange on top, web below, both centered
   return (
     <group>
       <mesh position={[0, h / 2 - hf / 2, 0]} receiveShadow castShadow>

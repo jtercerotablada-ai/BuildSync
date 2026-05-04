@@ -127,21 +127,67 @@ export function RcSection2D({ input, result }: Props) {
           CROSS SECTION
         </text>
 
-        {/* Section outline */}
-        {g.shape === 'rectangular' ? (
-          <rect x={secLeft} y={sectionTop}
-                width={g.bw * scaleX} height={g.h * scaleY}
-                fill="rgba(180,180,180,0.18)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-        ) : (
-          <>
-            <rect x={sectionCx - (g.bf ?? g.bw) * scaleX / 2} y={sectionTop}
-                  width={(g.bf ?? g.bw) * scaleX} height={(g.hf ?? 100) * scaleY}
-                  fill="rgba(180,180,180,0.18)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-            <rect x={secLeft} y={sectionTop + (g.hf ?? 100) * scaleY}
-                  width={g.bw * scaleX} height={(g.h - (g.hf ?? 100)) * scaleY}
-                  fill="rgba(180,180,180,0.18)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" />
-          </>
-        )}
+        {/* Section outline — single composed polygon per shape so the join is clean */}
+        {(() => {
+          const fill = "rgba(180,180,180,0.18)";
+          const stroke = "rgba(255,255,255,0.45)";
+          if (g.shape === 'rectangular') {
+            return (
+              <rect x={secLeft} y={sectionTop}
+                    width={g.bw * scaleX} height={g.h * scaleY}
+                    fill={fill} stroke={stroke} strokeWidth="1.5" />
+            );
+          }
+          const bf = g.bf ?? g.bw;
+          const hf = g.hf ?? 120;
+          const bfPx = bf * scaleX;
+          const bwPx = g.bw * scaleX;
+          const hfPx = hf * scaleY;
+          const hPx = g.h * scaleY;
+
+          if (g.shape === 'inverted-T') {
+            // Web on top (centered), flange on bottom (full bf)
+            const webL = sectionCx - bwPx / 2;
+            const flangeL = sectionCx - bfPx / 2;
+            const yWebBot = sectionTop + (hPx - hfPx);
+            const path =
+              `M ${webL} ${sectionTop} ` +
+              `L ${webL + bwPx} ${sectionTop} ` +
+              `L ${webL + bwPx} ${yWebBot} ` +
+              `L ${flangeL + bfPx} ${yWebBot} ` +
+              `L ${flangeL + bfPx} ${sectionTop + hPx} ` +
+              `L ${flangeL} ${sectionTop + hPx} ` +
+              `L ${flangeL} ${yWebBot} ` +
+              `L ${webL} ${yWebBot} Z`;
+            return <path d={path} fill={fill} stroke={stroke} strokeWidth="1.5" strokeLinejoin="miter" />;
+          }
+          if (g.shape === 'L-beam') {
+            // Asymmetric: flange extends only to the LEFT side, web aligned right
+            const webR = sectionCx + bwPx / 2;
+            const flangeL = webR - bfPx;       // flange spans from far-left to web's right edge
+            const path =
+              `M ${flangeL} ${sectionTop} ` +
+              `L ${webR} ${sectionTop} ` +
+              `L ${webR} ${sectionTop + hPx} ` +
+              `L ${webR - bwPx} ${sectionTop + hPx} ` +
+              `L ${webR - bwPx} ${sectionTop + hfPx} ` +
+              `L ${flangeL} ${sectionTop + hfPx} Z`;
+            return <path d={path} fill={fill} stroke={stroke} strokeWidth="1.5" strokeLinejoin="miter" />;
+          }
+          // Default: T-beam — flange on top, web below, both centered
+          const webL = sectionCx - bwPx / 2;
+          const flangeL = sectionCx - bfPx / 2;
+          const path =
+            `M ${flangeL} ${sectionTop} ` +
+            `L ${flangeL + bfPx} ${sectionTop} ` +
+            `L ${flangeL + bfPx} ${sectionTop + hfPx} ` +
+            `L ${webL + bwPx} ${sectionTop + hfPx} ` +
+            `L ${webL + bwPx} ${sectionTop + hPx} ` +
+            `L ${webL} ${sectionTop + hPx} ` +
+            `L ${webL} ${sectionTop + hfPx} ` +
+            `L ${flangeL} ${sectionTop + hfPx} Z`;
+          return <path d={path} fill={fill} stroke={stroke} strokeWidth="1.5" strokeLinejoin="miter" />;
+        })()}
 
         {/* Stirrup outline (light dashed inset, no hooks) */}
         {(() => {
@@ -414,7 +460,9 @@ export function RcSection2D({ input, result }: Props) {
         {/* C force arrow (compression resultant) */}
         {(() => {
           const yC = sectionTop + aPx / 2;
-          const C_force = (0.85 * input.materials.fc * result.flexure.a * (g.shape === 'rectangular' ? g.bw : (g.bf ?? g.bw))) / 1000;
+          // Effective compression width: bf for T/L-beam, bw for rectangular and inverted-T
+          const bEffC = (g.shape === 'T-beam' || g.shape === 'L-beam') ? (g.bf ?? g.bw) : g.bw;
+          const C_force = (0.85 * input.materials.fc * result.flexure.a * bEffC) / 1000;
           return (
             <g>
               <line x1={stressRight + 88} y1={yC}

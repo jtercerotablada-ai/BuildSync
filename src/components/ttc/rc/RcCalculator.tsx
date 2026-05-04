@@ -53,7 +53,30 @@ function reducer(state: BeamInput, action: Action): BeamInput {
     case 'LOAD_PRESET': return action.input;
     case 'SET_CODE':    return { ...state, code: action.code };
     case 'SET_METHOD':  return { ...state, method: action.method };
-    case 'SET_GEOM':    return { ...state, geometry: { ...state.geometry, ...action.patch } };
+    case 'SET_GEOM': {
+      const next: BeamInput['geometry'] = { ...state.geometry, ...action.patch };
+      // Auto-populate bf/hf when shape changes to non-rectangular (so the form
+      // is never silently in a "T-beam selected but bf/hf undefined" state).
+      const shapeChanged = action.patch.shape && action.patch.shape !== state.geometry.shape;
+      if (shapeChanged && next.shape !== 'rectangular') {
+        if (next.hf === undefined) next.hf = 120;        // typical slab thickness
+        if (next.bf === undefined) {
+          // ACI §6.3.2 effective width — sensible default per shape:
+          //   T-beam   → bf = min(L/4, bw + 16·hf)
+          //   L-beam   → bf = min(L/12 + bw, bw + 6·hf)   (smaller, asymmetric)
+          //   inv-T    → same as T-beam
+          const hf = next.hf ?? 120;
+          if (next.shape === 'L-beam') {
+            next.bf = Math.min(next.L / 12 + next.bw, next.bw + 6 * hf, next.bw + 600);
+          } else {
+            next.bf = Math.min(next.L / 4, next.bw + 16 * hf, next.bw + 1200);
+          }
+          // Round to nearest 50 mm for cleanliness
+          next.bf = Math.round(next.bf / 50) * 50;
+        }
+      }
+      return { ...state, geometry: next };
+    }
     case 'SET_MAT':     return { ...state, materials: { ...state.materials, ...action.patch } };
     case 'SET_LOADS':   return { ...state, loads: { ...state.loads, ...action.patch } };
     case 'SET_TENSION_BAR': {

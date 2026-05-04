@@ -533,12 +533,15 @@ function CrossSectionInset({ input, originX, originY, width, height }: {
 }) {
   const g = input.geometry;
   const r = input.reinforcement;
-  // Choose scale to fit the section inside the inset box
-  const scale = Math.min(width / g.bw, height / g.h) * 0.85;
+  // Choose scale to fit the widest dimension (bf for T/L/inv-T) inside the inset box
+  const widest = g.shape !== 'rectangular' ? Math.max(g.bf ?? g.bw, g.bw) : g.bw;
+  const scale = Math.min(width / widest, height / g.h) * 0.85;
   const drawW = g.bw * scale;
   const drawH = g.h * scale;
   const cx = originX + width / 2;
   const top = originY + (height - drawH) / 2;
+  const bfPx = (g.bf ?? g.bw) * scale;
+  const hfPx = (g.hf ?? 120) * scale;
 
   const stirrupDb = lookupBar(r.stirrup.bar)?.db ?? 9.5;
   const dbT = lookupBar(r.tension[0]?.bar)?.db ?? 25;
@@ -551,9 +554,44 @@ function CrossSectionInset({ input, originX, originY, width, height }: {
 
   return (
     <g>
-      {/* Concrete outline */}
-      <rect x={cx - drawW / 2} y={top} width={drawW} height={drawH}
-            fill="rgba(180,180,180,0.18)" stroke="rgba(255,255,255,0.45)" strokeWidth="1" />
+      {/* Concrete outline — shape-aware */}
+      {(() => {
+        const fill = "rgba(180,180,180,0.18)";
+        const stroke = "rgba(255,255,255,0.45)";
+        if (g.shape === 'rectangular') {
+          return (
+            <rect x={cx - drawW / 2} y={top} width={drawW} height={drawH}
+                  fill={fill} stroke={stroke} strokeWidth="1" />
+          );
+        }
+        if (g.shape === 'inverted-T') {
+          const webL = cx - drawW / 2;
+          const flangeL = cx - bfPx / 2;
+          const yWebBot = top + drawH - hfPx;
+          const path =
+            `M ${webL} ${top} L ${webL + drawW} ${top} L ${webL + drawW} ${yWebBot} ` +
+            `L ${flangeL + bfPx} ${yWebBot} L ${flangeL + bfPx} ${top + drawH} ` +
+            `L ${flangeL} ${top + drawH} L ${flangeL} ${yWebBot} L ${webL} ${yWebBot} Z`;
+          return <path d={path} fill={fill} stroke={stroke} strokeWidth="1" strokeLinejoin="miter" />;
+        }
+        if (g.shape === 'L-beam') {
+          const webR = cx + drawW / 2;
+          const flangeL = webR - bfPx;
+          const path =
+            `M ${flangeL} ${top} L ${webR} ${top} L ${webR} ${top + drawH} ` +
+            `L ${webR - drawW} ${top + drawH} L ${webR - drawW} ${top + hfPx} ` +
+            `L ${flangeL} ${top + hfPx} Z`;
+          return <path d={path} fill={fill} stroke={stroke} strokeWidth="1" strokeLinejoin="miter" />;
+        }
+        // Default: T-beam — flange on top, web below
+        const webL = cx - drawW / 2;
+        const flangeL = cx - bfPx / 2;
+        const path =
+          `M ${flangeL} ${top} L ${flangeL + bfPx} ${top} L ${flangeL + bfPx} ${top + hfPx} ` +
+          `L ${webL + drawW} ${top + hfPx} L ${webL + drawW} ${top + drawH} ` +
+          `L ${webL} ${top + drawH} L ${webL} ${top + hfPx} L ${flangeL} ${top + hfPx} Z`;
+        return <path d={path} fill={fill} stroke={stroke} strokeWidth="1" strokeLinejoin="miter" />;
+      })()}
       {/* Stirrup outline (dashed inset) */}
       <rect
         x={cx - drawW / 2 + g.coverClear * scale}

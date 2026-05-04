@@ -122,7 +122,7 @@ function ref(code: Code, section: string): string {
 /** Area of concrete cross section (mm²). */
 export function sectionArea(g: Geometry): number {
   if (g.shape === 'rectangular') return g.bw * g.h;
-  // T-beam (or L/inverted-T treated as T for properties)
+  // T-beam, L-beam, inverted-T — same area (A = bf·hf + bw·(h - hf))
   const bf = g.bf ?? g.bw;
   const hf = g.hf ?? 0;
   return bf * hf + g.bw * (g.h - hf);
@@ -135,8 +135,17 @@ export function sectionCentroid(g: Geometry): number {
   const hf = g.hf ?? 0;
   const A1 = bf * hf;
   const A2 = g.bw * (g.h - hf);
-  const y1 = hf / 2;
-  const y2 = hf + (g.h - hf) / 2;
+  // y_top: flange centroid measured from top of beam
+  // For T-beam / L-beam: flange at top → y1 = hf/2, web below → y2 = hf + (h - hf)/2
+  // For inverted-T:      flange at bottom → y1 = h - hf/2, web above → y2 = (h - hf)/2
+  let y1: number, y2: number;
+  if (g.shape === 'inverted-T') {
+    y1 = g.h - hf / 2;        // flange centroid (from top)
+    y2 = (g.h - hf) / 2;      // web centroid (from top)
+  } else {
+    y1 = hf / 2;
+    y2 = hf + (g.h - hf) / 2;
+  }
   return (A1 * y1 + A2 * y2) / (A1 + A2);
 }
 
@@ -147,8 +156,14 @@ export function gross_Ig(g: Geometry): number {
   const hf = g.hf ?? 0;
   const A1 = bf * hf;
   const A2 = g.bw * (g.h - hf);
-  const y1 = hf / 2;
-  const y2 = hf + (g.h - hf) / 2;
+  let y1: number, y2: number;
+  if (g.shape === 'inverted-T') {
+    y1 = g.h - hf / 2;
+    y2 = (g.h - hf) / 2;
+  } else {
+    y1 = hf / 2;
+    y2 = hf + (g.h - hf) / 2;
+  }
   const ybar = sectionCentroid(g);
   const I1 = bf * Math.pow(hf, 3) / 12 + A1 * Math.pow(ybar - y1, 2);
   const I2 = g.bw * Math.pow(g.h - hf, 3) / 12 + A2 * Math.pow(ybar - y2, 2);
@@ -255,12 +270,19 @@ function checkFlexure(input: BeamInput): FlexureCheck {
   const AsPrime = sumBarArea(r.compression ?? []);
   const dPrime = g.dPrime ?? 60;       // default 60 mm if compression steel exists
 
-  // For T-beam, we need to figure out if NA is in flange or in web.
-  // First, assume NA in flange → treat as rectangular with b = bf.
+  // Effective compression-block width:
+  //   • Rectangular: bw
+  //   • T-beam / L-beam (positive M, flange on top): assume NA in flange → bf
+  //   • Inverted-T (positive M, flange on bottom = TENSION zone): web only → bw
+  //
+  // The flange of an inverted-T contributes to tension steel area only — the
+  // compression block lives entirely in the web, so we treat it as rectangular.
   let bEff = g.bw;
-  if (g.shape !== 'rectangular') {
+  if (g.shape === 'T-beam' || g.shape === 'L-beam') {
     bEff = g.bf ?? g.bw;
   }
+  // (inverted-T → keep bEff = bw)
+  const flangeInCompression = g.shape === 'T-beam' || g.shape === 'L-beam';
 
   // === Iterative φ calculation ===
   // For singly: T = C  →  As·fy = 0.85·fc·b·a  →  a = As·fy / (0.85·fc·b)
@@ -294,11 +316,11 @@ function checkFlexure(input: BeamInput): FlexureCheck {
       a = beta1 * c;
     }
   } else {
-    // Singly. Check T-beam: if a > hf, NA is in web (T-beam action).
+    // Singly. Check T-beam / L-beam: if a > hf, NA is in web (true T-beam action).
     a = As * fy / (0.85 * fc * bEff);
     c = a / beta1;
-    if (g.shape !== 'rectangular' && g.hf && a > g.hf) {
-      // T-beam, NA in web. Resolve.
+    if (flangeInCompression && g.hf && a > g.hf) {
+      // T-beam / L-beam, NA in web. Resolve.
       // C = 0.85·fc·[bf·hf + bw·(a - hf)]
       // T = As·fy
       // → 0.85·fc·bw·(a - hf) = As·fy - 0.85·fc·bf·hf
@@ -322,8 +344,8 @@ function checkFlexure(input: BeamInput): FlexureCheck {
     const Cs = AsPrime * fsPrime;
     const Cc = 0.85 * fc * bEff * a;
     Mn = (Cc * (g.d - a / 2) + Cs * (g.d - dPrime)) / 1e6;
-  } else if (g.shape !== 'rectangular' && g.hf && a > g.hf) {
-    // T-beam, NA in web
+  } else if (flangeInCompression && g.hf && a > g.hf) {
+    // T-beam / L-beam, NA in web
     const Cflange = 0.85 * fc * (g.bf ?? bEff) * g.hf;
     const Cweb = 0.85 * fc * g.bw * (a - g.hf);
     Mn = (Cflange * (g.d - g.hf / 2) + Cweb * (g.d - (a + g.hf) / 2)) / 1e6;
@@ -379,8 +401,8 @@ function checkFlexure(input: BeamInput): FlexureCheck {
     {
       title: 'Whitney stress-block depth a',
       formula: AsPrime > 0
-        ? '(As − Aʹs)·fy = 0.85·fʹc·b·a' + (g.shape !== 'rectangular' ? ' (T-beam: check NA location)' : '')
-        : 'a = As·fy / (0.85·fʹc·b)',
+        ? '(As − Aʹs)·fy = 0.85·fʹc·b·a' + (flangeInCompression ? ' (T/L-beam: check NA location)' : '')
+        : 'a = As·fy / (0.85·fʹc·b)' + (g.shape === 'inverted-T' ? ' (inverted-T: flange in tension → b = bw)' : ''),
       substitution: `a = ${(AsPrime > 0 ? `(${As.toFixed(0)} − ${AsPrime.toFixed(0)})` : As.toFixed(0))}·${fy} / (0.85·${fc}·${bEff.toFixed(0)})`,
       result: `a = ${a.toFixed(2)} mm,  c = a/β1 = ${c.toFixed(2)} mm`,
       ref: ref(code, '22.2.2.4.1'),
@@ -403,7 +425,7 @@ function checkFlexure(input: BeamInput): FlexureCheck {
       title: 'Nominal moment Mn',
       formula: AsPrime > 0
         ? 'Mn = Cc·(d − a/2) + Cs·(d − dʹ)'
-        : (g.shape !== 'rectangular' && g.hf && a > g.hf
+        : (flangeInCompression && g.hf && a > g.hf
           ? 'Mn = Cflange·(d − hf/2) + Cweb·(d − (a+hf)/2)'
           : 'Mn = As·fy·(d − a/2)'),
       substitution: `d = ${g.d}, a = ${a.toFixed(2)}`,
@@ -682,7 +704,7 @@ function checkDeflection(input: BeamInput, _flexure: FlexureCheck): DeflectionCh
     },
     {
       title: 'Gross moment of inertia Ig',
-      formula: g.shape === 'rectangular' ? 'Ig = b·h³/12' : 'Ig (T-beam) = composite I about centroid',
+      formula: g.shape === 'rectangular' ? 'Ig = b·h³/12' : `Ig (${g.shape}) = composite I about centroid`,
       substitution: '',
       result: `Ig = ${Ig.toExponential(3)} mm⁴`,
     },
