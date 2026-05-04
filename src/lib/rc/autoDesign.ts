@@ -192,13 +192,10 @@ export function autoDesign(input: BeamInput): AutoDesignResult {
   const warnings: string[] = [];
   const steps: CalcStep[] = [];
 
-  // ── 1. Stirrup choice (default #3) ────────────────────────────────────────
-  // Stirrup size depends on longitudinal bar size (§25.7.2.2):
-  //   ≤ #11 long bars → #3 stirrup OK
-  //   #14, #18        → #4 stirrup minimum
-  // We won't know the longitudinal bar yet; pick #3 and revisit.
-  const stirBar = '#3';
-  const stirDb = barDiameter(stirBar);
+  // ── 1. Stirrup choice — provisional #3, will upgrade if longitudinal
+  //      bar > #11 (db > 35.8 mm) per §25.7.2.2.
+  let stirBar = '#3';
+  let stirDb = barDiameter(stirBar);
   const legs = 2;
 
   // ── 2. Tension steel ──────────────────────────────────────────────────────
@@ -303,16 +300,56 @@ export function autoDesign(input: BeamInput): AutoDesignResult {
     });
   }
 
+  // ── 3.5 Upgrade stirrup size if longitudinal bar > #11 (§25.7.2.2)
+  //       and re-pick spacing.
+  const dbLongMax = Math.max(
+    barDiameter(tensionBar.bar),
+    ...compression.map((cb) => barDiameter(cb.bar)),
+  );
+  if (dbLongMax > 35.8) {
+    stirBar = '#4';
+    stirDb = barDiameter(stirBar);
+    steps.push({
+      title: 'Stirrup size upgrade §25.7.2.2',
+      formula: 'longitudinal db > 35.8 mm (#11) → stirrup ≥ #4',
+      substitution: `db,long_max = ${dbLongMax.toFixed(1)} mm`,
+      result: 'Stirrup upgraded #3 → #4',
+    });
+  }
+
   // ── 4. Stirrup spacing ────────────────────────────────────────────────────
   const { spacing, sMax, sMaxTorsion } = pickStirrupSpacing(
     Vu, g, m, stirBar, legs, Tu,
   );
-  const stirrup: StirrupConfig = { bar: stirBar, legs, spacing };
+
+  // Verify Av ≥ Av,min at the chosen spacing per §9.6.3.4. If not, tighten
+  // spacing until it complies. Av,min/s = max(0.062·√fc·bw/fyt, 0.35·bw/fyt).
+  const fyt = m.fyt ?? m.fy;
+  const sqrtFc = Math.sqrt(m.fc);
+  const Av = legs * (lookupBar(stirBar)?.Ab ?? 71);
+  void lookupBar;
+  const AvMinPerS = Math.max(0.062 * sqrtFc * g.bw / fyt, 0.35 * g.bw / fyt);
+  const sFromAvMin = Av / AvMinPerS;          // largest s satisfying Av,min
+  let finalSpacing = spacing;
+  if (Av < AvMinPerS * spacing) {
+    // Need tighter spacing OR larger stirrup. Pick largest STD spacing ≤ sFromAvMin.
+    const tighter = STIRRUP_SPACINGS.filter((s) => s <= sFromAvMin).sort((a, b) => b - a)[0];
+    if (tighter) {
+      finalSpacing = Math.min(finalSpacing, tighter);
+      steps.push({
+        title: 'Stirrup spacing tightened for Av,min §9.6.3.4',
+        formula: 's ≤ Av / max(0.062·√fʹc·bw/fyt, 0.35·bw/fyt)',
+        substitution: `Av = ${Av.toFixed(0)} mm², sFromAv,min = ${sFromAvMin.toFixed(0)} mm`,
+        result: `spacing tightened: ${spacing} → ${finalSpacing} mm`,
+      });
+    }
+  }
+  const stirrup: StirrupConfig = { bar: stirBar, legs, spacing: finalSpacing };
   steps.push({
     title: 'Stirrup spacing',
-    formula: 's ≤ min(Av·fyt·d/Vs, s,max,code, s,max,torsion)',
+    formula: 's ≤ min(Av·fyt·d/Vs, s,max,code, s,max,torsion, sFromAv,min)',
     substitution: `s,max,code = ${sMax.toFixed(0)}, s,max,torsion = ${sMaxTorsion === 1e9 ? 'N/A' : sMaxTorsion.toFixed(0) + ' mm'}`,
-    result: `${legs}-leg ${stirBar} @ ${spacing} mm`,
+    result: `${legs}-leg ${stirBar} @ ${finalSpacing} mm`,
   });
 
   // ── 5. Skin reinforcement (h > 900 mm) ────────────────────────────────────

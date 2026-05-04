@@ -80,20 +80,42 @@ export function checkFlexureEC2(input: BeamInput): FlexureCheck {
   // Effective compression width — same shape rules as ACI for now
   let bEff = g.bw;
   if (g.shape === 'T-beam' || g.shape === 'L-beam') bEff = g.bf ?? g.bw;
+  const flangeInCompression = g.shape === 'T-beam' || g.shape === 'L-beam';
 
   // Plastic NA depth from equilibrium: As·fyd = η·fcd·b·(λ·x)  →  x = As·fyd / (η·fcd·b·λ)
   let x = As * fyd / (eta * fcd * bEff * lambda);
-  // Doubly-reinforced — assume both steels yield (will refine below)
+  // Doubly-reinforced — refine if A's doesn't yield (elastic compression
+  // steel). Quadratic in x:
+  //   η·fcd·b·λ·x + A's·E·εcu·(x − d')/x = As·fyd
+  //   η·fcd·b·λ·x² + (A's·E·εcu − As·fyd)·x − A's·E·εcu·d' = 0
   if (AsPrime > 1e-6) {
+    // Step 1 — assume A's yields (most common case)
     const AsNet = Math.max(0, As - AsPrime);
     x = AsNet * fyd / (eta * fcd * bEff * lambda);
+    const epsSPrimeAssumed = epsCu * (x - dPrime) / Math.max(x, 1);
+    if (epsSPrimeAssumed * Es < fyd) {
+      // A's doesn't yield — re-solve quadratic
+      const A_q = eta * fcd * bEff * lambda;
+      const B_q = AsPrime * Es * epsCu - As * fyd;
+      const C_q = -AsPrime * Es * epsCu * dPrime;
+      const disc = B_q * B_q - 4 * A_q * C_q;
+      if (disc >= 0) x = (-B_q + Math.sqrt(disc)) / (2 * A_q);
+    }
+  } else if (flangeInCompression && g.hf && lambda * x > g.hf) {
+    // T-beam / L-beam, NA in web (a = λ·x > hf). Re-solve equilibrium with
+    // the flange + web compression-block split:
+    //   As·fyd = η·fcd·[bf·hf + bw·(a − hf)]
+    //   → a = hf + (As·fyd − η·fcd·bf·hf) / (η·fcd·bw)
+    const Cflange = eta * fcd * (g.bf ?? bEff) * g.hf;
+    const a_web = g.hf + (As * fyd - Cflange) / (eta * fcd * g.bw);
+    x = a_web / lambda;
   }
   const c = x;                                        // for shared API
   const a = lambda * x;                               // equivalent block depth
 
   // Strain in compression steel
   const epsSPrime = epsCu * (x - dPrime) / Math.max(x, 1);
-  const fsPrime = Math.min(fyd, epsSPrime * Es);
+  const fsPrime = Math.min(fyd, Math.max(0, epsSPrime * Es));
   const epsTy = fyk / Es;
   const epsT = epsCu * (g.d - x) / Math.max(x, 1);
 
@@ -107,7 +129,8 @@ export function checkFlexureEC2(input: BeamInput): FlexureCheck {
     const Cs = AsPrime * fsPrime;
     const Cc = eta * fcd * bEff * a;
     MRd_kNm = (Cc * (g.d - a / 2) + Cs * (g.d - dPrime)) / 1e6;
-  } else if ((g.shape === 'T-beam' || g.shape === 'L-beam') && g.hf && a > g.hf) {
+  } else if (flangeInCompression && g.hf && a > g.hf) {
+    // NA in web — flange + web compression contributions
     const Cflange = eta * fcd * (g.bf ?? bEff) * g.hf;
     const Cweb = eta * fcd * g.bw * (a - g.hf);
     MRd_kNm = (Cflange * (g.d - g.hf / 2) + Cweb * (g.d - (a + g.hf) / 2)) / 1e6;

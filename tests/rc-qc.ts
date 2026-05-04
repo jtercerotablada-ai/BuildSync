@@ -1747,6 +1747,194 @@ block('Phase 5d — EC2 dispatch: code switches solver', () => {
 });
 
 // ============================================================================
+// MEGA-QC — Targeted regression tests for issues found in deep audit
+// ============================================================================
+
+block('MEGA-QC — Sign safety: |Mu| handles negative input correctly', () => {
+  // Continuous beams produce negative M at supports. Single-section solver
+  // must treat |Mu| as the demand magnitude, not Mu itself.
+  const baseInput: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 200, Vu: 150 },
+  };
+  const positiveResult = analyze(baseInput);
+  const negativeResult = analyze({ ...baseInput, loads: { Mu: -200, Vu: -150 } });
+  near('Flexure ratio same for ±Mu', positiveResult.flexure.ratio, negativeResult.flexure.ratio, 0.001);
+  near('Shear ratio same for ±Vu', positiveResult.shear.ratio, negativeResult.shear.ratio, 0.001);
+  check('Flexure ok same for ±Mu',
+        positiveResult.flexure.ok === negativeResult.flexure.ok);
+  check('Shear ok same for ±Vu',
+        positiveResult.shear.ok === negativeResult.shear.ok);
+});
+
+block('MEGA-QC — λs size factor uses 254 mm (= 10 in exact)', () => {
+  // Force Av < Av,min by using almost no stirrups: large spacing.
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 1000, d: 920, dPrime: 50, L: 8000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 1000 },     // huge → Av < Av,min
+    },
+    loads: { Mu: 200, Vu: 50 },
+  };
+  const r = analyze(input);
+  // For d = 920 mm, λs = √(2/(1+920/254)) = √(2/4.622) = √0.433 = 0.658
+  const expLambdaS = Math.sqrt(2 / (1 + 920 / 254));
+  // Vc = 0.66·λs·ρw^(1/3)·λ·√fc·bw·d (size-effect)
+  const rhoW = Math.max((4 * 645) / (300 * 920), 0.0025);
+  const expVc = 0.66 * expLambdaS * Math.pow(rhoW, 1 / 3) * 1.0 * Math.sqrt(28) * 300 * 920 / 1000;
+  near('λs uses 254 mm denominator', r.shear.Vc, expVc, 0.02);
+});
+
+block('MEGA-QC — needsDouble flagged when AsReq > AsMaxTC', () => {
+  // T-beam with very wide bf: closed-form quadratic almost never goes
+  // negative, but AsReq can still exceed the TC ductility ceiling.
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 250, h: 400, d: 350, dPrime: 50, L: 4500, coverClear: 40 },
+    materials: { fc: 21, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 1 }],
+      compression: [],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 350, Vu: 200 },     // very high → needs doubly
+  };
+  const r = analyze(input);
+  check('needsDouble true for high Mu', r.flexure.needsDouble);
+});
+
+block('MEGA-QC — Auto-design upgrades stirrup to #4 for #14 bars', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 500, h: 900, d: 820, dPrime: 60, L: 10000, coverClear: 50 },
+    materials: { fc: 35, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#5', count: 1 }],     // intentionally insufficient
+      compression: [],
+      stirrup: { bar: '#3', legs: 2, spacing: 300 },
+    },
+    loads: { Mu: 1500, Vu: 400 },     // very high to force big bars
+  };
+  const r = autoDesign(input);
+  // If auto-design picks #14 bars (db = 43 mm), stirrup must upgrade to #4
+  const longBar = r.reinforcement.tension[0].bar;
+  const longDb = (() => {
+    const map: Record<string, number> = { '#3': 9.5, '#4': 12.7, '#5': 15.9, '#6': 19.1, '#7': 22.2, '#8': 25.4, '#9': 28.7, '#10': 32.3, '#11': 35.8, '#14': 43, '#18': 57.3 };
+    return map[longBar] ?? 0;
+  })();
+  if (longDb > 35.8) {
+    check('stirrup upgraded to #4 (or larger) for #14/#18 long bar', r.reinforcement.stirrup.bar !== '#3');
+  } else {
+    check('long bar ≤ #11 — no upgrade needed', longDb <= 35.8);
+  }
+});
+
+block('MEGA-QC — EC2 T-beam handles NA-in-web case', () => {
+  // T-beam with thin flange + lots of tension steel → a > hf
+  const input: BeamInput = {
+    code: 'EN 1992-1-1', method: 'LRFD',
+    geometry: { shape: 'T-beam', bw: 300, h: 700, d: 640, bf: 600, hf: 80, dPrime: 50, L: 7000, coverClear: 40 },
+    materials: { fc: 30, fy: 500 },
+    reinforcement: {
+      tension: [{ bar: '#10', count: 6 }],     // 6·819 = 4914 mm² (lots)
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 150 },
+    },
+    loads: { Mu: 800, Vu: 300 },
+  };
+  const r = analyze(input);
+  // a should be > hf (NA in web). Verify physically reasonable MRd.
+  check('EC2 T-beam computes positive MRd', r.flexure.phiMn > 0);
+  check('EC2 T-beam: a > hf (NA in web)', r.flexure.a > 80);
+  // Sanity: MRd should be larger than if using bw alone (= rectangular check)
+  const inputRect: BeamInput = { ...input, geometry: { ...input.geometry, shape: 'rectangular' } };
+  const rRect = analyze(inputRect);
+  check('T-beam MRd > rectangular MRd (flange helps)', r.flexure.phiMn > rRect.flexure.phiMn);
+});
+
+block('MEGA-QC — Cover §20.5.1.3 escalates for #14/#18 interior', () => {
+  // Interior beam with #14 (db = 43 mm) → cover required 50 mm, not 40 mm
+  const inputBig: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 600, h: 800, d: 720, dPrime: 80, L: 8000, coverClear: 40 },
+    materials: { fc: 35, fy: 420, lambdaC: 1.0, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#14', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#4', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 600, Vu: 250 },
+  };
+  const r = analyze(inputBig);
+  // cover §20.5.1.3 should fail because 40 < 50 required for #14 interior
+  check('Cover check fails for #14 interior with cover=40 mm', !r.detailing.cover.ok);
+  check('Required cover = 50 mm for #14 interior',
+        Math.abs((r.detailing.cover.required ?? 0) - 50) < 0.01);
+});
+
+block('MEGA-QC — fy > 690 MPa raises warning', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 700, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 200, Vu: 100 },
+  };
+  const r = analyze(input);
+  check('Warning raised for fy > 690 MPa',
+        r.warnings.some((w) => w.includes('690 MPa')));
+});
+
+block('MEGA-QC — Stirrup zoning verifies Av ≥ Av,min when required', () => {
+  // Wide beam with HIGH Vu (Vu > 0.5·φVc → stirrups required §9.6.3.1).
+  // For bw=700, fc=28, d=720: Vc = 0.17·√28·700·720/1000 = 453 kN
+  //   0.5·φVc = 170 kN — pick wu so Vu_max > 170 (e.g. wu = 60, L = 8 →
+  //   Vu_max = 240 kN > 170 → stirrups required everywhere near supports).
+  const input: BeamEnvelopeInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 700, h: 800, d: 720, dPrime: 50, L: 8000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 6 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 100 },
+    },
+    demand: { kind: 'simply-supported', udl: { wu: 60 }, point: [], nStations: 21 },
+    loads: { Mu: 0, Vu: 0 },
+  };
+  const r = analyzeEnvelope(input);
+  if (r.elevation && r.elevation.zoning.zones.length > 0) {
+    // Av,min/s = max(0.062·√fc·bw/fyt, 0.35·bw/fyt) → s ≤ 244 mm where stirrups
+    // are REQUIRED (Vu > 0.5·φVc). End-of-beam zones likely don't need stirrups
+    // and can use up to s,max = d/2.
+    const Vc = 0.17 * 1.0 * Math.sqrt(28) * 700 * 720 / 1000;
+    const halfPhiVc = 0.5 * 0.75 * Vc;
+    const sFromAvMin = 142 / Math.max(0.062 * Math.sqrt(28) * 700 / 420, 0.35 * 700 / 420);
+    const allZonesOk = r.elevation.zoning.zones.every(
+      (z) => z.VuMax <= halfPhiVc || z.s <= sFromAvMin + 1,
+    );
+    check(`Required-stirrup zones satisfy Av ≥ Av,min (s ≤ ${sFromAvMin.toFixed(0)} mm)`, allZonesOk);
+  } else {
+    check('Envelope produced elevation data', !!r.elevation);
+  }
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(60));

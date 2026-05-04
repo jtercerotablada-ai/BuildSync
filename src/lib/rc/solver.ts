@@ -218,6 +218,15 @@ export function analyze(input: BeamInput): BeamAnalysis {
 
     const selfWeight = (input.materials.gammaC ?? 24) * sectionArea(input.geometry) * 1e-6;
 
+    // ACI 318-25 §22.2.2.4 / §20.2.2.4 — fy upper bound for design.
+    // §20.2.2.4: fy ≤ 550 MPa for the simplified Whitney block analysis;
+    // some recent editions allow up to 690 MPa for special cases (Type II
+    // cars, post-tensioned, etc.). We warn at 690 (hard upper bound).
+    if (input.materials.fy > 690) {
+      warnings.push(`fy = ${input.materials.fy} MPa exceeds ACI 318-25 §20.2.2.4 upper bound of 690 MPa for ordinary beam design — verify special provisions apply.`);
+    } else if (input.materials.fy > 550) {
+      warnings.push(`fy = ${input.materials.fy} MPa is in the high-strength range (Grade > 80). Verify §22.2.2.4 / §9.5 / §25.4 compatibility (development length grade factor ψg = ${input.materials.fy <= 550 ? 1.15 : 1.30}).`);
+    }
     if (flexure.section === 'compression-controlled') {
       warnings.push('Section is compression-controlled — increase d, b, or use compression steel.');
     }
@@ -277,6 +286,12 @@ function checkFlexure(input: BeamInput): FlexureCheck {
   const beta1 = computeBeta1(fc);
   const epsTy = fy / Es;
   const epsCu = 0.003;          // concrete crushing strain (ACI §22.2.2.1)
+  // Sign safety: capacity-vs-demand is checked on magnitudes. A continuous-
+  // beam analyzer can produce −Mu (hogging) at supports, which we treat as a
+  // bottom-bar tension demand of the same magnitude when this single-section
+  // check is run. Top-bar design at supports is handled by feeding |Mu| into
+  // the analyzer and providing equivalent tension steel (top in that region).
+  const Mu_abs = Math.abs(L.Mu);
 
   // Provided steel
   const As = sumBarArea(r.tension);
@@ -372,15 +387,15 @@ function checkFlexure(input: BeamInput): FlexureCheck {
   // Mu = φ·As·fy·(d - a/2)  with a = As·fy/(0.85·fc·b)
   // → As² · fy²/(2·0.85·fc·b) - As·fy·d + Mu/φ = 0
   // → As = (b·d/m) · (1 - √(1 - 2·m·Mn,req/(b·d²·fy)))
-  // Use direct quadratic solve:
-  const Mu_req_Nmm = L.Mu * 1e6;        // kN·m → N·mm
+  // Use direct quadratic solve. |Mu| → magnitude (sign handled at the
+  // demand-source level; Mu_abs already captures it).
+  const Mu_req_Nmm = Mu_abs * 1e6;        // kN·m → N·mm
   const phiUse = 0.90;                   // assume tension-controlled for As_req
   const A_q = fy * fy / (2 * 0.85 * fc * bEff);
   const B_q = -fy * g.d;
   const C_q = Mu_req_Nmm / phiUse;
   const disc = B_q * B_q - 4 * A_q * C_q;
   const AsReq = disc < 0 ? 0 : (-B_q - Math.sqrt(disc)) / (2 * A_q);
-  needsDouble = disc < 0;
 
   // As_min per ACI 318-25 §9.6.1.2 (SI, MPa)
   const AsMin = Math.max(
@@ -394,7 +409,14 @@ function checkFlexure(input: BeamInput): FlexureCheck {
   const aMaxTC = beta1 * cMaxTC;
   const AsMaxTC = 0.85 * fc * bEff * aMaxTC / fy;
 
-  const ratio = L.Mu / Math.max(phiMn, 1e-9);
+  // needsDouble: AsReq > AsMaxTC (true ductility limit) OR the closed-form
+  // had no real solution (Mu so large that any singly section overstresses
+  // the concrete). This is more diagnostic than just disc<0 because for
+  // T-beams with bf >> bw, disc rarely goes negative but AsReq can still
+  // exceed the practical TC ceiling.
+  needsDouble = disc < 0 || AsReq > AsMaxTC;
+
+  const ratio = Mu_abs / Math.max(phiMn, 1e-9);
   const ok = ratio <= 1 && As >= AsMin;
 
   const steps: CalcStep[] = [
@@ -497,6 +519,7 @@ function checkShear(input: BeamInput): ShearCheck {
   const fc = m.fc;
   const fyt = m.fyt ?? m.fy;
   const lambdaC = m.lambdaC ?? 1.0;
+  const Vu_abs = Math.abs(L.Vu);   // sign safety — capacity is checked on magnitude
 
   // Stirrup area Av (mm²) per spacing
   const Av = r.stirrup.legs * barArea(r.stirrup.bar);
@@ -521,11 +544,15 @@ function checkShear(input: BeamInput): ShearCheck {
   // Vc per ACI 318-25 Table 22.5.5.1 (no axial load case):
   //   • Av ≥ Av,min     →  eqn (a): Vc = 0.17·λ·√fc·bw·d                (simplified)
   //   • Av < Av,min     →  eqn (c): Vc = 0.66·λs·(ρw)^(1/3)·√fc·bw·d   (size-effect)
-  //                       where λs = √(2/(1+d/250)) ≤ 1   (§22.5.5.1.3)
+  //                       where λs = √(2/(1 + d/254)) ≤ 1   (§22.5.5.1.3)
+  //                       — denominator 254 mm = 10 in (ACI imperial original),
+  //                         which is the EXACT SI conversion. Some publications
+  //                         round to 250 mm; we use the imperial-faithful value
+  //                         so the SI output matches an inch-based hand calc.
   //                       ρw = As / (bw·d)                              (§22.5.5.1.4)
   //
   // Reason: §22.5.5.1.3 acknowledges size effect for under-reinforced sections.
-  // For deep beams (d > 250 mm) without minimum stirrups, the simplified eqn (a)
+  // For deep beams (d > 254 mm) without minimum stirrups, the simplified eqn (a)
   // over-predicts shear strength; the size-effect equation gives realistic capacity.
   const meetsAvMin = Av >= AvMin;
   let Vc: number;
@@ -534,11 +561,13 @@ function checkShear(input: BeamInput): ShearCheck {
     Vc = 0.17 * lambdaC * Math.sqrt(fc) * g.bw * g.d / 1000;
     VcEqLabel = 'eqn (a) Vc = 0.17·λ·√fʹc·bw·d  [Av ≥ Av,min]';
   } else {
-    // Size-effect factor §22.5.5.1.3
-    const lambdaS = Math.min(1, Math.sqrt(2 / (1 + g.d / 250)));
-    // Longitudinal-tension reinf ratio §22.5.5.1.4
+    // Size-effect factor §22.5.5.1.3 (denominator = 254 mm = 10 in exact)
+    const lambdaS = Math.min(1, Math.sqrt(2 / (1 + g.d / 254)));
+    // Longitudinal-tension reinf ratio §22.5.5.1.4. Clamped at the lower
+    // bound 0.0025 (typical textbook practice — see Wight 7e Eq. 6-12) to
+    // avoid blowing up Vc for sections with negligible tension steel.
     const AsTens = sumBarArea(r.tension);
-    const rhoW = Math.max(AsTens / (g.bw * g.d), 1e-6);
+    const rhoW = Math.max(AsTens / (g.bw * g.d), 0.0025);
     Vc = 0.66 * lambdaS * Math.pow(rhoW, 1 / 3) * lambdaC * Math.sqrt(fc) * g.bw * g.d / 1000;
     VcEqLabel = `eqn (c) Vc = 0.66·λs·ρw^(1/3)·λ·√fʹc·bw·d  [Av < Av,min, λs=${lambdaS.toFixed(3)}, ρw=${rhoW.toFixed(4)}]`;
   }
@@ -547,14 +576,18 @@ function checkShear(input: BeamInput): ShearCheck {
   const phi = 0.75;
   const phiVn = phi * Vn;
 
-  // Required spacing for given Vu
+  // Required spacing for given Vu (|Vu| — sign-safe)
   // φVc + φ·Av·fyt·d/s ≥ Vu  →  s ≤ φ·Av·fyt·d / (Vu − φVc)
-  const VuExcess = L.Vu - phi * Vc;
+  const VuExcess = Vu_abs - phi * Vc;
   const sReq = VuExcess > 0 ? (phi * Av * fyt * g.d) / (VuExcess * 1000) : Infinity;
 
-  const stirrupsRequired = L.Vu > 0.5 * phi * Vc;
-  const ratio = L.Vu / Math.max(phiVn, 1e-9);
-  const ok = ratio <= 1 && Vs <= VsMax && (stirrupsRequired ? Av >= AvMin && s <= sMax : true);
+  const stirrupsRequired = Vu_abs > 0.5 * phi * Vc;
+  const ratio = Vu_abs / Math.max(phiVn, 1e-9);
+  // ok: capacity check + Vs ≤ Vs,max (web-crushing). Stirrup spacing s,max
+  // is enforced (a) when stirrups are required and (b) when stirrups are
+  // *provided* even if not required, because the stirrups will be installed
+  // and must comply with §9.7.6.2.2 regardless of demand.
+  const ok = ratio <= 1 && Vs <= VsMax && Av >= (stirrupsRequired ? AvMin : 0) && s <= sMax;
 
   const steps: CalcStep[] = [
     {
@@ -918,13 +951,27 @@ function failItem(label: string, ref: string, en: string, es: string, opts?: Par
   return { label, ref, ok: false, noteEn: en, noteEs: es, ...(opts ?? {}) };
 }
 
-function minCoverByExposure(exposure: 'interior' | 'exterior' | 'cast-against-ground'): number {
-  // ACI 318-25 §20.5.1.3 — typical primary reinforcement
+function minCoverByExposure(
+  exposure: 'interior' | 'exterior' | 'cast-against-ground',
+  dbMaxLong = 25,
+): number {
+  // ACI 318-25 §20.5.1.3.1 — Specified concrete cover for cast-in-place
+  // nonprestressed concrete, by exposure and bar size:
+  //   • cast-against-ground (permanently in contact with earth): 75 mm
+  //   • exposed to weather or in contact with ground:
+  //       - #6 through #18 (db ≥ 19 mm):    50 mm
+  //       - #5 and smaller (db < 19 mm):    40 mm
+  //   • not exposed to weather, beams/columns:
+  //       - #11 and smaller (db ≤ 35.8 mm): 40 mm
+  //       - #14 and #18 (db > 35.8 mm):     50 mm
   switch (exposure) {
-    case 'cast-against-ground': return 75;
-    case 'exterior': return 50;
+    case 'cast-against-ground':
+      return 75;
+    case 'exterior':
+      return dbMaxLong < 19 ? 40 : 50;
     case 'interior':
-    default: return 40;
+    default:
+      return dbMaxLong > 35.8 ? 50 : 40;
   }
 }
 
@@ -1178,7 +1225,7 @@ export function checkDetailing(input: BeamInput): DetailingCheck {
   // ============================================================================
   // CHECK 1 — Concrete cover §20.5.1.3
   // ============================================================================
-  const minCover = minCoverByExposure(exposure);
+  const minCover = minCoverByExposure(exposure, dbMaxTens);
   const cover: DetailingItem = g.coverClear >= minCover
     ? passItem(
         `Cover §20.5.1.3 (${exposure})`,

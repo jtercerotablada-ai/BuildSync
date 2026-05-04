@@ -155,7 +155,14 @@ export function computeStirrupZones(
   // s,max per §9.7.6.2.2 (depends on Vs threshold = 0.33·√fc·bw·d)
   const VsThresh = 0.33 * Math.sqrt(fc) * g.bw * g.d / 1000;
 
+  // Av,min/s per §9.6.3.4 — gives the LARGEST spacing for which Av ≥ Av,min.
+  // Av,min = max(0.062·√fʹc·bw·s/fyt, 0.35·bw·s/fyt) → for given Av:
+  //   s ≤ Av / max(0.062·√fʹc·bw/fyt, 0.35·bw/fyt)
+  const AvMinPerS = Math.max(0.062 * Math.sqrt(fc) * g.bw / fyt, 0.35 * g.bw / fyt);
+  const sFromAvMin = Av / AvMinPerS;
+
   // For each station: pick minimum standard spacing that passes shear AND s,max
+  // AND Av ≥ Av,min (when stirrups are required at all).
   const stationSpacings: number[] = stations.map((stn) => {
     const Vu = stn.Vu;
     // Required Vs from Vu: φVc + φVs ≥ Vu  →  Vs ≥ Vu/φ - Vc
@@ -165,7 +172,10 @@ export function computeStirrupZones(
     const sMaxThis = VsReq <= VsThresh ? Math.min(g.d / 2, 600) : Math.min(g.d / 4, 300);
     // s required for shear: s ≤ Av·fyt·d / (Vs·1000)
     const sShear = VsReq > 0 ? (Av * fyt * g.d) / (VsReq * 1000) : Infinity;
-    const sLimit = Math.min(sMaxThis, sShear);
+    // Stirrups required when Vu > 0.5·φ·Vc (§9.6.3.1)
+    const stirrupsRequired = Vu > 0.5 * phi * Vc;
+    const sAvMin = stirrupsRequired ? sFromAvMin : Infinity;
+    const sLimit = Math.min(sMaxThis, sShear, sAvMin);
     // Pick the largest standard spacing ≤ sLimit
     for (const s of STD_SPACINGS) {
       if (s <= sLimit) return s;
@@ -260,8 +270,9 @@ export function computeStirrupZones(
 export function computeCurtailment(
   envelopeResult: EnvelopeAnalysis,
   input: BeamEnvelopeInput,
-  flexureWorst: FlexureCheck,
+  _flexureWorst: FlexureCheck,
 ): CurtailmentResult {
+  void _flexureWorst;     // legacy param kept for ABI; reduced φMn now exact
   const { geometry: g, materials: m, reinforcement: r } = input;
   const stations = envelopeResult.stations;
   const tens = r.tension;
@@ -299,10 +310,31 @@ export function computeCurtailment(
     }
 
     if (curtailedInGroup > 0) {
-      // Theoretical cutoff: where Mu(x) drops below the φMn provided by only the RUNNING bars.
-      // Approximate: ratio of running/total tension area ≈ ratio of φMn provided.
-      // Reduced φMn ≈ (mustRunCount / totalTensCount) · flexureWorst.phiMn
-      const reducedPhiMn = (mustRunCount / totalTensCount) * flexureWorst.phiMn;
+      // Theoretical cutoff: where Mu(x) drops below the φMn provided by only
+      // the RUNNING bars. We compute the EXACT φMn for the running-bar
+      // configuration by re-running the flexure equation, not the linear
+      // approximation As_running/As_total · φMn.
+      //
+      // Closed-form for singly-rect (running area only):
+      //   a = As_run·fy/(0.85·fc·b),  Mn = As_run·fy·(d − a/2)
+      // Use bw for safety (T-beam will be conservative; curtailment cutoff
+      // moves slightly outward, which is on the SAFE side per §9.7.3.5).
+      const fc = m.fc;
+      const fy = m.fy;
+      const beta1Eff = fc <= 28 ? 0.85 : fc >= 55 ? 0.65 : 0.85 - 0.05 * (fc - 28) / 7;
+      const As_run = mustRunCount * barArea(bg.bar);
+      const a_run = As_run * fy / (0.85 * fc * g.bw);
+      const c_run = a_run / beta1Eff;
+      const Es = 200000;
+      const epsTy = fy / Es;
+      const epsT_run = 0.003 * (g.d - c_run) / Math.max(c_run, 1);
+      // φ from §21.2.2 for the reduced-As case (typically still tension-controlled)
+      const epsTcl = epsTy + 0.003;
+      const phi_run =
+        epsT_run >= epsTcl ? 0.90 :
+        epsT_run <= epsTy ? 0.65 :
+        0.65 + 0.25 * (epsT_run - epsTy) / (epsTcl - epsTy);
+      const reducedPhiMn = phi_run * As_run * fy * (g.d - a_run / 2) / 1e6;
 
       // Find the leftmost station where Mu first exceeds reducedPhiMn (and rightmost where it drops back below)
       let xLeft = 0, xRight = g.L;
