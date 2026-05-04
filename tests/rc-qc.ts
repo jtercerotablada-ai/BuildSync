@@ -770,6 +770,200 @@ block('Detailing: analyze() output includes detailing', () => {
 });
 
 // ============================================================================
+// QC AUDIT FIXES — tests for the 1 RED + 4 YELLOW findings (vs ACI 318-25)
+// ============================================================================
+
+block('QC Fix #1 (RED) — Bischoff Ie §24.2.3.5 replaces Branson 1965', () => {
+  // Lightly-reinforced section: Branson under-predicts deflection vs Bischoff.
+  // Beam: 300×400, d=350, fc=28 MPa, fy=420, 2#5 (As=398 mm² → ρ=0.38%).
+  // Service moment Ma chosen so Ma > (2/3)·Mcr to trigger Bischoff branch.
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 400, d: 350, dPrime: 50, L: 5000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#5', count: 2 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 175 },
+    },
+    loads: { Mu: 60, Vu: 50, Ma: 50, M_DL: 30, M_LL: 20, deflectionLimitCategory: 'floor-no-attached' },
+  };
+  const r = analyze(input);
+  // Hand-calc reference (Bischoff):
+  //   Ig = 300·400³/12 = 1.6e9 mm⁴
+  //   fr = 0.62·√28 = 3.28 MPa, yt = 200 mm
+  //   Mcr = 3.28·1.6e9/200/1e6 = 26.24 kN·m  (Ig*fr/yt; engineering)
+  //   (2/3)·Mcr ≈ 17.5 kN·m
+  //   Ma = 50 > McrEff → Bischoff branch active
+  //   Icr (linear-elastic cracked) ≈ ~3.5e8 mm⁴ for ρ ≈ 0.38%
+  //   Bischoff Ie = Icr / (1 − ((2/3)·Mcr/Ma)²·(1 − Icr/Ig))
+  //               = 3.5e8 / (1 − (0.350)²·(1 − 0.219))
+  //               = 3.5e8 / 0.904 ≈ 3.87e8 mm⁴
+  // Branson (old) for the same case would give Ie ≈ Icr·(1−(Mcr/Ma)³) + Ig·(Mcr/Ma)³
+  //              ≈ 3.5e8·0.855 + 1.6e9·0.145 = 2.99e8 + 2.32e8 = 5.31e8 mm⁴
+  // → Bischoff is SMALLER (lower Ie ⇒ larger deflection) ⇒ matches the §24.2.3.5 intent.
+  near('Mcr (kN·m)', r.deflection.Mcr, 26.24, 0.05);
+  // Bischoff result must be < Branson would have given for the same Ig, Icr, Ma:
+  const Mcr = r.deflection.Mcr;
+  const branson_estimate = r.deflection.Icr * (1 - Math.pow(Mcr / 50, 3))
+                         + r.deflection.Ig * Math.pow(Mcr / 50, 3);
+  check('Bischoff Ie < Branson Ie at low ρ (deflection conservative)', r.deflection.Ie < branson_estimate);
+  // Bischoff should be > Icr and < Ig (mathematical bounds)
+  check('Ie > Icr (within bounds)', r.deflection.Ie > r.deflection.Icr);
+  check('Ie ≤ Ig (capped)', r.deflection.Ie <= r.deflection.Ig + 1);
+});
+
+block('QC Fix #1 (cont.) — Bischoff Ie = Ig when Ma ≤ (2/3)·Mcr (§24.2.3.5a)', () => {
+  // Heavy section, low service moment: should be uncracked → Ie = Ig.
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 400, h: 700, d: 640, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 35, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    // Ma chosen well below (2/3)·Mcr
+    loads: { Mu: 100, Vu: 50, Ma: 30, M_DL: 18, M_LL: 12, deflectionLimitCategory: 'floor-no-attached' },
+  };
+  const r = analyze(input);
+  near('Ie = Ig (uncracked branch)', r.deflection.Ie, r.deflection.Ig, 0.001);
+});
+
+block('QC Fix #2 (YELLOW) — Stirrup size threshold = 36 mm (§25.7.2.2/§9.7.6.4.2)', () => {
+  // ASTM #11 = 35.8 mm → still allows #3 stirrup (boundary just below threshold)
+  const ok = checkDetailing(baseBeam({
+    reinforcement: {
+      tension: [{ bar: '#11', count: 3 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+  }));
+  check('#3 stirrup with #11 (db=35.8) longit OK (35.8 < 36)', ok.stirrupSize.ok);
+  // ASTM #14 = 43 mm → must use ≥#4 stirrup (above threshold)
+  const big = checkDetailing(baseBeam({
+    reinforcement: {
+      tension: [{ bar: '#14', count: 2 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+  }));
+  check('#3 stirrup with #14 longit fails (43 ≥ 36)', !big.stirrupSize.ok);
+});
+
+block('QC Fix #3 (YELLOW) — Citation now §9.7.6.2.2 (beam) not §10.7.6.5.2 (column)', () => {
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 200, Vu: 100 },
+  };
+  const r = analyze(input);
+  // Find the s,max step in shear and verify its ref string
+  const sMaxStep = r.shear.steps.find((s) => s.title.includes('Maximum stirrup spacing'));
+  check('s_max step exists', !!sMaxStep);
+  check('s_max cites §9.7.6.2.2 (beam rule)', !!sMaxStep && sMaxStep.ref?.includes('9.7.6.2.2'));
+  check('s_max does NOT cite §10.7.6.5.2 (column rule)', !!sMaxStep && !sMaxStep.ref?.includes('10.7.6.5.2'));
+});
+
+block('QC Fix #4 (YELLOW) — Vc size-effect (§22.5.5.1.3) when Av < Av,min', () => {
+  // Deep beam, no stirrups (Av effectively zero) → eqn (c) with size-effect kicks in.
+  // d = 1200 mm → λs = √(2/(1+1200/250)) = √(2/5.8) = 0.587
+  // ρw = As/(bw·d). For bw=300, d=1200, 4#9: As=2580. ρw = 2580/(300·1200) = 0.00717.
+  // Vc(c) = 0.66·0.587·0.00717^(1/3)·1·√28·300·1200 / 1000
+  //       = 0.66·0.587·0.193·5.29·300·1200/1000 ≈ 142 kN
+  // Vc(a) simplified: 0.17·1·√28·300·1200/1000 = 324 kN  (over-prediction)
+  // Solver should now use eqn (c) and report ~142 kN, not 324 kN.
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 1300, d: 1200, dPrime: 50, L: 8000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      // Sparse stirrups so Av < Av,min
+      stirrup: { bar: '#3', legs: 2, spacing: 1500 },
+      skin: { bar: '#4', countPerFace: 4 },
+    },
+    loads: { Mu: 600, Vu: 50 },
+  };
+  const r = analyze(input);
+  near('Vc (size-effect eqn c)', r.shear.Vc, 142, 0.10);     // 10% tolerance
+  // Critical comparison: must be SMALLER than the simplified eqn (a) value
+  const Vc_simplified = 0.17 * 1.0 * Math.sqrt(28) * 300 * 1200 / 1000;     // = 324 kN
+  check('Vc(c) < Vc(a) for under-stirruped deep beam', r.shear.Vc < Vc_simplified * 0.9);
+});
+
+block('QC Fix #4 (cont.) — When Av ≥ Av,min, Vc still uses simplified eqn (a)', () => {
+  // Standard well-stirruped beam → eqn (a).
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420, aggSize: 19, exposure: 'interior' },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },     // tight enough for Av ≥ Av,min
+    },
+    loads: { Mu: 200, Vu: 200 },
+  };
+  const r = analyze(input);
+  // Vc(a) = 0.17·1·√28·300·540/1000 = 145.7 kN
+  near('Vc (simplified eqn a)', r.shear.Vc, 145.7, 0.01);
+});
+
+block('QC Fix #5 (YELLOW) — §9.7.6.4.3 compression-bar stirrup spacing limit', () => {
+  // Beam with #11 longitudinal compression bars + #3 stirrup at 600 mm spacing.
+  //   limit (a) 16·db,longit  = 16·35.8 = 573 mm
+  //   limit (b) 48·db,stirrup = 48·9.5 = 456 mm     ← governs
+  //   limit (c) min(bw, h)    = min(300, 600) = 300 mm   ← actually governs
+  //   s_max = min(573, 456, 300) = 300 mm
+  // Provided 600 mm → fails.
+  const tooWide = checkDetailing(baseBeam({
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#11', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 600 },
+    },
+  }));
+  check('compression-bar spacing fails (600 > 300)', !tooWide.compressionLateral.ok);
+  // Same beam but s = 200 mm → passes.
+  const ok = checkDetailing(baseBeam({
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#11', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+  }));
+  check('compression-bar spacing OK (200 ≤ 300)', ok.compressionLateral.ok);
+});
+
+block('QC Audit — Vc with simplified eqn matches the Phase-1 baseline (regression)', () => {
+  // Sanity: classic textbook beam still produces Vc = 145.7 kN as in our 50/50 baseline tests.
+  const input: BeamInput = {
+    code: 'ACI 318-25', method: 'LRFD',
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 6000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, fyt: 420 },
+    reinforcement: {
+      tension: [{ bar: '#9', count: 4 }],
+      compression: [{ bar: '#4', count: 2 }],
+      stirrup: { bar: '#3', legs: 2, spacing: 200 },
+    },
+    loads: { Mu: 350, Vu: 200 },
+  };
+  const r = analyze(input);
+  near('Regression: Vc = 145.7 kN', r.shear.Vc, 145.7, 0.01);
+  near('Regression: Vs = 161 kN', r.shear.Vs, 161, 0.01);
+  near('Regression: φVn = 230 kN', r.shear.phiVn, 230, 0.01);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(60));

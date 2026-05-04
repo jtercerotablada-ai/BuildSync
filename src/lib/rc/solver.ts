@@ -7,12 +7,12 @@
 //                   - φ per §21.2.2 (tension-controlled / compression-controlled)
 //                   - As_min per §9.6.1.2
 //                   - Doubly-reinforced + T-beams supported
-//   • SHEAR         §22.5 (sectional shear) + §9.6.3 + §10.7.6.5
+//   • SHEAR         §22.5 (sectional shear) + §9.6.3 + §9.7.6.2.2
 //                   - Vc per §22.5.5 (simplified)
 //                   - Vs per §22.5.10.5.3 (vertical stirrups)
 //                   - φ = 0.75
 //                   - Av,min + s,max
-//   • DEFLECTION    §24.2 (Branson Ie) + Tabla 24.2.2 + §24.2.4 (long-term)
+//   • DEFLECTION    §24.2 (Bischoff Ie §24.2.3.5) + Tabla 24.2.2 + §24.2.4 long-term
 //                   - Ig, Icr, Mcr, Ie
 //                   - λΔ = ξ/(1+50·ρ′), ξ per Table 24.2.4.1.3
 //   • CRACK CONTROL §24.3.2 (max bar spacing)
@@ -462,10 +462,6 @@ function checkShear(input: BeamInput): ShearCheck {
   const fyt = m.fyt ?? m.fy;
   const lambdaC = m.lambdaC ?? 1.0;
 
-  // Vc per §22.5.5 (simplified; no axial)
-  // Vc = 0.17·λ·√fc·bw·d  [N] when no axial; convert to kN by /1000
-  const Vc = 0.17 * lambdaC * Math.sqrt(fc) * g.bw * g.d / 1000;
-
   // Stirrup area Av (mm²) per spacing
   const Av = r.stirrup.legs * barArea(r.stirrup.bar);
 
@@ -473,14 +469,10 @@ function checkShear(input: BeamInput): ShearCheck {
   const s = r.stirrup.spacing;
   const Vs = (Av * fyt * g.d) / (s * 1000);    // N → kN
 
-  const Vn = Vc + Vs;
-  const phi = 0.75;
-  const phiVn = phi * Vn;
-
   // Vs,max per §22.5.1.2:  Vs ≤ 0.66·√fc·bw·d (stop redesign threshold)
   const VsMax = 0.66 * Math.sqrt(fc) * g.bw * g.d / 1000;
 
-  // s_max per §10.7.6.5.2:
+  // s_max per §9.7.6.2.2 (along beam length, beam rule):
   //   If Vs ≤ 0.33·√fc·bw·d:   s_max = min(d/2, 600 mm)
   //   else:                     s_max = min(d/4, 300 mm)
   const VsThreshold = 0.33 * Math.sqrt(fc) * g.bw * g.d / 1000;
@@ -489,6 +481,35 @@ function checkShear(input: BeamInput): ShearCheck {
   // Av,min per §9.6.3.4 (when Vu > 0.5·φ·Vc):
   //  Av,min/s = max(0.062·√fc·bw/fyt, 0.35·bw/fyt)  →  Av,min = max(...) · s
   const AvMin = Math.max(0.062 * Math.sqrt(fc) * g.bw / fyt, 0.35 * g.bw / fyt) * s;
+
+  // Vc per ACI 318-25 Table 22.5.5.1 (no axial load case):
+  //   • Av ≥ Av,min     →  eqn (a): Vc = 0.17·λ·√fc·bw·d                (simplified)
+  //   • Av < Av,min     →  eqn (c): Vc = 0.66·λs·(ρw)^(1/3)·√fc·bw·d   (size-effect)
+  //                       where λs = √(2/(1+d/250)) ≤ 1   (§22.5.5.1.3)
+  //                       ρw = As / (bw·d)                              (§22.5.5.1.4)
+  //
+  // Reason: §22.5.5.1.3 acknowledges size effect for under-reinforced sections.
+  // For deep beams (d > 250 mm) without minimum stirrups, the simplified eqn (a)
+  // over-predicts shear strength; the size-effect equation gives realistic capacity.
+  const meetsAvMin = Av >= AvMin;
+  let Vc: number;
+  let VcEqLabel: string;
+  if (meetsAvMin) {
+    Vc = 0.17 * lambdaC * Math.sqrt(fc) * g.bw * g.d / 1000;
+    VcEqLabel = 'eqn (a) Vc = 0.17·λ·√fʹc·bw·d  [Av ≥ Av,min]';
+  } else {
+    // Size-effect factor §22.5.5.1.3
+    const lambdaS = Math.min(1, Math.sqrt(2 / (1 + g.d / 250)));
+    // Longitudinal-tension reinf ratio §22.5.5.1.4
+    const AsTens = sumBarArea(r.tension);
+    const rhoW = Math.max(AsTens / (g.bw * g.d), 1e-6);
+    Vc = 0.66 * lambdaS * Math.pow(rhoW, 1 / 3) * lambdaC * Math.sqrt(fc) * g.bw * g.d / 1000;
+    VcEqLabel = `eqn (c) Vc = 0.66·λs·ρw^(1/3)·λ·√fʹc·bw·d  [Av < Av,min, λs=${lambdaS.toFixed(3)}, ρw=${rhoW.toFixed(4)}]`;
+  }
+
+  const Vn = Vc + Vs;
+  const phi = 0.75;
+  const phiVn = phi * Vn;
 
   // Required spacing for given Vu
   // φVc + φ·Av·fyt·d/s ≥ Vu  →  s ≤ φ·Av·fyt·d / (Vu − φVc)
@@ -501,9 +522,13 @@ function checkShear(input: BeamInput): ShearCheck {
 
   const steps: CalcStep[] = [
     {
-      title: 'Concrete shear strength Vc (simplified)',
-      formula: 'Vc = 0.17 · λ · √fʹc · bw · d',
-      substitution: `Vc = 0.17·${lambdaC}·√${fc}·${g.bw}·${g.d}/1000`,
+      title: `Concrete shear strength Vc (${meetsAvMin ? 'simplified' : 'size-effect'})`,
+      formula: meetsAvMin
+        ? 'Vc = 0.17 · λ · √fʹc · bw · d              [Av ≥ Av,min, eqn (a)]'
+        : 'Vc = 0.66 · λs · ρw^(1/3) · λ · √fʹc · bw · d   [Av < Av,min, eqn (c)]',
+      substitution: meetsAvMin
+        ? `Vc = 0.17·${lambdaC}·√${fc}·${g.bw}·${g.d}/1000`
+        : VcEqLabel,
       result: `Vc = ${Vc.toFixed(2)} kN`,
       ref: ref(code, '22.5.5.1'),
     },
@@ -534,11 +559,11 @@ function checkShear(input: BeamInput): ShearCheck {
       result: `φVn = ${phiVn.toFixed(2)} kN`,
     },
     {
-      title: 'Maximum stirrup spacing per §10.7.6.5.2',
+      title: 'Maximum stirrup spacing per §9.7.6.2.2',
       formula: 'If Vs ≤ 0.33·√fʹc·bw·d → s,max = min(d/2, 600); else min(d/4, 300)',
       substitution: `Vs = ${Vs.toFixed(2)}, threshold = ${VsThreshold.toFixed(2)} kN`,
       result: `s,max = ${sMax.toFixed(0)} mm  (provided s = ${s} mm ${s <= sMax ? '✓' : '✗'})`,
-      ref: ref(code, '10.7.6.5.2'),
+      ref: ref(code, '9.7.6.2.2'),
     },
     {
       title: 'Minimum stirrup area Av,min',
@@ -588,14 +613,19 @@ function checkDeflection(input: BeamInput, _flexure: FlexureCheck): DeflectionCh
 
   // Service moment
   const Ma = L.Ma ?? L.Mu / 1.5;       // rough estimate if not provided
-  // Branson Ie per §24.2.3.5
+  // Bischoff effective moment of inertia — ACI 318-25 §24.2.3.5(b)
+  // ACI 318-19 replaced the 1965 Branson formula with Bischoff because Branson
+  // under-predicted deflection of lightly-reinforced sections (low ρ).
+  //   Ma ≤ (2/3)·Mcr     →  Ie = Ig                                     (24.2.3.5a)
+  //   Ma > (2/3)·Mcr     →  Ie = Icr / [1 − ((2/3)·Mcr/Ma)² · (1 − Icr/Ig)]   (24.2.3.5b)
   let Ie: number;
-  if (Ma <= Mcr) {
+  const McrEff = (2 / 3) * Mcr;
+  if (Ma <= McrEff) {
     Ie = Ig;
   } else {
-    const ratio = Mcr / Ma;
-    Ie = Math.pow(ratio, 3) * Ig + (1 - Math.pow(ratio, 3)) * Icr;
-    Ie = Math.min(Ie, Ig);
+    const denom = 1 - Math.pow(McrEff / Ma, 2) * (1 - Icr / Ig);
+    Ie = Icr / Math.max(denom, 1e-9);
+    Ie = Math.min(Ie, Ig);     // belt-and-suspenders cap (formula already ≤ Ig)
   }
 
   // Immediate deflection — assume simply-supported uniform load: Δ = 5·M·L²/(48·E·I)
@@ -668,8 +698,8 @@ function checkDeflection(input: BeamInput, _flexure: FlexureCheck): DeflectionCh
       result: `Mcr = ${Mcr.toFixed(2)} kN·m`,
     },
     {
-      title: 'Effective Ie (Branson)',
-      formula: 'Ie = (Mcr/Ma)³·Ig + [1−(Mcr/Ma)³]·Icr ≤ Ig',
+      title: 'Effective Ie (Bischoff §24.2.3.5)',
+      formula: 'Ie = Ig if Ma ≤ ⅔·Mcr; else Icr / [1 − (⅔·Mcr/Ma)²·(1 − Icr/Ig)]',
       substitution: `Ma = ${Ma.toFixed(2)} kN·m`,
       result: `Ie = ${Ie.toExponential(3)} mm⁴`,
       ref: ref(code, '24.2.3.5'),
@@ -933,11 +963,14 @@ export function checkDetailing(input: BeamInput): DetailingCheck {
           { provided: skinBarsPerFace, required: 2 });
 
   // ============================================================================
-  // CHECK 6 — Min stirrup bar size §25.7.2.2
+  // CHECK 6 — Min stirrup bar size §25.7.2.2 / §9.7.6.4.2
+  // ACI: stirrup ≥ No. 10 (10 mm) when longitudinal db ≤ 32 mm; ≥ No. 13 (13 mm)
+  // when longitudinal db > 32 mm. (ASTM equivalents: ≥ #3 for ≤ #11, ≥ #4 for ≥ #14.)
+  // Threshold = 36 mm to catch metric M40 (39.9 mm) longitudinal bars too.
   // ============================================================================
-  const needsLarger = dbMaxTens >= 43;     // #14 (43mm) or #18 (57mm) → stirrup ≥ #4 (12.7mm)
+  const needsLarger = dbMaxTens >= 36;     // > 32 mm long bar → ≥ No. 13 / #4 stirrup
   const minStirDb = needsLarger ? 12.7 : 9.5;
-  const minStirLabel = needsLarger ? '#4 (12.7 mm)' : '#3 (9.5 mm)';
+  const minStirLabel = needsLarger ? '#4 / No. 13 (≥ 12.7 mm)' : '#3 / No. 10 (≥ 9.5 mm)';
   const stirrupSize: DetailingItem = stirDb >= minStirDb
     ? passItem(
         'Stirrup min size §25.7.2.2',
@@ -989,10 +1022,20 @@ export function checkDetailing(input: BeamInput): DetailingCheck {
   // ============================================================================
   // CHECK 8 — Lateral support of compression reinforcement §9.7.6.4
   // ============================================================================
-  // If compression bars exist, stirrups must be CLOSED and min size per 9.7.6.4.2.
-  // Our stirrup type is treated as closed; just verify min size matches §9.7.6.4.2.
+  // §9.7.6.4.2: stirrup size ≥ §25.7.2.2 minimum (handled in CHECK 6).
+  // §9.7.6.4.3: stirrup spacing for lateral support of compression bars
+  //   ≤ least of:  (a) 16·db,longit
+  //                (b) 48·db,stirrup
+  //                (c) least dimension of beam (= min(bw, h))
+  // §9.7.6.4.4: every corner and alternate compression bar must be enclosed.
+  // (Implicitly satisfied by 2-leg closed stirrups when compression bars are at corners.)
   const hasComp = nTopBars > 0;
   const compMinStirDb = hasComp ? minStirDb : 0;
+  const dbCompMax = comp.reduce((d, bg) => Math.max(d, barDiameter(bg.bar)), 0);
+  const sCompLimit = hasComp ? Math.min(16 * dbCompMax, 48 * stirDb, Math.min(g.bw, g.h)) : Infinity;
+  const sStirrupProvided = r.stirrup.spacing;
+  const sizeOk = stirDb >= compMinStirDb;
+  const spacingOk = sStirrupProvided <= sCompLimit;
   const compressionLateral: DetailingItem = !hasComp
     ? passItem(
         'Compression bar lateral support §9.7.6.4',
@@ -1000,17 +1043,26 @@ export function checkDetailing(input: BeamInput): DetailingCheck {
         `No compression bars → no lateral-support requirement.`,
         `Sin barras de compresión → no aplica el soporte lateral.`,
         { informational: true })
-    : stirDb >= compMinStirDb
+    : sizeOk && spacingOk
       ? passItem(
           'Compression bar lateral support §9.7.6.4',
           ref(code, '9.7.6.4'),
-          `Closed stirrups ${r.stirrup.bar} provide lateral support; size ≥ §25.7.2.2 minimum.`,
-          `Estribos cerrados ${r.stirrup.bar} aportan soporte lateral; tamaño ≥ mínimo §25.7.2.2.`)
-      : failItem(
-          'Compression bar lateral support §9.7.6.4',
-          ref(code, '9.7.6.4'),
-          `Stirrup size insufficient to laterally support compression bars. Increase stirrup bar to ≥ ${minStirLabel}.`,
-          `El tamaño del estribo no es suficiente para soportar lateralmente las barras de compresión. Aumenta a ≥ ${minStirLabel}.`);
+          `Closed stirrups ${r.stirrup.bar} @ ${sStirrupProvided} mm — size ≥ §25.7.2.2 (${minStirLabel}); spacing ≤ ${sCompLimit.toFixed(0)} mm (min of 16·db,L=${(16 * dbCompMax).toFixed(0)}, 48·db,S=${(48 * stirDb).toFixed(0)}, b/h_min=${Math.min(g.bw, g.h).toFixed(0)}).`,
+          `Estribos cerrados ${r.stirrup.bar} @ ${sStirrupProvided} mm — tamaño ≥ §25.7.2.2 (${minStirLabel}); espaciamiento ≤ ${sCompLimit.toFixed(0)} mm (mín de 16·db,L, 48·db,S, b/h_mín).`,
+          { provided: sStirrupProvided, required: sCompLimit })
+      : !sizeOk
+        ? failItem(
+            'Compression bar lateral support §9.7.6.4',
+            ref(code, '9.7.6.4'),
+            `Stirrup size insufficient to laterally support compression bars. Increase stirrup bar to ≥ ${minStirLabel}.`,
+            `Tamaño del estribo insuficiente. Aumenta a ≥ ${minStirLabel}.`,
+            { provided: stirDb, required: compMinStirDb })
+        : failItem(
+            'Compression bar lateral support §9.7.6.4.3',
+            ref(code, '9.7.6.4.3'),
+            `Stirrup spacing ${sStirrupProvided} mm > limit ${sCompLimit.toFixed(0)} mm (min of 16·db,L=${(16 * dbCompMax).toFixed(0)}, 48·db,S=${(48 * stirDb).toFixed(0)}, b/h_min=${Math.min(g.bw, g.h).toFixed(0)}). Reduce stirrup spacing.`,
+            `Espaciamiento ${sStirrupProvided} mm > límite ${sCompLimit.toFixed(0)} mm (mín de 16·db,L=${(16 * dbCompMax).toFixed(0)}, 48·db,S=${(48 * stirDb).toFixed(0)}, b/h_mín=${Math.min(g.bw, g.h).toFixed(0)}). Reduce el espaciamiento.`,
+            { provided: sStirrupProvided, required: sCompLimit });
 
   // ============================================================================
   // Aggregate
