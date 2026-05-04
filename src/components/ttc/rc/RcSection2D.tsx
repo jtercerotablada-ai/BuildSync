@@ -20,8 +20,8 @@ interface Props {
  *   • All dimensions drafted with extension lines + double-headed arrows + value text.
  */
 export function RcSection2D({ input, result }: Props) {
-  const W = 1100, H = 620;
-  const padX = 30, padY = 50, padBottom = 130;
+  const W = 1100, H = 680;                   // taller canvas → breathing room
+  const padX = 30, padY = 80, padBottom = 140;   // more room above titles & below
 
   // Pane widths
   const sectionW = 290;
@@ -40,7 +40,7 @@ export function RcSection2D({ input, result }: Props) {
   const beamH = H - padY - padBottom;
   const scaleY = beamH / g.h;     // mm → px (vertical)
 
-  // Horizontal scale: choose based on widest dimension (bf for T-beam)
+  // Horizontal scale: choose based on widest dimension (bf for T/L/inv-T)
   const widestSection = g.shape !== 'rectangular' ? Math.max(g.bf ?? g.bw, g.bw) : g.bw;
   const scaleX = sectionW / widestSection * 0.55;     // tighter so dim lines fit
   const scaleBar = Math.min(scaleX, scaleY);
@@ -63,9 +63,23 @@ export function RcSection2D({ input, result }: Props) {
   const aPx = result.flexure.a * scaleY;
   const cPx = result.flexure.c * scaleY;
 
-  // Section outer/inner edges (px)
-  const secLeft = sectionCx - g.bw * scaleX / 2;
-  const secRight = sectionCx + g.bw * scaleX / 2;
+  // Pre-compute pixel widths per shape — needed BEFORE web edges
+  const bfPx = (g.bf ?? g.bw) * scaleX;
+  const bwPx = g.bw * scaleX;
+  const widestPx = Math.max(bfPx, bwPx);
+
+  // Outer envelope (= section bounding-box). Section is always centered on
+  // sectionCx within its own bbox so dim lines (h, c, d, etc.) hug the OUTSIDE
+  // of any flange overhang.
+  const outerLeft = g.shape === 'rectangular' ? sectionCx - bwPx / 2 : sectionCx - widestPx / 2;
+  const outerRight = g.shape === 'rectangular' ? sectionCx + bwPx / 2 : sectionCx + widestPx / 2;
+
+  // Web edges — for L-beam, the web is right-aligned inside the bbox; for
+  // rectangular / T-beam / inverted-T, the web is centered.
+  const webL = g.shape === 'L-beam' ? outerRight - bwPx : sectionCx - bwPx / 2;
+  const webR = g.shape === 'L-beam' ? outerRight : sectionCx + bwPx / 2;
+  const secLeft = webL;
+  const secRight = webR;
   const stirOutLeft = secLeft + g.coverClear * scaleX;
   const stirOutRight = secRight - g.coverClear * scaleX;
   const stirInLeft = stirOutLeft + stirrupDb * scaleX;
@@ -116,14 +130,16 @@ export function RcSection2D({ input, result }: Props) {
       {/* ═════════════════════════ SHARED NEUTRAL AXIS ═════════════════════════ */}
       <line x1={padX} y1={yNA} x2={W - padX} y2={yNA}
             stroke="#76b6c9" strokeWidth="0.7" strokeDasharray="6 4" opacity="0.7" />
-      <text x={W - padX - 4} y={yNA - 4} textAnchor="end"
+      {/* NA label sits in the GAP between strain pane and Whitney pane (visually
+          centered between the two diagrams, not pinned to far right). */}
+      <text x={(strainX + strainW + stressX) / 2} y={yNA - 5} textAnchor="middle"
             fontSize="9" fontStyle="italic" fill="#76b6c9">
         Neutral Axis · c = {fmt(result.flexure.c)} mm
       </text>
 
       {/* ═══════════════════ PANE 1 — CROSS SECTION ═══════════════════ */}
       <g>
-        <text x={sectionCx} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="rgba(255,255,255,0.92)">
+        <text x={sectionCx} y={padY - 50} textAnchor="middle" fontSize="13" fontWeight="700" fill="rgba(255,255,255,0.92)">
           CROSS SECTION
         </text>
 
@@ -162,16 +178,19 @@ export function RcSection2D({ input, result }: Props) {
             return <path d={path} fill={fill} stroke={stroke} strokeWidth="1.5" strokeLinejoin="miter" />;
           }
           if (g.shape === 'L-beam') {
-            // Asymmetric: flange extends only to the LEFT side, web aligned right
-            const webR = sectionCx + bwPx / 2;
-            const flangeL = webR - bfPx;       // flange spans from far-left to web's right edge
+            // Asymmetric L: bounding box centered on sectionCx; web is right-aligned
+            // inside the bbox, flange spans the full bbox width (= bf) over hf.
+            const bboxL = sectionCx - bfPx / 2;
+            const bboxR = sectionCx + bfPx / 2;
+            const webR = bboxR;
+            const webL = bboxR - bwPx;
             const path =
-              `M ${flangeL} ${sectionTop} ` +
+              `M ${bboxL} ${sectionTop} ` +
               `L ${webR} ${sectionTop} ` +
               `L ${webR} ${sectionTop + hPx} ` +
-              `L ${webR - bwPx} ${sectionTop + hPx} ` +
-              `L ${webR - bwPx} ${sectionTop + hfPx} ` +
-              `L ${flangeL} ${sectionTop + hfPx} Z`;
+              `L ${webL} ${sectionTop + hPx} ` +
+              `L ${webL} ${sectionTop + hfPx} ` +
+              `L ${bboxL} ${sectionTop + hfPx} Z`;
             return <path d={path} fill={fill} stroke={stroke} strokeWidth="1.5" strokeLinejoin="miter" />;
           }
           // Default: T-beam — flange on top, web below, both centered
@@ -265,21 +284,64 @@ export function RcSection2D({ input, result }: Props) {
         })()}
 
         {/* === DIMENSION LINES === */}
-        {/* b — width at bottom */}
-        <DimLineH y={sectionBot + 22} x1={secLeft} x2={secRight}
-                  label={`b = ${g.bw} mm`} />
+        {/* Bottom width dim — bw for rectangular/T/L (web at bottom), bf for inverted-T */}
+        {(() => {
+          const isInvT = g.shape === 'inverted-T';
+          const widthLabel = isInvT
+            ? `bf = ${g.bf ?? g.bw} mm`
+            : `bw = ${g.bw} mm`;
+          const xL = isInvT ? sectionCx - bfPx / 2 : secLeft;
+          const xR = isInvT ? sectionCx + bfPx / 2 : secRight;
+          return <DimLineH y={sectionBot + 22} x1={xL} x2={xR} label={widthLabel} />;
+        })()}
+        {/* Top width dim — only for non-rectangular: bf at top for T/L, bw at top for inv-T */}
+        {g.shape !== 'rectangular' && (() => {
+          const isInvT = g.shape === 'inverted-T';
+          const topLabel = isInvT
+            ? `bw = ${g.bw} mm`
+            : `bf = ${g.bf ?? g.bw} mm`;
+          const xL = isInvT ? sectionCx - bwPx / 2 : sectionCx - bfPx / 2;
+          const xR = isInvT ? sectionCx + bwPx / 2 : sectionCx + bfPx / 2;
+          // For L-beam, top width is along the right-aligned bbox
+          const lWebR = sectionCx + bfPx / 2;
+          const lXL = g.shape === 'L-beam' ? lWebR - bfPx : xL;
+          const lXR = g.shape === 'L-beam' ? lWebR : xR;
+          return <DimLineH y={sectionTop - 14} x1={lXL} x2={lXR}
+                           label={topLabel} color="#cbd5e1" />;
+        })()}
         {/* h — full height on left side (text further LEFT of line) */}
-        <DimLineV x={secLeft - 38} y1={sectionTop} y2={sectionBot}
+        <DimLineV x={outerLeft - 38} y1={sectionTop} y2={sectionBot}
                   label={`h = ${g.h} mm`} textOffset={-14} />
         {/* d — top to tension steel centroid (right side, text RIGHT of line) */}
-        <DimLineV x={secRight + 16} y1={sectionTop} y2={yTens}
+        <DimLineV x={outerRight + 16} y1={sectionTop} y2={yTens}
                   label={`d = ${g.d} mm`} color="#ff8a72" textOffset={14} />
         {/* c — top to neutral axis (left side, text LEFT of line) */}
-        <DimLineV x={secLeft - 12} y1={sectionTop} y2={yNA}
+        <DimLineV x={outerLeft - 12} y1={sectionTop} y2={yNA}
                   label={`c = ${fmt(result.flexure.c)} mm`} color="#76b6c9" textOffset={-14} />
         {/* d-c — NA to tension steel (far right, text RIGHT of line) */}
-        <DimLineV x={secRight + 38} y1={yNA} y2={yTens}
+        <DimLineV x={outerRight + 38} y1={yNA} y2={yTens}
                   label={`d - c = ${fmt(g.d - result.flexure.c)}`} color="rgba(255,255,255,0.6)" textOffset={14} />
+
+        {/* hf dim for non-rectangular sections — small flange-thickness callout */}
+        {g.shape !== 'rectangular' && (() => {
+          const hfPxLocal = (g.hf ?? 120) * scaleY;
+          const isInvT = g.shape === 'inverted-T';
+          // For inverted-T, flange is at bottom; for others, at top
+          const yA = isInvT ? sectionBot - hfPxLocal : sectionTop;
+          const yB = isInvT ? sectionBot : sectionTop + hfPxLocal;
+          // Place dim INSIDE the section on the right side of the web
+          const xLine = sectionCx + bwPx / 2 + 3;
+          return (
+            <g>
+              <line x1={xLine} y1={yA} x2={xLine + 8} y2={yA} stroke="#c9a84c" strokeWidth="0.4" strokeDasharray="2 1" />
+              <line x1={xLine} y1={yB} x2={xLine + 8} y2={yB} stroke="#c9a84c" strokeWidth="0.4" strokeDasharray="2 1" />
+              <text x={xLine + 12} y={(yA + yB) / 2 + 3}
+                    fontSize="8.5" fontStyle="italic" fill="#c9a84c">
+                hf = {g.hf ?? 120}
+              </text>
+            </g>
+          );
+        })()}
 
         {/* As label below the b-dimension line, with safe spacing from footer */}
         <text x={sectionCx} y={sectionBot + 42} textAnchor="middle"
@@ -290,7 +352,7 @@ export function RcSection2D({ input, result }: Props) {
 
       {/* ═══════════════════ PANE 2 — STRAIN DIAGRAM ═══════════════════ */}
       <g>
-        <text x={strainX + strainW / 2} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="rgba(255,255,255,0.92)">
+        <text x={strainX + strainW / 2} y={padY - 50} textAnchor="middle" fontSize="13" fontWeight="700" fill="rgba(255,255,255,0.92)">
           STRAIN DIAGRAM
         </text>
 
@@ -378,8 +440,10 @@ export function RcSection2D({ input, result }: Props) {
           );
         })()}
 
-        {/* "(compression)" / "(tension)" small labels */}
-        <text x={strainAxisX - strainMaxOff / 2} y={sectionTop - 28} textAnchor="middle"
+        {/* "(compression)" / "(tension)" small italic legends — sit ~22 px above
+             the strain triangle apex, below the title row, so they don't crowd
+             either the bold STRAIN DIAGRAM title nor the εcu = 0.003 callout. */}
+        <text x={strainAxisX - strainMaxOff / 2} y={sectionTop - 24} textAnchor="middle"
               fontSize="8.5" fill="#ff8a72" fontStyle="italic">
           ← compression
         </text>
@@ -409,7 +473,7 @@ export function RcSection2D({ input, result }: Props) {
 
       {/* ═══════════════════ PANE 3 — WHITNEY STRESS BLOCK ═══════════════════ */}
       <g>
-        <text x={stressX + 170} y={padY - 28} textAnchor="middle" fontSize="12" fontWeight="700" fill="rgba(255,255,255,0.92)">
+        <text x={stressX + 170} y={padY - 50} textAnchor="middle" fontSize="13" fontWeight="700" fill="rgba(255,255,255,0.92)">
           WHITNEY STRESS BLOCK
         </text>
 
@@ -442,15 +506,21 @@ export function RcSection2D({ input, result }: Props) {
                   label={`a = β₁·c = ${fmt(result.flexure.a)} mm`}
                   color="#e2766b" textOffset={14} />
 
-        {/* a/2 lever-arm marker (where C resultant acts) */}
+        {/* a/2 lever-arm marker — small caret on LEFT side of the stress block,
+            with text further LEFT (outside the block) so it never sits on top of
+            the 0.85·f'c top dim line or the C-force arrows. */}
         {(() => {
           const yC = sectionTop + aPx / 2;
+          // Put text well outside the stress-block left edge to keep clear
+          // both of the inside arrows and of the top 0.85·f'c dim text.
+          const tickL = stressLeft - 22;
+          const tickR = stressLeft - 2;
           return (
             <g>
-              <line x1={stressLeft - 16} y1={yC} x2={stressLeft - 4} y2={yC}
+              <line x1={tickL} y1={yC} x2={tickR} y2={yC}
                     stroke="#e2766b" strokeWidth="0.7" strokeDasharray="2 2" />
-              <text x={stressLeft - 18} y={yC + 3} textAnchor="end"
-                    fontSize="8.5" fontStyle="italic" fill="#ff8a72">
+              <text x={tickL - 4} y={yC + 3} textAnchor="end"
+                    fontSize="9" fontStyle="italic" fontWeight="600" fill="#ff8a72">
                 a/2
               </text>
             </g>
