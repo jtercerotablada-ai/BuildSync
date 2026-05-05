@@ -8,6 +8,9 @@ import { analyzeFooting } from '@/lib/footing/solver';
 import { FOOTING_PRESETS } from '@/lib/footing/presets';
 import { buildCheckSummary, formatRatio } from '@/lib/footing/format';
 import { BAR_CATALOG } from '@/lib/rc/types';
+import { FootingPlan2D } from './FootingPlan2D';
+import { FootingSection2D } from './FootingSection2D';
+import { PunchingDiagram2D } from './PunchingDiagram2D';
 
 // ─── State management ──────────────────────────────────────────────────────
 
@@ -60,7 +63,7 @@ function reducer(state: FootingInput, action: Action): FootingInput {
 
 // ─── Tab type ──────────────────────────────────────────────────────────────
 
-type Tab = 'inputs' | 'checks' | 'refs';
+type Tab = 'inputs' | 'drawings' | 'checks' | 'refs';
 
 // ─── Number input helper ───────────────────────────────────────────────────
 
@@ -158,9 +161,10 @@ export function FoundationCalculator() {
       {/* Tab nav */}
       <nav className="ab-tabs" aria-label="Foundation design tabs">
         {([
-          ['inputs', '📋 Inputs'],
-          ['checks', '🔬 Checks'],
-          ['refs',   '📚 References'],
+          ['inputs',   '📋 Inputs'],
+          ['drawings', '📐 Drawings'],
+          ['checks',   '🔬 Checks'],
+          ['refs',     '📚 References'],
         ] as const).map(([id, label]) => (
           <button key={id} type="button"
             className={`ab-tab ${tab === id ? 'ab-tab--active' : ''}`}
@@ -169,9 +173,10 @@ export function FoundationCalculator() {
       </nav>
 
       {/* Tab content */}
-      {tab === 'inputs' && <InputsTab model={model} dispatch={dispatch} />}
-      {tab === 'checks' && <ChecksTab result={result} summary={summary} />}
-      {tab === 'refs'   && <RefsTab />}
+      {tab === 'inputs'   && <InputsTab model={model} dispatch={dispatch} />}
+      {tab === 'drawings' && <DrawingsTab input={model} result={result} />}
+      {tab === 'checks'   && <ChecksTab result={result} summary={summary} />}
+      {tab === 'refs'     && <RefsTab />}
 
       {result.warnings.length > 0 && (
         <section className="slab-card" style={{ marginTop: '1rem', borderColor: 'rgba(201,168,76,0.35)' }}>
@@ -386,6 +391,27 @@ function ChecksTab({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ─── DRAWINGS TAB ──────────────────────────────────────────────────────────
+
+function DrawingsTab({ input, result }: { input: FootingInput; result: ReturnType<typeof analyzeFooting> }) {
+  return (
+    <div className="slab-inputs-grid">
+      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+        <h4>Plan view (top-down)</h4>
+        <FootingPlan2D input={input} result={result} />
+      </div>
+      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+        <h4>Cross-section A-A</h4>
+        <FootingSection2D input={input} result={result} />
+      </div>
+      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+        <h4>Punching shear diagram</h4>
+        <PunchingDiagram2D input={input} result={result} />
+      </div>
     </div>
   );
 }
