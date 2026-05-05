@@ -12,6 +12,7 @@ import { BAR_CATALOG } from '@/lib/rc/types';
 import { FootingPlan2D } from './FootingPlan2D';
 import { FootingSection2D } from './FootingSection2D';
 import { PunchingDiagram2D } from './PunchingDiagram2D';
+import { FootingPrintReport } from './FootingPrintReport';
 
 // Dynamic-import the 3D viewer (R3F adds ~200kB; defer until needed)
 const Footing3D = dynamic(() => import('./Footing3D').then((m) => m.Footing3D), {
@@ -98,12 +99,24 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 export function FoundationCalculator() {
   const [model, dispatch] = useReducer(reducer, undefined, () => FOOTING_PRESETS[1].build());
   const [tab, setTab] = useState<Tab>('inputs');
+  const [cover3dDataUrl, setCover3dDataUrl] = useState<string | undefined>();
 
   const result = useMemo(() => analyzeFooting(model), [model]);
   const summary = useMemo(() => buildCheckSummary(result), [result]);
 
+  const handlePrint = () => {
+    const canvas = document.querySelector('.rc-3d__canvas canvas') as HTMLCanvasElement | null;
+    if (canvas) {
+      try { setCover3dDataUrl(canvas.toDataURL('image/png')); }
+      catch (e) { console.warn('3D capture failed:', e); }
+    }
+    setTimeout(() => window.print(), 80);
+  };
+
   return (
     <div className="ab-root">
+      <FootingPrintReport input={model} result={result} cover3dDataUrl={cover3dDataUrl} />
+
       {/* Templates */}
       <section className="ab-section">
         <header className="ab-section__header">
@@ -163,6 +176,9 @@ export function FoundationCalculator() {
             {result.ok ? '✓ PASS' : '✗ FAIL'}
           </span>
         </div>
+        <button type="button" className="ab-btn ab-btn--primary slab-print-btn" onClick={handlePrint}>
+          ⎙ Print full report
+        </button>
       </section>
 
       {/* Tab nav */}
@@ -329,6 +345,21 @@ function InputsTab({ model, dispatch }: { model: FootingInput; dispatch: React.D
           <Field label="μ — friction coefficient">
             <Num val={model.frictionMu ?? 0.45} step={0.05}
               onChange={(v) => dispatch({ type: 'SET_LATERAL', mu: v })} />
+          </Field>
+        </div>
+      </div>
+
+      {/* Branding (for print report) */}
+      <div className="slab-card">
+        <h4>Print branding (optional)</h4>
+        <div className="slab-fields">
+          <Field label="Company name">
+            <input type="text" value={model.branding?.companyName ?? ''}
+              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyName: e.target.value } })} />
+          </Field>
+          <Field label="Tagline / project ID">
+            <input type="text" value={model.branding?.companyTagline ?? ''}
+              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyTagline: e.target.value } })} />
           </Field>
         </div>
       </div>
