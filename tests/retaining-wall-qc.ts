@@ -527,7 +527,62 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 21: Validation of results vs expected');
+console.log('BLOCK 21: Basement (restrained-top) wall — propped cantilever');
+console.log('==========================================');
+{
+  // Stem 4 m tall, propped at top by floor slab (pinned). Active pressure
+  // governed by Ka·γ·H at base (typical basement wall).
+  const basement: WallInput = {
+    code: 'ACI 318-25',
+    geometry: {
+      kind: 'basement',
+      H_stem: 4000, t_stem_top: 300, t_stem_bot: 350,
+      B_toe: 600, B_heel: 1200, H_foot: 500,
+      backfillSlope: 0, frontFill: 0,
+      topElevation: 4000, topFixity: 'pinned',
+    },
+    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
+    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
+    baseSoil: {
+      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
+      delta: 20 * Math.PI / 180, ca: 0, qAllow: 250, passiveEnabled: false,
+    },
+    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+    loads: { surchargeQ: 10, seismic: { kh: 0, kv: 0 } },
+    theory: 'rankine',
+    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
+  };
+  const r = solveWall(basement);
+  // p_max,tri = γ·Ka·H = 18 · 0.307 · 4 = 22.10 kPa
+  // Ka(rankine, 32°, level) = (1-sin32)/(1+sin32) = 0.307
+  // M_base,tri = (7/120) · 22.10 · 16 = 20.63 kN·m/m  (unfactored)
+  // Factored × 1.6 = 33.0 kN·m/m
+  const Ka = (1 - Math.sin(32*Math.PI/180)) / (1 + Math.sin(32*Math.PI/180));
+  const p_tri = 18 * Ka * 4;
+  const Mbase_tri = (7/120) * p_tri * 16;
+  // Surcharge (q=10): p_uni = Ka · 10 = 3.07 kPa, M_base,uni = (1/8)·3.07·16 = 6.13
+  const p_uni = Ka * 10;
+  const Mbase_uni = (1/8) * p_uni * 16;
+  const Mbase_expected_factored = 1.6 * (Mbase_tri + Mbase_uni);
+  console.log(`  M_base expected = ${Mbase_expected_factored.toFixed(2)} kN·m/m, solver = ${r.stem.Mu.toFixed(2)}`);
+  expect('Basement stem M_base (factored)', r.stem.Mu, Mbase_expected_factored, 0.05);
+  expectBool('Basement returned topSupport', !!r.topSupport, true);
+  if (r.topSupport) {
+    // R_top,tri = (9/40) · 22.10 · 4 = 19.89 kN/m, R_top,uni = (3/8) · 3.07 · 4 = 4.61
+    const Rtri = (9/40) * p_tri * 4;
+    const Runi = (3/8) * p_uni * 4;
+    const R_expected = 1.6 * (Rtri + Runi);
+    expect('Basement top reaction (factored)', r.topSupport.reaction, R_expected, 0.05);
+  }
+  expectBool('Stem returns frontFace (positive moment)', !!r.stem.frontFace, true);
+  if (r.stem.frontFace) {
+    expectBool('Front-face Mu > 0 (positive span moment)', r.stem.frontFace.Mu > 0, true);
+    expectBool('Front-face As_req ≥ As_min', r.stem.frontFace.As_req >= r.stem.As_min, true);
+  }
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 22: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);
