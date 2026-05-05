@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import type { WallInput, WallKind } from '@/lib/retaining-wall/types';
 import { DEFAULT_INPUT, solveWall, defaultGeometryFor } from '@/lib/retaining-wall/solve';
 import { autoDesign } from '@/lib/retaining-wall/autoDesign';
+import { RetainingWallPrintReport } from './RetainingWallPrintReport';
 import type { UnitSystem } from '@/lib/beam/units';
 import { GeometryPanel } from './GeometryPanel';
 import { MaterialsPanel } from './MaterialsPanel';
@@ -47,6 +48,38 @@ export function RetainingWallCalculator() {
   const failCount = results?.errors.length ?? 0;
   const issueCount = results?.issues.length ?? 0;
 
+  const [cover2dDataUrl, setCover2dDataUrl] = useState<string | undefined>();
+
+  const captureCover2d = useCallback(() => {
+    // Find the first SVG inside the wall canvas — serialize to PNG via blob
+    const svg = document.querySelector('.rw__canvas svg') as SVGSVGElement | null;
+    if (!svg) return;
+    try {
+      const xml = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = svg.clientWidth || 900;
+        canvas.height = svg.clientHeight || 600;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.fillStyle = '#0c0d12';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        try { setCover2dDataUrl(canvas.toDataURL('image/png')); } catch { /* CORS */ }
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    } catch { /* swallow — print still works without snapshot */ }
+  }, []);
+
+  const handlePrint = useCallback(() => {
+    captureCover2d();
+    setTimeout(() => window.print(), 120);
+  }, [captureCover2d]);
+
   const handleKindChange = (k: WallKind) => {
     setInput((s) => {
       const newGeom = defaultGeometryFor(k, s.geometry);
@@ -58,6 +91,11 @@ export function RetainingWallCalculator() {
 
   return (
     <div className="rw">
+      {/* Print-only report (hidden on screen via .slab-print-portal CSS) */}
+      {results && (
+        <RetainingWallPrintReport input={input} result={results} cover2dDataUrl={cover2dDataUrl} />
+      )}
+
       <WallTypeChooser kind={input.geometry.kind} onChange={handleKindChange} />
 
       <div className="rw__toolbar">
@@ -124,6 +162,13 @@ export function RetainingWallCalculator() {
             title="Iteratively size the wall until every check passes"
           >
             ⚙ Auto-Design
+          </button>
+          <button
+            className="btn btn--accent slab-print-btn"
+            onClick={handlePrint}
+            title="Generate a multi-page PDF report"
+          >
+            ⎙ Print full report
           </button>
           <button className="btn btn--ghost" onClick={() => setInput(DEFAULT_INPUT)}>
             Reset
