@@ -648,11 +648,18 @@ function checkDevelopment(input: FootingInput, direction: 'X' | 'Y'): Developmen
   const divisor = dbBar <= 19 ? 1.4 : 1.1;
   const ld_ratio = (m.fy * psiT * psiE * psiG) / (divisor * lambda * Math.sqrt(m.fc));
   const ld = Math.max(300, ld_ratio * dbBar);
-  const ok = embedment >= ld;
-  const hookRequired = !ok;
+  // Hooks are STANDARD practice in footings when straight embedment < ld.
+  // Per ACI §25.4.3, a 90° hook reduces development to ldh ≈ 0.24·fy/(λ·√fc')·db
+  // which is typically < 250 mm — fits in any footing. So development NEVER
+  // fails outright; we just flag whether hooks are required for detailing.
+  const hookRequired = embedment < ld;
+  // ldh (with hook) per §25.4.3 simplified
+  const ldh = Math.max(150, 8 * dbBar, 0.24 * m.fy / (lambda * Math.sqrt(m.fc)) * dbBar);
+  const okWithHook = embedment >= ldh;
+  const ok = !hookRequired || okWithHook;
   return {
     direction, ld, embedment, ok, hookRequired,
-    ref: ref(code, '25.4.2.3'),
+    ref: ref(code, '25.4.2.3 / 25.4.3'),
     steps: [
       {
         title: `Development length ld (${direction})`,
@@ -660,13 +667,19 @@ function checkDevelopment(input: FootingInput, direction: 'X' | 'Y'): Developmen
           ? 'ld = (fy·ψt·ψe·ψg / (1.4·λ·√fʹc))·db ≥ 300 mm  [#6 and smaller]'
           : 'ld = (fy·ψt·ψe·ψg / (1.1·λ·√fʹc))·db ≥ 300 mm  [#7 and larger]',
         substitution: `db = ${dbBar.toFixed(1)} mm, fy = ${m.fy} MPa, fc = ${m.fc} MPa, ψg = ${psiG}`,
-        result: `ld = ${ld.toFixed(0)} mm`,
+        result: `ld = ${ld.toFixed(0)} mm (straight)`,
       },
       {
         title: 'Available embedment from face of column',
         formula: 'embedment = cantilever − cover',
         substitution: `cantilever = ${cantilever.toFixed(0)}, cover = ${g.coverClear}`,
-        result: `embedment = ${embedment.toFixed(0)} mm ${ok ? '✓' : '✗ HOOK REQUIRED'}`,
+        result: `embedment = ${embedment.toFixed(0)} mm`,
+      },
+      {
+        title: hookRequired ? '90° standard hook required (§25.4.3)' : 'Straight embedment sufficient',
+        formula: hookRequired ? 'ldh = max(150, 8·db, 0.24·fy/(λ·√fʹc)·db)' : 'ld ≤ embedment',
+        substitution: hookRequired ? `ldh = ${ldh.toFixed(0)} mm` : 'OK as straight bar',
+        result: ok ? '✓ OK (with hook if required)' : '✗ Even hooked bar does not fit — increase footing',
       },
     ],
   };
@@ -706,8 +719,10 @@ export function analyzeFooting(input: FootingInput): FootingAnalysis {
     if (!sliding.notApplicable && !sliding.ok) warnings.push(`Sliding FOS = ${sliding.FOS.toFixed(2)} < 1.5 — add shear key or increase weight.`);
     if (!barFitX.ok) warnings.push(`Bottom-X bar spacing out of bounds (s_clear = ${barFitX.s_clear.toFixed(0)} mm).`);
     if (!barFitY.ok) warnings.push(`Bottom-Y bar spacing out of bounds (s_clear = ${barFitY.s_clear.toFixed(0)} mm).`);
-    if (developmentX.hookRequired) warnings.push(`Bottom-X dev. length (${developmentX.ld.toFixed(0)} mm) > available embedment — provide 90° hook.`);
-    if (developmentY.hookRequired) warnings.push(`Bottom-Y dev. length (${developmentY.ld.toFixed(0)} mm) > available embedment — provide 90° hook.`);
+    // hookRequired is INFORMATIONAL (not a fail) — footings routinely use 90°
+    // hooks at bar ends. Only emit a warning if even hooked bars don't fit.
+    if (!developmentX.ok) warnings.push(`Bottom-X bars cannot develop even with hook — increase footing size.`);
+    if (!developmentY.ok) warnings.push(`Bottom-Y bars cannot develop even with hook — increase footing size.`);
 
     const ok = bearing.ok && punching.ok && shearX.ok && shearY.ok &&
                flexureX.ok && flexureY.ok && bearingInterface.ok &&
