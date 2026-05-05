@@ -27,7 +27,7 @@ const designTools: Tool[] = [
   { iconKey: 'loadGen', titleKey: 'tool.loadGen', descKey: 'tool.loadGen.desc', status: 'available', href: '/resources/load-gen' },
   { iconKey: 'connection', titleKey: 'tool.connection', descKey: 'tool.connection.desc', status: 'coming-soon' },
   { iconKey: 'basePlate', titleKey: 'tool.basePlate', descKey: 'tool.basePlate.desc', status: 'available', href: '/resources/base-plate' },
-  { iconKey: 'foundation', titleKey: 'tool.foundation', descKey: 'tool.foundation.desc', status: 'coming-soon' },
+  { iconKey: 'foundation', titleKey: 'tool.foundation', descKey: 'tool.foundation.desc', status: 'available', href: '/resources/foundation-design' },
   { iconKey: 'rcDesign', titleKey: 'tool.rcDesign', descKey: 'tool.rcDesign.desc', status: 'available', href: '/resources/rc-design' },
   { iconKey: 'memberDesign', titleKey: 'tool.memberDesign', descKey: 'tool.memberDesign.desc', status: 'coming-soon' },
   { iconKey: 'composite', titleKey: 'tool.composite', descKey: 'tool.composite.desc', status: 'coming-soon' },
