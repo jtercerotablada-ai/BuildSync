@@ -121,10 +121,10 @@ export function CantileverViewer3D({ input, result }: Props) {
     <div className="rw-3d slab-3d cantilever-3d">
       <div className="slab-3d__controls">
         <span className="slab-3d__hint">
-          Cantilever · B = {Bfoot.toFixed(2)} m · H = {(Hstem + Hfoot).toFixed(2)} m ·
-          Stem: {stemVert.label}@{stemVert.spacing.toFixed(0)} ·
-          Heel: {heelTop.label}@{heelTop.spacing.toFixed(0)} ·
-          Toe: {toeBot.label}@{toeBot.spacing.toFixed(0)}
+          Muro cantilever · B = {Bfoot.toFixed(2)} m · H = {(Hstem + Hfoot).toFixed(2)} m ·
+          Fuste: {stemVert.label}@{stemVert.spacing.toFixed(0)} mm ·
+          Talón: {heelTop.label}@{heelTop.spacing.toFixed(0)} mm ·
+          Punta: {toeBot.label}@{toeBot.spacing.toFixed(0)} mm
         </span>
       </div>
       <div className="rc-3d__canvas slab-3d__canvas">
@@ -394,8 +394,10 @@ function StemHorizontalBars({
       <cylinderGeometry args={[db / 2, db / 2, 1, 10]} />
       <RebarMaterial />
       {bars.map((b, i) => (
+        // Cylinder default axis = Y. We want the bar oriented along Z
+        // (the wall length). Rotate around X by π/2 to swing Y → Z.
         <Instance key={i} position={[b.x, b.y, b.z]} scale={[1, b.len, 1]}
-                  rotation={[0, 0, Math.PI / 2]} />
+                  rotation={[Math.PI / 2, 0, 0]} />
       ))}
     </Instances>
   );
@@ -495,7 +497,86 @@ function FootingLongitudinalBars({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DRAINAGE
+// DRAINAGE — gravel pack (instanced stones) + perforated pipe
+//
+// The gravel is rendered as ~140 instanced icosahedron "stones" with random
+// positions, sizes, rotations and 3 grayscale tones. A very-faint backing
+// box (opacity 0.18) fills the volume so when the camera orbits we don't
+// see straight through to the rebar — it gives the gravel pack mass.
+
+function DrainageGravel({
+  xc, Hstem, wallL, gravelT,
+}: {
+  xc: number; Hstem: number; wallL: number; gravelT: number;
+}) {
+  // Deterministic PRNG so the stone layout is stable across renders for the
+  // same geometry — only changes when dimensions change.
+  const stones = useMemo(() => {
+    const seed = Math.floor(Hstem * 1000 + wallL * 137 + gravelT * 7919);
+    let s = seed >>> 0;
+    const rand = () => {
+      s = (s + 0x6d2b79f5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const items: Array<{
+      x: number; y: number; z: number;
+      r: number; rot: [number, number, number]; tone: number;
+    }> = [];
+    const count = 140;
+    const margin = 0.03;
+    for (let i = 0; i < count; i++) {
+      // Position INSIDE the gravel volume
+      const x = xc + (rand() - 0.5) * (gravelT - margin * 2);
+      const y = margin + rand() * (Hstem - margin * 2);
+      const z = (rand() - 0.5) * (wallL - margin * 2);
+      // Sizes 12–34 mm (0.012–0.034 m), with a few larger 40 mm stones
+      const r = 0.012 + rand() * 0.022 + (rand() > 0.92 ? 0.012 : 0);
+      const rot: [number, number, number] = [rand() * Math.PI, rand() * Math.PI, rand() * Math.PI];
+      const tone = rand();    // [0, 1) → picks one of 3 grayscale tones
+      items.push({ x, y, z, r, rot, tone });
+    }
+    return items;
+  }, [xc, Hstem, wallL, gravelT]);
+
+  return (
+    <group>
+      {/* Faint backing box so the gravel column has mass — opacity low so
+          the rebar behind it is still readable. */}
+      <mesh position={[xc, Hstem / 2, 0]}>
+        <boxGeometry args={[gravelT, Hstem, wallL]} />
+        <meshStandardMaterial color="#7a7a76" roughness={0.95} metalness={0.0}
+          transparent opacity={0.18} depthWrite={false} />
+      </mesh>
+      {/* Three instanced groups by tone — three slightly different colours
+          gives that natural mixed-pebble look. Icosahedron with detail=0
+          has 12 faces, looks like a chunk of crushed stone. */}
+      {[
+        { color: '#9c9c97', filter: (t: number) => t < 0.4 },
+        { color: '#6e6e6a', filter: (t: number) => t >= 0.4 && t < 0.75 },
+        { color: '#c4c4be', filter: (t: number) => t >= 0.75 },
+      ].map((band, k) => {
+        const subset = stones.filter((s) => band.filter(s.tone));
+        return (
+          <Instances key={k} limit={200} castShadow receiveShadow>
+            <icosahedronGeometry args={[1, 0]} />
+            <meshStandardMaterial color={band.color} roughness={0.95} metalness={0.05} />
+            {subset.map((p, i) => (
+              <Instance key={i}
+                position={[p.x, p.y, p.z]}
+                scale={[p.r, p.r, p.r]}
+                rotation={p.rot}
+              />
+            ))}
+          </Instances>
+        );
+      })}
+    </group>
+  );
+}
+
 function DrainageGroup({
   xRear, Hstem, wallL, gravelT, pipeD,
 }: {
@@ -504,12 +585,8 @@ function DrainageGroup({
   const gravelXc = xRear + gravelT / 2;
   return (
     <group>
-      {/* Gravel pack — semi-transparent so the wall + rebar are visible through it */}
-      <mesh position={[gravelXc, Hstem / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[gravelT, Hstem, wallL]} />
-        <meshStandardMaterial color="#9c9c97" roughness={0.85} metalness={0.05}
-          transparent opacity={0.85} />
-      </mesh>
+      {/* Realistic gravel pack — instanced stones with mass-fill backing */}
+      <DrainageGravel xc={gravelXc} Hstem={Hstem} wallL={wallL} gravelT={gravelT} />
       {/* Drain pipe */}
       <mesh position={[gravelXc, pipeD / 2 + 0.03, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
         <cylinderGeometry args={[pipeD / 2, pipeD / 2, wallL * 0.95, 18]} />
