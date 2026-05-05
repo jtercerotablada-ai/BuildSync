@@ -29,6 +29,7 @@ const designTools: Tool[] = [
   { iconKey: 'basePlate', titleKey: 'tool.basePlate', descKey: 'tool.basePlate.desc', status: 'available', href: '/resources/base-plate' },
   { iconKey: 'foundation', titleKey: 'tool.foundation', descKey: 'tool.foundation.desc', status: 'available', href: '/resources/foundation-design' },
   { iconKey: 'foundation', titleKey: 'tool.combinedFooting', descKey: 'tool.combinedFooting.desc', status: 'available', href: '/resources/combined-footing' },
+  { iconKey: 'foundation', titleKey: 'tool.matFoundation', descKey: 'tool.matFoundation.desc', status: 'available', href: '/resources/mat-foundation' },
   { iconKey: 'rcDesign', titleKey: 'tool.rcDesign', descKey: 'tool.rcDesign.desc', status: 'available', href: '/resources/rc-design' },
   { iconKey: 'memberDesign', titleKey: 'tool.memberDesign', descKey: 'tool.memberDesign.desc', status: 'coming-soon' },
   { iconKey: 'composite', titleKey: 'tool.composite', descKey: 'tool.composite.desc', status: 'coming-soon' },
