@@ -91,16 +91,24 @@ export function Rc3D({ input, result }: Props) {
           <BeamConcrete bw={bw} h={h} L={L} bf={bf} hf={hf}
                         shape={g.shape} cutaway={cutaway} />
 
-          {/* Tension rebar */}
-          {showRebar && <TensionRebar input={input} bw={bw} h={h} L={L} cover={cover} mat={rebarMaterial} />}
-
-          {/* Compression rebar */}
-          {showRebar && (input.reinforcement.compression?.length ?? 0) > 0 && (
-            <CompressionRebar input={input} bw={bw} L={L} cover={cover} mat={rebarMaterial} />
+          {/* Layered rebar — Phase 6: when reinforcement.layers is present
+              (continuous-beam mode), render each layer at its proper xStart/
+              xEnd / position. Otherwise fall back to legacy tension /
+              compression / skin rendering. */}
+          {showRebar && (input.reinforcement.layers?.length ?? 0) > 0 ? (
+            <LayeredRebar input={input} bw={bw} h={h} L={L} cover={cover} mat={rebarMaterial} />
+          ) : (
+            <>
+              {/* Tension rebar */}
+              {showRebar && <TensionRebar input={input} bw={bw} h={h} L={L} cover={cover} mat={rebarMaterial} />}
+              {/* Compression rebar */}
+              {showRebar && (input.reinforcement.compression?.length ?? 0) > 0 && (
+                <CompressionRebar input={input} bw={bw} L={L} cover={cover} mat={rebarMaterial} />
+              )}
+              {/* Skin rebar (h > 900 mm, ACI §9.7.2.3) */}
+              {showRebar && <SkinRebar input={input} bw={bw} h={h} L={L} cover={cover} mat={rebarMaterial} />}
+            </>
           )}
-
-          {/* Skin rebar (h > 900 mm, ACI §9.7.2.3) */}
-          {showRebar && <SkinRebar input={input} bw={bw} h={h} L={L} cover={cover} mat={rebarMaterial} />}
 
           {/* Stirrups */}
           {showStirrups && <Stirrups input={input} bw={bw} h={h} L={L} cover={cover} mat={rebarStirrupMaterial} />}
@@ -223,6 +231,74 @@ function BeamConcrete({ bw, h, L, bf, hf, shape, cutaway }: {
 // ============================================================================
 // Tension rebar (along the bottom) — placed INSIDE the stirrup inner envelope
 // ============================================================================
+// ============================================================================
+// Layered rebar (Phase 6) — render each layer with its xStart/xEnd
+// ============================================================================
+//
+// Beam frame in 3D:
+//   X = beam length (along beam axis), origin at midspan
+//   Y = beam height (positive = up), origin at mid-height
+//   Z = beam width, origin at midwidth
+//
+// xStart/xEnd in Reinforcement.layers are in mm from LEFT support. Convert
+// to local X by subtracting L_total/2 and dividing by 1000 (m).
+//
+function LayeredRebar({ input, bw, h, L, cover, mat }: {
+  input: BeamInput; bw: number; h: number; L: number; cover: number;
+  mat: THREE.Material;
+}) {
+  const layers = input.reinforcement.layers ?? [];
+  if (layers.length === 0) return null;
+
+  const stirrupDb = (lookupBar(input.reinforcement.stirrup.bar)?.db ?? 9.5) * MM_TO_M;
+  const Ltot_m = L;          // L is already in m here (L = g.L * MM_TO_M)
+  void cover;
+
+  return (
+    <group>
+      {layers.map((layer, layerIdx) => {
+        const dbBar = (lookupBar(layer.bar)?.db ?? 25) * MM_TO_M;
+        const layerLen_m = (layer.xEnd - layer.xStart) / 1000;
+        const xStart_m = layer.xStart / 1000;
+        const xCenter_m = xStart_m + layerLen_m / 2 - Ltot_m / 2;     // local X (origin at mid-beam)
+
+        // Y position: top vs bottom face
+        // For 'top': y = h/2 - topBotDistance (measure DOWN from top face)
+        // For 'bottom': y = -h/2 + topBotDistance (measure UP from bottom face)
+        const topBotDistance_m = layer.topBotDistance / 1000;
+        const yPos = layer.position === 'top'
+          ? h / 2 - topBotDistance_m
+          : -h / 2 + topBotDistance_m;
+
+        // Distribute bars across width (between stirrup inner faces)
+        const innerWidth = bw - 2 * (cover + stirrupDb + dbBar);
+        const dx = layer.count > 1 ? innerWidth / (layer.count - 1) : 0;
+        const xLeft = -innerWidth / 2;       // Z coordinate (across width)
+
+        return (
+          <group key={`layer-${layerIdx}`}>
+            {Array.from({ length: layer.count }, (_, i) => {
+              const zPos = layer.count === 1 ? 0 : xLeft + i * dx;
+              return (
+                <mesh
+                  key={`bar-${layerIdx}-${i}`}
+                  position={[xCenter_m, yPos, zPos]}
+                  rotation={[0, 0, Math.PI / 2]}
+                  material={mat}
+                  castShadow
+                  receiveShadow
+                >
+                  <cylinderGeometry args={[dbBar / 2, dbBar / 2, layerLen_m, 16]} />
+                </mesh>
+              );
+            })}
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
 function TensionRebar({ input, bw, h, L, cover, mat }: {
   input: BeamInput; bw: number; h: number; L: number; cover: number;
   mat: THREE.Material;

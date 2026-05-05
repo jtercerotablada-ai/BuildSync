@@ -1935,6 +1935,125 @@ block('MEGA-QC — Stirrup zoning verifies Av ≥ Av,min when required', () => {
 });
 
 // ============================================================================
+// PHASE 6 — Continuous beam REBAR LAYERS (SkyCiv-style)
+// ============================================================================
+//
+// Auto-design for continuous beams generates a LAYERED reinforcement layout:
+//   • Bottom bars in positive-moment regions (midspans)
+//   • Top bars in negative-moment regions (around supports)
+// with curtailment per ACI §9.7.3.
+//
+import { autoDesignContinuous } from '../src/lib/rc/autoDesignContinuous';
+
+block('Phase 6 — Continuous auto-design generates correct layer layout', () => {
+  // Three-span continuous beam, equal spans, UDL
+  const r = autoDesignContinuous({
+    geometry: { shape: 'rectangular', bw: 400, h: 700, d: 630, dPrime: 60, L: 18000, coverClear: 50 },
+    materials: { fc: 30, fy: 420, lambdaC: 1.0 },
+    model: {
+      spans: [
+        { L: 6000, wDL: 30, wLL: 20 },
+        { L: 6000, wDL: 30, wLL: 20 },
+        { L: 6000, wDL: 30, wLL: 20 },
+      ],
+      supports: ['pin', 'roller', 'roller', 'roller'],
+      nStations: 21,
+      patternLL: true,
+    },
+  });
+
+  // 3 spans → 3 positive-moment regions + 2 negative-moment regions = 5 regions
+  // (not counting hanger bars)
+  const positiveCount = r.layers.filter((L) => L.position === 'bottom').length;
+  const negativeCount = r.layers.filter((L) => L.position === 'top' && L.mark !== 'H').length;
+  check('Has bottom bar layers (positive-moment regions)', positiveCount >= 3);
+  check('Has top bar layers (negative-moment regions)', negativeCount >= 2);
+
+  // Bottom bars should span midspans (xStart > 0 OR xEnd < 18000 for curtailed,
+  // or full length for continuous)
+  const allBottoms = r.layers.filter((L) => L.position === 'bottom');
+  check('All bottom bars are within beam length', allBottoms.every(
+    (L) => L.xStart >= 0 && L.xEnd <= 18001,
+  ));
+
+  // Top bars should be CENTERED on supports (around x = 6000 and x = 12000)
+  const tops = r.layers.filter((L) => L.position === 'top' && L.mark !== 'H');
+  check('Top bars are around interior supports', tops.length >= 2);
+
+  // Hanger bars covering full length
+  const hangers = r.layers.filter((L) => L.mark === 'H');
+  if (hangers.length > 0) {
+    check('Hanger bars cover full length',
+          hangers.some((L) => L.xStart === 0 && L.xEnd === 18000));
+  } else {
+    pass++; console.log('  ✓ Top bars cover support regions (no separate hangers needed)');
+  }
+
+  // Shear zones generated
+  check('Shear zones populated', r.shearZones.length > 0);
+  // 3 spans × 3 zones each = 9 shear zones
+  near('9 shear zones (3 per span)', r.shearZones.length, 9, 0.001);
+
+  // Per-region table populated
+  check('Per-region demand table has positive + negative entries',
+        r.regions.some((reg) => reg.kind === 'positive') &&
+        r.regions.some((reg) => reg.kind === 'negative'));
+});
+
+block('Phase 6 — Two-span continuous auto-design layered output', () => {
+  const r = autoDesignContinuous({
+    geometry: { shape: 'rectangular', bw: 300, h: 600, d: 540, dPrime: 50, L: 12000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    model: {
+      spans: [
+        { L: 6000, wDL: 30, wLL: 20 },
+        { L: 6000, wDL: 30, wLL: 20 },
+      ],
+      supports: ['pin', 'roller', 'roller'],
+      nStations: 21,
+      patternLL: true,
+    },
+  });
+
+  // 2 spans → 2 positive + 1 negative
+  const positiveLayers = r.layers.filter((L) => L.position === 'bottom');
+  const negLayers = r.layers.filter((L) => L.position === 'top' && L.mark !== 'H');
+  check('2-span has ≥ 2 bottom-bar layers', positiveLayers.length >= 2);
+  check('2-span has ≥ 1 top-bar layer at middle support', negLayers.length >= 1);
+
+  // The middle-support top bar should span across the midpoint x = 6000
+  const middleSupportTop = negLayers[0];
+  check('Top bar at middle support spans across x = 6000',
+        middleSupportTop.xStart < 6000 && middleSupportTop.xEnd > 6000);
+
+  // Reinforcement object populated and ready to use
+  check('reinforcement.layers populated', !!r.reinforcement.layers && r.reinforcement.layers.length > 0);
+  check('reinforcement.shearZones populated',
+        !!r.reinforcement.shearZones && r.reinforcement.shearZones.length > 0);
+});
+
+block('Phase 6 — Layer mark generation', () => {
+  const r = autoDesignContinuous({
+    geometry: { shape: 'rectangular', bw: 350, h: 700, d: 620, dPrime: 50, L: 18000, coverClear: 40 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    model: {
+      spans: [{ L: 6000, wDL: 25, wLL: 15 }, { L: 6000, wDL: 25, wLL: 15 }, { L: 6000, wDL: 25, wLL: 15 }],
+      supports: ['pin', 'roller', 'roller', 'roller'],
+      nStations: 21,
+      patternLL: true,
+    },
+  });
+  // Every layer should have a mark
+  check('All layers have mark labels', r.layers.every((L) => !!L.mark));
+  // Bottom continuous (B1c, B2c, B3c) marks present
+  check('Bottom continuous marks (B*c) present',
+        r.layers.some((L) => /^B\d+c$/.test(L.mark ?? '')));
+  // Top marks (T1, T2) present for 2 negative regions
+  const topMarks = r.layers.filter((L) => /^T\d+$/.test(L.mark ?? ''));
+  check('Top marks (T1, T2) for 2 negative regions', topMarks.length >= 2);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(60));

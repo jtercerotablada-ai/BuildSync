@@ -88,19 +88,79 @@ export interface StirrupConfig {
   spacing: number;
 }
 
+// ─── Rebar Layers + Zones (Phase 6 — continuous beam detailing) ────────────
+//
+// Mirrors SkyCiv's "Rebar Layers and Zones" table model: each layer is a
+// rectangular rebar group (count + bar size) that runs along a portion of the
+// beam (xStart → xEnd) at a given vertical position (top or bottom face).
+// Multiple layers stack into a complete reinforcement layout that matches
+// real shop drawings: bottom continuous + bottom curtailed (extra) + top at
+// supports (negative-moment), etc.
+//
+// The legacy `tension`/`compression` fields stay for single-section mode.
+// When `layers` is present, it OVERRIDES tension/compression and the solver
+// resolves per-station As demand using the layers.
+//
+// Reference: SkyCiv RC Design — "Rebar Layers and Zones" table:
+//   https://skyciv.com/docs/skyciv-rc-design/general/beam-column-standalone/
+// Detailing rules from Wight & MacGregor 7e Ch 10 + ACI 318-25 §9.7.3.
+//
+export interface RebarLayer {
+  /** Vertical position in the cross-section. */
+  position: 'top' | 'bottom';
+  /** Number of bars in this layer (across the width). */
+  count: number;
+  /** Bar label, e.g. "#9", "M25". */
+  bar: string;
+  /** Distance from the corresponding face (top or bottom of beam) to the
+   *  CENTER of the layer (mm). Multiple layers at different topDistances
+   *  stack vertically (e.g. layer 1 at 50 mm, layer 2 at 100 mm). */
+  topBotDistance: number;
+  /** Cover override (mm). If null, uses Geometry.coverClear. */
+  cover?: number;
+  /** Start position along the beam (mm from left support). */
+  xStart: number;
+  /** End position along the beam (mm from left support). */
+  xEnd: number;
+  /** Bar mark for shop drawing (e.g. "B1", "T1"). Auto-generated if absent. */
+  mark?: string;
+}
+
+/** Stirrup zone — same idea applied to transverse reinforcement. */
+export interface ShearZoneInput {
+  /** Number of legs (typically 2 or 4 for wide beams). */
+  legs: number;
+  /** Stirrup bar label (e.g. "#3"). */
+  bar: string;
+  /** Centre-to-centre spacing along beam (mm). */
+  spacing: number;
+  /** Start position (mm from left support). */
+  xStart: number;
+  /** End position (mm from left support). */
+  xEnd: number;
+}
+
 export interface Reinforcement {
-  /** Tension steel — array of bar groups (e.g. [{bar:"#9", count:3}]). */
+  /** Tension steel — legacy single-section mode (a single bar group). For
+   *  continuous beams, prefer `layers`. */
   tension: BarGroup[];
-  /** Compression / top steel — optional. Used both for doubly-reinforced flexure
-   *  AND as required hanger reinforcement to support stirrups (practical detailing). */
+  /** Compression / top steel — optional. Legacy single-section mode. */
   compression?: BarGroup[];
-  /** Stirrups (transverse reinforcement). */
+  /** Stirrups (transverse reinforcement) — legacy single-zone mode. */
   stirrup: StirrupConfig;
-  /** Number of rows of tension bars. Default 1. Used to estimate d when not specified. */
+  /** Number of rows of tension bars. Default 1. */
   tensionRows?: number;
-  /** Skin reinforcement on side faces (ACI §9.7.2.3, required for h > 900 mm).
-   *  Each face gets `count` bars, spaced uniformly over h/2 from tension face. */
+  /** Skin reinforcement on side faces §9.7.2.3 (h > 900 mm). */
   skin?: { bar: string; countPerFace: number };
+
+  // ─── Phase 6 — layered mode ──────────────────────────────────────────────
+  /** Longitudinal-rebar layers (top and bottom, each over a span [xStart,
+   *  xEnd]). When present, these OVERRIDE the legacy tension/compression
+   *  fields for capacity calculations. */
+  layers?: RebarLayer[];
+  /** Stirrup zones (each over a span [xStart, xEnd] with its own spacing).
+   *  When present, OVERRIDES the legacy single-zone `stirrup` field. */
+  shearZones?: ShearZoneInput[];
 }
 
 // ============================================================================

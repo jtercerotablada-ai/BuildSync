@@ -68,8 +68,25 @@ export function RcBeamElevation({ input, elevation, lang = 'en' }: Props) {
   const Lm = g.L / 1000;
 
   // ── Bar layout ───────────────────────────────────────────────────────────
-  const tensionBars = curtailment.bars.filter((b) => b.position === 'tension');
-  const compressionBars = curtailment.bars.filter((b) => b.position === 'compression');
+  // Phase 6: when input.reinforcement.layers is present, prefer it over the
+  // legacy curtailment-derived layout. Each layer maps directly to a
+  // BarCutoff-like record with its own xStart, xEnd and position.
+  const layers = input.reinforcement.layers;
+  const useLayers = !!(layers && layers.length > 0);
+  const layerToCutoff = (layer: NonNullable<typeof layers>[number], idx: number) => ({
+    groupIndex: idx,
+    position: (layer.position === 'top' ? 'compression' : 'tension') as 'tension' | 'compression',
+    bar: layer.bar,
+    count: layer.count,
+    kind: (layer.xStart > 0 || layer.xEnd < g.L) ? ('curtailed' as const) : ('running' as const),
+    xStart: layer.xStart,
+    xEnd: layer.xEnd,
+    xTheoretical: undefined as number | undefined,    // not tracked for layered mode
+    noteEn: '', noteEs: '',
+  });
+  const allBars = useLayers ? layers!.map(layerToCutoff) : curtailment.bars;
+  const tensionBars = allBars.filter((b) => b.position === 'tension');
+  const compressionBars = allBars.filter((b) => b.position === 'compression');
 
   // Y rows for bars (within concrete band)
   const topBarRowY = beamTop + coverPx + 6;
