@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useReducer, useState } from 'react';
+import dynamic from 'next/dynamic';
 import type {
   FootingInput, ColumnShape, Code, ReportBranding,
 } from '@/lib/footing/types';
@@ -11,6 +12,12 @@ import { BAR_CATALOG } from '@/lib/rc/types';
 import { FootingPlan2D } from './FootingPlan2D';
 import { FootingSection2D } from './FootingSection2D';
 import { PunchingDiagram2D } from './PunchingDiagram2D';
+
+// Dynamic-import the 3D viewer (R3F adds ~200kB; defer until needed)
+const Footing3D = dynamic(() => import('./Footing3D').then((m) => m.Footing3D), {
+  ssr: false,
+  loading: () => <p className="ab-empty">Loading 3D viewer…</p>,
+});
 
 // ─── State management ──────────────────────────────────────────────────────
 
@@ -63,7 +70,7 @@ function reducer(state: FootingInput, action: Action): FootingInput {
 
 // ─── Tab type ──────────────────────────────────────────────────────────────
 
-type Tab = 'inputs' | 'drawings' | 'checks' | 'refs';
+type Tab = 'inputs' | 'drawings' | '3d' | 'checks' | 'refs';
 
 // ─── Number input helper ───────────────────────────────────────────────────
 
@@ -163,6 +170,7 @@ export function FoundationCalculator() {
         {([
           ['inputs',   '📋 Inputs'],
           ['drawings', '📐 Drawings'],
+          ['3d',       '🧊 3D'],
           ['checks',   '🔬 Checks'],
           ['refs',     '📚 References'],
         ] as const).map(([id, label]) => (
@@ -175,6 +183,7 @@ export function FoundationCalculator() {
       {/* Tab content */}
       {tab === 'inputs'   && <InputsTab model={model} dispatch={dispatch} />}
       {tab === 'drawings' && <DrawingsTab input={model} result={result} />}
+      {tab === '3d'       && <Footing3D input={model} result={result} />}
       {tab === 'checks'   && <ChecksTab result={result} summary={summary} />}
       {tab === 'refs'     && <RefsTab />}
 
