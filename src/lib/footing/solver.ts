@@ -526,6 +526,139 @@ function checkOneWayShear(
 
 // ─── FLEXURE (§13.3.3) ─────────────────────────────────────────────────────
 
+// ─── ECCENTRIC FACTORED PRESSURE FLEXURE (§13.2.6.6) ───────────────────────
+//
+// ACI 318-25 §13.2.6.6:
+//   "External moment on any section… calculated by passing a vertical plane
+//   through the member and calculating the moment of the forces acting over
+//   the entire area of member on one side of that vertical plane."
+//
+// For eccentric loading (ex ≠ 0, ey ≠ 0, Mx ≠ 0, or My ≠ 0), the soil
+// pressure is NOT uniform — it varies linearly across the footing
+// (trapezoidal within kern, triangular Bowles outside). Using qnu·cant²/2
+// underestimates Mu on the heavily-loaded side and overestimates on the
+// other. We compute Mu on BOTH cantilever sides by integrating the actual
+// factored pressure distribution and take the worst.
+//
+// Pressure averaged over the perpendicular dimension at point x (or y):
+//   q_avg(x) = Pu/A + 12·Mu_y·x / (L·B³)              [for X-cantilever]
+//   q_avg(y) = Pu/A + 12·Mu_x·y / (B·L³)              [for Y-cantilever]
+// (Mu_x integrated over y = 0 by symmetry; only Mu_y affects X-cantilever.)
+//
+// Closed-form for trapezoidal load (q1 at face, q2 at edge over length cant):
+//   Mu = L_perp · cant² · (q1 + 2·q2) / 6
+//
+// For partial uplift (Bowles): one of q1, q2 may be negative → clip to zero
+// and integrate over the contact portion only.
+function flexureMuFromPressure(
+  input: FootingInput, direction: 'X' | 'Y',
+): number {
+  const g = input.geometry;
+  const colSelf = direction === 'X'
+    ? g.cx
+    : (g.columnShape === 'circular' ? g.cx : (g.cy ?? g.cx));
+  const footingSelf = direction === 'X' ? g.B : g.L;
+  const footingPerp = direction === 'X' ? g.L : g.B;
+
+  // Critical-section offset from column centreline (mm) per §13.2.7.1
+  let critFromCenterMM: number;
+  const supported = g.supportedMember ?? 'column';
+  if (supported === 'wall_masonry') {
+    critFromCenterMM = colSelf / 4;
+  } else if (supported === 'baseplate' && g.basePlate) {
+    const plateDim = direction === 'X' ? g.basePlate.Bp : g.basePlate.Lp;
+    critFromCenterMM = (colSelf / 2 + plateDim / 2) / 2;
+  } else {
+    // 'column' or 'wall_concrete'
+    critFromCenterMM = colSelf / 2;
+  }
+
+  // Eccentricity in the bending direction (X or Y) and perpendicular
+  const eDir_mm = direction === 'X' ? (g.ex ?? 0) : (g.ey ?? 0);
+  const ePerp_mm = direction === 'X' ? (g.ey ?? 0) : (g.ex ?? 0);
+  void ePerp_mm;     // unused — Mu_x cancels for X-cantilever, Mu_y for Y
+
+  // Switch to metres for pressure integration (q in kPa = kN/m²)
+  const Bself_m = footingSelf / 1000;
+  const Bperp_m = footingPerp / 1000;
+  const eSelf_m = eDir_mm / 1000;
+  const critFromCenter_m = critFromCenterMM / 1000;
+
+  // Factored loads (kN, kN·m)
+  const PDpL = input.loads.PD + input.loads.PL;
+  const Pu = 1.2 * input.loads.PD + 1.6 * input.loads.PL;
+  const factor = PDpL > 0 ? Pu / PDpL : 1.4;
+  // Factored moments INCLUDE the moment from column eccentricity:
+  //   ex (shift along X) → Mu_y_extra = Pu·ex
+  //   ey (shift along Y) → Mu_x_extra = Pu·ey
+  const ex_m = (g.ex ?? 0) / 1000;
+  const ey_m = (g.ey ?? 0) / 1000;
+  const MuxTotal = factor * (input.loads.Mx ?? 0) + Pu * ey_m;
+  const MuyTotal = factor * (input.loads.My ?? 0) + Pu * ex_m;
+
+  // For X-direction cantilever, Mu_y drives the gradient; for Y, Mu_x.
+  const MuRelevant = direction === 'X' ? MuyTotal : MuxTotal;
+
+  // Footing area (m²)
+  const A_m2 = (g.B / 1000) * (g.L / 1000);
+
+  // q_avg(s_self) — pressure averaged over the perpendicular direction,
+  // as a function of the position along the bending direction (m, footing-centred)
+  function qAvg(s_self_m: number): number {
+    return Pu / A_m2 + 12 * MuRelevant * s_self_m / (Bperp_m * Math.pow(Bself_m, 3));
+  }
+
+  // Two cantilevers: + side and − side. Critical sections at:
+  //   x_crit_+ = +critFromCenter_m + eSelf_m  (column shifted by eSelf)
+  //   x_crit_− = −critFromCenter_m + eSelf_m
+  const xCritPlus = +critFromCenter_m + eSelf_m;
+  const xCritMinus = -critFromCenter_m + eSelf_m;
+
+  // Cantilever lengths
+  const cantPlus_m = (Bself_m / 2) - xCritPlus;     // from +x_crit to +B/2
+  const cantMinus_m = xCritMinus - (-Bself_m / 2);  // from -B/2 to -x_crit
+
+  // Compute Mu on one side of the column. Side direction = +1 or -1.
+  // s ∈ [0, cant_m] is the distance from the critical section along the
+  // outward normal (toward the footing edge).
+  function muOnSide(xCrit_m: number, cant_m: number, sign: 1 | -1): number {
+    if (cant_m <= 1e-9) return 0;
+    const xEdge_m = sign === 1 ? Bself_m / 2 : -Bself_m / 2;
+    const q1 = qAvg(xCrit_m);     // q at face of column / wall
+    const q2 = qAvg(xEdge_m);     // q at far edge of footing
+    // For positive sign, sign = +1, x increases from xCrit to xEdge
+    // For negative sign, x decreases. The lever arm s = |x - xCrit|.
+    // Pressure varies linearly between q1 and q2 over s ∈ [0, cant].
+    // Closed-form integration of L · ∫_0^cant q(s)·s ds with linear q:
+    if (q1 >= 0 && q2 >= 0) {
+      // Trapezoidal — both ends in contact
+      return Bperp_m * cant_m * cant_m * (q1 + 2 * q2) / 6;
+    }
+    if (q1 < 0 && q2 < 0) {
+      // Full uplift on this side — no contact, no moment
+      return 0;
+    }
+    if (q1 >= 0 && q2 < 0) {
+      // Pressure drops from q1 at face to 0 at s* < cant, zero past s*
+      // s* = q1·cant / (q1 − q2)
+      const sStar = (q1 / (q1 - q2)) * cant_m;
+      // Triangle with peak q1 at s=0, zero at s=s*: Mu = L·q1·s*²/6
+      return Bperp_m * q1 * sStar * sStar / 6;
+    }
+    // q1 < 0 ≤ q2: contact starts at s_start, runs to cant
+    const sStart = (-q1 / (q2 - q1)) * cant_m;
+    const tail = cant_m - sStart;
+    // Triangle from 0 at sStart to q2 at cant, with lever arm to xCrit:
+    // Mu = L · q2 · tail · (2·cant + sStart) / 6
+    return Bperp_m * q2 * tail * (2 * cant_m + sStart) / 6;
+  }
+
+  const muPlus = muOnSide(xCritPlus, cantPlus_m, 1);
+  const muMinus = muOnSide(xCritMinus, cantMinus_m, -1);
+
+  return Math.max(muPlus, muMinus);
+}
+
 function checkFootingFlexure(
   input: FootingInput, qnu: number, direction: 'X' | 'Y',
 ): FootingFlexureCheck {
@@ -564,8 +697,17 @@ function checkFootingFlexure(
   const cantilever = critOffset;
   const bw = footingDimPerp;
 
-  // Mu at face of column = qnu × (cantilever²/2) × bw
-  const Mu_kNm = qnu * Math.pow(cantilever / 1000, 2) / 2 * (bw / 1000);
+  // Mu at face of column.
+  //   • Centric loading (no Mx/My/ex/ey): Mu = qnu·cant²/2·bw — uniform pressure
+  //   • Eccentric loading: integrate the actual factored pressure distribution
+  //     per §13.2.6.6 and take the worst of the two cantilever sides.
+  const hasMoment = (input.loads.Mx ?? 0) !== 0
+                 || (input.loads.My ?? 0) !== 0
+                 || (g.ex ?? 0) !== 0
+                 || (g.ey ?? 0) !== 0;
+  const Mu_kNm = hasMoment
+    ? flexureMuFromPressure(input, direction)
+    : qnu * Math.pow(cantilever / 1000, 2) / 2 * (bw / 1000);
 
   // AsReq (closed-form quadratic)
   const A_q = fy * fy / (2 * 0.85 * fc * bw);

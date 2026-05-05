@@ -935,6 +935,159 @@ block('Block 13 — B9: shear advisory when punching just over capacity', () => 
 });
 
 // ============================================================================
+// BLOCK 14 — B7 Eccentric soil-pressure flexure (ACI 318-25 §13.2.6.6)
+// ============================================================================
+// Sustento bibliográfico:
+//   • ACI 318-25 §13.2.6.6 — moment by integrating soil pressure over the
+//     cantilever area on one side of a vertical plane.
+//   • Wight & MacGregor 7e §15-2 — trapezoidal pressure under footings:
+//     q(x) = P/A + M·c/Ix.
+//   • Bowles 5e §4-7 — partial-uplift triangle when e > kern (outside B/6).
+//
+// Implementation:
+//   For each cantilever side, integrate L·∫_0^cant q(s)·s ds where q(s) is
+//   linear in s. Closed form: Mu = L·cant²·(q1 + 2·q2)/6 when q1, q2 ≥ 0.
+//   Partial-uplift cases handled with clipping.
+
+block('Block 14 — B7: centric loading reproduces uniform formula', () => {
+  // No moment, no eccentricity → new code = old qnu·cant²/2·bw
+  const r = analyzeFooting(defaultInput());     // B=L=2500, T=500, cx=cy=400
+  // qnu = (1.2·600 + 1.6·400)/(2.5²) = (720+640)/6.25 = 217.6 kPa
+  // cant = (2500-400)/2 = 1050 mm = 1.05 m
+  // bw = 2500 mm = 2.5 m
+  // Mu = 217.6 · 1.05² / 2 · 2.5 = 299.9 kN·m
+  const qnu = (1.2 * 600 + 1.6 * 400) / (2.5 * 2.5);
+  const cant_m = (2500 - 400) / 2 / 1000;
+  const bw_m = 2.5;
+  const expected = qnu * cant_m * cant_m / 2 * bw_m;
+  near('Centric Mu reproduces uniform formula', r.flexureX.Mu, expected, 0.01);
+});
+
+block('Block 14 — B7: My applied → +X side has higher Mu than centric', () => {
+  // Square footing 2500×2500, T=500, P_DL=600, P_LL=400, My=200 kN·m
+  // factor = (720+640)/1000 = 1.36
+  // Pu = 1360 kN, MuyTotal_factored = 1.36·200 = 272 kN·m
+  // q_avg over y at x: q(x) = Pu/A + 12·MuyTotal·x/(L·B³) (in m units)
+  // q at face (x=0.2 m, the +face of column): 1360/6.25 + 12·272·0.2/(2.5·2.5³)
+  //   = 217.6 + 12·54.4/39.0625 = 217.6 + 16.71 = 234.3 kPa
+  // q at edge (x=1.25 m): 1360/6.25 + 12·272·1.25/(2.5·2.5³)
+  //   = 217.6 + 12·340/39.0625 = 217.6 + 104.4 = 322.0 kPa
+  // Mu = L · cant² · (q_face + 2·q_edge) / 6
+  //    = 2.5 · 1.05² · (234.3 + 2·322.0) / 6
+  //    = 2.5 · 1.1025 · 878.3 / 6 = 403.4 kN·m
+  // (Centric Mu was 299.9 → ~35% increase on the loaded side)
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 600, PL: 400, My: 200 },
+  }));
+  // Mu_X is affected by My (gradient along X)
+  near('Mu_X with My ≈ 403.4 kN·m', r.flexureX.Mu, 403.4, 0.03);
+  // Mu_Y is unaffected by My (Mu_y term cancels in y-direction integration)
+  // Mu_Y should equal centric value (≈ 299.9 with no Mx)
+  near('Mu_Y unaffected by My (= centric)', r.flexureY.Mu, 299.9, 0.02);
+});
+
+block('Block 14 — B7: Mx applied → +Y side has higher Mu than centric', () => {
+  // Symmetric to previous: Mx = 200 affects Y-cantilever, not X
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 600, PL: 400, Mx: 200 },
+  }));
+  near('Mu_Y with Mx ≈ 403.4 kN·m', r.flexureY.Mu, 403.4, 0.03);
+  near('Mu_X unaffected by Mx (= centric)', r.flexureX.Mu, 299.9, 0.02);
+});
+
+block('Block 14 — B7: column eccentricity ex creates extra Mu_y → larger Mu_X', () => {
+  // ex = 100 mm, no applied moments
+  // Mu_y_extra (factored) = Pu · ex = 1360 · 0.1 = 136 kN·m
+  // Same as if My_service = 100 kN·m (since 100·1.36 = 136)
+  // q at +face (x = 200 mm = 0.2 m):
+  //   q = 1360/6.25 + 12·136·0.2/(2.5·2.5³)
+  //     = 217.6 + 12·27.2/39.0625
+  //     = 217.6 + 8.36 = 226 kPa
+  // q at +edge (x = 1.25 m):
+  //   q = 217.6 + 12·136·1.25/(2.5·2.5³)
+  //     = 217.6 + 52.2 = 269.8 kPa
+  // But also: critical section shifted by ex toward +X edge
+  //   x_crit_+ = ex_m + cx/2_m = 0.1 + 0.2 = 0.3 m
+  //   cant_+ = 1.25 - 0.3 = 0.95 m
+  //   x_crit_- = ex_m - cx/2_m = 0.1 - 0.2 = -0.1 m
+  //   cant_- = -0.1 - (-1.25) = 1.15 m  (longer on -X side, but lower pressure)
+  //
+  // +X side:
+  //   q1 = q(0.3, 0) = 217.6 + 12·136·0.3/39.0625 = 217.6 + 12.54 = 230.1
+  //   q2 = q(1.25, 0) = 269.8 (as above)
+  //   Mu+ = 2.5 · 0.95² · (230.1 + 2·269.8)/6 = 2.5 · 0.9025 · 769.7/6 = 289.5 kN·m
+  // -X side:
+  //   q1 = q(-0.1, 0) = 217.6 + 12·136·(-0.1)/39.0625 = 217.6 - 4.18 = 213.4
+  //   q2 = q(-1.25, 0) = 217.6 - 52.2 = 165.4
+  //   Mu− = 2.5 · 1.15² · (213.4 + 2·165.4)/6 = 2.5 · 1.3225 · 544.2/6 = 299.8 kN·m
+  // Max(Mu+, Mu-) = 299.8 — close to centric (because ex is small)
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400, ex: 100 },
+    loads: { PD: 600, PL: 400 },
+  }));
+  // Worst Mu_X should be ≈ 299.8 (just slightly different from centric 299.9)
+  near('Mu_X with ex=100 ≈ 300 kN·m', r.flexureX.Mu, 299.8, 0.02);
+});
+
+block('Block 14 — B7: combined Mx + My on rectangular footing', () => {
+  // Rectangular 2000 × 4000, both Mx and My
+  // Mu_X depends on My only; Mu_Y depends on Mx only
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2000, L: 4000, T: 600, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 600, PL: 400, Mx: 50, My: 50 },
+  }));
+  // Just verify both are higher than they would be with only one moment
+  const r_centric = analyzeFooting(defaultInput({
+    geometry: { B: 2000, L: 4000, T: 600, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 600, PL: 400 },
+  }));
+  check('Mu_X with My > Mu_X centric', r.flexureX.Mu > r_centric.flexureX.Mu);
+  check('Mu_Y with Mx > Mu_Y centric', r.flexureY.Mu > r_centric.flexureY.Mu);
+});
+
+block('Block 14 — B7: heavy eccentricity → partial uplift case (Bowles)', () => {
+  // ex = 500 mm on a 2.5-m footing → e/B = 0.2 > kern (1/6 = 0.167)
+  // → outside kern → partial uplift (Bowles triangular).
+  // Engineering note: under heavy eccentricity, the +X cantilever is SHORT
+  // (column close to +X edge) and the -X cantilever is LONG but lightly
+  // loaded (or in uplift). Mu can actually DECREASE vs centric — bearing
+  // fails first under such eccentricity, which is the governing limit.
+  // This test verifies the integration handles partial uplift WITHOUT
+  // crashing or producing NaN, and that bearing flags the problem.
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400, ex: 500 },
+    loads: { PD: 600, PL: 400 },
+  }));
+  check('Mu_X is finite and > 0 under partial uplift', r.flexureX.Mu > 0 && isFinite(r.flexureX.Mu));
+  check('Mu_Y is finite and > 0 under partial uplift', r.flexureY.Mu > 0 && isFinite(r.flexureY.Mu));
+  check('Bearing detects partial uplift (governs over flexure)', r.upliftRegion);
+});
+
+block('Block 14 — B7: Wight Ex 15-2 (no eccentricity) still matches', () => {
+  // Wight Ex 15-2: PD=400 kips, PL=270 kips, no moment.
+  // factor = (480+432)/670 = 1.361 (same as before)
+  // Should NOT trigger eccentric path → Mu unchanged from Block 11.
+  const r = analyzeFooting({
+    code: 'ACI 318-25',
+    geometry: {
+      B: 3404, L: 3404, T: 813, coverClear: 76,
+      columnShape: 'square', cx: 457, cy: 457,
+      embedment: 305, columnLocation: 'interior',
+    },
+    soil: { qa: 320 },
+    materials: { fc: 20.68, fy: 413.7 },
+    loads: { PD: 1779.3, PL: 1200.9 },
+    reinforcement: {
+      bottomX: { bar: '#8', count: 11 },
+      bottomY: { bar: '#8', count: 11 },
+    },
+  });
+  near('Wight Ex 15-2 Mu unchanged by B7 patch', r.flexureX.Mu, 1294, 0.03);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(70));
