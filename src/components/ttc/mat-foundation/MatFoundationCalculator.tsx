@@ -1,14 +1,22 @@
 'use client';
 
-import React, { useReducer, useMemo, useState } from 'react';
+import React, { useReducer, useMemo, useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { analyzeMatFoundation } from '@/lib/mat-foundation/solver';
 import { MAT_FOUNDATION_PRESETS } from '@/lib/mat-foundation/presets';
 import { buildMatCheckSummary, formatRatio } from '@/lib/mat-foundation/format';
 import type { MatFoundationInput, MatColumn } from '@/lib/mat-foundation/types';
-import type { ColumnShape } from '@/lib/footing/types';
+import type { ColumnShape, ReportBranding } from '@/lib/footing/types';
+import { MatFoundationSection2D } from './MatFoundationSection2D';
+import { MatFoundationPrintReport } from './MatFoundationPrintReport';
+
+const MatFoundation3D = dynamic(
+  () => import('./MatFoundation3D').then((m) => m.MatFoundation3D),
+  { ssr: false, loading: () => <div className="rc-3d slab-3d"><p style={{ padding: '2rem', textAlign: 'center' }}>Loading 3D viewer…</p></div> },
+);
 
 type Code = 'ACI 318-25' | 'ACI 318-19';
-type Tab = 'inputs' | 'plan' | 'checks' | 'refs';
+type Tab = 'inputs' | 'plan' | 'sections' | '3d' | 'checks' | 'refs';
 
 type Action =
   | { type: 'LOAD_PRESET'; input: MatFoundationInput }
@@ -18,7 +26,9 @@ type Action =
   | { type: 'SET_MAT'; patch: Partial<MatFoundationInput['materials']> }
   | { type: 'SET_COL'; idx: number; patch: Partial<MatColumn> }
   | { type: 'ADD_COL' }
-  | { type: 'REMOVE_COL'; idx: number };
+  | { type: 'REMOVE_COL'; idx: number }
+  | { type: 'SET_BRANDING'; patch: Partial<ReportBranding> }
+  | { type: 'CLEAR_BRANDING' };
 
 function reducer(state: MatFoundationInput, action: Action): MatFoundationInput {
   switch (action.type) {
@@ -55,6 +65,13 @@ function reducer(state: MatFoundationInput, action: Action): MatFoundationInput 
         ...state,
         columns: state.columns.filter((_, i) => i !== action.idx),
       };
+    case 'SET_BRANDING':
+      return { ...state, branding: { ...(state.branding ?? {}), ...action.patch } };
+    case 'CLEAR_BRANDING': {
+      const { branding: _, ...rest } = state;
+      void _;
+      return rest as MatFoundationInput;
+    }
     default:
       return state;
   }
@@ -67,6 +84,18 @@ export function MatFoundationCalculator() {
   const result = useMemo(() => analyzeMatFoundation(model), [model]);
   const summary = buildMatCheckSummary(result);
   const [tab, setTab] = useState<Tab>('inputs');
+  const [cover3dDataUrl, setCover3dDataUrl] = useState<string | undefined>();
+
+  const captureCover3d = useCallback(() => {
+    const canvas = document.querySelector('.slab-3d__canvas canvas') as HTMLCanvasElement | null;
+    if (canvas) {
+      try { setCover3dDataUrl(canvas.toDataURL('image/png')); } catch { /* CORS */ }
+    }
+  }, []);
+  const handlePrint = useCallback(() => {
+    captureCover3d();
+    setTimeout(() => window.print(), 80);
+  }, [captureCover3d]);
 
   return (
     <div className="ab-section">
@@ -109,7 +138,13 @@ export function MatFoundationCalculator() {
             {result.ok ? '✓ PASS' : '✗ FAIL'}
           </span>
         </div>
+        <button type="button" className="ab-btn ab-btn--primary slab-print-btn" onClick={handlePrint}>
+          ⎙ Print full report
+        </button>
       </section>
+
+      {/* Print-only report (hidden on screen) */}
+      <MatFoundationPrintReport input={model} result={result} cover3dDataUrl={cover3dDataUrl} />
 
       <section className={`rc-status ${result.ok ? 'rc-status--pass' : 'rc-status--fail'}`}>
         <div className="rc-status__icon">{result.ok ? '✓' : '✗'}</div>
@@ -129,6 +164,8 @@ export function MatFoundationCalculator() {
         {([
           ['inputs', 'Inputs'],
           ['plan', 'Plan view'],
+          ['sections', 'Sections'],
+          ['3d', '3D'],
           ['checks', 'Checks'],
           ['refs', 'References'],
         ] as const).map(([id, label]) => (
@@ -140,6 +177,8 @@ export function MatFoundationCalculator() {
 
       {tab === 'inputs' && <InputsTab model={model} dispatch={dispatch} />}
       {tab === 'plan' && <PlanTab model={model} result={result} />}
+      {tab === 'sections' && <SectionsTab model={model} result={result} />}
+      {tab === '3d' && <MatFoundation3D input={model} result={result} />}
       {tab === 'checks' && <ChecksTab summary={summary} />}
       {tab === 'refs' && <RefsTab />}
 
@@ -285,6 +324,76 @@ function InputsTab({ model, dispatch }: { model: MatFoundationInput; dispatch: R
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Print branding card */}
+      <div className="slab-card">
+        <h4>Print branding (your firm)</h4>
+        <p className="ab-empty" style={{ marginBottom: '0.6rem', fontSize: '0.86rem' }}>
+          Optional. Logo + company name + tagline appear on the print-report cover page.
+        </p>
+        <div className="slab-fields">
+          <Field label="Company name">
+            <input type="text"
+              value={model.branding?.companyName ?? ''}
+              placeholder="e.g. Tercero Tablada Civil & Structural Eng. Inc"
+              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyName: e.target.value } })} />
+          </Field>
+          <Field label="Tagline / project ref">
+            <input type="text"
+              value={model.branding?.companyTagline ?? ''}
+              placeholder="e.g. Project 24-117 — Mat M-1"
+              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyTagline: e.target.value } })} />
+          </Field>
+          <Field label="Logo (PNG/SVG)">
+            <input type="file" accept="image/png,image/jpeg,image/svg+xml"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  if (typeof ev.target?.result === 'string') {
+                    dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: ev.target.result } });
+                  }
+                };
+                reader.readAsDataURL(file);
+              }} />
+          </Field>
+          {model.branding?.logoDataUrl && (
+            <div className="ab-input-group">
+              <span>Logo preview</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={model.branding.logoDataUrl} alt="logo"
+                  style={{ maxWidth: 96, maxHeight: 64, background: 'rgba(255,255,255,0.95)',
+                           padding: 4, borderRadius: 4 }} />
+                <button type="button" className="ab-btn ab-btn--small"
+                  onClick={() => dispatch({ type: 'CLEAR_BRANDING' })}>
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SECTIONS TAB (X + Y axis cuts) ─────────────────────────────────────────
+
+function SectionsTab({
+  model, result,
+}: { model: MatFoundationInput; result: ReturnType<typeof analyzeMatFoundation> }) {
+  return (
+    <div className="slab-inputs-grid">
+      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+        <h4>Section A-A (along X)</h4>
+        <MatFoundationSection2D input={model} result={result} axis="X" />
+      </div>
+      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+        <h4>Section B-B (along Y)</h4>
+        <MatFoundationSection2D input={model} result={result} axis="Y" />
       </div>
     </div>
   );
