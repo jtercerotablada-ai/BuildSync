@@ -81,9 +81,9 @@ export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
   { category: 'Timber', code: 'AWC 2021', title: 'AWC 2021 Floor Joist Span Calculator', description: 'Max joist span per AWC design values.', status: 'coming-soon' },
 
   // ─────────── Foundations ───────────
-  { category: 'Foundations', code: 'ACI 318-19', title: 'ACI 318-19 Spread Footing Design', description: 'Isolated spread footings per ACI 318-19.', status: 'coming-soon' },
+  { category: 'Foundations', code: 'ACI 318-25', title: 'ACI 318-25 Spread Footing Design', description: 'Isolated spread footings per ACI 318-25 SI — bearing, punching, one-way shear, flexure, overturning, sliding, bar fit, dev. length. 2D plan + cross-section + 3D viewer + print report. Auto-design sizes B/L/T and picks rebar.', status: 'available', href: '/resources/foundation-design', isNew: true },
   { category: 'Foundations', code: 'EN 1992-1-1', title: 'EN 1992-1-1 Pad Footing Design', description: 'Pad footings per EN 1992-1-1 and EN 1997-1.', status: 'coming-soon' },
-  { category: 'Foundations', code: 'ACI 318-19', title: 'ACI 318-19 Strip Footing Design', description: 'RC strip footings per ACI 318-19.', status: 'coming-soon' },
+  { category: 'Foundations', code: 'ACI 318-25', title: 'ACI 318-25 Strip Footing Design', description: 'RC strip / wall footings per ACI 318-25 SI — same engine as spread footings, with transverse-only flexure for 1 m strips.', status: 'available', href: '/resources/foundation-design', isNew: true },
   { category: 'Foundations', code: '—', title: 'Bearing Capacity Calculator', description: 'Bearing capacity using FS approach.', status: 'coming-soon' },
   { category: 'Foundations', code: '—', title: 'Lateral Pile Stability', description: 'Embedment and strength for lateral pile stability.', status: 'coming-soon' },
   { category: 'Foundations', code: 'AISC 360-16 / IBC 2021', title: 'Screw Pile Design', description: 'Steel screw piles per AISC 360 & IBC 2021.', status: 'coming-soon' },
