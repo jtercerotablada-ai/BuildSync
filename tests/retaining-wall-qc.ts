@@ -286,7 +286,7 @@ console.log('\n==========================================');
 console.log('BLOCK 12: Gravity wall — stability + ACI §14.5 stress');
 console.log('==========================================');
 // Trapezoidal gravity wall: stem 4 m tall, t_top = 0.6 m, t_bot = 1.5 m
-// (typical mass-concrete profile per Wight & MacGregor §17.3). Granular
+// (typical mass-concrete profile per Wight & MacGregor §18-3.3). Granular
 // backfill φ=32°, γ=18 kN/m³, no surcharge. f'c = 21 MPa (low-strength
 // gravity-wall mix). Verify the solver returns gravityStress and that
 // the wall body's compression stress stays within 0.45·f'c.

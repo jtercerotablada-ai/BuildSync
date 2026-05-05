@@ -13,7 +13,7 @@
 // References cited in the report:
 //   • ACI 318-25 SI / 318-19 (concrete)
 //   • AASHTO LRFD 9e (abutments)
-//   • Wight & MacGregor 7e §17 (retaining walls)
+//   • Wight & MacGregor 7e §18-3 (retaining walls)
 
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';

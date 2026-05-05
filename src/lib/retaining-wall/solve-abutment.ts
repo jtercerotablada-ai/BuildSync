@@ -22,7 +22,7 @@
 // References:
 //   • AASHTO LRFD Bridge Design Specifications, 9th Edition, §11.6
 //   • AASHTO LRFD §3.4 (load factors), Table 3.4.1-1
-//   • Wight & MacGregor 7e §17 (general retaining-wall design)
+//   • Wight & MacGregor 7e §18-3 (general retaining-wall design)
 
 import type {
   WallInput, WallResults, AbutmentGeometry,

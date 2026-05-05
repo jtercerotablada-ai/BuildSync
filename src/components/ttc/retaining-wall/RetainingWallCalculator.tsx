@@ -222,11 +222,9 @@ export function RetainingWallCalculator() {
           {results ? (
             <>
               <WallCanvas input={input} results={results} unitSystem={unitSystem} />
-              {(input.geometry.kind === 'counterfort' || input.geometry.kind === 'buttressed') && (
-                <div className="rw__canvas-3d">
-                  <WallViewer3D input={input} />
-                </div>
-              )}
+              <div className="rw__canvas-3d">
+                <WallViewer3D input={input} />
+              </div>
             </>
           ) : (
             <div className="rw__empty">Enter geometry to build your wall</div>

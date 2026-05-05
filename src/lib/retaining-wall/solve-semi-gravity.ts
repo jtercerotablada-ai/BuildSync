@@ -12,7 +12,7 @@
 //
 // References:
 //   • ACI 318-25 SI §13.3 (foundation design) + §24.4.3 (temperature steel)
-//   • Wight & MacGregor 7e §17.2 (semi-gravity walls)
+//   • Wight & MacGregor 7e §18-3.2 (semi-gravity walls)
 
 import type { WallInput, WallResults } from './types';
 import { solveCantileverWall } from './solve';

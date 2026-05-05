@@ -15,7 +15,7 @@
 //
 // References:
 //   • ACI 318-25 SI, Chapter 14 "Plain Concrete"
-//   • Wight & MacGregor 7e §17.3 "Gravity walls"
+//   • Wight & MacGregor 7e §18-3.3 "Gravity walls"
 
 import type {
   WallInput, WallResults,

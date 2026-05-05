@@ -109,11 +109,36 @@ export function solveCantileverWall(input: WallInput): WallResults {
   if (key.enabled && !key.shearOk)
     errors.push(`Key shear Vu=${key.Vu.toFixed(1)} exceeds φVc=${(0.75 * key.Vc).toFixed(1)} kN/m`);
   if (!stem.crack.ok)
-    issues.push(`Stem rebar spacing ${stem.crack.s_req.toFixed(0)} > s_max ${stem.crack.s_max.toFixed(0)} mm — crack control`);
+    issues.push(`Stem rebar spacing ${stem.crack.s_req.toFixed(0)} > s_max ${stem.crack.s_max.toFixed(0)} mm — crack control (ACI 318-25 §24.3.2)`);
   if (!heel.crack.ok)
-    issues.push(`Heel rebar spacing exceeds ACI §24.3.2`);
+    issues.push(`Heel rebar spacing exceeds ACI 318-25 §24.3.2`);
   if (!toe.crack.ok)
-    issues.push(`Toe rebar spacing exceeds ACI §24.3.2`);
+    issues.push(`Toe rebar spacing exceeds ACI 318-25 §24.3.2`);
+
+  // ──────── ACI 318-25 §13.3.1.2 — overall depth such that d ≥ 150 mm ────────
+  // Effective depth of bottom reinforcement in shallow foundations must be at
+  // least 150 mm. We check the heel and toe (they share the same H_foot).
+  const d_provided = input.geometry.H_foot - input.concrete.cover - 12; // mm; assumes #4 bar
+  if (d_provided < 150) {
+    errors.push(
+      `Footing effective depth d=${d_provided.toFixed(0)} mm < 150 mm minimum (ACI 318-25 §13.3.1.2). Increase H_foot or reduce cover.`,
+    );
+  }
+
+  // ──────── §11.6.1 + §11.7.3.1 — Horizontal stem reinforcement ────────
+  // Cantilever retaining-wall stem is designed as a one-way slab (§13.3.6.1)
+  // for flexure (vertical bars). Perpendicular to the flexural reinforcement,
+  // horizontal distribution / shrinkage steel is required per §11.6.1
+  // Table 11.6.1: ρt ≥ 0.0020 (deformed bars ≤ #16, fy = 420 MPa) for cast-
+  // in-place walls, with maximum spacing per §11.7.3.1: s ≤ min(3·h, 450 mm).
+  const rho_t_min = 0.0020;
+  const As_horiz = rho_t_min * 1000 * input.geometry.t_stem_bot; // mm²/m (per metre of stem height)
+  const s_max_horiz = Math.min(3 * input.geometry.t_stem_bot, 450);
+  stem.horizontalReinforcement = {
+    rho_t_min,
+    As_horizontal_per_m: As_horiz,
+    s_max: s_max_horiz,
+  };
 
   return {
     pressure,

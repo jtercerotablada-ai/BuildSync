@@ -17,7 +17,7 @@
 //
 // References:
 //   • ACI 318-25 SI §11 (walls), §22.2 (flexure)
-//   • Wight & MacGregor 7e §17.5 (counterfort / buttressed walls)
+//   • Wight & MacGregor 7e §18-3.5 (counterfort / buttressed walls)
 
 import type {
   WallInput, WallResults, ButtressedGeometry,

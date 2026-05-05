@@ -41,7 +41,7 @@
 //
 // References:
 //   • ACI 318-25 SI §11 (walls), §13.3.1 (foundations), §22 (flexure & shear)
-//   • Wight & MacGregor 7e §17.7 (basement / restrained-top walls)
+//   • Wight & MacGregor 7e §18-3.7 (basement / restrained-top walls)
 //   • Roark's Formulas for Stress and Strain Table 8.1 (beam coefficients)
 
 import type {

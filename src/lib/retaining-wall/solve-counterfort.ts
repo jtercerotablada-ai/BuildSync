@@ -38,7 +38,7 @@
 // References:
 //   • ACI 318-25 SI §13.3.4 (foundation slab strips), §22.2 (flexure),
 //     §22.5 (one-way shear), §9.7 (rebar detailing)
-//   • Wight & MacGregor 7e §17.5 (counterfort walls), §13.6 (T-beams)
+//   • Wight & MacGregor 7e §18-3.5 (counterfort walls), §13.6 (T-beams)
 //   • ACI MNL-17(21) Counterfort Wall Example
 
 import type {

@@ -409,6 +409,22 @@ export interface StemDesignResult {
     As_req: number;
     crack: CrackControl;
   };
+  /**
+   * Horizontal (distribution / temperature) reinforcement in the stem.
+   * Per ACI 318-25 §11.6.1 + Wight §18-3: cantilever retaining-wall stems
+   * use vertical bars for flexure (sized via §22.2-22.4) and horizontal
+   * bars perpendicular to the flexural reinforcement for crack control
+   * and shrinkage. Minimum ρt = 0.0020 (deformed bars ≤ #16, fy = 420
+   * MPa) per Table 11.6.1.
+   */
+  horizontalReinforcement?: {
+    /** ρt minimum from Table 11.6.1 (cast-in-place, deformed). */
+    rho_t_min: number;
+    /** Required As per metre of stem height (mm²/m). */
+    As_horizontal_per_m: number;
+    /** Maximum spacing per §11.7.3.1 (= min(3·h, 450 mm)). */
+    s_max: number;
+  };
 }
 
 export interface SlabDesignResult {

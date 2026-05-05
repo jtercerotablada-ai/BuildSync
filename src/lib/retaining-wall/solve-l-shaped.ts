@@ -15,7 +15,7 @@
 //
 // References:
 //   • ACI 318-25 SI §13.3 (foundation design)
-//   • Wight & MacGregor 7e §17.2 (cantilever wall variants — L-shaped)
+//   • Wight & MacGregor 7e §18-3.2 (cantilever wall variants — L-shaped)
 
 import type { WallInput, WallResults, LShapedGeometry } from './types';
 import { solveCantileverWall } from './solve';
