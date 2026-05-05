@@ -2,11 +2,11 @@
 // Cross-checks every formula against SkyCiv verification models, ACI 318-19
 // handbook examples, and Das (Principles of Foundation Engineering).
 
-import { kaRankine, kpRankine, kaCoulomb, kpCoulomb, integrateActivePressure } from './src/lib/retaining-wall/earth-pressure';
-import { computeStability } from './src/lib/retaining-wall/stability';
-import { solveWall } from './src/lib/retaining-wall/solve';
-import { flexureDesign, vcOneWay, minReinforcement, crackControl } from './src/lib/retaining-wall/design';
-import type { WallInput } from './src/lib/retaining-wall/types';
+import { kaRankine, kpRankine, kaCoulomb, kpCoulomb, integrateActivePressure } from '../src/lib/retaining-wall/earth-pressure';
+import { computeStability } from '../src/lib/retaining-wall/stability';
+import { solveWall } from '../src/lib/retaining-wall/solve';
+import { flexureDesign, vcOneWay, minReinforcement, crackControl } from '../src/lib/retaining-wall/design';
+import type { WallInput } from '../src/lib/retaining-wall/types';
 
 let PASS = 0;
 let FAIL = 0;
