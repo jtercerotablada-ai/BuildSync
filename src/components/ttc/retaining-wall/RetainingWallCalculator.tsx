@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import type { WallInput, WallKind } from '@/lib/retaining-wall/types';
 import { DEFAULT_INPUT, solveWall, defaultGeometryFor } from '@/lib/retaining-wall/solve';
+import { autoDesign } from '@/lib/retaining-wall/autoDesign';
 import type { UnitSystem } from '@/lib/beam/units';
 import { GeometryPanel } from './GeometryPanel';
 import { MaterialsPanel } from './MaterialsPanel';
@@ -114,6 +115,16 @@ export function RetainingWallCalculator() {
               <span className="rw__status-pill rw__status-pill--ok">OK</span>
             )}
           </div>
+          <button
+            className="btn btn--accent"
+            onClick={() => {
+              const r = autoDesign(input);
+              setInput(r.patchedInput);
+            }}
+            title="Iteratively size the wall until every check passes"
+          >
+            ⚙ Auto-Design
+          </button>
           <button className="btn btn--ghost" onClick={() => setInput(DEFAULT_INPUT)}>
             Reset
           </button>

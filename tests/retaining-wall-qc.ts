@@ -16,6 +16,7 @@ import {
   meyerhofBearing,
   multiLayerStemRebar,
 } from '../src/lib/retaining-wall/aci-checks';
+import { autoDesign } from '../src/lib/retaining-wall/autoDesign';
 import type { WallInput } from '../src/lib/retaining-wall/types';
 
 let PASS = 0;
@@ -720,7 +721,49 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 25: Validation of results vs expected');
+console.log('BLOCK 25: Auto-design — convergence on undersized cantilever');
+console.log('==========================================');
+{
+  // Start from an aggressively undersized cantilever wall.
+  const undersized: WallInput = {
+    code: 'ACI 318-25',
+    geometry: {
+      kind: 'cantilever',
+      H_stem: 4500, t_stem_top: 200, t_stem_bot: 250,
+      B_toe: 200, B_heel: 800, H_foot: 300,
+      backfillSlope: 0, frontFill: 200,
+    },
+    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
+    backfill: [{ name: 'Granular', gamma: 19, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
+    baseSoil: {
+      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
+      delta: 20 * Math.PI / 180, ca: 0, qAllow: 200, passiveEnabled: false,
+    },
+    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+    loads: { surchargeQ: 10, seismic: { kh: 0, kv: 0 } },
+    theory: 'rankine',
+    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
+  };
+  // Confirm undersized fails at least one check
+  const before = solveWall(undersized);
+  expectBool('Undersized wall has errors', before.errors.length > 0, true);
+
+  const r = autoDesign(undersized);
+  expectBool('Auto-design converges', r.ok, true);
+  expectBool('Auto-design takes at least one step', r.steps.length >= 1, true);
+  console.log(`  Iterations: ${r.iterations}, steps: ${r.steps.length}`);
+  if (r.steps.length > 0) {
+    console.log(`  Final: B_heel=${r.patchedInput.geometry.B_heel}, H_foot=${r.patchedInput.geometry.H_foot}, t_bot=${r.patchedInput.geometry.t_stem_bot}`);
+  }
+  // Verify the patched wall now passes
+  const after = solveWall(r.patchedInput);
+  expectBool('Patched wall passes overturning', after.stability.overturningOk, true);
+  expectBool('Patched wall passes sliding', after.stability.slidingOk, true);
+  expectBool('Patched wall passes bearing', after.stability.bearingOk, true);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 26: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);
