@@ -173,6 +173,11 @@ export const DEFAULT_INPUT: WallInput = {
     depthFromStemTop: 0,
     gammaW: 9.81,
   },
+  drainage: {
+    enabled: true,
+    gravelThickness: 300,
+    pipeDiameter: 100,
+  },
   loads: {
     surchargeQ: 10,
     seismic: { kh: 0, kv: 0 },

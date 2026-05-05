@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { SoilLayer, BaseSoil, WaterTable } from '@/lib/retaining-wall/types';
+import type { SoilLayer, BaseSoil, WaterTable, DrainageSystem } from '@/lib/retaining-wall/types';
 import type { UnitSystem, Quantity } from '@/lib/beam/units';
 import { fromSI, toSI, unitLabel } from '@/lib/beam/units';
 
@@ -9,10 +9,12 @@ interface Props {
   backfill: SoilLayer[];
   baseSoil: BaseSoil;
   water: WaterTable;
+  drainage?: DrainageSystem;
   unitSystem: UnitSystem;
   onChangeBackfill: (b: SoilLayer[]) => void;
   onChangeBase: (b: BaseSoil) => void;
   onChangeWater: (w: WaterTable) => void;
+  onChangeDrainage?: (d: DrainageSystem) => void;
 }
 
 const DEG = 180 / Math.PI;

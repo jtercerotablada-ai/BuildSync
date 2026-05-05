@@ -202,6 +202,28 @@ export interface WaterTable {
 }
 
 /**
+ * Drainage system behind the wall.
+ * Geotechnical best-practice for retaining walls: a continuous granular
+ * drainage layer (≥ 300 mm thick) against the rear face of the stem, with
+ * a perforated longitudinal drainage pipe at the base discharging to a
+ * weep system or storm drain. Reduces hydrostatic pressure on the wall.
+ *
+ * The drainage is RENDERED in the visualisation (2D canvas, 3D viewer,
+ * print report) and prevents the water-table ΔP component from being
+ * relied upon — but the solver does NOT subtract drainage capacity from
+ * water pressure (conservative). When `enabled = true`, the user is
+ * expected to also set water.enabled = false (or keep the water table
+ * deep) since the drainage relieves it.
+ */
+export interface DrainageSystem {
+  enabled: boolean;
+  /** Gravel-pack thickness against the rear face of the stem (mm, typ. 300). */
+  gravelThickness: number;
+  /** Perforated drain pipe diameter at the base (mm, typ. 100–150). */
+  pipeDiameter: number;
+}
+
+/**
  * Loads on the wall.
  *   surchargeQ: uniform vertical stress (kPa) applied at top of backfill
  *   pointLoad:  optional line load at some distance behind stem
@@ -234,6 +256,8 @@ export interface WallInput {
   backfill: SoilLayer[]; // layers from top to bottom
   baseSoil: BaseSoil;
   water: WaterTable;
+  /** Drainage system behind wall — visualisation + best-practice flag. */
+  drainage?: DrainageSystem;
   loads: WallLoads;
   theory: EarthPressureTheory;
   safetyFactors: {

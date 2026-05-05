@@ -38,6 +38,13 @@ const C = {
   grassEdge: '#3d7a23',
   concrete: '#c4cbd1',
   concreteEdge: '#7d858f',
+  // Drainage system — gray gravel + white pipe (matches reference images)
+  gravel:       '#8d8d8a',         // base gravel band fill
+  gravelStroke: '#3a3a36',
+  gravelLight:  '#c8c8c2',
+  gravelDark:   '#5a5a55',
+  pipeWhite:    '#ececec',
+  pipeShadow:   '#a8a8a8',
   active: '#f0c839',              // yellow = active pressure
   activeLight: 'rgba(240,200,57,0.22)',
   passive: '#46b93d',             // green = passive + surcharge arrows
@@ -51,6 +58,8 @@ const C = {
   pillStroke: 'rgba(201,168,76,0.55)', // gold border
   pillText: '#f2efe4',                 // light cream text
   label: '#f2efe4',
+  callout: '#f2efe4',                  // leader-line text colour (cream)
+  calloutDot: '#c9a84c',                // small dot at the end of the leader line
 };
 
 export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
@@ -180,6 +189,22 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
     [heelX - g.key.offsetFromHeel, -g.key.depth],
     [heelX - g.key.offsetFromHeel - g.key.width, -g.key.depth],
   ] : null;
+
+  // ─── DRAINAGE SYSTEM (best-practice behind the wall) ───────────────────
+  // Gravel pack against rear face of the stem, full stem height, plus a
+  // perforated pipe at the base. Defaults to enabled (best practice per
+  // every retaining-wall textbook); user can disable for unusual cases.
+  const drainage = input.drainage ?? { enabled: true, gravelThickness: 300, pipeDiameter: 100 };
+  const gravelThickness = drainage.enabled ? drainage.gravelThickness : 0;
+  const pipeDiameter   = drainage.enabled ? drainage.pipeDiameter   : 0;
+  const gravelPoly: [number, number][] = drainage.enabled ? [
+    [stemBackX_bot, footTop],
+    [stemBackX_bot + gravelThickness, footTop],
+    [stemBackX_top + gravelThickness, stemTop],
+    [stemBackX_top, stemTop],
+  ] : [];
+  const pipeCx = stemBackX_bot + gravelThickness / 2;
+  const pipeCy = footTop + pipeDiameter / 2 + 30; // 30 mm above footing for the gravel bed
 
   // Grass strips — one on top of the toe fill (front of wall) and one tracing
   // the inclined backfill top.
@@ -354,6 +379,43 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
         />
       )}
 
+      {/* ─── DRAINAGE GRAVEL (gray pack between stem rear face + backfill) ─── */}
+      {drainage.enabled && (
+        <g>
+          <polygon
+            points={poly(gravelPoly)}
+            fill={C.gravel}
+            stroke={C.gravelStroke}
+            strokeWidth={3}
+          />
+          {/* Gravel "pebbles" texture inside the gravel band */}
+          {(() => {
+            const gravelSeed = Math.floor(stemTop + gravelThickness * 13);
+            const rng = mulberry32(gravelSeed);
+            const count = Math.floor((stemTop - footTop) * gravelThickness / 12000);
+            const els: React.ReactElement[] = [];
+            for (let i = 0; i < count; i++) {
+              const t = rng();
+              const tt = rng();
+              // Interpolate the gravel band width that tapers with the stem
+              const yy = footTop + t * (stemTop - footTop);
+              const taperT = (yy - footTop) / Math.max(stemTop - footTop, 1);
+              const xLeftBand = stemBackX_bot + (stemBackX_top - stemBackX_bot) * taperT;
+              const xRightBand = xLeftBand + gravelThickness;
+              const xx = xLeftBand + tt * (xRightBand - xLeftBand);
+              const r = 18 + rng() * 24;
+              els.push(
+                <circle key={`gv-${i}`}
+                  cx={xW(xx)} cy={yW(yy)} r={r}
+                  fill={rng() > 0.5 ? C.gravelLight : C.gravelDark}
+                  opacity={0.7} />,
+              );
+            }
+            return els;
+          })()}
+        </g>
+      )}
+
       {/* ─── CONCRETE (footing + stem + optional key) ─── */}
       <polygon
         points={poly(footing)}
@@ -374,6 +436,27 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           stroke={C.concreteEdge}
           strokeWidth={6}
         />
+      )}
+
+      {/* ─── DRAINAGE PIPE (perforated, white circle near base of gravel) ─── */}
+      {drainage.enabled && pipeDiameter > 0 && (
+        <g>
+          {/* Outer pipe wall */}
+          <circle cx={xW(pipeCx)} cy={yW(pipeCy)} r={pipeDiameter / 2}
+            fill={C.pipeWhite} stroke={C.pipeShadow} strokeWidth={5} />
+          {/* Inner shadow */}
+          <circle cx={xW(pipeCx)} cy={yW(pipeCy)} r={pipeDiameter / 2 * 0.65}
+            fill="rgba(0,0,0,0.45)" />
+          {/* Perforation marks (small holes) */}
+          {Array.from({ length: 6 }).map((_, i) => {
+            const a = (i / 6) * Math.PI * 2 - Math.PI / 6;
+            const r = pipeDiameter / 2 * 0.75;
+            const px = xW(pipeCx) + Math.cos(a) * r;
+            const py = yW(pipeCy) + Math.sin(a) * r;
+            return <circle key={`p-${i}`} cx={px} cy={py} r={pipeDiameter * 0.08}
+                          fill={C.pipeShadow} />;
+          })}
+        </g>
       )}
 
       {/* ─── Water table dashed cyan ∇ ─── */}
@@ -589,31 +672,105 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
         color: C.dimHex,
       })}
 
-      {/* Wall labels */}
-      <text
-        x={xW(stemFrontX + g.t_stem_bot / 2)}
-        y={yW(stemTop - 80)}
-        fontSize={fs.sm}
-        textAnchor="middle"
-        fill={C.label}
-        fontFamily="Inter, sans-serif"
-        fontWeight={800}
-        letterSpacing="0.18em"
-      >
-        STEM
-      </text>
-      <text
-        x={xW(B / 2)}
-        y={yW(g.H_foot / 2) + fs.sm * 0.35}
-        fontSize={fs.sm}
-        textAnchor="middle"
-        fill="#2c3238"
-        fontFamily="Inter, sans-serif"
-        fontWeight={800}
-        letterSpacing="0.18em"
-      >
-        FOOTING
-      </text>
+      {/* ─── SPANISH CALLOUTS — leader-line + dot + label ─────────────────────
+          Estilo educativo / didáctico en español, con líneas guía
+          terminadas en un pequeño punto dorado sobre el elemento que
+          identifican (estilo de las imágenes de referencia ACI / SkyBird /
+          textbooks profesionales).                                          */}
+      {(() => {
+        const labelKindMap: Record<typeof g.kind, string> = {
+          'cantilever': 'Fuste',
+          'gravity': 'Muro de gravedad',
+          'semi-gravity': 'Muro semi-gravedad',
+          'l-shaped': 'Muro en L',
+          'counterfort': 'Fuste',
+          'buttressed': 'Fuste',
+          'basement': 'Muro de sótano',
+          'abutment': 'Estribo',
+        };
+        const isMassWall = g.kind === 'gravity' || g.kind === 'semi-gravity';
+        const items: Array<{ side: 'left' | 'right'; tx: number; ty: number;
+                             dx: number; dy: number; text: string; fs: number }> = [];
+
+        // Stem / wall body — left side
+        items.push({
+          side: 'left',
+          tx: xW(xLeft + 200),
+          ty: yW(stemTop - g.H_stem * 0.35),
+          dx: xW(stemFrontX + g.t_stem_bot * 0.5),
+          dy: yW(stemTop - g.H_stem * 0.35),
+          text: labelKindMap[g.kind],
+          fs: fs.sm,
+        });
+        // Punta (toe) — left side, lower
+        if (g.B_toe > 0) {
+          items.push({
+            side: 'left',
+            tx: xW(xLeft + 200),
+            ty: yW(g.H_foot * 0.5 - padB * 0.05),
+            dx: xW(g.B_toe * 0.5),
+            dy: yW(g.H_foot * 0.5),
+            text: 'Punta',
+            fs: fs.sm,
+          });
+        }
+        // Talón (heel) — right side
+        items.push({
+          side: 'right',
+          tx: xW(B + padR * 0.5),
+          ty: yW(g.H_foot * 0.4 - padB * 0.06),
+          dx: xW((stemBackX_bot + B) / 2),
+          dy: yW(g.H_foot * 0.5),
+          text: 'Talón',
+          fs: fs.sm,
+        });
+        // Suelo de cimentación — bottom-left
+        items.push({
+          side: 'left',
+          tx: xW(xLeft + 250),
+          ty: yW(-padB * 0.55),
+          dx: xW(B * 0.25),
+          dy: yW(-padB * 0.30),
+          text: 'Suelo de cimentación',
+          fs: fs.sm,
+        });
+        // Relleno — far right, upper-right corner
+        items.push({
+          side: 'right',
+          tx: xW(B + padR * 0.5),
+          ty: yW(stemTop - g.H_stem * 0.3),
+          dx: xW(B + padR * 0.18),
+          dy: yW(stemTop - g.H_stem * 0.3),
+          text: 'Relleno',
+          fs: fs.sm,
+        });
+        // Drainage labels — only when drainage is enabled
+        if (drainage.enabled) {
+          items.push({
+            side: 'right',
+            tx: xW(B + padR * 0.5),
+            ty: yW(stemTop - g.H_stem * 0.6),
+            dx: xW(stemBackX_bot + gravelThickness * 0.5),
+            dy: yW(stemTop - g.H_stem * 0.55),
+            text: 'Grava drenante',
+            fs: fs.sm,
+          });
+          if (pipeDiameter > 0) {
+            items.push({
+              side: 'right',
+              tx: xW(B + padR * 0.5),
+              ty: yW(stemTop - g.H_stem * 0.85),
+              dx: xW(pipeCx),
+              dy: yW(pipeCy),
+              text: 'Tubo de drenaje',
+              fs: fs.sm,
+            });
+          }
+        }
+        return items.map((it, i) => (
+          <Callout key={`cal-${i}`} {...it} />
+        ));
+      })()}
     </svg>
   );
 }
@@ -693,6 +850,48 @@ function DoubleArrow({
         letterSpacing="0.04em"
       >
         {label}
+      </text>
+    </g>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Callout — leader line + dot + label, matches the reference-image style
+// ("Fuste", "Talón", "Grava drenante", etc).
+function Callout({
+  side, tx, ty, dx, dy, text, fs,
+}: {
+  side: 'left' | 'right';
+  tx: number; ty: number;       // text anchor position (svg coords)
+  dx: number; dy: number;       // dot position (on the element being labeled)
+  text: string; fs: number;
+}) {
+  // The leader line has 2 segments: horizontal stub from the text, then a
+  // diagonal to the dot.
+  const stub = side === 'left' ? +60 : -60;
+  return (
+    <g>
+      <line
+        x1={tx + (side === 'left' ? 8 : -8)} y1={ty}
+        x2={tx + stub} y2={ty}
+        stroke="#f2efe4" strokeWidth={3}
+      />
+      <line
+        x1={tx + stub} y1={ty}
+        x2={dx} y2={dy}
+        stroke="#f2efe4" strokeWidth={3}
+      />
+      <circle cx={dx} cy={dy} r={9} fill="#c9a84c" stroke="#1a1a1a" strokeWidth={2} />
+      <text
+        x={tx} y={ty + fs * 0.34}
+        fontSize={fs}
+        textAnchor={side === 'left' ? 'end' : 'start'}
+        fill="#f2efe4"
+        fontFamily="Inter, sans-serif"
+        fontWeight={600}
+        style={{ paintOrder: 'stroke fill', stroke: '#1a1a1a', strokeWidth: 4 }}
+      >
+        {text}
       </text>
     </g>
   );
