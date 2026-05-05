@@ -672,7 +672,55 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 24: Validation of results vs expected');
+console.log('BLOCK 24: Bridge abutment — AASHTO LRFD §11.6');
+console.log('==========================================');
+{
+  const abut: WallInput = {
+    code: 'AASHTO LRFD',
+    geometry: {
+      kind: 'abutment',
+      H_stem: 5500, t_stem_top: 400, t_stem_bot: 600,
+      B_toe: 1000, B_heel: 2200, H_foot: 800,
+      backfillSlope: 0, frontFill: 500,
+      bridgeSeat: { width: 600, deadLoad: 250, liveLoad: 150 },
+      backwall: { H: 1500, t: 350 },
+      wingWall: { length: 3000, H: 2500, t: 350 },
+    },
+    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
+    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
+    baseSoil: {
+      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
+      delta: 20 * Math.PI / 180, ca: 0, qAllow: 350, passiveEnabled: false,
+    },
+    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+    loads: { surchargeQ: 12, seismic: { kh: 0, kv: 0 } },
+    theory: 'rankine',
+    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
+  };
+  const r = solveWall(abut);
+  expectBool('Abutment returned abutmentDesign', !!r.abutmentDesign, true);
+  if (r.abutmentDesign) {
+    // Strength I: PuD = 1.25·250 = 312.5, PuL = 1.75·150 = 262.5, total = 575
+    expect('Abutment seat factored DL (γDC=1.25)', r.abutmentDesign.seat.PuD, 312.5, 0.001);
+    expect('Abutment seat factored LL (γLL=1.75)', r.abutmentDesign.seat.PuL, 262.5, 0.001);
+    expect('Abutment seat factored total Pu', r.abutmentDesign.seat.PuTotal, 575, 0.001);
+    // Backwall: H = 1.5 m, γ = 18, Ka(32°) ≈ 0.307
+    // M_unfac = (1/6)·18·0.307·1.5³ + (1/2)·0.307·12·1.5²
+    //         = 3.108 + 4.144 = 7.25 kN·m/m
+    // M factored = 1.50 · 7.25 = 10.88 kN·m/m
+    const Ka = (1 - Math.sin(32*Math.PI/180)) / (1 + Math.sin(32*Math.PI/180));
+    const Mbw_unfac = (1/6)*18*Ka*1.5**3 + (1/2)*Ka*12*1.5**2;
+    const Mbw_expected = 1.5 * Mbw_unfac;
+    expect('Backwall Mu (γEH=1.5)', r.abutmentDesign.backwall.Mu, Mbw_expected, 0.05);
+    expectBool('Wing wall present', !!r.abutmentDesign.wingWall, true);
+    if (r.abutmentDesign.wingWall) {
+      expectBool('Wing wall As_req > 0', r.abutmentDesign.wingWall.As_req > 0, true);
+    }
+  }
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 25: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);
