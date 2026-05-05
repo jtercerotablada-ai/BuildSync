@@ -6,6 +6,16 @@ import { kaRankine, kpRankine, kaCoulomb, kpCoulomb, integrateActivePressure } f
 import { computeStability } from '../src/lib/retaining-wall/stability';
 import { solveWall } from '../src/lib/retaining-wall/solve';
 import { flexureDesign, vcOneWay, minReinforcement, crackControl } from '../src/lib/retaining-wall/design';
+import {
+  developmentLengthTension,
+  developmentLengthHook,
+  lapSpliceLength,
+  pickLapSpliceClass,
+  shearFrictionCapacity,
+  shearFrictionRequiredArea,
+  meyerhofBearing,
+  multiLayerStemRebar,
+} from '../src/lib/retaining-wall/aci-checks';
 import type { WallInput } from '../src/lib/retaining-wall/types';
 
 let PASS = 0;
@@ -387,7 +397,137 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 15: Validation of results vs expected');
+console.log('BLOCK 15: Development length (ACI 318-25 §25.4.2)');
+console.log('==========================================');
+{
+  // #6 bar (db = 19 mm), fy = 420 MPa, f'c = 28 MPa, normal-weight, uncoated.
+  // Default factors: ψt = ψe = 1.0, ψg = 1.0, ψs = 0.8 (#6 ≤ 19 mm), λ = 1.0.
+  // Cap (cb+Ktr)/db = 2.5.
+  // ld = (19 · 420 · 1 · 1 · 0.8 · 1) / (1.1 · 1 · √28 · 2.5)
+  //    = (19 · 336) / (1.1 · 5.2915 · 2.5)
+  //    = 6384 / 14.5516 ≈ 438.7 mm
+  const r = developmentLengthTension(19, 420, 28, 600);
+  console.log(`  ld(#6, 420/28) = ${r.ld} mm; ldh = ${r.ldh} mm`);
+  expect('#6 ld ≈ 439 mm', r.ld, 439, 0.02);
+  expectBool('available 600 ≥ ld 439 → ok', r.ok, true);
+  // Tighter test on hook: ldh = (fy · 1 · 1 · 1 · 1 · 1 / (23 · √28)) · db^1.5
+  //                          = (420 / (23 · 5.2915)) · 19^1.5
+  //                          = (420 / 121.71) · 82.82 ≈ 285.7 mm
+  expect('#6 ldh ≈ 286 mm', r.ldh, 286, 0.02);
+
+  // ψs = 1.0 for #7 (db = 22.2 mm)
+  const r7 = developmentLengthTension(22.2, 420, 28, 800);
+  expect('#7 ld factor (ψs = 1.0)', r7.ld, 19 * 420 * 1 / (1.1 * Math.sqrt(28) * 2.5) * (22.2 / 19), 0.05);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 16: Standard 90° hook (ACI 318-25 §25.4.3)');
+console.log('==========================================');
+{
+  // #5 bar (db = 16 mm), fy = 420, f'c = 28, default factors → 1.0 each.
+  // ldh = (420 / (23 · √28)) · 16^1.5
+  //     = (420 / 121.71) · 64 ≈ 220.8 mm
+  // minimum 8 db = 128, 150 → governing 220.8
+  const r = developmentLengthHook(16, 420, 28, 300);
+  expect('#5 ldh ≈ 221 mm', r.ldh, 221, 0.02);
+  expectBool('300 mm available > 221 mm hook', r.ok, true);
+
+  // Tight cover (ψc = 0.7) cuts ldh
+  const rTight = developmentLengthHook(16, 420, 28, 300, { psi_c: 0.7 });
+  expect('hook with ψc=0.7 reduces ldh by 30 %', rTight.ldh, 221 * 0.7, 0.02);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 17: Lap-splice length (ACI 318-25 §25.5.2)');
+console.log('==========================================');
+{
+  const ld = 500;
+  const A = lapSpliceLength(ld, 'A', 600);
+  expect('Class A ls = 1.0 · ld', A.ls, 500, 0.001);
+  expectBool('Class A ok at 600 available', A.ok, true);
+  const B = lapSpliceLength(ld, 'B', 600);
+  expect('Class B ls = 1.3 · ld', B.ls, 650, 0.01);
+  expectBool('Class B FAILS at 600 available', B.ok, false);
+  // Class picker
+  expectBool('As,prov=2x req, ≤50% spliced → Class A', pickLapSpliceClass(1000, 500, 0.5) === 'A', true);
+  expectBool('As,prov=1.5x req → Class B', pickLapSpliceClass(750, 500, 0.5) === 'B', true);
+  expectBool('60% spliced even with 2x area → Class B', pickLapSpliceClass(1000, 500, 0.6) === 'B', true);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 18: Shear-friction at construction joint (§22.9)');
+console.log('==========================================');
+{
+  // Stem-footing joint with intentional roughening: μ = 1.0·λ = 1.0
+  // Vu = 50 kN/m factored, fy = 420, φ = 0.75
+  // Avf,req = 50 · 1000 / (0.75 · 1.0 · 420) = 158.7 mm²/m
+  const Avf_req = shearFrictionRequiredArea(50, 420, 1.0, 0.75);
+  expect('Shear-friction Avf_req ≈ 159 mm²/m', Avf_req, 158.7, 0.02);
+  // Capacity with Avf = 200 mm²/m
+  const cap = shearFrictionCapacity(200, 420, 1.0, 28);
+  // Vn = 1.0 · 200 · 420 = 84_000 N/m → 84 kN/m
+  expect('Shear-friction Vn(200, 420) = 84 kN/m', cap.Vn, 84, 0.001);
+  // Cap (Ac = 1000·400 = 400_000 mm²): 0.2·28·400_000 = 2_240_000 N → 2240 kN/m
+  // 5.5·400_000 = 2_200_000 N → 2200 kN/m → governs
+  expect('Vn cap ≈ 2200 kN/m', cap.Vn_max, 2200, 0.001);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 19: Meyerhof / Vesić bearing capacity');
+console.log('==========================================');
+{
+  // Strip footing, 2 m wide, 0 m embedment, sand φ=30°, c=0, γ=18 kN/m³.
+  // qu = 0.5 · γ · B · Nγ for c = 0, q = 0.
+  // Nq(30°) = e^(π·tan30) · tan²(60) = e^1.8138 · 3 = 6.146 · 3 = 18.40
+  // Nγ Vesić = 2(Nq+1)tanφ = 2·19.40·0.5774 = 22.40
+  const r = meyerhofBearing({
+    c: 0, gamma: 18, B: 2000, L: 20000, Df: 0,
+    phi: 30 * Math.PI / 180, q: 0, H: 0, V: 100,
+    FS_bearing: 3.0,
+  });
+  expect('Nq(30°) ≈ 18.4', r.Nq, 18.40, 0.02);
+  expect('Nγ Vesić(30°) ≈ 22.4', r.Ng, 22.40, 0.05);
+  expect('Nc(30°) ≈ 30.14', r.Nc, 30.14, 0.05);
+  // qu = 0.5 · 18 · 2 · 22.4 · sγ · dγ · iγ
+  //    sγ ≈ 1 - 0.4·(2/20) = 0.96
+  //    dγ = 1, iγ ≈ 1 (β=0)
+  //    qu ≈ 18 · 22.4 · 0.96 ≈ 387 kPa
+  expect('Strip qu (φ=30, B=2m) ≈ 387 kPa', r.qu, 387, 0.05);
+  // Inclination check: H/V = 0 → iq = ic = iγ = 1
+  expectBool('Vertical load → iq = 1', Math.abs(r.iq - 1) < 1e-6, true);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 20: Multi-layer stem rebar curtailment (§9.7.3)');
+console.log('==========================================');
+{
+  // Cantilever stem H = 4 m, base demand Mu(0) = 80 kN·m/m, decreasing
+  // cubically to 0 at top. Use 11 sample points.
+  const H = 4000;
+  const Mu_base = 80;
+  const envelope = Array.from({ length: 11 }, (_, i) => {
+    const y = (i / 10) * H;
+    const M = Mu_base * Math.pow(1 - y / H, 3);
+    return { y, M };
+  });
+  const zones = multiLayerStemRebar({
+    envelope, d_base: 350, db_base: 19, cover: 75,
+    fc: 28, fy: 420, h_base: 400,
+    As_min: 720, barLabel: '#6', spacing_base: 200,
+  });
+  expectBool('Two zones produced (base + light)', zones.length === 2, true);
+  expectBool('Zone 1 starts at base (y=0)', zones[0].yStart === 0, true);
+  expectBool('Zone 1 As ≥ As_min (peak demand floored at As_min)', zones[0].As_per_m >= 720, true);
+  expectBool('Zone 2 As = As_min', zones[1].As_per_m === 720, true);
+  expectBool('Zones cover full height', zones[zones.length - 1].yEnd === H, true);
+  // Cut point should be at least at y where M < 50% Mmax PLUS the shift rule
+  // (max(d, 12db) = max(350, 228) = 350). M=40 occurs at y where (1-y/H)^3=0.5
+  // → y/H = 1 - 0.5^(1/3) ≈ 0.206 → y ≈ 825 mm. Plus shift 350 → 1175 mm.
+  expectBool('Zone 1 ends near M=50% point + shift', zones[0].yEnd >= 800, true);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 21: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);
