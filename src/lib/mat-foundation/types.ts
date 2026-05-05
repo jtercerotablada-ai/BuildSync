@@ -153,15 +153,87 @@ export interface MatPunchingCheck {
   steps: CalcStep[];
 }
 
+/** Bearing-interface check at one column on a mat (§22.8). */
+export interface MatBearingInterfaceCheck {
+  columnId: string;
+  Pu: number;
+  phiBnCol: number;
+  phiBnFtg: number;
+  phiBn: number;
+  ratio: number;
+  ok: boolean;
+  ref: string;
+  steps: CalcStep[];
+}
+
+/** Bar fit / spacing for one mat layer (top X / top Y / bot X / bot Y). */
+export interface MatBarFitCheck {
+  layer: 'topX' | 'topY' | 'bottomX' | 'bottomY';
+  s_clear: number;
+  s_min: number;
+  s_max: number;
+  ok: boolean;
+  ref: string;
+  steps: CalcStep[];
+}
+
+/** Strip-method longitudinal flexure: divides the mat into beam strips along
+ *  one axis (X or Y) and analyzes each strip as a continuous beam supporting
+ *  the columns that fall in it.  Reports the worst-case Mu+ and Mu− across
+ *  all strips. */
+export interface MatStripFlexureCheck {
+  axis: 'X' | 'Y';
+  /** Number of column-line strips identified along this axis. */
+  numStrips: number;
+  /** Worst positive moment across all strips (kN·m). */
+  Mu_pos_max: number;
+  /** Worst negative moment magnitude across all strips (kN·m). */
+  Mu_neg_max: number;
+  /** Required As for the worst Mu+ (mm² per metre width). */
+  AsReq_pos_per_m: number;
+  AsReq_neg_per_m: number;
+  /** Provided As (per metre width) for the bottom mat in this axis. */
+  AsProv_pos_per_m: number;
+  /** Provided As (per metre width) for the top mat in this axis. */
+  AsProv_neg_per_m: number;
+  ok: boolean;
+  ref: string;
+  steps: CalcStep[];
+}
+
 /** Aggregate analysis result. */
 export interface MatFoundationAnalysis {
   input: MatFoundationInput;
   bearing: MatBearingCheck;
   /** Per-column punching check (one per column). */
   punching: MatPunchingCheck[];
+  /** Per-column bearing-interface check. */
+  bearingInterface: MatBearingInterfaceCheck[];
+  /** Bar-fit checks for all 4 mats. */
+  barFit: MatBarFitCheck[];
+  /** Strip-method flexure along X and Y. */
+  stripFlexureX: MatStripFlexureCheck;
+  stripFlexureY: MatStripFlexureCheck;
   /** Factored uniform pressure used in design (kPa) — for punching. */
   qnu_avg: number;
   ok: boolean;
   warnings: string[];
   solved: boolean;
+}
+
+// ─── AUTO-DESIGN ──────────────────────────────────────────────────────────
+
+export interface MatAutoDesignOptions {
+  /** Aspect ratio B/L target (default 1.0 = square). */
+  aspect?: number;
+  /** Apply a safety factor to the allowable bearing. */
+  qaSafetyFactor?: number;
+  fixT?: number;
+}
+
+export interface MatAutoDesignResult {
+  patchedInput: MatFoundationInput;
+  ok: boolean;
+  rationaleSteps: CalcStep[];
+  warnings: string[];
 }

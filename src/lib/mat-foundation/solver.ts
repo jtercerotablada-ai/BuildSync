@@ -18,9 +18,10 @@
 import type {
   MatFoundationInput, MatFoundationAnalysis,
   MatBearingCheck, MatPunchingCheck, MatColumn,
+  MatBearingInterfaceCheck, MatBarFitCheck, MatStripFlexureCheck,
 } from './types';
 import type { CalcStep } from '../footing/types';
-import { barDiameter } from '../rc/types';
+import { barArea, barDiameter } from '../rc/types';
 
 const PI = Math.PI;
 
@@ -233,6 +234,207 @@ function checkPunchingAtColumn(
   };
 }
 
+// ─── BEARING AT EACH COLUMN-MAT INTERFACE (§22.8) ───────────────────────────
+
+function checkBearingInterfaceAtColumn(
+  input: MatFoundationInput, col: MatColumn,
+): MatBearingInterfaceCheck {
+  const { code, geometry: g, materials: m } = input;
+  const phi = 0.65;
+  const A1 = col.shape === 'circular'
+    ? PI * Math.pow(col.cx / 2, 2)
+    : col.cx * (col.cy ?? col.cx);
+  const Pu = 1.2 * col.PD + 1.6 * col.PL;
+  const phiBnCol = (phi * 0.85 * m.fc * A1) / 1000;     // kN
+  // A2 estimated as (col + 4·T)² capped by mat area
+  const colMaxDim = Math.max(col.cx, col.cy ?? col.cx);
+  const A2_est = Math.min(
+    Math.pow(colMaxDim + 4 * g.T, 2),
+    g.B * g.L,
+  );
+  const factor = Math.min(2, Math.sqrt(A2_est / A1));
+  const phiBnFtg = phiBnCol * factor;
+  const phiBn = Math.min(phiBnCol, phiBnFtg);
+  const ratio = Pu / Math.max(phiBn, 1e-9);
+  const ok = ratio <= 1;
+  return {
+    columnId: col.id, Pu, phiBnCol, phiBnFtg, phiBn, ratio, ok,
+    ref: ref(code, '22.8'),
+    steps: [
+      {
+        title: `Column ${col.id} — bearing-interface area`,
+        formula: 'A1 = column gross area; A2 ≈ (col + 4·T)² capped by mat',
+        substitution: `A1 = ${A1.toFixed(0)} mm², A2 ≈ ${A2_est.toFixed(0)} mm², factor = ${factor.toFixed(3)}`,
+        result: `factor = ${factor.toFixed(3)}`,
+      },
+      {
+        title: `Column ${col.id} — φBn,col + φBn,ftg`,
+        formula: 'φBn,col = φ·0.85·fʹc·A1; φBn,ftg = φBn,col · √(A2/A1)',
+        substitution: `0.65·0.85·${m.fc}·${A1.toFixed(0)}`,
+        result: `φBn,col = ${phiBnCol.toFixed(1)} kN, φBn,ftg = ${phiBnFtg.toFixed(1)} kN`,
+        ref: ref(code, '22.8.3'),
+      },
+      {
+        title: `Column ${col.id} demand`,
+        formula: 'Pu / φBn',
+        substitution: `${Pu.toFixed(1)} / ${phiBn.toFixed(1)}`,
+        result: `Ratio = ${ratio.toFixed(3)} ${ok ? '✓' : '✗ FAIL — add dowels'}`,
+      },
+    ],
+  };
+}
+
+// ─── BAR FIT FOR ONE OF THE 4 MATS (§25.2.1) ────────────────────────────────
+
+function checkBarFitForMat(
+  input: MatFoundationInput, layerKey: 'topX' | 'topY' | 'bottomX' | 'bottomY',
+): MatBarFitCheck {
+  const { code, geometry: g } = input;
+  const layer = input.reinforcement[layerKey];
+  const dbBar = barDiameter(layer.bar);
+  const s_clear = layer.spacing - dbBar;
+  const dagg = 19;
+  const s_min = Math.max(25, dbBar, (4 / 3) * dagg);
+  const s_max = Math.min(3 * g.T, 450);
+  const ok = s_clear >= s_min && s_clear <= s_max;
+  return {
+    layer: layerKey, s_clear, s_min, s_max, ok,
+    ref: ref(code, '25.2.1 / 13.3.4'),
+    steps: [
+      {
+        title: `${layerKey}: clear spacing`,
+        formula: 'sclear = spacing − db',
+        substitution: `${layer.spacing} − ${dbBar.toFixed(1)}`,
+        result: `sclear = ${s_clear.toFixed(0)} mm`,
+      },
+      {
+        title: `${layerKey}: min/max bounds`,
+        formula: 'smin = max(25, db, 4/3·dagg);  smax = min(3·T, 450)',
+        substitution: `smin = ${s_min.toFixed(0)}; smax = ${s_max.toFixed(0)}`,
+        result: ok ? '✓ within bounds' : (s_clear < s_min ? '✗ too tight' : '✗ too sparse'),
+      },
+    ],
+  };
+}
+
+// ─── STRIP-METHOD FLEXURE (column-line strips) ──────────────────────────────
+//
+// Conventional rigid-method strip analysis: divide the mat along the chosen
+// axis into strips bounded by column-line midpoints. Each strip is treated as
+// a continuous beam supporting the columns whose centerline falls in the
+// strip, with the soil-pressure reaction (qnu × stripWidth) as a distributed
+// upward load. The worst-case Mu+ and Mu− across all strips drives the
+// reinforcement design (per metre of strip width).
+function checkStripFlexure(
+  input: MatFoundationInput, axis: 'X' | 'Y',
+): MatStripFlexureCheck {
+  const { code, geometry: g, materials: m, columns } = input;
+  // Group columns by their position along the perpendicular axis (column lines)
+  const perpCoord = (c: MatColumn) => axis === 'X' ? c.y : c.x;
+  const lineCoords = Array.from(new Set(columns.map((c) => perpCoord(c)))).sort((a, b) => a - b);
+
+  // Strip widths: defined by column-line midpoints + mat boundaries
+  const matPerp = axis === 'X' ? g.L : g.B;
+  const stripBounds: Array<{ start: number; end: number; lineCoord: number }> = [];
+  for (let i = 0; i < lineCoords.length; i++) {
+    const start = i === 0 ? 0 : (lineCoords[i - 1] + lineCoords[i]) / 2;
+    const end = i === lineCoords.length - 1 ? matPerp : (lineCoords[i] + lineCoords[i + 1]) / 2;
+    stripBounds.push({ start, end, lineCoord: lineCoords[i] });
+  }
+
+  // Factored uniform pressure
+  const A_m2 = (g.B * g.L) / 1e6;
+  const sumPu = columns.reduce((acc, c) => acc + 1.2 * c.PD + 1.6 * c.PL, 0);
+  const qnu = sumPu / A_m2;     // kPa
+
+  // For each strip, run a simple beam analysis along the strip direction
+  let Mu_pos_max = 0, Mu_neg_max = 0;
+  for (const strip of stripBounds) {
+    const w_m = (strip.end - strip.start) / 1000;     // strip width in metres
+    const wu = qnu * w_m;     // kN/m on the strip beam
+    const span = (axis === 'X' ? g.B : g.L) / 1000;     // strip beam span in m
+    // Columns on this line, sorted by along-strip coord
+    const colsOnLine = columns
+      .filter((c) => perpCoord(c) === strip.lineCoord)
+      .sort((a, b) => (axis === 'X' ? a.x - b.x : a.y - b.y));
+    if (colsOnLine.length === 0) continue;
+
+    // Sample the beam at fine intervals
+    const N = 200;
+    const dx = span / N;
+    let M = 0, prevV = 0;
+    let stripPos = 0, stripNeg = 0;
+    for (let i = 0; i <= N; i++) {
+      const x = i * dx;
+      let V = wu * x;
+      for (const c of colsOnLine) {
+        const cx = (axis === 'X' ? c.x : c.y) / 1000;
+        if (x >= cx) V -= 1.2 * c.PD + 1.6 * c.PL;
+      }
+      if (i > 0) M += (V + prevV) / 2 * dx;
+      prevV = V;
+      if (M > stripPos) stripPos = M;
+      if (M < stripNeg) stripNeg = M;
+    }
+    if (stripPos > Mu_pos_max) Mu_pos_max = stripPos;
+    if (Math.abs(stripNeg) > Mu_neg_max) Mu_neg_max = Math.abs(stripNeg);
+  }
+
+  // AsReq from worst Mu, per metre of strip width
+  const fc = m.fc, fy = m.fy;
+  const phi = 0.90;
+  const dbX = barDiameter(input.reinforcement.bottomX.bar);
+  const d = g.T - g.coverClear - dbX / 2;
+  function asReqPerM(Mu_kNm: number): number {
+    // Mu per metre of strip width; bw = 1000 mm
+    const bw = 1000;
+    const A_q = fy * fy / (2 * 0.85 * fc * bw);
+    const B_q = -fy * d;
+    const C_q = (Mu_kNm * 1e6) / phi;
+    const disc = B_q * B_q - 4 * A_q * C_q;
+    return disc < 0 ? 0 : (-B_q - Math.sqrt(disc)) / (2 * A_q);
+  }
+  const AsReq_pos_per_m = asReqPerM(Mu_pos_max / Math.max((axis === 'X' ? g.L : g.B) / 1000, 1));
+  const AsReq_neg_per_m = asReqPerM(Mu_neg_max / Math.max((axis === 'X' ? g.L : g.B) / 1000, 1));
+
+  // Provided As (per m) for the bottom and top mats in this axis
+  const botLayer = axis === 'X' ? input.reinforcement.bottomX : input.reinforcement.bottomY;
+  const topLayer = axis === 'X' ? input.reinforcement.topX : input.reinforcement.topY;
+  const AsProv_pos_per_m = (1000 / botLayer.spacing) * barArea(botLayer.bar);
+  const AsProv_neg_per_m = (1000 / topLayer.spacing) * barArea(topLayer.bar);
+
+  const ok = AsProv_pos_per_m >= AsReq_pos_per_m && AsProv_neg_per_m >= AsReq_neg_per_m;
+
+  return {
+    axis, numStrips: stripBounds.length,
+    Mu_pos_max, Mu_neg_max,
+    AsReq_pos_per_m, AsReq_neg_per_m,
+    AsProv_pos_per_m, AsProv_neg_per_m,
+    ok,
+    ref: ref(code, '13.3.4 + R13.3.4.4'),
+    steps: [
+      {
+        title: `Strip-method along ${axis}`,
+        formula: 'Divide into column-line strips; analyse each as continuous beam (qnu·w as upward load + Pu point loads)',
+        substitution: `${stripBounds.length} strips, qnu = ${qnu.toFixed(1)} kPa`,
+        result: `Worst Mu+ = ${Mu_pos_max.toFixed(1)} kN·m, |Mu−| = ${Mu_neg_max.toFixed(1)} kN·m`,
+      },
+      {
+        title: `As required per m of strip (${axis})`,
+        formula: 'AsReq from singly-reinforced quadratic',
+        substitution: `d = ${d.toFixed(1)} mm`,
+        result: `+ ${AsReq_pos_per_m.toFixed(0)} mm²/m, − ${AsReq_neg_per_m.toFixed(0)} mm²/m`,
+      },
+      {
+        title: `As provided per m (bottom ${axis} + top ${axis})`,
+        formula: 'AsProv = (1000 / spacing) · barArea',
+        substitution: `bot ${botLayer.bar}@${botLayer.spacing}, top ${topLayer.bar}@${topLayer.spacing}`,
+        result: `+ ${AsProv_pos_per_m.toFixed(0)} mm²/m, − ${AsProv_neg_per_m.toFixed(0)} mm²/m ${ok ? '✓' : '✗'}`,
+      },
+    ],
+  };
+}
+
 // ─── ENTRY POINT ────────────────────────────────────────────────────────────
 
 export function analyzeMatFoundation(input: MatFoundationInput): MatFoundationAnalysis {
@@ -250,6 +452,14 @@ export function analyzeMatFoundation(input: MatFoundationInput): MatFoundationAn
   const punching = input.columns.map((c) =>
     checkPunchingAtColumn(input, c, qnu_avg),
   );
+  const bearingInterface = input.columns.map((c) =>
+    checkBearingInterfaceAtColumn(input, c),
+  );
+  const barFit: MatBarFitCheck[] = (['topX', 'topY', 'bottomX', 'bottomY'] as const).map(
+    (k) => checkBarFitForMat(input, k),
+  );
+  const stripFlexureX = checkStripFlexure(input, 'X');
+  const stripFlexureY = checkStripFlexure(input, 'Y');
 
   if (!bearing.ok) {
     warnings.push(`Bearing fails — qmax = ${bearing.q_max.toFixed(1)} kPa > qa = ${input.soil.qa} kPa.`);
@@ -259,16 +469,32 @@ export function analyzeMatFoundation(input: MatFoundationInput): MatFoundationAn
       warnings.push(`Punching at column ${p.columnId} fails — ratio = ${p.ratio.toFixed(2)}. Increase T or add headed shear studs.`);
     }
   }
+  for (const bi of bearingInterface) {
+    if (!bi.ok) {
+      warnings.push(`Bearing interface at column ${bi.columnId} fails (Pu/φBn = ${bi.ratio.toFixed(2)}). Add dowels per §16.3.4.1.`);
+    }
+  }
+  for (const bf of barFit) {
+    if (!bf.ok) {
+      warnings.push(`Bar spacing for ${bf.layer} out of bounds (sclear = ${bf.s_clear.toFixed(0)} mm).`);
+    }
+  }
+  if (!stripFlexureX.ok) warnings.push(`Strip-method flexure (X) fails — increase mat reinforcement in X.`);
+  if (!stripFlexureY.ok) warnings.push(`Strip-method flexure (Y) fails — increase mat reinforcement in Y.`);
   if (input.geometry.T < 600) {
     warnings.push(`Mat thickness ${input.geometry.T} mm is below typical 600-1500 mm range. Verify stiffness.`);
   }
-  // ACI 318-25 R13.3.4.4: continuous reinforcement near both faces is recommended
-  // for thick two-way slabs (mats). We don't validate this strictly but warn.
   warnings.push(`Per ACI 318-25 R13.3.4.4: continuous top + bottom reinforcement in BOTH directions is recommended for crack control and to intercept punching cracks.`);
 
-  const ok = bearing.ok && punching.every((p) => p.ok);
+  const ok = bearing.ok
+          && punching.every((p) => p.ok)
+          && bearingInterface.every((bi) => bi.ok)
+          && barFit.every((bf) => bf.ok)
+          && stripFlexureX.ok && stripFlexureY.ok;
 
   return {
-    input, bearing, punching, qnu_avg, ok, warnings, solved: true,
+    input, bearing, punching, bearingInterface, barFit,
+    stripFlexureX, stripFlexureY,
+    qnu_avg, ok, warnings, solved: true,
   };
 }

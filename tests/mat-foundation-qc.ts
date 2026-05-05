@@ -84,10 +84,11 @@ block('Block 1 — Symmetric 4-column mat, uniform pressure', () => {
     soil: { qa: 200, gammaSoil: 18, gammaConcrete: 24 },
     materials: { fc: 25, fy: 420, lambdaC: 1.0 },
     reinforcement: {
-      topX:    { bar: '#5', spacing: 200 },
-      topY:    { bar: '#5', spacing: 200 },
-      bottomX: { bar: '#5', spacing: 200 },
-      bottomY: { bar: '#5', spacing: 200 },
+      // Larger bars / tighter spacing to pass strip-method flexure (#7 @ 150)
+      topX:    { bar: '#7', spacing: 150 },
+      topY:    { bar: '#7', spacing: 150 },
+      bottomX: { bar: '#7', spacing: 150 },
+      bottomY: { bar: '#7', spacing: 150 },
     },
   };
 
@@ -232,6 +233,95 @@ block('Block 4 — Corner column auto-detected (αs = 20)', () => {
   const r = analyzeMatFoundation(input);
   check('Single column detected as corner', r.punching[0].location === 'corner');
   check('αs = 20 for corner column', r.punching[0].alphaS === 20);
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// BLOCK 5 — Phase C engine: bearing interface + bar fit + strip flexure
+// ────────────────────────────────────────────────────────────────────────────
+
+import { autoDesignMatFoundation } from '../src/lib/mat-foundation/autoDesign';
+
+block('Block 5 — Bearing interface at each column', () => {
+  const r = analyzeMatFoundation({
+    code: 'ACI 318-25',
+    columns: [
+      { id: 'C1', cx: 500, cy: 500, shape: 'square', PD: 1500, PL: 1000, x: 2000, y: 2000 },
+      { id: 'C2', cx: 500, cy: 500, shape: 'square', PD: 1500, PL: 1000, x: 10000, y: 2000 },
+      { id: 'C3', cx: 500, cy: 500, shape: 'square', PD: 1500, PL: 1000, x: 2000, y: 10000 },
+      { id: 'C4', cx: 500, cy: 500, shape: 'square', PD: 1500, PL: 1000, x: 10000, y: 10000 },
+    ],
+    geometry: { B: 12000, L: 12000, T: 800, coverClear: 75 },
+    soil: { qa: 200 },
+    materials: { fc: 25, fy: 420 },
+    reinforcement: {
+      topX: { bar: '#7', spacing: 150 }, topY: { bar: '#7', spacing: 150 },
+      bottomX: { bar: '#7', spacing: 150 }, bottomY: { bar: '#7', spacing: 150 },
+    },
+  });
+  check('4 bearing-interface checks computed', r.bearingInterface.length === 4);
+  check('bearing interface φBn > 0 at every column', r.bearingInterface.every((bi) => bi.phiBn > 0));
+});
+
+block('Block 5 — Bar fit checks for 4 mats', () => {
+  const r = analyzeMatFoundation({
+    code: 'ACI 318-25',
+    columns: [{ id: 'C1', cx: 500, cy: 500, shape: 'square', PD: 1500, PL: 1000, x: 6000, y: 6000 }],
+    geometry: { B: 12000, L: 12000, T: 800, coverClear: 75 },
+    soil: { qa: 200 },
+    materials: { fc: 25, fy: 420 },
+    reinforcement: {
+      topX: { bar: '#7', spacing: 150 }, topY: { bar: '#7', spacing: 150 },
+      bottomX: { bar: '#7', spacing: 150 }, bottomY: { bar: '#7', spacing: 150 },
+    },
+  });
+  check('4 bar-fit results', r.barFit.length === 4);
+  check('all 4 layers have s_clear > 0', r.barFit.every((bf) => bf.s_clear > 0));
+});
+
+block('Block 5 — Strip-method flexure (X and Y) computed', () => {
+  const r = analyzeMatFoundation({
+    code: 'ACI 318-25',
+    columns: [
+      { id: 'C1', cx: 500, cy: 500, shape: 'square', PD: 1500, PL: 1000, x: 2000, y: 2000 },
+      { id: 'C2', cx: 500, cy: 500, shape: 'square', PD: 1500, PL: 1000, x: 10000, y: 2000 },
+      { id: 'C3', cx: 500, cy: 500, shape: 'square', PD: 1500, PL: 1000, x: 2000, y: 10000 },
+      { id: 'C4', cx: 500, cy: 500, shape: 'square', PD: 1500, PL: 1000, x: 10000, y: 10000 },
+    ],
+    geometry: { B: 12000, L: 12000, T: 800, coverClear: 75 },
+    soil: { qa: 200 },
+    materials: { fc: 25, fy: 420 },
+    reinforcement: {
+      topX: { bar: '#7', spacing: 150 }, topY: { bar: '#7', spacing: 150 },
+      bottomX: { bar: '#7', spacing: 150 }, bottomY: { bar: '#7', spacing: 150 },
+    },
+  });
+  check('Strip flexure X has at least 1 strip', r.stripFlexureX.numStrips >= 1);
+  check('Strip flexure Y has at least 1 strip', r.stripFlexureY.numStrips >= 1);
+  check('Worst Mu+ in X > 0', r.stripFlexureX.Mu_pos_max >= 0);
+  check('Worst |Mu−| in Y > 0', r.stripFlexureY.Mu_neg_max >= 0);
+});
+
+block('Block 5 — Auto-design: light 4-column mat converges', () => {
+  const r = autoDesignMatFoundation({
+    code: 'ACI 318-25',
+    columns: [
+      { id: 'C1', cx: 400, cy: 400, shape: 'square', PD: 800, PL: 600, x: 2000, y: 2000 },
+      { id: 'C2', cx: 400, cy: 400, shape: 'square', PD: 800, PL: 600, x: 8000, y: 2000 },
+      { id: 'C3', cx: 400, cy: 400, shape: 'square', PD: 800, PL: 600, x: 2000, y: 8000 },
+      { id: 'C4', cx: 400, cy: 400, shape: 'square', PD: 800, PL: 600, x: 8000, y: 8000 },
+    ],
+    geometry: { B: 1000, L: 1000, T: 300, coverClear: 75 },     // placeholder
+    soil: { qa: 200 },
+    materials: { fc: 25, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      topX: { bar: '#5', spacing: 200 }, topY: { bar: '#5', spacing: 200 },
+      bottomX: { bar: '#5', spacing: 200 }, bottomY: { bar: '#5', spacing: 200 },
+    },
+  });
+  // Bounding box of 4 cols at (2000,2000)..(8000,8000) → span 6000 + margin 1.5·400 = 7200 mm
+  check('Auto-design: B ≥ 7000 mm (covers column footprint)', r.patchedInput.geometry.B >= 7000);
+  check('Auto-design: T ≥ 600 mm', r.patchedInput.geometry.T >= 600);
+  check('Auto-design: rationale steps generated', r.rationaleSteps.length >= 4);
 });
 
 console.log('\n' + '='.repeat(70));

@@ -237,6 +237,46 @@ export interface CombinedTransFlexureCheck {
   steps: CalcStep[];
 }
 
+/** Bearing at column-footing interface (§22.8) for one column. */
+export interface CombinedBearingInterfaceCheck {
+  column: 1 | 2;
+  /** Pu transferred (factored, kN). */
+  Pu: number;
+  /** φBn,col = φ·0.85·fʹc·A1 (kN). */
+  phiBnCol: number;
+  /** φBn,ftg = φBn,col · min(2, √(A2/A1)) (kN). */
+  phiBnFtg: number;
+  /** Governing φBn (kN). */
+  phiBn: number;
+  ratio: number;
+  ok: boolean;
+  ref: string;
+  steps: CalcStep[];
+}
+
+/** Bar fit / spacing check for one rebar layer. */
+export interface CombinedBarFitCheck {
+  layer: 'bottomLong' | 'topLong' | 'bottomTrans';
+  s_clear: number;
+  s_min: number;
+  s_max: number;
+  ok: boolean;
+  ref: string;
+  steps: CalcStep[];
+}
+
+/** Development length check for one rebar layer. */
+export interface CombinedDevelopmentCheck {
+  layer: 'bottomLong' | 'topLong' | 'bottomTrans';
+  ld: number;
+  embedment: number;
+  hookRequired: boolean;
+  ldh: number;
+  ok: boolean;
+  ref: string;
+  steps: CalcStep[];
+}
+
 /** Aggregate analysis result. */
 export interface CombinedFootingAnalysis {
   input: CombinedFootingInput;
@@ -249,10 +289,38 @@ export interface CombinedFootingAnalysis {
   flexLongNeg: CombinedLongFlexureCheck;
   flexTrans1: CombinedTransFlexureCheck;
   flexTrans2: CombinedTransFlexureCheck;
+  bearingInterface1: CombinedBearingInterfaceCheck;
+  bearingInterface2: CombinedBearingInterfaceCheck;
+  barFitBotLong: CombinedBarFitCheck;
+  barFitTopLong: CombinedBarFitCheck;
+  barFitBotTrans: CombinedBarFitCheck;
+  developmentBotLong: CombinedDevelopmentCheck;
+  developmentBotTrans: CombinedDevelopmentCheck;
   /** Factored uniform pressure used in design (kPa). */
   qnu: number;
   /** Overall pass/fail. */
   ok: boolean;
   warnings: string[];
   solved: boolean;
+}
+
+// ─── AUTO-DESIGN ──────────────────────────────────────────────────────────
+
+export interface CombinedAutoDesignOptions {
+  /** Aspect ratio L/B for sizing (default 2.5 for combined footings). */
+  aspect?: number;
+  /** Apply a safety factor to the allowable bearing (e.g., 1.0 = no FS,
+   *  1.5 = use qa/1.5 as effective allowable). */
+  qaSafetyFactor?: number;
+  /** Whether to bump dimensions for overturning. Default true. */
+  designForOverturning?: boolean;
+  /** Fixed thickness override (mm) — if provided, T is not iterated. */
+  fixT?: number;
+}
+
+export interface CombinedAutoDesignResult {
+  patchedInput: CombinedFootingInput;
+  ok: boolean;
+  rationaleSteps: CalcStep[];
+  warnings: string[];
 }

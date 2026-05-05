@@ -159,6 +159,107 @@ block('Wight Ex 15-5 — Combined footing (two columns, property line)', () => {
   check('Centroid offset < 50 mm (uniform pressure)', Math.abs(r.bearing.centroidOffset) < 50);
 });
 
+// ─── BLOCK 2: New Phase B checks (bar fit + dev length + bearing interface) ─
+
+import { autoDesignCombinedFooting } from '../src/lib/combined-footing/autoDesign';
+
+block('Phase B engine — bearing interface at each column (§22.8)', () => {
+  // Use a heavy load that exceeds φBn,col to test transfer requirement
+  const r = analyzeCombinedFooting({
+    code: 'ACI 318-25',
+    column1: { cl: 400, ct: 400, shape: 'square', PD: 800, PL: 600, position: 250, columnLocation: 'edge' },
+    column2: { cl: 400, ct: 400, shape: 'square', PD: 1200, PL: 800, position: 4250, columnLocation: 'interior' },
+    geometry: { L: 4500, B: 2200, T: 700, coverClear: 75, embedment: 400 },
+    soil: { qa: 250 },
+    materials: { fc: 25, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      bottomLong: { bar: '#7', count: 12 },
+      topLong: { bar: '#7', count: 10 },
+      bottomTrans: { bar: '#5', count: 16 },
+    },
+  });
+  check('Bearing interface column 1 computed', r.bearingInterface1.phiBn > 0);
+  check('Bearing interface column 2 computed', r.bearingInterface2.phiBn > 0);
+  // Column 2 has higher Pu so its ratio should be ≥ column 1's
+  check('Column 2 ratio ≥ Column 1 ratio (heavier load)',
+    r.bearingInterface2.ratio >= r.bearingInterface1.ratio);
+});
+
+block('Phase B engine — bar fit checks for all 3 layers', () => {
+  const r = analyzeCombinedFooting({
+    code: 'ACI 318-25',
+    column1: { cl: 400, ct: 400, shape: 'square', PD: 600, PL: 400, position: 250 },
+    column2: { cl: 400, ct: 400, shape: 'square', PD: 800, PL: 500, position: 4250 },
+    geometry: { L: 4500, B: 2200, T: 700, coverClear: 75 },
+    soil: { qa: 250 },
+    materials: { fc: 25, fy: 420 },
+    reinforcement: {
+      bottomLong: { bar: '#7', count: 10 },
+      topLong: { bar: '#7', count: 10 },
+      bottomTrans: { bar: '#5', count: 12 },
+    },
+  });
+  check('Bar fit bottom-long has s_clear', r.barFitBotLong.s_clear > 0);
+  check('Bar fit top-long has s_clear', r.barFitTopLong.s_clear > 0);
+  check('Bar fit bottom-trans has s_clear', r.barFitBotTrans.s_clear > 0);
+});
+
+block('Phase B engine — development length checks', () => {
+  const r = analyzeCombinedFooting({
+    code: 'ACI 318-25',
+    column1: { cl: 400, ct: 400, shape: 'square', PD: 600, PL: 400, position: 250 },
+    column2: { cl: 400, ct: 400, shape: 'square', PD: 800, PL: 500, position: 4250 },
+    geometry: { L: 4500, B: 2200, T: 700, coverClear: 75 },
+    soil: { qa: 250 },
+    materials: { fc: 25, fy: 420 },
+    reinforcement: {
+      bottomLong: { bar: '#7', count: 10 },
+      topLong: { bar: '#7', count: 10 },
+      bottomTrans: { bar: '#5', count: 12 },
+    },
+  });
+  check('Bottom-long ld > 0', r.developmentBotLong.ld > 0);
+  check('Bottom-long ldh > 150', r.developmentBotLong.ldh >= 150);
+  check('Bottom-trans ld > 0', r.developmentBotTrans.ld > 0);
+});
+
+block('Phase B auto-design — converges on light + heavy cases', () => {
+  // Light case
+  const r1 = autoDesignCombinedFooting({
+    code: 'ACI 318-25',
+    column1: { cl: 400, ct: 400, shape: 'square', PD: 400, PL: 200, position: 250, columnLocation: 'edge' },
+    column2: { cl: 400, ct: 400, shape: 'square', PD: 500, PL: 300, position: 4250, columnLocation: 'interior' },
+    geometry: { L: 1000, B: 1000, T: 300, coverClear: 75, embedment: 300 },     // placeholder; auto-design will override
+    soil: { qa: 250 },
+    materials: { fc: 25, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      bottomLong: { bar: '#5', count: 4 },
+      topLong: { bar: '#5', count: 4 },
+      bottomTrans: { bar: '#5', count: 4 },
+    },
+  });
+  check('Auto-design light: L > 1500 mm', r1.patchedInput.geometry.L > 1500);
+  check('Auto-design light: T ≥ 450 mm', r1.patchedInput.geometry.T >= 450);
+  check('Auto-design light: rationale steps generated', r1.rationaleSteps.length >= 4);
+
+  // Heavy case
+  const r2 = autoDesignCombinedFooting({
+    code: 'ACI 318-25',
+    column1: { cl: 600, ct: 600, shape: 'square', PD: 1500, PL: 1000, position: 300, columnLocation: 'edge' },
+    column2: { cl: 700, ct: 700, shape: 'square', PD: 2500, PL: 1800, position: 7300, columnLocation: 'interior' },
+    geometry: { L: 1000, B: 1000, T: 300, coverClear: 75, embedment: 400 },
+    soil: { qa: 200 },
+    materials: { fc: 28, fy: 420, lambdaC: 1.0 },
+    reinforcement: {
+      bottomLong: { bar: '#5', count: 4 },
+      topLong: { bar: '#5', count: 4 },
+      bottomTrans: { bar: '#5', count: 4 },
+    },
+  });
+  check('Auto-design heavy: L > 7000 mm', r2.patchedInput.geometry.L > 7000);
+  check('Auto-design heavy: T grew from 300', r2.patchedInput.geometry.T > 450);
+});
+
 console.log('\n' + '='.repeat(70));
 console.log(`PASSED:  ${pass}`);
 console.log(`FAILED:  ${fail}`);

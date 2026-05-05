@@ -21,6 +21,7 @@ import type {
   CombinedPunchingCheck, CombinedOneWayShearCheck,
   CombinedLongFlexureCheck, CombinedTransFlexureCheck,
   CombinedColumn,
+  CombinedBearingInterfaceCheck, CombinedBarFitCheck, CombinedDevelopmentCheck,
 } from './types';
 import type { CalcStep } from '../footing/types';
 import { barArea, barDiameter } from '../rc/types';
@@ -500,6 +501,155 @@ function checkTransFlexure(
   };
 }
 
+// ─── BEARING AT COLUMN-FOOTING INTERFACE (§22.8) per column ─────────────────
+
+function checkBearingInterfaceForColumn(
+  input: CombinedFootingInput, columnIdx: 1 | 2,
+): CombinedBearingInterfaceCheck {
+  const { code, geometry: g, materials: m } = input;
+  const col = columnIdx === 1 ? input.column1 : input.column2;
+  const phi = 0.65;
+  const A1 = col.shape === 'circular' ? PI * Math.pow(col.cl / 2, 2) : col.cl * col.ct;
+  const Pu = 1.2 * col.PD + 1.6 * col.PL;
+  // φBn,col = φ·0.85·fʹc·A1 (column on top of footing)
+  const phiBnCol = (phi * 0.85 * m.fc * A1) / 1000;     // kN
+  // Confinement factor √(A2/A1) capped at 2 — A2 = lower-base area of a 2:1 cone
+  // For combined footings, A2 is bounded by the slab below the column. Approximate
+  // as min(B, distance to nearest edge × 2)² but practically capped at footing dim.
+  // For this simplified path, use the same formula as for spread footings:
+  //   factor = min(2, √(A2/A1)).  A2 estimated as (col + 4·T)² capped by footing area.
+  const colMaxDim = Math.max(col.cl, col.ct);
+  const A2_est = Math.min(
+    Math.pow(colMaxDim + 4 * g.T, 2),
+    g.B * g.L,
+  );
+  const factor = Math.min(2, Math.sqrt(A2_est / A1));
+  const phiBnFtg = phiBnCol * factor;
+  const phiBn = Math.min(phiBnCol, phiBnFtg);
+  const ratio = Pu / Math.max(phiBn, 1e-9);
+  const ok = ratio <= 1;
+
+  return {
+    column: columnIdx, Pu, phiBnCol, phiBnFtg, phiBn, ratio, ok,
+    ref: ref(code, '22.8'),
+    steps: [
+      {
+        title: `Column ${columnIdx} bearing area`,
+        formula: 'A1 = column gross area; A2 = (col + 4·T)² capped by footing area',
+        substitution: `A1 = ${A1.toFixed(0)} mm²; A2 ≈ ${A2_est.toFixed(0)} mm²; √(A2/A1) capped at 2 = ${factor.toFixed(3)}`,
+        result: `factor = ${factor.toFixed(3)}`,
+      },
+      {
+        title: `Column ${columnIdx} φBn,col and φBn,ftg`,
+        formula: 'φBn,col = φ·0.85·fʹc·A1;   φBn,ftg = φBn,col · √(A2/A1)',
+        substitution: `0.65·0.85·${m.fc}·${A1.toFixed(0)}`,
+        result: `φBn,col = ${phiBnCol.toFixed(1)} kN, φBn,ftg = ${phiBnFtg.toFixed(1)} kN`,
+        ref: ref(code, '22.8.3'),
+      },
+      {
+        title: `Column ${columnIdx} demand`,
+        formula: 'Pu / φBn',
+        substitution: `${Pu.toFixed(1)} / ${phiBn.toFixed(1)}`,
+        result: `Ratio = ${ratio.toFixed(3)} ${ok ? '✓' : '✗ FAIL — add dowels'}`,
+      },
+    ],
+  };
+}
+
+// ─── BAR FIT / SPACING (§25.2.1 + §13.3.4) per layer ────────────────────────
+
+function checkBarFitForLayer(
+  input: CombinedFootingInput, layerKey: 'bottomLong' | 'topLong' | 'bottomTrans',
+): CombinedBarFitCheck {
+  const { code, geometry: g } = input;
+  const layer = layerKey === 'topLong'
+    ? (input.reinforcement.topLong ?? input.reinforcement.bottomLong)
+    : layerKey === 'bottomTrans'
+      ? input.reinforcement.bottomTrans
+      : input.reinforcement.bottomLong;
+  const dbBar = barDiameter(layer.bar);
+  const dagg = 19;
+  // For long bars: bars distributed across width B; for trans bars: distributed across length L
+  const distAcross = (layerKey === 'bottomTrans') ? g.L : g.B;
+  const usable = distAcross - 2 * g.coverClear;
+  const s_clear = layer.count > 1
+    ? (usable - layer.count * dbBar) / (layer.count - 1)
+    : usable;
+  const s_min = Math.max(25, dbBar, (4 / 3) * dagg);
+  const s_max = Math.min(3 * g.T, 450);
+  const ok = s_clear >= s_min && s_clear <= s_max;
+
+  return {
+    layer: layerKey, s_clear, s_min, s_max, ok,
+    ref: ref(code, '25.2.1 / 13.3.4'),
+    steps: [
+      {
+        title: `${layerKey}: clear spacing`,
+        formula: 'sclear = (distAcross − 2·cover − n·db) / (n − 1)',
+        substitution: `${distAcross} − ${2 * g.coverClear} − ${layer.count}·${dbBar.toFixed(1)} / ${layer.count - 1}`,
+        result: `sclear = ${s_clear.toFixed(0)} mm`,
+      },
+      {
+        title: `${layerKey}: min/max bounds`,
+        formula: 'smin = max(25, db, 4/3·dagg);  smax = min(3·T, 450)',
+        substitution: `smin = ${s_min.toFixed(0)} mm; smax = ${s_max.toFixed(0)} mm`,
+        result: ok ? '✓ within bounds' : (s_clear < s_min ? '✗ too tight' : '✗ too sparse'),
+      },
+    ],
+  };
+}
+
+// ─── DEVELOPMENT LENGTH (§25.4.2.3) per layer ───────────────────────────────
+
+function checkDevelopmentForLayer(
+  input: CombinedFootingInput, layerKey: 'bottomLong' | 'bottomTrans',
+): CombinedDevelopmentCheck {
+  const { code, geometry: g, materials: m } = input;
+  const layer = layerKey === 'bottomTrans'
+    ? input.reinforcement.bottomTrans
+    : input.reinforcement.bottomLong;
+  const dbBar = barDiameter(layer.bar);
+  const psiT = 1.0, psiE = 1.0;
+  const psiG = m.fy <= 420 ? 1.0 : m.fy <= 550 ? 1.15 : 1.3;
+  const lambda = m.lambdaC ?? 1.0;
+  const divisor = dbBar <= 19 ? 1.4 : 1.1;
+  const ld_ratio = (m.fy * psiT * psiE * psiG) / (divisor * lambda * Math.sqrt(m.fc));
+  const ld = ld_ratio * dbBar;
+  // Available embedment: longest cantilever from face of column to footing edge
+  // For long bars: cantilever along L direction
+  // For trans bars: cantilever along B direction
+  const colDim = layerKey === 'bottomTrans'
+    ? Math.max(input.column1.ct, input.column2.ct)
+    : Math.max(input.column1.cl, input.column2.cl);
+  const dim = layerKey === 'bottomTrans' ? g.B : g.L;
+  const cantilever = (dim - colDim) / 2;
+  const embedment = Math.max(0, cantilever - g.coverClear);
+  const ldh = Math.max(150, 8 * dbBar, (0.24 * m.fy / (lambda * Math.sqrt(m.fc))) * dbBar);
+  const hookRequired = embedment < ld;
+  const okStraight = embedment >= ld;
+  const okHook = embedment >= ldh;
+  const ok = okStraight || okHook;
+
+  return {
+    layer: layerKey, ld, embedment, hookRequired, ldh, ok,
+    ref: ref(code, '25.4.2.3 / 25.4.3'),
+    steps: [
+      {
+        title: `${layerKey}: straight ld`,
+        formula: 'ld = fy·ψT·ψE·ψG / (divisor·λ·√fʹc) · db',
+        substitution: `divisor = ${divisor}; ψG = ${psiG.toFixed(2)}`,
+        result: `ld = ${ld.toFixed(0)} mm; embedment = ${embedment.toFixed(0)} mm ${okStraight ? '✓ straight bar OK' : '— hook required'}`,
+      },
+      {
+        title: `${layerKey}: hooked ldh`,
+        formula: 'ldh = max(150, 8·db, 0.24·fy/(λ·√fʹc)·db)',
+        substitution: '',
+        result: `ldh = ${ldh.toFixed(0)} mm ${okHook ? '✓ hook fits' : '✗ even hook does not fit'}`,
+      },
+    ],
+  };
+}
+
 // ─── ENTRY POINT ────────────────────────────────────────────────────────────
 
 export function analyzeCombinedFooting(input: CombinedFootingInput): CombinedFootingAnalysis {
@@ -521,6 +671,13 @@ export function analyzeCombinedFooting(input: CombinedFootingInput): CombinedFoo
   const flexLongNeg = checkLongFlexure(input, beam, 'negative');
   const flexTrans1 = checkTransFlexure(input, 1);
   const flexTrans2 = checkTransFlexure(input, 2);
+  const bearingInterface1 = checkBearingInterfaceForColumn(input, 1);
+  const bearingInterface2 = checkBearingInterfaceForColumn(input, 2);
+  const barFitBotLong = checkBarFitForLayer(input, 'bottomLong');
+  const barFitTopLong = checkBarFitForLayer(input, 'topLong');
+  const barFitBotTrans = checkBarFitForLayer(input, 'bottomTrans');
+  const developmentBotLong = checkDevelopmentForLayer(input, 'bottomLong');
+  const developmentBotTrans = checkDevelopmentForLayer(input, 'bottomTrans');
 
   if (!bearing.ok) warnings.push(`Bearing fails — qmax = ${bearing.q_max.toFixed(1)} > qa.`);
   if (Math.abs(bearing.centroidOffset) > 50) {
@@ -533,16 +690,29 @@ export function analyzeCombinedFooting(input: CombinedFootingInput): CombinedFoo
   if (!flexLongNeg.ok) warnings.push(`Negative-moment flexure fails — increase top-long bars.`);
   if (!flexTrans1.ok) warnings.push(`Transverse flexure at column 1 fails.`);
   if (!flexTrans2.ok) warnings.push(`Transverse flexure at column 2 fails.`);
+  if (!bearingInterface1.ok) warnings.push(`Column-1 bearing interface fails (Pu/φBn = ${bearingInterface1.ratio.toFixed(2)}). Add dowels per §16.3.4.1.`);
+  if (!bearingInterface2.ok) warnings.push(`Column-2 bearing interface fails (Pu/φBn = ${bearingInterface2.ratio.toFixed(2)}). Add dowels per §16.3.4.1.`);
+  if (!barFitBotLong.ok) warnings.push(`Bottom-long bar spacing out of bounds (sclear = ${barFitBotLong.s_clear.toFixed(0)} mm).`);
+  if (!barFitTopLong.ok) warnings.push(`Top-long bar spacing out of bounds (sclear = ${barFitTopLong.s_clear.toFixed(0)} mm).`);
+  if (!barFitBotTrans.ok) warnings.push(`Bottom-trans bar spacing out of bounds (sclear = ${barFitBotTrans.s_clear.toFixed(0)} mm).`);
+  if (!developmentBotLong.ok) warnings.push(`Bottom-long bars cannot develop even with hook — increase footing.`);
+  if (!developmentBotTrans.ok) warnings.push(`Bottom-trans bars cannot develop even with hook — increase footing.`);
 
   const A_m2 = (input.geometry.B * input.geometry.L) / 1e6;
   const qnu = (beam.Pu1 + beam.Pu2) / A_m2;
 
   const ok = bearing.ok && punching1.ok && punching2.ok && shearLong.ok
-          && flexLongPos.ok && flexLongNeg.ok && flexTrans1.ok && flexTrans2.ok;
+          && flexLongPos.ok && flexLongNeg.ok && flexTrans1.ok && flexTrans2.ok
+          && bearingInterface1.ok && bearingInterface2.ok
+          && barFitBotLong.ok && barFitTopLong.ok && barFitBotTrans.ok
+          && developmentBotLong.ok && developmentBotTrans.ok;
 
   return {
     input, bearing, beam, punching1, punching2, shearLong,
     flexLongPos, flexLongNeg, flexTrans1, flexTrans2,
+    bearingInterface1, bearingInterface2,
+    barFitBotLong, barFitTopLong, barFitBotTrans,
+    developmentBotLong, developmentBotTrans,
     qnu, ok, warnings, solved: true,
   };
 }

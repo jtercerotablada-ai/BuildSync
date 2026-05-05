@@ -10,6 +10,7 @@ import type { ColumnShape, ReportBranding } from '@/lib/footing/types';
 import { CombinedFootingPlan2D } from './CombinedFootingPlan2D';
 import { CombinedFootingSection2D } from './CombinedFootingSection2D';
 import { CombinedFootingPrintReport } from './CombinedFootingPrintReport';
+import { autoDesignCombinedFooting } from '@/lib/combined-footing/autoDesign';
 
 // Dynamic import for the 3D viewer (R3F) — client-only
 const CombinedFooting3D = dynamic(
@@ -18,7 +19,7 @@ const CombinedFooting3D = dynamic(
 );
 
 type Code = 'ACI 318-25' | 'ACI 318-19';
-type Tab = 'inputs' | 'beam' | 'drawings' | '3d' | 'checks' | 'refs';
+type Tab = 'inputs' | 'auto' | 'drawings' | 'beam' | '3d' | 'checks' | 'refs';
 
 type Action =
   | { type: 'LOAD_PRESET'; input: CombinedFootingInput }
@@ -152,6 +153,7 @@ export function CombinedFootingCalculator() {
       <nav className="ab-tabs" aria-label="Combined footing tabs">
         {([
           ['inputs', 'Inputs'],
+          ['auto', 'Auto-design'],
           ['drawings', 'Drawings'],
           ['beam', 'Beam analysis'],
           ['3d', '3D'],
@@ -171,6 +173,7 @@ export function CombinedFootingCalculator() {
 
       {/* Tab content */}
       {tab === 'inputs' && <InputsTab model={model} dispatch={dispatch} />}
+      {tab === 'auto' && <AutoDesignTab model={model} dispatch={dispatch} />}
       {tab === 'drawings' && <DrawingsTab input={model} result={result} />}
       {tab === 'beam' && <BeamTab result={result} />}
       {tab === '3d' && <CombinedFooting3D input={model} result={result} />}
@@ -359,6 +362,105 @@ function InputsTab({
 }
 
 // ─── DRAWINGS TAB (Plan + Section) ──────────────────────────────────────────
+
+// ─── AUTO-DESIGN TAB ───────────────────────────────────────────────────────
+
+function AutoDesignTab({
+  model, dispatch,
+}: {
+  model: CombinedFootingInput;
+  dispatch: React.Dispatch<Action>;
+}) {
+  const [aspect, setAspect] = useState(2.5);
+  const [recommendation, setRecommendation] = useState<ReturnType<typeof autoDesignCombinedFooting> | null>(null);
+
+  const handleRun = () => {
+    const r = autoDesignCombinedFooting(model, { aspect, designForOverturning: true });
+    setRecommendation(r);
+  };
+  const handleApply = () => {
+    if (recommendation) dispatch({ type: 'LOAD_PRESET', input: recommendation.patchedInput });
+  };
+
+  return (
+    <div className="slab-card" style={{ borderColor: 'rgba(127,182,145,0.55)' }}>
+      <h4>Auto-Design Combined Footing (sizes L, B, T + picks rebar)</h4>
+      <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
+        Given the two columns + their service loads, soil (qa), and materials, the
+        auto-design driver iteratively sizes the footing length L (centroid on the load
+        resultant for uniform pressure), width B (from required area), and thickness T
+        (until punching + 1-way shear pass), then picks bottom-long, top-long, and
+        bottom-trans rebar. {model.code} references throughout.
+      </p>
+      <div className="slab-fields" style={{ marginBottom: '0.6rem' }}>
+        <Field label="L/B aspect (target)">
+          <Num val={aspect} step={0.1}
+            onChange={(v) => setAspect(Math.max(1.5, Math.min(4, v)))} />
+        </Field>
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+        <button type="button" className="ab-btn ab-btn--primary" onClick={handleRun}>
+          Run Auto-Design
+        </button>
+        {recommendation && (
+          <button type="button" className="ab-btn" onClick={handleApply}>
+            Apply Recommendation
+          </button>
+        )}
+      </div>
+
+      {recommendation && (
+        <div>
+          {/* Summary chips */}
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.8rem', flexWrap: 'wrap' }}>
+            <span className="ab-label">L = {recommendation.patchedInput.geometry.L} mm</span>
+            <span className="ab-label">B = {recommendation.patchedInput.geometry.B} mm</span>
+            <span className="ab-label">T = {recommendation.patchedInput.geometry.T} mm</span>
+            <span className="ab-label">
+              Bot-long: {recommendation.patchedInput.reinforcement.bottomLong.count} {recommendation.patchedInput.reinforcement.bottomLong.bar}
+            </span>
+            {recommendation.patchedInput.reinforcement.topLong && (
+              <span className="ab-label">
+                Top-long: {recommendation.patchedInput.reinforcement.topLong.count} {recommendation.patchedInput.reinforcement.topLong.bar}
+              </span>
+            )}
+            <span className="ab-label">
+              Bot-trans: {recommendation.patchedInput.reinforcement.bottomTrans.count} {recommendation.patchedInput.reinforcement.bottomTrans.bar}
+            </span>
+            <span className={`ab-label ${recommendation.ok ? 'ab-pass' : 'ab-fail'}`}>
+              {recommendation.ok ? '✓ All checks pass' : '⚠ Some checks need review'}
+            </span>
+          </div>
+
+          {/* Rationale */}
+          <div className="ab-table-scroll">
+            <table className="ab-result-table" style={{ fontSize: '0.85rem' }}>
+              <thead>
+                <tr><th>Step</th><th>Formula</th><th>Substitution</th><th>Result</th></tr>
+              </thead>
+              <tbody>
+                {recommendation.rationaleSteps.map((s, i) => (
+                  <tr key={i}>
+                    <td><strong>{s.title}</strong></td>
+                    <td><code>{s.formula}</code></td>
+                    <td><small>{s.substitution}</small></td>
+                    <td>{s.result}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {recommendation.warnings.length > 0 && (
+            <ul style={{ marginTop: '0.6rem', color: '#c9a84c' }}>
+              {recommendation.warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function DrawingsTab({
   input, result,

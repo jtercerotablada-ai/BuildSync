@@ -9,6 +9,7 @@ import type { MatFoundationInput, MatColumn } from '@/lib/mat-foundation/types';
 import type { ColumnShape, ReportBranding } from '@/lib/footing/types';
 import { MatFoundationSection2D } from './MatFoundationSection2D';
 import { MatFoundationPrintReport } from './MatFoundationPrintReport';
+import { autoDesignMatFoundation } from '@/lib/mat-foundation/autoDesign';
 
 const MatFoundation3D = dynamic(
   () => import('./MatFoundation3D').then((m) => m.MatFoundation3D),
@@ -16,7 +17,7 @@ const MatFoundation3D = dynamic(
 );
 
 type Code = 'ACI 318-25' | 'ACI 318-19';
-type Tab = 'inputs' | 'plan' | 'sections' | '3d' | 'checks' | 'refs';
+type Tab = 'inputs' | 'auto' | 'plan' | 'sections' | '3d' | 'checks' | 'refs';
 
 type Action =
   | { type: 'LOAD_PRESET'; input: MatFoundationInput }
@@ -163,6 +164,7 @@ export function MatFoundationCalculator() {
       <nav className="ab-tabs" aria-label="Mat foundation tabs">
         {([
           ['inputs', 'Inputs'],
+          ['auto', 'Auto-design'],
           ['plan', 'Plan view'],
           ['sections', 'Sections'],
           ['3d', '3D'],
@@ -176,6 +178,7 @@ export function MatFoundationCalculator() {
       </nav>
 
       {tab === 'inputs' && <InputsTab model={model} dispatch={dispatch} />}
+      {tab === 'auto' && <AutoDesignTab model={model} dispatch={dispatch} />}
       {tab === 'plan' && <PlanTab model={model} result={result} />}
       {tab === 'sections' && <SectionsTab model={model} result={result} />}
       {tab === '3d' && <MatFoundation3D input={model} result={result} />}
@@ -376,6 +379,103 @@ function InputsTab({ model, dispatch }: { model: MatFoundationInput; dispatch: R
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── AUTO-DESIGN TAB ───────────────────────────────────────────────────────
+
+function AutoDesignTab({
+  model, dispatch,
+}: {
+  model: MatFoundationInput;
+  dispatch: React.Dispatch<Action>;
+}) {
+  const [aspect, setAspect] = useState(1.0);
+  const [recommendation, setRecommendation] = useState<ReturnType<typeof autoDesignMatFoundation> | null>(null);
+
+  const handleRun = () => {
+    const r = autoDesignMatFoundation(model, { aspect });
+    setRecommendation(r);
+  };
+  const handleApply = () => {
+    if (recommendation) dispatch({ type: 'LOAD_PRESET', input: recommendation.patchedInput });
+  };
+
+  return (
+    <div className="slab-card" style={{ borderColor: 'rgba(127,182,145,0.55)' }}>
+      <h4>Auto-Design Mat (sizes B, L, T + picks 4 mats from strip-method)</h4>
+      <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
+        Given the column array + soil + materials, the driver fits a rectangle around the
+        columns with margin, sizes B and L for the required area, iterates T until punching
+        passes at every column, then picks the 4 mats (top X/Y, bottom X/Y) from strip-method
+        flexure (per metre) plus the §8.6.1.1 minimum. {model.code} references throughout.
+      </p>
+      <div className="slab-fields" style={{ marginBottom: '0.6rem' }}>
+        <Field label="B/L aspect (target)">
+          <Num val={aspect} step={0.1}
+            onChange={(v) => setAspect(Math.max(0.5, Math.min(3, v)))} />
+        </Field>
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+        <button type="button" className="ab-btn ab-btn--primary" onClick={handleRun}>
+          Run Auto-Design
+        </button>
+        {recommendation && (
+          <button type="button" className="ab-btn" onClick={handleApply}>
+            Apply Recommendation
+          </button>
+        )}
+      </div>
+
+      {recommendation && (
+        <div>
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.8rem', flexWrap: 'wrap' }}>
+            <span className="ab-label">B = {recommendation.patchedInput.geometry.B} mm</span>
+            <span className="ab-label">L = {recommendation.patchedInput.geometry.L} mm</span>
+            <span className="ab-label">T = {recommendation.patchedInput.geometry.T} mm</span>
+            <span className="ab-label">
+              Bot-X: {recommendation.patchedInput.reinforcement.bottomX.bar}@{recommendation.patchedInput.reinforcement.bottomX.spacing}
+            </span>
+            <span className="ab-label">
+              Bot-Y: {recommendation.patchedInput.reinforcement.bottomY.bar}@{recommendation.patchedInput.reinforcement.bottomY.spacing}
+            </span>
+            <span className="ab-label">
+              Top-X: {recommendation.patchedInput.reinforcement.topX.bar}@{recommendation.patchedInput.reinforcement.topX.spacing}
+            </span>
+            <span className="ab-label">
+              Top-Y: {recommendation.patchedInput.reinforcement.topY.bar}@{recommendation.patchedInput.reinforcement.topY.spacing}
+            </span>
+            <span className={`ab-label ${recommendation.ok ? 'ab-pass' : 'ab-fail'}`}>
+              {recommendation.ok ? '✓ All checks pass' : '⚠ Some checks need review'}
+            </span>
+          </div>
+
+          <div className="ab-table-scroll">
+            <table className="ab-result-table" style={{ fontSize: '0.85rem' }}>
+              <thead>
+                <tr><th>Step</th><th>Formula</th><th>Substitution</th><th>Result</th></tr>
+              </thead>
+              <tbody>
+                {recommendation.rationaleSteps.map((s, i) => (
+                  <tr key={i}>
+                    <td><strong>{s.title}</strong></td>
+                    <td><code>{s.formula}</code></td>
+                    <td><small>{s.substitution}</small></td>
+                    <td>{s.result}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {recommendation.warnings.length > 0 && (
+            <ul style={{ marginTop: '0.6rem', color: '#c9a84c' }}>
+              {recommendation.warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
