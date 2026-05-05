@@ -185,12 +185,12 @@ export function FoundationCalculator() {
       {/* Tab nav */}
       <nav className="ab-tabs" aria-label="Foundation design tabs">
         {([
-          ['inputs',   '📋 Inputs'],
-          ['auto',     '⚡ Auto-design'],
-          ['drawings', '📐 Drawings'],
-          ['3d',       '🧊 3D'],
-          ['checks',   '🔬 Checks'],
-          ['refs',     '📚 References'],
+          ['inputs',   'Inputs'],
+          ['auto',     'Auto-design'],
+          ['drawings', 'Drawings'],
+          ['3d',       '3D'],
+          ['checks',   'Checks'],
+          ['refs',     'References'],
         ] as const).map(([id, label]) => (
           <button key={id} type="button"
             className={`ab-tab ${tab === id ? 'ab-tab--active' : ''}`}
@@ -208,7 +208,7 @@ export function FoundationCalculator() {
 
       {result.warnings.length > 0 && (
         <section className="slab-card" style={{ marginTop: '1rem', borderColor: 'rgba(201,168,76,0.35)' }}>
-          <h4>⚠ Warnings</h4>
+          <h4>Warnings</h4>
           <ul style={{ marginLeft: '1rem' }}>
             {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
           </ul>
@@ -461,7 +461,7 @@ function AutoDesignTab({
 
   return (
     <div className="slab-card" style={{ borderColor: 'rgba(95,182,116,0.55)' }}>
-      <h4>⚡ Auto-Design Footing (sizes B, L, T + picks rebar)</h4>
+      <h4>Auto-Design Footing (sizes B, L, T + picks rebar)</h4>
       <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
         Given current loads (PD, PL, Mx, My, H), soil (qa), and column dimensions,
         the auto-design driver iteratively sizes the footing area, thickness, and
@@ -483,12 +483,12 @@ function AutoDesignTab({
       </div>
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
         <button type="button" className="ab-btn ab-btn--primary" onClick={handleRun}>
-          ⚡ Run Auto-Design
+          Run Auto-Design
         </button>
         {recommendation && (
           <button type="button" className="ab-btn"
             onClick={handleApply} disabled={!recommendation.ok && false}>
-            ✓ Apply Recommendation
+            Apply Recommendation
           </button>
         )}
       </div>
