@@ -763,7 +763,46 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 26: Validation of results vs expected');
+console.log('BLOCK 26: Edge cases — water table, seismic, no surcharge');
+console.log('==========================================');
+{
+  // (a) Water table at the top of the stem doubles horizontal thrust
+  const baseInput: WallInput = {
+    code: 'ACI 318-25',
+    geometry: {
+      kind: 'cantilever',
+      H_stem: 3000, t_stem_top: 250, t_stem_bot: 400,
+      B_toe: 900, B_heel: 1500, H_foot: 500,
+      backfillSlope: 0, frontFill: 300,
+    },
+    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
+    backfill: [{ name: 'Granular', gamma: 19, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
+    baseSoil: { gamma: 19, phi: 30 * Math.PI / 180, c: 0, delta: 20 * Math.PI / 180, ca: 0, qAllow: 200, passiveEnabled: false },
+    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+    loads: { surchargeQ: 0, seismic: { kh: 0, kv: 0 } },
+    theory: 'rankine',
+    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
+  };
+  const dry = solveWall(baseInput);
+  const withWater: WallInput = { ...baseInput, water: { enabled: true, depthFromStemTop: 0, gammaW: 9.81 } };
+  const wet = solveWall(withWater);
+  expectBool('Water-table case has Pw > 0', wet.pressure.Pw > 0, true);
+  expectBool('Water-table case has higher overturning moment', wet.stability.Mo > dry.stability.Mo * 1.2, true);
+
+  // (b) Seismic case (kh = 0.15) adds Mononobe-Okabe thrust
+  const seismic: WallInput = { ...baseInput, loads: { surchargeQ: 0, seismic: { kh: 0.15, kv: 0 } } };
+  const seismicResult = solveWall(seismic);
+  expectBool('Seismic case has dPae > 0', seismicResult.pressure.dPae > 0, true);
+
+  // (c) No-surcharge case still works
+  const noQ: WallInput = { ...baseInput, loads: { surchargeQ: 0, seismic: { kh: 0, kv: 0 } } };
+  const noQResult = solveWall(noQ);
+  expectBool('No-surcharge case has Pq = 0', noQResult.pressure.Pq === 0, true);
+  expectBool('No-surcharge case still produces valid stem As', noQResult.stem.As_req > 0, true);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 27: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);

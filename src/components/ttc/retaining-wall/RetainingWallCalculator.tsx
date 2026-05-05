@@ -209,9 +209,11 @@ export function RetainingWallCalculator() {
               theory={input.theory}
               safetyFactors={input.safetyFactors}
               unitSystem={unitSystem}
+              code={input.code ?? 'ACI 318-25'}
               onChangeLoads={(l) => setInput((s) => ({ ...s, loads: l }))}
               onChangeTheory={(t) => setInput((s) => ({ ...s, theory: t }))}
               onChangeSafety={(sf) => setInput((s) => ({ ...s, safetyFactors: sf }))}
+              onChangeCode={(c) => setInput((s) => ({ ...s, code: c }))}
             />
           )}
         </aside>

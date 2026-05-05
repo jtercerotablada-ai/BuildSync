@@ -5,6 +5,7 @@ import type {
   WallLoads,
   EarthPressureTheory,
   WallInput,
+  WallCode,
 } from '@/lib/retaining-wall/types';
 import type { UnitSystem, Quantity } from '@/lib/beam/units';
 import { fromSI, toSI, unitLabel } from '@/lib/beam/units';
@@ -16,9 +17,11 @@ interface Props {
   theory: EarthPressureTheory;
   safetyFactors: SF;
   unitSystem: UnitSystem;
+  code: WallCode;
   onChangeLoads: (l: WallLoads) => void;
   onChangeTheory: (t: EarthPressureTheory) => void;
   onChangeSafety: (sf: SF) => void;
+  onChangeCode: (c: WallCode) => void;
 }
 
 export function LoadsPanel({
@@ -26,15 +29,36 @@ export function LoadsPanel({
   theory,
   safetyFactors,
   unitSystem,
+  code,
   onChangeLoads,
   onChangeTheory,
   onChangeSafety,
+  onChangeCode,
 }: Props) {
   const pressU = unitLabel('pressure', unitSystem);
 
   return (
     <div className="rw-panel">
       <h3 className="rw-panel__title">Loads &amp; Analysis</h3>
+
+      <div className="rw-panel__section">
+        <div className="rw-panel__subtitle">Design code</div>
+        <label className="rw-field">
+          <span className="rw-field__label">Code</span>
+          <select
+            className="rw-field__input"
+            value={code}
+            onChange={(e) => onChangeCode(e.target.value as WallCode)}
+          >
+            <option value="ACI 318-25">ACI 318-25 (SI Units, latest)</option>
+            <option value="ACI 318-19">ACI 318-19</option>
+            <option value="AASHTO LRFD">AASHTO LRFD (bridge abutments)</option>
+          </select>
+        </label>
+        <p className="rw-panel__hint">
+          ACI 318-25 is the default. Bridge abutments auto-switch to AASHTO LRFD §11.6.
+        </p>
+      </div>
 
       <div className="rw-panel__section">
         <div className="rw-panel__subtitle">Surcharge</div>
