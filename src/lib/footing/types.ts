@@ -38,6 +38,10 @@ export interface FootingGeometry {
   ey?: number;
   /** Embedment depth of footing top below grade (mm). Used for self-weight backfill. */
   embedment?: number;
+  /** Column position relative to building footprint, used for αs in two-way shear
+   *  per ACI 318-25 §22.6.5.3 (αs = 40 interior / 30 edge / 20 corner).
+   *  Defaults to 'interior'. */
+  columnLocation?: 'interior' | 'edge' | 'corner';
 }
 
 // ─── Soil + Materials ──────────────────────────────────────────────────────

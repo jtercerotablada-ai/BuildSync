@@ -55,12 +55,20 @@ function checkBearing(
   const A_req = P_service / soil.qa;     // m²
   const A_req_mm2 = A_req * 1e6;
 
-  // Effective eccentricity from applied moments + column eccentricity
-  // ACI / Bowles convention: e = M/P measured from footing centroid.
-  const Mx_total = (L.Mx ?? 0) + (L.PD + L.PL) * (g.ex ?? 0) / 1000;
-  const My_total = (L.My ?? 0) + (L.PD + L.PL) * (g.ey ?? 0) / 1000;
-  const eX_m = Math.abs(Mx_total) / Math.max(P_service, 1e-9);
-  const eY_m = Math.abs(My_total) / Math.max(P_service, 1e-9);
+  // Effective eccentricity from applied moments + column eccentricity.
+  // Sign convention:
+  //   Mx = moment ABOUT footing X-axis → causes pressure gradient along Y
+  //         → resultant offset in Y (eY = Mx / P)
+  //   My = moment ABOUT footing Y-axis → causes pressure gradient along X
+  //         → resultant offset in X (eX = My / P)
+  //   ex = column shift in X-direction → adds to My (M = P·ex about Y)
+  //   ey = column shift in Y-direction → adds to Mx (M = P·ey about X)
+  const Mx_total = (L.Mx ?? 0) + (L.PD + L.PL) * (g.ey ?? 0) / 1000;
+  const My_total = (L.My ?? 0) + (L.PD + L.PL) * (g.ex ?? 0) / 1000;
+  // eY is the offset of the resultant in the Y-direction (caused by Mx).
+  // eX is the offset of the resultant in the X-direction (caused by My).
+  const eY_m = Math.abs(Mx_total) / Math.max(P_service, 1e-9);
+  const eX_m = Math.abs(My_total) / Math.max(P_service, 1e-9);
   // Kern limits: |e| ≤ B/6 (or L/6) for resultant to stay within kern → trapezoid.
   // Outside kern → triangular (Bowles): qmax = 2·P / (3·(B/2 − e)·L_perp)
   const kernX = B_m / 6;
@@ -73,28 +81,35 @@ function checkBearing(
   let q_max: number;
   let q_min: number;
   if (!upliftRegion) {
-    // Trapezoidal distribution (within kern)
-    const dqx = Math.abs(Mx_total) * 6 / (B_m * B_m * L_m);
-    const dqy = Math.abs(My_total) * 6 / (L_m * L_m * B_m);
-    q_max = q_avg + dqx + dqy;
-    q_min = q_avg - dqx - dqy;
+    // Trapezoidal distribution (within kern):
+    //   q(x, y) = P/A ± Mx·c_y/Ix ± My·c_x/Iy
+    //   Ix = L³·B/12 (about X-axis), c_y at extreme = L/2
+    //   Iy = B³·L/12 (about Y-axis), c_x at extreme = B/2
+    //   Δq from Mx at extreme y = 6·|Mx|/(L²·B)
+    //   Δq from My at extreme x = 6·|My|/(B²·L)
+    const dqFromMx = Math.abs(Mx_total) * 6 / (L_m * L_m * B_m);
+    const dqFromMy = Math.abs(My_total) * 6 / (B_m * B_m * L_m);
+    q_max = q_avg + dqFromMx + dqFromMy;
+    q_min = q_avg - dqFromMx - dqFromMy;
   } else {
     // Triangular (Bowles) — partial uplift. For dominant axis:
-    //   qmax = 2·P / (3·(B/2 − e_dom)·L_perp)
-    // For both axes outside kern, use product of effective lengths.
-    const effB = Math.max(B_m / 2 - eX_m, 1e-3) * 3;     // 3·(B/2−e)
-    const effL = Math.max(L_m / 2 - eY_m, 1e-3) * 3;
-    const denom_axis_x = effB * L_m;     // pressure along X with full L_perp
-    const denom_axis_y = effL * B_m;
+    //   qmax = 2·P / (3·(D_compress/2 − e)·D_perp)
+    // where e is offset along the compression-direction.
+    // eX is offset in X-direction (caused by My), so the X-compression length
+    // is 3·(B/2 − eX) and the perpendicular length is L.
+    const effB = Math.max(B_m / 2 - eX_m, 1e-3) * 3;     // 3·(B/2−eX)
+    const effL = Math.max(L_m / 2 - eY_m, 1e-3) * 3;     // 3·(L/2−eY)
     if (outsideKernX && !outsideKernY) {
-      q_max = 2 * P_service / denom_axis_x;
+      q_max = 2 * P_service / (effB * L_m);
       q_min = 0;
     } else if (outsideKernY && !outsideKernX) {
-      q_max = 2 * P_service / denom_axis_y;
+      q_max = 2 * P_service / (effL * B_m);
       q_min = 0;
     } else {
-      // Both axes outside kern (worst case)
-      q_max = 4 * P_service / (effB * effL);
+      // Both axes outside kern (biaxial uplift) — Bowles 4-corner case is
+      // chart-based and outside this scope. Use a conservative envelope:
+      //   qmax = 2·P / min(effB·L, effL·B), and emit a warning upstream.
+      q_max = 2 * P_service / Math.min(effB * L_m, effL * B_m);
       q_min = 0;
     }
   }
@@ -159,6 +174,30 @@ function checkBearing(
   };
 }
 
+// ─── EFFECTIVE DEPTHS ──────────────────────────────────────────────────────
+//
+// Bottom mat: convention is X-bars (running along X) closest to soil, then
+// Y-bars on top. For a given direction, d is the distance from extreme
+// compression fibre (top) to the centroid of the tension reinforcement IN
+// THAT DIRECTION:
+//   dX = T − cover − dbX/2          (cantilever along X uses bottom-X bars)
+//   dY = T − cover − dbX − dbY/2    (cantilever along Y uses bottom-Y bars,
+//                                    which sit ABOVE the X-mat)
+//   dAvg = (dX + dY) / 2            (used for two-way / punching)
+//
+// `g.d` override (from FootingGeometry) bypasses the calculation.
+function effectiveDepths(input: FootingInput): { dX: number; dY: number; dAvg: number } {
+  const { geometry: g, reinforcement: r } = input;
+  if (g.d !== undefined && g.d !== null) {
+    return { dX: g.d, dY: g.d, dAvg: g.d };
+  }
+  const dbX = barDiameter(r.bottomX.bar);
+  const dbY = barDiameter(r.bottomY.bar);
+  const dX = g.T - g.coverClear - dbX / 2;
+  const dY = g.T - g.coverClear - dbX - dbY / 2;
+  return { dX, dY, dAvg: (dX + dY) / 2 };
+}
+
 // ─── FACTORED NET SOIL PRESSURE ─────────────────────────────────────────────
 
 function factoredNetPressure(input: FootingInput): number {
@@ -176,7 +215,8 @@ function checkPunching(input: FootingInput, qnu: number): PunchingCheck {
   const fc = m.fc;
   const lambda = m.lambdaC ?? 1.0;
   const phi = 0.75;
-  const d = g.d ?? (g.T - g.coverClear - 25);    // assume #8 bottom bar avg
+  // Two-way punching uses the average d of the two bottom mats
+  const { dAvg: d } = effectiveDepths(input);
   const sqrtFc = Math.sqrt(fc);
 
   // Critical perimeter at d/2 from column face
@@ -202,7 +242,11 @@ function checkPunching(input: FootingInput, qnu: number): PunchingCheck {
   const betaC = Math.max(cx, cy) / Math.min(cx, cy);
 
   // αs per §22.6.5.3: 40 interior, 30 edge, 20 corner.  Default interior.
-  const alphaS = 40;
+  // αs per §22.6.5.3: interior 40, edge 30, corner 20
+  const alphaS =
+    g.columnLocation === 'edge' ? 30 :
+    g.columnLocation === 'corner' ? 20 :
+    40;     // default interior
 
   // Three candidate vc values (MPa) per Table 22.6.5.2
   const vc1 = 0.33 * lambda * sqrtFc;
@@ -283,7 +327,9 @@ function checkOneWayShear(
   const fc = m.fc;
   const lambda = m.lambdaC ?? 1.0;
   const phi = 0.75;
-  const d = g.d ?? (g.T - g.coverClear - 25);
+  // One-way shear in direction X uses the depth of the X-direction reinforcement
+  const { dX, dY } = effectiveDepths(input);
+  const d = direction === 'X' ? dX : dY;
 
   // Cantilever projection from column face to footing edge
   // For X direction: critical section perpendicular to X at distance d from column face.
@@ -345,7 +391,9 @@ function checkFootingFlexure(
   const fc = m.fc;
   const fy = m.fy;
   const phi = 0.90;
-  const d = g.d ?? (g.T - g.coverClear - 25);
+  // Flexure in direction X uses the depth of the X-direction tension reinforcement
+  const { dX, dY } = effectiveDepths(input);
+  const d = direction === 'X' ? dX : dY;
 
   // Cantilever from face of column to footing edge
   const colDimSelf = direction === 'X' ? g.cx : (g.columnShape === 'circular' ? g.cx : (g.cy ?? g.cx));
@@ -366,8 +414,11 @@ function checkFootingFlexure(
 
   // AsMin per §8.6.1.1 for fy = 420: ρ = 0.0018·b·h
   // For fy ≠ 420 MPa, ρmin = 0.0018·420/fy ≥ 0.0014 (per §8.6.1.1)
+  // ACI 318-25 §8.6.1.1:
+  //   fy < 420 MPa → ρmin = 0.0020 (deformed bars)
+  //   fy ≥ 420 MPa → ρmin = max(0.0014, 0.0018·420/fy)
   let rhoMin: number;
-  if (fy <= 420) rhoMin = 0.0020;
+  if (fy < 420) rhoMin = 0.0020;
   else rhoMin = Math.max(0.0014, 0.0018 * 420 / fy);
   const AsMin = rhoMin * bw * g.T;
 
@@ -401,7 +452,7 @@ function checkFootingFlexure(
     },
     {
       title: 'AsMin per §8.6.1.1',
-      formula: fy <= 420 ? 'AsMin = 0.0020·b·h' : 'AsMin = max(0.0014, 0.0018·420/fy)·b·h',
+      formula: fy < 420 ? 'AsMin = 0.0020·b·h' : 'AsMin = max(0.0014, 0.0018·420/fy)·b·h',
       substitution: `ρ_min = ${rhoMin.toFixed(4)}`,
       result: `AsMin = ${AsMin.toFixed(0)} mm²`,
       ref: ref(code, '8.6.1.1'),
@@ -482,30 +533,41 @@ function checkOverturning(input: FootingInput, P_service: number): OverturningCh
   const FOS_req = 1.5;
   const Mx = Math.abs(L.Mx ?? 0);
   const My = Math.abs(L.My ?? 0);
-  if (Mx === 0 && My === 0) {
+  const H = Math.abs(input.H ?? 0);
+  // Lateral H at top of footing produces an overturning moment about the toe
+  // with arm T (thickness). Direction is unknown; conservatively add to both
+  // axes' overturning moments.
+  const T_m = g.T / 1000;
+  const M_H = H * T_m;
+  const totalMx = Mx + M_H;
+  const totalMy = My + M_H;
+  if (Mx === 0 && My === 0 && H === 0) {
     return {
       M_resist: 0, M_overturn: 0, FOS: Infinity, FOS_req,
       ratio: 0, ok: true, notApplicable: true,
       ref: ref(code, '13.3 / Bowles 7.3'),
       steps: [{
         title: 'Overturning check',
-        formula: 'No applied moment → overturning N/A',
+        formula: 'No applied moment / lateral load → overturning N/A',
         substitution: '', result: 'N/A',
       }],
     };
   }
-  // Resisting moment: P × (B/2 or L/2) — moment about the toe
-  const lever_x = (g.B / 1000) / 2;
-  const lever_y = (g.L / 1000) / 2;
-  const M_resist_x = P_service * lever_x;
-  const M_resist_y = P_service * lever_y;
-  // Use the smaller of the two as the governing arm if both M present
-  const M_resist = Math.min(
-    Mx > 0 ? M_resist_x : Infinity,
-    My > 0 ? M_resist_y : Infinity,
-  );
-  const M_overturn = Math.max(Mx, My);
-  const FOS = M_resist / Math.max(M_overturn, 1e-9);
+  // Lever arms — resisting moment is P × (perpendicular half-dimension):
+  //   Mx (about X-axis) → footing tries to tip over an X-line edge,
+  //                         lifting +L/2 or -L/2 corner → arm = L/2
+  //   My (about Y-axis) → tips about Y-line, lifting +B/2 or -B/2 → arm = B/2
+  const arm_for_Mx = (g.L / 1000) / 2;     // L/2 in metres
+  const arm_for_My = (g.B / 1000) / 2;     // B/2 in metres
+  // Compute FOS for each axis independently and take worst.
+  const FOS_x = totalMx > 0 ? (P_service * arm_for_Mx) / totalMx : Infinity;
+  const FOS_y = totalMy > 0 ? (P_service * arm_for_My) / totalMy : Infinity;
+  const FOS = Math.min(FOS_x, FOS_y);
+  // Report values from the governing axis
+  const govX = FOS_x <= FOS_y;
+  const M_resist = govX ? P_service * arm_for_Mx : P_service * arm_for_My;
+  const M_overturn = govX ? totalMx : totalMy;
+  const govArm = govX ? arm_for_Mx : arm_for_My;
   const ratio = FOS_req / FOS;
   const ok = FOS >= FOS_req;
   return {
@@ -514,21 +576,21 @@ function checkOverturning(input: FootingInput, P_service: number): OverturningCh
     ref: ref(code, '13.3 / Bowles 7.3'),
     steps: [
       {
-        title: 'Resisting moment about toe',
-        formula: 'Mres = Pservice × (B/2 or L/2)',
-        substitution: `P = ${P_service.toFixed(1)} kN, arm = ${Math.min(lever_x, lever_y).toFixed(2)} m`,
+        title: 'Resisting moment about toe (governing axis)',
+        formula: 'Mres = Pservice × arm  (arm = L/2 for Mx, B/2 for My)',
+        substitution: `P = ${P_service.toFixed(1)} kN, arm = ${govArm.toFixed(2)} m (about ${govX ? 'X' : 'Y'}-axis)`,
         result: `Mres = ${M_resist.toFixed(1)} kN·m`,
       },
       {
         title: 'Overturning moment',
-        formula: 'Movt = max(|Mx|, |My|)',
-        substitution: `Mx = ${Mx.toFixed(1)}, My = ${My.toFixed(1)} kN·m`,
-        result: `Movt = ${M_overturn.toFixed(1)} kN·m`,
+        formula: 'Movt = |Mx or My| + H·T  (H acts at top of footing)',
+        substitution: `Mx = ${Mx.toFixed(1)}, My = ${My.toFixed(1)}, H·T = ${M_H.toFixed(1)} kN·m`,
+        result: `Movt = ${M_overturn.toFixed(1)} kN·m (governs ${govX ? 'about X' : 'about Y'})`,
       },
       {
         title: 'FOS = Mres / Movt',
         formula: 'FOS ≥ 1.5 (typical practice)',
-        substitution: `FOS = ${FOS.toFixed(2)}`,
+        substitution: `FOS_x = ${FOS_x === Infinity ? 'N/A' : FOS_x.toFixed(2)}, FOS_y = ${FOS_y === Infinity ? 'N/A' : FOS_y.toFixed(2)}`,
         result: ok ? `✓ FOS = ${FOS.toFixed(2)} ≥ 1.5` : `✗ FOS = ${FOS.toFixed(2)} < 1.5 — increase footing size`,
       },
     ],

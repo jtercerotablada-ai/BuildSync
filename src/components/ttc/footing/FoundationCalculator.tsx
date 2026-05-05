@@ -54,11 +54,12 @@ function reducer(state: FootingInput, action: Action): FootingInput {
       return { ...state, reinforcement: r };
     }
     case 'SET_LATERAL':
+      // Use explicit-undefined check so the user can zero-out a value
       return {
         ...state,
-        H: action.H ?? state.H,
-        frictionMu: action.mu ?? state.frictionMu,
-        cohesion: action.cohesion ?? state.cohesion,
+        H: action.H !== undefined ? action.H : state.H,
+        frictionMu: action.mu !== undefined ? action.mu : state.frictionMu,
+        cohesion: action.cohesion !== undefined ? action.cohesion : state.cohesion,
       };
     case 'SET_BRANDING':
       return { ...state, branding: { ...(state.branding ?? {}), ...action.patch } };
@@ -280,6 +281,14 @@ function InputsTab({ model, dispatch }: { model: FootingInput; dispatch: React.D
             <Num val={model.geometry.ey ?? 0} step={25}
               onChange={(v) => dispatch({ type: 'SET_GEOM', patch: { ey: v } })} />
           </Field>
+          <Field label="Position (αs for two-way shear)">
+            <select value={model.geometry.columnLocation ?? 'interior'}
+              onChange={(e) => dispatch({ type: 'SET_GEOM', patch: { columnLocation: e.target.value as 'interior' | 'edge' | 'corner' } })}>
+              <option value="interior">Interior (αs = 40)</option>
+              <option value="edge">Edge (αs = 30)</option>
+              <option value="corner">Corner (αs = 20)</option>
+            </select>
+          </Field>
         </div>
       </div>
 
@@ -490,7 +499,7 @@ function AutoDesignTab({
         </button>
         {recommendation && (
           <button type="button" className="ab-btn"
-            onClick={handleApply} disabled={!recommendation.ok && false}>
+            onClick={handleApply}>
             Apply Recommendation
           </button>
         )}

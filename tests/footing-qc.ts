@@ -218,9 +218,12 @@ block('Block 4 — Flexure: AsMin governs for thin, lightly-loaded footing', () 
     loads: { PD: 100, PL: 50 },
     reinforcement: { bottomX: { bar: '#5', count: 8 }, bottomY: { bar: '#5', count: 8 } },
   }));
-  // AsMin = 0.0020·b·T (fy = 420)
-  const expectedAsMin = 0.0020 * 1800 * 300;
-  near('AsMin = 0.0020·b·T', r.flexureX.AsMin, expectedAsMin, 0.001);
+  // AsMin per ACI 318-25 §8.6.1.1:
+  //   fy < 420 MPa → 0.0020·b·h
+  //   fy ≥ 420 MPa → max(0.0014, 0.0018·420/fy)·b·h
+  // For fy = 420 the formula gives 0.0018·(420/420) = 0.0018.
+  const expectedAsMin = 0.0018 * 1800 * 300;
+  near('AsMin = 0.0018·b·T (fy=420 boundary)', r.flexureX.AsMin, expectedAsMin, 0.001);
 });
 
 // ============================================================================
@@ -282,6 +285,122 @@ block('Block 6 — Sliding: insufficient friction → fail', () => {
   // H = 600 kN > 0.45·P → FOS < 1.5
   const r = analyzeFooting(defaultInput({ H: 600 }));
   check('Sliding fails when H too large', !r.sliding.ok);
+});
+
+// ============================================================================
+// BLOCK 6.5 — MEGA-QC regression: axis bug fixes (CRITICAL)
+// ============================================================================
+
+block('Block 6.5 — Rectangular footing with Mx: pressure axis correct', () => {
+  // Rectangular B=2m × L=4m, P=400 kN, Mx=100 kN·m (about X, gradient along Y)
+  // q_avg = 400/(2·4) = 50 kPa
+  // Δq from Mx at extreme y = 6·100/(L²·B) = 6·100/(16·2) = 18.75 kPa
+  // qmax = 50 + 18.75 = 68.75; qmin = 50 - 18.75 = 31.25
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2000, L: 4000, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 200, PL: 200, Mx: 100 },
+    soil: { qa: 200 },
+  }));
+  // q_avg actually includes Wf+Ws: P_service = PD+PL+Wf = 400 + 24·8·0.5 = 496
+  // q_avg = 496/8 = 62 kPa, dq = 6·100/(16·2) = 18.75
+  // qmax ≈ 80.75, qmin ≈ 43.25
+  near('Mx → gradient along Y dimension (rect footing)', r.bearing.q_max, 80.75, 0.05);
+  near('qmin matches expected for rect Mx', r.bearing.q_min, 43.25, 0.05);
+});
+
+block('Block 6.5 — Rectangular footing with My: pressure axis correct', () => {
+  // Rectangular B=2m × L=4m, P=400 kN, My=100 kN·m (about Y, gradient along X)
+  // q_avg = 62 kPa as above
+  // Δq from My at extreme x = 6·100/(B²·L) = 6·100/(4·4) = 37.5 kPa
+  // qmax = 62 + 37.5 = 99.5
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2000, L: 4000, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 200, PL: 200, My: 100 },
+    soil: { qa: 200 },
+  }));
+  near('My → gradient along X dimension (rect footing)', r.bearing.q_max, 99.5, 0.05);
+});
+
+block('Block 6.5 — Column eccentricity ex creates My (not Mx)', () => {
+  // Column shifted 200 mm in X with P=400 kN → M = P·ex about Y-axis
+  // For 2m × 4m footing: q_avg = 62 (incl Wf), gradient along X = 6·M/(B²·L)
+  // M_eccentric = 400·0.2 = 80 kN·m (about Y, since shift is in X)
+  // dq = 6·80/(2²·4) = 30 kPa → qmax ≈ 92
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2000, L: 4000, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400, ex: 200 },
+    loads: { PD: 200, PL: 200 },
+    soil: { qa: 200 },
+  }));
+  near('ex creates X-direction gradient (via My)', r.bearing.q_max, 92, 0.05);
+});
+
+block('Block 6.5 — Overturning: rectangular Mx uses L/2 as resisting arm', () => {
+  // B=2m, L=4m, P_service ≈ 496 kN, Mx=100 kN·m
+  // Resisting arm for Mx = L/2 = 2 m → M_resist = 992 kN·m
+  // FOS = 992/100 = 9.92
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2000, L: 4000, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 200, PL: 200, Mx: 100 },
+    soil: { qa: 300 },
+  }));
+  near('Overturning Mx uses arm = L/2 (rect)', r.overturning.FOS, 9.92, 0.05);
+});
+
+block('Block 6.5 — Overturning: lateral H adds H·T moment', () => {
+  // P=1000 kN service, H=200 kN, Mx=0, T=500
+  // M_H = 200 × 0.5 = 100 kN·m → totalMx = 100
+  // arm_for_Mx = L/2 = 1.25, M_resist = 1075·1.25 = 1343.75
+  // FOS = 1343.75/100 = 13.44
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 600, PL: 400 },
+    H: 200,
+  }));
+  check('H produces overturning moment', !r.overturning.notApplicable);
+  near('H·T overturning FOS ≈ 13.44', r.overturning.FOS, 13.44, 0.05);
+});
+
+// ============================================================================
+// BLOCK 6.6 — αs columnLocation (interior / edge / corner)
+// ============================================================================
+
+block('Block 6.6 — αs = 40 for interior column (default)', () => {
+  const r = analyzeFooting(defaultInput());
+  check('Default αs = 40 (interior)', r.punching.alphaS === 40);
+});
+
+block('Block 6.6 — αs = 30 for edge column', () => {
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400, columnLocation: 'edge' },
+  }));
+  check('Edge column αs = 30', r.punching.alphaS === 30);
+});
+
+block('Block 6.6 — αs = 20 for corner column', () => {
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400, columnLocation: 'corner' },
+  }));
+  check('Corner column αs = 20', r.punching.alphaS === 20);
+});
+
+// ============================================================================
+// BLOCK 6.7 — Effective depths dX vs dY (different bar diameters)
+// ============================================================================
+
+block('Block 6.7 — dX > dY when Y-bars stack on top of X-bars', () => {
+  // X = #6 (db=19.1), Y = #6 (db=19.1), T=500, cover=75
+  // dX = 500 - 75 - 19.1/2 = 415.45
+  // dY = 500 - 75 - 19.1 - 19.1/2 = 396.35
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    reinforcement: {
+      bottomX: { bar: '#6', count: 8 },
+      bottomY: { bar: '#6', count: 8 },
+    },
+  }));
+  // shearX uses dX, shearY uses dY. dX > dY by 1·db.
+  check('shearX uses larger d than shearY', r.shearX.d > r.shearY.d);
+  near('dX − dY ≈ db (≈19 mm)', r.shearX.d - r.shearY.d, 19.1, 0.1);
 });
 
 // ============================================================================

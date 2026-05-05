@@ -40,7 +40,8 @@ function requiredAs(
 
 function asMinForFooting(b: number, T: number, m: FootingMaterials): number {
   const fy = m.fy;
-  const rhoMin = fy <= 420 ? 0.0020 : Math.max(0.0014, 0.0018 * 420 / fy);
+  // ACI 318-25 §8.6.1.1: fy < 420 MPa → 0.0020; fy ≥ 420 → 0.0018·420/fy clamped
+  const rhoMin = fy < 420 ? 0.0020 : Math.max(0.0014, 0.0018 * 420 / fy);
   return rhoMin * b * T;
 }
 
