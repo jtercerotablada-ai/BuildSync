@@ -633,7 +633,46 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 23: Validation of results vs expected');
+console.log('BLOCK 23: Buttressed wall (counterfort mirror, compression)');
+console.log('==========================================');
+{
+  const butt: WallInput = {
+    code: 'ACI 318-25',
+    geometry: {
+      kind: 'buttressed',
+      H_stem: 5000, t_stem_top: 250, t_stem_bot: 350,
+      B_toe: 2000, B_heel: 600, H_foot: 600,
+      backfillSlope: 0, frontFill: 0,
+      buttressSpacing: 3000, buttressThickness: 350,
+    },
+    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
+    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
+    baseSoil: {
+      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
+      delta: 20 * Math.PI / 180, ca: 0, qAllow: 250, passiveEnabled: false,
+    },
+    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+    loads: { surchargeQ: 5, seismic: { kh: 0, kv: 0 } },
+    theory: 'rankine',
+    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
+  };
+  const r = solveWall(butt);
+  expectBool('Buttressed returned buttressedDesign', !!r.buttressedDesign, true);
+  if (r.buttressedDesign) {
+    expectBool('Buttressed compressionMode = true', r.buttressedDesign.compressionMode, true);
+    // Stem slab Mu identical to counterfort formula
+    const Ka = (1 - Math.sin(32*Math.PI/180)) / (1 + Math.sin(32*Math.PI/180));
+    const p = 18 * Ka * 5 + Ka * 5;
+    const Mneg_expected = 1.6 * p * 9 / 12;
+    expect('Buttressed stem-slab Mu (negative)', r.buttressedDesign.stemSlab.Mu, Mneg_expected, 0.05);
+    // Buttress design: tension moment = 0 (compression mode), As = As_min only
+    expectBool('Buttress Mu = 0 (compression)', r.buttressedDesign.counterfort.Mu === 0, true);
+    expectBool('Buttress As = As_min only', r.buttressedDesign.counterfort.As_req <= 1000, true);
+  }
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 24: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);
