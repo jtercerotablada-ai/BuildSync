@@ -257,6 +257,7 @@ function checkPunching(input: FootingInput, qnu: number): PunchingCheck {
   // Available φVc = φ·vc·bo·d (in N → kN)
   const phiVc_N = phi * vc * bo * d;
   const phiVc = phiVc_N / 1000;     // kN
+  const phiVcStress = phi * vc;      // MPa
 
   // Factored Vu at the critical perimeter:
   //   Vu = qnu × (A_footing − A_punch) — only the area OUTSIDE the punching cone
@@ -264,8 +265,85 @@ function checkPunching(input: FootingInput, qnu: number): PunchingCheck {
   const A_footing_mm2 = g.B * g.L;
   const Vu_kN = qnu * (A_footing_mm2 - A_punch) / 1e6;     // kPa·m² = kN
 
-  const ratio = Vu_kN / Math.max(phiVc, 1e-9);
+  // Direct shear stress vuv = Vu / (bo·d), in MPa
+  // Vu_N = Vu_kN × 1000; vuv = Vu_N / (bo·d) = (Vu_kN × 1000) / (bo·d)
+  const vuv = (Vu_kN * 1000) / Math.max(bo * d, 1e-9);
+
+  // ── Unbalanced moment shear (ACI 318-25 §8.4.4.2) ─────────────────────
+  //
+  // When the column transfers a moment Msc to the slab/footing, a fraction γv
+  // of that moment is transferred by eccentric shear (the rest, γf, by flexure
+  // across the effective slab width per §8.4.2.2.3). The shear stress from
+  // γv·Msc varies linearly about the centroid of the critical section:
+  //
+  //   vu,AB = vuv + γv·Msc·c_AB / Jc       (peak)
+  //
+  // where:
+  //   γf  = 1 / (1 + (2/3)·√(b1/b2))       per §8.4.2.2.1
+  //   γv  = 1 − γf                          per §8.4.4.2.2
+  //   b1  = column dim in direction of moment transfer + d  (along bending)
+  //   b2  = column dim perpendicular + d
+  //   c_AB = b1/2 for an interior column (centroid is at the geometric centre)
+  //   Jc (interior, rectangular crit section) per R8.4.4.2.3:
+  //     Jc = d·b1³/6 + b1·d³/6 + d·b2·b1²/2
+  //
+  // Convention used here:
+  //   Mx (moment about footing X-axis) → bending in Y-direction
+  //     b1 = cy + d (column dim along Y, parallel to bending direction)
+  //     b2 = cx + d (perpendicular)
+  //   My (moment about footing Y-axis) → bending in X-direction
+  //     b1 = cx + d
+  //     b2 = cy + d
+  //
+  // Loads.Mx and Loads.My are SERVICE moments. We factor them by the same
+  // ratio used for axial: Mu/M_service ≈ (1.2·PD + 1.6·PL) / (PD + PL).
+  // This is the conventional simplification when the load split is unknown.
+  const PDpL = input.loads.PD + input.loads.PL;
+  const factorRatio = PDpL > 0
+    ? (1.2 * input.loads.PD + 1.6 * input.loads.PL) / PDpL
+    : 1.4;
+  const MuX_kNm = (input.loads.Mx ?? 0) * factorRatio;
+  const MuY_kNm = (input.loads.My ?? 0) * factorRatio;
+
+  // Helper: compute γf, γv, Jc, c_AB and Δvu for one axis
+  function unbalancedDelta(b1: number, b2: number, Mu_kNm: number): {
+    gammaF: number; gammaV: number; Jc: number; cAB: number; dvu: number;
+  } {
+    const gammaF = 1 / (1 + (2 / 3) * Math.sqrt(b1 / b2));
+    const gammaV = 1 - gammaF;
+    const cAB = b1 / 2;     // interior, symmetric
+    const Jc = d * Math.pow(b1, 3) / 6
+             + b1 * Math.pow(d, 3) / 6
+             + d * b2 * Math.pow(b1, 2) / 2;
+    const Mu_Nmm = Math.abs(Mu_kNm) * 1e6;
+    const dvu = (gammaV * Mu_Nmm * cAB) / Math.max(Jc, 1e-9);     // MPa
+    return { gammaF, gammaV, Jc, cAB, dvu };
+  }
+
+  // For circular columns, treat as equivalent square (R22.6.4.1.2)
+  const colY = g.columnShape === 'circular' ? g.cx : (g.cy ?? g.cx);
+  const colX = g.cx;
+
+  // Mx (about X) — bending along Y
+  const mx = MuX_kNm > 0 ? unbalancedDelta(colY + d, colX + d, MuX_kNm)
+                         : { gammaF: 0, gammaV: 0, Jc: 0, cAB: 0, dvu: 0 };
+  // My (about Y) — bending along X
+  const my = MuY_kNm > 0 ? unbalancedDelta(colX + d, colY + d, MuY_kNm)
+                         : { gammaF: 0, gammaV: 0, Jc: 0, cAB: 0, dvu: 0 };
+
+  // Peak combined shear stress at the critical perimeter
+  const vuMax = vuv + mx.dvu + my.dvu;
+
+  // Use stress-based check when unbalanced moments are present; otherwise the
+  // force-based ratio Vu/φVc is equivalent (vuMax = vuv = Vu/(bo·d)).
+  const ratio = vuMax / Math.max(phiVcStress, 1e-9);
   const ok = ratio <= 1;
+
+  // Pick the dominant γf/γv to report (fall back to Mx if both present)
+  const gammaF = MuX_kNm > 0 ? mx.gammaF : (MuY_kNm > 0 ? my.gammaF : 0);
+  const gammaV = MuX_kNm > 0 ? mx.gammaV : (MuY_kNm > 0 ? my.gammaV : 0);
+
+  const hasUnbalanced = MuX_kNm > 0 || MuY_kNm > 0;
 
   const steps: CalcStep[] = [
     {
@@ -293,28 +371,57 @@ function checkPunching(input: FootingInput, qnu: number): PunchingCheck {
       ref: ref(code, '22.6.5'),
     },
     {
-      title: 'φVc punching capacity',
-      formula: 'φVc = φ·vc·bo·d (φ = 0.75)',
-      substitution: `φVc = 0.75·${vc.toFixed(3)}·${bo.toFixed(0)}·${d.toFixed(1)}/1000`,
-      result: `φVc = ${phiVc.toFixed(2)} kN`,
+      title: 'φ·vc available stress',
+      formula: 'φ·vc (φ = 0.75)',
+      substitution: `φ·vc = 0.75·${vc.toFixed(3)}`,
+      result: `φ·vc = ${phiVcStress.toFixed(3)} MPa  (φVc = ${phiVc.toFixed(2)} kN)`,
     },
     {
-      title: 'Punching shear demand Vu',
-      formula: 'Vu = qnu · (Afooting − Apunch)',
+      title: 'Direct punching shear demand',
+      formula: 'Vu = qnu · (Afooting − Apunch);  vuv = Vu/(bo·d)',
       substitution: `Vu = ${qnu.toFixed(1)}·(${(A_footing_mm2 / 1e6).toFixed(3)} − ${(A_punch / 1e6).toFixed(3)}) m²`,
-      result: `Vu = ${Vu_kN.toFixed(2)} kN`,
+      result: `Vu = ${Vu_kN.toFixed(2)} kN  →  vuv = ${vuv.toFixed(3)} MPa`,
     },
+    ...(hasUnbalanced ? [
+      {
+        title: 'Unbalanced-moment fraction γf, γv (§8.4.2.2.1, §8.4.4.2.2)',
+        formula: 'γf = 1/(1 + (2/3)·√(b1/b2));  γv = 1 − γf',
+        substitution: MuX_kNm > 0
+          ? `b1 = ${(colY + d).toFixed(0)}, b2 = ${(colX + d).toFixed(0)} mm`
+          : `b1 = ${(colX + d).toFixed(0)}, b2 = ${(colY + d).toFixed(0)} mm`,
+        result: `γf = ${gammaF.toFixed(3)}, γv = ${gammaV.toFixed(3)}`,
+        ref: ref(code, '8.4.4.2'),
+      },
+      {
+        title: 'Polar moment-of-inertia analog Jc (interior column, §R8.4.4.2.3)',
+        formula: 'Jc = d·b1³/6 + b1·d³/6 + d·b2·b1²/2',
+        substitution: MuX_kNm > 0
+          ? `Jc(Mx) = ${mx.Jc.toExponential(3)} mm⁴`
+          : `Jc(My) = ${my.Jc.toExponential(3)} mm⁴`,
+        result: `Δvu(Mx) = ${mx.dvu.toFixed(3)} MPa,  Δvu(My) = ${my.dvu.toFixed(3)} MPa`,
+      },
+      {
+        title: 'Combined peak shear stress',
+        formula: 'vu,max = vuv + γv·Mu·c_AB/Jc  (sum over both axes)',
+        substitution: `${vuv.toFixed(3)} + ${mx.dvu.toFixed(3)} + ${my.dvu.toFixed(3)}`,
+        result: `vu,max = ${vuMax.toFixed(3)} MPa`,
+      },
+    ] : []),
     {
-      title: 'Punching shear ratio',
-      formula: 'Vu / φVc',
-      substitution: `${Vu_kN.toFixed(2)} / ${phiVc.toFixed(2)}`,
-      result: `Ratio = ${ratio.toFixed(3)} ${ok ? '✓' : '✗ FAIL — increase footing depth'}`,
+      title: 'Punching shear utilisation',
+      formula: hasUnbalanced ? 'vu,max / (φ·vc)' : 'Vu / φVc  ≡  vuv / (φ·vc)',
+      substitution: `${vuMax.toFixed(3)} / ${phiVcStress.toFixed(3)}`,
+      result: `Ratio = ${ratio.toFixed(3)} ${ok ? '✓' : '✗ FAIL — increase d or footing size'}`,
     },
   ];
 
   return {
-    bo, d, betaC, alphaS, vc1, vc2, vc3, vc, phiVc, Vu: Vu_kN,
-    ratio, ok, ref: ref(code, '22.6'), steps,
+    bo, d, betaC, alphaS,
+    vc1, vc2, vc3, vc, phiVc, Vu: Vu_kN,
+    vuv, vuMax, phiVcStress,
+    gammaF, gammaV, MuX: MuX_kNm, MuY: MuY_kNm,
+    JcX: mx.Jc, JcY: my.Jc, dvuMx: mx.dvu, dvuMy: my.dvu,
+    ratio, ok, ref: ref(code, '22.6 + 8.4.4.2'), steps,
   };
 }
 
@@ -828,7 +935,14 @@ function emptyBearing(): BearingCheck {
   return { P_service: 0, A_req: 0, A_prov: 0, q_max: 0, q_min: 0, ratio: 0, ok: false, ref: '', steps: [] };
 }
 function emptyPunching(): PunchingCheck {
-  return { bo: 0, d: 0, betaC: 1, alphaS: 40, vc1: 0, vc2: 0, vc3: 0, vc: 0, phiVc: 0, Vu: 0, ratio: 0, ok: false, ref: '', steps: [] };
+  return {
+    bo: 0, d: 0, betaC: 1, alphaS: 40,
+    vc1: 0, vc2: 0, vc3: 0, vc: 0, phiVc: 0, Vu: 0,
+    vuv: 0, vuMax: 0, phiVcStress: 0,
+    gammaF: 0, gammaV: 0, MuX: 0, MuY: 0,
+    JcX: 0, JcY: 0, dvuMx: 0, dvuMy: 0,
+    ratio: 0, ok: false, ref: '', steps: [],
+  };
 }
 function emptyShear(direction: 'X' | 'Y'): OneWayShearCheck {
   return { direction, bw: 0, d: 0, cantilever: 0, Vc: 0, phiVc: 0, Vu: 0, ratio: 0, ok: false, ref: '', steps: [] };

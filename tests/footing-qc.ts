@@ -609,6 +609,186 @@ block('Block 11 — Wight Ex 15-2: rigid-vs-flexible classification', () => {
 });
 
 // ============================================================================
+// BLOCK 12 — Unbalanced moment punching shear (ACI 318-25 §8.4.4.2)
+// ============================================================================
+// Reference: ACI 318-25 §8.4.4.2 — Factored two-way shear stress due to shear
+// AND factored slab moment resisted by the column. When the column transfers
+// an unbalanced moment Msc, a fraction γv = 1 − γf is transferred by eccen-
+// tric shear, adding a stress γv·Msc·c_AB / Jc to the direct stress vuv.
+//
+//   γf  = 1 / (1 + (2/3)·√(b1/b2))     §8.4.2.2.1
+//   γv  = 1 − γf                        §8.4.4.2.2
+//   Jc  = d·b1³/6 + b1·d³/6 + d·b2·b1²/2   (interior column, R8.4.4.2.3)
+//   vu,max = vuv + γv·Msc·c_AB/Jc       §8.4.4.2.3
+//
+// Hand-calculated example (Wight Ex 15-2 dimensions + applied Mx):
+//   B=L=3404, T=813, cx=cy=457, d_avg=711.6, PD=1779.3, PL=1200.9
+//   Service Mx = 100 kN·m;  factor ≈ (1.2·1779.3 + 1.6·1200.9)/(2980.2) = 1.361
+//   Mu_x = 136.1 kN·m
+//   For Mx (about X-axis), b1 = cy+d = 1168.6, b2 = cx+d = 1168.6 (square col)
+//   γf = 1/(1 + (2/3)·1) = 0.6,    γv = 0.4
+//   c_AB = b1/2 = 584.3 mm
+//   Jc = 711.6·(1168.6)³/6 + 1168.6·(711.6)³/6 + 711.6·1168.6·(1168.6)²/2
+//      = 1.892e11 + 7.014e10 + 5.681e11 = 8.273e11 mm⁴
+//   Δvu_Mx = 0.4·136.1e6·584.3 / 8.273e11 = 0.0385 MPa
+//   vuv = 1.077 MPa (from Wight Ex 15-2)
+//   vu,max = 1.077 + 0.0385 = 1.116 MPa
+//   φ·vc = 0.75·1.501 = 1.126 MPa  →  ratio = 1.116/1.126 = 0.991 (still passes)
+
+block('Block 12 — γf, γv for square interior column', () => {
+  // For a square column (cx = cy), b1 = b2 → γf = 1/(1 + 2/3) = 0.6
+  const r = analyzeFooting({
+    code: 'ACI 318-25',
+    geometry: {
+      B: 3404, L: 3404, T: 813, coverClear: 76,
+      columnShape: 'square', cx: 457, cy: 457,
+      columnLocation: 'interior',
+    },
+    soil: { qa: 320 },
+    materials: { fc: 20.68, fy: 413.7 },
+    loads: { PD: 1779.3, PL: 1200.9, Mx: 100 },
+    reinforcement: {
+      bottomX: { bar: '#8', count: 11 },
+      bottomY: { bar: '#8', count: 11 },
+    },
+  });
+  near('γf for square column = 0.60', r.punching.gammaF, 0.60, 0.01);
+  near('γv for square column = 0.40', r.punching.gammaV, 0.40, 0.01);
+});
+
+block('Block 12 — Mx factoring: service → factored', () => {
+  // factor = (1.2·PD + 1.6·PL)/(PD+PL) = (1.2·1779.3 + 1.6·1200.9)/2980.2
+  //        = 4057.4/2980.2 = 1.361
+  // Service Mx = 100 kN·m → MuX = 136.1 kN·m
+  const r = analyzeFooting({
+    code: 'ACI 318-25',
+    geometry: {
+      B: 3404, L: 3404, T: 813, coverClear: 76,
+      columnShape: 'square', cx: 457, cy: 457,
+    },
+    soil: { qa: 320 },
+    materials: { fc: 20.68, fy: 413.7 },
+    loads: { PD: 1779.3, PL: 1200.9, Mx: 100 },
+    reinforcement: {
+      bottomX: { bar: '#8', count: 11 },
+      bottomY: { bar: '#8', count: 11 },
+    },
+  });
+  near('MuX factored ≈ 136.1 kN·m', r.punching.MuX, 136.1, 0.02);
+});
+
+block('Block 12 — Jc for interior column (Wight Ex 15-2 + Mx)', () => {
+  // Hand-calc: Jc(Mx) = 8.273e11 mm⁴
+  const r = analyzeFooting({
+    code: 'ACI 318-25',
+    geometry: {
+      B: 3404, L: 3404, T: 813, coverClear: 76,
+      columnShape: 'square', cx: 457, cy: 457,
+    },
+    soil: { qa: 320 },
+    materials: { fc: 20.68, fy: 413.7 },
+    loads: { PD: 1779.3, PL: 1200.9, Mx: 100 },
+    reinforcement: {
+      bottomX: { bar: '#8', count: 11 },
+      bottomY: { bar: '#8', count: 11 },
+    },
+  });
+  near('Jc(Mx) ≈ 8.27e11 mm⁴', r.punching.JcX, 8.27e11, 0.02);
+  // Δvu from Mx: 0.0385 MPa (5.6 psi)
+  near('Δvu from Mx ≈ 0.0385 MPa', r.punching.dvuMx, 0.0385, 0.05);
+});
+
+block('Block 12 — Combined vu,max for Wight Ex 15-2 + Mx = 100 kN·m', () => {
+  // vuv (centric Wight Ex 15-2) ≈ 1.077 MPa
+  // Δvu(Mx) ≈ 0.0385 MPa
+  // vu,max ≈ 1.116 MPa, φ·vc = 1.126 MPa → ratio ≈ 0.991 (still passes)
+  const r = analyzeFooting({
+    code: 'ACI 318-25',
+    geometry: {
+      B: 3404, L: 3404, T: 813, coverClear: 76,
+      columnShape: 'square', cx: 457, cy: 457,
+    },
+    soil: { qa: 320 },
+    materials: { fc: 20.68, fy: 413.7 },
+    loads: { PD: 1779.3, PL: 1200.9, Mx: 100 },
+    reinforcement: {
+      bottomX: { bar: '#8', count: 11 },
+      bottomY: { bar: '#8', count: 11 },
+    },
+  });
+  near('vuv (direct) ≈ 1.077 MPa', r.punching.vuv, 1.077, 0.02);
+  near('vu,max ≈ 1.116 MPa', r.punching.vuMax, 1.116, 0.02);
+  near('φ·vc ≈ 1.126 MPa', r.punching.phiVcStress, 1.126, 0.02);
+  near('ratio ≈ 0.991', r.punching.ratio, 0.991, 0.02);
+  check('Punching still passes (ratio < 1)', r.punching.ok);
+});
+
+block('Block 12 — Larger Mx pushes ratio over 1.0', () => {
+  // Mx = 300 kN·m → factored 408 kN·m → Δvu = 0.4·408e6·584/8.27e11 = 0.115 MPa
+  // vu,max = 1.077 + 0.115 = 1.193 > 1.126 = φ·vc → FAILS
+  const r = analyzeFooting({
+    code: 'ACI 318-25',
+    geometry: {
+      B: 3404, L: 3404, T: 813, coverClear: 76,
+      columnShape: 'square', cx: 457, cy: 457,
+    },
+    soil: { qa: 400 },
+    materials: { fc: 20.68, fy: 413.7 },
+    loads: { PD: 1779.3, PL: 1200.9, Mx: 300 },
+    reinforcement: {
+      bottomX: { bar: '#8', count: 11 },
+      bottomY: { bar: '#8', count: 11 },
+    },
+  });
+  check('Punching FAILS with large unbalanced moment', !r.punching.ok);
+  check('Ratio > 1.0', r.punching.ratio > 1.0);
+});
+
+block('Block 12 — Both Mx + My add their Δvu contributions', () => {
+  // For symmetric (square) column with both Mx, My: γv same, both add
+  const r = analyzeFooting({
+    code: 'ACI 318-25',
+    geometry: {
+      B: 3404, L: 3404, T: 813, coverClear: 76,
+      columnShape: 'square', cx: 457, cy: 457,
+    },
+    soil: { qa: 320 },
+    materials: { fc: 20.68, fy: 413.7 },
+    loads: { PD: 1779.3, PL: 1200.9, Mx: 80, My: 80 },
+    reinforcement: {
+      bottomX: { bar: '#8', count: 11 },
+      bottomY: { bar: '#8', count: 11 },
+    },
+  });
+  // Both contributions should be equal for square column with equal M
+  near('Δvu(Mx) ≈ Δvu(My) for symmetric column', r.punching.dvuMx, r.punching.dvuMy, 0.005);
+  // And vu,max should equal vuv + 2·Δvu
+  near('vu,max = vuv + Δvu(Mx) + Δvu(My)', r.punching.vuMax,
+       r.punching.vuv + r.punching.dvuMx + r.punching.dvuMy, 0.001);
+});
+
+block('Block 12 — Centric column: vu,max = vuv (no unbalanced moment)', () => {
+  // Wight Ex 15-2 centric: ratio should still match Block 11
+  const r = analyzeFooting({
+    code: 'ACI 318-25',
+    geometry: {
+      B: 3404, L: 3404, T: 813, coverClear: 76,
+      columnShape: 'square', cx: 457, cy: 457,
+    },
+    soil: { qa: 320 },
+    materials: { fc: 20.68, fy: 413.7 },
+    loads: { PD: 1779.3, PL: 1200.9 },
+    reinforcement: {
+      bottomX: { bar: '#8', count: 11 },
+      bottomY: { bar: '#8', count: 11 },
+    },
+  });
+  near('vu,max = vuv when no Mx/My', r.punching.vuMax, r.punching.vuv, 0.001);
+  near('Δvu(Mx) = 0', r.punching.dvuMx, 0, 0.001);
+  near('Δvu(My) = 0', r.punching.dvuMy, 0, 0.001);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(70));

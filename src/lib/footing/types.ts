@@ -147,7 +147,8 @@ export interface BearingCheck {
   steps: CalcStep[];
 }
 
-/** Two-way (punching) shear check at d/2 from column face. */
+/** Two-way (punching) shear check at d/2 from column face. Includes
+ *  unbalanced-moment shear stress per ACI 318-25 §8.4.4.2. */
 export interface PunchingCheck {
   /** Critical perimeter length bo (mm) at d/2 from column face. */
   bo: number;
@@ -163,10 +164,34 @@ export interface PunchingCheck {
   vc3: number;     // 0.083·(αs·d/bo + 2)·λ·√fc'
   /** Governing vc = min(vc1, vc2, vc3) (MPa). */
   vc: number;
-  /** Available φVc (kN). */
+  /** Available φVc (kN) — capacity at critical perimeter. */
   phiVc: number;
   /** Factored shear demand at the critical perimeter (kN). */
   Vu: number;
+  /** Direct shear stress vuv = Vu/(bo·d) (MPa). */
+  vuv: number;
+  /** Peak combined shear stress at critical perimeter (MPa) — includes
+   *  unbalanced-moment contribution γv·Msc·c/Jc per §8.4.4.2.3. */
+  vuMax: number;
+  /** Available shear stress φ·vc (MPa). */
+  phiVcStress: number;
+  /** Fraction of Mu transferred by flexure (γf) per §8.4.2.2.1. */
+  gammaF: number;
+  /** Fraction of Mu transferred by eccentric shear (γv = 1 − γf) per §8.4.4.2.2. */
+  gammaV: number;
+  /** Factored unbalanced moment about X-axis (kN·m). */
+  MuX: number;
+  /** Factored unbalanced moment about Y-axis (kN·m). */
+  MuY: number;
+  /** Polar moment-of-inertia analog Jc for Mx (mm⁴). 0 when Mx = 0. */
+  JcX: number;
+  /** Polar moment-of-inertia analog Jc for My (mm⁴). 0 when My = 0. */
+  JcY: number;
+  /** Δvu from Mx unbalanced shear (MPa). */
+  dvuMx: number;
+  /** Δvu from My unbalanced shear (MPa). */
+  dvuMy: number;
+  /** Demand/capacity ratio = vuMax / (φ·vc). */
   ratio: number;
   ok: boolean;
   ref: string;
