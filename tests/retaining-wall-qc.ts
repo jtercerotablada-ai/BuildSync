@@ -272,7 +272,56 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 12: Validation of results vs expected');
+console.log('BLOCK 12: Gravity wall — stability + ACI §14.5 stress');
+console.log('==========================================');
+// Trapezoidal gravity wall: stem 4 m tall, t_top = 0.6 m, t_bot = 1.5 m
+// (typical mass-concrete profile per Wight & MacGregor §17.3). Granular
+// backfill φ=32°, γ=18 kN/m³, no surcharge. f'c = 21 MPa (low-strength
+// gravity-wall mix). Verify the solver returns gravityStress and that
+// the wall body's compression stress stays within 0.45·f'c.
+{
+  const gravity: WallInput = {
+    code: 'ACI 318-25',
+    geometry: {
+      kind: 'gravity',
+      H_stem: 4000,
+      t_stem_top: 600,
+      t_stem_bot: 1500,
+      B_toe: 600,
+      B_heel: 600,
+      H_foot: 600,
+      backfillSlope: 0,
+      frontFill: 0,
+      batterFront: 0,
+      batterBack: 0,
+    },
+    concrete: { fc: 21, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
+    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
+    baseSoil: {
+      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
+      delta: 20 * Math.PI / 180, ca: 0,
+      qAllow: 250, passiveEnabled: false,
+    },
+    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+    loads: { surchargeQ: 0, seismic: { kh: 0, kv: 0 } },
+    theory: 'rankine',
+    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
+  };
+  const result = solveWall(gravity);
+  expectBool('Gravity wall returned gravityStress', !!result.gravityStress, true);
+  if (result.gravityStress) {
+    const sigma_max_MPa = result.gravityStress.sigma_max / 1000;
+    const sigma_allow_MPa = result.gravityStress.sigma_allow / 1000;
+    console.log(`  σ_max = ${sigma_max_MPa.toFixed(2)} MPa, σ_allow = ${sigma_allow_MPa.toFixed(2)} MPa`);
+    // φ·0.45·f'c with f'c = 21 MPa: 0.60 · 0.45 · 21 = 5.67 MPa
+    expect('Gravity σ_allow = 0.60·0.45·f\'c', sigma_allow_MPa, 0.60 * 0.45 * 21, 0.001);
+    expectBool('Gravity wall compression OK at base', sigma_max_MPa <= sigma_allow_MPa, true);
+  }
+  expectBool('Gravity wall solver does not require rebar (As_req = 0)', result.stem.As_req === 0, true);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 13: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);

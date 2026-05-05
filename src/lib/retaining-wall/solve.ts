@@ -1,10 +1,33 @@
 // Top-level orchestrator: stability + reinforcement design.
+//
+// Dispatches by `input.geometry.kind` to a per-kind solver. Cantilever is
+// the historical default and shares its solver with semi-gravity and
+// l-shaped (which differ only in reinforcement intent / B_toe = 0). Each
+// other kind has its own solver file; commits 3-9 progressively replace
+// fallthrough cases with real solvers.
 
 import type { WallInput, WallResults, WallGeometry, WallKind } from './types';
 import { computeStability } from './stability';
 import { designStem, designHeel, designToe, designKey } from './design';
+import { solveGravity } from './solve-gravity';
 
 export function solveWall(input: WallInput): WallResults {
+  switch (input.geometry.kind) {
+    case 'gravity':
+      return solveGravity(input);
+    case 'cantilever':
+    case 'semi-gravity':   // same solver as cantilever; reinforcement intent differs
+    case 'l-shaped':       // B_toe = 0 — solver handles toe = 0 gracefully
+    case 'counterfort':    // (commit 7 will replace)
+    case 'buttressed':     // (commit 8)
+    case 'basement':       // (commit 6)
+    case 'abutment':       // (commit 9)
+    default:
+      return solveCantileverWall(input);
+  }
+}
+
+function solveCantileverWall(input: WallInput): WallResults {
   const { stability, pressure } = computeStability(input);
 
   // Average bearing pressure under heel and toe (linear interpolation from q_max/q_min)
