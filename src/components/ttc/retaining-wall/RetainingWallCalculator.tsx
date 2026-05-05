@@ -226,16 +226,20 @@ export function RetainingWallCalculator() {
 
         <main className="rw__canvas">
           {results ? (
-            <>
-              <WallCanvas input={input} results={results} unitSystem={unitSystem} />
-              <div className="rw__canvas-3d">
-                {input.geometry.kind === 'cantilever' ? (
-                  <CantileverViewer3D input={input} result={results} />
-                ) : (
-                  <WallViewer3D input={input} />
-                )}
+            input.geometry.kind === 'cantilever' ? (
+              // Cantilever: show ONLY the photo-realistic 3D viewer (the
+              // 2D section view is still rendered inside the print report).
+              <div className="rw__canvas-3d rw__canvas-3d--full">
+                <CantileverViewer3D input={input} result={results} />
               </div>
-            </>
+            ) : (
+              <>
+                <WallCanvas input={input} results={results} unitSystem={unitSystem} />
+                <div className="rw__canvas-3d">
+                  <WallViewer3D input={input} />
+                </div>
+              </>
+            )
           ) : (
             <div className="rw__empty">Enter geometry to build your wall</div>
           )}

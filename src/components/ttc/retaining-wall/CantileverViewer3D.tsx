@@ -30,13 +30,12 @@ import React, { Suspense, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
   OrbitControls, ContactShadows, Environment, Text,
-  Instances, Instance, RoundedBox, Edges, AccumulativeShadows, RandomizedLight,
-  Bounds, GizmoHelper, GizmoViewport,
+  Instances, Instance, RoundedBox, Edges,
+  GizmoHelper, GizmoViewport,
 } from '@react-three/drei';
 import * as THREE from 'three';
 import warehouseHDR from '@pmndrs/assets/hdri/warehouse.exr';
-import { EffectComposer, SSAO, Bloom, ToneMapping } from '@react-three/postprocessing';
-import { BlendFunction } from 'postprocessing';
+import { EffectComposer, Bloom, ToneMapping } from '@react-three/postprocessing';
 import type { WallInput, WallResults, CantileverGeometry } from '@/lib/retaining-wall/types';
 
 const MM_TO_M = 0.001;
@@ -132,18 +131,17 @@ export function CantileverViewer3D({ input, result }: Props) {
         <Canvas
           shadows
           dpr={[1, 1.5]}
-          gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping }}
-          camera={{ position: [Bfoot * 1.4, Hstem * 0.65, wallL * 1.6], fov: 36, near: 0.05, far: 200 }}
+          gl={{ antialias: true, preserveDrawingBuffer: true }}
+          camera={{ position: [Bfoot * 1.6, Hstem * 0.7, wallL * 1.8], fov: 38, near: 0.05, far: 200 }}
         >
           <color attach="background" args={['#0e0e10']} />
-          <fog attach="fog" args={['#0e0e10', 12, 30]} />
 
           <Suspense fallback={null}>
             <Environment files={warehouseHDR} background={false} environmentIntensity={0.55} />
           </Suspense>
 
-          {/* Soft directional + key light for clean concrete shading */}
-          <ambientLight intensity={0.18} />
+          {/* Lighting: ambient + key + fill */}
+          <ambientLight intensity={0.35} />
           <directionalLight
             position={[Bfoot * 3, Hstem * 4, wallL * 3]} intensity={1.4}
             castShadow
@@ -153,100 +151,80 @@ export function CantileverViewer3D({ input, result }: Props) {
             shadow-camera-top={Hstem * 2}    shadow-camera-bottom={-Hfoot * 3}
             shadow-camera-near={0.1} shadow-camera-far={Bfoot * 12}
           />
-          <directionalLight position={[-Bfoot * 2, Hstem * 1.5, -wallL * 2]} intensity={0.35} />
+          <directionalLight position={[-Bfoot * 2, Hstem * 1.5, -wallL * 2]} intensity={0.45} />
 
-          <Bounds fit clip observe margin={1.15}>
-            <group>
-              {/* ──────── CONCRETE — footing + tapered stem ──────── */}
-              <ConcreteFooting Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} />
-              <ConcreteStem
-                xFront={xStemFront} xBack={xStemBack}
-                xBackTop={xStemBackTop} xFrontTop={xStemFront}
-                Hstem={Hstem} t_bot={t_bot} t_top={t_top} wallL={wallL}
-              />
+          {/* ──────── CONCRETE — footing + tapered stem ──────── */}
+          <ConcreteFooting Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} />
+          <ConcreteStem
+            xFront={xStemFront} xBack={xStemBack}
+            xBackTop={xStemBackTop} xFrontTop={xStemFront}
+            Hstem={Hstem} t_bot={t_bot} t_top={t_top} wallL={wallL}
+          />
 
-              {/* ──────── REAL REBAR (visible inside the concrete) ──────── */}
-              {/* Vertical stem bars at the rear face */}
-              <StemVerticalBars
-                xRear={xStemBack} xFrontTop={xStemBackTop}
-                Hstem={Hstem} Hfoot={Hfoot} wallL={wallL} cover={cover}
-                db={stemVert.db * MM_TO_M} spacing={stemVert.spacing * MM_TO_M}
-              />
-              {/* Horizontal stem bars on both faces */}
-              <StemHorizontalBars
-                xFront={xStemFront} xBack={xStemBack}
-                xFrontTop={xStemFront} xBackTop={xStemBackTop}
-                Hstem={Hstem} wallL={wallL} cover={cover}
-                db={stemHoriz.db * MM_TO_M} spacing={stemHoriz.spacing * MM_TO_M}
-              />
-              {/* Footing top reinforcement (over heel) */}
-              <FootingTopBars
-                Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} cover={cover}
-                db={heelTop.db * MM_TO_M} spacing={heelTop.spacing * MM_TO_M}
-              />
-              {/* Footing bottom reinforcement (over toe) */}
-              <FootingBottomBars
-                Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} cover={cover}
-                db={toeBot.db * MM_TO_M} spacing={toeBot.spacing * MM_TO_M}
-              />
-              {/* Footing longitudinal distribution bars */}
-              <FootingLongitudinalBars
-                Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} cover={cover}
-              />
+          {/* ──────── REAL REBAR (visible inside the concrete) ──────── */}
+          <StemVerticalBars
+            xRear={xStemBack} xFrontTop={xStemBackTop}
+            Hstem={Hstem} Hfoot={Hfoot} wallL={wallL} cover={cover}
+            db={stemVert.db * MM_TO_M} spacing={stemVert.spacing * MM_TO_M}
+          />
+          <StemHorizontalBars
+            xFront={xStemFront} xBack={xStemBack}
+            xFrontTop={xStemFront} xBackTop={xStemBackTop}
+            Hstem={Hstem} wallL={wallL} cover={cover}
+            db={stemHoriz.db * MM_TO_M} spacing={stemHoriz.spacing * MM_TO_M}
+          />
+          <FootingTopBars
+            Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} cover={cover}
+            db={heelTop.db * MM_TO_M} spacing={heelTop.spacing * MM_TO_M}
+          />
+          <FootingBottomBars
+            Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} cover={cover}
+            db={toeBot.db * MM_TO_M} spacing={toeBot.spacing * MM_TO_M}
+          />
+          <FootingLongitudinalBars
+            Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} cover={cover}
+          />
 
-              {/* ──────── DRAINAGE — gravel + pipe ──────── */}
-              {drainage.enabled && (
-                <DrainageGroup
-                  xRear={xStemBack} Hstem={Hstem} wallL={wallL}
-                  gravelT={gravelT} pipeD={pipeD}
-                />
-              )}
+          {/* ──────── DRAINAGE — gravel + pipe ──────── */}
+          {drainage.enabled && (
+            <DrainageGroup
+              xRear={xStemBack} Hstem={Hstem} wallL={wallL}
+              gravelT={gravelT} pipeD={pipeD}
+            />
+          )}
 
-              {/* ──────── SOIL — semi-transparent backfill + foundation ──────── */}
-              <SoilGroup
-                xRear={xStemBack} xFront={xStemFront} gravelT={gravelT}
-                Hstem={Hstem} Hfoot={Hfoot} wallL={wallL} Bfoot={Bfoot}
-              />
+          {/* ──────── SOIL — semi-transparent backfill + foundation ──────── */}
+          <SoilGroup
+            xRear={xStemBack} xFront={xStemFront} gravelT={gravelT}
+            Hstem={Hstem} Hfoot={Hfoot} wallL={wallL} Bfoot={Bfoot}
+          />
 
-              {/* ──────── CALLOUTS — Spanish labels with leader lines ──────── */}
-              <Callouts
-                Bfoot={Bfoot} Hstem={Hstem} Hfoot={Hfoot} wallL={wallL}
-                xStemFront={xStemFront} xStemBack={xStemBack}
-                drainage={drainage.enabled}
-              />
-            </group>
-          </Bounds>
+          {/* ──────── CALLOUTS — Spanish labels with leader lines ──────── */}
+          <Callouts
+            Bfoot={Bfoot} Hstem={Hstem} Hfoot={Hfoot} wallL={wallL}
+            xStemFront={xStemFront} xStemBack={xStemBack}
+            drainage={drainage.enabled}
+          />
 
-          {/* Soft accumulated shadows underneath */}
-          <AccumulativeShadows position={[0, -Hfoot - 0.005, 0]}
-            temporal frames={60} alphaTest={0.85} scale={Bfoot * 4} color="#000">
-            <RandomizedLight amount={6} radius={Bfoot * 0.6}
-              intensity={1.0} ambient={0.4} bias={0.001}
-              position={[Bfoot * 2, Hstem * 3, wallL * 2]} />
-          </AccumulativeShadows>
+          {/* Contact shadow under the wall */}
           <ContactShadows position={[0, -Hfoot - 0.001, 0]}
-            opacity={0.45} scale={Bfoot * 5} blur={2.2} far={3.5} resolution={2048} frames={1} smooth />
+            opacity={0.55} scale={Bfoot * 5} blur={2.2} far={3.5}
+            resolution={1024} frames={1} smooth />
 
           <OrbitControls makeDefault enableDamping
             target={[0, Hstem / 4, 0]}
             maxPolarAngle={Math.PI / 2.05}
             minDistance={Bfoot * 0.5}
-            maxDistance={Bfoot * 6}
+            maxDistance={Bfoot * 8}
           />
           <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
             <GizmoViewport axisColors={['#c9a84c', '#7fb691', '#4a90c9']} labelColor="#fff" />
           </GizmoHelper>
 
-          {/* ──────── POST-PROCESSING — SSAO + Bloom + Tone mapping ──────── */}
+          {/* ──────── POST-PROCESSING — Bloom + ACES tone mapping ──────── */}
           <EffectComposer multisampling={4}>
-            <SSAO
-              blendFunction={BlendFunction.MULTIPLY}
-              samples={20} radius={6} intensity={28} bias={0.025}
-              luminanceInfluence={0.4} worldDistanceThreshold={0.6} worldDistanceFalloff={0.4}
-              worldProximityThreshold={0.04} worldProximityFalloff={0.04}
-            />
-            <Bloom intensity={0.18} luminanceThreshold={0.85} luminanceSmoothing={0.7} mipmapBlur />
-            <ToneMapping mode={2 /* ACES filmic */} />
+            <Bloom intensity={0.15} luminanceThreshold={0.85} luminanceSmoothing={0.7} mipmapBlur />
+            <ToneMapping />
           </EffectComposer>
         </Canvas>
       </div>

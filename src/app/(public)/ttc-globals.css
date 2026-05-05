@@ -6322,6 +6322,29 @@ img, svg {
   overflow: hidden;
 }
 
+/* Cantilever-only: 3D viewer fills the entire canvas area (no 2D mini view) */
+.rw__canvas-3d--full {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;     /* allow flex children to shrink */
+  width: 100%;
+}
+.rw__canvas-3d--full .rw-3d.slab-3d {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.rw__canvas-3d--full .slab-3d__canvas,
+.rw__canvas-3d--full .rc-3d__canvas {
+  flex: 1 1 auto;
+  height: auto !important;
+  min-height: 0;
+  width: 100%;
+}
+
 /* Full-width results strip below the canvas */
 .rw__results {
   display: flex;
