@@ -161,6 +161,7 @@ function ReportContent({ input, result, cover3dDataUrl }: Props) {
         { name: 'Flexure (X)', check: result.flexureX },
         { name: 'Flexure (Y)', check: result.flexureY },
         { name: 'Bearing at column-footing interface', check: result.bearingInterface },
+        { name: 'Column dowels (§16.3.4.1)', check: result.dowel },
         { name: 'Overturning', check: result.overturning },
         { name: 'Sliding', check: result.sliding },
         { name: 'Bar fit (X)', check: result.barFitX },

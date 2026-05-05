@@ -289,6 +289,31 @@ function InputsTab({ model, dispatch }: { model: FootingInput; dispatch: React.D
               <option value="corner">Corner (αs = 20)</option>
             </select>
           </Field>
+          <Field label="Supported member type">
+            <select value={model.geometry.supportedMember ?? 'column'}
+              onChange={(e) => dispatch({ type: 'SET_GEOM', patch: { supportedMember: e.target.value as 'column' | 'wall_concrete' | 'wall_masonry' | 'baseplate' } })}>
+              <option value="column">Concrete column</option>
+              <option value="wall_concrete">Concrete wall</option>
+              <option value="wall_masonry">Masonry wall (crit at midspan)</option>
+              <option value="baseplate">Steel column on base plate</option>
+            </select>
+          </Field>
+          {model.geometry.supportedMember === 'baseplate' && (
+            <>
+              <Field label="Base plate Bp — along X (mm)">
+                <Num val={model.geometry.basePlate?.Bp ?? 600} step={25}
+                  onChange={(v) => dispatch({ type: 'SET_GEOM', patch: { basePlate: { Bp: v, Lp: model.geometry.basePlate?.Lp ?? v } } })} />
+              </Field>
+              <Field label="Base plate Lp — along Y (mm)">
+                <Num val={model.geometry.basePlate?.Lp ?? 600} step={25}
+                  onChange={(v) => dispatch({ type: 'SET_GEOM', patch: { basePlate: { Bp: model.geometry.basePlate?.Bp ?? v, Lp: v } } })} />
+              </Field>
+            </>
+          )}
+          <Field label="Dowel area provided (mm² — optional)">
+            <Num val={model.geometry.dowelAreaProvided ?? 0} step={50}
+              onChange={(v) => dispatch({ type: 'SET_GEOM', patch: { dowelAreaProvided: v > 0 ? v : undefined } })} />
+          </Field>
         </div>
       </div>
 
