@@ -180,7 +180,7 @@ export function PunchingDiagram2D({ input, result }: Props) {
           φV<Sub>c</Sub> = <tspan fontWeight="700">{result.punching.phiVc.toFixed(1)} kN</tspan>
         </text>
         <text x="196" y="86" fontSize="9.5"
-              fill={result.punching.ok ? '#5fb674' : '#ff6a55'}>
+              fill={result.punching.ok ? '#7fb691' : '#e8836a'}>
           ratio = <tspan fontWeight="700">{result.punching.ratio.toFixed(3)}</tspan>
           <tspan dx="6">{result.punching.ok ? '✓ OK' : '✗ FAIL'}</tspan>
         </text>

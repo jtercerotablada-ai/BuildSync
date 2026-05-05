@@ -8726,10 +8726,10 @@ img, svg {
    RC Design v2 — pass/fail tints + envelope diagram + status banner
    ============================================================================ */
 
-/* Inline pass/fail tints used inside ab-label, table cells, etc. */
-.ab-pass { color: #5fb674; }
-.ab-fail { color: #ff6a55; }
-.ab-row-fail td { background: rgba(201, 76, 76, 0.10); }
+/* Inline pass/fail tints — sage + coral, matches BuildSync gold/cyan/coral palette */
+.ab-pass { color: #7fb691; }    /* sage green — "approved" without lime-glare */
+.ab-fail { color: #e8836a; }    /* warm coral — matches existing X-bar palette */
+.ab-row-fail td { background: rgba(232, 131, 106, 0.10); }
 
 /* ----- Status banner (semáforo) ----- */
 .rc-status {
@@ -8742,12 +8742,12 @@ img, svg {
   margin-bottom: 1.2rem;
 }
 .rc-status--pass {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.16), rgba(34, 197, 94, 0.04));
-  border-color: rgba(34, 197, 94, 0.5);
+  background: linear-gradient(135deg, rgba(127, 182, 145, 0.18), rgba(127, 182, 145, 0.04));
+  border-color: rgba(127, 182, 145, 0.55);
 }
 .rc-status--fail {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.18), rgba(220, 38, 38, 0.05));
-  border-color: rgba(220, 38, 38, 0.55);
+  background: linear-gradient(135deg, rgba(232, 131, 106, 0.20), rgba(232, 131, 106, 0.05));
+  border-color: rgba(232, 131, 106, 0.6);
 }
 .rc-status__icon {
   flex: 0 0 auto;
@@ -8758,8 +8758,8 @@ img, svg {
   background: rgba(0,0,0,0.25);
   color: white;
 }
-.rc-status--pass .rc-status__icon { background: rgba(34, 197, 94, 0.85); }
-.rc-status--fail .rc-status__icon { background: rgba(220, 38, 38, 0.85); }
+.rc-status--pass .rc-status__icon { background: rgba(127, 182, 145, 0.85); }
+.rc-status--fail .rc-status__icon { background: rgba(232, 131, 106, 0.85); }
 .rc-status__text {
   display: flex; flex-direction: column; gap: 0.2rem;
   font-size: 0.95rem; line-height: 1.4;
