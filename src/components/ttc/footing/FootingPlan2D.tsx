@@ -248,7 +248,7 @@ export function FootingPlan2D({ input, result }: Props) {
         <circle cx="0" cy="0" r="22" fill="rgba(0,0,0,0.35)"
                 stroke="rgba(255,255,255,0.3)" strokeWidth="0.7" />
         <line x1="0" y1="0" x2="0" y2="-16" stroke="#cbd5e1" strokeWidth="1.2"
-              markerEnd="url(#north-arrow)" />
+              markerEnd="url(#dim-arrow)" />
         <line x1="0" y1="0" x2="14" y2="0" stroke="rgba(203,213,225,0.7)" strokeWidth="0.8"
               markerEnd="url(#dim-arrow)" />
         <text x="0" y="-26" textAnchor="middle" fontSize="9" fontWeight="700" fill="#cbd5e1">+Y</text>

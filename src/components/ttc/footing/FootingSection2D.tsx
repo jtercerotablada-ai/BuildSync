@@ -592,9 +592,9 @@ function PressureDiagram({ input, result }: Props) {
         <pattern id="pd-fill" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(135)">
           <line x1="0" y1="0" x2="0" y2="10" stroke="rgba(255,138,114,0.4)" strokeWidth="0.7" />
         </pattern>
-        <marker id="pd-res" viewBox="0 0 10 10" refX="5" refY="9"
+        <marker id="pd-res" viewBox="0 0 10 10" refX="9" refY="5"
                 markerWidth="9" markerHeight="9" orient="auto">
-          <path d="M 0 0 L 5 9 L 10 0 z" fill="#ff8a72" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#ff8a72" />
         </marker>
       </defs>
 
