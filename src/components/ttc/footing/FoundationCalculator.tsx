@@ -6,6 +6,7 @@ import type {
   FootingInput, ColumnShape, Code, ReportBranding,
 } from '@/lib/footing/types';
 import { analyzeFooting } from '@/lib/footing/solver';
+import { autoDesignFooting } from '@/lib/footing/autoDesign';
 import { FOOTING_PRESETS } from '@/lib/footing/presets';
 import { buildCheckSummary, formatRatio } from '@/lib/footing/format';
 import { BAR_CATALOG } from '@/lib/rc/types';
@@ -71,7 +72,7 @@ function reducer(state: FootingInput, action: Action): FootingInput {
 
 // ─── Tab type ──────────────────────────────────────────────────────────────
 
-type Tab = 'inputs' | 'drawings' | '3d' | 'checks' | 'refs';
+type Tab = 'inputs' | 'auto' | 'drawings' | '3d' | 'checks' | 'refs';
 
 // ─── Number input helper ───────────────────────────────────────────────────
 
@@ -185,6 +186,7 @@ export function FoundationCalculator() {
       <nav className="ab-tabs" aria-label="Foundation design tabs">
         {([
           ['inputs',   '📋 Inputs'],
+          ['auto',     '⚡ Auto-design'],
           ['drawings', '📐 Drawings'],
           ['3d',       '🧊 3D'],
           ['checks',   '🔬 Checks'],
@@ -198,6 +200,7 @@ export function FoundationCalculator() {
 
       {/* Tab content */}
       {tab === 'inputs'   && <InputsTab model={model} dispatch={dispatch} />}
+      {tab === 'auto'     && <AutoDesignTab model={model} dispatch={dispatch} />}
       {tab === 'drawings' && <DrawingsTab input={model} result={result} />}
       {tab === '3d'       && <Footing3D input={model} result={result} />}
       {tab === 'checks'   && <ChecksTab result={result} summary={summary} />}
@@ -431,6 +434,109 @@ function ChecksTab({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ─── AUTO-DESIGN TAB ───────────────────────────────────────────────────────
+
+function AutoDesignTab({
+  model,
+  dispatch,
+}: {
+  model: FootingInput;
+  dispatch: React.Dispatch<Action>;
+}) {
+  const [shape, setShape] = useState<'square' | 'rectangular'>('square');
+  const [aspect, setAspect] = useState(1.25);
+  const [recommendation, setRecommendation] = useState<ReturnType<typeof autoDesignFooting> | null>(null);
+
+  const handleRun = () => {
+    const r = autoDesignFooting(model, { shape, aspect, designForOverturning: true });
+    setRecommendation(r);
+  };
+  const handleApply = () => {
+    if (recommendation) dispatch({ type: 'LOAD_PRESET', input: recommendation.patchedInput });
+  };
+
+  return (
+    <div className="slab-card" style={{ borderColor: 'rgba(95,182,116,0.55)' }}>
+      <h4>⚡ Auto-Design Footing (sizes B, L, T + picks rebar)</h4>
+      <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
+        Given current loads (PD, PL, Mx, My, H), soil (qa), and column dimensions,
+        the auto-design driver iteratively sizes the footing area, thickness, and
+        reinforcement layout to satisfy all 13 ACI 318-25 checks.
+      </p>
+      <div className="slab-fields" style={{ marginBottom: '0.6rem' }}>
+        <Field label="Shape">
+          <select value={shape} onChange={(e) => setShape(e.target.value as 'square' | 'rectangular')}>
+            <option value="square">Square (B = L)</option>
+            <option value="rectangular">Rectangular (with aspect ratio)</option>
+          </select>
+        </Field>
+        {shape === 'rectangular' && (
+          <Field label="L/B aspect">
+            <Num val={aspect} step={0.05}
+              onChange={(v) => setAspect(Math.max(1, Math.min(3, v)))} />
+          </Field>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+        <button type="button" className="ab-btn ab-btn--primary" onClick={handleRun}>
+          ⚡ Run Auto-Design
+        </button>
+        {recommendation && (
+          <button type="button" className="ab-btn"
+            onClick={handleApply} disabled={!recommendation.ok && false}>
+            ✓ Apply Recommendation
+          </button>
+        )}
+      </div>
+
+      {recommendation && (
+        <div>
+          {/* Summary */}
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.8rem', flexWrap: 'wrap' }}>
+            <span className="ab-label">B = {recommendation.patchedInput.geometry.B} mm</span>
+            <span className="ab-label">L = {recommendation.patchedInput.geometry.L} mm</span>
+            <span className="ab-label">T = {recommendation.patchedInput.geometry.T} mm</span>
+            <span className="ab-label">
+              Bottom-X: {recommendation.patchedInput.reinforcement.bottomX.count} {recommendation.patchedInput.reinforcement.bottomX.bar}
+            </span>
+            <span className="ab-label">
+              Bottom-Y: {recommendation.patchedInput.reinforcement.bottomY.count} {recommendation.patchedInput.reinforcement.bottomY.bar}
+            </span>
+            <span className={`ab-label ${recommendation.ok ? 'ab-pass' : 'ab-fail'}`}>
+              {recommendation.ok ? '✓ All checks pass' : '⚠ Some checks need review'}
+            </span>
+          </div>
+
+          {/* Rationale steps */}
+          <div className="ab-table-scroll">
+            <table className="ab-result-table" style={{ fontSize: '0.85rem' }}>
+              <thead>
+                <tr><th>Step</th><th>Formula</th><th>Substitution</th><th>Result</th></tr>
+              </thead>
+              <tbody>
+                {recommendation.rationaleSteps.map((s, i) => (
+                  <tr key={i}>
+                    <td><strong>{s.title}</strong></td>
+                    <td><code>{s.formula}</code></td>
+                    <td><small>{s.substitution}</small></td>
+                    <td>{s.result}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {recommendation.warnings.length > 0 && (
+            <ul style={{ marginTop: '0.6rem', color: '#c9a84c' }}>
+              {recommendation.warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
