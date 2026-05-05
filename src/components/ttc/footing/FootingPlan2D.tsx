@@ -3,6 +3,7 @@
 import React from 'react';
 import type { FootingInput, FootingAnalysis } from '@/lib/footing/types';
 import { lookupBar } from '@/lib/rc/types';
+import { Sub } from './svg-typography';
 
 interface Props {
   input: FootingInput;
@@ -294,7 +295,7 @@ export function FootingPlan2D({ input, result }: Props) {
                   stroke="rgba(201,168,76,0.95)" strokeWidth="1" strokeDasharray="2 1.5" />
             <text x="0" y={108 - (input.soil.qa / qmax) * 100}
                   textAnchor="end" fontSize="8" fill="#c9a84c" fontWeight="700">
-              q_a
+              q<Sub>a</Sub>
             </text>
           </>
         )}
@@ -329,13 +330,13 @@ export function FootingPlan2D({ input, result }: Props) {
           SOIL BEARING (service)
         </text>
         <text x="396" y="34" fontSize="9.5" fill="#c9a84c">
-          q_max = <tspan fontWeight="700">{qmax.toFixed(1)} kPa</tspan>
+          q<Sub>max</Sub> = <tspan fontWeight="700">{qmax.toFixed(1)} kPa</tspan>
         </text>
         <text x="396" y="50" fontSize="9.5" fill="#c9a84c">
-          q_min &nbsp;= <tspan fontWeight="700">{qmin.toFixed(1)} kPa</tspan>
+          q<Sub>min</Sub> &nbsp;= <tspan fontWeight="700">{qmin.toFixed(1)} kPa</tspan>
         </text>
         <text x="396" y="66" fontSize="9.5" fill="rgba(255,255,255,0.7)">
-          q_a &nbsp;&nbsp;&nbsp;= <tspan fontWeight="700">{input.soil.qa.toFixed(1)} kPa</tspan>
+          q<Sub>a</Sub> &nbsp;&nbsp;&nbsp;= <tspan fontWeight="700">{input.soil.qa.toFixed(1)} kPa</tspan>
           {result.upliftRegion ? (
             <tspan fill="#ff8a72" fontStyle="italic">  · partial uplift (Bowles)</tspan>
           ) : null}

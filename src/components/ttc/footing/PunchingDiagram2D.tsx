@@ -2,6 +2,7 @@
 
 import React from 'react';
 import type { FootingInput, FootingAnalysis } from '@/lib/footing/types';
+import { Sub } from './svg-typography';
 
 interface Props {
   input: FootingInput;
@@ -67,7 +68,7 @@ export function PunchingDiagram2D({ input, result }: Props) {
       </text>
       <text x={W / 2} y="46" textAnchor="middle"
             fontSize="9" fill="rgba(255,255,255,0.55)" fontStyle="italic">
-        ACI 318-25 §22.6.4.1 · interior column · v_c = min(v_c1, v_c2, v_c3)
+        ACI 318-25 §22.6.4.1 · interior column · v<Sub>c</Sub> = min(v<Sub>c1</Sub>, v<Sub>c2</Sub>, v<Sub>c3</Sub>)
       </text>
 
       {/* Critical perimeter (dashed red rectangle / circle) */}
@@ -131,7 +132,7 @@ export function PunchingDiagram2D({ input, result }: Props) {
           stroke="rgba(255,106,85,0.55)" strokeWidth="0.6" />
         <text x={cX + critW / 2 + 64} y={cY + critH / 2 + 34}
               fontSize="9" fill="#ff6a55" fontStyle="italic">
-          critical perimeter b₀
+          critical perimeter b<Sub>0</Sub>
         </text>
         <text x={cX + critW / 2 + 64} y={cY + critH / 2 + 46}
               fontSize="8.5" fill="rgba(255,106,85,0.7)" fontStyle="italic">
@@ -153,16 +154,16 @@ export function PunchingDiagram2D({ input, result }: Props) {
           GEOMETRY
         </text>
         <text x="14" y="58" fontSize="9.5" fill="#cbd5e1">
-          b₀ = <tspan fontWeight="700">{result.punching.bo.toFixed(0)} mm</tspan>
+          b<Sub>0</Sub> = <tspan fontWeight="700">{result.punching.bo.toFixed(0)} mm</tspan>
         </text>
         <text x="14" y="72" fontSize="9.5" fill="#cbd5e1">
           d &nbsp;= <tspan fontWeight="700">{result.punching.d.toFixed(0)} mm</tspan>
         </text>
         <text x="14" y="86" fontSize="9.5" fill="#cbd5e1">
-          β_c = <tspan fontWeight="700">{result.punching.betaC.toFixed(2)}</tspan>
+          β<Sub>c</Sub> = <tspan fontWeight="700">{result.punching.betaC.toFixed(2)}</tspan>
         </text>
         <text x="14" y="100" fontSize="9.5" fill="#cbd5e1">
-          α_s = <tspan fontWeight="700">{result.punching.alphaS}</tspan>
+          α<Sub>s</Sub> = <tspan fontWeight="700">{result.punching.alphaS}</tspan>
           <tspan fill="rgba(255,255,255,0.5)" fontStyle="italic"> (interior)</tspan>
         </text>
 
@@ -173,10 +174,10 @@ export function PunchingDiagram2D({ input, result }: Props) {
           DEMAND / CAPACITY
         </text>
         <text x="196" y="58" fontSize="9.5" fill="#cbd5e1">
-          V_u &nbsp;= <tspan fontWeight="700">{result.punching.Vu.toFixed(1)} kN</tspan>
+          V<Sub>u</Sub> &nbsp;= <tspan fontWeight="700">{result.punching.Vu.toFixed(1)} kN</tspan>
         </text>
         <text x="196" y="72" fontSize="9.5" fill="#cbd5e1">
-          φV_c = <tspan fontWeight="700">{result.punching.phiVc.toFixed(1)} kN</tspan>
+          φV<Sub>c</Sub> = <tspan fontWeight="700">{result.punching.phiVc.toFixed(1)} kN</tspan>
         </text>
         <text x="196" y="86" fontSize="9.5"
               fill={result.punching.ok ? '#5fb674' : '#ff6a55'}>
@@ -184,26 +185,26 @@ export function PunchingDiagram2D({ input, result }: Props) {
           <tspan dx="6">{result.punching.ok ? '✓ OK' : '✗ FAIL'}</tspan>
         </text>
         <text x="196" y="100" fontSize="9" fill="rgba(255,255,255,0.55)" fontStyle="italic">
-          v_c = {result.punching.vc.toFixed(3)} MPa (governing)
+          v<Sub>c</Sub> = {result.punching.vc.toFixed(3)} MPa (governing)
         </text>
 
         {/* Column 3 — three vc candidates */}
         <line x1="400" y1="32" x2="400" y2="108"
               stroke="rgba(255,255,255,0.12)" strokeWidth="0.5" />
         <text x="416" y="42" fontSize="9.5" fontWeight="700" fill="rgba(255,255,255,0.65)">
-          v_c CANDIDATES (Table 22.6.5.2)
+          v<Sub>c</Sub> CANDIDATES (Table 22.6.5.2)
         </text>
         <text x="416" y="58" fontSize="9" fill="#cbd5e1">
-          v_c1 = 0.33·λ·√fʹc &nbsp;&nbsp;= <tspan fontWeight="700">{result.punching.vc1.toFixed(3)} MPa</tspan>
+          v<Sub>c1</Sub> = 0.33·λ·√f′c &nbsp;&nbsp;= <tspan fontWeight="700">{result.punching.vc1.toFixed(3)} MPa</tspan>
         </text>
         <text x="416" y="72" fontSize="9" fill="#cbd5e1">
-          v_c2 = 0.17·(1+2/β_c)·λ·√fʹc = <tspan fontWeight="700">{result.punching.vc2.toFixed(3)} MPa</tspan>
+          v<Sub>c2</Sub> = 0.17·(1+2/β<Sub>c</Sub>)·λ·√f′c = <tspan fontWeight="700">{result.punching.vc2.toFixed(3)} MPa</tspan>
         </text>
         <text x="416" y="86" fontSize="9" fill="#cbd5e1">
-          v_c3 = 0.083·(α_s·d/b₀+2)·λ·√fʹc = <tspan fontWeight="700">{result.punching.vc3.toFixed(3)} MPa</tspan>
+          v<Sub>c3</Sub> = 0.083·(α<Sub>s</Sub>·d/b<Sub>0</Sub>+2)·λ·√f′c = <tspan fontWeight="700">{result.punching.vc3.toFixed(3)} MPa</tspan>
         </text>
         <text x="416" y="100" fontSize="8.5" fill="rgba(255,255,255,0.45)" fontStyle="italic">
-          Take the minimum of v_c1, v_c2, v_c3 → v_c
+          Take the minimum of v<Sub>c1</Sub>, v<Sub>c2</Sub>, v<Sub>c3</Sub> → v<Sub>c</Sub>
         </text>
       </g>
     </svg>

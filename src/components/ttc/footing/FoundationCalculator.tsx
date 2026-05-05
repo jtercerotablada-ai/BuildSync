@@ -140,13 +140,13 @@ export function FoundationCalculator() {
         <div className="rc-status__text">
           <strong>
             {result.ok
-              ? `Footing OK — q_max = ${result.bearing.q_max.toFixed(1)} kPa, ${summary.filter((s) => s.ok).length}/${summary.length} checks pass`
+              ? <>Footing OK — q<sub>max</sub> = {result.bearing.q_max.toFixed(1)} kPa, {summary.filter((s) => s.ok).length}/{summary.length} checks pass</>
               : `Footing FAILS — ${result.warnings.length} issue(s)`}
           </strong>
           <span className="rc-status__es">
             {result.upliftRegion
               ? '⚠ Eccentricity outside kern → partial uplift detected'
-              : `qnu = ${result.qnu.toFixed(1)} kPa, Wf = ${result.Wf.toFixed(1)} kN`}
+              : <>q<sub>nu</sub> = {result.qnu.toFixed(1)} kPa, W<sub>f</sub> = {result.Wf.toFixed(1)} kN</>}
           </span>
         </div>
       </section>

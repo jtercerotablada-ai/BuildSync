@@ -114,17 +114,17 @@ function ReportContent({ input, result, cover3dDataUrl }: Props) {
             {input.geometry.cy && <tr><td>cy</td><td>{input.geometry.cy} mm</td></tr>}
             <tr><td>Eccentricity ex / ey</td><td>{input.geometry.ex ?? 0} / {input.geometry.ey ?? 0} mm</td></tr>
             <tr><th>Soil</th></tr>
-            <tr><td>Allowable bearing qa</td><td>{input.soil.qa} kPa</td></tr>
-            <tr><td>γ_soil</td><td>{input.soil.gammaSoil ?? 18} kN/m³</td></tr>
-            <tr><td>γ_concrete</td><td>{input.soil.gammaConcrete ?? 24} kN/m³</td></tr>
+            <tr><td>Allowable bearing q<sub>a</sub></td><td>{input.soil.qa} kPa</td></tr>
+            <tr><td>γ<sub>soil</sub></td><td>{input.soil.gammaSoil ?? 18} kN/m³</td></tr>
+            <tr><td>γ<sub>concrete</sub></td><td>{input.soil.gammaConcrete ?? 24} kN/m³</td></tr>
             <tr><th>Materials</th></tr>
-            <tr><td>fʹc</td><td>{input.materials.fc} MPa</td></tr>
-            <tr><td>fy</td><td>{input.materials.fy} MPa</td></tr>
+            <tr><td>f′c</td><td>{input.materials.fc} MPa</td></tr>
+            <tr><td>f<sub>y</sub></td><td>{input.materials.fy} MPa</td></tr>
             <tr><td>λ (lightweight)</td><td>{input.materials.lambdaC ?? 1.0}</td></tr>
             <tr><th>Loads (service)</th></tr>
-            <tr><td>PD</td><td>{input.loads.PD} kN</td></tr>
-            <tr><td>PL</td><td>{input.loads.PL} kN</td></tr>
-            <tr><td>Mx / My</td><td>{input.loads.Mx ?? 0} / {input.loads.My ?? 0} kN·m</td></tr>
+            <tr><td>P<sub>D</sub></td><td>{input.loads.PD} kN</td></tr>
+            <tr><td>P<sub>L</sub></td><td>{input.loads.PL} kN</td></tr>
+            <tr><td>M<sub>x</sub> / M<sub>y</sub></td><td>{input.loads.Mx ?? 0} / {input.loads.My ?? 0} kN·m</td></tr>
             <tr><td>H (lateral)</td><td>{input.H ?? 0} kN</td></tr>
             <tr><th>Reinforcement</th></tr>
             <tr><td>Bottom-X</td><td>{input.reinforcement.bottomX.count} {input.reinforcement.bottomX.bar}</td></tr>

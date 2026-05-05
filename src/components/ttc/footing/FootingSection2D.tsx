@@ -3,6 +3,7 @@
 import React from 'react';
 import type { FootingInput, FootingAnalysis } from '@/lib/footing/types';
 import { lookupBar } from '@/lib/rc/types';
+import { Sub } from './svg-typography';
 
 interface Props {
   input: FootingInput;
@@ -13,23 +14,25 @@ interface Props {
  * FootingSection2D — engineer-grade construction detail.
  *
  * Two stacked SVGs:
- *   1) CONSTRUCTION DETAIL (Spanish/Latin practice):
- *      • Soil hatch on either side (vertical-line pattern)
- *      • Ground line "rasante"
- *      • Compacted base + concrete blinding (limpieza)
+ *   1) CONSTRUCTION DETAIL:
+ *      • Soil body with sloped excavation walls (H:V = 0.5:1)
+ *      • Ground line / finished grade
+ *      • Compacted base + concrete blinding (PCC bed)
  *      • Footing with concrete-aggregate stipple
- *      • Bottom rebar mat with end-hooks bent UP (basket shape)
- *      • Top rebar (when present)
- *      • Column above + dowels (esperas) into footing
- *      • Column rebar (vertical bars + stirrups visible)
- *      • Pour joint (junta de hormigonado) at interface
- *      • Dimensions: B, T, V_max
- *      • Callouts in ES: Pilar, Armado pilar, Junta de hormigonado,
- *        Hormigón de limpieza, Base compactada, Calzos
+ *      • Bottom rebar mat with 90° end-hooks (basket shape)
+ *      • Top rebar mat when present
+ *      • Column above with main bars (red) anchored on bottom mat
+ *      • Column ties (stirrups) visible at intervals
+ *      • Lap-length zone marker
+ *      • Construction joint at column-footing interface
+ *      • Dimensions: B, T, Vmax (with rigid/flexible classification)
+ *      • Callouts: Column / Column reinforcement / 90° hook on bottom
+ *        mat / Construction joint / Bottom footing reinforcement /
+ *        Concrete blinding (PCC bed) / Compacted base / Bar chairs
  *
  *   2) SOIL BEARING PRESSURE (Bowles convention):
- *      • Polygon hanging DOWN from baseline
- *      • q_a reference line, q_max / q_min labels with leaders
+ *      • Polygon hangs DOWN from baseline
+ *      • qa reference line, qmax / qmin with leader-line labels
  *      • Resultant R at centroid of pressure
  */
 export function FootingSection2D({ input, result }: Props) {
@@ -155,11 +158,11 @@ function ConstructionDetail({ input, result: _result }: Props) {
       {/* Title */}
       <text x={W / 2} y="26" textAnchor="middle"
             fontSize="14" fontWeight="700" fill="rgba(255,255,255,0.95)" letterSpacing="0.5">
-        SECTION A-A — Detalle constructivo (zapata aislada)
+        SECTION A-A — Construction detail (isolated footing)
       </text>
       <text x={W / 2} y="46" textAnchor="middle"
             fontSize="9" fill="rgba(255,255,255,0.55)" fontStyle="italic">
-        Cut along X · ACI 318-25 §13.2 · {isRigid ? 'zapata rígida (V_max ≤ 2h)' : 'zapata flexible (V_max > 2h)'} · cover {g.coverClear} mm
+        Cut along X · ACI 318-25 §13.2 · {isRigid ? 'rigid' : 'flexible'} footing (V<Sub>max</Sub> {isRigid ? '≤' : '>'} 2h) · cover {g.coverClear} mm
       </text>
 
       {/* ─── SOIL BODY (with sloped excavation walls H:V = 0.5:1) ─── */}
@@ -214,14 +217,14 @@ function ConstructionDetail({ input, result: _result }: Props) {
             stroke="rgba(120,90,50,0.85)" strokeWidth="1.2" />
       <text x={W - 14} y={groundY - 6} textAnchor="end"
             fontSize="9" fill="rgba(120,90,50,0.85)" fontStyle="italic">
-        cota terreno (rasante)
+        finished grade
       </text>
 
       {/* ─── COMPACTED BASE ──────────────────────────────────── */}
       <rect x={fX - 6} y={compactedY} width={fW + 12} height={compactedH}
             fill="url(#cd-base)" stroke="rgba(140,110,70,0.55)" strokeWidth="0.5" />
 
-      {/* ─── BLINDING (Hormigón de limpieza) ─────────────────── */}
+      {/* ─── BLINDING (PCC bed / concrete blinding) ─────────── */}
       <rect x={fX - 4} y={blindingY} width={fW + 8} height={blindingH}
             fill="url(#cd-blinding)" stroke="rgba(160,160,160,0.5)" strokeWidth="0.5" />
 
@@ -370,7 +373,7 @@ function ConstructionDetail({ input, result: _result }: Props) {
       {/* Column dimension annotation */}
       <text x={colX + colW / 2} y={colTopY - 8} textAnchor="middle"
             fontSize="9" fill="rgba(255,255,255,0.6)" fontStyle="italic">
-        Pilar {g.cx} × {g.columnShape === 'circular' ? g.cx : (g.cy ?? g.cx)} mm
+        Column {g.cx} × {g.columnShape === 'circular' ? g.cx : (g.cy ?? g.cx)} mm
       </text>
 
       {/* ─── DIMENSIONS ─────────────────────────────────────── */}
@@ -418,25 +421,25 @@ function ConstructionDetail({ input, result: _result }: Props) {
                 markerStart="url(#cd-start)" markerEnd="url(#cd-end)" />
           <text x={(fX + colX) / 2} y={fY + 34} textAnchor="middle"
                 fontSize="9.5" fill="#76b6c9" fontWeight="700">
-            V_max = {Vmax.toFixed(0)} mm
+            V<Sub>max</Sub> = {Vmax.toFixed(0)} mm
           </text>
         </g>
       )}
 
-      {/* ─── CALLOUTS (Spanish) ─────────────────────────────── */}
+      {/* ─── CALLOUTS ───────────────────────────────────────── */}
 
-      {/* Pilar / Armado pilar (top right) */}
+      {/* Column / Column reinforcement (top right) */}
       <g>
         <line x1={colX + colW + 3} y1={colTopY + 28}
               x2={colX + colW + 50} y2={colTopY + 12}
               stroke="rgba(203,213,225,0.55)" strokeWidth="0.5" />
         <text x={colX + colW + 53} y={colTopY + 14}
               fontSize="9" fill="rgba(203,213,225,0.92)" fontWeight="600">
-          Pilar
+          Column
         </text>
         <text x={colX + colW + 53} y={colTopY + 26}
               fontSize="8.5" fill="#ff8a72" fontWeight="600">
-          Armado pilar (vertical + cercos)
+          Column reinforcement (verticals + ties)
         </text>
       </g>
 
@@ -447,7 +450,7 @@ function ConstructionDetail({ input, result: _result }: Props) {
               stroke="rgba(203,213,225,0.55)" strokeWidth="0.5" />
         <text x={colX + colW + 51} y={barY - 28}
               fontSize="9" fill="#ff8a72" fontWeight="600">
-          Anclaje 90° en parrilla
+          90° hook on bottom mat
         </text>
         <text x={colX + colW + 51} y={barY - 16}
               fontSize="8" fill="rgba(255,138,114,0.7)" fontStyle="italic">
@@ -455,88 +458,88 @@ function ConstructionDetail({ input, result: _result }: Props) {
         </text>
       </g>
 
-      {/* Junta de hormigonado callout */}
+      {/* Construction joint callout */}
       <g>
         <line x1={colX - 4} y1={fY}
               x2={colX - 50} y2={fY - 28}
               stroke="rgba(203,213,225,0.55)" strokeWidth="0.5" />
         <text x={colX - 54} y={fY - 30} textAnchor="end"
               fontSize="9" fill="rgba(203,213,225,0.92)" fontWeight="600">
-          Junta de hormigonado
+          Construction joint
         </text>
         <text x={colX - 54} y={fY - 18} textAnchor="end"
               fontSize="8" fill="rgba(255,255,255,0.55)" fontStyle="italic">
-          rugosa · limpia · humedecida
+          rough · clean · moistened
         </text>
       </g>
 
-      {/* Armado inferior zapata callout */}
+      {/* Bottom footing reinforcement callout */}
       <g>
         <line x1={fX + fW * 0.25} y1={barY + 4}
               x2={fX + fW * 0.18} y2={fBot + 38}
               stroke="rgba(203,213,225,0.55)" strokeWidth="0.5" />
         <text x={fX + fW * 0.18} y={fBot + 50}
               fontSize="9" fill="#ff8a72" fontWeight="600">
-          Armado inferior zapata
+          Bottom footing reinforcement
         </text>
         <text x={fX + fW * 0.18} y={fBot + 62}
               fontSize="8" fill="rgba(255,138,114,0.72)">
-          {input.reinforcement.bottomX.count} {input.reinforcement.bottomX.bar} (X) · {input.reinforcement.bottomY.count} {input.reinforcement.bottomY.bar} (Y) · ganchos 90°
+          {input.reinforcement.bottomX.count} {input.reinforcement.bottomX.bar} (X) · {input.reinforcement.bottomY.count} {input.reinforcement.bottomY.bar} (Y) · 90° end hooks
         </text>
       </g>
 
-      {/* Hormigón de limpieza / PCC bed callout (bilingual) */}
+      {/* Concrete blinding (PCC bed) callout */}
       <g>
         <line x1={fX + fW * 0.55} y1={blindingY + blindingH / 2}
               x2={fX + fW * 0.55 + 60} y2={blindingY + blindingH + 32}
               stroke="rgba(203,213,225,0.55)" strokeWidth="0.5" />
         <text x={fX + fW * 0.55 + 62} y={blindingY + blindingH + 36}
               fontSize="9" fill="rgba(203,213,225,0.92)" fontWeight="600">
-          Hormigón de limpieza · PCC bed
+          Concrete blinding (PCC bed)
         </text>
         <text x={fX + fW * 0.55 + 62} y={blindingY + blindingH + 48}
               fontSize="8" fill="rgba(255,255,255,0.55)">
-          ≥ 50 mm · f&apos;c ≈ 14 MPa
+          ≥ 50 mm · f′c ≈ 14 MPa
         </text>
       </g>
 
       {/* f'c callout — concrete strength of footing (centred in concrete) */}
       <text x={colX - colW * 0.4 - 30} y={(fY + fBot) / 2 - 6}
             fontSize="10" fill="rgba(255,255,255,0.55)" fontWeight="600" fontStyle="italic">
-        Hormigón
+        Concrete
       </text>
       <text x={colX - colW * 0.4 - 30} y={(fY + fBot) / 2 + 6}
             fontSize="10" fill="rgba(201,168,76,0.9)" fontWeight="700">
-        f&apos;c = {input.materials.fc} MPa
+        f′c = {input.materials.fc} MPa
       </text>
       <text x={colX - colW * 0.4 - 30} y={(fY + fBot) / 2 + 18}
             fontSize="9" fill="rgba(255,255,255,0.55)" fontStyle="italic">
-        fy = {input.materials.fy} MPa
+        f<Sub>y</Sub> = {input.materials.fy} MPa
       </text>
 
-      {/* Base compactada callout */}
+      {/* Compacted base callout */}
       <g>
         <line x1={fX + fW * 0.85} y1={compactedY + compactedH / 2}
               x2={fX + fW * 0.85 + 30} y2={compactedY + compactedH + 28}
               stroke="rgba(203,213,225,0.55)" strokeWidth="0.5" />
         <text x={fX + fW * 0.85 + 32} y={compactedY + compactedH + 32}
               fontSize="9" fill="rgba(203,213,225,0.92)" fontWeight="600">
-          Base compactada
+          Compacted base
         </text>
         <text x={fX + fW * 0.85 + 32} y={compactedY + compactedH + 44}
               fontSize="8" fill="rgba(255,255,255,0.55)">
-          subrasante mejorada · CBR ≥ 80%
+          improved subgrade · CBR ≥ 80%
         </text>
       </g>
 
-      {/* Calzos / spacers callout */}
+      {/* Bar chairs / spacers callout */}
       <g>
         <line x1={fX + fW * 0.42} y1={barY + barRadiusVis + 1}
               x2={fX + fW * 0.42 + 30} y2={barY + barRadiusVis + 26}
               stroke="rgba(203,213,225,0.4)" strokeWidth="0.4" strokeDasharray="2 2" />
         <text x={fX + fW * 0.42 + 32} y={barY + barRadiusVis + 30}
               fontSize="8" fill="rgba(255,255,255,0.6)" fontStyle="italic">
-          Calzos parrilla ≥ 50 mm
+          Bar chairs ≥ 50 mm
         </text>
       </g>
 
@@ -625,7 +628,7 @@ function PressureDiagram({ input, result }: Props) {
                 stroke="#c9a84c" strokeWidth="0.85" strokeDasharray="6 3" />
           <text x={fX + fW + 12} y={baselineY + qa * pressureScale + 3}
                 fontSize="9.5" fill="#c9a84c" fontWeight="700">
-            q_a = {qa.toFixed(0)} kPa
+            q<Sub>a</Sub> = {qa.toFixed(0)} kPa
           </text>
         </g>
       )}
@@ -650,18 +653,18 @@ function PressureDiagram({ input, result }: Props) {
           fill="url(#pd-fill)" stroke="#ff6a55" strokeWidth="1.6" />
       )}
 
-      {/* q_max */}
+      {/* q max */}
       <g>
         <line x1={fX - 4} y1={baselineY + qmax * pressureScale}
               x2={fX - 28} y2={baselineY + qmax * pressureScale}
               stroke="#ff6a55" strokeWidth="0.6" />
         <text x={fX - 32} y={baselineY + qmax * pressureScale + 4}
               textAnchor="end" fontSize="10" fill="#ff6a55" fontWeight="700">
-          q_max = {qmax.toFixed(1)} kPa
+          q<Sub>max</Sub> = {qmax.toFixed(1)} kPa
         </text>
       </g>
 
-      {/* q_min */}
+      {/* q min */}
       {!result.upliftRegion && (
         <g>
           <line x1={fX + fW + 4} y1={baselineY + qmin * pressureScale}
@@ -669,7 +672,7 @@ function PressureDiagram({ input, result }: Props) {
                 stroke="#ff6a55" strokeWidth="0.6" />
           <text x={fX + fW + 32} y={baselineY + qmin * pressureScale + 4}
                 fontSize="10" fill="#ff6a55" fontWeight="700">
-            q_min = {qmin.toFixed(1)} kPa
+            q<Sub>min</Sub> = {qmin.toFixed(1)} kPa
           </text>
         </g>
       )}
@@ -685,13 +688,13 @@ function PressureDiagram({ input, result }: Props) {
         </text>
         <text x={resultantX + 8} y={baselineY + pressureH + 20}
               fontSize="8" fill="rgba(255,138,114,0.7)" fontStyle="italic">
-          (centroide presión)
+          (pressure centroid)
         </text>
       </g>
 
       {/* Footnote */}
       <text x={fX} y={H - 12} fontSize="8.5" fill="rgba(255,255,255,0.45)" fontStyle="italic">
-        Presiones de contacto brutas · q_a es la admisible neta · linear distribution per ACI 318-25 §13.2 (rigid footing).
+        Gross contact pressures · q<Sub>a</Sub> is the net allowable · linear distribution per ACI 318-25 §13.2 (rigid footing).
         {input.frictionMu != null && `   μ = ${input.frictionMu.toFixed(2)}`}
         {(g.embedment ?? 0) > 0 && `   ·   embedment = ${g.embedment} mm`}
       </text>
