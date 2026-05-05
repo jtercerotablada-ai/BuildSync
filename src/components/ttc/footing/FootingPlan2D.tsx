@@ -109,6 +109,37 @@ export function FootingPlan2D({ input, result }: Props) {
           <rect width="8" height="8" fill="rgba(60,40,20,0.06)" />
           <line x1="0" y1="8" x2="8" y2="0" stroke="rgba(120,90,50,0.25)" strokeWidth="0.5" />
         </pattern>
+
+        {/* PRESSURE HEATMAP — bilinear gradient (per direction with eccentricity) */}
+        {(() => {
+          const eX = (input.geometry.ex ?? 0) !== 0;
+          const eY = (input.geometry.ey ?? 0) !== 0;
+          const dirX1 = eX ? (input.geometry.ex! > 0 ? '0%' : '100%') : '0%';
+          const dirX2 = eX ? (input.geometry.ex! > 0 ? '100%' : '0%') : '100%';
+          const dirY1 = eY ? (input.geometry.ey! > 0 ? '0%' : '100%') : '0%';
+          const dirY2 = eY ? (input.geometry.ey! > 0 ? '100%' : '0%') : '100%';
+          // Color stops: q_min → q_avg → q_max relative to q_a
+          const qMaxRel = Math.min(1.0, qmax / Math.max(input.soil.qa, 1));
+          const qMinRel = Math.min(1.0, qmin / Math.max(input.soil.qa, 1));
+          // Helper: ramp from cool→warm based on q/qa ratio
+          const colorAt = (rel: number): string => {
+            if (rel < 0.5) return `rgba(118,182,201,${0.30 + rel * 0.4})`;     // cool blue
+            if (rel < 0.85) return `rgba(201,168,76,${0.40 + rel * 0.3})`;     // warm gold
+            return `rgba(255,138,114,${0.50 + Math.min(0.4, rel * 0.4)})`;     // hot orange
+          };
+          return (
+            <>
+              <linearGradient id="heat-x" x1={dirX1} y1="0%" x2={dirX2} y2="0%">
+                <stop offset="0%" stopColor={colorAt(qMaxRel)} />
+                <stop offset="100%" stopColor={colorAt(qMinRel)} />
+              </linearGradient>
+              <linearGradient id="heat-y" x1="0%" y1={dirY1} x2="0%" y2={dirY2}>
+                <stop offset="0%" stopColor={colorAt(qMaxRel)} stopOpacity="0.5" />
+                <stop offset="100%" stopColor={colorAt(qMinRel)} stopOpacity="0.5" />
+              </linearGradient>
+            </>
+          );
+        })()}
       </defs>
 
       {/* Title block (top) */}
@@ -122,12 +153,18 @@ export function FootingPlan2D({ input, result }: Props) {
         Bottom mat reinforcement shown · cover {g.coverClear} mm · scale ≈ 1 : {Math.round(1 / scale * 1000)}
       </text>
 
-      {/* Soil hatching behind footing */}
-      <rect x={fX} y={fY} width={fW} height={fH} fill="url(#ftg-soil)" />
+      {/* PRESSURE HEATMAP (X-direction gradient based on M_x) */}
+      <rect x={fX} y={fY} width={fW} height={fH} fill="url(#heat-x)" />
+      {/* PRESSURE HEATMAP (Y-direction overlay if M_y present) */}
+      {(input.geometry.ey ?? 0) !== 0 && (
+        <rect x={fX} y={fY} width={fW} height={fH} fill="url(#heat-y)" opacity="0.5" />
+      )}
+      {/* Soil hatch overlay (subtle, keeps the geotech feel) */}
+      <rect x={fX} y={fY} width={fW} height={fH} fill="url(#ftg-soil)" opacity="0.5" />
 
       {/* Footing outline */}
       <rect x={fX} y={fY} width={fW} height={fH}
-            fill="rgba(180,180,180,0.18)"
+            fill="none"
             stroke="#c9a84c" strokeWidth="2" />
 
       {/* Bottom-X rebar (red lines along X) */}
@@ -219,6 +256,48 @@ export function FootingPlan2D({ input, result }: Props) {
               markerEnd="url(#dim-arrow)" />
         <text x="0" y="-26" textAnchor="middle" fontSize="9" fontWeight="700" fill="#cbd5e1">+Y</text>
         <text x="22" y="3" fontSize="9" fontWeight="700" fill="#cbd5e1">+X</text>
+      </g>
+
+      {/* ─── Pressure heatmap color-bar (top-right, below compass) ─── */}
+      <g transform={`translate(${W - 88}, 130)`}>
+        <text x="32" y="0" textAnchor="middle"
+              fontSize="9" fontWeight="700" fill="rgba(255,255,255,0.85)">
+          q (kPa)
+        </text>
+        <defs>
+          <linearGradient id="ramp-leg" x1="0%" y1="100%" x2="0%" y2="0%">
+            <stop offset="0%" stopColor="rgba(118,182,201,0.5)" />
+            <stop offset="50%" stopColor="rgba(201,168,76,0.55)" />
+            <stop offset="100%" stopColor="rgba(255,138,114,0.65)" />
+          </linearGradient>
+        </defs>
+        <rect x="22" y="6" width="20" height="100" fill="url(#ramp-leg)"
+              stroke="rgba(255,255,255,0.3)" strokeWidth="0.5" />
+        {/* Tick labels */}
+        <text x="48" y="10" fontSize="8" fill="#ff8a72" fontWeight="600">
+          {qmax.toFixed(0)}
+        </text>
+        <line x1="42" y1="8" x2="46" y2="8" stroke="#ff8a72" strokeWidth="0.6" />
+        <text x="48" y="58" fontSize="8" fill="#c9a84c" fontWeight="600">
+          {(input.soil.qa * 0.5).toFixed(0)}
+        </text>
+        <line x1="42" y1="56" x2="46" y2="56" stroke="#c9a84c" strokeWidth="0.6" />
+        <text x="48" y="110" fontSize="8" fill="#76b6c9" fontWeight="600">
+          {qmin.toFixed(0)}
+        </text>
+        <line x1="42" y1="106" x2="46" y2="106" stroke="#76b6c9" strokeWidth="0.6" />
+        {/* qa line marker */}
+        {qmax > 0 && (
+          <>
+            <line x1="20" y1={106 - (input.soil.qa / qmax) * 100}
+                  x2="44" y2={106 - (input.soil.qa / qmax) * 100}
+                  stroke="rgba(201,168,76,0.95)" strokeWidth="1" strokeDasharray="2 1.5" />
+            <text x="0" y={108 - (input.soil.qa / qmax) * 100}
+                  textAnchor="end" fontSize="8" fill="#c9a84c" fontWeight="700">
+              q_a
+            </text>
+          </>
+        )}
       </g>
 
       {/* ─── LEGEND BLOCK (bottom) ─────────────────────────────────── */}
