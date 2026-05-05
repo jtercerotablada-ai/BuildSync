@@ -458,16 +458,16 @@ function ConstructionDetail({ input, result: _result }: Props) {
         </text>
       </g>
 
-      {/* Construction joint callout */}
+      {/* Construction joint callout — RIGHT side (Lap length is on LEFT) */}
       <g>
-        <line x1={colX - 4} y1={fY}
-              x2={colX - 50} y2={fY - 28}
+        <line x1={colX + colW + 4} y1={fY}
+              x2={colX + colW + 48} y2={fY - 18}
               stroke="rgba(203,213,225,0.55)" strokeWidth="0.5" />
-        <text x={colX - 54} y={fY - 30} textAnchor="end"
+        <text x={colX + colW + 51} y={fY - 20}
               fontSize="9" fill="rgba(203,213,225,0.92)" fontWeight="600">
           Construction joint
         </text>
-        <text x={colX - 54} y={fY - 18} textAnchor="end"
+        <text x={colX + colW + 51} y={fY - 8}
               fontSize="8" fill="rgba(255,255,255,0.55)" fontStyle="italic">
           rough · clean · moistened
         </text>

@@ -102,10 +102,6 @@ export function FootingPlan2D({ input, result }: Props) {
                 markerWidth="7" markerHeight="7" orient="auto">
           <path d="M 10 0 L 0 5 L 10 10 z" fill="#cbd5e1" />
         </marker>
-        <marker id="north-arrow" viewBox="0 0 10 10" refX="5" refY="0"
-                markerWidth="8" markerHeight="8" orient="auto">
-          <path d="M 0 10 L 5 0 L 10 10 z" fill="#cbd5e1" />
-        </marker>
         <pattern id="ftg-soil" width="8" height="8" patternUnits="userSpaceOnUse">
           <rect width="8" height="8" fill="rgba(60,40,20,0.06)" />
           <line x1="0" y1="8" x2="8" y2="0" stroke="rgba(120,90,50,0.25)" strokeWidth="0.5" />

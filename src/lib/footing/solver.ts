@@ -118,16 +118,16 @@ function checkBearing(
       result: `Ws = ${Ws_kN.toFixed(2)} kN`,
     },
     {
-      title: 'Total service load P_service',
-      formula: 'P_service = PD + PL + Wf + Ws',
-      substitution: `P_service = ${L.PD} + ${L.PL} + ${Wf_kN.toFixed(2)} + ${Ws_kN.toFixed(2)}`,
-      result: `P_service = ${P_service.toFixed(2)} kN`,
+      title: 'Total service load Pservice',
+      formula: 'Pservice = PD + PL + Wf + Ws',
+      substitution: `Pservice = ${L.PD} + ${L.PL} + ${Wf_kN.toFixed(2)} + ${Ws_kN.toFixed(2)}`,
+      result: `Pservice = ${P_service.toFixed(2)} kN`,
     },
     {
-      title: 'Required footing area A_req',
-      formula: 'A_req = P_service / qa',
-      substitution: `A_req = ${P_service.toFixed(2)} / ${soil.qa}`,
-      result: `A_req = ${A_req.toFixed(3)} m² (provided ${A.toFixed(3)} m²) ${A >= A_req ? '✓' : '✗'}`,
+      title: 'Required footing area Areq',
+      formula: 'Areq = Pservice / qa',
+      substitution: `Areq = ${P_service.toFixed(2)} / ${soil.qa}`,
+      result: `Areq = ${A_req.toFixed(3)} m² (provided ${A.toFixed(3)} m²) ${A >= A_req ? '✓' : '✗'}`,
       ref: ref(code, '13.3.1'),
     },
     {
@@ -137,15 +137,15 @@ function checkBearing(
       result: upliftRegion ? '✗ Outside kern → partial uplift (Bowles triangular)' : '✓ Within kern → trapezoidal pressure',
     },
     upliftRegion ? {
-      title: 'Maximum service soil pressure q_max (Bowles triangle)',
-      formula: 'q_max = 2·P / (3·(B/2 − e)·L_perp)',
+      title: 'Maximum service soil pressure qmax (Bowles triangle)',
+      formula: 'qmax = 2·P / (3·(B/2 − e)·Lperp)',
       substitution: 'partial uplift detected',
-      result: `q_max = ${q_max.toFixed(1)} kPa (allow ${soil.qa} kPa) ${q_max <= soil.qa ? '✓' : '✗'}`,
+      result: `qmax = ${q_max.toFixed(1)} kPa (allow ${soil.qa} kPa) ${q_max <= soil.qa ? '✓' : '✗'}`,
     } : {
-      title: 'Maximum service soil pressure q_max (trapezoidal)',
-      formula: 'q_max = P/A + 6·Mx/(B²·L) + 6·My/(L²·B)',
-      substitution: `q_avg = ${q_avg.toFixed(1)} kPa`,
-      result: `q_max = ${q_max.toFixed(1)} kPa (allow ${soil.qa} kPa) ${q_max <= soil.qa ? '✓' : '✗'}`,
+      title: 'Maximum service soil pressure qmax (trapezoidal)',
+      formula: 'qmax = P/A + 6·Mx/(B²·L) + 6·My/(L²·B)',
+      substitution: `qavg = ${q_avg.toFixed(1)} kPa`,
+      result: `qmax = ${q_max.toFixed(1)} kPa (allow ${soil.qa} kPa) ${q_max <= soil.qa ? '✓' : '✗'}`,
     },
   ];
 
@@ -237,7 +237,7 @@ function checkPunching(input: FootingInput, qnu: number): PunchingCheck {
     },
     {
       title: 'Aspect ratio βc',
-      formula: 'βc = long_side / short_side ≥ 1',
+      formula: 'βc = longSide / shortSide ≥ 1',
       substitution: `βc = ${Math.max(cx, cy)} / ${Math.min(cx, cy)}`,
       result: `βc = ${betaC.toFixed(3)}`,
     },
@@ -256,7 +256,7 @@ function checkPunching(input: FootingInput, qnu: number): PunchingCheck {
     },
     {
       title: 'Punching shear demand Vu',
-      formula: 'Vu = qnu · (A_footing − A_punch)',
+      formula: 'Vu = qnu · (Afooting − Apunch)',
       substitution: `Vu = ${qnu.toFixed(1)}·(${(A_footing_mm2 / 1e6).toFixed(3)} − ${(A_punch / 1e6).toFixed(3)}) m²`,
       result: `Vu = ${Vu_kN.toFixed(2)} kN`,
     },
@@ -309,7 +309,7 @@ function checkOneWayShear(
   const steps: CalcStep[] = [
     {
       title: `One-way shear ${direction} — critical section at d from column face`,
-      formula: 'critical section: x = column_face + d',
+      formula: 'critical section: x = columnFace + d',
       substitution: `cantilever from face = ${(cantileverFromFace / 1000).toFixed(3)} m, − d = ${(cantileverFromCritical / 1000).toFixed(3)} m remaining`,
       result: `tributary = ${(Atrib_mm2 / 1e6).toFixed(3)} m²`,
       ref: ref(code, '7.4.3.2'),
@@ -323,7 +323,7 @@ function checkOneWayShear(
     },
     {
       title: 'Vu',
-      formula: 'Vu = qnu × tributary_area',
+      formula: 'Vu = qnu × tributaryArea',
       substitution: `Vu = ${qnu.toFixed(1)}·${(Atrib_mm2 / 1e6).toFixed(3)}`,
       result: `Vu = ${Vu_kN.toFixed(2)} kN ${ok ? '✓' : '✗ FAIL'}`,
     },
@@ -515,18 +515,18 @@ function checkOverturning(input: FootingInput, P_service: number): OverturningCh
     steps: [
       {
         title: 'Resisting moment about toe',
-        formula: 'M_resist = P_service × (B/2 or L/2)',
+        formula: 'Mres = Pservice × (B/2 or L/2)',
         substitution: `P = ${P_service.toFixed(1)} kN, arm = ${Math.min(lever_x, lever_y).toFixed(2)} m`,
-        result: `M_resist = ${M_resist.toFixed(1)} kN·m`,
+        result: `Mres = ${M_resist.toFixed(1)} kN·m`,
       },
       {
         title: 'Overturning moment',
-        formula: 'M_overturn = max(|Mx|, |My|)',
+        formula: 'Movt = max(|Mx|, |My|)',
         substitution: `Mx = ${Mx.toFixed(1)}, My = ${My.toFixed(1)} kN·m`,
-        result: `M_overturn = ${M_overturn.toFixed(1)} kN·m`,
+        result: `Movt = ${M_overturn.toFixed(1)} kN·m`,
       },
       {
-        title: 'FOS = M_resist / M_overturn',
+        title: 'FOS = Mres / Movt',
         formula: 'FOS ≥ 1.5 (typical practice)',
         substitution: `FOS = ${FOS.toFixed(2)}`,
         result: ok ? `✓ FOS = ${FOS.toFixed(2)} ≥ 1.5` : `✗ FOS = ${FOS.toFixed(2)} < 1.5 — increase footing size`,
@@ -568,13 +568,13 @@ function checkSliding(input: FootingInput, P_service: number): SlidingCheck {
     steps: [
       {
         title: 'Allowable horizontal load',
-        formula: 'H_allow = μ·N + c·A',
+        formula: 'Hallow = μ·N + c·A',
         substitution: `μ = ${mu}, N = ${P_service.toFixed(1)} kN, c = ${c} kPa, A = ${A_m2.toFixed(3)} m²`,
-        result: `H_allow = ${H_allow.toFixed(1)} kN`,
+        result: `Hallow = ${H_allow.toFixed(1)} kN`,
       },
       {
         title: 'FOS sliding',
-        formula: 'FOS = H_allow / H ≥ 1.5',
+        formula: 'FOS = Hallow / H ≥ 1.5',
         substitution: `H = ${H.toFixed(1)} kN`,
         result: ok ? `✓ FOS = ${FOS.toFixed(2)} ≥ 1.5` : `✗ FOS = ${FOS.toFixed(2)} < 1.5`,
       },
@@ -606,21 +606,21 @@ function checkBarFit(input: FootingInput, direction: 'X' | 'Y'): BarFitCheck {
     steps: [
       {
         title: `Clear bar spacing (${direction})`,
-        formula: 's_clear = (B_perp − 2·cover − n·db) / (n − 1)',
+        formula: 'sclear = (Bperp − 2·cover − n·db) / (n − 1)',
         substitution: `n = ${layer.count}, db = ${dbBar.toFixed(1)}, distAcross = ${distAcross}, cover = ${g.coverClear}`,
-        result: `s_clear = ${s_clear.toFixed(0)} mm`,
+        result: `sclear = ${s_clear.toFixed(0)} mm`,
       },
       {
         title: 'Min clear spacing §25.2.1',
-        formula: 's_min = max(25, db, 4/3·dagg)',
-        substitution: `s_min = max(25, ${dbBar.toFixed(1)}, ${((4 / 3) * dagg).toFixed(1)})`,
-        result: `s_min = ${s_min.toFixed(0)} mm ${s_clear >= s_min ? '✓' : '✗ too close'}`,
+        formula: 'smin = max(25, db, 4/3·dagg)',
+        substitution: `smin = max(25, ${dbBar.toFixed(1)}, ${((4 / 3) * dagg).toFixed(1)})`,
+        result: `smin = ${s_min.toFixed(0)} mm ${s_clear >= s_min ? '✓' : '✗ too close'}`,
       },
       {
         title: 'Max spacing §13.3.4 / §7.7.2.3 analogy',
-        formula: 's_max = min(3·T, 450 mm)',
-        substitution: `s_max = min(${3 * g.T}, 450)`,
-        result: `s_max = ${s_max.toFixed(0)} mm ${s_clear <= s_max ? '✓' : '✗ too sparse'}`,
+        formula: 'smax = min(3·T, 450 mm)',
+        substitution: `smax = min(${3 * g.T}, 450)`,
+        result: `smax = ${s_max.toFixed(0)} mm ${s_clear <= s_max ? '✓' : '✗ too sparse'}`,
       },
     ],
   };
@@ -717,8 +717,8 @@ export function analyzeFooting(input: FootingInput): FootingAnalysis {
     if (!bearingInterface.ok) warnings.push(`Column bearing fails — add dowel reinforcement per §16.3.4.1.`);
     if (!overturning.notApplicable && !overturning.ok) warnings.push(`Overturning FOS = ${overturning.FOS.toFixed(2)} < 1.5 — increase footing footprint or counterweight.`);
     if (!sliding.notApplicable && !sliding.ok) warnings.push(`Sliding FOS = ${sliding.FOS.toFixed(2)} < 1.5 — add shear key or increase weight.`);
-    if (!barFitX.ok) warnings.push(`Bottom-X bar spacing out of bounds (s_clear = ${barFitX.s_clear.toFixed(0)} mm).`);
-    if (!barFitY.ok) warnings.push(`Bottom-Y bar spacing out of bounds (s_clear = ${barFitY.s_clear.toFixed(0)} mm).`);
+    if (!barFitX.ok) warnings.push(`Bottom-X bar spacing out of bounds (sclear = ${barFitX.s_clear.toFixed(0)} mm).`);
+    if (!barFitY.ok) warnings.push(`Bottom-Y bar spacing out of bounds (sclear = ${barFitY.s_clear.toFixed(0)} mm).`);
     // hookRequired is INFORMATIONAL (not a fail) — footings routinely use 90°
     // hooks at bar ends. Only emit a warning if even hooked bars don't fit.
     if (!developmentX.ok) warnings.push(`Bottom-X bars cannot develop even with hook — increase footing size.`);

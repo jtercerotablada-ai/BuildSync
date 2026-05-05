@@ -111,8 +111,8 @@ export function autoDesignFooting(
 
   rationaleSteps.push({
     title: 'Step 1 — Size footing area B × L',
-    formula: 'A_req = (PD + PL)·1.10 / qa  →  B,L round-up to 25 mm',
-    substitution: `A_req = ${A_req.toFixed(3)} m², shape = ${opts.shape}, aspect = ${aspect}`,
+    formula: 'Areq = (PD + PL)·1.10 / qa  →  B,L round-up to 25 mm',
+    substitution: `Areq = ${A_req.toFixed(3)} m², shape = ${opts.shape}, aspect = ${aspect}`,
     result: `B = ${B} mm, L = ${L} mm  (A = ${((B * L) / 1e6).toFixed(3)} m²)`,
   });
 

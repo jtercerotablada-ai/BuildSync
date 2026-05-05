@@ -18,7 +18,7 @@ export function buildCheckSummary(r: FootingAnalysis): CheckSummary[] {
     {
       label: 'Bearing pressure (service)',
       ref: 'ACI §13.3.1',
-      demand: `q_max = ${r.bearing.q_max.toFixed(1)} kPa`,
+      demand: `qmax = ${r.bearing.q_max.toFixed(1)} kPa`,
       capacity: `qa = ${r.input.soil.qa.toFixed(1)} kPa`,
       ratio: r.bearing.ratio,
       ok: r.bearing.ok,
@@ -74,8 +74,8 @@ export function buildCheckSummary(r: FootingAnalysis): CheckSummary[] {
     {
       label: 'Overturning stability',
       ref: 'Bowles §7.3',
-      demand: r.overturning.notApplicable ? 'N/A' : `M_overturn = ${r.overturning.M_overturn.toFixed(1)} kN·m`,
-      capacity: r.overturning.notApplicable ? 'N/A' : `M_resist = ${r.overturning.M_resist.toFixed(1)} kN·m (FOS ≥ 1.5)`,
+      demand: r.overturning.notApplicable ? 'N/A' : `Movt = ${r.overturning.M_overturn.toFixed(1)} kN·m`,
+      capacity: r.overturning.notApplicable ? 'N/A' : `Mres = ${r.overturning.M_resist.toFixed(1)} kN·m (FOS ≥ 1.5)`,
       ratio: r.overturning.notApplicable ? null : r.overturning.ratio,
       ok: r.overturning.ok,
       notApplicable: r.overturning.notApplicable,
@@ -84,7 +84,7 @@ export function buildCheckSummary(r: FootingAnalysis): CheckSummary[] {
       label: 'Sliding stability',
       ref: 'Bowles §7.4',
       demand: r.sliding.notApplicable ? 'N/A' : `H = ${r.sliding.H.toFixed(1)} kN`,
-      capacity: r.sliding.notApplicable ? 'N/A' : `H_allow = ${r.sliding.H_allow.toFixed(1)} kN (FOS ≥ 1.5)`,
+      capacity: r.sliding.notApplicable ? 'N/A' : `Hallow = ${r.sliding.H_allow.toFixed(1)} kN (FOS ≥ 1.5)`,
       ratio: r.sliding.notApplicable ? null : r.sliding.ratio,
       ok: r.sliding.ok,
       notApplicable: r.sliding.notApplicable,
@@ -92,7 +92,7 @@ export function buildCheckSummary(r: FootingAnalysis): CheckSummary[] {
     {
       label: 'Bar fit / spacing (X)',
       ref: 'ACI §25.2.1',
-      demand: `s_clear = ${r.barFitX.s_clear.toFixed(0)} mm`,
+      demand: `sclear = ${r.barFitX.s_clear.toFixed(0)} mm`,
       capacity: `${r.barFitX.s_min.toFixed(0)} ≤ s ≤ ${r.barFitX.s_max.toFixed(0)} mm`,
       ratio: null,
       ok: r.barFitX.ok,
