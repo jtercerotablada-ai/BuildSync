@@ -1,14 +1,24 @@
 'use client';
 
-import React, { useReducer, useMemo, useState } from 'react';
+import React, { useReducer, useMemo, useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { analyzeCombinedFooting } from '@/lib/combined-footing/solver';
 import { COMBINED_FOOTING_PRESETS } from '@/lib/combined-footing/presets';
 import { buildCombinedCheckSummary, formatRatio } from '@/lib/combined-footing/format';
 import type { CombinedFootingInput, CombinedColumn } from '@/lib/combined-footing/types';
-import type { ColumnShape } from '@/lib/footing/types';
+import type { ColumnShape, ReportBranding } from '@/lib/footing/types';
+import { CombinedFootingPlan2D } from './CombinedFootingPlan2D';
+import { CombinedFootingSection2D } from './CombinedFootingSection2D';
+import { CombinedFootingPrintReport } from './CombinedFootingPrintReport';
+
+// Dynamic import for the 3D viewer (R3F) — client-only
+const CombinedFooting3D = dynamic(
+  () => import('./CombinedFooting3D').then((m) => m.CombinedFooting3D),
+  { ssr: false, loading: () => <div className="rc-3d slab-3d"><p style={{ padding: '2rem', textAlign: 'center' }}>Loading 3D viewer…</p></div> },
+);
 
 type Code = 'ACI 318-25' | 'ACI 318-19';
-type Tab = 'inputs' | 'beam' | 'checks' | 'refs';
+type Tab = 'inputs' | 'beam' | 'drawings' | '3d' | 'checks' | 'refs';
 
 type Action =
   | { type: 'LOAD_PRESET'; input: CombinedFootingInput }
@@ -17,7 +27,9 @@ type Action =
   | { type: 'SET_SOIL'; patch: Partial<CombinedFootingInput['soil']> }
   | { type: 'SET_MAT'; patch: Partial<CombinedFootingInput['materials']> }
   | { type: 'SET_COL'; which: 1 | 2; patch: Partial<CombinedColumn> }
-  | { type: 'SET_REINF'; patch: Partial<CombinedFootingInput['reinforcement']> };
+  | { type: 'SET_REINF'; patch: Partial<CombinedFootingInput['reinforcement']> }
+  | { type: 'SET_BRANDING'; patch: Partial<ReportBranding> }
+  | { type: 'CLEAR_BRANDING' };
 
 function reducer(state: CombinedFootingInput, action: Action): CombinedFootingInput {
   switch (action.type) {
@@ -37,6 +49,13 @@ function reducer(state: CombinedFootingInput, action: Action): CombinedFootingIn
         : { ...state, column2: { ...state.column2, ...action.patch } };
     case 'SET_REINF':
       return { ...state, reinforcement: { ...state.reinforcement, ...action.patch } };
+    case 'SET_BRANDING':
+      return { ...state, branding: { ...(state.branding ?? {}), ...action.patch } };
+    case 'CLEAR_BRANDING': {
+      const { branding: _, ...rest } = state;
+      void _;
+      return rest as CombinedFootingInput;
+    }
     default:
       return state;
   }
@@ -49,6 +68,20 @@ export function CombinedFootingCalculator() {
   const result = useMemo(() => analyzeCombinedFooting(model), [model]);
   const summary = buildCombinedCheckSummary(result);
   const [tab, setTab] = useState<Tab>('inputs');
+  const [cover3dDataUrl, setCover3dDataUrl] = useState<string | undefined>();
+
+  // Capture the current 3D viewer canvas as a data URL for the print cover
+  const captureCover3d = useCallback(() => {
+    const canvas = document.querySelector('.slab-3d__canvas canvas') as HTMLCanvasElement | null;
+    if (canvas) {
+      try { setCover3dDataUrl(canvas.toDataURL('image/png')); } catch { /* CORS — ignore */ }
+    }
+  }, []);
+
+  const handlePrint = useCallback(() => {
+    captureCover3d();
+    setTimeout(() => window.print(), 80);
+  }, [captureCover3d]);
 
   return (
     <div className="ab-section">
@@ -92,7 +125,13 @@ export function CombinedFootingCalculator() {
             {result.ok ? '✓ PASS' : '✗ FAIL'}
           </span>
         </div>
+        <button type="button" className="ab-btn ab-btn--primary slab-print-btn" onClick={handlePrint}>
+          ⎙ Print full report
+        </button>
       </section>
+
+      {/* Print-only report (hidden on screen).  Triggered by handlePrint(). */}
+      <CombinedFootingPrintReport input={model} result={result} cover3dDataUrl={cover3dDataUrl} />
 
       {/* Status banner */}
       <section className={`rc-status ${result.ok ? 'rc-status--pass' : 'rc-status--fail'}`}>
@@ -113,7 +152,9 @@ export function CombinedFootingCalculator() {
       <nav className="ab-tabs" aria-label="Combined footing tabs">
         {([
           ['inputs', 'Inputs'],
+          ['drawings', 'Drawings'],
           ['beam', 'Beam analysis'],
+          ['3d', '3D'],
           ['checks', 'Checks'],
           ['refs', 'References'],
         ] as const).map(([id, label]) => (
@@ -130,7 +171,9 @@ export function CombinedFootingCalculator() {
 
       {/* Tab content */}
       {tab === 'inputs' && <InputsTab model={model} dispatch={dispatch} />}
+      {tab === 'drawings' && <DrawingsTab input={model} result={result} />}
       {tab === 'beam' && <BeamTab result={result} />}
+      {tab === '3d' && <CombinedFooting3D input={model} result={result} />}
       {tab === 'checks' && <ChecksTab summary={summary} />}
       {tab === 'refs' && <RefsTab />}
 
@@ -259,6 +302,78 @@ function InputsTab({
               onChange={(v) => dispatch({ type: 'SET_REINF', patch: { bottomTrans: { ...model.reinforcement.bottomTrans, count: v } } })} />
           </Field>
         </div>
+      </div>
+
+      {/* Print branding (logo + company) */}
+      <div className="slab-card">
+        <h4>Print branding (your firm)</h4>
+        <p className="ab-empty" style={{ marginBottom: '0.6rem', fontSize: '0.86rem' }}>
+          Optional. Logo + company name + tagline appear on the print-report cover page.
+        </p>
+        <div className="slab-fields">
+          <Field label="Company name">
+            <input type="text"
+              value={model.branding?.companyName ?? ''}
+              placeholder="e.g. Tercero Tablada Civil & Structural Eng. Inc"
+              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyName: e.target.value } })} />
+          </Field>
+          <Field label="Tagline / project ref">
+            <input type="text"
+              value={model.branding?.companyTagline ?? ''}
+              placeholder="e.g. Project 24-117 — Combined footing F-1"
+              onChange={(e) => dispatch({ type: 'SET_BRANDING', patch: { companyTagline: e.target.value } })} />
+          </Field>
+          <Field label="Logo (PNG/SVG)">
+            <input type="file" accept="image/png,image/jpeg,image/svg+xml"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  if (typeof ev.target?.result === 'string') {
+                    dispatch({ type: 'SET_BRANDING', patch: { logoDataUrl: ev.target.result } });
+                  }
+                };
+                reader.readAsDataURL(file);
+              }} />
+          </Field>
+          {model.branding?.logoDataUrl && (
+            <div className="ab-input-group">
+              <span>Logo preview</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={model.branding.logoDataUrl} alt="logo"
+                  style={{ maxWidth: 96, maxHeight: 64, background: 'rgba(255,255,255,0.95)',
+                           padding: 4, borderRadius: 4 }} />
+                <button type="button" className="ab-btn ab-btn--small"
+                  onClick={() => dispatch({ type: 'CLEAR_BRANDING' })}>
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DRAWINGS TAB (Plan + Section) ──────────────────────────────────────────
+
+function DrawingsTab({
+  input, result,
+}: {
+  input: CombinedFootingInput; result: ReturnType<typeof analyzeCombinedFooting>;
+}) {
+  return (
+    <div className="slab-inputs-grid">
+      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+        <h4>Plan view (top-down)</h4>
+        <CombinedFootingPlan2D input={input} result={result} />
+      </div>
+      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+        <h4>Section A-A (longitudinal, through both columns)</h4>
+        <CombinedFootingSection2D input={input} result={result} />
       </div>
     </div>
   );
