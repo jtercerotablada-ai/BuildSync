@@ -321,7 +321,73 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 13: Validation of results vs expected');
+console.log('BLOCK 13: Semi-gravity wall (cantilever equivalent + intent flag)');
+console.log('==========================================');
+{
+  const semi: WallInput = {
+    code: 'ACI 318-25',
+    geometry: {
+      kind: 'semi-gravity',
+      H_stem: 1500, t_stem_top: 200, t_stem_bot: 250,
+      B_toe: 400, B_heel: 700, H_foot: 350,
+      backfillSlope: 0, frontFill: 200,
+    },
+    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
+    backfill: [{ name: 'Granular', gamma: 19, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
+    baseSoil: {
+      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
+      delta: 20 * Math.PI / 180, ca: 0, qAllow: 200, passiveEnabled: false,
+    },
+    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+    loads: { surchargeQ: 5, seismic: { kh: 0, kv: 0 } },
+    theory: 'rankine',
+    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
+  };
+  const result = solveWall(semi);
+  // Same input as a cantilever wall should produce the same Mu/Vu/As_req
+  const cantEq: WallInput = { ...semi, geometry: { ...semi.geometry, kind: 'cantilever' } };
+  const cantResult = solveWall(cantEq);
+  expect('Semi-gravity stem Mu == cantilever Mu', result.stem.Mu, cantResult.stem.Mu, 0.001);
+  expect('Semi-gravity stem As_req == cantilever As_req', result.stem.As_req, cantResult.stem.As_req, 0.001);
+  expectBool('Semi-gravity flags intent in issues', result.issues[0]?.includes('Semi-gravity'), true);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 14: L-shaped wall (B_toe = 0)');
+console.log('==========================================');
+{
+  const lshape: WallInput = {
+    code: 'ACI 318-25',
+    geometry: {
+      kind: 'l-shaped',
+      H_stem: 2500, t_stem_top: 250, t_stem_bot: 300,
+      B_toe: 0,           // L-shaped: no toe
+      B_heel: 1800, H_foot: 400,
+      backfillSlope: 0, frontFill: 0,
+      stemLean: 0,
+    },
+    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
+    backfill: [{ name: 'Granular', gamma: 19, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
+    baseSoil: {
+      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
+      delta: 20 * Math.PI / 180, ca: 0, qAllow: 200, passiveEnabled: false,
+    },
+    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+    loads: { surchargeQ: 0, seismic: { kh: 0, kv: 0 } },
+    theory: 'rankine',
+    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
+  };
+  const result = solveWall(lshape);
+  expectBool('L-shaped: toe Mu = 0', result.toe.Mu === 0, true);
+  expectBool('L-shaped: toe As_req = 0', result.toe.As_req === 0, true);
+  // Stem still works normally
+  expectBool('L-shaped: stem still cantilevers (As_req > 0)', result.stem.As_req > 0, true);
+  expectBool('L-shaped: footing total width = B_heel + t_stem_bot', result.stability.B === 0 + 300 + 1800, true);
+  expectBool('L-shaped flags intent in issues', result.issues.some((m) => m.includes('L-shaped')), true);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 15: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);

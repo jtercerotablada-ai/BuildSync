@@ -10,14 +10,18 @@ import type { WallInput, WallResults, WallGeometry, WallKind } from './types';
 import { computeStability } from './stability';
 import { designStem, designHeel, designToe, designKey } from './design';
 import { solveGravity } from './solve-gravity';
+import { solveSemiGravity } from './solve-semi-gravity';
+import { solveLShaped } from './solve-l-shaped';
 
 export function solveWall(input: WallInput): WallResults {
   switch (input.geometry.kind) {
     case 'gravity':
       return solveGravity(input);
+    case 'semi-gravity':
+      return solveSemiGravity(input);
+    case 'l-shaped':
+      return solveLShaped(input);
     case 'cantilever':
-    case 'semi-gravity':   // same solver as cantilever; reinforcement intent differs
-    case 'l-shaped':       // B_toe = 0 — solver handles toe = 0 gracefully
     case 'counterfort':    // (commit 7 will replace)
     case 'buttressed':     // (commit 8)
     case 'basement':       // (commit 6)
@@ -27,7 +31,7 @@ export function solveWall(input: WallInput): WallResults {
   }
 }
 
-function solveCantileverWall(input: WallInput): WallResults {
+export function solveCantileverWall(input: WallInput): WallResults {
   const { stability, pressure } = computeStability(input);
 
   // Average bearing pressure under heel and toe (linear interpolation from q_max/q_min)
