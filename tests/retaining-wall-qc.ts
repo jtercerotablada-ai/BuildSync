@@ -582,7 +582,58 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 22: Validation of results vs expected');
+console.log('BLOCK 22: Counterfort wall — stem slab + heel slab + T-beam');
+console.log('==========================================');
+{
+  // 6 m tall counterfort wall, 3 m spacing, 350 mm counterforts.
+  const counter: WallInput = {
+    code: 'ACI 318-25',
+    geometry: {
+      kind: 'counterfort',
+      H_stem: 6000, t_stem_top: 250, t_stem_bot: 350,
+      B_toe: 600, B_heel: 2500, H_foot: 700,
+      backfillSlope: 0, frontFill: 300,
+      counterfortSpacing: 3000, counterfortThickness: 350,
+    },
+    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
+    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
+    baseSoil: {
+      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
+      delta: 20 * Math.PI / 180, ca: 0, qAllow: 300, passiveEnabled: false,
+    },
+    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+    loads: { surchargeQ: 10, seismic: { kh: 0, kv: 0 } },
+    theory: 'rankine',
+    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
+  };
+  const r = solveWall(counter);
+  expectBool('Counterfort returned counterfortDesign', !!r.counterfortDesign, true);
+  if (r.counterfortDesign) {
+    // Stem slab: w = γ·Ka·H + Ka·q
+    // Ka(rankine,32°) = 0.307
+    // p_max = 18·0.307·6 + 0.307·10 = 33.16 + 3.07 = 36.23 kPa
+    // M_neg (factored 1.6) = 1.6 · 36.23 · 3² / 12 = 1.6 · 27.17 = 43.48 kN·m/m
+    const Ka = (1 - Math.sin(32*Math.PI/180)) / (1 + Math.sin(32*Math.PI/180));
+    const p = 18 * Ka * 6 + Ka * 10;
+    const Mneg_expected = 1.6 * p * 9 / 12;
+    expect('Counterfort stem-slab Mu (negative at counterfort)',
+      r.counterfortDesign.stemSlab.Mu, Mneg_expected, 0.05);
+
+    // Counterfort T-beam: H = (1/2)·γ·Ka·H²·S + Ka·q·H·S
+    // = 0.5 · 18 · 0.307 · 36 · 3 + 0.307 · 10 · 6 · 3
+    // = 298.4 + 55.3 = 353.7 kN
+    // Factored × 1.6 = 565.9 kN
+    // Moment at base = 565.9 · 6/3 = 1131.7 kN·m
+    const Hcounter = 0.5 * 18 * Ka * 36 * 3 + Ka * 10 * 6 * 3;
+    const Hcounter_factored = 1.6 * Hcounter;
+    const M_expected = Hcounter_factored * 6 / 3;
+    expect('Counterfort T-beam Mu', r.counterfortDesign.counterfort.Mu, M_expected, 0.05);
+    expectBool('Counterfort T-beam As_req > 0', r.counterfortDesign.counterfort.As_req > 0, true);
+  }
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 23: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);

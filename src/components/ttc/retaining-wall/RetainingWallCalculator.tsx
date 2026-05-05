@@ -12,6 +12,14 @@ import { WallCanvas } from './WallCanvas';
 import { StabilityResults } from './StabilityResults';
 import { DesignResults } from './DesignResults';
 import { WallTypeChooser } from './WallTypeChooser';
+import dynamic from 'next/dynamic';
+
+// 3D viewer is loaded only when the user picks counterfort / buttressed —
+// keeps the bundle small for the common cantilever case.
+const WallViewer3D = dynamic(
+  () => import('./WallViewer3D').then((m) => m.WallViewer3D),
+  { ssr: false, loading: () => <div className="rw__empty">Loading 3D viewer…</div> },
+);
 
 type Tab = 'geometry' | 'materials' | 'soil' | 'loads';
 type ResultTab = 'stability' | 'design';
@@ -154,7 +162,14 @@ export function RetainingWallCalculator() {
 
         <main className="rw__canvas">
           {results ? (
-            <WallCanvas input={input} results={results} unitSystem={unitSystem} />
+            <>
+              <WallCanvas input={input} results={results} unitSystem={unitSystem} />
+              {(input.geometry.kind === 'counterfort' || input.geometry.kind === 'buttressed') && (
+                <div className="rw__canvas-3d">
+                  <WallViewer3D input={input} />
+                </div>
+              )}
+            </>
           ) : (
             <div className="rw__empty">Enter geometry to build your wall</div>
           )}

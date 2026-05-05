@@ -13,6 +13,7 @@ import { solveGravity } from './solve-gravity';
 import { solveSemiGravity } from './solve-semi-gravity';
 import { solveLShaped } from './solve-l-shaped';
 import { solveBasement } from './solve-basement';
+import { solveCounterfort } from './solve-counterfort';
 
 export function solveWall(input: WallInput): WallResults {
   switch (input.geometry.kind) {
@@ -24,8 +25,9 @@ export function solveWall(input: WallInput): WallResults {
       return solveLShaped(input);
     case 'basement':
       return solveBasement(input);
+    case 'counterfort':
+      return solveCounterfort(input);
     case 'cantilever':
-    case 'counterfort':    // (commit 7 will replace)
     case 'buttressed':     // (commit 8)
     case 'abutment':       // (commit 9)
     default:
