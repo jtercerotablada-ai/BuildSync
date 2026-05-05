@@ -18,14 +18,14 @@ export function CombinedFootingPrintReport({ input, result, cover3dDataUrl }: Pr
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
   if (!mounted) return null;
-
-  const portalEl = document.querySelector('.slab-print-portal');
-  if (!portalEl) {
-    const body = typeof document !== 'undefined' ? document.body : null;
-    if (!body) return null;
-    return createPortal(<ReportContent input={input} result={result} cover3dDataUrl={cover3dDataUrl} />, body);
-  }
-  return createPortal(<ReportContent input={input} result={result} cover3dDataUrl={cover3dDataUrl} />, portalEl);
+  if (typeof document === 'undefined') return null;
+  // Always portal to <body> wrapped in `.slab-print-portal` so the global
+  // `.slab-print-portal { display: none }` rule hides it on screen, and
+  // `@media print` shows only this subtree (per ttc-globals.css).
+  return createPortal(
+    <ReportContent input={input} result={result} cover3dDataUrl={cover3dDataUrl} />,
+    document.body,
+  );
 }
 
 function ReportContent({ input, result, cover3dDataUrl }: Props) {
@@ -34,7 +34,7 @@ function ReportContent({ input, result, cover3dDataUrl }: Props) {
   const branding = input.branding;
 
   return (
-    <div className="pr-doc">
+    <div className="slab-print-portal" id="slab-print-portal">
       {/* PAGE 1 — COVER */}
       <section className="pr-page pr-cover">
         <div className="pr-cover__brand">

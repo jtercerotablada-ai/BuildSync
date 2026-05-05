@@ -143,8 +143,8 @@ export function computeStability(
   }
 
   // 5. Soil in front of wall (toe cover) — DELIBERATELY EXCLUDED from the
-  //    stability resultants. Convention per SkyCiv, ASDIP, and sound
-  //    geotechnical practice: do not rely on soil that could be excavated
+  //    stability resultants. Standard geotechnical practice: do not rely on
+  //    soil that could be excavated
   //    later (utility trench, landscaping, frost line work). Including it in
   //    ΣV would increase the sliding and bearing FS non-conservatively. The
   //    toe fill is still rendered on the canvas and contributes passive

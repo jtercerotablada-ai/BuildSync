@@ -12,7 +12,7 @@ interface Props {
 /**
  * RcSection2D — three-pane diagram (Cross Section · Strain · Whitney Stress Block).
  *
- * Style: textbook / academic (Wight & MacGregor, ACI MNL-17, SkyCiv reference).
+ * Style: textbook / academic (Wight & MacGregor, ACI MNL-17).
  * Conventions:
  *   • Single shared Y axis: the neutral axis (NA) line is horizontal across all three panes.
  *   • Strain diagram: εcu = +0.003 at top compression fiber, 0 at NA, εt at d.

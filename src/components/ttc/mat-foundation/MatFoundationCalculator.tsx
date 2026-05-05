@@ -672,11 +672,11 @@ function RefsTab() {
         <li><strong>Wight & MacGregor 7e §15-7</strong> — Mat foundation design method</li>
         <li><strong>ACI PRC-336.2</strong> — Detailed mat foundation design recommendations</li>
       </ul>
-      <p style={{ marginTop: '1rem', fontSize: '0.86rem', color: 'rgba(255,255,255,0.6)', fontStyle: 'italic' }}>
+      <p className="ab-empty mat-refs__note">
         Strip-method flexure (column-line beams) and plate-on-Winkler-foundation
         analysis are out of scope for the current rigid-method release; for
-        rigorous mat design with subgrade reaction, export geometry to CSI
-        SAFE or PLAXIS.
+        rigorous mat design with subgrade reaction, export geometry to a
+        dedicated finite-element foundation solver.
       </p>
     </div>
   );

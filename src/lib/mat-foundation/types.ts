@@ -17,7 +17,8 @@
  *      then strips are analyzed as continuous beams.
  *   2. PLATE-ON-WINKLER-FOUNDATION method — mat as elastic plate on elastic
  *      spring bed (subgrade reaction). Requires FEA (out of scope for this
- *      first release; use CSI SAFE / PLAXIS for the rigorous case).
+ *      first release; export geometry to a dedicated FE foundation solver
+ *      for the rigorous case).
  *
  * For Phase C kickoff: bearing check (corner pressures) + per-column
  * two-way (punching) shear. Strip flexure is in a follow-up commit since

@@ -1,7 +1,6 @@
 // Catalog of every Quick Design calculator we offer (or plan to offer).
-// Matches SkyCiv Quick Design library. Tools already built in this site link
-// to their route; the rest are shown as "coming-soon" placeholders so the
-// landing page communicates the full scope.
+// Tools already built in this site link to their route; the rest are shown as
+// "coming-soon" placeholders so the landing page communicates the full scope.
 
 export type ToolCategory =
   | 'Steel'

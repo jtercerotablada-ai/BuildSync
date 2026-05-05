@@ -90,19 +90,17 @@ export interface StirrupConfig {
 
 // ─── Rebar Layers + Zones (Phase 6 — continuous beam detailing) ────────────
 //
-// Mirrors SkyCiv's "Rebar Layers and Zones" table model: each layer is a
-// rectangular rebar group (count + bar size) that runs along a portion of the
-// beam (xStart → xEnd) at a given vertical position (top or bottom face).
-// Multiple layers stack into a complete reinforcement layout that matches
-// real shop drawings: bottom continuous + bottom curtailed (extra) + top at
-// supports (negative-moment), etc.
+// "Rebar Layers and Zones" table model: each layer is a rectangular rebar
+// group (count + bar size) that runs along a portion of the beam
+// (xStart → xEnd) at a given vertical position (top or bottom face). Multiple
+// layers stack into a complete reinforcement layout that matches real shop
+// drawings: bottom continuous + bottom curtailed (extra) + top at supports
+// (negative-moment), etc.
 //
 // The legacy `tension`/`compression` fields stay for single-section mode.
 // When `layers` is present, it OVERRIDES tension/compression and the solver
 // resolves per-station As demand using the layers.
 //
-// Reference: SkyCiv RC Design — "Rebar Layers and Zones" table:
-//   https://skyciv.com/docs/skyciv-rc-design/general/beam-column-standalone/
 // Detailing rules from Wight & MacGregor 7e Ch 10 + ACI 318-25 §9.7.3.
 //
 export interface RebarLayer {

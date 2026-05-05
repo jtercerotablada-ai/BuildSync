@@ -11,8 +11,8 @@ interface Props {
 }
 
 /**
- * Engineering section view of a cantilever retaining wall — styled after
- * Structures Explained / ASDIP / SkyCiv conventions.
+ * Engineering section view of a cantilever retaining wall — textbook
+ * presentation style.
  *
  *   • Blueprint-blue background with a subtle white grid
  *   • Multi-tone brown soil with random pebbles (SVG pattern)

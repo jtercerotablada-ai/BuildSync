@@ -12,7 +12,7 @@ export const DEFAULT_SITE: SiteData = {
   riskCategory: 'II',
   exposure: 'C',
   siteClass: 'Default',
-  V: 170 * 0.44704, // mph → m/s, Miami default matching SkyCiv reference
+  V: 170 * 0.44704, // mph → m/s, Miami / South-Florida ASCE 7-22 default
   V_source: 'manual',
 };
 

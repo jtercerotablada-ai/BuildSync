@@ -25,7 +25,8 @@ export default function MatFoundationPage() {
             of the column resultant; per-column two-way (punching) shear at
             d/2 with auto-detected αs (interior/edge/corner). For rigorous
             plate-on-Winkler-foundation analysis with subgrade reaction
-            (ks), export geometry to CSI SAFE or PLAXIS.
+            (ks), export geometry to a dedicated finite-element foundation
+            solver.
           </p>
         </div>
       </section>

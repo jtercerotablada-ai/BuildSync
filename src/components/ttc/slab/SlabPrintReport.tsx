@@ -118,11 +118,10 @@ export function SlabPrintReport({ input, result, cover3dDataUrl }: Props) {
             <strong>This software is in active development</strong> and is provided
             <strong> AS-IS without warranty of any kind</strong>, express or implied. Results may
             contain errors, omissions, or numerical inaccuracies. Calculations <strong>MUST be
-            independently verified</strong> using established structural engineering software
-            (such as SAP2000, ETABS, SAFE, RAM Concept, Autodesk Robot, RISA, SkyCiv, or
-            equivalent) and <strong>reviewed, signed, and sealed by a licensed
-            Professional Engineer (P.E. / S.E.)</strong> in the jurisdiction of the project
-            prior to any use in design, construction, or permitting.
+            independently verified</strong> using established structural-analysis software and
+            <strong>reviewed, signed, and sealed by a licensed Professional Engineer
+            (P.E. / S.E.)</strong> in the jurisdiction of the project prior to any use in
+            design, construction, or permitting.
           </p>
           <p>
             The user assumes full responsibility for verification of every input, every
@@ -135,7 +134,7 @@ export function SlabPrintReport({ input, result, cover3dDataUrl }: Props) {
             <em>
               Este software está en desarrollo activo y se proporciona TAL CUAL, sin garantía
               de ningún tipo. Los resultados deben verificarse independientemente con software
-              estructural establecido (SAP2000, ETABS, SAFE, etc.) y ser revisados, firmados y
+              estructural establecido y ser revisados, firmados y
               sellados por un Ingeniero Profesional licenciado (P.E. / S.E.) antes de cualquier
               uso en diseño, construcción o trámites. El usuario asume toda la responsabilidad.
               TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. se exime expresamente de

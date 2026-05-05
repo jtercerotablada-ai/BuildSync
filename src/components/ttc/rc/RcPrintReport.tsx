@@ -109,8 +109,7 @@ export function RcPrintReport({ input, result, cover3dDataUrl }: Props) {
           <p>
             <strong>This software is in active development</strong> and is provided
             <strong> AS-IS without warranty of any kind</strong>. Calculations <strong>MUST be
-            independently verified</strong> using established structural engineering software
-            (such as ETABS, SAP2000, RAM Concept, Risa, SkyCiv, or equivalent) and
+            independently verified</strong> using established structural-analysis software and
             <strong> reviewed, signed, and sealed by a licensed Professional Engineer
             (P.E. / S.E.)</strong> in the jurisdiction of the project prior to any use in
             design, construction, or permitting.
@@ -124,9 +123,9 @@ export function RcPrintReport({ input, result, cover3dDataUrl }: Props) {
           <p className="pr-disclaimer__es">
             <em>
               Este software está en desarrollo activo. Los resultados deben verificarse
-              independientemente con software estructural establecido (ETABS, SAP2000, etc.)
-              y ser revisados, firmados y sellados por un Ingeniero Profesional licenciado
-              (P.E. / S.E.) antes de cualquier uso en diseño, construcción o trámites.
+              independientemente con software estructural establecido y ser revisados,
+              firmados y sellados por un Ingeniero Profesional licenciado (P.E. / S.E.)
+              antes de cualquier uso en diseño, construcción o trámites.
             </em>
           </p>
         </div>

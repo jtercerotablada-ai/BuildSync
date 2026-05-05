@@ -129,7 +129,7 @@ export const DEFAULT_INPUT: WallInput = {
     qAllow: 200,
     // Conservative default: do NOT rely on passive pressure unless the user
     // confirms the front soil will remain in place (no future excavation,
-    // frost line clearance, etc.). Matches SkyCiv / ASDIP defaults.
+    // frost line clearance, etc.).
     passiveEnabled: false,
   },
   water: {

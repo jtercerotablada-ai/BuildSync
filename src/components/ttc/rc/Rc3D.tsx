@@ -506,11 +506,11 @@ function SkinRebar({ input, bw, h, L, cover, mat }: {
 // stirrups), trying to render the 135° hooks at the closing corner produces
 // visual artifacts (hooks colliding with longitudinal bars, weird perspective).
 //
-// Professional structural engineering software (CYPECAD, ETABS, RAM Concept,
-// Tekla Structures) ALL render stirrups in the beam-level 3D as clean closed
-// hoops. The hook geometry detail belongs to the 2D bar bending schedule and
-// the cross-section detail drawing — both of which we already render correctly
-// (see RcSection2D and the Detailing tab bar schedule).
+// Established structural-engineering software typically renders stirrups in
+// the beam-level 3D as clean closed hoops. The hook geometry detail belongs
+// to the 2D bar bending schedule and the cross-section detail drawing — both
+// of which we already render correctly (see RcSection2D and the Detailing
+// tab bar schedule).
 //
 // Implementation: ONE TubeGeometry with a closed perimeter path, rendered via
 // THREE.InstancedMesh for all stirrup positions along the beam. A procedural

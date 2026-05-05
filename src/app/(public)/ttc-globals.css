@@ -8199,6 +8199,13 @@ img, svg {
   padding: 2rem;
   text-align: center;
 }
+/* Mat foundation references-tab footnote */
+.mat-refs__note {
+  margin-top: 1rem;
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-style: italic;
+}
 /* 3D viewer toolbar (toggles row) */
 .slab-3d__toolbar       { flex-wrap: wrap; }
 .slab-3d__toolbar-label {

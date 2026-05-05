@@ -1,7 +1,7 @@
-// Auto-design for continuous beams — generates a SkyCiv-style layered
-// reinforcement layout (top bars at supports for negative-moment regions,
-// bottom bars in midspans for positive-moment regions) from the moment
-// envelope produced by analyzeContinuous().
+// Auto-design for continuous beams — generates a layered reinforcement
+// layout (top bars at supports for negative-moment regions, bottom bars in
+// midspans for positive-moment regions) from the moment envelope produced
+// by analyzeContinuous().
 //
 // Methodology (per Wight & MacGregor 7e Ch 10 + ACI 318-25 §9.7.3):
 //
