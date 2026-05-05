@@ -789,6 +789,152 @@ block('Block 12 — Centric column: vu,max = vuv (no unbalanced moment)', () => 
 });
 
 // ============================================================================
+// BLOCK 13 — MEGA-GAP-ANALYSIS fixes (ACI 318-25 §13.3.3.3, §16.3.4.1, etc.)
+// ============================================================================
+//
+// References (ACI 318-25 SI):
+//   §13.3.1.2     — d ≥ 150 mm minimum (B3)
+//   Table 20.5.1.3.1 — cover ≥ 75 mm cast-against-earth (B4)
+//   §16.3.4.1     — column dowels ≥ 0.005·Ag (B2)
+//   §13.2.7.1     — supportedMember critical sections (B5, B6)
+//   §13.3.3.3(b)  — short-band reinforcement γs = 2/(β+1) (B1)
+//   §22.6.6.1     — shear-reinforcement advisory (B9)
+
+block('Block 13 — B3: d ≥ 150 mm warning emitted when violated', () => {
+  // T=200, cover=75, #5 db=15.9 → dX = 200-75-7.95 = 117 mm < 150 → warn
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 1500, L: 1500, T: 200, coverClear: 75, columnShape: 'square', cx: 300, cy: 300 },
+    reinforcement: {
+      bottomX: { bar: '#5', count: 6 },
+      bottomY: { bar: '#5', count: 6 },
+    },
+  }));
+  const has150Warning = r.warnings.some((w) => w.includes('150 mm minimum'));
+  check('Warning emitted when d < 150 mm', has150Warning);
+});
+
+block('Block 13 — B4: cover < 75 mm warning emitted', () => {
+  // cover = 50 (mud-mat case) → emit warning
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 50, columnShape: 'square', cx: 400, cy: 400 },
+  }));
+  const hasCoverWarning = r.warnings.some((w) => w.includes('75 mm minimum') || w.includes('cast-against-earth'));
+  check('Warning emitted when cover < 75 mm', hasCoverWarning);
+});
+
+block('Block 13 — B2: dowel area = 0.005·Ag (informational mode)', () => {
+  // Default input: 400×400 column → Ag = 160000 mm²
+  // AsDowelMin = 0.005 × 160000 = 800 mm²
+  const r = analyzeFooting(defaultInput());
+  near('AsDowelMin = 0.005·Ag', r.dowel.AsDowelMin, 800, 0.001);
+  check('Dowel check is informational (no value provided)', r.dowel.informational);
+  check('Informational dowel does not flag failure', r.dowel.ok);
+  // Engineer specifies dowel area too low → fail
+  const r2 = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400, dowelAreaProvided: 500 },
+  }));
+  check('Dowel fails when provided 500 mm² < required 800 mm²', !r2.dowel.ok);
+});
+
+block('Block 13 — B2: dowel area for force transfer when bearing fails', () => {
+  // Heavy load that exceeds column bearing capacity
+  // φBn,col = 0.65·0.85·fc·Ag = 0.65·0.85·25·160000 / 1000 = 2210 kN
+  // For PD=1500, PL=1500: Pu = 1.2·1500 + 1.6·1500 = 4200 kN > 2210 → excess 1990
+  // AsTransfer = 1990·1000 / (0.65·420) = 7290 mm² >> AsMin (800) → governs
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 1500, PL: 1500 },
+    soil: { qa: 1500 },     // big to skip bearing fail noise
+  }));
+  check('AsDowelTransfer > 0 when Pu > φBn,col', r.dowel.AsDowelTransfer > 0);
+  check('AsDowelReq = max(min, transfer)', r.dowel.AsDowelReq >= r.dowel.AsDowelMin);
+});
+
+block('Block 13 — B1: square footing has no short-band split', () => {
+  const r = analyzeFooting(defaultInput());     // B = L = 2500
+  check('Square footing: gammaS is null in X', r.flexureX.gammaS == null);
+  check('Square footing: gammaS is null in Y', r.flexureY.gammaS == null);
+});
+
+block('Block 13 — B1: rectangular footing splits short-direction bars', () => {
+  // B = 2000 (short), L = 4000 (long), β = 2.0
+  // γs = 2/(2+1) = 0.667
+  // Short direction = X (B is the short side, X-bars run along X distributed in Y)
+  // Wait: convention here — X-direction bars resist bending in X (cantilever along X)
+  // For B < L, the cantilever along X (= 1000mm) is shorter than along Y (= 2000mm)
+  // So X-direction is the SHORT cantilever direction = needs less reinforcement
+  // The "short" in §13.3.3.3 means the SHORT footing dimension, i.e. bars perpendicular
+  // to the short side. Code language: "in the short direction" = bars in the short
+  // dimension's bending sense.
+  // Here B = 2000 (short side along X); bars resisting bending in X (cantilever along Y) = bottomY
+  // Hmm convention ambiguity. Our code uses: isShort = (direction X & B = short) | (Y & L = short)
+  // For B=2000, L=4000: B is short → direction='X' is short.
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2000, L: 4000, T: 600, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+    loads: { PD: 800, PL: 600 },
+    reinforcement: {
+      bottomX: { bar: '#7', count: 12 },
+      bottomY: { bar: '#7', count: 12 },
+    },
+  }));
+  // X is the short direction (B < L)
+  near('γs for short direction (X) = 2/(β+1) ≈ 0.667', r.flexureX.gammaS ?? 0, 0.667, 0.01);
+  // Y is the long direction → no γs split
+  check('Long direction (Y) has no gammaS', r.flexureY.gammaS == null);
+  // Bars in band ≈ 0.667 × 12 = 8 (rounded)
+  check('barsInBand ≈ 8', r.flexureX.barsInBand === 8);
+  check('barsOutsideBand = total − band', r.flexureX.barsOutsideBand === 12 - 8);
+});
+
+block('Block 13 — B5: masonry wall critical section is at midpoint', () => {
+  // For a wall 'wall_masonry' the critical section is midway between
+  // centreline and face → cantilever increases by colDim/4
+  // Default colDim = 400, expected extra arm = 100 mm
+  const rCol = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400 },
+  }));
+  const rMasonry = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 500, coverClear: 75, columnShape: 'square', cx: 400, cy: 400, supportedMember: 'wall_masonry' },
+  }));
+  // Cantilever for 'column' = (2500 - 400)/2 = 1050 mm
+  // Cantilever for 'wall_masonry' = 1050 + 400/4 = 1150 mm  (extra colDim/4 = 100)
+  near('Cantilever for column = 1050 mm', rCol.flexureX.cantilever, 1050, 0.001);
+  near('Cantilever for wall_masonry = 1150 mm (+colDim/4)', rMasonry.flexureX.cantilever, 1150, 0.001);
+  check('Wall_masonry Mu > column Mu', rMasonry.flexureX.Mu > rCol.flexureX.Mu);
+});
+
+block('Block 13 — B6: base-plate critical section at midpoint of column-face & plate-edge', () => {
+  // Column 400×400, base plate 600×600 on a 2500×2500 footing
+  // Cantilever for 'column' = (2500-400)/2 = 1050
+  // Cantilever for 'baseplate' = avg of:
+  //   colFaceFromEdge = 1050
+  //   plateEdgeFromEdge = (2500-600)/2 = 950
+  //   midpoint = (1050 + 950)/2 = 1000
+  const r = analyzeFooting(defaultInput({
+    geometry: {
+      B: 2500, L: 2500, T: 500, coverClear: 75,
+      columnShape: 'square', cx: 400, cy: 400,
+      supportedMember: 'baseplate',
+      basePlate: { Bp: 600, Lp: 600 },
+    },
+  }));
+  near('Cantilever for baseplate = 1000 mm (midway)', r.flexureX.cantilever, 1000, 0.001);
+});
+
+block('Block 13 — B9: shear advisory when punching just over capacity', () => {
+  // Engineer thin footing — punching fails, but stirrups would suffice
+  const r = analyzeFooting(defaultInput({
+    geometry: { B: 2500, L: 2500, T: 350, coverClear: 75, columnShape: 'square', cx: 300, cy: 300 },
+    loads: { PD: 800, PL: 600 },
+  }));
+  check('Punching fails for thin footing', !r.punching.ok);
+  // Look for the advisory in the calc steps
+  const hasAdvisory = r.punching.steps.some((s) =>
+    s.title.includes('advisory') || s.title.includes('Advisory'));
+  check('Shear-reinforcement advisory step present', hasAdvisory);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(70));

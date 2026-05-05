@@ -42,6 +42,21 @@ export interface FootingGeometry {
    *  per ACI 318-25 §22.6.5.3 (αs = 40 interior / 30 edge / 20 corner).
    *  Defaults to 'interior'. */
   columnLocation?: 'interior' | 'edge' | 'corner';
+  /** Type of supported member, sets the critical section for flexure per
+   *  ACI 318-25 §13.2.7.1:
+   *    'column'      — face of column (default)
+   *    'wall_concrete' — face of wall
+   *    'wall_masonry' — halfway between centre and face of masonry wall
+   *    'baseplate'   — halfway between face of column and edge of base plate
+   *  Defaults to 'column'. */
+  supportedMember?: 'column' | 'wall_concrete' | 'wall_masonry' | 'baseplate';
+  /** Steel base plate dimensions (mm), required when supportedMember = 'baseplate'.
+   *  Bp parallel to footing X, Lp parallel to Y. */
+  basePlate?: { Bp: number; Lp: number };
+  /** Provided dowel area at column-footing interface (mm²). Optional — used
+   *  by §16.3.4.1 dowel check. If undefined, the check is informational
+   *  (reports the required minimum but does not flag failure). */
+  dowelAreaProvided?: number;
 }
 
 // ─── Soil + Materials ──────────────────────────────────────────────────────
@@ -241,6 +256,15 @@ export interface FootingFlexureCheck {
   phiMn: number;
   ratio: number;
   ok: boolean;
+  /** Short-band fraction γs = 2/(β+1), β = L/B. Only set for the SHORT
+   *  direction of a rectangular footing per ACI 318-25 §13.3.3.3(b).
+   *  null for square footings or for the long direction. */
+  gammaS?: number | null;
+  /** Number of bars that should fall in the short-direction band (= short
+   *  side, centred on column) per §13.3.3.3(b). null if N/A. */
+  barsInBand?: number | null;
+  /** Number of bars that should be distributed OUTSIDE the band. null if N/A. */
+  barsOutsideBand?: number | null;
   ref: string;
   steps: CalcStep[];
 }
@@ -257,6 +281,27 @@ export interface BearingInterfaceCheck {
   Pu: number;
   ratio: number;
   ok: boolean;
+  ref: string;
+  steps: CalcStep[];
+}
+
+/** Column-to-footing dowel reinforcement check per ACI 318-25 §16.3.4.1. */
+export interface DowelCheck {
+  /** Gross column area Ag (mm²). */
+  Ag: number;
+  /** Required minimum dowel area = 0.005·Ag (mm²). */
+  AsDowelMin: number;
+  /** Additional area required to transfer Pu when φBn,col is exceeded (mm²).
+   *  AsDowelTransfer = max(0, (Pu·1000 − φBn_col·1000) / (φ·fy)). */
+  AsDowelTransfer: number;
+  /** Governing required area = max(AsDowelMin, AsDowelTransfer) (mm²). */
+  AsDowelReq: number;
+  /** Provided area (mm²) — from input.geometry.dowelAreaProvided. 0 if undefined. */
+  AsDowelProv: number;
+  /** True when AsDowelProv ≥ AsDowelReq, OR when provided is undefined (informational). */
+  ok: boolean;
+  /** True when input.geometry.dowelAreaProvided is undefined. */
+  informational: boolean;
   ref: string;
   steps: CalcStep[];
 }
@@ -338,6 +383,7 @@ export interface FootingAnalysis {
   flexureX: FootingFlexureCheck;
   flexureY: FootingFlexureCheck;
   bearingInterface: BearingInterfaceCheck;
+  dowel: DowelCheck;
   overturning: OverturningCheck;
   sliding: SlidingCheck;
   barFitX: BarFitCheck;

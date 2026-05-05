@@ -23,6 +23,7 @@ import type {
   FootingInput, FootingAnalysis, BearingCheck, PunchingCheck,
   OneWayShearCheck, FootingFlexureCheck, BearingInterfaceCheck, CalcStep,
   Code, OverturningCheck, SlidingCheck, BarFitCheck, DevelopmentCheck,
+  DowelCheck,
 } from './types';
 import { barArea, barDiameter } from '../rc/types';
 
@@ -411,9 +412,43 @@ function checkPunching(input: FootingInput, qnu: number): PunchingCheck {
       title: 'Punching shear utilisation',
       formula: hasUnbalanced ? 'vu,max / (φ·vc)' : 'Vu / φVc  ≡  vuv / (φ·vc)',
       substitution: `${vuMax.toFixed(3)} / ${phiVcStress.toFixed(3)}`,
-      result: `Ratio = ${ratio.toFixed(3)} ${ok ? '✓' : '✗ FAIL — increase d or footing size'}`,
+      result: `Ratio = ${ratio.toFixed(3)} ${ok ? '✓' : '✗ FAIL'}`,
     },
   ];
+
+  // ── Shear-reinforcement advisory (§22.6.6.1, Table 22.6.6.1) ─────────
+  // When vu,max > φ·vc, the engineer can either thicken the footing OR add
+  // two-way shear reinforcement (stirrups or headed shear studs) up to the
+  // code maximum vn:
+  //   stirrups in slabs:        vn,max = 0.5·√fʹc   (single/multiple-leg)
+  //   headed shear stud reinf.: vn,max = 0.66·√fʹc
+  // Report whichever advisory applies.
+  if (!ok) {
+    const vnMaxStirrups = 0.5 * lambda * sqrtFc;       // §22.6.6.1
+    const vnMaxStuds = 0.66 * lambda * sqrtFc;          // §22.6.6.1 (headed studs)
+    const phiVnStirrups = phi * vnMaxStirrups;
+    const phiVnStuds = phi * vnMaxStuds;
+    if (vuMax <= phiVnStuds) {
+      const advice = vuMax <= phiVnStirrups
+        ? `vu,max ≤ φ·vn,max(stirrups) = ${phiVnStirrups.toFixed(3)} MPa → adding stirrups would be sufficient`
+        : `vu,max ≤ φ·vn,max(headed studs) = ${phiVnStuds.toFixed(3)} MPa → adding headed shear studs would be sufficient (stirrups not enough)`;
+      steps.push({
+        title: 'Shear-reinforcement advisory (§22.6.6.1)',
+        formula: 'φ·vn,max (stirrups) = 0.5·φ·√fʹc;  φ·vn,max (studs) = 0.66·φ·√fʹc',
+        substitution: `φ·vn,stirrups = ${phiVnStirrups.toFixed(3)}, φ·vn,studs = ${phiVnStuds.toFixed(3)} MPa`,
+        result: advice,
+        ref: ref(code, '22.6.6'),
+      });
+    } else {
+      steps.push({
+        title: 'Shear-reinforcement advisory (§22.6.6.1)',
+        formula: 'vu,max > φ·vn,max(headed studs) = 0.66·φ·√fʹc',
+        substitution: `vu,max = ${vuMax.toFixed(3)} > ${phiVnStuds.toFixed(3)}`,
+        result: 'Even headed shear studs would not be sufficient — must increase footing thickness',
+        ref: ref(code, '22.6.6'),
+      });
+    }
+  }
 
   return {
     bo, d, betaC, alphaS,
@@ -502,11 +537,31 @@ function checkFootingFlexure(
   const { dX, dY } = effectiveDepths(input);
   const d = direction === 'X' ? dX : dY;
 
-  // Cantilever from face of column to footing edge
+  // Cantilever from critical section per ACI 318-25 §13.2.7.1:
+  //   'column'        → at face of column
+  //   'wall_concrete' → at face of wall
+  //   'wall_masonry'  → at midpoint between centreline and face of masonry wall
+  //   'baseplate'     → at midpoint between face of column and edge of plate
   const colDimSelf = direction === 'X' ? g.cx : (g.columnShape === 'circular' ? g.cx : (g.cy ?? g.cx));
   const footingDimSelf = direction === 'X' ? g.B : g.L;
   const footingDimPerp = direction === 'X' ? g.L : g.B;
-  const cantilever = (footingDimSelf - colDimSelf) / 2;
+
+  let critOffset: number;     // distance from footing edge to critical section
+  const supported = g.supportedMember ?? 'column';
+  if (supported === 'wall_masonry') {
+    // Critical section at colDimSelf/4 inboard of the wall face → cantilever = ((Footing-Wall)/2 + Wall/4)
+    critOffset = (footingDimSelf - colDimSelf) / 2 + colDimSelf / 4;
+  } else if (supported === 'baseplate' && g.basePlate) {
+    // Crit section midway between face of column and edge of base plate
+    const plateDim = direction === 'X' ? g.basePlate.Bp : g.basePlate.Lp;
+    const colFaceFromEdge = (footingDimSelf - colDimSelf) / 2;
+    const plateEdgeFromEdge = (footingDimSelf - plateDim) / 2;
+    critOffset = (colFaceFromEdge + plateEdgeFromEdge) / 2;
+  } else {
+    // 'column' or 'wall_concrete' — face of column/wall
+    critOffset = (footingDimSelf - colDimSelf) / 2;
+  }
+  const cantilever = critOffset;
   const bw = footingDimPerp;
 
   // Mu at face of column = qnu × (cantilever²/2) × bw
@@ -578,9 +633,45 @@ function checkFootingFlexure(
     },
   ];
 
+  // ── Short-band reinforcement per ACI 318-25 §13.3.3.3(b) ────────────
+  // For rectangular footings (B ≠ L), the SHORT-direction reinforcement must
+  // be split:
+  //   γs = 2 / (β + 1),  β = L_long / L_short
+  //   bars in band (= short side, centred on column) = γs · n_total
+  //   bars outside the band = (1 − γs) · n_total
+  // γs is only defined for the SHORT direction; long direction is uniform.
+  let gammaS: number | null = null;
+  let barsInBand: number | null = null;
+  let barsOutsideBand: number | null = null;
+  const Bx = g.B, Ly = g.L;
+  if (Bx !== Ly) {
+    const longSide = Math.max(Bx, Ly);
+    const shortSide = Math.min(Bx, Ly);
+    const beta = longSide / shortSide;
+    const isShortDirection =
+      (direction === 'X' && Bx === shortSide) ||
+      (direction === 'Y' && Ly === shortSide);
+    if (isShortDirection) {
+      gammaS = 2 / (beta + 1);
+      barsInBand = Math.round(gammaS * layer.count);
+      barsOutsideBand = layer.count - barsInBand;
+    }
+  }
+  if (gammaS !== null && barsInBand !== null && barsOutsideBand !== null) {
+    steps.push({
+      title: 'Short-direction band reinforcement (§13.3.3.3(b))',
+      formula: 'γs = 2/(β+1);  bars in band = γs·n;  outside = (1−γs)·n',
+      substitution: `β = ${(Math.max(Bx, Ly) / Math.min(Bx, Ly)).toFixed(3)} → γs = ${gammaS.toFixed(3)}, n = ${layer.count}`,
+      result: `${barsInBand} bars in band of width ${Math.min(Bx, Ly)} mm centred on column; ${barsOutsideBand} bars distributed outside`,
+      ref: ref(code, '13.3.3.3'),
+    });
+  }
+
   return {
     direction, cantilever, bw, d, Mu: Mu_kNm, AsReq, AsMin, AsProv, phiMn,
-    ratio, ok, ref: ref(code, '13.3.3'), steps,
+    ratio, ok, ref: ref(code, '13.3.3'),
+    gammaS, barsInBand, barsOutsideBand,
+    steps,
   };
 }
 
@@ -630,6 +721,71 @@ function checkBearingInterface(input: FootingInput): BearingInterfaceCheck {
   return {
     phiBn_col, phiBn_ftg, phiBn, Pu,
     ratio, ok, ref: ref(code, '22.8'), steps,
+  };
+}
+
+// ─── COLUMN-FOOTING DOWELS (§16.3.4.1) ────────────────────────────────────
+//
+// Reinforcement crossing the column-footing joint must be at least 0.005·Ag
+// where Ag is the gross column area, AND must be sufficient to transfer any
+// force in excess of the bearing capacity from column to footing.
+//
+//   AsDowelMin       = 0.005 · Ag
+//   AsDowelTransfer  = max(0, (Pu − φBn,col) / (φ·fy))
+//   AsDowelReq       = max(AsDowelMin, AsDowelTransfer)
+//
+// `dowelAreaProvided` (mm²) on the input is OPTIONAL. When present, the check
+// passes/fails based on whether provided ≥ required. When absent, the check
+// is INFORMATIONAL — it reports the required area for the engineer to specify.
+function checkDowels(
+  input: FootingInput, bearingInterface: BearingInterfaceCheck,
+): DowelCheck {
+  const { code, geometry: g, materials: m } = input;
+  const Ag = g.columnShape === 'circular'
+    ? PI * Math.pow(g.cx / 2, 2)
+    : g.cx * (g.cy ?? g.cx);
+  const AsDowelMin = 0.005 * Ag;
+  // Force transfer beyond column bearing — if Pu > φBn_col, balance via dowels
+  const phi_dowel = 0.65;     // §21.2.1 for compression-controlled (col)
+  const Pu_excess = Math.max(0, bearingInterface.Pu - bearingInterface.phiBn_col);
+  // Pu in kN, φ·fy in MPa·1.0; convert: AsTransfer = Pu_excess·1000 / (φ·fy)
+  const AsDowelTransfer = (Pu_excess * 1000) / (phi_dowel * m.fy);
+  const AsDowelReq = Math.max(AsDowelMin, AsDowelTransfer);
+  const AsDowelProv = g.dowelAreaProvided ?? 0;
+  const informational = g.dowelAreaProvided === undefined;
+  const ok = informational ? true : AsDowelProv >= AsDowelReq;
+
+  const steps: CalcStep[] = [
+    {
+      title: 'Minimum dowel area (§16.3.4.1)',
+      formula: 'AsDowelMin = 0.005 · Ag',
+      substitution: g.columnShape === 'circular'
+        ? `Ag = π·(${g.cx}/2)² = ${Ag.toFixed(0)} mm²`
+        : `Ag = ${g.cx} × ${g.cy ?? g.cx} = ${Ag.toFixed(0)} mm²`,
+      result: `AsDowelMin = ${AsDowelMin.toFixed(0)} mm²`,
+      ref: ref(code, '16.3.4.1'),
+    },
+    {
+      title: 'Force-transfer dowel area',
+      formula: 'AsDowelTransfer = max(0, (Pu − φBn,col) / (φ·fy))',
+      substitution: `Pu − φBn,col = ${bearingInterface.Pu.toFixed(1)} − ${bearingInterface.phiBn_col.toFixed(1)} = ${Pu_excess.toFixed(1)} kN`,
+      result: `AsDowelTransfer = ${AsDowelTransfer.toFixed(0)} mm²`,
+      ref: ref(code, '16.3.4'),
+    },
+    {
+      title: 'Governing dowel area required',
+      formula: 'AsDowelReq = max(AsDowelMin, AsDowelTransfer)',
+      substitution: `max(${AsDowelMin.toFixed(0)}, ${AsDowelTransfer.toFixed(0)})`,
+      result: informational
+        ? `AsDowelReq = ${AsDowelReq.toFixed(0)} mm² (provide as separate dowels or extend column bars; no value entered yet)`
+        : `AsDowelReq = ${AsDowelReq.toFixed(0)} mm² vs AsProv = ${AsDowelProv.toFixed(0)} mm² ${ok ? '✓' : '✗ FAIL — add dowels'}`,
+    },
+  ];
+
+  return {
+    Ag, AsDowelMin, AsDowelTransfer, AsDowelReq, AsDowelProv,
+    ok, informational,
+    ref: ref(code, '16.3.4.1'), steps,
   };
 }
 
@@ -869,12 +1025,25 @@ export function analyzeFooting(input: FootingInput): FootingAnalysis {
     const flexureX = checkFootingFlexure(input, qnu, 'X');
     const flexureY = checkFootingFlexure(input, qnu, 'Y');
     const bearingInterface = checkBearingInterface(input);
+    const dowel = checkDowels(input, bearingInterface);
     const overturning = checkOverturning(input, bearing.P_service);
     const sliding = checkSliding(input, bearing.P_service);
     const barFitX = checkBarFit(input, 'X');
     const barFitY = checkBarFit(input, 'Y');
     const developmentX = checkDevelopment(input, 'X');
     const developmentY = checkDevelopment(input, 'Y');
+
+    // ── Geometric / cover sanity guards ─────────────────────────────────
+    // ACI 318-25 §13.3.1.2: minimum effective depth d ≥ 150 mm for footings.
+    const { dX: _dX, dY: _dY } = effectiveDepths(input);
+    if (_dX < 150 || _dY < 150) {
+      const which = _dX < 150 && _dY < 150 ? 'dX and dY' : (_dX < 150 ? 'dX' : 'dY');
+      warnings.push(`${which} = ${Math.min(_dX, _dY).toFixed(0)} mm < 150 mm minimum (ACI 318-25 §13.3.1.2). Increase T or use smaller bars.`);
+    }
+    // ACI 318-25 Table 20.5.1.3.1: clear cover for cast-against-earth = 75 mm min.
+    if (input.geometry.coverClear < 75) {
+      warnings.push(`Clear cover = ${input.geometry.coverClear} mm < 75 mm minimum for cast-against-earth (ACI 318-25 Table 20.5.1.3.1). Use 50 mm only if footing is cast on a concrete blinding (PCC bed / mud mat).`);
+    }
 
     if (!bearing.ok) warnings.push(`Bearing fails — service pressure ${bearing.q_max.toFixed(1)} kPa > allowable ${input.soil.qa} kPa. Increase footing area.`);
     if (upliftRegion) warnings.push(`Eccentricity outside kern → partial uplift (Bowles triangular pressure). Consider larger footing OR shifting column.`);
@@ -884,6 +1053,8 @@ export function analyzeFooting(input: FootingInput): FootingAnalysis {
     if (!flexureX.ok) warnings.push(`Flexure (X) fails — Mu/φMn = ${flexureX.ratio.toFixed(2)}. Add bottom-X bars.`);
     if (!flexureY.ok) warnings.push(`Flexure (Y) fails — Mu/φMn = ${flexureY.ratio.toFixed(2)}. Add bottom-Y bars.`);
     if (!bearingInterface.ok) warnings.push(`Column bearing fails — add dowel reinforcement per §16.3.4.1.`);
+    if (!dowel.ok && !dowel.informational) warnings.push(`Provided dowel area ${dowel.AsDowelProv.toFixed(0)} mm² < required ${dowel.AsDowelReq.toFixed(0)} mm² (ACI 318-25 §16.3.4.1).`);
+    if (dowel.informational && dowel.AsDowelReq > 0) warnings.push(`Specify column dowels: As ≥ ${dowel.AsDowelReq.toFixed(0)} mm² required (ACI 318-25 §16.3.4.1, 0.005·Ag minimum).`);
     if (!overturning.notApplicable && !overturning.ok) warnings.push(`Overturning FOS = ${overturning.FOS.toFixed(2)} < 1.5 — increase footing footprint or counterweight.`);
     if (!sliding.notApplicable && !sliding.ok) warnings.push(`Sliding FOS = ${sliding.FOS.toFixed(2)} < 1.5 — add shear key or increase weight.`);
     if (!barFitX.ok) warnings.push(`Bottom-X bar spacing out of bounds (sclear = ${barFitX.s_clear.toFixed(0)} mm).`);
@@ -895,12 +1066,14 @@ export function analyzeFooting(input: FootingInput): FootingAnalysis {
 
     const ok = bearing.ok && punching.ok && shearX.ok && shearY.ok &&
                flexureX.ok && flexureY.ok && bearingInterface.ok &&
+               dowel.ok &&
                overturning.ok && sliding.ok &&
                barFitX.ok && barFitY.ok &&
                developmentX.ok && developmentY.ok;
 
     return {
       input, bearing, punching, shearX, shearY, flexureX, flexureY, bearingInterface,
+      dowel,
       overturning, sliding, barFitX, barFitY, developmentX, developmentY,
       qnu, Wf: Wf_kN, Ws: Ws_kN, upliftRegion, ok, warnings, solved: true,
     };
@@ -915,6 +1088,7 @@ export function analyzeFooting(input: FootingInput): FootingAnalysis {
       flexureX: emptyFlex('X'),
       flexureY: emptyFlex('Y'),
       bearingInterface: emptyBearingInt(),
+      dowel: emptyDowel(),
       overturning: emptyOver(),
       sliding: emptySliding(),
       barFitX: emptyBarFit('X'),
@@ -948,10 +1122,20 @@ function emptyShear(direction: 'X' | 'Y'): OneWayShearCheck {
   return { direction, bw: 0, d: 0, cantilever: 0, Vc: 0, phiVc: 0, Vu: 0, ratio: 0, ok: false, ref: '', steps: [] };
 }
 function emptyFlex(direction: 'X' | 'Y'): FootingFlexureCheck {
-  return { direction, cantilever: 0, bw: 0, d: 0, Mu: 0, AsReq: 0, AsMin: 0, AsProv: 0, phiMn: 0, ratio: 0, ok: false, ref: '', steps: [] };
+  return {
+    direction, cantilever: 0, bw: 0, d: 0, Mu: 0, AsReq: 0, AsMin: 0, AsProv: 0, phiMn: 0,
+    ratio: 0, ok: false, gammaS: null, barsInBand: null, barsOutsideBand: null,
+    ref: '', steps: [],
+  };
 }
 function emptyBearingInt(): BearingInterfaceCheck {
   return { phiBn_col: 0, phiBn_ftg: 0, phiBn: 0, Pu: 0, ratio: 0, ok: false, ref: '', steps: [] };
+}
+function emptyDowel(): DowelCheck {
+  return {
+    Ag: 0, AsDowelMin: 0, AsDowelTransfer: 0, AsDowelReq: 0, AsDowelProv: 0,
+    ok: true, informational: true, ref: '', steps: [],
+  };
 }
 function emptyOver(): OverturningCheck {
   return { M_resist: 0, M_overturn: 0, FOS: Infinity, FOS_req: 1.5, ratio: 0, ok: true, notApplicable: true, ref: '', steps: [] };

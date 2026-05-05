@@ -72,6 +72,19 @@ export function buildCheckSummary(r: FootingAnalysis): CheckSummary[] {
       ok: r.bearingInterface.ok,
     },
     {
+      label: 'Column dowels',
+      ref: 'ACI §16.3.4.1',
+      demand: r.dowel.informational
+        ? `AsReq = ${r.dowel.AsDowelReq.toFixed(0)} mm² (informational)`
+        : `AsProv = ${r.dowel.AsDowelProv.toFixed(0)} mm²`,
+      capacity: `AsReq = ${r.dowel.AsDowelReq.toFixed(0)} mm² (0.005·Ag = ${r.dowel.AsDowelMin.toFixed(0)})`,
+      ratio: r.dowel.AsDowelReq > 0 && !r.dowel.informational
+        ? r.dowel.AsDowelProv / r.dowel.AsDowelReq
+        : null,
+      ok: r.dowel.ok,
+      notApplicable: r.dowel.informational,
+    },
+    {
       label: 'Overturning stability',
       ref: 'Bowles §7.3',
       demand: r.overturning.notApplicable ? 'N/A' : `Movt = ${r.overturning.M_overturn.toFixed(1)} kN·m`,
