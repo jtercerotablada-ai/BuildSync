@@ -519,6 +519,96 @@ block('Block 8 — Auto-design: punching-shear governs T iteration', () => {
 });
 
 // ============================================================================
+// BLOCK 11 — Wight & MacGregor 7e Ch 15 cross-validation (NEW, MEGA-QC)
+// ============================================================================
+// Source: Wight, J.K. & MacGregor, J.G., "Reinforced Concrete: Mechanics and
+// Design" 7th ed., Pearson 2016, Ch 15 §15-5, Example 15-2 (pp. 825-829).
+// Imperial→SI conversions:
+//   1 in = 25.4 mm        1 ksi = 6.895 MPa     1 kip = 4.448 kN
+//   1 ft = 304.8 mm       1 ksf = 47.88 kPa     1 kip·ft = 1.356 kN·m
+//
+// Wight's design (final, after iteration):
+//   Column 18×18 in (457×457 mm), PD = 400 kips (1779 kN), PL = 270 kips (1201 kN)
+//   f'c = 3000 psi (20.68 MPa), fy = 60 ksi (413.7 MPa)
+//   Footing 11'2" × 11'2" × 32" thick (3404 × 3404 × 813 mm)
+//   Bottom rebar: 11 #8 each way, As_prov = 8.69 in² (5606 mm²)
+//
+// Wight's computed values (target benchmarks):
+//   qnu = 7.31 ksf  →  350 kPa
+//   bo  = 184 in    →  4674 mm  (perimeter at d/2 from face)
+//   d_avg = 28 in   →  711 mm
+//   vc  = 4·√f'c (psi)  =  219 psi  =  1.501 MPa  (governs over vc2, vc3)
+//   φVc = 845 kips  →  3759 kN
+//   Vu  = 805 kips  →  3580 kN
+//   Mu  = 954 kip·ft  →  1294 kN·m  (cantilever at face of column)
+//   AsReq = 7.97 in²  →  5142 mm²
+//   AsMin = 0.0018·b·h = 0.0018·134·32 = 7.72 in² → 4981 mm²
+//   φMn (provided) = 1070 kip·ft  →  1451 kN·m
+
+block('Block 11 — Wight Ex 15-2: 18-in column, square spread footing', () => {
+  const r = analyzeFooting({
+    code: 'ACI 318-25',
+    geometry: {
+      B: 3404, L: 3404, T: 813,
+      coverClear: 76, columnShape: 'square',
+      cx: 457, cy: 457,
+      embedment: 305,    // 6" fill + 6" floor
+      columnLocation: 'interior',     // αs = 40
+    },
+    soil: { qa: 320, gammaSoil: 19, gammaConcrete: 24 },
+    materials: { fc: 20.68, fy: 413.7, lambdaC: 1.0 },
+    loads: { PD: 1779.3, PL: 1200.9 },
+    reinforcement: {
+      bottomX: { bar: '#8', count: 11 },
+      bottomY: { bar: '#8', count: 11 },
+    },
+  });
+
+  // Factored net soil pressure
+  near('qnu (Wight 7.31 ksf)', r.qnu, 350, 0.02);
+
+  // Two-way (punching) shear quantities
+  near('bo (Wight 184 in)', r.punching.bo, 4674, 0.01);
+  near('d_avg (Wight 28 in)', r.punching.d, 711, 0.02);
+  near('vc (Wight 4·√fʹc = 219 psi)', r.punching.vc, 1.501, 0.02);
+  near('φVc (Wight 845 kips)', r.punching.phiVc, 3759, 0.03);
+  near('Vu  (Wight 805 kips)', r.punching.Vu, 3580, 0.02);
+  check('Punching ratio Vu/φVc < 1 (Wight has 0.95)', r.punching.ratio < 1.0);
+
+  // Flexure quantities
+  near('Mu (Wight 954 kip·ft)', r.flexureX.Mu, 1294, 0.03);
+  // AsMin: Wight uses ACI 318-14 §7.6.1.1 (Grade 60 → ρmin = 0.0018):
+  //   AsMin_318-14 = 0.0018 · 134 · 32 = 7.72 in² = 4981 mm²
+  // Our solver follows ACI 318-25 §8.6.1.1 (fy < 420 MPa → ρmin = 0.0020):
+  //   AsMin_318-25 = 0.0020 · 3404 · 813 = 5535 mm²  (∼11% higher)
+  // The difference is a code evolution, not a calculation error. We verify the
+  // modern (318-25) value here and note the legacy 318-14 value for reference.
+  near('AsMin §8.6.1.1 (ACI 318-25, ρmin=0.0020)', r.flexureX.AsMin, 5535, 0.02);
+  near('AsReq (Wight 7.97 in²)', r.flexureX.AsReq, 5142, 0.10);
+  // Note: AsProv for 11 #8 = 11 × 510 mm² (catalog) = 5610 mm². Wight has
+  // 11 × 0.79 in² = 8.69 in² = 5606 mm² (essentially same).
+  near('AsProv (Wight 8.69 in²)', r.flexureX.AsProv, 5610, 0.02);
+  near('φMn (Wight 1070 kip·ft)', r.flexureX.phiMn, 1451, 0.05);
+
+  // Overall pass/fail status (Wight's design passes all checks)
+  check('Wight punching passes', r.punching.ok);
+  check('Wight one-way shear X passes', r.shearX.ok);
+  check('Wight one-way shear Y passes', r.shearY.ok);
+  check('Wight flexure X passes', r.flexureX.ok);
+  check('Wight flexure Y passes', r.flexureY.ok);
+});
+
+block('Block 11 — Wight Ex 15-2: rigid-vs-flexible classification', () => {
+  // Wight §15-3 / fig 15-7: rigid footing has Vmax ≤ 2h. For Ex 15-2:
+  //   Vmax = (B - cx)/2 = (3404 - 457)/2 = 1473 mm
+  //   2·T  = 2·813 = 1626 mm
+  //   Vmax = 1473 < 2·T = 1626 → RIGID footing per Wight ✓
+  const Vmax = (3404 - 457) / 2;
+  const T2 = 2 * 813;
+  check('Wight Ex 15-2 is rigid (Vmax ≤ 2T)', Vmax <= T2);
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 console.log('\n' + '='.repeat(70));
