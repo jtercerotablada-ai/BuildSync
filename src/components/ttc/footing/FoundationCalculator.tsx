@@ -460,12 +460,15 @@ function AutoDesignTab({
   };
 
   return (
-    <div className="slab-card" style={{ borderColor: 'rgba(95,182,116,0.55)' }}>
+    <div className="slab-card" style={{ borderColor: 'rgba(127,182,145,0.55)' }}>
       <h4>Auto-Design Footing (sizes B, L, T + picks rebar)</h4>
       <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
         Given current loads (PD, PL, Mx, My, H), soil (qa), and column dimensions,
         the auto-design driver iteratively sizes the footing area, thickness, and
-        reinforcement layout to satisfy all 13 ACI 318-25 checks.
+        reinforcement layout to satisfy all 13 {model.code} checks.
+        Both ACI 318-19 and ACI 318-25 are supported — switch via the code
+        selector in the topbar; numerics are identical for footings, only the
+        cited section labels in the rationale differ.
       </p>
       <div className="slab-fields" style={{ marginBottom: '0.6rem' }}>
         <Field label="Shape">
