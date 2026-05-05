@@ -360,7 +360,7 @@ export function RcCalculator() {
 
       {/* 3D viewer */}
       <section className="ab-section">
-        <Rc3D input={model} result={result} />
+        <Rc3D input={model} result={result} demand={demand} />
       </section>
 
       {/* ALWAYS-VISIBLE envelope diagram (engine=envelope) — visual headline */}

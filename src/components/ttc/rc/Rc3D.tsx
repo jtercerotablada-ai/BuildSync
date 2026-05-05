@@ -7,7 +7,7 @@ import {
 } from '@react-three/drei';
 import * as THREE from 'three';
 import warehouseHDR from '@pmndrs/assets/hdri/warehouse.exr';
-import type { BeamInput, BeamAnalysis } from '@/lib/rc/types';
+import type { BeamInput, BeamAnalysis, DemandSource } from '@/lib/rc/types';
 import { lookupBar } from '@/lib/rc/types';
 
 const MM_TO_M = 0.001;
@@ -15,14 +15,34 @@ const MM_TO_M = 0.001;
 interface Props {
   input: BeamInput;
   result: BeamAnalysis;
+  /** Optional — when present, the 3D viewer renders the FULL multi-span beam
+   *  with COLUMNS at each support location (column-beam-column-beam-column).
+   *  Without this, the viewer renders a single beam segment as before. */
+  demand?: DemandSource;
 }
 
-export function Rc3D({ input, result }: Props) {
+export function Rc3D({ input, result, demand }: Props) {
   const [cutaway, setCutaway] = useState(true);
   const [showRebar, setShowRebar] = useState(true);
   const [showStirrups, setShowStirrups] = useState(true);
   const [showLoad, setShowLoad] = useState(true);
+  const [showColumns, setShowColumns] = useState(true);
   void result;
+
+  // For continuous beams: extract support locations (in mm from left end) and
+  // total beam length. Each support gets a column rendered above/below the beam.
+  const isContinuous = demand?.kind === 'continuous';
+  const supportXs_mm: number[] = isContinuous && demand
+    ? (() => {
+        const out: number[] = [0];
+        let off = 0;
+        for (const sp of demand.model.spans) { off += sp.L; out.push(off); }
+        return out;
+      })()
+    : [0, input.geometry.L];     // single-span: 2 columns (left + right ends)
+  const supportTypes: string[] = isContinuous && demand
+    ? demand.model.supports
+    : ['pin', 'roller'];
 
   const g = input.geometry;
   const bw = g.bw * MM_TO_M;
@@ -70,6 +90,10 @@ export function Rc3D({ input, result }: Props) {
             onChange={(e) => setShowStirrups(e.target.checked)} /> <span>Stirrups</span></label>
           <label className="ab-toggle"><input type="checkbox" checked={showLoad}
             onChange={(e) => setShowLoad(e.target.checked)} /> <span>Loads (Mu/Vu)</span></label>
+          <label className="ab-toggle"><input type="checkbox" checked={showColumns}
+            onChange={(e) => setShowColumns(e.target.checked)} />
+            <span>{isContinuous ? 'Columns at supports' : 'Support columns'}</span>
+          </label>
         </div>
       </div>
       <div className="rc-3d__canvas slab-3d__canvas">
@@ -90,6 +114,19 @@ export function Rc3D({ input, result }: Props) {
           {/* Beam concrete (centered on Y=0 axis, length along X) */}
           <BeamConcrete bw={bw} h={h} L={L} bf={bf} hf={hf}
                         shape={g.shape} cutaway={cutaway} />
+
+          {/* Columns at each support — column-beam-column-beam-column for
+              continuous beams; left+right end columns for single-span. */}
+          {showColumns && (
+            <SupportColumns
+              supportXs_mm={supportXs_mm}
+              supportTypes={supportTypes}
+              beamLengthTotal_m={L}
+              bw={bw}
+              h={h}
+              cutaway={cutaway}
+            />
+          )}
 
           {/* Layered rebar — Phase 6: when reinforcement.layers is present
               (continuous-beam mode), render each layer at its proper xStart/
@@ -149,6 +186,75 @@ export function Rc3D({ input, result }: Props) {
 // ============================================================================
 // Beam concrete (rectangular or T-shape)
 // ============================================================================
+// ============================================================================
+// Support columns (Phase 6.1) — render columns at each support location so
+// continuous beams look like the real frame: column → beam → column → beam.
+// ============================================================================
+//
+// Convention:
+//   • Columns are 1.2× the beam web width (square cross-section), height
+//     1.5 m above + 1.5 m below the beam to suggest a typical floor.
+//   • Pin / roller / fix → solid concrete column. Free → no column.
+//   • Color matches the beam concrete for a unified look.
+//   • Origin: beam X coords are translated so x=0 is the LEFT support and
+//     x=Ltotal is the RIGHT support. The beam itself is centered on (Lt/2),
+//     so columns at support i sit at (supportX_mm/1000 - Lt/2) on the X
+//     axis.
+//
+function SupportColumns({
+  supportXs_mm, supportTypes, beamLengthTotal_m, bw, h, cutaway,
+}: {
+  supportXs_mm: number[];
+  supportTypes: string[];
+  beamLengthTotal_m: number;
+  bw: number;
+  h: number;
+  cutaway: boolean;
+}) {
+  const opacity = cutaway ? 0.85 : 1.0;
+  // Column cross-section: square, slightly bigger than beam web
+  const colSize = bw * 1.2;
+  // Column height above and below beam (typical 1 floor each direction)
+  const colAbove = 1.5;        // 1.5 m above beam top
+  const colBelow = 1.5;        // 1.5 m below beam bottom
+
+  return (
+    <group>
+      {supportXs_mm.map((x_mm, i) => {
+        const supType = supportTypes[i] ?? 'roller';
+        if (supType === 'free') return null;        // cantilever end — no column
+
+        const xLocal = (x_mm * MM_TO_M) - beamLengthTotal_m / 2;
+        const colHeight = colAbove + h + colBelow;
+        const colCenterY = (colAbove - colBelow) / 2;     // adjusted so column extends evenly
+
+        return (
+          <group key={`sup-${i}`} position={[xLocal, colCenterY, 0]}>
+            {/* Column above + below the beam */}
+            <mesh receiveShadow castShadow>
+              <boxGeometry args={[colSize, colHeight, colSize]} />
+              <meshStandardMaterial
+                color="#9a9286"
+                roughness={0.92}
+                metalness={0.0}
+                transparent={cutaway}
+                opacity={opacity}
+                depthWrite={!cutaway}
+                side={cutaway ? THREE.DoubleSide : THREE.FrontSide}
+              />
+            </mesh>
+            {/* Visual support indicator: triangular plate at column base */}
+            <mesh position={[0, -colHeight / 2 - 0.05, 0]}>
+              <coneGeometry args={[colSize * 0.45, 0.1, 4]} />
+              <meshStandardMaterial color="#5a4f30" roughness={0.95} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
 function BeamConcrete({ bw, h, L, bf, hf, shape, cutaway }: {
   bw: number; h: number; L: number; bf: number; hf: number;
   shape: BeamInput['geometry']['shape']; cutaway: boolean;
