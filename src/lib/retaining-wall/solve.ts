@@ -1,6 +1,6 @@
 // Top-level orchestrator: stability + reinforcement design.
 
-import type { WallInput, WallResults } from './types';
+import type { WallInput, WallResults, WallGeometry, WallKind } from './types';
 import { computeStability } from './stability';
 import { designStem, designHeel, designToe, designKey } from './design';
 
@@ -93,6 +93,7 @@ export function solveWall(input: WallInput): WallResults {
 }
 
 export const DEFAULT_INPUT: WallInput = {
+  code: 'ACI 318-25',
   geometry: {
     kind: 'cantilever',
     H_stem: 3000,
@@ -149,3 +150,50 @@ export const DEFAULT_INPUT: WallInput = {
     eccentricity: 'kern',
   },
 };
+
+/**
+ * Build a complete `WallGeometry` for a given kind, preserving the common
+ * cross-section fields from the previous geometry where possible. Used by
+ * the calculator UI when the user changes wall type via WallTypeChooser.
+ *
+ * For l-shaped walls, B_toe is forced to 0. For abutments, the code is
+ * automatically switched to AASHTO LRFD by the caller.
+ */
+export function defaultGeometryFor(kind: WallKind, prev?: WallGeometry): WallGeometry {
+  // Common base — pulled from prev if available, else from DEFAULT_INPUT
+  const base = prev ?? DEFAULT_INPUT.geometry;
+  const common = {
+    H_stem: base.H_stem,
+    t_stem_top: base.t_stem_top,
+    t_stem_bot: base.t_stem_bot,
+    B_toe: base.B_toe,
+    B_heel: base.B_heel,
+    H_foot: base.H_foot,
+    backfillSlope: base.backfillSlope,
+    frontFill: base.frontFill,
+    key: base.key,
+  };
+  switch (kind) {
+    case 'cantilever':
+      return { kind: 'cantilever', ...common };
+    case 'gravity':
+      return { kind: 'gravity', ...common, batterFront: 0, batterBack: 0 };
+    case 'semi-gravity':
+      return { kind: 'semi-gravity', ...common };
+    case 'l-shaped':
+      return { kind: 'l-shaped', ...common, B_toe: 0, stemLean: 0 };
+    case 'counterfort':
+      return { kind: 'counterfort', ...common, counterfortSpacing: 3000, counterfortThickness: 300 };
+    case 'buttressed':
+      return { kind: 'buttressed', ...common, buttressSpacing: 3000, buttressThickness: 300 };
+    case 'basement':
+      return { kind: 'basement', ...common, topElevation: common.H_stem, topFixity: 'pinned' };
+    case 'abutment':
+      return {
+        kind: 'abutment', ...common,
+        bridgeSeat: { width: 600, deadLoad: 250, liveLoad: 150 },
+        backwall: { H: 1500, t: 300 },
+        wingWall: undefined,
+      };
+  }
+}

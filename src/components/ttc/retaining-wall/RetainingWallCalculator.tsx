@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import type { WallInput } from '@/lib/retaining-wall/types';
-import { DEFAULT_INPUT, solveWall } from '@/lib/retaining-wall/solve';
+import type { WallInput, WallKind } from '@/lib/retaining-wall/types';
+import { DEFAULT_INPUT, solveWall, defaultGeometryFor } from '@/lib/retaining-wall/solve';
 import type { UnitSystem } from '@/lib/beam/units';
 import { GeometryPanel } from './GeometryPanel';
 import { MaterialsPanel } from './MaterialsPanel';
@@ -11,6 +11,7 @@ import { LoadsPanel } from './LoadsPanel';
 import { WallCanvas } from './WallCanvas';
 import { StabilityResults } from './StabilityResults';
 import { DesignResults } from './DesignResults';
+import { WallTypeChooser } from './WallTypeChooser';
 
 type Tab = 'geometry' | 'materials' | 'soil' | 'loads';
 type ResultTab = 'stability' | 'design';
@@ -37,8 +38,19 @@ export function RetainingWallCalculator() {
   const failCount = results?.errors.length ?? 0;
   const issueCount = results?.issues.length ?? 0;
 
+  const handleKindChange = (k: WallKind) => {
+    setInput((s) => {
+      const newGeom = defaultGeometryFor(k, s.geometry);
+      // Bridge abutments auto-switch to AASHTO LRFD; everything else keeps current code.
+      const newCode = k === 'abutment' ? 'AASHTO LRFD' : (s.code === 'AASHTO LRFD' ? 'ACI 318-25' : s.code);
+      return { ...s, geometry: newGeom, code: newCode };
+    });
+  };
+
   return (
     <div className="rw">
+      <WallTypeChooser kind={input.geometry.kind} onChange={handleKindChange} />
+
       <div className="rw__toolbar">
         <div className="rw__tabs" role="tablist">
           {(['geometry', 'materials', 'soil', 'loads'] as Tab[]).map((t) => (
