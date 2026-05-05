@@ -16,10 +16,16 @@ import { DesignResults } from './DesignResults';
 import { WallTypeChooser } from './WallTypeChooser';
 import dynamic from 'next/dynamic';
 
-// 3D viewer is loaded only when the user picks counterfort / buttressed —
-// keeps the bundle small for the common cantilever case.
+// Generic 3D viewer for kinds other than cantilever
 const WallViewer3D = dynamic(
   () => import('./WallViewer3D').then((m) => m.WallViewer3D),
+  { ssr: false, loading: () => <div className="rw__empty">Loading 3D viewer…</div> },
+);
+// Dedicated photo-realistic viewer for cantilever walls — concrete texture,
+// real rebar grid (vertical + horizontal stem + footing top + bottom),
+// semi-transparent soil, SSAO + bloom + tone mapping.
+const CantileverViewer3D = dynamic(
+  () => import('./CantileverViewer3D').then((m) => m.CantileverViewer3D),
   { ssr: false, loading: () => <div className="rw__empty">Loading 3D viewer…</div> },
 );
 
@@ -223,7 +229,11 @@ export function RetainingWallCalculator() {
             <>
               <WallCanvas input={input} results={results} unitSystem={unitSystem} />
               <div className="rw__canvas-3d">
-                <WallViewer3D input={input} />
+                {input.geometry.kind === 'cantilever' ? (
+                  <CantileverViewer3D input={input} result={results} />
+                ) : (
+                  <WallViewer3D input={input} />
+                )}
               </div>
             </>
           ) : (
