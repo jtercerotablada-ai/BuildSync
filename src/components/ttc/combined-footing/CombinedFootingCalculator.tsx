@@ -15,7 +15,7 @@ import { autoDesignCombinedFooting } from '@/lib/combined-footing/autoDesign';
 // Dynamic import for the 3D viewer (R3F) — client-only
 const CombinedFooting3D = dynamic(
   () => import('./CombinedFooting3D').then((m) => m.CombinedFooting3D),
-  { ssr: false, loading: () => <div className="rc-3d slab-3d"><p style={{ padding: '2rem', textAlign: 'center' }}>Loading 3D viewer…</p></div> },
+  { ssr: false, loading: () => <div className="rc-3d slab-3d"><p className="ab-empty slab-3d__loading">Loading 3D viewer…</p></div> },
 );
 
 type Code = 'ACI 318-25' | 'ACI 318-19';
@@ -67,7 +67,7 @@ export function CombinedFootingCalculator() {
     COMBINED_FOOTING_PRESETS[0].build()
   );
   const result = useMemo(() => analyzeCombinedFooting(model), [model]);
-  const summary = buildCombinedCheckSummary(result);
+  const summary = useMemo(() => buildCombinedCheckSummary(result), [result]);
   const [tab, setTab] = useState<Tab>('inputs');
   const [cover3dDataUrl, setCover3dDataUrl] = useState<string | undefined>();
 
@@ -85,10 +85,10 @@ export function CombinedFootingCalculator() {
   }, [captureCover3d]);
 
   return (
-    <div className="ab-section">
+    <div className="ab-root">
       {/* Topbar with presets + code selector */}
-      <section className="slab-topbar">
-        <div className="slab-topbar__group">
+      <section className="ab-section ab-topbar">
+        <div className="ab-input-group">
           <label>Preset</label>
           <select
             onChange={(e) => {
@@ -104,7 +104,7 @@ export function CombinedFootingCalculator() {
             ))}
           </select>
         </div>
-        <div className="slab-topbar__group">
+        <div className="ab-input-group">
           <label>Code</label>
           <select
             value={model.code}
@@ -114,13 +114,13 @@ export function CombinedFootingCalculator() {
             <option value="ACI 318-19">ACI 318-19</option>
           </select>
         </div>
-        <div className="slab-topbar__group">
+        <div className="ab-input-group">
           <label>Footing</label>
           <span className="ab-label">
             {(model.geometry.L / 1000).toFixed(2)} × {(model.geometry.B / 1000).toFixed(2)} × {(model.geometry.T / 1000).toFixed(2)} m
           </span>
         </div>
-        <div className="slab-topbar__group">
+        <div className="ab-input-group">
           <label>Overall</label>
           <span className={`ab-label ${result.ok ? 'ab-pass' : 'ab-fail'}`}>
             {result.ok ? '✓ PASS' : '✗ FAIL'}
@@ -181,7 +181,7 @@ export function CombinedFootingCalculator() {
       {tab === 'refs' && <RefsTab />}
 
       {result.warnings.length > 0 && (
-        <div className="slab-card" style={{ borderColor: 'rgba(201,168,76,0.55)', marginTop: '1rem' }}>
+        <div className="slab-card slab-card--warn">
           <h4>Warnings</h4>
           <ul>
             {result.warnings.map((w, i) => (
@@ -383,22 +383,22 @@ function AutoDesignTab({
   };
 
   return (
-    <div className="slab-card" style={{ borderColor: 'rgba(127,182,145,0.55)' }}>
+    <div className="slab-card slab-card--auto">
       <h4>Auto-Design Combined Footing (sizes L, B, T + picks rebar)</h4>
-      <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
+      <p className="ab-empty slab-auto__intro">
         Given the two columns + their service loads, soil (qa), and materials, the
         auto-design driver iteratively sizes the footing length L (centroid on the load
         resultant for uniform pressure), width B (from required area), and thickness T
         (until punching + 1-way shear pass), then picks bottom-long, top-long, and
         bottom-trans rebar. {model.code} references throughout.
       </p>
-      <div className="slab-fields" style={{ marginBottom: '0.6rem' }}>
+      <div className="slab-fields slab-auto__fields">
         <Field label="L/B aspect (target)">
           <Num val={aspect} step={0.1}
             onChange={(v) => setAspect(Math.max(1.5, Math.min(4, v)))} />
         </Field>
       </div>
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+      <div className="slab-auto__actions">
         <button type="button" className="ab-btn ab-btn--primary" onClick={handleRun}>
           Run Auto-Design
         </button>
@@ -412,7 +412,7 @@ function AutoDesignTab({
       {recommendation && (
         <div>
           {/* Summary chips */}
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.8rem', flexWrap: 'wrap' }}>
+          <div className="slab-auto__chips">
             <span className="ab-label">L = {recommendation.patchedInput.geometry.L} mm</span>
             <span className="ab-label">B = {recommendation.patchedInput.geometry.B} mm</span>
             <span className="ab-label">T = {recommendation.patchedInput.geometry.T} mm</span>
@@ -434,7 +434,7 @@ function AutoDesignTab({
 
           {/* Rationale */}
           <div className="ab-table-scroll">
-            <table className="ab-result-table" style={{ fontSize: '0.85rem' }}>
+            <table className="ab-result-table slab-auto__table">
               <thead>
                 <tr><th>Step</th><th>Formula</th><th>Substitution</th><th>Result</th></tr>
               </thead>
@@ -452,7 +452,7 @@ function AutoDesignTab({
           </div>
 
           {recommendation.warnings.length > 0 && (
-            <ul style={{ marginTop: '0.6rem', color: '#c9a84c' }}>
+            <ul className="slab-auto__warnings">
               {recommendation.warnings.map((w, i) => <li key={i}>{w}</li>)}
             </ul>
           )}
@@ -469,11 +469,11 @@ function DrawingsTab({
 }) {
   return (
     <div className="slab-inputs-grid">
-      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+      <div className="slab-card slab-card--span2">
         <h4>Plan view (top-down)</h4>
         <CombinedFootingPlan2D input={input} result={result} />
       </div>
-      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+      <div className="slab-card slab-card--span2">
         <h4>Section A-A (longitudinal, through both columns)</h4>
         <CombinedFootingSection2D input={input} result={result} />
       </div>

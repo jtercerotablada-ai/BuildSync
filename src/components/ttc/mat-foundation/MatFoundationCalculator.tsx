@@ -13,7 +13,7 @@ import { autoDesignMatFoundation } from '@/lib/mat-foundation/autoDesign';
 
 const MatFoundation3D = dynamic(
   () => import('./MatFoundation3D').then((m) => m.MatFoundation3D),
-  { ssr: false, loading: () => <div className="rc-3d slab-3d"><p style={{ padding: '2rem', textAlign: 'center' }}>Loading 3D viewer…</p></div> },
+  { ssr: false, loading: () => <div className="rc-3d slab-3d"><p className="ab-empty slab-3d__loading">Loading 3D viewer…</p></div> },
 );
 
 type Code = 'ACI 318-25' | 'ACI 318-19';
@@ -83,7 +83,7 @@ export function MatFoundationCalculator() {
     MAT_FOUNDATION_PRESETS[0].build()
   );
   const result = useMemo(() => analyzeMatFoundation(model), [model]);
-  const summary = buildMatCheckSummary(result);
+  const summary = useMemo(() => buildMatCheckSummary(result), [result]);
   const [tab, setTab] = useState<Tab>('inputs');
   const [cover3dDataUrl, setCover3dDataUrl] = useState<string | undefined>();
 
@@ -99,9 +99,9 @@ export function MatFoundationCalculator() {
   }, [captureCover3d]);
 
   return (
-    <div className="ab-section">
-      <section className="slab-topbar">
-        <div className="slab-topbar__group">
+    <div className="ab-root">
+      <section className="ab-section ab-topbar">
+        <div className="ab-input-group">
           <label>Preset</label>
           <select
             onChange={(e) => {
@@ -115,7 +115,7 @@ export function MatFoundationCalculator() {
             ))}
           </select>
         </div>
-        <div className="slab-topbar__group">
+        <div className="ab-input-group">
           <label>Code</label>
           <select value={model.code}
             onChange={(e) => dispatch({ type: 'SET_CODE', code: e.target.value as Code })}>
@@ -123,17 +123,17 @@ export function MatFoundationCalculator() {
             <option value="ACI 318-19">ACI 318-19</option>
           </select>
         </div>
-        <div className="slab-topbar__group">
+        <div className="ab-input-group">
           <label>Mat</label>
           <span className="ab-label">
             {(model.geometry.B / 1000).toFixed(2)} × {(model.geometry.L / 1000).toFixed(2)} × {(model.geometry.T / 1000).toFixed(2)} m
           </span>
         </div>
-        <div className="slab-topbar__group">
+        <div className="ab-input-group">
           <label>Columns</label>
           <span className="ab-label">{model.columns.length}</span>
         </div>
-        <div className="slab-topbar__group">
+        <div className="ab-input-group">
           <label>Overall</label>
           <span className={`ab-label ${result.ok ? 'ab-pass' : 'ab-fail'}`}>
             {result.ok ? '✓ PASS' : '✗ FAIL'}
@@ -186,7 +186,7 @@ export function MatFoundationCalculator() {
       {tab === 'refs' && <RefsTab />}
 
       {result.warnings.length > 0 && (
-        <div className="slab-card" style={{ borderColor: 'rgba(201,168,76,0.55)', marginTop: '1rem' }}>
+        <div className="slab-card slab-card--warn">
           <h4>Warnings</h4>
           <ul>
             {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
@@ -265,7 +265,7 @@ function InputsTab({ model, dispatch }: { model: MatFoundationInput; dispatch: R
       </div>
 
       {/* Columns */}
-      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+      <div className="slab-card slab-card--span2">
         <h4>Columns ({model.columns.length})
           <button type="button" className="ab-btn ab-btn--small" style={{ marginLeft: '0.6rem' }}
             onClick={() => dispatch({ type: 'ADD_COL' })}>
@@ -403,21 +403,21 @@ function AutoDesignTab({
   };
 
   return (
-    <div className="slab-card" style={{ borderColor: 'rgba(127,182,145,0.55)' }}>
+    <div className="slab-card slab-card--auto">
       <h4>Auto-Design Mat (sizes B, L, T + picks 4 mats from strip-method)</h4>
-      <p className="ab-empty" style={{ marginBottom: '0.6rem' }}>
+      <p className="ab-empty slab-auto__intro">
         Given the column array + soil + materials, the driver fits a rectangle around the
         columns with margin, sizes B and L for the required area, iterates T until punching
         passes at every column, then picks the 4 mats (top X/Y, bottom X/Y) from strip-method
         flexure (per metre) plus the §8.6.1.1 minimum. {model.code} references throughout.
       </p>
-      <div className="slab-fields" style={{ marginBottom: '0.6rem' }}>
+      <div className="slab-fields slab-auto__fields">
         <Field label="B/L aspect (target)">
           <Num val={aspect} step={0.1}
             onChange={(v) => setAspect(Math.max(0.5, Math.min(3, v)))} />
         </Field>
       </div>
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+      <div className="slab-auto__actions">
         <button type="button" className="ab-btn ab-btn--primary" onClick={handleRun}>
           Run Auto-Design
         </button>
@@ -430,7 +430,7 @@ function AutoDesignTab({
 
       {recommendation && (
         <div>
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.8rem', flexWrap: 'wrap' }}>
+          <div className="slab-auto__chips">
             <span className="ab-label">B = {recommendation.patchedInput.geometry.B} mm</span>
             <span className="ab-label">L = {recommendation.patchedInput.geometry.L} mm</span>
             <span className="ab-label">T = {recommendation.patchedInput.geometry.T} mm</span>
@@ -452,7 +452,7 @@ function AutoDesignTab({
           </div>
 
           <div className="ab-table-scroll">
-            <table className="ab-result-table" style={{ fontSize: '0.85rem' }}>
+            <table className="ab-result-table slab-auto__table">
               <thead>
                 <tr><th>Step</th><th>Formula</th><th>Substitution</th><th>Result</th></tr>
               </thead>
@@ -470,7 +470,7 @@ function AutoDesignTab({
           </div>
 
           {recommendation.warnings.length > 0 && (
-            <ul style={{ marginTop: '0.6rem', color: '#c9a84c' }}>
+            <ul className="slab-auto__warnings">
               {recommendation.warnings.map((w, i) => <li key={i}>{w}</li>)}
             </ul>
           )}
@@ -487,11 +487,11 @@ function SectionsTab({
 }: { model: MatFoundationInput; result: ReturnType<typeof analyzeMatFoundation> }) {
   return (
     <div className="slab-inputs-grid">
-      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+      <div className="slab-card slab-card--span2">
         <h4>Section A-A (along X)</h4>
         <MatFoundationSection2D input={model} result={result} axis="X" />
       </div>
-      <div className="slab-card" style={{ gridColumn: 'span 2' }}>
+      <div className="slab-card slab-card--span2">
         <h4>Section B-B (along Y)</h4>
         <MatFoundationSection2D input={model} result={result} axis="Y" />
       </div>

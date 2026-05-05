@@ -8160,6 +8160,62 @@ img, svg {
 /* Print button */
 .slab-print-btn { margin-left: auto; align-self: flex-end; }
 
+/* Slab/footing card variants — replace inline borderColor/gridColumn styles */
+.slab-card--auto {
+  border-color: rgba(127, 182, 145, 0.55);
+  box-shadow: 0 0 0 1px rgba(127, 182, 145, 0.12) inset;
+}
+.slab-card--warn {
+  border-color: rgba(201, 168, 76, 0.55);
+  margin-top: 1rem;
+}
+.slab-card--span2 { grid-column: span 2; }
+
+/* Auto-design panel internals (Combined + Mat foundation) */
+.slab-auto__intro      { margin-bottom: 0.6rem; }
+.slab-auto__fields     { margin-bottom: 0.6rem; }
+.slab-auto__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+.slab-auto__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-bottom: 0.85rem;
+}
+.slab-auto__table { font-size: 0.85rem; }
+.slab-auto__warnings {
+  margin-top: 0.6rem;
+  color: #c9a84c;
+  padding-left: 1.25rem;
+}
+.slab-auto__warnings li { margin-bottom: 0.25rem; }
+
+/* 3D viewer dynamic-import loading placeholder */
+.slab-3d__loading {
+  padding: 2rem;
+  text-align: center;
+}
+/* 3D viewer toolbar (toggles row) */
+.slab-3d__toolbar       { flex-wrap: wrap; }
+.slab-3d__toolbar-label {
+  margin-right: 0.4rem;
+  align-self: center;
+  letter-spacing: 0.06em;
+}
+/* 3D caption under canvas */
+.slab-3d__caption {
+  font-size: 0.86rem;
+  margin-top: 0.4rem;
+}
+.slab-3d__caption-warn {
+  color: #e8836a;
+  font-weight: 600;
+}
+
 /* 3D viewer */
 .slab-3d {
   display: flex;

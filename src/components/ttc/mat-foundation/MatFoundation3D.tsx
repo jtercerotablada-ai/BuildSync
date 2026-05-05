@@ -3,7 +3,7 @@
 import React, { Suspense, useState, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import {
-  OrbitControls, Grid, GizmoHelper, GizmoViewport, ContactShadows, Environment,
+  OrbitControls, Grid, GizmoHelper, GizmoViewport, ContactShadows, Environment, Text,
 } from '@react-three/drei';
 import * as THREE from 'three';
 import warehouseHDR from '@pmndrs/assets/hdri/warehouse.exr';
@@ -29,6 +29,7 @@ export function MatFoundation3D({ input, result }: Props) {
   const [showColumns, setShowColumns] = useState(true);
   const [showSoil, setShowSoil] = useState(true);
   const [showLoads, setShowLoads] = useState(true);
+  const [showDims, setShowDims] = useState(true);
 
   const g = input.geometry;
   const B = g.B * MM_TO_M;
@@ -36,6 +37,7 @@ export function MatFoundation3D({ input, result }: Props) {
   const T = g.T * MM_TO_M;
   const cover = g.coverClear * MM_TO_M;
   const camDist = Math.max(B, L) * 1.4;
+  const failingPunches = result.punching.filter((p) => !p.ok).length;
 
   const concreteMat = useMemo(() => new THREE.MeshStandardMaterial({
     color: '#cdc8bf',
@@ -53,12 +55,21 @@ export function MatFoundation3D({ input, result }: Props) {
   const topRebarMat = useMemo(() => new THREE.MeshStandardMaterial({
     color: '#5e8aa0', roughness: 0.6, metalness: 0.85,
   }), []);
+  const edgeBandMat = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#c9a84c', emissive: '#c9a84c', emissiveIntensity: 0.18,
+    roughness: 0.45, metalness: 0.85,
+  }), []);
+  const colMat = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#a8a39a', roughness: 0.85, metalness: 0.05,
+    transparent: cutaway, opacity: cutaway ? 0.55 : 1.0,
+    side: cutaway ? THREE.DoubleSide : THREE.FrontSide,
+  }), [cutaway]);
 
   return (
     <div className="rc-3d slab-3d">
       <div className="slab-3d__controls">
-        <div className="slab-contour__tabs" style={{ flexWrap: 'wrap' }}>
-          <span className="slab-3d__hint" style={{ marginRight: '0.4rem', alignSelf: 'center' }}>VIEW —</span>
+        <div className="slab-contour__tabs slab-3d__toolbar">
+          <span className="slab-3d__hint slab-3d__toolbar-label">VIEW —</span>
           <label className="ab-toggle"><input type="checkbox" checked={cutaway}
             onChange={(e) => setCutaway(e.target.checked)} /> <span>Glass concrete</span></label>
           <label className="ab-toggle"><input type="checkbox" checked={showRebar}
@@ -69,31 +80,36 @@ export function MatFoundation3D({ input, result }: Props) {
             onChange={(e) => setShowSoil(e.target.checked)} /> <span>Soil overburden</span></label>
           <label className="ab-toggle"><input type="checkbox" checked={showLoads}
             onChange={(e) => setShowLoads(e.target.checked)} /> <span>Load arrows</span></label>
+          <label className="ab-toggle"><input type="checkbox" checked={showDims}
+            onChange={(e) => setShowDims(e.target.checked)} /> <span>Dimensions</span></label>
         </div>
       </div>
 
       <div className="rc-3d__canvas slab-3d__canvas">
         <Canvas
           shadows
-          camera={{ position: [camDist, camDist * 0.7, camDist], fov: 38, near: 0.05, far: 400 }}
+          camera={{ position: [camDist, camDist * 0.85, camDist], fov: 38, near: 0.05, far: 400 }}
           gl={{ antialias: true, preserveDrawingBuffer: true }}
         >
           <color attach="background" args={['#0a0a0a']} />
           <Suspense fallback={null}>
-            <Environment files={warehouseHDR} background={false} environmentIntensity={0.55} />
+            <Environment files={warehouseHDR} background={false} environmentIntensity={0.18} />
           </Suspense>
-          <ambientLight intensity={0.4} />
-          <directionalLight position={[B * 4, T * 8, L * 4]} intensity={0.7} castShadow
+          <ambientLight intensity={0.32} />
+          <directionalLight position={[B * 4, T * 8, L * 4]} intensity={0.85} castShadow
             shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-bias={-0.0005} />
-          <directionalLight position={[-B * 2, T * 3, -L * 2]} intensity={0.25} />
+          <directionalLight position={[-B * 2, T * 3, -L * 2]} intensity={0.22} />
 
           {/* Mat slab — top at y = 0, bottom at y = -T. Centred at origin. */}
           <mesh position={[0, -T / 2, 0]} receiveShadow castShadow material={concreteMat}>
             <boxGeometry args={[B, T, L]} />
           </mesh>
 
+          {/* Glowing gold edge bands around the slab */}
+          <EdgeBand B={B} L={L} T={T} mat={edgeBandMat} />
+
           {showColumns && input.columns.map((col, i) => (
-            <ColumnAbove key={i} col={col} B={g.B} L={g.L} cutaway={cutaway} />
+            <ColumnAbove key={i} col={col} B={g.B} L={g.L} mat={colMat} />
           ))}
 
           {showSoil && (g.embedment ?? 0) > 0 && (
@@ -115,6 +131,8 @@ export function MatFoundation3D({ input, result }: Props) {
             <LoadArrow key={i} col={col} B={g.B} L={g.L} />
           ))}
 
+          {showDims && <DimensionLabels B={B} L={L} T={T} />}
+
           <Grid args={[B * 4, L * 4]}
             cellSize={0.5} cellThickness={0.45} cellColor="#3a3320"
             sectionSize={2.5} sectionThickness={0.9} sectionColor="#5a4f30"
@@ -122,7 +140,7 @@ export function MatFoundation3D({ input, result }: Props) {
             position={[0, -T - 0.005, 0]} infiniteGrid={false} />
 
           <ContactShadows position={[0, -T - 0.001, 0]}
-            opacity={0.55} scale={Math.max(B, L) * 1.6}
+            opacity={0.55} scale={Math.max(B, L) * 2.5}
             blur={2.4} far={3} resolution={1024} frames={1} smooth />
 
           <OrbitControls makeDefault enableDamping
@@ -136,10 +154,10 @@ export function MatFoundation3D({ input, result }: Props) {
         </Canvas>
       </div>
 
-      <p className="slab-3d__hint" style={{ fontSize: '0.86rem', marginTop: '0.4rem' }}>
+      <p className="slab-3d__hint slab-3d__caption">
         X = mat width B · Y = thickness T (vertical) · Z = mat length L. {input.columns.length} columns rendered;
-        {result.punching.filter((p) => !p.ok).length > 0 && (
-          <span style={{ color: '#e8836a', fontWeight: 600 }}> {result.punching.filter((p) => !p.ok).length} column(s) failing punching.</span>
+        {failingPunches > 0 && (
+          <span className="slab-3d__caption-warn"> {failingPunches} column(s) failing punching.</span>
         )}
       </p>
     </div>
@@ -148,24 +166,91 @@ export function MatFoundation3D({ input, result }: Props) {
 
 // ─── COLUMN ABOVE ───────────────────────────────────────────────────────────
 
-function ColumnAbove({ col, B, L, cutaway }: { col: MatColumn; B: number; L: number; cutaway: boolean }) {
+function ColumnAbove({ col, B, L, mat }: { col: MatColumn; B: number; L: number; mat: THREE.MeshStandardMaterial }) {
   // Convert column position from mat-local (origin at lower-left) to centred coords
   const cx_centred = (col.x - B / 2) * MM_TO_M;
   const cz_centred = -(col.y - L / 2) * MM_TO_M;     // SVG-style flip vs Z
   const cl = col.cx * MM_TO_M;
   const ct = (col.shape === 'circular' ? col.cx : (col.cy ?? col.cx)) * MM_TO_M;
   const colHeight = Math.max(cl, ct) * 5;
-  const colMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#a8a39a', roughness: 0.85, metalness: 0.05,
-    transparent: cutaway, opacity: cutaway ? 0.55 : 1.0,
-    side: cutaway ? THREE.DoubleSide : THREE.FrontSide,
-  }), [cutaway]);
   return (
-    <mesh position={[cx_centred, colHeight / 2, cz_centred]} material={colMat} castShadow>
+    <mesh position={[cx_centred, colHeight / 2, cz_centred]} material={mat} castShadow>
       {col.shape === 'circular'
         ? <cylinderGeometry args={[cl / 2, cl / 2, colHeight, 32]} />
         : <boxGeometry args={[cl, colHeight, ct]} />}
     </mesh>
+  );
+}
+
+// ─── EDGE BAND (gold trim around the slab outline) ──────────────────────────
+// Twelve thin bands hugging the four perimeter top + bottom edges.
+
+function EdgeBand({ B, L, T, mat }: { B: number; L: number; T: number; mat: THREE.MeshStandardMaterial }) {
+  const t = Math.min(B, L) * 0.012; // band thickness (square cross-section)
+  const half = t / 2;
+  // top + bottom rows: each has 4 edges (2 along X, 2 along Z), each slightly outset
+  return (
+    <group>
+      {[0, -T].map((y) => (
+        <group key={y}>
+          {/* Two edges parallel to X (length B), at z = ±L/2 */}
+          <mesh position={[0, y, +L / 2 + half]} material={mat}>
+            <boxGeometry args={[B + 2 * half, t, t]} />
+          </mesh>
+          <mesh position={[0, y, -L / 2 - half]} material={mat}>
+            <boxGeometry args={[B + 2 * half, t, t]} />
+          </mesh>
+          {/* Two edges parallel to Z (length L), at x = ±B/2 */}
+          <mesh position={[+B / 2 + half, y, 0]} material={mat}>
+            <boxGeometry args={[t, t, L]} />
+          </mesh>
+          <mesh position={[-B / 2 - half, y, 0]} material={mat}>
+            <boxGeometry args={[t, t, L]} />
+          </mesh>
+        </group>
+      ))}
+      {/* Vertical corner pillars (4 of them) */}
+      {[
+        [+B / 2 + half, +L / 2 + half],
+        [+B / 2 + half, -L / 2 - half],
+        [-B / 2 - half, +L / 2 + half],
+        [-B / 2 - half, -L / 2 - half],
+      ].map(([x, z], i) => (
+        <mesh key={`corner-${i}`} position={[x, -T / 2, z]} material={mat}>
+          <boxGeometry args={[t, T, t]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// ─── DIMENSION LABELS (floating gold B / L / T text) ────────────────────────
+
+function DimensionLabels({ B, L, T }: { B: number; L: number; T: number }) {
+  const off = Math.max(B, L) * 0.12;
+  const fs = Math.max(B, L) * 0.055;
+  return (
+    <group>
+      {/* B — width along X, label below front edge */}
+      <Text position={[0, -T - off * 0.4, +L / 2 + off]} fontSize={fs}
+            color="#c9a84c" anchorX="center" anchorY="middle"
+            outlineWidth={fs * 0.05} outlineColor="#000">
+        B = {(B * 1000).toFixed(0)} mm
+      </Text>
+      {/* L — length along Z, label on right side */}
+      <Text position={[+B / 2 + off, -T - off * 0.4, 0]} fontSize={fs}
+            color="#c9a84c" anchorX="center" anchorY="middle"
+            rotation={[0, -Math.PI / 2, 0]}
+            outlineWidth={fs * 0.05} outlineColor="#000">
+        L = {(L * 1000).toFixed(0)} mm
+      </Text>
+      {/* T — thickness, label on left back corner pointing up */}
+      <Text position={[-B / 2 - off * 0.6, -T / 2, -L / 2 - off * 0.6]} fontSize={fs * 0.85}
+            color="#c9a84c" anchorX="center" anchorY="middle"
+            outlineWidth={fs * 0.05} outlineColor="#000">
+        T = {(T * 1000).toFixed(0)} mm
+      </Text>
+    </group>
   );
 }
 
@@ -282,6 +367,11 @@ function TopMatY({
 }
 
 // ─── LOAD ARROWS ────────────────────────────────────────────────────────────
+// Shared, glowing red-orange material — only allocated once per page-load.
+const ARROW_MAT = new THREE.MeshStandardMaterial({
+  color: '#ff6a55', emissive: '#ff6a55', emissiveIntensity: 0.65,
+  roughness: 0.35, metalness: 0.4,
+});
 
 function LoadArrow({ col, B, L }: { col: MatColumn; B: number; L: number }) {
   const cx_centred = (col.x - B / 2) * MM_TO_M;
@@ -291,19 +381,29 @@ function LoadArrow({ col, B, L }: { col: MatColumn; B: number; L: number }) {
   const colHeight = Math.max(cl, ct) * 5;
   const arrowLen = Math.max(cl, 0.5) * 2.5;
   const arrowY = colHeight + arrowLen;
-  const arrowMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#ff6a55', emissive: '#ff6a55', emissiveIntensity: 0.5,
-    roughness: 0.4, metalness: 0.3,
-  }), []);
   const headSize = arrowLen * 0.18;
+  const Pu = 1.2 * col.PD + 1.6 * col.PL;
+  const labelFs = arrowLen * 0.12;
   return (
     <group position={[cx_centred, arrowY, cz_centred]}>
-      <mesh material={arrowMat}>
+      {/* Shaft */}
+      <mesh material={ARROW_MAT}>
         <cylinderGeometry args={[arrowLen * 0.045, arrowLen * 0.045, arrowLen * 0.85, 16]} />
       </mesh>
-      <mesh position={[0, -arrowLen * 0.55, 0]} material={arrowMat}>
+      {/* Cone tip pointing DOWN (gravity → column) */}
+      <mesh position={[0, -arrowLen * 0.55, 0]} material={ARROW_MAT}>
         <coneGeometry args={[headSize, headSize * 1.8, 24]} />
       </mesh>
+      {/* Glow ring at the top of the shaft */}
+      <mesh position={[0, arrowLen * 0.45, 0]} rotation={[Math.PI / 2, 0, 0]} material={ARROW_MAT}>
+        <torusGeometry args={[arrowLen * 0.10, arrowLen * 0.018, 12, 28]} />
+      </mesh>
+      {/* Floating Pu = … kN label */}
+      <Text position={[0, arrowLen * 0.62, 0]} fontSize={labelFs}
+            color="#ffd2c5" anchorX="center" anchorY="middle"
+            outlineWidth={labelFs * 0.06} outlineColor="#3a0d05">
+        Pu {col.id} = {Pu.toFixed(0)} kN
+      </Text>
     </group>
   );
 }
