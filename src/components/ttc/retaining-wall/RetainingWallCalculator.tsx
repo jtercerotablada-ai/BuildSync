@@ -10,7 +10,7 @@ import { GeometryPanel } from './GeometryPanel';
 import { MaterialsPanel } from './MaterialsPanel';
 import { SoilPanel } from './SoilPanel';
 import { LoadsPanel } from './LoadsPanel';
-import { WallCanvas } from './WallCanvas';
+import { WallCanvas, type WallView2DMode } from './WallCanvas';
 import { StabilityResults } from './StabilityResults';
 import { DesignResults } from './DesignResults';
 import dynamic from 'next/dynamic';
@@ -36,6 +36,7 @@ export function RetainingWallCalculator() {
   const [input, setInput] = useState<WallInput>(DEFAULT_INPUT);
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('metric');
   const [viewMode, setViewMode] = useState<ViewMode>('2d');
+  const [view2DMode, setView2DMode] = useState<WallView2DMode>('arch');
 
   const results = useMemo(() => {
     try {
@@ -234,7 +235,28 @@ export function RetainingWallCalculator() {
               </div>
             ) : (
               <div className="rw__canvas-2d">
-                <WallCanvas input={input} results={results} unitSystem={unitSystem} />
+                {/* CYPE-style sub-tabs: each view shows only what's relevant */}
+                <div className="rw__view2d-tabs seg" role="group" aria-label="Vista 2D">
+                  {([
+                    ['arch', 'Arquitectura'],
+                    ['loads', 'Cargas'],
+                    ['pressures', 'Presiones'],
+                    ['rebar', 'Armado'],
+                  ] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={view2DMode === key ? 'is-active' : ''}
+                      onClick={() => setView2DMode(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="rw__view2d-svg-wrap">
+                  <WallCanvas input={input} results={results}
+                    unitSystem={unitSystem} mode={view2DMode} />
+                </div>
               </div>
             )
           ) : (

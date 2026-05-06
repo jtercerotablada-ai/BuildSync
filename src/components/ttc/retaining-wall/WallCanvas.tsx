@@ -4,10 +4,24 @@ import React, { useMemo } from 'react';
 import type { WallInput, WallResults } from '@/lib/retaining-wall/types';
 import type { UnitSystem } from '@/lib/beam/units';
 
+/**
+ * 2D view sub-mode — CYPE separates the section drawing into focused views,
+ * each one showing only what's relevant to that aspect. We do the same so
+ * the section never feels cluttered.
+ *
+ *   • 'arch'      — Architecture: concrete + soil + dimensions + ground
+ *                   elevation labels. The clean default.
+ *   • 'loads'     — Architecture + surcharge / point-load arrows.
+ *   • 'pressures' — Architecture + active / passive / bearing diagrams.
+ *   • 'rebar'     — Architecture (faded) + all rebar + cyan annotations.
+ */
+export type WallView2DMode = 'arch' | 'loads' | 'pressures' | 'rebar';
+
 interface Props {
   input: WallInput;
   results: WallResults;
   unitSystem?: UnitSystem;
+  mode?: WallView2DMode;
 }
 
 /**
@@ -93,10 +107,19 @@ function pickBarLayout(As_req: number, sMax: number = 300):
   return { db: last.db, ab: last.ab, spacing: 80, label: last.label };
 }
 
-export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
+export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch' }: Props) {
   const { geometry: g } = input;
   const H_total = g.H_stem + g.H_foot;
   const B = g.B_toe + g.t_stem_bot + g.B_heel;
+  // CYPE-style sub-mode flags. Architecture base is always shown; the rest
+  // toggle on the chosen view.
+  const showSurcharge = mode === 'loads';
+  const showPressures = mode === 'pressures';
+  const showRebar     = mode === 'rebar';
+  // Architecture callouts (Fuste/Punta/Talón/Relleno…) only on the
+  // Architecture and Loads views — Pressures/Rebar have their own labels
+  // that would compete with the structural labels.
+  const showArchCallouts = mode === 'arch' || mode === 'loads';
 
   // surcharge equivalent depth for the pink/green band above backfill
   const gammaBackfill = input.backfill[0]?.gamma ?? 18;
@@ -491,7 +514,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           • Footing transverse mats (run in-plane) → horizontal RED lines
           • Footing longitudinal bars (run perpendicular) → DOTS across width
           • Cap beam at top of stem → 2 dots                                 */}
-      {(() => {
+      {showRebar && (() => {
         // Stem face X at any Y (taper interpolation). Front face is vertical
         // in this implementation; back face tapers from t_bot to t_top.
         const stemFrontXAt = (_y: number) => stemFrontX;
@@ -617,7 +640,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           Each label sits in clear space and points at the rebar group
           with a thin cyan line + dot, just like CYPE's reinforcement
           drawings. Labels include the bar size and spacing in mm.        */}
-      {(() => {
+      {showRebar && (() => {
         const stemBackXAt = (y: number) => {
           const t = Math.max(0, Math.min(1, (y - footTop) / Math.max(g.H_stem, 1)));
           return stemBackX_bot + (stemBackX_top - stemBackX_bot) * t;
@@ -769,7 +792,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
       })()}
 
       {/* ─── SURCHARGE: green down-arrows above grass ─── */}
-      {input.loads.surchargeQ > 0 && (
+      {showSurcharge && input.loads.surchargeQ > 0 && (
         <g>
           {Array.from({ length: 9 }).map((_, i) => {
             const t = i / 8;
@@ -801,7 +824,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
       )}
 
       {/* ─── ACTIVE PRESSURE TRIANGLE (yellow, to the right of the wall) ─── */}
-      {pressMax > 1 && (
+      {showPressures && pressMax > 1 && (
         <g>
           {/* vertical axis line */}
           <line
@@ -854,7 +877,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
       )}
 
       {/* ─── PASSIVE PRESSURE (green triangle on toe side) ─── */}
-      {input.baseSoil.passiveEnabled && g.frontFill > 0 && (() => {
+      {showPressures && input.baseSoil.passiveEnabled && g.frontFill > 0 && (() => {
         const hpm = (g.frontFill + g.H_foot) / 1000;
         const Kp = Ka > 0 ? 1 / Ka : 3;
         const sigmaPassive = Kp * input.baseSoil.gamma * hpm;
@@ -895,7 +918,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
       })()}
 
       {/* ─── BEARING STRESS under footing (red upward arrows + polygon) ─── */}
-      <g>
+      {showPressures && <g>
         <polygon
           points={poly(bearingPoly)}
           fill={C.bearingLight}
@@ -929,7 +952,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           fs={fs.sm}
           textColor={C.label}
         />
-      </g>
+      </g>}
 
       {/* ─── DIMENSIONS: orange double-arrows ─── */}
       {/* H total stem height on the far right */}
@@ -960,8 +983,10 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           Estilo educativo / didáctico en español, con líneas guía
           terminadas en un pequeño punto dorado sobre el elemento que
           identifican (estilo de las imágenes de referencia ACI / SkyBird /
-          textbooks profesionales).                                          */}
-      {(() => {
+          textbooks profesionales).
+          Sólo en Architecture y Loads (en Pressures/Rebar competirían con
+          los callouts propios de cada vista).                              */}
+      {showArchCallouts && (() => {
         const items: Array<{ side: 'left' | 'right'; tx: number; ty: number;
                              dx: number; dy: number; text: string; fs: number }> = [];
 
