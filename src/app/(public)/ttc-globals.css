@@ -6354,6 +6354,45 @@ img, svg {
   width: 100%;
   height: 100%;
 }
+/* CYPE-style sub-tabs above the section drawing (Arquitectura / Cargas /
+   Presiones / Armado). */
+.rw__view2d-tabs {
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.45rem 0.6rem 0.4rem;
+  background: rgba(20, 20, 24, 0.85);
+  border-bottom: 1px solid rgba(201, 168, 76, 0.18);
+}
+.rw__view2d-tabs button {
+  flex: 1;
+  min-height: 36px;
+  padding: 0 0.7rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: rgba(242, 239, 228, 0.65);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.rw__view2d-tabs button:hover {
+  color: #f2efe4;
+  border-color: rgba(201, 168, 76, 0.4);
+}
+.rw__view2d-tabs button.is-active {
+  background: rgba(201, 168, 76, 0.18);
+  border-color: var(--color-accent, #c9a84c);
+  color: #fff;
+}
+.rw__view2d-svg-wrap {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  width: 100%;
+}
 .rw__canvas-2d .rw-viz__svg {
   flex: 1 1 auto;
   width: 100%;
@@ -6382,8 +6421,11 @@ img, svg {
 
 .rw-results-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 0.85rem;
+  /* Auto-fit with a higher min so on wide screens the 4 stability cards (or 3
+     design cards) fill the available width — no empty columns reserved. */
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 1rem;
+  width: 100%;
 }
 .rw-results-block {
   background: #131315;

@@ -20,6 +20,7 @@ export function StabilityResults({ results, unitSystem }: Props) {
   const f = (si: number, q: Quantity, dig = 2) => fromSI(si, q, unitSystem).toFixed(dig);
 
   return (
+    <>
     <div className="rw-results-grid">
       {/* Pressure section */}
       <section className="rw-results-block">
@@ -74,30 +75,31 @@ export function StabilityResults({ results, unitSystem }: Props) {
         />
       </section>
 
-      {/* Errors / Warnings — full width row */}
-      {(results.errors.length > 0 || results.issues.length > 0) && (
-        <section className="rw-results-block rw-results-block--full">
-          {results.errors.length > 0 && (
-            <div className="rw-results__errors">
-              {results.errors.map((e, i) => (
-                <div key={i} className="rw-results__error">
-                  <span className="rw-results__error-icon">⚠</span> {e}
-                </div>
-              ))}
-            </div>
-          )}
-          {results.issues.length > 0 && (
-            <div className="rw-results__issues">
-              {results.issues.map((m, i) => (
-                <div key={i} className="rw-results__issue">
-                  {m}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
     </div>
+    {/* Errors / Warnings — sibling of the grid, spans full width naturally */}
+    {(results.errors.length > 0 || results.issues.length > 0) && (
+      <section className="rw-results-block--full">
+        {results.errors.length > 0 && (
+          <div className="rw-results__errors">
+            {results.errors.map((e, i) => (
+              <div key={i} className="rw-results__error">
+                <span className="rw-results__error-icon">⚠</span> {e}
+              </div>
+            ))}
+          </div>
+        )}
+        {results.issues.length > 0 && (
+          <div className="rw-results__issues">
+            {results.issues.map((m, i) => (
+              <div key={i} className="rw-results__issue">
+                {m}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    )}
+    </>
   );
 }
 
