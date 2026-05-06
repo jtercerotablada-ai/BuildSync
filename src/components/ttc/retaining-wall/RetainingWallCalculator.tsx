@@ -124,7 +124,7 @@ export function RetainingWallCalculator() {
               type="button"
               className={viewMode === '2d' ? 'is-active' : ''}
               onClick={() => setViewMode('2d')}
-              title="Vista 2D (sección estilo CYPE)"
+              title="2D view (CYPE-style section)"
             >
               2D
             </button>
@@ -132,7 +132,7 @@ export function RetainingWallCalculator() {
               type="button"
               className={viewMode === '3d' ? 'is-active' : ''}
               onClick={() => setViewMode('3d')}
-              title="Vista 3D (concreto fantasma + armado)"
+              title="3D view (ghost concrete + rebar)"
             >
               3D
             </button>
@@ -236,12 +236,12 @@ export function RetainingWallCalculator() {
             ) : (
               <div className="rw__canvas-2d">
                 {/* CYPE-style sub-tabs: each view shows only what's relevant */}
-                <div className="rw__view2d-tabs seg" role="group" aria-label="Vista 2D">
+                <div className="rw__view2d-tabs seg" role="group" aria-label="2D view sub-mode">
                   {([
-                    ['arch', 'Arquitectura'],
-                    ['loads', 'Cargas'],
-                    ['pressures', 'Presiones'],
-                    ['rebar', 'Armado'],
+                    ['arch', 'Architecture'],
+                    ['loads', 'Loads'],
+                    ['pressures', 'Pressures'],
+                    ['rebar', 'Reinforcement'],
                   ] as const).map(([key, label]) => (
                     <button
                       key={key}

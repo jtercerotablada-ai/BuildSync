@@ -484,13 +484,12 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
         };
         const els: React.ReactElement[] = [];
 
-        // ═══ Stem vertical bar (rear face, main flexural rebar) ═══
+        // ═══ Stem vertical bar — TENSION FACE (rear, main flexural rebar) ═══
         const dbSV = stemVert2D.db;
         const yBotDev = footTop - g.H_foot * 0.6; // anchor development depth
         const yTopBend = stemTop - cover;
         const xRearBot = stemBackXAt(footTop) - cover - dbSV / 2;
         const xRearTop = stemBackXAt(yTopBend) - cover - dbSV / 2;
-        // 2-segment polyline: starts in footing, comes up rear face
         els.push(
           <polyline key="stem-vert"
             points={[
@@ -511,6 +510,31 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
             stroke={C.rebar} strokeWidth={Math.max(dbSV * 1.6, 14)}
             strokeLinecap="round" />
         );
+        // ═══ Stem vertical bar — COMPRESSION FACE (front), §11.7.2.3 ═══
+        // For walls > 250 mm thick, ACI 318-25 §11.7.2.3 requires
+        // distributed reinforcement in TWO layers (one near each face).
+        // The compression face uses minimum reinforcement (#4 @ 300 mm
+        // typical) for shrinkage / temperature + crack control.
+        if (g.t_stem_bot > 250) {
+          const dbSVf = 12.7;  // #4
+          const xFrontBar = stemFrontX + cover + dbSVf / 2;
+          els.push(
+            <line key="stem-vert-front"
+              x1={xW(xFrontBar)} y1={yW(yBotDev)}
+              x2={xW(xFrontBar)} y2={yW(yTopBend)}
+              stroke={C.rebar}
+              strokeWidth={Math.max(dbSVf * 1.6, 12)}
+              strokeLinecap="round" />
+          );
+          // Hook at the bottom toward the heel (per R13.3.6 — both faces hook)
+          els.push(
+            <line key="stem-hook-front"
+              x1={xW(xFrontBar)} y1={yW(yBotDev)}
+              x2={xW(xFrontBar + hookLen)} y2={yW(yBotDev)}
+              stroke={C.rebar} strokeWidth={Math.max(dbSVf * 1.6, 12)}
+              strokeLinecap="round" />
+          );
+        }
 
         // ═══ Stem horizontal bars (dots at multiple heights, both faces) ═══
         const sHoriz = stemHoriz2D.spacing;
@@ -608,17 +632,25 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
         const labels: Array<{
           tx: number; ty: number; dx: number; dy: number; text: string;
         }> = [
-          // Stem vertical
+          // Stem vertical — tension face (rear)
           {
-            text: `${stemVert2D.label}@${stemVert2D.spacing.toFixed(0)} (fuste vert.)`,
+            text: `${stemVert2D.label}@${stemVert2D.spacing.toFixed(0)} stem vert. rear`,
             tx: xW(stemFrontX - 1100),
             ty: yW(stemTop - g.H_stem * 0.45),
             dx: xW(stemBackXAt(stemTop - g.H_stem * 0.45) - cover),
             dy: yW(stemTop - g.H_stem * 0.45),
           },
+          // Stem vertical — compression face (front), only when t > 250 mm
+          ...(g.t_stem_bot > 250 ? [{
+            text: '#4@300 stem vert. front',
+            tx: xW(stemFrontX - 1100),
+            ty: yW(stemTop - g.H_stem * 0.65),
+            dx: xW(stemFrontX + cover + 50),
+            dy: yW(stemTop - g.H_stem * 0.65),
+          }] : []),
           // Stem horizontal
           {
-            text: `${stemHoriz2D.label}@${stemHoriz2D.spacing.toFixed(0)} (fuste horiz.)`,
+            text: `${stemHoriz2D.label}@${stemHoriz2D.spacing.toFixed(0)} stem horiz.`,
             tx: xW(stemBackX_bot + 900),
             ty: yW(stemTop - g.H_stem * 0.18),
             dx: xW(stemBackXAt(stemTop - g.H_stem * 0.18) - cover * 1.5),
@@ -626,7 +658,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
           },
           // Cap beam
           {
-            text: '2 #4 (cabeza)',
+            text: '2 #4 cap beam',
             tx: xW(stemFrontX - 1100),
             ty: yW(stemTop + 100),
             dx: xW(stemFrontX + 50),
@@ -634,7 +666,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
           },
           // Heel top
           {
-            text: `${heelTop2D.label}@${heelTop2D.spacing.toFixed(0)} (talón sup.)`,
+            text: `${heelTop2D.label}@${heelTop2D.spacing.toFixed(0)} heel top`,
             tx: xW(B + 700),
             ty: yW(footTop + 250),
             dx: xW((stemBackX_bot + B) / 2),
@@ -642,7 +674,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
           },
           // Toe bottom
           {
-            text: `${toeBot2D.label}@${toeBot2D.spacing.toFixed(0)} (punta inf.)`,
+            text: `${toeBot2D.label}@${toeBot2D.spacing.toFixed(0)} toe bottom`,
             tx: xW(B / 2 - 600),
             ty: yW(-padB * 0.32),
             dx: xW(B / 2),
@@ -650,7 +682,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
           },
           // Footing longitudinal
           {
-            text: `${footLong2D.label}@${footLong2D.spacing} (long. zapata)`,
+            text: `${footLong2D.label}@${footLong2D.spacing} footing long.`,
             tx: xW(0 + 200),
             ty: yW(-padB * 0.32),
             dx: xW(g.B_toe * 0.5),
@@ -920,13 +952,11 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
         color: C.dimHex,
       })}
 
-      {/* ─── SPANISH CALLOUTS — leader-line + dot + label ─────────────────────
-          Estilo educativo / didáctico en español, con líneas guía
-          terminadas en un pequeño punto dorado sobre el elemento que
-          identifican (estilo de las imágenes de referencia ACI / SkyBird /
-          textbooks profesionales).
-          Sólo en Architecture y Loads (en Pressures/Rebar competirían con
-          los callouts propios de cada vista).                              */}
+      {/* ─── ARCHITECTURE CALLOUTS — leader-line + dot + label ──────────────
+          Education-style labels with leader lines ending in a gold dot on
+          the element being identified (ACI / textbook reference style).
+          Only on Architecture and Loads views — on Pressures/Rebar these
+          would compete with the view-specific labels.                      */}
       {showArchCallouts && (() => {
         const items: Array<{ side: 'left' | 'right'; tx: number; ty: number;
                              dx: number; dy: number; text: string; fs: number }> = [];
@@ -938,10 +968,10 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
           ty: yW(stemTop - g.H_stem * 0.35),
           dx: xW(stemFrontX + g.t_stem_bot * 0.5),
           dy: yW(stemTop - g.H_stem * 0.35),
-          text: 'Fuste',
+          text: 'Stem',
           fs: fs.sm,
         });
-        // Punta (toe) — left side, lower
+        // Toe — left side, lower
         if (g.B_toe > 0) {
           items.push({
             side: 'left',
@@ -949,38 +979,38 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
             ty: yW(g.H_foot * 0.5 - padB * 0.05),
             dx: xW(g.B_toe * 0.5),
             dy: yW(g.H_foot * 0.5),
-            text: 'Punta',
+            text: 'Toe',
             fs: fs.sm,
           });
         }
-        // Talón (heel) — right side
+        // Heel — right side
         items.push({
           side: 'right',
           tx: xW(B + padR * 0.5),
           ty: yW(g.H_foot * 0.4 - padB * 0.06),
           dx: xW((stemBackX_bot + B) / 2),
           dy: yW(g.H_foot * 0.5),
-          text: 'Talón',
+          text: 'Heel',
           fs: fs.sm,
         });
-        // Suelo de cimentación — bottom-left
+        // Foundation soil — bottom-left
         items.push({
           side: 'left',
           tx: xW(xLeft + 250),
           ty: yW(-padB * 0.55),
           dx: xW(B * 0.25),
           dy: yW(-padB * 0.30),
-          text: 'Suelo de cimentación',
+          text: 'Foundation soil',
           fs: fs.sm,
         });
-        // Relleno — far right, upper-right corner
+        // Backfill — far right, upper-right corner
         items.push({
           side: 'right',
           tx: xW(B + padR * 0.5),
           ty: yW(stemTop - g.H_stem * 0.3),
           dx: xW(B + padR * 0.18),
           dy: yW(stemTop - g.H_stem * 0.3),
-          text: 'Relleno',
+          text: 'Backfill',
           fs: fs.sm,
         });
         // (drainage gravel + pipe labels removed — construction detail

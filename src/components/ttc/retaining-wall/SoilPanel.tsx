@@ -107,7 +107,7 @@ export function SoilPanel({
             onChange={(v) => setBase('delta', (v * Math.PI) / 180)}
           />
           <Field label={`ca (${pressU})`} siValue={baseSoil.ca} q="pressure" system={unitSystem} onChange={(v) => setBase('ca', v)} />
-          <Field label={`q_allow (${pressU})`} siValue={baseSoil.qAllow} q="pressure" system={unitSystem} onChange={(v) => setBase('qAllow', v)} />
+          <Field label={`Allowable q (${pressU})`} siValue={baseSoil.qAllow} q="pressure" system={unitSystem} onChange={(v) => setBase('qAllow', v)} />
         </div>
         <label className="rw-check">
           <input

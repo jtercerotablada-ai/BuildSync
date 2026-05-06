@@ -114,10 +114,10 @@ export function CantileverViewer3D({ input, result }: Props) {
     <div className="rw-3d slab-3d cantilever-3d">
       <div className="slab-3d__controls">
         <span className="slab-3d__hint">
-          Muro cantilever · B = {Bfoot.toFixed(2)} m · H = {(Hstem + Hfoot).toFixed(2)} m ·
-          Fuste: {stemVert.label}@{stemVert.spacing.toFixed(0)} mm ·
-          Talón: {heelTop.label}@{heelTop.spacing.toFixed(0)} mm ·
-          Punta: {toeBot.label}@{toeBot.spacing.toFixed(0)} mm
+          Cantilever wall · B = {Bfoot.toFixed(2)} m · H = {(Hstem + Hfoot).toFixed(2)} m ·
+          Stem: {stemVert.label}@{stemVert.spacing.toFixed(0)} mm ·
+          Heel: {heelTop.label}@{heelTop.spacing.toFixed(0)} mm ·
+          Toe: {toeBot.label}@{toeBot.spacing.toFixed(0)} mm
         </span>
       </div>
       <div className="rc-3d__canvas slab-3d__canvas">
@@ -155,11 +155,22 @@ export function CantileverViewer3D({ input, result }: Props) {
           />
 
           {/* ──────── REBAR — protagonista ──────── */}
+          {/* Tension face (rear) — main flexural rebar, sized by Mu */}
           <StemVerticalBars
             xRearBot={xStemBack} xRearTop={xStemBackTop}
             Hstem={Hstem} Hfoot={Hfoot} wallL={wallL} cover={cover}
             db={stemVert.db * MM_TO_M} spacing={stemVert.spacing * MM_TO_M}
           />
+          {/* Compression face (front) — required by ACI 318-25 §11.7.2.3
+              when t_bot > 250 mm (two-layer distribution). Uses minimum
+              vertical reinforcement at the typical compression-face spacing. */}
+          {g.t_stem_bot > 250 && (
+            <StemVerticalBarsFront
+              xFront={xStemFront}
+              Hstem={Hstem} Hfoot={Hfoot} wallL={wallL} cover={cover}
+              db={0.0127} spacing={0.30}
+            />
+          )}
           <StemHorizontalBars
             xFront={xStemFront} xBack={xStemBack}
             xFrontTop={xStemFront} xBackTop={xStemBackTop}
@@ -353,6 +364,51 @@ function StemVerticalBars({
   );
 }
 
+/**
+ * Compression-face vertical rebar (front face of stem). Per ACI 318-25
+ * §11.7.2.3, walls thicker than 250 mm must distribute vertical
+ * reinforcement in TWO layers parallel to the wall faces — the rear
+ * (tension) face takes the main flexural rebar, the front (compression)
+ * face takes minimum reinforcement against shrinkage / temperature and
+ * to control crack propagation under load reversal.
+ *
+ * The front face is vertical (no taper) so the bars are straight.
+ */
+function StemVerticalBarsFront({
+  xFront, Hstem, Hfoot, wallL, cover, db, spacing,
+}: {
+  xFront: number;
+  Hstem: number; Hfoot: number; wallL: number; cover: number;
+  db: number; spacing: number;
+}) {
+  const layout = useMemo(() => {
+    const yLo = -Hfoot * 0.6;        // dev length down into footing
+    const yHi = Hstem;
+    const xBar = xFront + cover + db / 2;  // just inside the front cover
+    const len = yHi - yLo;
+    const yCenter = (yLo + yHi) / 2;
+
+    const out: { x: number; y: number; z: number }[] = [];
+    const nBars = Math.max(2, Math.floor(wallL / spacing) + 1);
+    const zStart = -wallL / 2 + cover * 2;
+    const dz = (wallL - 4 * cover) / Math.max(nBars - 1, 1);
+    for (let i = 0; i < nBars; i++) {
+      out.push({ x: xBar, y: yCenter, z: zStart + i * dz });
+    }
+    return { bars: out, len };
+  }, [xFront, Hstem, Hfoot, wallL, cover, db, spacing]);
+  return (
+    <Instances limit={500} castShadow receiveShadow>
+      <cylinderGeometry args={[db / 2, db / 2, 1, 12]} />
+      <StemRebarMaterial />
+      {layout.bars.map((b, i) => (
+        <Instance key={i} position={[b.x, b.y, b.z]}
+                  scale={[1, layout.len, 1]} />
+      ))}
+    </Instances>
+  );
+}
+
 function StemHorizontalBars({
   xFront, xBack, xFrontTop, xBackTop, Hstem, wallL, cover, db, spacing,
 }: {
@@ -502,17 +558,17 @@ function Callouts({
       <Text position={[xStemFront - 0.6, Hstem * 0.55, z]} fontSize={fs}
             color={C.callout} anchorX="right" anchorY="middle"
             outlineWidth={fs * 0.07} outlineColor={C.calloutBg}>
-        Fuste
+        Stem
       </Text>
       <Text position={[+Bfoot / 2 + 0.4, -Hfoot / 2, z]} fontSize={fs * 0.85}
             color={C.callout} anchorX="left" anchorY="middle"
             outlineWidth={fs * 0.07} outlineColor={C.calloutBg}>
-        Talón
+        Heel
       </Text>
       <Text position={[-Bfoot / 2 - 0.4, -Hfoot / 2, z]} fontSize={fs * 0.85}
             color={C.callout} anchorX="right" anchorY="middle"
             outlineWidth={fs * 0.07} outlineColor={C.calloutBg}>
-        Punta
+        Toe
       </Text>
     </group>
   );

@@ -30,13 +30,13 @@ export function GeometryPanel({ geometry, unitSystem, onChange }: Props) {
       <div className="rw-panel__section">
         <div className="rw-panel__subtitle">Stem</div>
         <div className="rw-fields">
-          <Field label={`H_stem (${dim})`} siValue={geometry.H_stem} q="dimension" system={unitSystem}
+          <Field label={`Stem height (${dim})`} siValue={geometry.H_stem} q="dimension" system={unitSystem}
             onChange={(v) => set('H_stem', v)} />
-          <Field label={`t_top (${dim})`} siValue={geometry.t_stem_top} q="dimension" system={unitSystem}
+          <Field label={`Top thickness (${dim})`} siValue={geometry.t_stem_top} q="dimension" system={unitSystem}
             onChange={(v) => set('t_stem_top', v)} />
-          <Field label={`t_bot (${dim})`} siValue={geometry.t_stem_bot} q="dimension" system={unitSystem}
+          <Field label={`Base thickness (${dim})`} siValue={geometry.t_stem_bot} q="dimension" system={unitSystem}
             onChange={(v) => set('t_stem_bot', v)} />
-          <RawField label="β slope (°)" value={Math.round(deg * 100) / 100}
+          <RawField label="Backfill slope (°)" value={Math.round(deg * 100) / 100}
             onChange={(v) => set('backfillSlope', (v * Math.PI) / 180)} />
         </div>
       </div>
@@ -44,11 +44,11 @@ export function GeometryPanel({ geometry, unitSystem, onChange }: Props) {
       <div className="rw-panel__section">
         <div className="rw-panel__subtitle">Footing</div>
         <div className="rw-fields">
-          <Field label={`B_toe (${dim})`} siValue={geometry.B_toe} q="dimension" system={unitSystem}
+          <Field label={`Toe width (${dim})`} siValue={geometry.B_toe} q="dimension" system={unitSystem}
             onChange={(v) => set('B_toe', v)} />
-          <Field label={`B_heel (${dim})`} siValue={geometry.B_heel} q="dimension" system={unitSystem}
+          <Field label={`Heel width (${dim})`} siValue={geometry.B_heel} q="dimension" system={unitSystem}
             onChange={(v) => set('B_heel', v)} />
-          <Field label={`H_foot (${dim})`} siValue={geometry.H_foot} q="dimension" system={unitSystem}
+          <Field label={`Footing thickness (${dim})`} siValue={geometry.H_foot} q="dimension" system={unitSystem}
             onChange={(v) => set('H_foot', v)} />
           <Field label={`Front fill (${dim})`} siValue={geometry.frontFill} q="dimension" system={unitSystem}
             onChange={(v) => set('frontFill', v)} />
