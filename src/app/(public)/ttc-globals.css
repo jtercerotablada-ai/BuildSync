@@ -6354,7 +6354,6 @@ img, svg {
   width: 100%;
   height: 100%;
 }
-/* CYPE-style sub-tabs above the section drawing (Arquitectura / Cargas /
    Presiones / Armado). Compact strip — minimal vertical footprint so the
    SVG below gets the maximum drawing area possible. */
 .rw__view2d-tabs {
