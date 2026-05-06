@@ -7,7 +7,7 @@ import type {
   ForceResultant,
   PressureDistribution,
 } from './types';
-import { kaRankine, kpRankine, kaCoulomb, kpCoulomb, integrateActivePressure } from './earth-pressure';
+import { kpRankine, kpCoulomb, pickK, integrateActivePressure } from './earth-pressure';
 
 export function computeStability(
   input: WallInput
@@ -16,16 +16,12 @@ export function computeStability(
   const H_total = g.H_stem + g.H_foot; // full back height from stem top to footing bottom (mm)
   const B = g.B_toe + g.t_stem_bot + g.B_heel; // total footing width (mm)
 
-  // -------- Active pressure coefficient --------
-  const Ka =
-    theory === 'rankine'
-      ? kaRankine(backfill[0]?.phi ?? 0, g.backfillSlope)
-      : kaCoulomb(
-          backfill[0]?.phi ?? 0,
-          g.backfillSlope,
-          baseSoil.delta, // use wall-soil friction on vertical back
-          Math.PI / 2
-        );
+  // -------- Active / at-rest pressure coefficient --------
+  // 'rankine' / 'coulomb' use Ka (deformable wall). 'at-rest' uses K0 (Jaky)
+  // for walls that don't deform enough to mobilize active pressure (basement
+  // walls restrained at the top, rigid walls on rock). Per CYPE Lateral
+  // Pressure Calculations §2.3.
+  const Ka = pickK(theory, backfill[0]?.phi ?? 0, g.backfillSlope, baseSoil.delta);
 
   const integ = integrateActivePressure(H_total, backfill, Ka, loads, water);
 

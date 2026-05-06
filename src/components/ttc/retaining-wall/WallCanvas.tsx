@@ -678,17 +678,6 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           identifican (estilo de las imágenes de referencia ACI / SkyBird /
           textbooks profesionales).                                          */}
       {(() => {
-        const labelKindMap: Record<typeof g.kind, string> = {
-          'cantilever': 'Fuste',
-          'gravity': 'Muro de gravedad',
-          'semi-gravity': 'Muro semi-gravedad',
-          'l-shaped': 'Muro en L',
-          'counterfort': 'Fuste',
-          'buttressed': 'Fuste',
-          'basement': 'Muro de sótano',
-          'abutment': 'Estribo',
-        };
-        const isMassWall = g.kind === 'gravity' || g.kind === 'semi-gravity';
         const items: Array<{ side: 'left' | 'right'; tx: number; ty: number;
                              dx: number; dy: number; text: string; fs: number }> = [];
 
@@ -699,7 +688,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           ty: yW(stemTop - g.H_stem * 0.35),
           dx: xW(stemFrontX + g.t_stem_bot * 0.5),
           dy: yW(stemTop - g.H_stem * 0.35),
-          text: labelKindMap[g.kind],
+          text: 'Fuste',
           fs: fs.sm,
         });
         // Punta (toe) — left side, lower

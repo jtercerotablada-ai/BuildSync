@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useMemo, useState, useCallback } from 'react';
-import type { WallInput, WallKind } from '@/lib/retaining-wall/types';
-import { DEFAULT_INPUT, solveWall, defaultGeometryFor } from '@/lib/retaining-wall/solve';
+import type { WallInput } from '@/lib/retaining-wall/types';
+import { DEFAULT_INPUT, solveWall } from '@/lib/retaining-wall/solve';
 import { autoDesign } from '@/lib/retaining-wall/autoDesign';
 import { RetainingWallPrintReport } from './RetainingWallPrintReport';
 import type { UnitSystem } from '@/lib/beam/units';
@@ -13,17 +13,10 @@ import { LoadsPanel } from './LoadsPanel';
 import { WallCanvas } from './WallCanvas';
 import { StabilityResults } from './StabilityResults';
 import { DesignResults } from './DesignResults';
-import { WallTypeChooser } from './WallTypeChooser';
 import dynamic from 'next/dynamic';
 
-// Generic 3D viewer for kinds other than cantilever
-const WallViewer3D = dynamic(
-  () => import('./WallViewer3D').then((m) => m.WallViewer3D),
-  { ssr: false, loading: () => <div className="rw__empty">Loading 3D viewer…</div> },
-);
-// Dedicated photo-realistic viewer for cantilever walls — concrete texture,
-// real rebar grid (vertical + horizontal stem + footing top + bottom),
-// semi-transparent soil, SSAO + bloom + tone mapping.
+// 3D viewer dedicated to cantilever walls — concrete with rebar grid,
+// semi-transparent soil, post-processing.
 const CantileverViewer3D = dynamic(
   () => import('./CantileverViewer3D').then((m) => m.CantileverViewer3D),
   { ssr: false, loading: () => <div className="rw__empty">Loading 3D viewer…</div> },
@@ -86,23 +79,12 @@ export function RetainingWallCalculator() {
     setTimeout(() => window.print(), 120);
   }, [captureCover2d]);
 
-  const handleKindChange = (k: WallKind) => {
-    setInput((s) => {
-      const newGeom = defaultGeometryFor(k, s.geometry);
-      // Bridge abutments auto-switch to AASHTO LRFD; everything else keeps current code.
-      const newCode = k === 'abutment' ? 'AASHTO LRFD' : (s.code === 'AASHTO LRFD' ? 'ACI 318-25' : s.code);
-      return { ...s, geometry: newGeom, code: newCode };
-    });
-  };
-
   return (
     <div className="rw">
       {/* Print-only report (hidden on screen via .slab-print-portal CSS) */}
       {results && (
         <RetainingWallPrintReport input={input} result={results} cover2dDataUrl={cover2dDataUrl} />
       )}
-
-      <WallTypeChooser kind={input.geometry.kind} onChange={handleKindChange} />
 
       <div className="rw__toolbar">
         <div className="rw__tabs" role="tablist">
@@ -226,20 +208,9 @@ export function RetainingWallCalculator() {
 
         <main className="rw__canvas">
           {results ? (
-            input.geometry.kind === 'cantilever' ? (
-              // Cantilever: show ONLY the photo-realistic 3D viewer (the
-              // 2D section view is still rendered inside the print report).
-              <div className="rw__canvas-3d rw__canvas-3d--full">
-                <CantileverViewer3D input={input} result={results} />
-              </div>
-            ) : (
-              <>
-                <WallCanvas input={input} results={results} unitSystem={unitSystem} />
-                <div className="rw__canvas-3d">
-                  <WallViewer3D input={input} />
-                </div>
-              </>
-            )
+            <div className="rw__canvas-3d rw__canvas-3d--full">
+              <CantileverViewer3D input={input} result={results} />
+            </div>
           ) : (
             <div className="rw__empty">Enter geometry to build your wall</div>
           )}

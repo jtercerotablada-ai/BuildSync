@@ -52,11 +52,11 @@ export function LoadsPanel({
           >
             <option value="ACI 318-25">ACI 318-25 (SI Units, latest)</option>
             <option value="ACI 318-19">ACI 318-19</option>
-            <option value="AASHTO LRFD">AASHTO LRFD (bridge abutments)</option>
           </select>
         </label>
         <p className="rw-panel__hint">
-          ACI 318-25 is the default. Bridge abutments auto-switch to AASHTO LRFD §11.6.
+          ACI 318-25 is the default; the older 318-19 edition is available
+          for legacy projects.
         </p>
       </div>
 
@@ -107,9 +107,20 @@ export function LoadsPanel({
           >
             Coulomb
           </button>
+          <button
+            type="button"
+            className={theory === 'at-rest' ? 'is-active' : ''}
+            onClick={() => onChangeTheory('at-rest')}
+            title="Jaky 1944 — for non-deforming walls (basement, rigid)"
+          >
+            At rest (K₀)
+          </button>
         </div>
         <p className="rw-panel__hint">
-          Rankine: vertical wall back, no wall friction. Coulomb: accounts for δ and α.
+          Rankine: vertical wall back, no wall friction. Coulomb: accounts
+          for δ and α. At-rest (Jaky K₀ = 1−sin φ): for walls that don&apos;t
+          deform enough to mobilise active pressure (rigid walls, basements
+          restrained at top). Per CYPE Lateral Pressure Calculations §2.3.
         </p>
       </div>
 

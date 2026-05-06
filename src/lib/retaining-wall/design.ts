@@ -8,7 +8,7 @@ import type {
   CrackControl,
   KeyDesignResult,
 } from './types';
-import { kaRankine, kaCoulomb, kpRankine, kpCoulomb, integrateActivePressure } from './earth-pressure';
+import { kpRankine, kpCoulomb, pickK, integrateActivePressure } from './earth-pressure';
 
 // ACI 318 rebar inventory — used for crack-control spacing and design display.
 // Area in mm², diameter in mm.
@@ -140,10 +140,7 @@ export function minReinforcement(h: number, fy: number): number {
 export function designStem(input: WallInput): StemDesignResult {
   const { geometry: g, concrete, backfill, loads, water, theory, baseSoil } = input;
   const H = g.H_stem;
-  const Ka =
-    theory === 'rankine'
-      ? kaRankine(backfill[0]?.phi ?? 0, g.backfillSlope)
-      : kaCoulomb(backfill[0]?.phi ?? 0, g.backfillSlope, baseSoil.delta);
+  const Ka = pickK(theory, backfill[0]?.phi ?? 0, g.backfillSlope, baseSoil.delta);
   const integ = integrateActivePressure(H, backfill, Ka, loads, water);
   const H_drive = integ.Pa + integ.Pq + integ.Pw + integ.dPae; // kN/m
 

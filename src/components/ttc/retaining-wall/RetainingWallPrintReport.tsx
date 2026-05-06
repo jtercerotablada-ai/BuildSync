@@ -28,13 +28,6 @@ interface Props {
 
 const KIND_LABELS: Record<WallInput['geometry']['kind'], string> = {
   cantilever: 'Cantilever wall',
-  gravity: 'Gravity (mass concrete) wall',
-  'semi-gravity': 'Semi-gravity wall',
-  'l-shaped': 'L-shaped wall',
-  counterfort: 'Counterfort wall',
-  buttressed: 'Buttressed wall',
-  basement: 'Basement / restrained-top wall',
-  abutment: 'Bridge abutment',
 };
 
 export function RetainingWallPrintReport({ input, result, cover2dDataUrl }: Props) {
@@ -132,41 +125,6 @@ function ReportContent({ input, result, cover2dDataUrl }: Props) {
             <tr><th>H_foot</th><td>{g.H_foot} mm</td></tr>
             <tr><th>Backfill slope β</th><td>{(g.backfillSlope * 180 / Math.PI).toFixed(1)}°</td></tr>
             <tr><th>Front fill</th><td>{g.frontFill} mm</td></tr>
-            {g.kind === 'gravity' && (
-              <>
-                <tr><th>Front batter</th><td>{(g.batterFront * 180 / Math.PI).toFixed(1)}°</td></tr>
-                <tr><th>Back batter</th><td>{(g.batterBack * 180 / Math.PI).toFixed(1)}°</td></tr>
-              </>
-            )}
-            {g.kind === 'counterfort' && (
-              <>
-                <tr><th>Counterfort spacing</th><td>{g.counterfortSpacing} mm</td></tr>
-                <tr><th>Counterfort thickness</th><td>{g.counterfortThickness} mm</td></tr>
-              </>
-            )}
-            {g.kind === 'buttressed' && (
-              <>
-                <tr><th>Buttress spacing</th><td>{g.buttressSpacing} mm</td></tr>
-                <tr><th>Buttress thickness</th><td>{g.buttressThickness} mm</td></tr>
-              </>
-            )}
-            {g.kind === 'basement' && (
-              <>
-                <tr><th>Top-support elevation</th><td>{g.topElevation} mm above footing top</td></tr>
-                <tr><th>Top fixity</th><td>{g.topFixity}</td></tr>
-              </>
-            )}
-            {g.kind === 'abutment' && (
-              <>
-                <tr><th>Bridge seat width</th><td>{g.bridgeSeat.width} mm</td></tr>
-                <tr><th>Bridge DL</th><td>{g.bridgeSeat.deadLoad.toFixed(1)} kN/m</td></tr>
-                <tr><th>Bridge LL</th><td>{g.bridgeSeat.liveLoad.toFixed(1)} kN/m</td></tr>
-                <tr><th>Backwall H × t</th><td>{g.backwall.H} × {g.backwall.t} mm</td></tr>
-                {g.wingWall && (
-                  <tr><th>Wing wall L × H × t</th><td>{g.wingWall.length} × {g.wingWall.H} × {g.wingWall.t} mm</td></tr>
-                )}
-              </>
-            )}
             {g.key && (
               <tr><th>Shear key (w × d, offset)</th><td>{g.key.width} × {g.key.depth} mm, offset {g.key.offsetFromHeel} from heel</td></tr>
             )}
@@ -286,115 +244,26 @@ function ReportContent({ input, result, cover2dDataUrl }: Props) {
       <section className="pr-page">
         <h2>3. Reinforcement design</h2>
 
-        {result.gravityStress ? (
+        <h3>3.1 Stem</h3>
+        <MemberTable label="Stem (rear face)" m={result.stem} />
+
+        <h3>3.2 Heel</h3>
+        <MemberTable label="Heel" m={result.heel} />
+
+        <h3>3.3 Toe</h3>
+        <MemberTable label="Toe" m={result.toe} />
+
+        {result.key.enabled && (
           <>
-            <h3>3.1 Gravity wall — plain-concrete stress (ACI 318-25 §14.5)</h3>
+            <h3>3.4 Shear key</h3>
             <table className="pr-table">
               <tbody>
-                <tr><th>σ_max (compression face)</th><td>{(result.gravityStress.sigma_max / 1000).toFixed(2)} MPa</td></tr>
-                <tr><th>σ_min (tension face)</th><td>{(result.gravityStress.sigma_min / 1000).toFixed(2)} MPa</td></tr>
-                <tr><th>σ_allow = φ · 0.45 · f&#39;c</th><td>{(result.gravityStress.sigma_allow / 1000).toFixed(2)} MPa</td></tr>
-                <tr><th>Status</th><td>{result.gravityStress.ok ? '✓ Within plain-concrete limits' : '✗ Exceeds limits — convert to semi-gravity or cantilever'}</td></tr>
+                <tr><th>Hp_key</th><td>{result.key.Hp_key.toFixed(2)} kN/m</td></tr>
+                <tr><th>Mu / Vu</th><td>{result.key.Mu.toFixed(2)} kN·m/m / {result.key.Vu.toFixed(2)} kN/m</td></tr>
+                <tr><th>As_req</th><td>{result.key.As_req.toFixed(0)} mm²/m</td></tr>
+                <tr><th>Shear OK</th><td>{result.key.shearOk ? '✓' : '✗'}</td></tr>
               </tbody>
             </table>
-          </>
-        ) : (
-          <>
-            <h3>3.1 Stem</h3>
-            <MemberTable label="Stem (rear face)" m={result.stem} />
-            {result.stem.frontFace && (
-              <table className="pr-table" style={{ marginTop: '0.3cm' }}>
-                <tbody>
-                  <tr><th colSpan={2} style={{ textAlign: 'left' }}>Stem (front face — basement / restrained-top)</th></tr>
-                  <tr><th>Mu</th><td>{result.stem.frontFace.Mu.toFixed(2)} kN·m/m</td></tr>
-                  <tr><th>As_req</th><td>{result.stem.frontFace.As_req.toFixed(0)} mm²/m</td></tr>
-                  <tr><th>Crack control</th><td>{result.stem.frontFace.crack.ok ? '✓' : '✗'}</td></tr>
-                </tbody>
-              </table>
-            )}
-
-            <h3>3.2 Heel</h3>
-            <MemberTable label="Heel" m={result.heel} />
-
-            <h3>3.3 Toe</h3>
-            <MemberTable label="Toe" m={result.toe} />
-
-            {result.key.enabled && (
-              <>
-                <h3>3.4 Shear key</h3>
-                <table className="pr-table">
-                  <tbody>
-                    <tr><th>Hp_key</th><td>{result.key.Hp_key.toFixed(2)} kN/m</td></tr>
-                    <tr><th>Mu / Vu</th><td>{result.key.Mu.toFixed(2)} kN·m/m / {result.key.Vu.toFixed(2)} kN/m</td></tr>
-                    <tr><th>As_req</th><td>{result.key.As_req.toFixed(0)} mm²/m</td></tr>
-                    <tr><th>Shear OK</th><td>{result.key.shearOk ? '✓' : '✗'}</td></tr>
-                  </tbody>
-                </table>
-              </>
-            )}
-          </>
-        )}
-
-        {result.counterfortDesign && (
-          <>
-            <h3>3.5 Counterfort design</h3>
-            <MemberTable label="Stem slab (between counterforts)" m={result.counterfortDesign.stemSlab} />
-            <MemberTable label="Heel slab (between counterforts)" m={result.counterfortDesign.heelSlab} />
-            <table className="pr-table" style={{ marginTop: '0.3cm' }}>
-              <tbody>
-                <tr><th colSpan={2} style={{ textAlign: 'left' }}>Counterfort T-beam</th></tr>
-                <tr><th>Mu / Vu</th><td>{result.counterfortDesign.counterfort.Mu.toFixed(2)} kN·m / {result.counterfortDesign.counterfort.Vu.toFixed(2)} kN</td></tr>
-                <tr><th>bw × d</th><td>{result.counterfortDesign.counterfort.bw} × {result.counterfortDesign.counterfort.d.toFixed(0)} mm</td></tr>
-                <tr><th>As_req (rear face tension)</th><td>{result.counterfortDesign.counterfort.As_req.toFixed(0)} mm²</td></tr>
-                <tr><th>φMn / Vc</th><td>{result.counterfortDesign.counterfort.phiMn.toFixed(1)} kN·m / {result.counterfortDesign.counterfort.Vc.toFixed(1)} kN</td></tr>
-                <tr><th>Shear OK</th><td>{result.counterfortDesign.counterfort.shearOk ? '✓' : '✗'}</td></tr>
-              </tbody>
-            </table>
-          </>
-        )}
-
-        {result.buttressedDesign && (
-          <>
-            <h3>3.5 Buttress design (compression)</h3>
-            <MemberTable label="Stem slab (between buttresses)" m={result.buttressedDesign.stemSlab} />
-            <MemberTable label="Heel slab (between buttresses)" m={result.buttressedDesign.heelSlab} />
-            <p style={{ fontSize: '9pt', fontStyle: 'italic', color: '#444' }}>
-              Buttresses are in compression — only nominal As_min reinforcement required (ACI 318-25 §11.6 + §24.4.3).
-            </p>
-          </>
-        )}
-
-        {result.topSupport && (
-          <>
-            <h3>3.5 Top-support reaction (basement / restrained-top)</h3>
-            <table className="pr-table">
-              <tbody>
-                <tr><th>Top reaction (factored)</th><td>{result.topSupport.reaction.toFixed(2)} kN/m at y = {(g.kind === 'basement' ? g.topElevation / 1000 : 0).toFixed(2)} m</td></tr>
-                <tr><th>M+ (front face midspan)</th><td>{result.topSupport.Mmax_pos.toFixed(2)} kN·m/m at y = {(result.topSupport.yMax_pos/1000).toFixed(2)} m</td></tr>
-                <tr><th>M− (rear face base)</th><td>{result.topSupport.Mmax_neg.toFixed(2)} kN·m/m</td></tr>
-                <tr><th>Top fixity</th><td>{result.topSupport.fixity}</td></tr>
-              </tbody>
-            </table>
-            <p style={{ fontSize: '9pt', fontStyle: 'italic', color: '#444' }}>
-              The floor slab / diaphragm at the top must be designed to develop this reaction (ACI 318-25 §16.3 + §11.4.5).
-            </p>
-          </>
-        )}
-
-        {result.abutmentDesign && (
-          <>
-            <h3>3.5 Bridge abutment design (AASHTO LRFD §11.6)</h3>
-            <table className="pr-table">
-              <tbody>
-                <tr><th>Bridge seat factored DL (γDC = 1.25)</th><td>{result.abutmentDesign.seat.PuD.toFixed(1)} kN/m</td></tr>
-                <tr><th>Bridge seat factored LL (γLL = 1.75)</th><td>{result.abutmentDesign.seat.PuL.toFixed(1)} kN/m</td></tr>
-                <tr><th>Total Pu</th><td>{result.abutmentDesign.seat.PuTotal.toFixed(1)} kN/m</td></tr>
-              </tbody>
-            </table>
-            <MemberTable label="Backwall" m={result.abutmentDesign.backwall} />
-            {result.abutmentDesign.wingWall && (
-              <MemberTable label="Wing wall" m={result.abutmentDesign.wingWall} />
-            )}
           </>
         )}
       </section>
@@ -403,16 +272,12 @@ function ReportContent({ input, result, cover2dDataUrl }: Props) {
       <section className="pr-page">
         <h2>4. Code references</h2>
         <ul>
-          <li><strong>{code === 'AASHTO LRFD' ? 'AASHTO LRFD Bridge Design Specifications, 9e' : code}</strong>
-            {code === 'ACI 318-25' && ' (SI Units)'}</li>
+          <li><strong>{code}</strong> {code === 'ACI 318-25' && ' (SI Units)'}</li>
           <li>ACI 318-25 §13.3 — Foundation design</li>
           <li>ACI 318-25 §22.2 — Flexure, §22.5 — One-way shear, §22.9 — Shear-friction</li>
           <li>ACI 318-25 §24.3 — Crack control, §24.4.3 — Temperature/shrinkage steel</li>
           <li>ACI 318-25 §25.4 — Development of reinforcement, §25.5 — Lap splices</li>
-          {g.kind === 'gravity' && <li>ACI 318-25 §14.5 — Plain-concrete stress limits</li>}
-          {g.kind === 'abutment' && <li>AASHTO LRFD §3.4 (load factors), §11.6 (abutments), §5.10.8 (anchorage)</li>}
-          {g.kind === 'basement' && <li>ACI 318-25 §11 (walls), §16.3 + §11.4.5 (slab-to-wall connections)</li>}
-          <li>Wight, J. K. & MacGregor, J. G. — <em>Reinforced Concrete: Mechanics &amp; Design</em>, 7e (Pearson, 2014), §17 retaining walls</li>
+          <li>Wight, J. K. & MacGregor, J. G. — <em>Reinforced Concrete: Mechanics &amp; Design</em>, 7e (Pearson, 2014), §18-3 Retaining walls</li>
         </ul>
 
         {result.issues.length > 0 && (

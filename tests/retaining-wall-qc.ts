@@ -2,7 +2,7 @@
 // Cross-checks every formula against SkyCiv verification models, ACI 318-19
 // handbook examples, and Das (Principles of Foundation Engineering).
 
-import { kaRankine, kpRankine, kaCoulomb, kpCoulomb, integrateActivePressure } from '../src/lib/retaining-wall/earth-pressure';
+import { kaRankine, kpRankine, kaCoulomb, kpCoulomb, k0Jaky, pickK, integrateActivePressure } from '../src/lib/retaining-wall/earth-pressure';
 import { computeStability } from '../src/lib/retaining-wall/stability';
 import { solveWall } from '../src/lib/retaining-wall/solve';
 import { flexureDesign, vcOneWay, minReinforcement, crackControl } from '../src/lib/retaining-wall/design';
@@ -283,121 +283,6 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 12: Gravity wall — stability + ACI §14.5 stress');
-console.log('==========================================');
-// Trapezoidal gravity wall: stem 4 m tall, t_top = 0.6 m, t_bot = 1.5 m
-// (typical mass-concrete profile per Wight & MacGregor §18-3.3). Granular
-// backfill φ=32°, γ=18 kN/m³, no surcharge. f'c = 21 MPa (low-strength
-// gravity-wall mix). Verify the solver returns gravityStress and that
-// the wall body's compression stress stays within 0.45·f'c.
-{
-  const gravity: WallInput = {
-    code: 'ACI 318-25',
-    geometry: {
-      kind: 'gravity',
-      H_stem: 4000,
-      t_stem_top: 600,
-      t_stem_bot: 1500,
-      B_toe: 600,
-      B_heel: 600,
-      H_foot: 600,
-      backfillSlope: 0,
-      frontFill: 0,
-      batterFront: 0,
-      batterBack: 0,
-    },
-    concrete: { fc: 21, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
-    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
-    baseSoil: {
-      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
-      delta: 20 * Math.PI / 180, ca: 0,
-      qAllow: 250, passiveEnabled: false,
-    },
-    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
-    loads: { surchargeQ: 0, seismic: { kh: 0, kv: 0 } },
-    theory: 'rankine',
-    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
-  };
-  const result = solveWall(gravity);
-  expectBool('Gravity wall returned gravityStress', !!result.gravityStress, true);
-  if (result.gravityStress) {
-    const sigma_max_MPa = result.gravityStress.sigma_max / 1000;
-    const sigma_allow_MPa = result.gravityStress.sigma_allow / 1000;
-    console.log(`  σ_max = ${sigma_max_MPa.toFixed(2)} MPa, σ_allow = ${sigma_allow_MPa.toFixed(2)} MPa`);
-    // φ·0.45·f'c with f'c = 21 MPa: 0.60 · 0.45 · 21 = 5.67 MPa
-    expect('Gravity σ_allow = 0.60·0.45·f\'c', sigma_allow_MPa, 0.60 * 0.45 * 21, 0.001);
-    expectBool('Gravity wall compression OK at base', sigma_max_MPa <= sigma_allow_MPa, true);
-  }
-  expectBool('Gravity wall solver does not require rebar (As_req = 0)', result.stem.As_req === 0, true);
-}
-
-console.log('\n==========================================');
-console.log('BLOCK 13: Semi-gravity wall (cantilever equivalent + intent flag)');
-console.log('==========================================');
-{
-  const semi: WallInput = {
-    code: 'ACI 318-25',
-    geometry: {
-      kind: 'semi-gravity',
-      H_stem: 1500, t_stem_top: 200, t_stem_bot: 250,
-      B_toe: 400, B_heel: 700, H_foot: 350,
-      backfillSlope: 0, frontFill: 200,
-    },
-    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
-    backfill: [{ name: 'Granular', gamma: 19, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
-    baseSoil: {
-      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
-      delta: 20 * Math.PI / 180, ca: 0, qAllow: 200, passiveEnabled: false,
-    },
-    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
-    loads: { surchargeQ: 5, seismic: { kh: 0, kv: 0 } },
-    theory: 'rankine',
-    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
-  };
-  const result = solveWall(semi);
-  // Same input as a cantilever wall should produce the same Mu/Vu/As_req
-  const cantEq: WallInput = { ...semi, geometry: { ...semi.geometry, kind: 'cantilever' } };
-  const cantResult = solveWall(cantEq);
-  expect('Semi-gravity stem Mu == cantilever Mu', result.stem.Mu, cantResult.stem.Mu, 0.001);
-  expect('Semi-gravity stem As_req == cantilever As_req', result.stem.As_req, cantResult.stem.As_req, 0.001);
-  expectBool('Semi-gravity flags intent in issues', result.issues[0]?.includes('Semi-gravity'), true);
-}
-
-console.log('\n==========================================');
-console.log('BLOCK 14: L-shaped wall (B_toe = 0)');
-console.log('==========================================');
-{
-  const lshape: WallInput = {
-    code: 'ACI 318-25',
-    geometry: {
-      kind: 'l-shaped',
-      H_stem: 2500, t_stem_top: 250, t_stem_bot: 300,
-      B_toe: 0,           // L-shaped: no toe
-      B_heel: 1800, H_foot: 400,
-      backfillSlope: 0, frontFill: 0,
-      stemLean: 0,
-    },
-    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
-    backfill: [{ name: 'Granular', gamma: 19, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
-    baseSoil: {
-      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
-      delta: 20 * Math.PI / 180, ca: 0, qAllow: 200, passiveEnabled: false,
-    },
-    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
-    loads: { surchargeQ: 0, seismic: { kh: 0, kv: 0 } },
-    theory: 'rankine',
-    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
-  };
-  const result = solveWall(lshape);
-  expectBool('L-shaped: toe Mu = 0', result.toe.Mu === 0, true);
-  expectBool('L-shaped: toe As_req = 0', result.toe.As_req === 0, true);
-  // Stem still works normally
-  expectBool('L-shaped: stem still cantilevers (As_req > 0)', result.stem.As_req > 0, true);
-  expectBool('L-shaped: footing total width = B_heel + t_stem_bot', result.stability.B === 0 + 300 + 1800, true);
-  expectBool('L-shaped flags intent in issues', result.issues.some((m) => m.includes('L-shaped')), true);
-}
-
-console.log('\n==========================================');
 console.log('BLOCK 15: Development length (ACI 318-25 §25.4.2)');
 console.log('==========================================');
 {
@@ -528,199 +413,6 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 21: Basement (restrained-top) wall — propped cantilever');
-console.log('==========================================');
-{
-  // Stem 4 m tall, propped at top by floor slab (pinned). Active pressure
-  // governed by Ka·γ·H at base (typical basement wall).
-  const basement: WallInput = {
-    code: 'ACI 318-25',
-    geometry: {
-      kind: 'basement',
-      H_stem: 4000, t_stem_top: 300, t_stem_bot: 350,
-      B_toe: 600, B_heel: 1200, H_foot: 500,
-      backfillSlope: 0, frontFill: 0,
-      topElevation: 4000, topFixity: 'pinned',
-    },
-    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
-    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
-    baseSoil: {
-      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
-      delta: 20 * Math.PI / 180, ca: 0, qAllow: 250, passiveEnabled: false,
-    },
-    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
-    loads: { surchargeQ: 10, seismic: { kh: 0, kv: 0 } },
-    theory: 'rankine',
-    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
-  };
-  const r = solveWall(basement);
-  // p_max,tri = γ·Ka·H = 18 · 0.307 · 4 = 22.10 kPa
-  // Ka(rankine, 32°, level) = (1-sin32)/(1+sin32) = 0.307
-  // M_base,tri = (7/120) · 22.10 · 16 = 20.63 kN·m/m  (unfactored)
-  // Factored × 1.6 = 33.0 kN·m/m
-  const Ka = (1 - Math.sin(32*Math.PI/180)) / (1 + Math.sin(32*Math.PI/180));
-  const p_tri = 18 * Ka * 4;
-  const Mbase_tri = (7/120) * p_tri * 16;
-  // Surcharge (q=10): p_uni = Ka · 10 = 3.07 kPa, M_base,uni = (1/8)·3.07·16 = 6.13
-  const p_uni = Ka * 10;
-  const Mbase_uni = (1/8) * p_uni * 16;
-  const Mbase_expected_factored = 1.6 * (Mbase_tri + Mbase_uni);
-  console.log(`  M_base expected = ${Mbase_expected_factored.toFixed(2)} kN·m/m, solver = ${r.stem.Mu.toFixed(2)}`);
-  expect('Basement stem M_base (factored)', r.stem.Mu, Mbase_expected_factored, 0.05);
-  expectBool('Basement returned topSupport', !!r.topSupport, true);
-  if (r.topSupport) {
-    // R_top,tri = (9/40) · 22.10 · 4 = 19.89 kN/m, R_top,uni = (3/8) · 3.07 · 4 = 4.61
-    const Rtri = (9/40) * p_tri * 4;
-    const Runi = (3/8) * p_uni * 4;
-    const R_expected = 1.6 * (Rtri + Runi);
-    expect('Basement top reaction (factored)', r.topSupport.reaction, R_expected, 0.05);
-  }
-  expectBool('Stem returns frontFace (positive moment)', !!r.stem.frontFace, true);
-  if (r.stem.frontFace) {
-    expectBool('Front-face Mu > 0 (positive span moment)', r.stem.frontFace.Mu > 0, true);
-    expectBool('Front-face As_req ≥ As_min', r.stem.frontFace.As_req >= r.stem.As_min, true);
-  }
-}
-
-console.log('\n==========================================');
-console.log('BLOCK 22: Counterfort wall — stem slab + heel slab + T-beam');
-console.log('==========================================');
-{
-  // 6 m tall counterfort wall, 3 m spacing, 350 mm counterforts.
-  const counter: WallInput = {
-    code: 'ACI 318-25',
-    geometry: {
-      kind: 'counterfort',
-      H_stem: 6000, t_stem_top: 250, t_stem_bot: 350,
-      B_toe: 600, B_heel: 2500, H_foot: 700,
-      backfillSlope: 0, frontFill: 300,
-      counterfortSpacing: 3000, counterfortThickness: 350,
-    },
-    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
-    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
-    baseSoil: {
-      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
-      delta: 20 * Math.PI / 180, ca: 0, qAllow: 300, passiveEnabled: false,
-    },
-    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
-    loads: { surchargeQ: 10, seismic: { kh: 0, kv: 0 } },
-    theory: 'rankine',
-    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
-  };
-  const r = solveWall(counter);
-  expectBool('Counterfort returned counterfortDesign', !!r.counterfortDesign, true);
-  if (r.counterfortDesign) {
-    // Stem slab: w = γ·Ka·H + Ka·q
-    // Ka(rankine,32°) = 0.307
-    // p_max = 18·0.307·6 + 0.307·10 = 33.16 + 3.07 = 36.23 kPa
-    // M_neg (factored 1.6) = 1.6 · 36.23 · 3² / 12 = 1.6 · 27.17 = 43.48 kN·m/m
-    const Ka = (1 - Math.sin(32*Math.PI/180)) / (1 + Math.sin(32*Math.PI/180));
-    const p = 18 * Ka * 6 + Ka * 10;
-    const Mneg_expected = 1.6 * p * 9 / 12;
-    expect('Counterfort stem-slab Mu (negative at counterfort)',
-      r.counterfortDesign.stemSlab.Mu, Mneg_expected, 0.05);
-
-    // Counterfort T-beam: H = (1/2)·γ·Ka·H²·S + Ka·q·H·S
-    // = 0.5 · 18 · 0.307 · 36 · 3 + 0.307 · 10 · 6 · 3
-    // = 298.4 + 55.3 = 353.7 kN
-    // Factored × 1.6 = 565.9 kN
-    // Moment at base = 565.9 · 6/3 = 1131.7 kN·m
-    const Hcounter = 0.5 * 18 * Ka * 36 * 3 + Ka * 10 * 6 * 3;
-    const Hcounter_factored = 1.6 * Hcounter;
-    const M_expected = Hcounter_factored * 6 / 3;
-    expect('Counterfort T-beam Mu', r.counterfortDesign.counterfort.Mu, M_expected, 0.05);
-    expectBool('Counterfort T-beam As_req > 0', r.counterfortDesign.counterfort.As_req > 0, true);
-  }
-}
-
-console.log('\n==========================================');
-console.log('BLOCK 23: Buttressed wall (counterfort mirror, compression)');
-console.log('==========================================');
-{
-  const butt: WallInput = {
-    code: 'ACI 318-25',
-    geometry: {
-      kind: 'buttressed',
-      H_stem: 5000, t_stem_top: 250, t_stem_bot: 350,
-      B_toe: 2000, B_heel: 600, H_foot: 600,
-      backfillSlope: 0, frontFill: 0,
-      buttressSpacing: 3000, buttressThickness: 350,
-    },
-    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
-    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
-    baseSoil: {
-      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
-      delta: 20 * Math.PI / 180, ca: 0, qAllow: 250, passiveEnabled: false,
-    },
-    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
-    loads: { surchargeQ: 5, seismic: { kh: 0, kv: 0 } },
-    theory: 'rankine',
-    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
-  };
-  const r = solveWall(butt);
-  expectBool('Buttressed returned buttressedDesign', !!r.buttressedDesign, true);
-  if (r.buttressedDesign) {
-    expectBool('Buttressed compressionMode = true', r.buttressedDesign.compressionMode, true);
-    // Stem slab Mu identical to counterfort formula
-    const Ka = (1 - Math.sin(32*Math.PI/180)) / (1 + Math.sin(32*Math.PI/180));
-    const p = 18 * Ka * 5 + Ka * 5;
-    const Mneg_expected = 1.6 * p * 9 / 12;
-    expect('Buttressed stem-slab Mu (negative)', r.buttressedDesign.stemSlab.Mu, Mneg_expected, 0.05);
-    // Buttress design: tension moment = 0 (compression mode), As = As_min only
-    expectBool('Buttress Mu = 0 (compression)', r.buttressedDesign.counterfort.Mu === 0, true);
-    expectBool('Buttress As = As_min only', r.buttressedDesign.counterfort.As_req <= 1000, true);
-  }
-}
-
-console.log('\n==========================================');
-console.log('BLOCK 24: Bridge abutment — AASHTO LRFD §11.6');
-console.log('==========================================');
-{
-  const abut: WallInput = {
-    code: 'AASHTO LRFD',
-    geometry: {
-      kind: 'abutment',
-      H_stem: 5500, t_stem_top: 400, t_stem_bot: 600,
-      B_toe: 1000, B_heel: 2200, H_foot: 800,
-      backfillSlope: 0, frontFill: 500,
-      bridgeSeat: { width: 600, deadLoad: 250, liveLoad: 150 },
-      backwall: { H: 1500, t: 350 },
-      wingWall: { length: 3000, H: 2500, t: 350 },
-    },
-    concrete: { fc: 28, fy: 420, Es: 200_000, gamma: 24, cover: 75 },
-    backfill: [{ name: 'Granular', gamma: 18, phi: 32 * Math.PI / 180, c: 0, thickness: 0 }],
-    baseSoil: {
-      gamma: 19, phi: 30 * Math.PI / 180, c: 0,
-      delta: 20 * Math.PI / 180, ca: 0, qAllow: 350, passiveEnabled: false,
-    },
-    water: { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
-    loads: { surchargeQ: 12, seismic: { kh: 0, kv: 0 } },
-    theory: 'rankine',
-    safetyFactors: { overturning: 2.0, sliding: 1.5, bearing: 3.0, eccentricity: 'kern' },
-  };
-  const r = solveWall(abut);
-  expectBool('Abutment returned abutmentDesign', !!r.abutmentDesign, true);
-  if (r.abutmentDesign) {
-    // Strength I: PuD = 1.25·250 = 312.5, PuL = 1.75·150 = 262.5, total = 575
-    expect('Abutment seat factored DL (γDC=1.25)', r.abutmentDesign.seat.PuD, 312.5, 0.001);
-    expect('Abutment seat factored LL (γLL=1.75)', r.abutmentDesign.seat.PuL, 262.5, 0.001);
-    expect('Abutment seat factored total Pu', r.abutmentDesign.seat.PuTotal, 575, 0.001);
-    // Backwall: H = 1.5 m, γ = 18, Ka(32°) ≈ 0.307
-    // M_unfac = (1/6)·18·0.307·1.5³ + (1/2)·0.307·12·1.5²
-    //         = 3.108 + 4.144 = 7.25 kN·m/m
-    // M factored = 1.50 · 7.25 = 10.88 kN·m/m
-    const Ka = (1 - Math.sin(32*Math.PI/180)) / (1 + Math.sin(32*Math.PI/180));
-    const Mbw_unfac = (1/6)*18*Ka*1.5**3 + (1/2)*Ka*12*1.5**2;
-    const Mbw_expected = 1.5 * Mbw_unfac;
-    expect('Backwall Mu (γEH=1.5)', r.abutmentDesign.backwall.Mu, Mbw_expected, 0.05);
-    expectBool('Wing wall present', !!r.abutmentDesign.wingWall, true);
-    if (r.abutmentDesign.wingWall) {
-      expectBool('Wing wall As_req > 0', r.abutmentDesign.wingWall.As_req > 0, true);
-    }
-  }
-}
-
-console.log('\n==========================================');
 console.log('BLOCK 25: Auto-design — convergence on undersized cantilever');
 console.log('==========================================');
 {
@@ -802,7 +494,61 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 27: Validation of results vs expected');
+console.log('BLOCK 27: At-rest pressure (Jaky 1944) + sloped form');
+console.log('==========================================');
+// Jaky's K0 = 1 − sin φ for normally-consolidated soils, level backfill.
+// Verified against published values (Bowles, Foundation Analysis & Design):
+//   φ = 30° → K0 = 0.500
+//   φ = 32° → K0 = 0.470
+//   φ = 35° → K0 = 0.426
+//   φ = 40° → K0 = 0.357
+{
+  expect('K0 Jaky φ=30° level', k0Jaky(30 * Math.PI / 180, 0), 0.500, 0.001);
+  expect('K0 Jaky φ=32° level', k0Jaky(32 * Math.PI / 180, 0), 0.470, 0.005);
+  expect('K0 Jaky φ=35° level', k0Jaky(35 * Math.PI / 180, 0), 0.426, 0.005);
+  expect('K0 Jaky φ=40° level', k0Jaky(40 * Math.PI / 180, 0), 0.357, 0.005);
+  // Sloped β=10°: K0 multiplier = (1 + sin β) ≈ 1.174 (Corps of Engineers 1961)
+  const k0Level = k0Jaky(35 * Math.PI / 180, 0);
+  const k0Sloped = k0Jaky(35 * Math.PI / 180, 10 * Math.PI / 180);
+  const factor = k0Sloped / k0Level;
+  expect('K0 sloped factor (β=10°)', factor, 1 + Math.sin(10 * Math.PI / 180), 0.005);
+  // K0 should always be GREATER than Ka (active) for the same φ — physical sanity check
+  const ka35 = kaRankine(35 * Math.PI / 180, 0);
+  expectBool('K0 > Ka (35°): at-rest exerts more pressure than active', k0Level > ka35, true);
+  // pickK dispatches correctly
+  expect('pickK at-rest dispatches to k0Jaky', pickK('at-rest', 35*Math.PI/180, 0, 0), k0Level, 1e-9);
+  expect('pickK rankine dispatches to kaRankine', pickK('rankine', 35*Math.PI/180, 0, 0), ka35, 1e-9);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 28: Effective stress below water table (γ\' submerged)');
+console.log('==========================================');
+// Verify that integrateActivePressure uses γ - γ_w below the water table.
+// Setup: H = 4 m, single layer γ = 19, φ = 32°, WT at 2 m below stem top.
+// Above WT (0-2 m): full γ = 19 → σv'(2) = 19·2 = 38 kPa
+// Below WT (2-4 m): γ' = 19 - 9.81 = 9.19 → σv'(4) = 38 + 9.19·2 = 56.38 kPa
+// Compare against scenario without WT: σv'(4) = 19·4 = 76 kPa
+{
+  const layer = { name: 'sand', gamma: 19, phi: 32 * Math.PI / 180, c: 0, thickness: 0 };
+  const noWater = integrateActivePressure(
+    4000, [layer], 0.307,
+    { surchargeQ: 0, seismic: { kh: 0, kv: 0 } },
+    { enabled: false, depthFromStemTop: 0, gammaW: 9.81 },
+  );
+  const withWater = integrateActivePressure(
+    4000, [layer], 0.307,
+    { surchargeQ: 0, seismic: { kh: 0, kv: 0 } },
+    { enabled: true, depthFromStemTop: 2000, gammaW: 9.81 },
+  );
+  // Effective stress below WT is lower → soil thrust component lower
+  expectBool('Active soil thrust Pa lower with WT (effective stress)', withWater.Pa < noWater.Pa, true);
+  // Hydrostatic Pw kicks in below the WT
+  // Pw = 0.5 · γ_w · h_w² = 0.5 · 9.81 · 2² = 19.62 kN/m
+  expect('Hydrostatic Pw = 0.5·γ_w·h_w²', withWater.Pw, 0.5 * 9.81 * 4, 0.001);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 29: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);

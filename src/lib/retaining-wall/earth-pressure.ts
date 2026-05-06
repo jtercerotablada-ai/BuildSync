@@ -10,9 +10,20 @@
 // For vertical wall α = 90°, level backfill β = 0, this reduces to Rankine
 // with δ=0.
 //
+// At-rest (K0, Jaky 1944) — for walls that do NOT deform enough for active
+// pressure to develop (e.g. basement walls restrained by a top tie / floor
+// slab; rigid retaining walls on rock). For normally-consolidated soils:
+//   K0 = 1 − sin φ
+// For sloping backfill, Corps of Engineers (1961) complementary form:
+//   K0β = (1 − sin φ) · (1 + sin β)
+// CYPE uses Jaky for level + Corps formula for sloped (per "Lateral Pressure
+// Calculations" manual §2.3).
+//
 // Surcharge (uniform q, kPa): acts as an equivalent soil layer of height
-//   h_eq = q/γ; produces a rectangular pressure diagram of intensity Ka·q.
+//   h_eq = q/γ; produces a rectangular pressure diagram of intensity K·q.
 // Water (hydrostatic below the water table): σw(y) = γw · y, independent of K.
+//   Effective stress below WT: σv_effective = γ·z_above_WT + γ'·z_below_WT
+//   where γ' = γ_sat − γ_w  (CYPE "Lateral Pressure Calculations" §1)
 // Seismic: Mononobe-Okabe adds ΔPae to static active thrust.
 
 import type { SoilLayer, WaterTable, WallLoads } from './types';
@@ -59,6 +70,27 @@ export function kaCoulomb(phi: number, beta: number, delta: number, alpha = Math
   return num / denom;
 }
 
+/**
+ * Pick the lateral-pressure coefficient K based on the user-selected theory.
+ * Centralized so every per-kind solver shares the same selection logic.
+ *
+ *   • 'rankine'  → kaRankine(φ, β)
+ *   • 'coulomb'  → kaCoulomb(φ, β, δ)
+ *   • 'at-rest'  → k0Jaky(φ, β)  (CYPE "Lateral Pressure Calculations" §2.3)
+ */
+export function pickK(
+  theory: 'rankine' | 'coulomb' | 'at-rest',
+  phi: number,
+  beta: number,
+  delta: number = 0,
+): number {
+  switch (theory) {
+    case 'rankine':  return kaRankine(phi, beta);
+    case 'coulomb':  return kaCoulomb(phi, beta, delta);
+    case 'at-rest':  return k0Jaky(phi, beta);
+  }
+}
+
 export function kpCoulomb(phi: number, beta: number, delta: number, alpha = Math.PI / 2): number {
   const s1 = Math.sin(alpha - phi);
   const s2 = Math.sin(alpha);
@@ -74,9 +106,45 @@ export function kpCoulomb(phi: number, beta: number, delta: number, alpha = Math
   return num / denom;
 }
 
-/** Effective unit weight of a soil column considering the water table. */
-export function effectiveWeight(gamma: number, submerged: boolean, gammaW = 9.81): number {
-  return submerged ? Math.max(gamma - gammaW, 0) : gamma;
+/**
+ * Jaky's at-rest pressure coefficient, K0 = 1 − sin φ (1944).
+ * For normally-consolidated soils only. For over-consolidated, K0 is larger
+ * and depends on OCR (Mayne & Kulhawy 1982: K0_OC = K0_NC · OCR^sinφ).
+ *
+ * For sloped backfill (β > 0), Corps of Engineers 1961 complementary form:
+ *   K0_sloped = K0 · (1 + sin β)
+ *
+ * φ and β in radians.
+ */
+export function k0Jaky(phi: number, beta: number = 0): number {
+  const k0 = 1 - Math.sin(phi);
+  if (beta <= 0) return k0;
+  return k0 * (1 + Math.sin(beta));
+}
+
+/**
+ * Effective unit weight of a soil column considering the water table.
+ *
+ *  • Above the water table (or no water): apparent (moist) unit weight γ.
+ *  • Below the water table: submerged effective unit weight γ' = γ_sat − γ_w.
+ *
+ * If the soil layer specifies `gammaSubmerged` explicitly (when known from
+ * lab tests), it's used directly. Otherwise we estimate γ' from the input γ:
+ * if γ is the saturated weight, γ' = γ − γ_w; if γ is moist, we approximate
+ * γ_sat ≈ γ + 1 kN/m³ (typical for partially saturated → fully saturated
+ * transition) and then γ' = γ_sat − γ_w. The approximation is conservative
+ * for active pressure (slightly overestimates effective stress).
+ */
+export function effectiveWeight(
+  layer: { gamma: number; gammaSubmerged?: number },
+  submerged: boolean,
+  gammaW = 9.81,
+): number {
+  if (!submerged) return layer.gamma;
+  if (layer.gammaSubmerged !== undefined) return Math.max(layer.gammaSubmerged, 0);
+  // Treat input γ as the saturated weight when WT applies (common convention
+  // in geotech inputs). γ' = γ_sat − γ_w.
+  return Math.max(layer.gamma - gammaW, 0);
 }
 
 export interface ForceIntegration {
@@ -127,7 +195,7 @@ export function integrateActivePressure(
     }
 
     const submerged = water.enabled && z >= water.depthFromStemTop;
-    const gammaEff = effectiveWeight(layer.gamma, submerged, water.gammaW);
+    const gammaEff = effectiveWeight(layer, submerged, water.gammaW);
     // Vertical effective stress σv' at depth z (kPa):
     // accumulate γ·dz along the column; easier to recompute per step.
     // Here we do an incremental update:

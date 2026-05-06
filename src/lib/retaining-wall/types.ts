@@ -24,18 +24,10 @@
 //  8. abutment      — bridge abutment with seat + backwall + breastwall +
 //                     optional wing walls; AASHTO LRFD load combinations
 
-export type WallKind =
-  | 'cantilever'
-  | 'gravity'
-  | 'semi-gravity'
-  | 'l-shaped'
-  | 'counterfort'
-  | 'buttressed'
-  | 'basement'
-  | 'abutment';
+export type WallKind = 'cantilever';
 
 /**
- * Common geometry shared by every wall type. Convention:
+ * Cantilever retaining-wall geometry. Convention:
  *  • Stem = vertical concrete wall, height H_stem above footing top.
  *  • Footing = horizontal base slab with heel (behind stem) + toe (in front).
  *  • Heel supports backfill weight; toe sits below finished grade in front.
@@ -55,109 +47,29 @@ export type WallKind =
  * A shear key (optional) projects below the footing to increase sliding
  * resistance.
  *
- * For l-shaped walls, B_toe is forced to 0. For counterfort/buttressed,
- * the stem-thickness and heel-thickness fields refer to the SLAB spanning
- * between counterforts (the counterfort itself is in `counterfortThickness`).
+ * BuildSync supports cantilever walls only. Other wall families (gravity,
+ * counterfort, basement, abutment) were removed in commit "scope: cantilever
+ * only" to focus on a single, deeply-implemented wall type matching CYPE
+ * StruBIM Cantilever Walls.
  */
-interface WallGeometryBase {
+export interface WallGeometry {
+  kind: 'cantilever';
   H_stem: number;        // stem height above footing top (mm)
   t_stem_top: number;    // stem thickness at top (mm)
   t_stem_bot: number;    // stem thickness at footing (mm)
-  B_toe: number;         // toe width (mm); l-shaped forces 0
+  B_toe: number;         // toe width (mm)
   B_heel: number;        // heel width (mm)
   H_foot: number;        // footing thickness (mm)
   backfillSlope: number; // β, slope of backfill above stem top (radians, 0 = level)
   frontFill: number;     // depth of soil in front of wall above footing top (mm)
-  /** Optional shear key projecting below the footing (cantilever / counterfort / buttressed). */
+  /** Optional shear key projecting below the footing. */
   key?: { width: number; depth: number; offsetFromHeel: number };
 }
 
-/** Cantilever wall — the existing default. */
-export interface CantileverGeometry extends WallGeometryBase {
-  kind: 'cantilever';
-}
+/** Type alias kept for backwards compatibility with existing print-report imports. */
+export type CantileverGeometry = WallGeometry;
 
-/** Gravity wall — mass concrete, often trapezoidal, no flexure rebar reliance. */
-export interface GravityGeometry extends WallGeometryBase {
-  kind: 'gravity';
-  /** Additional front-face batter (rad), in addition to t_top→t_bot taper. */
-  batterFront: number;
-  /** Additional back-face batter (rad). */
-  batterBack: number;
-}
-
-/** Semi-gravity — cantilever envelope with light vertical reinforcement only. */
-export interface SemiGravityGeometry extends WallGeometryBase {
-  kind: 'semi-gravity';
-}
-
-/** L-shaped — toe absent (B_toe = 0); stem may lean forward. */
-export interface LShapedGeometry extends WallGeometryBase {
-  kind: 'l-shaped';
-  /** Forward stem lean (rad), positive = top tilted toward retained side. */
-  stemLean: number;
-}
-
-/** Counterfort wall — rear buttresses tying stem to heel slab. */
-export interface CounterfortGeometry extends WallGeometryBase {
-  kind: 'counterfort';
-  /** Spacing of counterforts along the wall length (mm), centerline-to-centerline. */
-  counterfortSpacing: number;
-  /** Counterfort thickness perpendicular to the wall (mm). */
-  counterfortThickness: number;
-}
-
-/** Buttressed wall — front buttresses (compression mirror of counterfort). */
-export interface ButtressedGeometry extends WallGeometryBase {
-  kind: 'buttressed';
-  /** Spacing of front buttresses along the wall length (mm). */
-  buttressSpacing: number;
-  /** Buttress thickness perpendicular to the wall (mm). */
-  buttressThickness: number;
-}
-
-/** Basement / restrained-top wall — propped by floor slab/diaphragm. */
-export interface BasementGeometry extends WallGeometryBase {
-  kind: 'basement';
-  /** Elevation of the top support above the footing top (mm). Typically equals H_stem for "fully propped at top." */
-  topElevation: number;
-  /** Top boundary condition. 'pinned' = floor slab acts as a pin; 'fixed' = diaphragm provides moment fixity. */
-  topFixity: 'pinned' | 'fixed';
-}
-
-/** Bridge abutment with seat + backwall + optional wing walls. */
-export interface AbutmentGeometry extends WallGeometryBase {
-  kind: 'abutment';
-  /** Bridge seat geometry + reactions. */
-  bridgeSeat: {
-    width: number;     // seat width along the abutment (mm)
-    deadLoad: number;  // bridge dead load on seat (kN/m of wall)
-    liveLoad: number;  // bridge live load on seat (kN/m of wall, AASHTO LL)
-  };
-  /** Backwall above the seat retaining roadway fill. */
-  backwall: {
-    H: number;  // height of backwall above seat (mm)
-    t: number;  // thickness (mm)
-  };
-  /** Optional wing walls flanking the abutment. */
-  wingWall?: {
-    length: number; // mm
-    H: number;      // mm
-    t: number;      // mm
-  };
-}
-
-export type WallGeometry =
-  | CantileverGeometry
-  | GravityGeometry
-  | SemiGravityGeometry
-  | LShapedGeometry
-  | CounterfortGeometry
-  | ButtressedGeometry
-  | BasementGeometry
-  | AbutmentGeometry;
-
-export type WallCode = 'ACI 318-25' | 'ACI 318-19' | 'AASHTO LRFD';
+export type WallCode = 'ACI 318-25' | 'ACI 318-19';
 
 export interface ConcreteMaterial {
   fc: number;    // f'c (MPa)
@@ -169,17 +81,25 @@ export interface ConcreteMaterial {
 
 /**
  * Soil layer on the retained (backfill) side. Multi-layer supported.
- *   γ  = total unit weight (kN/m³)
- *   φ  = friction angle (radians)
- *   c  = cohesion (kPa = kN/m²)
- *   thickness = measured from top of stem down (mm). Last layer is unbounded.
+ *   γ          = apparent (moist) unit weight (kN/m³). Used above the water table.
+ *   φ          = friction angle (radians)
+ *   c          = cohesion (kPa = kN/m²)
+ *   thickness  = measured from top of stem down (mm). Last layer is unbounded.
+ *   gammaSubmerged  (optional) = submerged effective unit weight γ' = γ_sat − γ_w
+ *                  (kN/m³). Used below the water table when known from lab
+ *                  testing. If omitted, γ' is approximated as max(γ − γ_w, 0)
+ *                  treating γ as the saturated weight (geotechnical convention
+ *                  for inputs to retaining-wall design when WT is enabled).
+ *                  Per CYPE "Lateral Pressure Calculations" §1, effective
+ *                  stress below WT uses γ' explicitly.
  */
 export interface SoilLayer {
   name: string;
-  gamma: number;     // unit weight (kN/m³)
-  phi: number;       // friction angle φ (radians)
-  c: number;         // cohesion (kPa)
-  thickness: number; // mm; 0 or Infinity for "extend to bottom"
+  gamma: number;            // unit weight (kN/m³)
+  phi: number;              // friction angle φ (radians)
+  c: number;                // cohesion (kPa)
+  thickness: number;        // mm; 0 or Infinity for "extend to bottom"
+  gammaSubmerged?: number;  // γ' (kN/m³) for use below WT
 }
 
 /**
@@ -235,7 +155,7 @@ export interface WallLoads {
   seismic: { kh: number; kv: number };                   // horizontal / vertical seismic coefficients
 }
 
-export type EarthPressureTheory = 'rankine' | 'coulomb';
+export type EarthPressureTheory = 'rankine' | 'coulomb' | 'at-rest';
 
 /**
  * Optional firm-branding for the print-report cover.
@@ -249,7 +169,7 @@ export interface ReportBranding {
 }
 
 export interface WallInput {
-  /** Code edition for citations. Defaults to ACI 318-25; abutments auto-select AASHTO LRFD. */
+  /** Code edition for citations. Defaults to ACI 318-25. */
   code?: WallCode;
   geometry: WallGeometry;
   concrete: ConcreteMaterial;
@@ -403,12 +323,6 @@ export interface StemDesignResult {
     Avf_provided: number; // mm²/m (= As_req)
     ok: boolean;
   };
-  /** When a basement / restrained-top wall produces tension on the FRONT face at midspan. */
-  frontFace?: {
-    Mu: number;
-    As_req: number;
-    crack: CrackControl;
-  };
   /**
    * Horizontal (distribution / temperature) reinforcement in the stem.
    * Per ACI 318-25 §11.6.1 + Wight §18-3: cantilever retaining-wall stems
@@ -459,59 +373,6 @@ export interface KeyDesignResult {
   crack: CrackControl;
 }
 
-/**
- * Counterfort design (kind = 'counterfort').
- *  • stemSlab = horizontal slab spanning between counterforts (one-way, fixed-fixed)
- *  • heelSlab = longitudinal slab spanning between counterforts under backfill
- *  • counterfort = T-beam in tension (rear face)
- */
-export interface CounterfortDesignResult {
-  stemSlab: SlabDesignResult;
-  heelSlab: SlabDesignResult;
-  counterfort: {
-    Mu: number;        // T-beam max moment (kN·m)
-    Vu: number;        // T-beam max shear (kN)
-    bw: number;        // web width (mm) — = counterfortThickness
-    d: number;         // effective depth (mm)
-    As_req: number;    // tension steel (mm²)
-    phiMn: number;     // capacity (kN·m)
-    Vc: number;        // shear capacity (kN)
-    shearOk: boolean;
-  };
-}
-
-/** Buttressed design — front buttresses are in compression (mirror of counterfort). */
-export interface ButtressedDesignResult extends CounterfortDesignResult {
-  /** True if the buttresses fully relieve stem flexure (compression mode). */
-  compressionMode: boolean;
-}
-
-/** Top-support reaction (basement / restrained-top wall). */
-export interface TopSupportResult {
-  /** Reaction at the top tie / floor slab (kN/m). */
-  reaction: number;
-  /** Stem moment diagram extrema. */
-  Mmax_pos: number; // bottom face tension (kN·m/m)
-  Mmax_neg: number; // top face tension (kN·m/m), negative number
-  yMax_pos: number; // mm above footing top
-  yMax_neg: number; // mm above footing top
-  fixity: 'pinned' | 'fixed';
-}
-
-/** Bridge-seat + backwall + wing wall design (abutment). */
-export interface AbutmentDesignResult {
-  /** Bridge seat bearing-pad reaction summary. */
-  seat: {
-    PuD: number; // factored DL (kN/m)
-    PuL: number; // factored LL (kN/m)
-    PuTotal: number;
-  };
-  /** Backwall flexural design (vertical cantilever above seat). */
-  backwall: SlabDesignResult;
-  /** Optional wing-wall design. */
-  wingWall?: SlabDesignResult;
-}
-
 export interface WallResults {
   pressure: PressureDistribution;
   stability: StabilityResult;
@@ -519,21 +380,6 @@ export interface WallResults {
   heel: SlabDesignResult;
   toe: SlabDesignResult;
   key: KeyDesignResult;
-  /** Populated for kind = 'counterfort'. */
-  counterfortDesign?: CounterfortDesignResult;
-  /** Populated for kind = 'buttressed'. */
-  buttressedDesign?: ButtressedDesignResult;
-  /** Populated for kind = 'basement'. */
-  topSupport?: TopSupportResult;
-  /** Populated for kind = 'abutment'. */
-  abutmentDesign?: AbutmentDesignResult;
-  /** Gravity-wall compression-stress check (kind = 'gravity'). */
-  gravityStress?: {
-    sigma_max: number; // kPa
-    sigma_min: number; // kPa
-    sigma_allow: number; // 0.45·f'c (kPa) per ACI §14.5
-    ok: boolean;
-  };
   issues: string[]; // non-fatal warnings (low eccentricity, thin cover, etc.)
   errors: string[]; // fatal: FS < min, bearing exceeds, etc.
 }
