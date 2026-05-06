@@ -6355,37 +6355,42 @@ img, svg {
   height: 100%;
 }
 /* CYPE-style sub-tabs above the section drawing (Arquitectura / Cargas /
-   Presiones / Armado). */
+   Presiones / Armado). Compact strip — minimal vertical footprint so the
+   SVG below gets the maximum drawing area possible. */
 .rw__view2d-tabs {
   display: flex;
-  gap: 0.15rem;
-  padding: 0.45rem 0.6rem 0.4rem;
-  background: rgba(20, 20, 24, 0.85);
-  border-bottom: 1px solid rgba(201, 168, 76, 0.18);
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem;
+  background: #0e0e10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 .rw__view2d-tabs button {
-  flex: 1;
-  min-height: 36px;
-  padding: 0 0.7rem;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 28px;
+  padding: 0 0.6rem;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  color: rgba(242, 239, 228, 0.65);
-  font-size: 0.78rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: rgba(242, 239, 228, 0.55);
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.05em;
   cursor: pointer;
   transition: all 0.12s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .rw__view2d-tabs button:hover {
   color: #f2efe4;
-  border-color: rgba(201, 168, 76, 0.4);
+  background: rgba(255, 255, 255, 0.04);
 }
 .rw__view2d-tabs button.is-active {
-  background: rgba(201, 168, 76, 0.18);
-  border-color: var(--color-accent, #c9a84c);
-  color: #fff;
+  background: rgba(201, 168, 76, 0.14);
+  border-color: rgba(201, 168, 76, 0.5);
+  color: var(--color-accent, #c9a84c);
 }
 .rw__view2d-svg-wrap {
   flex: 1 1 auto;

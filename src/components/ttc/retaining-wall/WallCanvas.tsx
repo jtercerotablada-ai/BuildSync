@@ -248,17 +248,10 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
   // Gravel pack against rear face of the stem, full stem height, plus a
   // perforated pipe at the base. Defaults to enabled (best practice per
   // every retaining-wall textbook); user can disable for unusual cases.
-  const drainage = input.drainage ?? { enabled: true, gravelThickness: 300, pipeDiameter: 100 };
-  const gravelThickness = drainage.enabled ? drainage.gravelThickness : 0;
-  const pipeDiameter   = drainage.enabled ? drainage.pipeDiameter   : 0;
-  const gravelPoly: [number, number][] = drainage.enabled ? [
-    [stemBackX_bot, footTop],
-    [stemBackX_bot + gravelThickness, footTop],
-    [stemBackX_top + gravelThickness, stemTop],
-    [stemBackX_top, stemTop],
-  ] : [];
-  const pipeCx = stemBackX_bot + gravelThickness / 2;
-  const pipeCy = footTop + pipeDiameter / 2 + 30; // 30 mm above footing for the gravel bed
+  // Drainage gravel + pipe geometry is no longer rendered in the design
+  // view. Kept the input field on the form so it still exists in saved
+  // jobs, but the visualization is reserved for final construction
+  // drawings (print report).
 
   // Grass strips — one on top of the toe fill (front of wall) and one tracing
   // the inclined backfill top.
@@ -449,42 +442,9 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
         />
       )}
 
-      {/* ─── DRAINAGE GRAVEL (gray pack between stem rear face + backfill) ─── */}
-      {drainage.enabled && (
-        <g>
-          <polygon
-            points={poly(gravelPoly)}
-            fill={C.gravel}
-            stroke={C.gravelStroke}
-            strokeWidth={3}
-          />
-          {/* Gravel "pebbles" texture inside the gravel band */}
-          {(() => {
-            const gravelSeed = Math.floor(stemTop + gravelThickness * 13);
-            const rng = mulberry32(gravelSeed);
-            const count = Math.floor((stemTop - footTop) * gravelThickness / 12000);
-            const els: React.ReactElement[] = [];
-            for (let i = 0; i < count; i++) {
-              const t = rng();
-              const tt = rng();
-              // Interpolate the gravel band width that tapers with the stem
-              const yy = footTop + t * (stemTop - footTop);
-              const taperT = (yy - footTop) / Math.max(stemTop - footTop, 1);
-              const xLeftBand = stemBackX_bot + (stemBackX_top - stemBackX_bot) * taperT;
-              const xRightBand = xLeftBand + gravelThickness;
-              const xx = xLeftBand + tt * (xRightBand - xLeftBand);
-              const r = 18 + rng() * 24;
-              els.push(
-                <circle key={`gv-${i}`}
-                  cx={xW(xx)} cy={yW(yy)} r={r}
-                  fill={rng() > 0.5 ? C.gravelLight : C.gravelDark}
-                  opacity={0.7} />,
-              );
-            }
-            return els;
-          })()}
-        </g>
-      )}
+      {/* Drainage gravel + pipe deliberately omitted from the design view —
+         per Juan, those are construction details for final shop drawings,
+         not engineering analysis. They live in the print report only. */}
 
       {/* ─── CONCRETE (footing + stem + optional key) ─── */}
       <polygon
@@ -745,26 +705,7 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
         );
       })()}
 
-      {/* ─── DRAINAGE PIPE (perforated, white circle near base of gravel) ─── */}
-      {drainage.enabled && pipeDiameter > 0 && (
-        <g>
-          {/* Outer pipe wall */}
-          <circle cx={xW(pipeCx)} cy={yW(pipeCy)} r={pipeDiameter / 2}
-            fill={C.pipeWhite} stroke={C.pipeShadow} strokeWidth={5} />
-          {/* Inner shadow */}
-          <circle cx={xW(pipeCx)} cy={yW(pipeCy)} r={pipeDiameter / 2 * 0.65}
-            fill="rgba(0,0,0,0.45)" />
-          {/* Perforation marks (small holes) */}
-          {Array.from({ length: 6 }).map((_, i) => {
-            const a = (i / 6) * Math.PI * 2 - Math.PI / 6;
-            const r = pipeDiameter / 2 * 0.75;
-            const px = xW(pipeCx) + Math.cos(a) * r;
-            const py = yW(pipeCy) + Math.sin(a) * r;
-            return <circle key={`p-${i}`} cx={px} cy={py} r={pipeDiameter * 0.08}
-                          fill={C.pipeShadow} />;
-          })}
-        </g>
-      )}
+      {/* Drainage pipe omitted — see note above */}
 
       {/* ─── Water table dashed cyan ∇ ─── */}
       {input.water.enabled && (() => {
@@ -1042,29 +983,8 @@ export function WallCanvas({ input, results, unitSystem = 'metric', mode = 'arch
           text: 'Relleno',
           fs: fs.sm,
         });
-        // Drainage labels — only when drainage is enabled
-        if (drainage.enabled) {
-          items.push({
-            side: 'right',
-            tx: xW(B + padR * 0.5),
-            ty: yW(stemTop - g.H_stem * 0.6),
-            dx: xW(stemBackX_bot + gravelThickness * 0.5),
-            dy: yW(stemTop - g.H_stem * 0.55),
-            text: 'Grava drenante',
-            fs: fs.sm,
-          });
-          if (pipeDiameter > 0) {
-            items.push({
-              side: 'right',
-              tx: xW(B + padR * 0.5),
-              ty: yW(stemTop - g.H_stem * 0.85),
-              dx: xW(pipeCx),
-              dy: yW(pipeCy),
-              text: 'Tubo de drenaje',
-              fs: fs.sm,
-            });
-          }
-        }
+        // (drainage gravel + pipe labels removed — construction detail
+        //  not relevant for engineering design view)
         return items.map((it, i) => (
           <Callout key={`cal-${i}`} {...it} />
         ));
