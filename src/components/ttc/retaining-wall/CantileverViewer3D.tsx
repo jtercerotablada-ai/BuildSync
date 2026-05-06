@@ -156,7 +156,7 @@ export function CantileverViewer3D({ input, result }: Props) {
 
           {/* ──────── REBAR — protagonista ──────── */}
           <StemVerticalBars
-            xRear={xStemBack} xFrontTop={xStemBackTop}
+            xRearBot={xStemBack} xRearTop={xStemBackTop}
             Hstem={Hstem} Hfoot={Hfoot} wallL={wallL} cover={cover}
             db={stemVert.db * MM_TO_M} spacing={stemVert.spacing * MM_TO_M}
           />
@@ -304,32 +304,50 @@ function LongitudinalRebarMaterial() {
 }
 
 function StemVerticalBars({
-  xRear, xFrontTop, Hstem, Hfoot, wallL, cover, db, spacing,
+  xRearBot, xRearTop, Hstem, Hfoot, wallL, cover, db, spacing,
 }: {
-  xRear: number; xFrontTop: number;
+  xRearBot: number; xRearTop: number;     // rear face X at y=0 (bot) and y=Hstem (top)
   Hstem: number; Hfoot: number; wallL: number; cover: number;
   db: number; spacing: number;
 }) {
-  void xFrontTop;
-  const bars = useMemo(() => {
-    const out: { x: number; y: number; z: number; len: number }[] = [];
-    const xBar = xRear - cover - db / 2;
-    const len = Hstem + Hfoot * 0.6;          // extend down INTO the footing for development
-    const yBar = -Hfoot * 0.6 + len / 2;       // centered: from -0.6·Hfoot to +Hstem
+  // The rear face tapers from t_bot at the base to t_top at the crown.
+  // Vertical rebar must FOLLOW that slope so it stays inside the cover at
+  // every height. We tilt each instance around Z by the rear-face slope
+  // angle and extend the bar down into the footing for development length.
+  const layout = useMemo(() => {
+    const slope = (xRearTop - xRearBot) / Math.max(Hstem, 1e-6); // dx/dy
+    const yLo = -Hfoot * 0.6;
+    const yHi = Hstem;
+    // X at each end-point — rear face line, offset by cover + db/2.
+    const xLo = xRearBot + slope * yLo - cover - db / 2;
+    const xHi = xRearTop - cover - db / 2;
+    const dx = xHi - xLo;
+    const dy = yHi - yLo;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const xCenter = (xLo + xHi) / 2;
+    const yCenter = (yLo + yHi) / 2;
+    // Rotation around Z so local +Y aligns with (dx, dy):
+    //   R_z(θ)·(0,1,0) = (-sin θ, cos θ, 0) ≜ (dx/len, dy/len, 0)
+    //   ⇒ θ = atan2(-dx, dy)
+    const angleZ = Math.atan2(-dx, dy);
+
+    const out: { x: number; y: number; z: number }[] = [];
     const nBars = Math.max(2, Math.floor(wallL / spacing) + 1);
     const zStart = -wallL / 2 + cover * 2;
-    const dz = (wallL - 4 * cover) / (nBars - 1);
+    const dz = (wallL - 4 * cover) / Math.max(nBars - 1, 1);
     for (let i = 0; i < nBars; i++) {
-      out.push({ x: xBar, y: yBar, z: zStart + i * dz, len });
+      out.push({ x: xCenter, y: yCenter, z: zStart + i * dz });
     }
-    return out;
-  }, [xRear, Hstem, Hfoot, wallL, cover, db, spacing]);
+    return { bars: out, len, angleZ };
+  }, [xRearBot, xRearTop, Hstem, Hfoot, wallL, cover, db, spacing]);
   return (
     <Instances limit={500} castShadow receiveShadow>
       <cylinderGeometry args={[db / 2, db / 2, 1, 12]} />
       <StemRebarMaterial />
-      {bars.map((b, i) => (
-        <Instance key={i} position={[b.x, b.y, b.z]} scale={[1, b.len, 1]} />
+      {layout.bars.map((b, i) => (
+        <Instance key={i} position={[b.x, b.y, b.z]}
+                  scale={[1, layout.len, 1]}
+                  rotation={[0, 0, layout.angleZ]} />
       ))}
     </Instances>
   );

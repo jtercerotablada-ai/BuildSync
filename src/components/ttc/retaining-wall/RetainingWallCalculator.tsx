@@ -24,6 +24,7 @@ const CantileverViewer3D = dynamic(
 
 type Tab = 'geometry' | 'materials' | 'soil' | 'loads';
 type ResultTab = 'stability' | 'design';
+type ViewMode = '2d' | '3d';
 
 function tabLabel(t: Tab): string {
   return { geometry: 'Geometry', materials: 'Materials', soil: 'Soil', loads: 'Loads' }[t];
@@ -34,6 +35,7 @@ export function RetainingWallCalculator() {
   const [resultTab, setResultTab] = useState<ResultTab>('stability');
   const [input, setInput] = useState<WallInput>(DEFAULT_INPUT);
   const [unitSystem, setUnitSystem] = useState<UnitSystem>('metric');
+  const [viewMode, setViewMode] = useState<ViewMode>('2d');
 
   const results = useMemo(() => {
     try {
@@ -116,6 +118,24 @@ export function RetainingWallCalculator() {
         </div>
 
         <div className="rw__actions">
+          <div className="rw__units seg" role="group" aria-label="View mode">
+            <button
+              type="button"
+              className={viewMode === '2d' ? 'is-active' : ''}
+              onClick={() => setViewMode('2d')}
+              title="Vista 2D (sección estilo CYPE)"
+            >
+              2D
+            </button>
+            <button
+              type="button"
+              className={viewMode === '3d' ? 'is-active' : ''}
+              onClick={() => setViewMode('3d')}
+              title="Vista 3D (concreto fantasma + armado)"
+            >
+              3D
+            </button>
+          </div>
           <div className="rw__units seg" role="group" aria-label="Unit system">
             <button
               type="button"
@@ -208,9 +228,15 @@ export function RetainingWallCalculator() {
 
         <main className="rw__canvas">
           {results ? (
-            <div className="rw__canvas-3d rw__canvas-3d--full">
-              <CantileverViewer3D input={input} result={results} />
-            </div>
+            viewMode === '3d' ? (
+              <div className="rw__canvas-3d rw__canvas-3d--full">
+                <CantileverViewer3D input={input} result={results} />
+              </div>
+            ) : (
+              <div className="rw__canvas-2d">
+                <WallCanvas input={input} results={results} unitSystem={unitSystem} />
+              </div>
+            )
           ) : (
             <div className="rw__empty">Enter geometry to build your wall</div>
           )}
