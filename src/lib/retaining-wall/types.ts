@@ -339,6 +339,59 @@ export interface StemDesignResult {
     /** Maximum spacing per §11.7.3.1 (= min(3·h, 450 mm)). */
     s_max: number;
   };
+  /**
+   * Combined axial + bending interaction check at the base of the stem
+   * (ACI 318-25 §22.4). Computes nominal Pn, Mn at the converged neutral
+   * axis depth and reports utilization = Mu / (φ·Mn) at the given Pu.
+   */
+  pmCheck?: {
+    Pu: number;            // factored axial (kN/m), compression positive
+    Pn: number;            // nominal axial at solution c (kN/m)
+    Mn: number;            // nominal moment at solution c (kN·m/m)
+    phi: number;           // strength reduction factor (0.65–0.90)
+    c: number;             // neutral-axis depth (mm)
+    epsilonT: number;      // strain at extreme tension steel
+    classification: 'tension-controlled' | 'compression-controlled' | 'transition';
+    utilization: number;   // Mu / (φ·Mn)
+    ok: boolean;
+  };
+  /**
+   * Geometric and mechanical reinforcement ratios per face (vertical bars
+   * at the rear of the stem). CYPE differentiates min/max ratios for
+   * tension face and compression face.
+   *   ρ = As / (b·d)            geometric
+   *   ω = (As·fy) / (b·d·f'c)   mechanical (EC-2 / CYPE)
+   * ACI 318-25 minimums:
+   *   Walls (Table 11.6.1):  ρ_min,vert = 0.0012 (≤#16) / 0.0015 (>#16)
+   *   Slabs (§24.4.3):       ρ_min,slab = 0.0018 for fy = 420 MPa
+   *   Tension-controlled max (§21.2.2): εt ≥ 0.005, typ. ρ_max ~ 0.015–0.02
+   */
+  ratios?: {
+    rho_geometric: number;     // ρ = As / (b·d)
+    rho_min: number;           // §24.4.3 / Table 11.6.1
+    rho_max: number;           // tension-controlled limit
+    omega_mechanical: number;  // ω = ρ · (fy/fc)
+    rho_geometric_ok: boolean;
+    rho_max_ok: boolean;       // ρ ≤ ρ_max → tension-controlled
+  };
+  /**
+   * Cap beam ("top of wall") check — per CYPE StruBIM Cantilever Walls
+   * Manual §2.4.1.5 a horizontal cap beam (typically 2 #4) runs along
+   * the full length of the wall to control cracking and provide a tied
+   * edge for the verticals.
+   */
+  capBeam?: {
+    As_provided: number;       // mm² (default 2 × #4 = 258)
+    As_min: number;            // mm² minimum per cap-beam criterion
+    layout: string;            // e.g. "2 #4"
+    ok: boolean;
+  };
+  /**
+   * Anchorage of vertical stem bars at the TOP of the wall (per ACI
+   * 318-25 §25.4 development length / §25.4.3 hook). The bars must be
+   * developed past their flexural cut-off point per §9.7.3.3.
+   */
+  topAnchorage?: DevelopmentLengthResult;
 }
 
 export interface SlabDesignResult {

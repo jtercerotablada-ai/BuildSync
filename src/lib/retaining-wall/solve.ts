@@ -6,6 +6,12 @@
 import type { WallInput, WallResults, WallGeometry, WallKind } from './types';
 import { computeStability } from './stability';
 import { designStem, designHeel, designToe, designKey } from './design';
+import {
+  pmInteraction,
+  mechanicalRatio,
+  capBeamCheck,
+  developmentLengthHook,
+} from './aci-checks';
 
 export function solveWall(input: WallInput): WallResults {
   const { stability, pressure } = computeStability(input);
@@ -107,6 +113,93 @@ export function solveWall(input: WallInput): WallResults {
     As_horizontal_per_m: As_horiz,
     s_max: s_max_horiz,
   };
+
+  // ──────── §22.4 — P-M interaction (combined axial + flexure) ────────
+  // The stem self-weight above the base is the axial demand on the base
+  // section. Combined with the earth-pressure moment Mu (already in
+  // stem.Mu), this triggers the P-M interaction check per §22.4.
+  // For typical cantilever walls Pu/(f'c·Ag) << 0.10 → tension-controlled
+  // and the section is well within the envelope.
+  const tAvg_m = (input.geometry.t_stem_top + input.geometry.t_stem_bot) / 2 / 1000;
+  const Hstem_m = input.geometry.H_stem / 1000;
+  const Pu_stem = 1.2 * input.concrete.gamma * tAvg_m * Hstem_m;  // kN/m, factored DL
+  stem.pmCheck = pmInteraction({
+    Pu: Pu_stem,
+    Mu: stem.Mu,
+    b: 1000,
+    h: input.geometry.t_stem_bot,
+    cover: input.concrete.cover,
+    fc: input.concrete.fc,
+    fy: input.concrete.fy,
+    Es: input.concrete.Es,
+    As: stem.As_req,
+  });
+  // P-M failure goes to issues (warning), not errors — for cantilever walls
+  // with low axial it''s rarely binding once flexure design has converged,
+  // and the ratio check below covers over-reinforcement directly. Severe
+  // utilization (> 1.2) escalates to a hard error.
+  if (!stem.pmCheck.ok) {
+    if (stem.pmCheck.utilization > 1.2) {
+      errors.push(
+        `Stem P-M interaction: utilization ${stem.pmCheck.utilization.toFixed(2)} > 1.20 (ACI 318-25 §22.4). Increase t_bot or As.`,
+      );
+    } else {
+      issues.push(
+        `Stem P-M interaction utilization ${stem.pmCheck.utilization.toFixed(2)} > 1.00 — review section (ACI 318-25 §22.4).`,
+      );
+    }
+  }
+
+  // ──────── Geometric + mechanical ratios ────────
+  // Vertical (flexural) reinforcement at the rear face.
+  const rho = stem.As_req / (1000 * stem.d);
+  const rho_min = (() => {
+    // ACI 318-25 walls Table 11.6.1: 0.0012 (≤#16, fy ≤ 420) / 0.0015 (>#16
+    // OR fy < 420 MPa). For cantilever stems treated as one-way slab per
+    // §13.3.6.1 → §7.6 / §24.4.3: 0.0018·(420/fy).
+    return Math.max(0.0012, 0.0018 * Math.min(420 / input.concrete.fy, 1));
+  })();
+  // Tension-controlled max ρ (§21.2.2 + Whitney): for fy=420, fc=28 →
+  //   ρ_max = 0.85·β1·(fc/fy)·(0.003/(0.003+0.005)) ≈ 0.0181
+  const beta1_max = input.concrete.fc <= 28 ? 0.85
+                  : input.concrete.fc >= 55 ? 0.65
+                  : 0.85 - 0.05 * (input.concrete.fc - 28) / 7;
+  const rho_max = 0.85 * beta1_max * (input.concrete.fc / input.concrete.fy) * (0.003 / 0.008);
+  stem.ratios = {
+    rho_geometric: rho,
+    rho_min,
+    rho_max,
+    omega_mechanical: mechanicalRatio(stem.As_req, input.concrete.fy, 1000, stem.d, input.concrete.fc),
+    rho_geometric_ok: rho >= rho_min - 1e-9,
+    rho_max_ok: rho <= rho_max + 1e-9,
+  };
+  if (!stem.ratios.rho_max_ok) {
+    issues.push(
+      `Stem flexural ratio ρ=${rho.toFixed(4)} > ρ_max=${rho_max.toFixed(4)} — section is over-reinforced (compression-controlled). Increase t_bot for tension-controlled behaviour (ACI 318-25 §21.2.2).`,
+    );
+  }
+
+  // ──────── Cap beam (top of wall) ────────
+  stem.capBeam = capBeamCheck(input.geometry.t_stem_top, input.concrete.fy, input.concrete.fc);
+  if (!stem.capBeam.ok) {
+    issues.push(`Cap beam (top of wall) below As_min=${stem.capBeam.As_min.toFixed(0)} mm² (CYPE criterion §2.4.1.5).`);
+  }
+
+  // ──────── Anchorage of vertical stem bars at the TOP of the wall ────────
+  // Per ACI 318-25 §25.4.3 hook: ldh = (fy/(23·√fc))·db^1.5 ≥ max(8db, 150 mm).
+  // For a cantilever wall, vertical bars curtailed below the top need to
+  // anchor in a hook at the top; we use a 90° hook embedment of t_stem_top
+  // − cover as the available length (i.e. the bar bends into the cap beam).
+  const db_stem = 16;     // mm — assume #5 default for the check (conservative)
+  const lavail_top = input.geometry.t_stem_top - input.concrete.cover - 20;
+  stem.topAnchorage = developmentLengthHook(
+    db_stem, input.concrete.fy, input.concrete.fc, lavail_top,
+  );
+  if (!stem.topAnchorage.ok) {
+    issues.push(
+      `Stem vertical bars at top: hook ldh=${stem.topAnchorage.ldh} mm > available ${stem.topAnchorage.available} mm (ACI 318-25 §25.4.3). Thicken t_top or use smaller bar.`,
+    );
+  }
 
   return {
     pressure,

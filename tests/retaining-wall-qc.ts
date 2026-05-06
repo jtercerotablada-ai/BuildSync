@@ -15,6 +15,9 @@ import {
   shearFrictionRequiredArea,
   meyerhofBearing,
   multiLayerStemRebar,
+  pmInteraction,
+  mechanicalRatio,
+  capBeamCheck,
 } from '../src/lib/retaining-wall/aci-checks';
 import { autoDesign } from '../src/lib/retaining-wall/autoDesign';
 import type { WallInput } from '../src/lib/retaining-wall/types';
@@ -548,7 +551,73 @@ console.log('==========================================');
 }
 
 console.log('\n==========================================');
-console.log('BLOCK 29: Validation of results vs expected');
+console.log('BLOCK 29: P-M interaction (combined axial + bending) §22.4');
+console.log('==========================================');
+{
+  // Pure flexure (Pu = 0) on a 400 mm × 1000 mm strip, fc=28, fy=420,
+  // As = 1000 mm². Should be tension-controlled with φ = 0.90.
+  const r1 = pmInteraction({
+    Pu: 0, Mu: 60,                    // small moment
+    b: 1000, h: 400, cover: 75,
+    fc: 28, fy: 420, As: 1000,
+  });
+  expectBool('Pure flexure: tension-controlled (εt ≥ 0.005)',
+             r1.classification === 'tension-controlled', true);
+  expect('Pure flexure: φ = 0.90', r1.phi, 0.90, 0.001);
+  expectBool('Pure flexure: ok at low Mu', r1.ok, true);
+
+  // Higher axial → still tension-controlled but Pn shifted
+  const r2 = pmInteraction({
+    Pu: 50, Mu: 60,                   // small Pu to shift solver
+    b: 1000, h: 400, cover: 75,
+    fc: 28, fy: 420, As: 1000,
+  });
+  expectBool('Pu=50 kN/m, low ratio: still tension-controlled',
+             r2.classification === 'tension-controlled', true);
+  // Pn at converged c should be very close to Pu (within tolerance)
+  expect('Bisection converges Pn ≈ Pu', r2.Pn, 50, 0.05);
+
+  // Heavy compression near the balanced point → compression-controlled.
+  // For 1000×400 fc=28 fy=420 As=1000: Pn0 ≈ 0.85·28·400·1000/1000 = 9520 kN.
+  // Tension-controlled regime extends to Pu ≈ 0.10·Pn0 ≈ 950 kN. To force
+  // compression-controlled we need Pu above the balanced axial,
+  // which for this section is ≈ 3000 kN.
+  const r3 = pmInteraction({
+    Pu: 3500, Mu: 60,
+    b: 1000, h: 400, cover: 75,
+    fc: 28, fy: 420, As: 1000,
+  });
+  expectBool('Heavy axial (Pu=3500 kN/m): compression-controlled or transition',
+             r3.classification !== 'tension-controlled', true);
+  expectBool('Heavy axial: φ < 0.90', r3.phi < 0.90, true);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 30: Mechanical ratio ω = (As·fy)/(b·d·f\'c)');
+console.log('==========================================');
+{
+  // ρ = 1500 / (1000 · 320) = 0.00469
+  // ω = ρ · (420/28) = 0.00469 · 15 = 0.0703
+  const omega = mechanicalRatio(1500, 420, 1000, 320, 28);
+  expect('ω = ρ · fy/fc verified', omega, (1500 / (1000 * 320)) * (420 / 28), 0.001);
+  expect('ω numeric value (1500/1000×320 @ 420/28)', omega, 0.0703, 0.005);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 31: Cap beam (top of wall) check');
+console.log('==========================================');
+{
+  // t_top = 250 mm: 0.0033·250·1000 = 825 mm² governs over 2#4 (258 mm²)
+  const r = capBeamCheck(250, 420, 28);
+  expect('Cap beam As_min = max(ρ_min·t·1000, 2·#4)', r.As_min, 0.0033 * 250 * 1000, 0.001);
+  expectBool('Cap beam ok (auto-fills As_min)', r.ok, true);
+  // For a tiny stem (t = 60 mm): 0.0033·60·1000 = 198 mm² < 2·#4 (258), so 2#4 governs
+  const r2 = capBeamCheck(60, 420, 28);
+  expect('Cap beam very small t (60 mm): 2 #4 (258 mm²) governs', r2.As_min, 2 * 129, 0.001);
+}
+
+console.log('\n==========================================');
+console.log('BLOCK 32: Validation of results vs expected');
 console.log('==========================================');
 console.log(`  PASS: ${PASS}`);
 console.log(`  FAIL: ${FAIL}`);
