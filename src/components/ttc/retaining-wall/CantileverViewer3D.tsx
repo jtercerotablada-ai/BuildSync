@@ -1,30 +1,21 @@
 'use client';
 
-// CantileverViewer3D — dedicated, photo-realistic 3D viewer for cantilever
-// retaining walls. Single focused implementation; not a multi-kind switch.
+// CantileverViewer3D — CYPE-style structural visualization for cantilever
+// retaining walls. The 3D view focuses on the STRUCTURE: ghost concrete +
+// prominent rebar cages. Soil, gravel and grass live in the 2D section
+// view (WallCanvas) where they convey context cleanly.
 //
-// Goals (per Juan, "perfección, no trabajo a medias"):
-//   • Solo se vea el muro con el suelo y relleno bien hechos
-//   • Concreto que se vea como concreto (vertex noise + edge bands)
-//   • Armado real visible — vertical bars at rear of stem, horizontal
-//     distribution bars, footing top + bottom rebar, all sized from the
-//     calculated As_req values (mm² → bar count × spacing).
-//   • Suelo / relleno semi-transparente — see the wall through the soil
-//     using <MeshTransmissionMaterial> so the rebar grid is visible
-//     through the backfill.
-//   • Cinematic lighting + post-processing — SSAO + bloom + tone mapping
-//     via @react-three/postprocessing.
+// Visual language (matches CYPE Architecture / Reinforcement views):
+//   • Concrete: translucent white-gray (opacity ~0.22), with bold gold edges
+//     in the TTC brand accent (#c9a84c).
+//   • Rebar: solid, thick, two colors so the cages read at a glance:
+//       – Stem rebar  → green  (#7fb691)
+//       – Footing rebar → orange (#e89478)
+//   • Background: TTC dark (#0e0e10) — the brand fond.
+//   • Spanish callouts on the structure (Fuste, Punta, Talón).
 //
-// Calculation rationale (verified):
-//   - Vertical stem bars (rear face)  — sized by result.stem.As_req
-//   - Horizontal stem bars (both faces) — by §11.6.1 ρt = 0.0020,
-//     spaced per §11.7.3.1 s_max = min(3·t, 450 mm)
-//   - Heel top reinforcement (resists downward backfill weight) — by
-//     result.heel.As_req at the TOP of the footing
-//   - Toe bottom reinforcement (resists upward bearing pressure) — by
-//     result.toe.As_req at the BOTTOM of the footing
-//   - Hooks at the base of the stem oriented toward the FRONT face per
-//     R13.3.6 (commentary)
+// All bar layouts are derived from the calculated As (mm²/m) using a
+// standard #4–#10 catalog with spacing in [80, sMax] mm.
 
 import React, { Suspense, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
@@ -40,6 +31,18 @@ import type { WallInput, WallResults, CantileverGeometry } from '@/lib/retaining
 
 const MM_TO_M = 0.001;
 
+// TTC brand palette
+const C = {
+  fond:        '#0e0e10',
+  concrete:    '#e8e6df',  // light bone — concrete fantasma
+  edge:        '#c9a84c',  // TTC gold — edges of the concrete elements
+  stemRebar:   '#7fb691',  // green — stem rebar
+  footRebar:   '#e89478',  // orange — footing rebar
+  longitRebar: '#ffd166',  // amber — longitudinal distribution bars
+  callout:     '#f2efe4',  // cream — labels
+  calloutBg:   '#000000',
+};
+
 interface Props {
   input: WallInput;
   result: WallResults;
@@ -48,7 +51,7 @@ interface Props {
 /**
  * Pick a rebar diameter (mm) and spacing (mm) given a required area
  * As_req (mm²/m). Walks a standard bar catalog and picks the smallest
- * diameter that gives a spacing in [100, sMax] mm.
+ * diameter that gives a spacing in [80, sMax] mm.
  */
 function pickBarLayout(As_req: number, sMax: number = 300):
   { db: number; ab: number; spacing: number; label: string } {
@@ -67,7 +70,6 @@ function pickBarLayout(As_req: number, sMax: number = 300):
       return { db: bar.db, ab: bar.ab, spacing: s, label: bar.label };
     }
   }
-  // Fallback: largest bar at min spacing
   const last = catalog[catalog.length - 1];
   return { db: last.db, ab: last.ab, spacing: 80, label: last.label };
 }
@@ -92,29 +94,20 @@ export function CantileverViewer3D({ input, result }: Props) {
   const cover = input.concrete.cover * MM_TO_M;
   const Bfoot = Btoe + t_bot + Bheel;
 
-  // Wall length along Z — render a 3 m strip so multiple bars are visible
-  const wallL = 3.0;
+  // Wall length along Z — 4 m so longitudinal bars and spacing read clearly
+  const wallL = 4.0;
 
   // Reference x-coordinates (origin centered on footing)
   const xStemFront = -Bfoot / 2 + Btoe;
   const xStemBack  = -Bfoot / 2 + Btoe + t_bot;
   const xStemBackTop = xStemFront + t_top; // taper the rear face
 
-  // Drainage system
-  const drainage = input.drainage ?? { enabled: true, gravelThickness: 300, pipeDiameter: 100 };
-  const gravelT = drainage.enabled ? drainage.gravelThickness * MM_TO_M : 0;
-  const pipeD   = drainage.enabled ? drainage.pipeDiameter   * MM_TO_M : 0;
-
   // ──────── Pick rebar layouts from calculated As ────────
-  // Stem vertical bars (rear face) — main flexural rebar
   const stemVert = pickBarLayout(result.stem.As_req, 300);
-  // Stem horizontal distribution bars
   const As_horiz = result.stem.horizontalReinforcement?.As_horizontal_per_m ?? 0.0020 * 1000 * g.t_stem_bot;
   const sMax_horiz = result.stem.horizontalReinforcement?.s_max ?? Math.min(3 * g.t_stem_bot, 450);
   const stemHoriz = pickBarLayout(As_horiz, sMax_horiz);
-  // Footing top reinforcement (heel)
   const heelTop = pickBarLayout(result.heel.As_req, 300);
-  // Footing bottom reinforcement (toe)
   const toeBot = pickBarLayout(result.toe.As_req, 300);
 
   return (
@@ -132,18 +125,18 @@ export function CantileverViewer3D({ input, result }: Props) {
           shadows
           dpr={[1, 1.5]}
           gl={{ antialias: true, preserveDrawingBuffer: true }}
-          camera={{ position: [Bfoot * 1.6, Hstem * 0.7, wallL * 1.8], fov: 38, near: 0.05, far: 200 }}
+          camera={{ position: [Bfoot * 1.6, Hstem * 0.7, wallL * 1.6], fov: 38, near: 0.05, far: 200 }}
         >
-          <color attach="background" args={['#0e0e10']} />
+          <color attach="background" args={[C.fond]} />
 
           <Suspense fallback={null}>
             <Environment files={warehouseHDR} background={false} environmentIntensity={0.55} />
           </Suspense>
 
           {/* Lighting: ambient + key + fill */}
-          <ambientLight intensity={0.35} />
+          <ambientLight intensity={0.45} />
           <directionalLight
-            position={[Bfoot * 3, Hstem * 4, wallL * 3]} intensity={1.4}
+            position={[Bfoot * 3, Hstem * 4, wallL * 3]} intensity={1.5}
             castShadow
             shadow-mapSize-width={2048} shadow-mapSize-height={2048}
             shadow-bias={-0.0005}
@@ -151,9 +144,9 @@ export function CantileverViewer3D({ input, result }: Props) {
             shadow-camera-top={Hstem * 2}    shadow-camera-bottom={-Hfoot * 3}
             shadow-camera-near={0.1} shadow-camera-far={Bfoot * 12}
           />
-          <directionalLight position={[-Bfoot * 2, Hstem * 1.5, -wallL * 2]} intensity={0.45} />
+          <directionalLight position={[-Bfoot * 2, Hstem * 1.5, -wallL * 2]} intensity={0.5} />
 
-          {/* ──────── CONCRETE — footing + tapered stem ──────── */}
+          {/* ──────── CONCRETE — ghost (translucent) with gold edges ──────── */}
           <ConcreteFooting Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} />
           <ConcreteStem
             xFront={xStemFront} xBack={xStemBack}
@@ -161,7 +154,7 @@ export function CantileverViewer3D({ input, result }: Props) {
             Hstem={Hstem} t_bot={t_bot} t_top={t_top} wallL={wallL}
           />
 
-          {/* ──────── REAL REBAR (visible inside the concrete) ──────── */}
+          {/* ──────── REBAR — protagonista ──────── */}
           <StemVerticalBars
             xRear={xStemBack} xFrontTop={xStemBackTop}
             Hstem={Hstem} Hfoot={Hfoot} wallL={wallL} cover={cover}
@@ -185,28 +178,13 @@ export function CantileverViewer3D({ input, result }: Props) {
             Bfoot={Bfoot} Hfoot={Hfoot} wallL={wallL} cover={cover}
           />
 
-          {/* ──────── DRAINAGE — gravel + pipe ──────── */}
-          {drainage.enabled && (
-            <DrainageGroup
-              xRear={xStemBack} Hstem={Hstem} wallL={wallL}
-              gravelT={gravelT} pipeD={pipeD}
-            />
-          )}
-
-          {/* ──────── SOIL — semi-transparent backfill + foundation ──────── */}
-          <SoilGroup
-            xRear={xStemBack} xFront={xStemFront} gravelT={gravelT}
-            Hstem={Hstem} Hfoot={Hfoot} wallL={wallL} Bfoot={Bfoot}
-          />
-
-          {/* ──────── CALLOUTS — Spanish labels with leader lines ──────── */}
+          {/* ──────── CALLOUTS — Spanish structure labels ──────── */}
           <Callouts
             Bfoot={Bfoot} Hstem={Hstem} Hfoot={Hfoot} wallL={wallL}
-            xStemFront={xStemFront} xStemBack={xStemBack}
-            drainage={drainage.enabled}
+            xStemFront={xStemFront}
           />
 
-          {/* Contact shadow under the wall */}
+          {/* Contact shadow under the wall to ground the structure */}
           <ContactShadows position={[0, -Hfoot - 0.001, 0]}
             opacity={0.55} scale={Bfoot * 5} blur={2.2} far={3.5}
             resolution={1024} frames={1} smooth />
@@ -223,7 +201,7 @@ export function CantileverViewer3D({ input, result }: Props) {
 
           {/* ──────── POST-PROCESSING — Bloom + ACES tone mapping ──────── */}
           <EffectComposer multisampling={4}>
-            <Bloom intensity={0.15} luminanceThreshold={0.85} luminanceSmoothing={0.7} mipmapBlur />
+            <Bloom intensity={0.18} luminanceThreshold={0.82} luminanceSmoothing={0.7} mipmapBlur />
             <ToneMapping />
           </EffectComposer>
         </Canvas>
@@ -233,20 +211,37 @@ export function CantileverViewer3D({ input, result }: Props) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONCRETE FOOTING — RoundedBox with edge highlights and concrete material
+// CONCRETE — ghost (translucent) with bold gold edges (TTC accent)
+
+function ConcreteMaterial() {
+  return (
+    <meshPhysicalMaterial
+      color={C.concrete}
+      transparent
+      opacity={0.22}
+      roughness={0.55}
+      metalness={0.0}
+      transmission={0.35}
+      thickness={0.4}
+      ior={1.45}
+      clearcoat={0.2}
+      depthWrite={false}
+      side={THREE.DoubleSide}
+    />
+  );
+}
+
 function ConcreteFooting({ Bfoot, Hfoot, wallL }: { Bfoot: number; Hfoot: number; wallL: number }) {
   return (
     <group position={[0, -Hfoot / 2, 0]}>
       <RoundedBox args={[Bfoot, Hfoot, wallL]} radius={0.012} smoothness={4} castShadow receiveShadow>
         <ConcreteMaterial />
+        <Edges scale={1.001} threshold={20} color={C.edge} />
       </RoundedBox>
-      <Edges scale={1.001} threshold={20} color="#7d858f" />
     </group>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CONCRETE STEM — tapered prism with rounded edges + concrete material
 function ConcreteStem({
   xFront, xBack, xBackTop, xFrontTop, Hstem, t_bot, t_top, wallL,
 }: {
@@ -267,8 +262,8 @@ function ConcreteStem({
       4, 6, 5,  4, 7, 6,                    // top
       0, 4, 5,  0, 5, 1,                    // front (-z)
       3, 2, 6,  3, 6, 7,                    // back (+z)
-      0, 3, 7,  0, 7, 4,                    // -x face (front of wall)
-      1, 5, 6,  1, 6, 2,                    // +x face (rear of wall)
+      0, 3, 7,  0, 7, 4,                    // -x face
+      1, 5, 6,  1, 6, 2,                    // +x face
     ];
     const geom = new THREE.BufferGeometry();
     geom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
@@ -284,49 +279,28 @@ function ConcreteStem({
       </mesh>
       <lineSegments>
         <edgesGeometry args={[geometry, 20]} />
-        <lineBasicMaterial color="#7d858f" linewidth={1} />
+        <lineBasicMaterial color={C.edge} linewidth={2} />
       </lineSegments>
     </group>
   );
 }
 
-// Concrete material — light gray with mottled surface from a procedural texture
-function ConcreteMaterial() {
-  const texture = useMemo(() => {
-    // Procedural concrete texture: white noise at multiple scales
-    const size = 256;
-    const data = new Uint8Array(size * size * 4);
-    for (let i = 0; i < size * size; i++) {
-      // Multi-octave noise
-      const x = i % size;
-      const y = Math.floor(i / size);
-      const n1 = Math.sin(x * 0.12) * Math.cos(y * 0.13);
-      const n2 = Math.sin(x * 0.31 + 7) * Math.cos(y * 0.34 + 3);
-      const n3 = Math.random() * 0.5;
-      const v = 0.78 + (n1 * 0.04 + n2 * 0.025 + n3 * 0.06);
-      const c = Math.floor(Math.max(0, Math.min(1, v)) * 255);
-      data[i * 4 + 0] = c; data[i * 4 + 1] = c + 2; data[i * 4 + 2] = c - 4;
-      data[i * 4 + 3] = 255;
-    }
-    const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(2, 2);
-    tex.needsUpdate = true;
-    return tex;
-  }, []);
-  return (
-    <meshStandardMaterial
-      map={texture}
-      color="#d2cec5"
-      roughness={0.92} metalness={0.02}
-    />
-  );
+// ─────────────────────────────────────────────────────────────────────────────
+// REBAR — instanced cylinders, two materials so cages read at a glance.
+
+function StemRebarMaterial() {
+  return <meshStandardMaterial color={C.stemRebar} roughness={0.35} metalness={0.55}
+                                emissive={C.stemRebar} emissiveIntensity={0.08} />;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// REBAR — instanced cylinders, sized from calculated As
-function RebarMaterial() {
-  return <meshStandardMaterial color="#7a6450" roughness={0.45} metalness={0.85} />;
+function FootingRebarMaterial() {
+  return <meshStandardMaterial color={C.footRebar} roughness={0.35} metalness={0.55}
+                                emissive={C.footRebar} emissiveIntensity={0.08} />;
+}
+
+function LongitudinalRebarMaterial() {
+  return <meshStandardMaterial color={C.longitRebar} roughness={0.35} metalness={0.6}
+                                emissive={C.longitRebar} emissiveIntensity={0.05} />;
 }
 
 function StemVerticalBars({
@@ -339,11 +313,9 @@ function StemVerticalBars({
   void xFrontTop;
   const bars = useMemo(() => {
     const out: { x: number; y: number; z: number; len: number }[] = [];
-    // Vertical bars at the back face of the stem, just inside the cover
     const xBar = xRear - cover - db / 2;
     const len = Hstem + Hfoot * 0.6;          // extend down INTO the footing for development
     const yBar = -Hfoot * 0.6 + len / 2;       // centered: from -0.6·Hfoot to +Hstem
-    // Spacing along z (wall length)
     const nBars = Math.max(2, Math.floor(wallL / spacing) + 1);
     const zStart = -wallL / 2 + cover * 2;
     const dz = (wallL - 4 * cover) / (nBars - 1);
@@ -354,8 +326,8 @@ function StemVerticalBars({
   }, [xRear, Hstem, Hfoot, wallL, cover, db, spacing]);
   return (
     <Instances limit={500} castShadow receiveShadow>
-      <cylinderGeometry args={[db / 2, db / 2, 1, 10]} />
-      <RebarMaterial />
+      <cylinderGeometry args={[db / 2, db / 2, 1, 12]} />
+      <StemRebarMaterial />
       {bars.map((b, i) => (
         <Instance key={i} position={[b.x, b.y, b.z]} scale={[1, b.len, 1]} />
       ))}
@@ -382,20 +354,18 @@ function StemHorizontalBars({
       const t = y / Math.max(Hstem, 1e-6);
       const xF = xFront + (xFrontTop - xFront) * t;
       const xB = xBack + (xBackTop - xBack) * t;
-      // Front face bar (just inside the front cover)
       out.push({ x: xF + cover + db / 2, y, z: 0, len });
-      // Rear face bar (just inside the rear cover)
       out.push({ x: xB - cover - db / 2, y, z: 0, len });
     }
     return out;
   }, [xFront, xBack, xFrontTop, xBackTop, Hstem, wallL, cover, db, spacing]);
   return (
     <Instances limit={500} castShadow receiveShadow>
-      <cylinderGeometry args={[db / 2, db / 2, 1, 10]} />
-      <RebarMaterial />
+      <cylinderGeometry args={[db / 2, db / 2, 1, 12]} />
+      <StemRebarMaterial />
       {bars.map((b, i) => (
-        // Cylinder default axis = Y. We want the bar oriented along Z
-        // (the wall length). Rotate around X by π/2 to swing Y → Z.
+        // Cylinder default axis = Y. Rotate around X by π/2 so the bar
+        // runs along Z (the wall length).
         <Instance key={i} position={[b.x, b.y, b.z]} scale={[1, b.len, 1]}
                   rotation={[Math.PI / 2, 0, 0]} />
       ))}
@@ -419,14 +389,16 @@ function FootingTopBars({
     for (let i = 0; i < nBars; i++) {
       out.push({ x: 0, y, z: zStart + i * dz });
     }
-    void len;
+    void Hfoot;
     return { out, len };
   }, [Bfoot, Hfoot, wallL, cover, db, spacing]);
   return (
     <Instances limit={400} castShadow receiveShadow>
-      <cylinderGeometry args={[db / 2, db / 2, 1, 10]} />
-      <RebarMaterial />
+      <cylinderGeometry args={[db / 2, db / 2, 1, 12]} />
+      <FootingRebarMaterial />
       {bars.out.map((b, i) => (
+        // Cylinder default axis = Y. Rotate around Z by π/2 so the bar
+        // runs along X (across the footing).
         <Instance key={i} position={[b.x, b.y, b.z]} scale={[1, bars.len, 1]}
                   rotation={[0, 0, Math.PI / 2]} />
       ))}
@@ -454,8 +426,8 @@ function FootingBottomBars({
   }, [Bfoot, Hfoot, wallL, cover, db, spacing]);
   return (
     <Instances limit={400} castShadow receiveShadow>
-      <cylinderGeometry args={[db / 2, db / 2, 1, 10]} />
-      <RebarMaterial />
+      <cylinderGeometry args={[db / 2, db / 2, 1, 12]} />
+      <FootingRebarMaterial />
       {bars.out.map((b, i) => (
         <Instance key={i} position={[b.x, b.y, b.z]} scale={[1, bars.len, 1]}
                   rotation={[0, 0, Math.PI / 2]} />
@@ -469,7 +441,7 @@ function FootingLongitudinalBars({
 }: {
   Bfoot: number; Hfoot: number; wallL: number; cover: number;
 }) {
-  // Longitudinal distribution bars run along the wall length, top + bottom.
+  // Longitudinal distribution bars run along the wall length, top + bottom mat.
   const db = 0.013; // #4 default
   const spacing = 0.30;
   const bars = useMemo(() => {
@@ -479,15 +451,15 @@ function FootingLongitudinalBars({
     const xStart = -Bfoot / 2 + cover * 2;
     const dx = (Bfoot - 4 * cover) / (nBars - 1);
     for (let i = 0; i < nBars; i++) {
-      out.push({ x: xStart + i * dx, y: -cover - db / 2,            len }); // top mat longitudinal
-      out.push({ x: xStart + i * dx, y: -Hfoot + cover + db / 2,    len }); // bottom mat longitudinal
+      out.push({ x: xStart + i * dx, y: -cover - db / 2,            len }); // top mat
+      out.push({ x: xStart + i * dx, y: -Hfoot + cover + db / 2,    len }); // bottom mat
     }
     return { out, len };
   }, [Bfoot, Hfoot, wallL, cover, db, spacing]);
   return (
     <Instances limit={400} castShadow receiveShadow>
-      <cylinderGeometry args={[db / 2, db / 2, 1, 10]} />
-      <RebarMaterial />
+      <cylinderGeometry args={[db / 2, db / 2, 1, 12]} />
+      <LongitudinalRebarMaterial />
       {bars.out.map((b, i) => (
         <Instance key={i} position={[b.x, b.y, 0]} scale={[1, bars.len, 1]}
                   rotation={[Math.PI / 2, 0, 0]} />
@@ -497,210 +469,32 @@ function FootingLongitudinalBars({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DRAINAGE — gravel pack (instanced stones) + perforated pipe
-//
-// The gravel is rendered as ~140 instanced icosahedron "stones" with random
-// positions, sizes, rotations and 3 grayscale tones. A very-faint backing
-// box (opacity 0.18) fills the volume so when the camera orbits we don't
-// see straight through to the rebar — it gives the gravel pack mass.
+// CALLOUTS — Spanish structure labels (Fuste / Punta / Talón)
 
-function DrainageGravel({
-  xc, Hstem, wallL, gravelT,
-}: {
-  xc: number; Hstem: number; wallL: number; gravelT: number;
-}) {
-  // Deterministic PRNG so the stone layout is stable across renders for the
-  // same geometry — only changes when dimensions change.
-  const stones = useMemo(() => {
-    const seed = Math.floor(Hstem * 1000 + wallL * 137 + gravelT * 7919);
-    let s = seed >>> 0;
-    const rand = () => {
-      s = (s + 0x6d2b79f5) >>> 0;
-      let t = s;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-    const items: Array<{
-      x: number; y: number; z: number;
-      r: number; rot: [number, number, number]; tone: number;
-    }> = [];
-    const count = 140;
-    const margin = 0.03;
-    for (let i = 0; i < count; i++) {
-      // Position INSIDE the gravel volume
-      const x = xc + (rand() - 0.5) * (gravelT - margin * 2);
-      const y = margin + rand() * (Hstem - margin * 2);
-      const z = (rand() - 0.5) * (wallL - margin * 2);
-      // Sizes 12–34 mm (0.012–0.034 m), with a few larger 40 mm stones
-      const r = 0.012 + rand() * 0.022 + (rand() > 0.92 ? 0.012 : 0);
-      const rot: [number, number, number] = [rand() * Math.PI, rand() * Math.PI, rand() * Math.PI];
-      const tone = rand();    // [0, 1) → picks one of 3 grayscale tones
-      items.push({ x, y, z, r, rot, tone });
-    }
-    return items;
-  }, [xc, Hstem, wallL, gravelT]);
-
-  return (
-    <group>
-      {/* Faint backing box so the gravel column has mass — opacity low so
-          the rebar behind it is still readable. */}
-      <mesh position={[xc, Hstem / 2, 0]}>
-        <boxGeometry args={[gravelT, Hstem, wallL]} />
-        <meshStandardMaterial color="#7a7a76" roughness={0.95} metalness={0.0}
-          transparent opacity={0.18} depthWrite={false} />
-      </mesh>
-      {/* Three instanced groups by tone — three slightly different colours
-          gives that natural mixed-pebble look. Icosahedron with detail=0
-          has 12 faces, looks like a chunk of crushed stone. */}
-      {[
-        { color: '#9c9c97', filter: (t: number) => t < 0.4 },
-        { color: '#6e6e6a', filter: (t: number) => t >= 0.4 && t < 0.75 },
-        { color: '#c4c4be', filter: (t: number) => t >= 0.75 },
-      ].map((band, k) => {
-        const subset = stones.filter((s) => band.filter(s.tone));
-        return (
-          <Instances key={k} limit={200} castShadow receiveShadow>
-            <icosahedronGeometry args={[1, 0]} />
-            <meshStandardMaterial color={band.color} roughness={0.95} metalness={0.05} />
-            {subset.map((p, i) => (
-              <Instance key={i}
-                position={[p.x, p.y, p.z]}
-                scale={[p.r, p.r, p.r]}
-                rotation={p.rot}
-              />
-            ))}
-          </Instances>
-        );
-      })}
-    </group>
-  );
-}
-
-function DrainageGroup({
-  xRear, Hstem, wallL, gravelT, pipeD,
-}: {
-  xRear: number; Hstem: number; wallL: number; gravelT: number; pipeD: number;
-}) {
-  const gravelXc = xRear + gravelT / 2;
-  return (
-    <group>
-      {/* Realistic gravel pack — instanced stones with mass-fill backing */}
-      <DrainageGravel xc={gravelXc} Hstem={Hstem} wallL={wallL} gravelT={gravelT} />
-      {/* Drain pipe */}
-      <mesh position={[gravelXc, pipeD / 2 + 0.03, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <cylinderGeometry args={[pipeD / 2, pipeD / 2, wallL * 0.95, 18]} />
-        <meshStandardMaterial color="#ececec" roughness={0.5} metalness={0.1} />
-      </mesh>
-    </group>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SOIL — semi-transparent backfill + foundation
-function SoilGroup({
-  xRear, xFront, gravelT, Hstem, Hfoot, wallL, Bfoot,
-}: {
-  xRear: number; xFront: number; gravelT: number;
-  Hstem: number; Hfoot: number; wallL: number; Bfoot: number;
-}) {
-  void xFront;
-  // Backfill — extends behind the gravel
-  const xBackStart = xRear + gravelT;
-  const xBackExtent = (Bfoot / 2 + 1.5) - xBackStart;
-  const xBackCenter = xBackStart + xBackExtent / 2;
-
-  // Procedural soil texture — granular brown
-  const soilTexture = useMemo(() => {
-    const size = 256;
-    const data = new Uint8Array(size * size * 4);
-    for (let i = 0; i < size * size; i++) {
-      const r = Math.random();
-      const v = 0.45 + r * 0.35;
-      data[i * 4 + 0] = Math.floor(v * 165);     // R: brown
-      data[i * 4 + 1] = Math.floor(v * 110);     // G
-      data[i * 4 + 2] = Math.floor(v * 70);      // B
-      data[i * 4 + 3] = 255;
-    }
-    const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(3, 3);
-    tex.needsUpdate = true;
-    return tex;
-  }, []);
-
-  return (
-    <group>
-      {/* Backfill block — semi-transparent so the rebar is visible */}
-      <mesh position={[xBackCenter, Hstem / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[xBackExtent, Hstem, wallL * 0.99]} />
-        <meshStandardMaterial map={soilTexture} color="#8a5e36" roughness={0.95}
-          transparent opacity={0.55} depthWrite={false} />
-      </mesh>
-      {/* Grass strip on top */}
-      <mesh position={[xBackCenter, Hstem + 0.025, 0]} receiveShadow>
-        <boxGeometry args={[xBackExtent + 0.04, 0.05, wallL * 0.99]} />
-        <meshStandardMaterial color="#5aae3a" roughness={0.95} />
-      </mesh>
-      {/* Foundation soil under the footing — fully opaque to ground the wall */}
-      <mesh position={[0, -Hfoot - 0.7, 0]} receiveShadow>
-        <boxGeometry args={[Bfoot * 1.6, 1.4, wallL * 1.4]} />
-        <meshStandardMaterial map={soilTexture} color="#6b4426" roughness={1.0} />
-      </mesh>
-    </group>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CALLOUTS — Spanish labels with leader lines (drei <Text>)
 function Callouts({
-  Bfoot, Hstem, Hfoot, wallL, xStemFront, xStemBack, drainage,
+  Bfoot, Hstem, Hfoot, wallL, xStemFront,
 }: {
   Bfoot: number; Hstem: number; Hfoot: number; wallL: number;
-  xStemFront: number; xStemBack: number; drainage: boolean;
+  xStemFront: number;
 }) {
-  const fs = Math.max(Hstem, Bfoot) * 0.055;
+  const fs = Math.max(Hstem, Bfoot) * 0.06;
   const z = wallL / 2 + 0.5;
   return (
     <group>
-      <Text position={[xStemFront - 0.6, Hstem * 0.5, z]} fontSize={fs}
-            color="#f6e7a6" anchorX="right" anchorY="middle"
-            outlineWidth={fs * 0.06} outlineColor="#000">
+      <Text position={[xStemFront - 0.6, Hstem * 0.55, z]} fontSize={fs}
+            color={C.callout} anchorX="right" anchorY="middle"
+            outlineWidth={fs * 0.07} outlineColor={C.calloutBg}>
         Fuste
       </Text>
       <Text position={[+Bfoot / 2 + 0.4, -Hfoot / 2, z]} fontSize={fs * 0.85}
-            color="#f6e7a6" anchorX="left" anchorY="middle"
-            outlineWidth={fs * 0.06} outlineColor="#000">
+            color={C.callout} anchorX="left" anchorY="middle"
+            outlineWidth={fs * 0.07} outlineColor={C.calloutBg}>
         Talón
       </Text>
       <Text position={[-Bfoot / 2 - 0.4, -Hfoot / 2, z]} fontSize={fs * 0.85}
-            color="#f6e7a6" anchorX="right" anchorY="middle"
-            outlineWidth={fs * 0.06} outlineColor="#000">
+            color={C.callout} anchorX="right" anchorY="middle"
+            outlineWidth={fs * 0.07} outlineColor={C.calloutBg}>
         Punta
-      </Text>
-      {drainage && (
-        <>
-          <Text position={[xStemBack + 0.6, Hstem * 0.65, z]} fontSize={fs * 0.85}
-                color="#f6e7a6" anchorX="left" anchorY="middle"
-                outlineWidth={fs * 0.06} outlineColor="#000">
-            Grava drenante
-          </Text>
-          <Text position={[xStemBack + 0.6, 0.15, z]} fontSize={fs * 0.85}
-                color="#f6e7a6" anchorX="left" anchorY="middle"
-                outlineWidth={fs * 0.06} outlineColor="#000">
-            Tubo de drenaje
-          </Text>
-        </>
-      )}
-      <Text position={[+Bfoot / 2 + 0.4, Hstem * 0.7, z]} fontSize={fs * 0.85}
-            color="#f6e7a6" anchorX="left" anchorY="middle"
-            outlineWidth={fs * 0.06} outlineColor="#000">
-        Relleno
-      </Text>
-      <Text position={[0, -Hfoot - 0.9, z]} fontSize={fs * 0.85}
-            color="#f6e7a6" anchorX="center" anchorY="middle"
-            outlineWidth={fs * 0.06} outlineColor="#000">
-        Suelo de cimentación
       </Text>
     </group>
   );

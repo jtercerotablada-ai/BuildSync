@@ -60,7 +60,38 @@ const C = {
   label: '#f2efe4',
   callout: '#f2efe4',                  // leader-line text colour (cream)
   calloutDot: '#c9a84c',                // small dot at the end of the leader line
+  // Rebar — CYPE convention: red bars + cyan annotations
+  rebar:        '#e8472f',             // bright red, the rebar itself
+  rebarOutline: '#5a1106',
+  rebarLabel:   '#5dc4d4',             // cyan, the bar-callout text
+  rebarLabelBg: 'rgba(10,28,32,0.9)',
 };
+
+/**
+ * Pick a rebar diameter (mm) and spacing (mm) given a required area
+ * As_req (mm²/m). Walks a standard #4–#10 catalog and picks the smallest
+ * diameter with spacing in [80, sMax] mm.
+ */
+function pickBarLayout(As_req: number, sMax: number = 300):
+  { db: number; ab: number; spacing: number; label: string } {
+  const catalog: Array<{ db: number; ab: number; label: string }> = [
+    { db: 12.7, ab: 129, label: '#4' },
+    { db: 15.9, ab: 199, label: '#5' },
+    { db: 19.1, ab: 284, label: '#6' },
+    { db: 22.2, ab: 387, label: '#7' },
+    { db: 25.4, ab: 510, label: '#8' },
+    { db: 28.7, ab: 645, label: '#9' },
+    { db: 32.3, ab: 819, label: '#10' },
+  ];
+  for (const bar of catalog) {
+    const s = (1000 * bar.ab) / Math.max(As_req, 1);
+    if (s <= sMax && s >= 80) {
+      return { db: bar.db, ab: bar.ab, spacing: s, label: bar.label };
+    }
+  }
+  const last = catalog[catalog.length - 1];
+  return { db: last.db, ab: last.ab, spacing: 80, label: last.label };
+}
 
 export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
   const { geometry: g } = input;
@@ -225,6 +256,22 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
     md: Math.max(H_total * 0.033, 110),
     sm: Math.max(H_total * 0.028, 94),
   };
+
+  // ─── REBAR layouts (computed from calculated As) ───────────────────────
+  // CYPE-style annotation: section view shows the actual chosen bar
+  // diameter and spacing (#6@180 etc.), so engineers can read the design
+  // straight off the drawing.
+  const cover = input.concrete.cover; // mm
+  const stemVert2D = pickBarLayout(results.stem.As_req, 300);
+  const As_horiz_2D = results.stem.horizontalReinforcement?.As_horizontal_per_m
+                       ?? 0.0020 * 1000 * g.t_stem_bot;
+  const sMax_horiz_2D = results.stem.horizontalReinforcement?.s_max
+                          ?? Math.min(3 * g.t_stem_bot, 450);
+  const stemHoriz2D = pickBarLayout(As_horiz_2D, sMax_horiz_2D);
+  const heelTop2D = pickBarLayout(results.heel.As_req, 300);
+  const toeBot2D = pickBarLayout(results.toe.As_req, 300);
+  // Footing longitudinal distribution bars — minimum #4 @ 300 mm
+  const footLong2D = { db: 12.7, label: '#4', spacing: 300 };
 
   // Deterministic pebble generator — seed based on viewBox so pebbles stay put
   // when the user tweaks dims, but change when geometry actually changes.
@@ -437,6 +484,243 @@ export function WallCanvas({ input, results, unitSystem = 'metric' }: Props) {
           strokeWidth={6}
         />
       )}
+
+      {/* ─── REBAR — drawn ON TOP of concrete (CYPE-style) ──────────────────
+          • Vertical bars in the stem (run in-plane) → vertical RED line
+          • Horizontal bars (run perpendicular to section) → DOTS at heights
+          • Footing transverse mats (run in-plane) → horizontal RED lines
+          • Footing longitudinal bars (run perpendicular) → DOTS across width
+          • Cap beam at top of stem → 2 dots                                 */}
+      {(() => {
+        // Stem face X at any Y (taper interpolation). Front face is vertical
+        // in this implementation; back face tapers from t_bot to t_top.
+        const stemFrontXAt = (_y: number) => stemFrontX;
+        const stemBackXAt = (y: number) => {
+          const t = Math.max(0, Math.min(1, (y - footTop) / Math.max(g.H_stem, 1)));
+          return stemBackX_bot + (stemBackX_top - stemBackX_bot) * t;
+        };
+        const els: React.ReactElement[] = [];
+
+        // ═══ Stem vertical bar (rear face, main flexural rebar) ═══
+        const dbSV = stemVert2D.db;
+        const yBotDev = footTop - g.H_foot * 0.6; // anchor development depth
+        const yTopBend = stemTop - cover;
+        const xRearBot = stemBackXAt(footTop) - cover - dbSV / 2;
+        const xRearTop = stemBackXAt(yTopBend) - cover - dbSV / 2;
+        // 2-segment polyline: starts in footing, comes up rear face
+        els.push(
+          <polyline key="stem-vert"
+            points={[
+              [xW(xRearBot), yW(yBotDev)].join(','),
+              [xW(xRearBot), yW(footTop)].join(','),
+              [xW(xRearTop), yW(yTopBend)].join(','),
+            ].join(' ')}
+            fill="none" stroke={C.rebar}
+            strokeWidth={Math.max(dbSV * 1.6, 14)}
+            strokeLinecap="round" strokeLinejoin="round" />
+        );
+        // Hook at the bottom (extends toward toe ~ R13.3.6 commentary)
+        const hookLen = Math.max(12 * dbSV, 150);
+        els.push(
+          <line key="stem-hook"
+            x1={xW(xRearBot)} y1={yW(yBotDev)}
+            x2={xW(xRearBot - hookLen)} y2={yW(yBotDev)}
+            stroke={C.rebar} strokeWidth={Math.max(dbSV * 1.6, 14)}
+            strokeLinecap="round" />
+        );
+
+        // ═══ Stem horizontal bars (dots at multiple heights, both faces) ═══
+        const sHoriz = stemHoriz2D.spacing;
+        const dbSH = stemHoriz2D.db;
+        const yStartH = footTop + cover + dbSH;
+        const yEndH = stemTop - cover - dbSH * 2;
+        const nHoriz = Math.max(2, Math.floor((yEndH - yStartH) / sHoriz) + 1);
+        const dyHoriz = (yEndH - yStartH) / Math.max(nHoriz - 1, 1);
+        const rDot = Math.max(dbSH * 0.95, 11);
+        for (let i = 0; i < nHoriz; i++) {
+          const yi = yStartH + i * dyHoriz;
+          const xR = stemBackXAt(yi) - cover - dbSH / 2;
+          const xF = stemFrontXAt(yi) + cover + dbSH / 2;
+          els.push(
+            <circle key={`sh-r-${i}`} cx={xW(xR)} cy={yW(yi)} r={rDot}
+              fill={C.rebar} stroke={C.rebarOutline} strokeWidth={2} />
+          );
+          els.push(
+            <circle key={`sh-f-${i}`} cx={xW(xF)} cy={yW(yi)} r={rDot}
+              fill={C.rebar} stroke={C.rebarOutline} strokeWidth={2} />
+          );
+        }
+
+        // ═══ Cap beam (2#4 at top of stem) ═══
+        const capDb = 12.7;
+        const yCap = stemTop - cover - capDb / 2;
+        const xCapR = stemBackXAt(yCap) - cover - capDb / 2;
+        const xCapF = stemFrontXAt(yCap) + cover + capDb / 2;
+        const rCap = Math.max(capDb * 1.1, 14);
+        els.push(
+          <circle key="cap-r" cx={xW(xCapR)} cy={yW(yCap)} r={rCap}
+            fill={C.rebar} stroke={C.rebarOutline} strokeWidth={3} />
+        );
+        els.push(
+          <circle key="cap-f" cx={xW(xCapF)} cy={yW(yCap)} r={rCap}
+            fill={C.rebar} stroke={C.rebarOutline} strokeWidth={3} />
+        );
+
+        // ═══ Footing TOP mat — transverse bars (heel reinforcement) ═══
+        const dbTop = heelTop2D.db;
+        const yTopMat = footTop - cover - dbTop / 2;
+        els.push(
+          <line key="ft-top"
+            x1={xW(cover)} y1={yW(yTopMat)}
+            x2={xW(B - cover)} y2={yW(yTopMat)}
+            stroke={C.rebar} strokeWidth={Math.max(dbTop * 1.6, 12)}
+            strokeLinecap="round" />
+        );
+
+        // ═══ Footing BOTTOM mat — transverse bars (toe reinforcement) ═══
+        const dbBot = toeBot2D.db;
+        const yBotMat = cover + dbBot / 2;
+        els.push(
+          <line key="ft-bot"
+            x1={xW(cover)} y1={yW(yBotMat)}
+            x2={xW(B - cover)} y2={yW(yBotMat)}
+            stroke={C.rebar} strokeWidth={Math.max(dbBot * 1.6, 12)}
+            strokeLinecap="round" />
+        );
+
+        // ═══ Footing LONGITUDINAL bars (dots, top + bottom mats) ═══
+        const sLong = footLong2D.spacing;
+        const dbLong = footLong2D.db;
+        const nLong = Math.max(3, Math.floor((B - 2 * cover) / sLong) + 1);
+        const dxLong = (B - 2 * cover) / Math.max(nLong - 1, 1);
+        const rLong = Math.max(dbLong * 0.85, 9);
+        for (let i = 0; i < nLong; i++) {
+          const xi = cover + i * dxLong;
+          // Top mat dot — sits ABOVE the transverse top bars
+          const yT = footTop - cover - dbTop - dbLong / 2;
+          // Bottom mat dot — sits BELOW the transverse bottom bars
+          const yB = cover + dbBot + dbLong / 2;
+          els.push(
+            <circle key={`fl-t-${i}`} cx={xW(xi)} cy={yW(yT)} r={rLong}
+              fill={C.rebar} stroke={C.rebarOutline} strokeWidth={2} />
+          );
+          els.push(
+            <circle key={`fl-b-${i}`} cx={xW(xi)} cy={yW(yB)} r={rLong}
+              fill={C.rebar} stroke={C.rebarOutline} strokeWidth={2} />
+          );
+        }
+
+        return <g>{els}</g>;
+      })()}
+
+      {/* ─── REBAR ANNOTATIONS (CYPE-style: cyan callouts with leader) ─────
+          Each label sits in clear space and points at the rebar group
+          with a thin cyan line + dot, just like CYPE's reinforcement
+          drawings. Labels include the bar size and spacing in mm.        */}
+      {(() => {
+        const stemBackXAt = (y: number) => {
+          const t = Math.max(0, Math.min(1, (y - footTop) / Math.max(g.H_stem, 1)));
+          return stemBackX_bot + (stemBackX_top - stemBackX_bot) * t;
+        };
+        const labels: Array<{
+          tx: number; ty: number; dx: number; dy: number; text: string;
+        }> = [
+          // Stem vertical
+          {
+            text: `${stemVert2D.label}@${stemVert2D.spacing.toFixed(0)} (fuste vert.)`,
+            tx: xW(stemFrontX - 1100),
+            ty: yW(stemTop - g.H_stem * 0.45),
+            dx: xW(stemBackXAt(stemTop - g.H_stem * 0.45) - cover),
+            dy: yW(stemTop - g.H_stem * 0.45),
+          },
+          // Stem horizontal
+          {
+            text: `${stemHoriz2D.label}@${stemHoriz2D.spacing.toFixed(0)} (fuste horiz.)`,
+            tx: xW(stemBackX_bot + 900),
+            ty: yW(stemTop - g.H_stem * 0.18),
+            dx: xW(stemBackXAt(stemTop - g.H_stem * 0.18) - cover * 1.5),
+            dy: yW(stemTop - g.H_stem * 0.18),
+          },
+          // Cap beam
+          {
+            text: '2 #4 (cabeza)',
+            tx: xW(stemFrontX - 1100),
+            ty: yW(stemTop + 100),
+            dx: xW(stemFrontX + 50),
+            dy: yW(stemTop - cover * 1.5),
+          },
+          // Heel top
+          {
+            text: `${heelTop2D.label}@${heelTop2D.spacing.toFixed(0)} (talón sup.)`,
+            tx: xW(B + 700),
+            ty: yW(footTop + 250),
+            dx: xW((stemBackX_bot + B) / 2),
+            dy: yW(footTop - cover - heelTop2D.db / 2),
+          },
+          // Toe bottom
+          {
+            text: `${toeBot2D.label}@${toeBot2D.spacing.toFixed(0)} (punta inf.)`,
+            tx: xW(B / 2 - 600),
+            ty: yW(-padB * 0.32),
+            dx: xW(B / 2),
+            dy: yW(cover + toeBot2D.db / 2),
+          },
+          // Footing longitudinal
+          {
+            text: `${footLong2D.label}@${footLong2D.spacing} (long. zapata)`,
+            tx: xW(0 + 200),
+            ty: yW(-padB * 0.32),
+            dx: xW(g.B_toe * 0.5),
+            dy: yW(cover + toeBot2D.db + footLong2D.db / 2),
+          },
+        ];
+        return (
+          <g>
+            {labels.map((lb, i) => (
+              <g key={`rebar-lb-${i}`}>
+                {/* leader line */}
+                <line
+                  x1={lb.tx} y1={lb.ty}
+                  x2={lb.dx} y2={lb.dy}
+                  stroke={C.rebarLabel} strokeWidth={3}
+                  strokeDasharray="6 4" opacity={0.85}
+                />
+                {/* dot at the rebar end */}
+                <circle cx={lb.dx} cy={lb.dy} r={9}
+                  fill={C.rebarLabel} stroke="#04181c" strokeWidth={2.5} />
+                {/* label background pill */}
+                {(() => {
+                  const padX = fs.sm * 0.5;
+                  const padY = fs.sm * 0.25;
+                  const w = lb.text.length * fs.sm * 0.48 + padX * 2;
+                  const h = fs.sm + padY * 2;
+                  return (
+                    <rect
+                      x={lb.tx - w / 2} y={lb.ty - h / 2}
+                      width={w} height={h}
+                      rx={h * 0.3} ry={h * 0.3}
+                      fill={C.rebarLabelBg}
+                      stroke={C.rebarLabel} strokeWidth={2}
+                    />
+                  );
+                })()}
+                {/* label text */}
+                <text
+                  x={lb.tx} y={lb.ty + fs.sm * 0.34}
+                  fontSize={fs.sm}
+                  textAnchor="middle"
+                  fill={C.rebarLabel}
+                  fontFamily="ui-monospace, 'SF Mono', monospace"
+                  fontWeight={700}
+                  letterSpacing="0.02em"
+                >
+                  {lb.text}
+                </text>
+              </g>
+            ))}
+          </g>
+        );
+      })()}
 
       {/* ─── DRAINAGE PIPE (perforated, white circle near base of gravel) ─── */}
       {drainage.enabled && pipeDiameter > 0 && (
