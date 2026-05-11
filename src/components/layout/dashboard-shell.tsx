@@ -181,7 +181,6 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
           />
         )}
         <Sidebar
-          projects={projects}
           collapsed={sidebarCollapsed}
           onCreateProject={() => setShowCreateProject(true)}
           basePath={basePath}
