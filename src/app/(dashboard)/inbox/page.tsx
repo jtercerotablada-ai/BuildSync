@@ -174,17 +174,52 @@ export default function InboxPage() {
     }
   };
 
-  const archiveAll = async () => {
+  // Single-shot mark-all — the backend supports a `markAllRead: true` flag
+  // (route.ts:72), so we issue ONE PATCH instead of N parallel requests.
+  const markAllAsRead = async () => {
     try {
-      const ids = notifications.map((n) => n.id);
       await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAllRead: true }),
+      });
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (error) {
+      console.error("Error marking all as read:", error);
+    }
+  };
+
+  // Optimistic single-archive — remove from the list immediately, restore on error.
+  const archiveOne = async (id: string) => {
+    const prev = notifications;
+    setNotifications((cur) => cur.filter((n) => n.id !== id));
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id], archived: true }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (error) {
+      console.error("Error archiving notification:", error);
+      setNotifications(prev);
+    }
+  };
+
+  const archiveAll = async () => {
+    const prev = notifications;
+    setNotifications([]);
+    try {
+      const ids = prev.map((n) => n.id);
+      const res = await fetch("/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids, archived: true }),
       });
-      setNotifications([]);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (error) {
       console.error("Error archiving notifications:", error);
+      setNotifications(prev);
     }
   };
 
@@ -226,11 +261,7 @@ export default function InboxPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuItem
-              onClick={() => {
-                notifications.forEach((n) => {
-                  if (!n.read) markAsRead(n.id);
-                });
-              }}
+              onClick={markAllAsRead}
             >
               <Check className="w-4 h-4 mr-2" />
               Mark all as read
@@ -339,11 +370,7 @@ export default function InboxPage() {
         onFilter={(type) => {
           setFilterType(type as "all" | "unread" | "mentions" | "assignments");
         }}
-        onMarkAllRead={() => {
-          notifications.forEach((n) => {
-            if (!n.read) markAsRead(n.id);
-          });
-        }}
+        onMarkAllRead={markAllAsRead}
         onArchiveAll={archiveAll}
       />
 
@@ -415,6 +442,7 @@ export default function InboxPage() {
                               onClick={() =>
                                 handleNotificationClick(notification)
                               }
+                              onArchive={() => archiveOne(notification.id)}
                             />
                           ))}
                         </div>
@@ -450,6 +478,7 @@ export default function InboxPage() {
                     notification={notification}
                     compact={density === "compact"}
                     onClick={() => handleNotificationClick(notification)}
+                    onArchive={() => archiveOne(notification.id)}
                   />
                 ))}
               </div>
@@ -849,10 +878,12 @@ function NotificationItem({
   notification,
   compact = false,
   onClick,
+  onArchive,
 }: {
   notification: Notification;
   compact?: boolean;
   onClick: () => void;
+  onArchive?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -875,11 +906,7 @@ function NotificationItem({
         )}
         onClick={(e) => {
           e.stopPropagation();
-          fetch("/api/notifications", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ids: [notification.id], archived: true }),
-          });
+          onArchive?.();
         }}
         title="Archive"
       >
