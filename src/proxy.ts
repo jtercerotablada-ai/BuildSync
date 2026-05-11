@@ -23,6 +23,7 @@ const publicExactRoutes = [
   "/services",
   "/about",
   "/contact",
+  "/logo-styles",
 ];
 
 function isPublicRoute(pathname: string): boolean {
