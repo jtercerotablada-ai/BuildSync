@@ -99,8 +99,10 @@ export const dictionaries = {
     'project.customHome': 'Custom Home',
     'project.customHome.full': 'Wood & Steel \u00b7 Residential',
     'project.distributionCenter': 'Distribution Center',
+    'project.distributionCenter.desc': 'Steel Structure',
     'project.distributionCenter.full': 'Steel Structure \u00b7 Industrial',
     'project.officeBuilding': 'Office Building',
+    'project.officeBuilding.desc': 'Post-Tension',
     'project.officeBuilding.full': 'Post-Tension \u00b7 Commercial',
 
     // Services
@@ -341,8 +343,10 @@ export const dictionaries = {
     'project.customHome': 'Casa Personalizada',
     'project.customHome.full': 'Madera y Acero \u00b7 Residencial',
     'project.distributionCenter': 'Centro de Distribucion',
+    'project.distributionCenter.desc': 'Estructura de Acero',
     'project.distributionCenter.full': 'Estructura de Acero \u00b7 Industrial',
     'project.officeBuilding': 'Edificio de Oficinas',
+    'project.officeBuilding.desc': 'Postensado',
     'project.officeBuilding.full': 'Postensado \u00b7 Comercial',
 
     // Services

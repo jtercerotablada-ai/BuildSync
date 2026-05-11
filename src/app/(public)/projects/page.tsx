@@ -30,8 +30,8 @@ export default function ProjectsPage() {
     { image: '/ttc/img/projects/project-08.jpg', category: 'commercial', categoryKey: 'category.mixedUse', titleKey: 'project.mixedUse', descKey: 'project.mixedUse.desc' },
     { image: '/ttc/img/projects/project-09.jpg', category: 'public', categoryKey: 'category.healthcare', titleKey: 'project.healthcare', descKey: 'project.healthcare.desc' },
     { image: '/ttc/img/projects/project-10.jpg', category: 'commercial', categoryKey: 'category.hospitality', titleKey: 'project.hospitality', descKey: 'project.hospitality.desc' },
-    { image: '/ttc/img/projects/project-11.jpg', category: 'industrial', categoryKey: 'category.industrial', titleKey: 'project.distributionCenter', descKey: 'project.distributionCenter' },
-    { image: '/ttc/img/projects/project-12.jpg', category: 'commercial', categoryKey: 'category.office', titleKey: 'project.officeBuilding', descKey: 'project.officeBuilding' },
+    { image: '/ttc/img/projects/project-11.jpg', category: 'industrial', categoryKey: 'category.industrial', titleKey: 'project.distributionCenter', descKey: 'project.distributionCenter.desc' },
+    { image: '/ttc/img/projects/project-12.jpg', category: 'commercial', categoryKey: 'category.office', titleKey: 'project.officeBuilding', descKey: 'project.officeBuilding.desc' },
   ];
 
   const filtered = filter === 'all' ? allProjects : allProjects.filter((p) => p.category === filter);
@@ -78,7 +78,6 @@ export default function ProjectsPage() {
                 description={t(p.descKey)}
                 index={i + 1}
                 total={filtered.length}
-                href="#"
                 delay={(i % 4) * 100}
               />
             ))}

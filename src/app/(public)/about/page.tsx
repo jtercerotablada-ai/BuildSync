@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslation } from '@/components/ttc/language-provider';
 import { CounterStat } from '@/components/ttc/counter-stat';
@@ -33,8 +34,14 @@ export default function AboutPage() {
         <div className="container">
           <div className="about__grid">
             <div className="about__image" data-aos="fade-right">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/ttc/img/team.jpg" alt="Tercero Tablada Team" loading="lazy" />
+              <Image
+                src="/ttc/img/team.jpg"
+                alt="Tercero Tablada Team"
+                width={1200}
+                height={800}
+                sizes="(max-width: 768px) 100vw, 50vw"
+                style={{ width: '100%', height: 'auto' }}
+              />
             </div>
             <div className="about__content" data-aos="fade-left" data-aos-delay={100}>
               <span className="section__label">{t('section.ourStory')}</span>

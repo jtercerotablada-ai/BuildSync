@@ -21,9 +21,47 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.',
+  title: {
+    default: 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.',
+    template: '%s · Tercero Tablada',
+  },
   description:
     'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — International structural engineering firm. Registered P.E. Residential, commercial, industrial, and public works.',
+  metadataBase: new URL('https://ttcivilstructural.com'),
+  openGraph: {
+    siteName: 'Tercero Tablada',
+    type: 'website',
+    locale: 'en_US',
+    alternateLocale: ['es_ES'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+const organizationSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Tercero Tablada Civil & Structural Engineering Inc.',
+  alternateName: 'Tercero Tablada',
+  url: 'https://ttcivilstructural.com',
+  logo: 'https://ttcivilstructural.com/ttc/img/logo-tt-v2.svg',
+  email: 'info@tercerotablada.com',
+  description:
+    'International structural engineering firm. Registered P.E. Specializes in residential, vertical, commercial, industrial, and public works projects with BIM LOD 300 and post-tensioned concrete.',
+  knowsAbout: [
+    'Structural Engineering',
+    'BIM LOD 300',
+    'Post-Tensioned Concrete',
+    'Reinforced Concrete',
+    'Steel Structures',
+    'Wood Framing',
+    'Masonry',
+    'Clash Detection',
+    'Value Engineering',
+    'Digital Construction',
+  ],
 };
 
 export default function PublicLayout({
@@ -33,6 +71,10 @@ export default function PublicLayout({
 }) {
   return (
     <div className={`${playfair.variable} ${inter.variable}`}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+      />
       <LanguageProvider>
         <FxElements />
         <TTCHeader />

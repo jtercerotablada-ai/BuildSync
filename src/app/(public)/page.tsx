@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslation } from '@/components/ttc/language-provider';
 import { ProjectCard } from '@/components/ttc/project-card';
@@ -167,8 +168,14 @@ export default function HomePage() {
         <div className="container">
           <div className="about__grid">
             <div className="about__image">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/ttc/img/team.jpg" alt="Tercero Tablada Team" loading="lazy" />
+              <Image
+                src="/ttc/img/team.jpg"
+                alt="Tercero Tablada Team"
+                width={1200}
+                height={800}
+                sizes="(max-width: 768px) 100vw, 50vw"
+                style={{ width: '100%', height: 'auto' }}
+              />
             </div>
             <div className="about__content">
               <span className="section__label">{t('section.aboutUs')}</span>
