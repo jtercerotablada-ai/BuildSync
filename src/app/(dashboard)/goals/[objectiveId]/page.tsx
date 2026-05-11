@@ -15,6 +15,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -621,44 +627,99 @@ export default function GoalDetailPage() {
               <span className="text-sm">{objective.period || "No period"}</span>
             </div>
 
-            {/* Due date */}
+            {/* Due date — popover-based picker. The previous implementation
+                stacked an invisible <input type="date"> on top of the button
+                via `absolute inset-0`, which made every click hit the input
+                first and never trigger the picker — Juan reported needing
+                "muchos clicks" before it opened. A Popover + Calendar
+                component takes one click reliably. */}
             <div className="flex items-center">
-              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Due date</span>
-              <div className="relative">
-                <button
-                  className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-                  onClick={() => {
-                    const input = document.getElementById('goal-due-date') as HTMLInputElement;
-                    input?.showPicker?.();
-                    input?.click();
-                  }}
-                >
-                  <Calendar className="h-4 w-4" />
-                  {objective.endDate
-                    ? new Date(objective.endDate).toLocaleDateString("en-US")
-                    : "Set due date"}
-                </button>
-                <input
-                  id="goal-due-date"
-                  type="date"
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full"
-                  value={objective.endDate ? new Date(objective.endDate).toISOString().split('T')[0] : ''}
-                  onChange={async (e) => {
-                    const newDate = e.target.value;
-                    try {
-                      const res = await fetch(`/api/objectives/${objectiveId}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ endDate: newDate || null }),
-                      });
-                      if (res.ok) {
-                        setObjective((prev) => prev ? { ...prev, endDate: newDate || null } : null);
-                        toast.success('Due date updated');
+              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">
+                Due date
+              </span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1.5 rounded px-2 py-1 -mx-2 hover:bg-gray-50 transition-colors"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    {objective.endDate
+                      ? new Date(objective.endDate).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })
+                      : "Set due date"}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={
+                      objective.endDate ? new Date(objective.endDate) : undefined
+                    }
+                    onSelect={async (date) => {
+                      const iso = date ? date.toISOString() : null;
+                      try {
+                        const res = await fetch(
+                          `/api/objectives/${objectiveId}`,
+                          {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ endDate: iso }),
+                          }
+                        );
+                        if (res.ok) {
+                          setObjective((prev) =>
+                            prev ? { ...prev, endDate: iso } : null
+                          );
+                          toast.success(
+                            iso ? "Due date updated" : "Due date cleared"
+                          );
+                        } else {
+                          toast.error("Error updating date");
+                        }
+                      } catch {
+                        toast.error("Error updating date");
                       }
-                    } catch { toast.error('Error updating date'); }
-                  }}
-                />
-              </div>
+                    }}
+                    initialFocus
+                  />
+                  {objective.endDate && (
+                    <div className="border-t p-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs text-gray-600 hover:text-black"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(
+                              `/api/objectives/${objectiveId}`,
+                              {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ endDate: null }),
+                              }
+                            );
+                            if (res.ok) {
+                              setObjective((prev) =>
+                                prev ? { ...prev, endDate: null } : null
+                              );
+                              toast.success("Due date cleared");
+                            }
+                          } catch {
+                            toast.error("Error clearing date");
+                          }
+                        }}
+                      >
+                        Clear due date
+                      </Button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Responsible team */}
