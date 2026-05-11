@@ -121,13 +121,21 @@ export default function GoalsPage() {
     const controller = new AbortController();
     fetchObjectives(controller.signal);
     return () => controller.abort();
-  }, [activeTab]);
+    // Re-fetch whenever the tab OR the period filter changes — the period
+    // dropdown was previously cosmetic (state changed but no refetch).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, selectedPeriod]);
 
   async function fetchObjectives(signal?: AbortSignal) {
     try {
       const params = new URLSearchParams();
       params.set("parentId", "null");
       if (activeTab === "my-goals") params.set("ownerId", "me");
+      // Pass the selected period so the list actually filters; without
+      // this the dropdown was cosmetic (audit: was state-only mutation).
+      if (selectedPeriod && selectedPeriod !== "All") {
+        params.set("period", selectedPeriod);
+      }
 
       const res = await fetch(`/api/objectives?${params}`, { signal });
       if (res.ok) {
@@ -158,15 +166,20 @@ export default function GoalsPage() {
         }),
       });
 
-      if (res.ok) {
-        const objective = await res.json();
-        setObjectives([objective, ...objectives]);
-        setCreateOpen(false);
-        setNewObjective({ name: "", period: "Q1 FY26" });
-        router.push(`/goals/${objective.id}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
+
+      const objective = await res.json();
+      setObjectives([objective, ...objectives]);
+      setCreateOpen(false);
+      setNewObjective({ name: "", period: "Q1 FY26" });
+      // Close dialog first, then navigate — the redirect was happening while
+      // the dialog was still mounted, which caused an awkward double-layer.
+      router.push(`/goals/${objective.id}`);
     } catch (error) {
       console.error("Error creating objective:", error);
+      toast.error("Couldn't create goal — check your connection and try again");
     } finally {
       setCreating(false);
     }

@@ -442,6 +442,16 @@ export function TeamSettingsModal({
           {/* TAB: Advanced */}
           {activeTab === "advanced" && (
             <div className="space-y-6">
+              {/* Preview banner — the permission dropdowns below are UI-only
+               * until the team-permissions endpoint lands. Be honest about
+               * it instead of letting users think they're toggling state. */}
+              <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 flex items-start gap-2">
+                <div className="text-amber-600 text-sm" aria-hidden="true">⚠</div>
+                <div className="text-xs text-amber-800 leading-relaxed">
+                  <strong>Preview only.</strong> Permission rules below show the planned roles model. They don&rsquo;t yet save to the server — defaults apply: team admins can edit, all members can invite, only admins can remove.
+                </div>
+              </div>
+
               {/* Editing Permissions */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">

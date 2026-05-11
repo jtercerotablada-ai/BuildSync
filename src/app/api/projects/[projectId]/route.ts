@@ -11,6 +11,15 @@ const updateProjectSchema = z.object({
   visibility: z.enum(["PRIVATE", "WORKSPACE", "PUBLIC"]).optional(),
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
+  // Engineering firm extensions — mirrors the create schema in route.ts
+  type: z.enum(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"]).optional().nullable(),
+  gate: z.enum(["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION", "CLOSEOUT"]).optional().nullable(),
+  location: z.string().optional().nullable(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
+  budget: z.number().optional().nullable(),
+  currency: z.string().optional().nullable(),
+  clientName: z.string().optional().nullable(),
 });
 
 // GET /api/projects/:projectId - Get project details
