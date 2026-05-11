@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * /projects — All-projects listing for the dashboard route group.
+ * /projects/all — Dashboard all-projects listing.
  *
- * The dashboard route group was missing this page, so hitting
- * `/projects` from the URL bar (or any "view all" link) fell through to
- * the public marketing page. This restores the proper logged-in
- * listing.
+ * NOTE on the path: lives at `/projects/all` (not `/projects`).
+ * `/projects` is owned by the public marketing portfolio at
+ * (public)/projects/page.tsx. Putting both at the same path created
+ * a Next.js parallel-route conflict that broke the production build
+ * (commit b1a9dab and earlier). This file holds the logged-in
+ * data-dense listing; the sidebar can link here when a "View all"
+ * affordance is added.
  *
  * The page reads from /api/projects and offers:
  *   - Filter pills by type (Construction / Design / Recertification / Permit)
