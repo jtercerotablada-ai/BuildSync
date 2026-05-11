@@ -15,6 +15,33 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { calculateKRProgress } from "@/lib/goal-utils";
 
+/**
+ * Format a KR value according to its declared format. PERCENTAGE
+ * renders `42%`, CURRENCY renders `$8,400,000`, BOOLEAN renders
+ * yes/no, NUMBER falls back to a localized number with optional unit.
+ */
+function formatKRValue(
+  value: number,
+  format: string,
+  unit: string | null
+): string {
+  if (format === "PERCENTAGE") return `${value}%`;
+  if (format === "CURRENCY") {
+    const currency = unit && unit.length === 3 ? unit : "USD";
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
+      }).format(value);
+    } catch {
+      return `$${value.toLocaleString()}`;
+    }
+  }
+  if (format === "BOOLEAN") return value >= 1 ? "Yes" : "No";
+  return `${value.toLocaleString()}${unit ? " " + unit : ""}`;
+}
+
 interface KeyResult {
   id: string;
   name: string;
@@ -237,8 +264,7 @@ export function KeyResultRow({
               className="h-7 w-20 text-xs text-right"
             />
             <span className="text-xs text-gray-500 whitespace-nowrap">
-              / {kr.targetValue}
-              {kr.unit ? ` ${kr.unit}` : ""}
+              / {formatKRValue(kr.targetValue, kr.format, kr.unit)}
             </span>
             {saving ? (
               <Loader2 className="h-3 w-3 animate-spin text-gray-400" />
@@ -256,8 +282,8 @@ export function KeyResultRow({
             )}
             title="Click to update progress"
           >
-            {kr.currentValue} / {kr.targetValue}
-            {kr.unit ? ` ${kr.unit}` : ""}
+            {formatKRValue(kr.currentValue, kr.format, kr.unit)} /{" "}
+            {formatKRValue(kr.targetValue, kr.format, kr.unit)}
           </button>
         )}
       </div>

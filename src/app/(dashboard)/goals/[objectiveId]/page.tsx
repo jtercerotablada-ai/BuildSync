@@ -47,6 +47,7 @@ import { LinkedWorkPanel } from "@/components/goals/linked-work-panel";
 import { AICoachPanel } from "@/components/goals/ai-coach-panel";
 import { ParentObjectivePicker } from "@/components/goals/parent-objective-picker";
 import { KeyResultRow } from "@/components/goals/key-result-row";
+import { AddKeyResultInline } from "@/components/goals/add-key-result-inline";
 import {
   STATUS_OPTIONS as SHARED_STATUS_OPTIONS,
   getStatusOption as sharedGetStatusOption,
@@ -423,6 +424,19 @@ export default function GoalDetailPage() {
           Goals of {objective.workspace?.name || "My workspace"}
         </span>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-gray-500 hidden md:inline-flex"
+            onClick={() =>
+              window.open(
+                "mailto:feedback@ttcivilstructural.com?subject=Goals%20Feedback",
+                "_blank"
+              )
+            }
+          >
+            Send feedback
+          </Button>
           <Avatar className="h-8 w-8 border-2 border-black">
             <AvatarImage src={objective.owner.image || ""} />
             <AvatarFallback className="text-xs bg-white text-black">
@@ -545,15 +559,26 @@ export default function GoalDetailPage() {
             <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
           </Button>
 
-          {/* Status button */}
+          {/* Status pill — colored chip with current label, dropdown
+              to change. Replaces the previous "Set status" ghost
+              button that just showed a dot. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2 text-gray-600 px-2 md:px-3">
-                <div className={cn("h-3 w-3 rounded-full flex-shrink-0", currentStatus.color)} />
-                <span className="hidden sm:inline">Set status</span>
-              </Button>
+              <button
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-full text-xs md:text-sm font-medium transition-opacity hover:opacity-90",
+                  currentStatus.color,
+                  currentStatus.color.includes("gray-3")
+                    ? "text-gray-800"
+                    : "text-white"
+                )}
+              >
+                <span className="hidden sm:inline">{currentStatus.label}</span>
+                <span className="sm:hidden">·</span>
+                <ChevronDown className="h-3 w-3 opacity-70" />
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
+            <DropdownMenuContent align="end">
               {STATUS_OPTIONS.map((option) => (
                 <DropdownMenuItem
                   key={option.value || "null"}
@@ -646,14 +671,6 @@ export default function GoalDetailPage() {
             </div>
 
           </div>
-
-          {/* Send feedback link */}
-          <button
-            className="text-sm text-gray-500 hover:underline mb-8 block"
-            onClick={() => window.open('mailto:feedback@ttcivilstructural.com?subject=Goals%20Feedback', '_blank')}
-          >
-            Send feedback
-          </button>
 
           {/* ========== PROGRESS CARDS ========== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-6 md:mb-8">
@@ -788,40 +805,56 @@ export default function GoalDetailPage() {
           </div>
 
           {/* ========== KEY RESULTS SECTION ========== */}
-          {objective.keyResults.length > 0 && (
-            <div className="mb-6 md:mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Key results</h3>
-                <Button variant="ghost" size="sm" className="text-gray-500" onClick={() => setAddKROpen(true)}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  <span className="hidden sm:inline">Add key result</span>
-                  <span className="sm:hidden">Add</span>
-                </Button>
-              </div>
-              {/* Inline-editing rows: click the name to rename, click
-                  the value to update progress. The "Update with note"
-                  button still opens the dialog when the user wants
-                  to attach a note to the progress change. */}
-              <div className="space-y-3">
-                {objective.keyResults.map((kr) => (
-                  <KeyResultRow
-                    key={kr.id}
-                    kr={kr}
-                    objectiveId={objectiveId}
-                    onChanged={fetchObjective}
-                    onDelete={handleDeleteKeyResult}
-                    // Lookup by id so KeyResultRow's local KR type (no
-                    // `updates` field) doesn't have to match the
-                    // page's richer interface — keeps the row reusable.
-                    onOpenNoteDialog={(rowKr) => {
-                      const full = objective.keyResults.find((k) => k.id === rowKr.id);
-                      if (full) openUpdateDialog(full);
-                    }}
-                  />
-                ))}
-              </div>
+          <div className="mb-6 md:mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">
+                Key results
+                <span className="ml-2 text-xs font-normal text-gray-400 tabular-nums">
+                  {objective.keyResults.length}
+                </span>
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-500"
+                onClick={() => setAddKROpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Advanced add</span>
+                <span className="sm:hidden">Add</span>
+              </Button>
             </div>
-          )}
+            {/* Inline-editing rows: click the name to rename, click
+                the value to update progress. The "Update with note"
+                button still opens the dialog when the user wants
+                to attach a note to the progress change. */}
+            <div className="space-y-3">
+              {objective.keyResults.map((kr) => (
+                <KeyResultRow
+                  key={kr.id}
+                  kr={kr}
+                  objectiveId={objectiveId}
+                  onChanged={fetchObjective}
+                  onDelete={handleDeleteKeyResult}
+                  // Lookup by id so KeyResultRow's local KR type (no
+                  // `updates` field) doesn't have to match the
+                  // page's richer interface — keeps the row reusable.
+                  onOpenNoteDialog={(rowKr) => {
+                    const full = objective.keyResults.find(
+                      (k) => k.id === rowKr.id
+                    );
+                    if (full) openUpdateDialog(full);
+                  }}
+                />
+              ))}
+              {/* Always-visible inline creator at the bottom — no
+                  modal required for the common case (name + target). */}
+              <AddKeyResultInline
+                objectiveId={objectiveId}
+                onAdded={fetchObjective}
+              />
+            </div>
+          </div>
 
           {/* ========== CHECK-IN BAR + AI COACH ========== */}
           <div className="border rounded-xl bg-white p-4 mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

@@ -133,6 +133,10 @@ export default function GoalsPage() {
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [selectedView, setSelectedView] = useState<ViewType>("list");
   const [selectedPeriod, setSelectedPeriod] = useState("All");
+  // Status filter — client-side filter on top of fetched objectives.
+  // "all" shows everything; otherwise only objectives whose status
+  // exactly matches the selected value are rendered.
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   // Template-aware create state. When `pendingTemplate` is set, the
   // dialog pre-fills name + creates KRs from the template payload.
   const [pendingTemplate, setPendingTemplate] = useState<GoalTemplate | null>(
@@ -301,6 +305,14 @@ export default function GoalsPage() {
       </div>
     );
   }
+
+  // Apply the client-side status filter on top of the fetched (and
+  // server-filtered by mode/period) objectives. Done here once so all
+  // four views render the same dataset.
+  const filteredObjectives =
+    statusFilter === "all"
+      ? objectives
+      : objectives.filter((o) => o.status === statusFilter);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
@@ -519,6 +531,43 @@ export default function GoalsPage() {
         </div>
       </div>
 
+      {/* Status filter pills — client-side, sits below the toolbar so
+          it's available to every view. Selecting "On track" hides
+          everything else from the current view without changing the
+          filter mode (my/team/all). */}
+      <div className="flex items-center gap-1.5 px-4 md:px-6 py-2 border-b bg-white overflow-x-auto">
+        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1 flex-shrink-0">
+          Status
+        </span>
+        {(
+          [
+            { id: "all", label: "All", color: "#a3a3a3" },
+            { id: "ON_TRACK", label: "On track", color: "#c9a84c" },
+            { id: "AT_RISK", label: "At risk", color: "#a8893a" },
+            { id: "OFF_TRACK", label: "Off track", color: "#0a0a0a" },
+            { id: "ACHIEVED", label: "Achieved", color: "#c9a84c" },
+            { id: "DROPPED", label: "Dropped", color: "#666666" },
+          ] as const
+        ).map((opt) => (
+          <button
+            key={opt.id}
+            onClick={() => setStatusFilter(opt.id)}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors whitespace-nowrap flex-shrink-0",
+              statusFilter === opt.id
+                ? "bg-black text-white border-black"
+                : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+            )}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: opt.color }}
+            />
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {/* Content — dispatch on selectedView. Strategy-map onboarding
           flow only shows for the tree view when the list is empty. */}
       <div className="flex-1 overflow-auto">
@@ -557,17 +606,17 @@ export default function GoalsPage() {
           />
         ) : selectedView === "kanban" ? (
           <GoalsKanbanView
-            objectives={objectives}
+            objectives={filteredObjectives}
             onStatusChange={() => fetchObjectives()}
           />
         ) : selectedView === "cards" ? (
-          <GoalsCardsView objectives={objectives} />
+          <GoalsCardsView objectives={filteredObjectives} />
         ) : selectedView === "tree" ? (
-          <GoalsTreeView objectives={objectives} />
+          <GoalsTreeView objectives={filteredObjectives} />
         ) : (
           /* default: list */
           <GoalsListView
-            objectives={objectives}
+            objectives={filteredObjectives}
             expandedIds={expandedIds}
             onToggleExpand={toggleExpand}
             onRowClick={(id) => router.push(`/goals/${id}`)}
