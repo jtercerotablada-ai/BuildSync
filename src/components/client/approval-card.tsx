@@ -33,13 +33,13 @@ interface ApprovalCardProps {
 function getStatusBadge(status: string) {
   switch (status) {
     case "PENDING":
-      return { icon: Clock, bg: "bg-[#a8893a]/100/10", text: "text-[#a8893a]", label: "Pending" };
+      return { icon: Clock, bg: "bg-[#a8893a]/10", text: "text-[#a8893a]", label: "Pending" };
     case "APPROVED":
-      return { icon: CheckCircle, bg: "bg-[#c9a84c]/100/10", text: "text-[#a8893a]", label: "Approved" };
+      return { icon: CheckCircle, bg: "bg-[#c9a84c]/10", text: "text-[#a8893a]", label: "Approved" };
     case "REJECTED":
-      return { icon: XCircle, bg: "bg-gray-1000/10", text: "text-black", label: "Rejected" };
+      return { icon: XCircle, bg: "bg-black/10", text: "text-black", label: "Rejected" };
     case "CHANGES_REQUESTED":
-      return { icon: AlertTriangle, bg: "bg-[#a8893a]/100/10", text: "text-[#a8893a]", label: "Changes Requested" };
+      return { icon: AlertTriangle, bg: "bg-[#a8893a]/10", text: "text-[#a8893a]", label: "Changes Requested" };
     default:
       return { icon: Clock, bg: "bg-gray-500/10", text: "text-gray-400", label: status };
   }
@@ -139,7 +139,7 @@ export function ApprovalCard({ approval }: ApprovalCardProps) {
                 onClick={() => handleAction("CHANGES_REQUESTED")}
                 disabled={submitting}
                 variant="outline"
-                className="border-[#a8893a]/30 text-[#a8893a] hover:bg-yellow-600/10 hover:text-yellow-300"
+                className="border-[#a8893a]/30 text-[#a8893a] hover:bg-[#a8893a]/10 hover:text-[#d4b65a]"
               >
                 <AlertTriangle className="mr-2 h-4 w-4" />
                 Request Changes
@@ -148,7 +148,7 @@ export function ApprovalCard({ approval }: ApprovalCardProps) {
                 onClick={() => handleAction("REJECTED")}
                 disabled={submitting}
                 variant="outline"
-                className="border-gray-400 text-black hover:bg-black/10 hover:text-red-300"
+                className="border-gray-400 text-black hover:bg-black/10 hover:text-gray-300"
               >
                 <XCircle className="mr-2 h-4 w-4" />
                 Reject

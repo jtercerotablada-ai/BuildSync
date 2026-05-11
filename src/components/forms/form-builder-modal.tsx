@@ -1255,7 +1255,7 @@ export function FormBuilderModal({
             <Button
               variant="outline"
               onClick={handleDiscard}
-              className="text-black border-gray-400 hover:bg-gray-100 hover:border-red-400"
+              className="text-black border-gray-400 hover:bg-gray-100 hover:border-gray-500"
             >
               Discard form
             </Button>
@@ -1496,7 +1496,7 @@ export function FormBuilderModal({
                       key={i}
                       className={cn(
                         "w-6 h-6 border rounded transition-colors",
-                        isHovered ? "bg-[#c9a84c]/100 border-[#c9a84c]" : "bg-white border-gray-300 hover:border-blue-400"
+                        isHovered ? "bg-[#c9a84c] border-[#c9a84c]" : "bg-white border-gray-300 hover:border-[#c9a84c]"
                       )}
                       onMouseEnter={() => setHoveredCell({ row: row + 1, col: col + 1 })}
                       onClick={() => insertTable(row + 1, col + 1)}

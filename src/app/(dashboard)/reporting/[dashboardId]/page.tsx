@@ -591,7 +591,7 @@ export default function DashboardPage() {
             onClick={() => setIsFavorite(!isFavorite)}
             className={cn(
               "transition-colors flex-shrink-0",
-              isFavorite ? "text-yellow-500" : "text-slate-300 hover:text-yellow-500"
+              isFavorite ? "text-[#a8893a]" : "text-slate-300 hover:text-[#a8893a]"
             )}
             aria-label={isFavorite ? "Unfavorite" : "Favorite"}
           >
@@ -637,7 +637,7 @@ export default function DashboardPage() {
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {/* Error banner */}
         {fetchError && (
-          <div className="mb-4 md:mb-6 px-3 md:px-4 py-2 md:py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs md:text-sm flex items-start gap-2">
+          <div className="mb-4 md:mb-6 px-3 md:px-4 py-2 md:py-3 rounded-lg bg-[#a8893a]/10 border border-[#a8893a]/30 text-[#a8893a] text-xs md:text-sm flex items-start gap-2">
             <span className="font-medium flex-shrink-0">⚠</span>
             <span>
               Could not load report data. Sign in or check your connection. The widget layout below shows your saved configuration with placeholder values.
@@ -711,7 +711,7 @@ export default function DashboardPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => handleDuplicateWidget(widget.id)}>Duplicate</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600" onClick={() => handleRemoveWidget(widget.id)}>Remove</DropdownMenuItem>
+                      <DropdownMenuItem className="text-black" onClick={() => handleRemoveWidget(widget.id)}>Remove</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

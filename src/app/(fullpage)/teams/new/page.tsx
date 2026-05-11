@@ -265,7 +265,7 @@ export default function CreateTeamPage() {
                   <div
                     className={cn(
                       'flex flex-wrap items-center gap-2 p-2 border rounded-md bg-white min-h-[42px] cursor-text',
-                      'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500'
+                      'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-[#c9a84c]'
                     )}
                     onClick={() => inputRef.current?.focus()}
                   >
@@ -328,7 +328,7 @@ export default function CreateTeamPage() {
                           >
                             <Avatar className="h-8 w-8">
                               <AvatarImage src={user.image || undefined} />
-                              <AvatarFallback className="bg-blue-500 text-white text-sm">
+                              <AvatarFallback className="bg-[#c9a84c] text-white text-sm">
                                 {getInitials(user.name, user.email)}
                               </AvatarFallback>
                             </Avatar>
@@ -368,7 +368,7 @@ export default function CreateTeamPage() {
                         Endorsed
                       </label>
                       <Check className="h-4 w-4 text-gray-400" />
-                      <span className="text-xs text-orange-500 font-medium">
+                      <span className="text-xs text-[#a8893a] font-medium">
                         Premium feature
                       </span>
                     </div>
@@ -396,7 +396,7 @@ export default function CreateTeamPage() {
                           value={option.value}
                           checked={privacy === option.value}
                           onChange={() => setPrivacy(option.value)}
-                          className="mt-1 h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                          className="mt-1 h-4 w-4 text-[#a8893a] border-gray-300 focus:ring-blue-500"
                         />
                         <Icon className="h-4 w-4 mt-0.5 text-gray-500 flex-shrink-0" />
                         <div>
@@ -413,7 +413,7 @@ export default function CreateTeamPage() {
               <Button
                 type="submit"
                 disabled={loading || !teamName.trim()}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-200 disabled:text-gray-400"
+                className="w-full bg-[#c9a84c] hover:bg-[#a8893a] text-white disabled:bg-gray-200 disabled:text-gray-400"
               >
                 {loading ? 'Creating...' : 'Create new team'}
               </Button>

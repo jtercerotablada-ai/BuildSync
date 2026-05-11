@@ -463,14 +463,14 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               {project.members.slice(0, 3).map((member) => (
                 <div
                   key={member.userId}
-                  className="w-8 h-8 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center text-sm font-medium text-white"
+                  className="w-8 h-8 rounded-full bg-[#d4b65a] border-2 border-white flex items-center justify-center text-sm font-medium text-white"
                   title={member.user.name || member.user.email || ""}
                 >
                   {member.user.name?.[0] || member.user.email?.[0] || "?"}
                 </div>
               ))}
               {project.members.length === 0 && (
-                <div className="w-8 h-8 rounded-full bg-amber-400 border-2 border-white flex items-center justify-center text-sm font-medium text-white">
+                <div className="w-8 h-8 rounded-full bg-[#d4b65a] border-2 border-white flex items-center justify-center text-sm font-medium text-white">
                   {project.owner?.name?.[0] || "?"}
                 </div>
               )}

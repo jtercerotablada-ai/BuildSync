@@ -89,9 +89,9 @@ interface BoardViewProps {
 // ============================================
 
 const PRIORITY_CONFIG: Record<string, { dot: string; label: string }> = {
-  HIGH: { dot: "bg-gray-1000", label: "High" },
-  MEDIUM: { dot: "bg-[#a8893a]/100", label: "Medium" },
-  LOW: { dot: "bg-[#c9a84c]/100", label: "Low" },
+  HIGH: { dot: "bg-black", label: "High" },
+  MEDIUM: { dot: "bg-[#a8893a]", label: "Medium" },
+  LOW: { dot: "bg-[#c9a84c]", label: "Low" },
   NONE: { dot: "", label: "" },
 };
 
@@ -831,7 +831,7 @@ function SortableTaskCard({
           className={cn(
             "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
             task.completed
-              ? "bg-[#c9a84c]/100 border-[#c9a84c]"
+              ? "bg-[#c9a84c] border-[#c9a84c]"
               : "border-slate-300 hover:border-slate-400"
           )}
         >
@@ -901,7 +901,7 @@ function TaskCardOverlay({ task }: { task: Task }) {
         <div
           className={cn(
             "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
-            task.completed ? "bg-[#c9a84c]/100 border-[#c9a84c]" : "border-slate-300"
+            task.completed ? "bg-[#c9a84c] border-[#c9a84c]" : "border-slate-300"
           )}
         >
           {task.completed && <Check className="w-3 h-3 text-white" />}

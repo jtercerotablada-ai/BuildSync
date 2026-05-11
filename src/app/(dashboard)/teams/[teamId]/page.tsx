@@ -186,7 +186,7 @@ export default function TeamPage() {
               {team.avatar ? (
                 <img src={team.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
               ) : (
-                <span className="text-sm font-medium text-purple-700">{teamInitial}</span>
+                <span className="text-sm font-medium text-black">{teamInitial}</span>
               )}
             </div>
 
@@ -202,7 +202,7 @@ export default function TeamPage() {
                   Team settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600" onClick={() => setShowSettingsModal(true)}>
+                <DropdownMenuItem className="text-black" onClick={() => setShowSettingsModal(true)}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete team
                 </DropdownMenuItem>
@@ -213,7 +213,7 @@ export default function TeamPage() {
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-8 w-8", isStarred && "text-yellow-500")}
+              className={cn("h-8 w-8", isStarred && "text-[#a8893a]")}
               onClick={() => setIsStarred(!isStarred)}
             >
               <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
@@ -226,7 +226,7 @@ export default function TeamPage() {
               {team.members.slice(0, 3).map((member) => (
                 <Avatar key={member.id} className="h-8 w-8 border-2 border-white">
                   <AvatarImage src={member.user.image || undefined} />
-                  <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
+                  <AvatarFallback className="text-xs bg-gray-100 text-black">
                     {member.user.name?.charAt(0).toUpperCase() || "?"}
                   </AvatarFallback>
                 </Avatar>
@@ -238,7 +238,7 @@ export default function TeamPage() {
               )}
             </div>
             <Button
-              className="bg-green-600 hover:bg-green-700 gap-2"
+              className="bg-[#a8893a] hover:bg-[#a8893a] gap-2"
               onClick={() => setShowInviteModal(true)}
             >
               <Users className="h-4 w-4" />
@@ -354,9 +354,9 @@ export default function TeamPage() {
                 <div className="flex items-center gap-2">
                   <div className={cn(
                     "w-6 h-6 rounded-full border-2 flex items-center justify-center",
-                    completedSteps === 3 ? "border-green-500 bg-green-50" : "border-gray-300"
+                    completedSteps === 3 ? "border-[#c9a84c] bg-[#c9a84c]/10" : "border-gray-300"
                   )}>
-                    {completedSteps === 3 && <span className="text-green-600 text-xs">✓</span>}
+                    {completedSteps === 3 && <span className="text-[#a8893a] text-xs">✓</span>}
                   </div>
                   <span className="text-sm text-gray-500">{completedSteps} of 3 steps completed</span>
                 </div>
@@ -375,16 +375,16 @@ export default function TeamPage() {
                 onClick={() => setShowSettingsModal(true)}
                 className={cn(
                   "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
-                  setupSteps.description ? "bg-green-50 border-green-200" : "bg-white"
+                  setupSteps.description ? "bg-[#c9a84c]/10 border-[#c9a84c]/30" : "bg-white"
                 )}
               >
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    setupSteps.description ? "bg-green-100" : "bg-gray-100"
+                    setupSteps.description ? "bg-[#c9a84c]/15" : "bg-gray-100"
                   )}>
                     {setupSteps.description ? (
-                      <span className="text-green-600 text-sm">✓</span>
+                      <span className="text-[#a8893a] text-sm">✓</span>
                     ) : (
                       <FileText className="h-4 w-4 text-gray-500" />
                     )}
@@ -392,7 +392,7 @@ export default function TeamPage() {
                   <div>
                     <h4 className={cn(
                       "font-medium text-sm",
-                      setupSteps.description ? "text-green-700" : "text-gray-900"
+                      setupSteps.description ? "text-[#a8893a]" : "text-gray-900"
                     )}>
                       Add team description
                     </h4>
@@ -415,16 +415,16 @@ export default function TeamPage() {
                 <button
                   className={cn(
                     "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all w-full",
-                    setupSteps.work ? "bg-green-50 border-green-200" : "bg-white"
+                    setupSteps.work ? "bg-[#c9a84c]/10 border-[#c9a84c]/30" : "bg-white"
                   )}
                 >
                   <div className="flex items-start gap-3">
                     <div className={cn(
                       "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                      setupSteps.work ? "bg-green-100" : "bg-gray-100"
+                      setupSteps.work ? "bg-[#c9a84c]/15" : "bg-gray-100"
                     )}>
                       {setupSteps.work ? (
-                        <span className="text-green-600 text-sm">✓</span>
+                        <span className="text-[#a8893a] text-sm">✓</span>
                       ) : (
                         <FolderPlus className="h-4 w-4 text-gray-500" />
                       )}
@@ -432,7 +432,7 @@ export default function TeamPage() {
                     <div>
                       <h4 className={cn(
                         "font-medium text-sm",
-                        setupSteps.work ? "text-green-700" : "text-gray-900"
+                        setupSteps.work ? "text-[#a8893a]" : "text-gray-900"
                       )}>
                         Add work
                       </h4>
@@ -449,16 +449,16 @@ export default function TeamPage() {
                 onClick={() => setShowInviteModal(true)}
                 className={cn(
                   "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
-                  setupSteps.members ? "bg-green-50 border-green-200" : "bg-white"
+                  setupSteps.members ? "bg-[#c9a84c]/10 border-[#c9a84c]/30" : "bg-white"
                 )}
               >
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    setupSteps.members ? "bg-green-100" : "bg-gray-100"
+                    setupSteps.members ? "bg-[#c9a84c]/15" : "bg-gray-100"
                   )}>
                     {setupSteps.members ? (
-                      <span className="text-green-600 text-sm">✓</span>
+                      <span className="text-[#a8893a] text-sm">✓</span>
                     ) : (
                       <UserPlus className="h-4 w-4 text-gray-500" />
                     )}
@@ -466,7 +466,7 @@ export default function TeamPage() {
                   <div>
                     <h4 className={cn(
                       "font-medium text-sm",
-                      setupSteps.members ? "text-green-700" : "text-gray-900"
+                      setupSteps.members ? "text-[#a8893a]" : "text-gray-900"
                     )}>
                       Add teammates
                     </h4>
@@ -488,7 +488,7 @@ export default function TeamPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">Work selection</h3>
                 <button
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-[#a8893a] hover:underline"
                   onClick={() => router.push(`/teams/${teamId}/work`)}
                 >
                   View all work
@@ -518,7 +518,7 @@ export default function TeamPage() {
                   {/* Skeleton placeholder items */}
                   <div className="space-y-3 opacity-30 mb-6">
                     <div className="flex items-center gap-3 p-3">
-                      <div className="w-8 h-8 bg-green-300 rounded" />
+                      <div className="w-8 h-8 bg-[#d4b65a] rounded" />
                       <div className="h-3 bg-gray-300 rounded w-3/4" />
                     </div>
                     <div className="flex items-center gap-3 p-3">
@@ -526,7 +526,7 @@ export default function TeamPage() {
                       <div className="h-3 bg-gray-300 rounded w-1/2" />
                     </div>
                     <div className="flex items-center gap-3 p-3">
-                      <div className="w-8 h-8 bg-blue-300 rounded" />
+                      <div className="w-8 h-8 bg-[#c9a84c]/35 rounded" />
                       <div className="h-3 bg-gray-300 rounded w-2/3" />
                     </div>
                   </div>
@@ -546,7 +546,7 @@ export default function TeamPage() {
                           .then((data) => setWorkItems(data));
                       }}
                     >
-                      <Button className="bg-blue-600 hover:bg-blue-700">
+                      <Button className="bg-[#c9a84c] hover:bg-[#a8893a]">
                         Add work
                       </Button>
                     </LinkWorkPopover>
@@ -563,7 +563,7 @@ export default function TeamPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-gray-900">Members</h3>
                 <button
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-[#a8893a] hover:underline"
                   onClick={() => router.push(`/teams/${teamId}/members`)}
                 >
                   View list of {team.members.length} item{team.members.length !== 1 ? "s" : ""}
@@ -577,7 +577,7 @@ export default function TeamPage() {
                     title={member.user.name || member.user.email || "Member"}
                   >
                     <AvatarImage src={member.user.image || undefined} />
-                    <AvatarFallback className="bg-purple-100 text-purple-700 text-sm">
+                    <AvatarFallback className="bg-gray-100 text-black text-sm">
                       {member.user.name?.charAt(0).toUpperCase() || "?"}
                     </AvatarFallback>
                   </Avatar>
@@ -643,15 +643,15 @@ export default function TeamPage() {
                         <div
                           className={cn(
                             "h-full rounded-full transition-all",
-                            goal.status === "ON_TRACK" ? "bg-green-500" :
-                            goal.status === "AT_RISK" ? "bg-yellow-500" :
-                            goal.status === "OFF_TRACK" ? "bg-red-500" : "bg-blue-500"
+                            goal.status === "ON_TRACK" ? "bg-[#c9a84c]" :
+                            goal.status === "AT_RISK" ? "bg-[#a8893a]" :
+                            goal.status === "OFF_TRACK" ? "bg-black" : "bg-[#c9a84c]"
                           )}
                           style={{ width: `${goal.progress}%` }}
                         />
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-900 group-hover:text-blue-600 transition-colors">
+                        <span className="text-gray-900 group-hover:text-[#a8893a] transition-colors">
                           {goal.name}
                         </span>
                         <span className="text-gray-500">{goal.progress}%</span>
@@ -673,7 +673,7 @@ export default function TeamPage() {
                     <div className="h-2 bg-gray-200 rounded-full mb-2" />
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                        <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />
                         <span className="text-gray-400">In progress (0%)</span>
                       </div>
                       <div className="w-6 h-6 rounded-full border-2 border-dashed border-gray-300" />

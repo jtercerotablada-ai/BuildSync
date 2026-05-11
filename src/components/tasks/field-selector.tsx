@@ -15,9 +15,9 @@ import { cn } from '@/lib/utils';
 type Priority = 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE' | null;
 
 const priorityOptions: { value: Priority; label: string; color: string; bg: string }[] = [
-  { value: 'HIGH', label: 'High', color: 'bg-gray-1000', bg: 'bg-gray-100 text-black' },
-  { value: 'MEDIUM', label: 'Medium', color: 'bg-[#a8893a]/100', bg: 'bg-[#a8893a]/15 text-[#a8893a]' },
-  { value: 'LOW', label: 'Low', color: 'bg-[#c9a84c]/100', bg: 'bg-[#c9a84c]/15 text-[#a8893a]' },
+  { value: 'HIGH', label: 'High', color: 'bg-black', bg: 'bg-gray-100 text-black' },
+  { value: 'MEDIUM', label: 'Medium', color: 'bg-[#a8893a]', bg: 'bg-[#a8893a]/15 text-[#a8893a]' },
+  { value: 'LOW', label: 'Low', color: 'bg-[#c9a84c]', bg: 'bg-[#c9a84c]/15 text-[#a8893a]' },
 ];
 
 interface PrioritySelectorProps {
@@ -83,9 +83,9 @@ export function PrioritySelector({ value, onChange }: PrioritySelectorProps) {
 type Status = 'ON_TRACK' | 'AT_RISK' | 'OFF_TRACK' | null;
 
 const statusOptions: { value: Status; label: string; color: string; bg: string }[] = [
-  { value: 'ON_TRACK', label: 'On track', color: 'bg-[#c9a84c]/100', bg: 'bg-[#c9a84c]/15 text-[#a8893a]' },
-  { value: 'AT_RISK', label: 'At risk', color: 'bg-[#a8893a]/100', bg: 'bg-[#a8893a]/15 text-[#a8893a]' },
-  { value: 'OFF_TRACK', label: 'Off track', color: 'bg-gray-1000', bg: 'bg-gray-100 text-black' },
+  { value: 'ON_TRACK', label: 'On track', color: 'bg-[#c9a84c]', bg: 'bg-[#c9a84c]/15 text-[#a8893a]' },
+  { value: 'AT_RISK', label: 'At risk', color: 'bg-[#a8893a]', bg: 'bg-[#a8893a]/15 text-[#a8893a]' },
+  { value: 'OFF_TRACK', label: 'Off track', color: 'bg-black', bg: 'bg-gray-100 text-black' },
 ];
 
 interface StatusSelectorProps {

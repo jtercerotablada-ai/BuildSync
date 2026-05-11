@@ -98,13 +98,13 @@ export default function PortfoliosPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-green-500";
+        return "bg-[#c9a84c]";
       case "AT_RISK":
-        return "bg-yellow-500";
+        return "bg-[#a8893a]";
       case "OFF_TRACK":
-        return "bg-red-500";
+        return "bg-black";
       case "COMPLETE":
-        return "bg-blue-500";
+        return "bg-[#c9a84c]";
       default:
         return "bg-gray-400";
     }
@@ -187,8 +187,8 @@ export default function PortfoliosPage() {
       {/* Portfolio Grid */}
       {portfolios.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
-            <Folder className="h-8 w-8 text-purple-600" />
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <Folder className="h-8 w-8 text-black" />
           </div>
           <h2 className="text-lg font-medium text-black mb-2">
             No portfolios yet

@@ -22,7 +22,7 @@ function getPasswordStrength(password: string): number {
 }
 
 const strengthLabels = ["", "Weak", "Fair", "Good", "Strong"];
-const strengthColors = ["", "bg-gray-1000", "bg-[#a8893a]/100", "bg-[#a8893a]/100", "bg-[#c9a84c]/100"];
+const strengthColors = ["", "bg-black", "bg-[#a8893a]", "bg-[#a8893a]", "bg-[#c9a84c]"];
 
 export function SecuritySection({ hasOAuth, hasPassword }: SecuritySectionProps) {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -76,7 +76,7 @@ export function SecuritySection({ hasOAuth, hasPassword }: SecuritySectionProps)
         <div className="flex items-start gap-3 rounded-lg border border-[#c9a84c]/30 bg-[#c9a84c]/10 p-4">
           <Shield className="h-5 w-5 text-[#a8893a] mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-blue-900">
+            <p className="text-sm font-medium text-[#a8893a]">
               Signed in with Google
             </p>
             <p className="text-sm text-[#a8893a]">

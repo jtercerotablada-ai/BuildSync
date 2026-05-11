@@ -306,7 +306,7 @@ export default function TeamPage() {
                   Create new team
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600" onClick={() => setShowSettingsModal(true)}>
+                <DropdownMenuItem className="text-black" onClick={() => setShowSettingsModal(true)}>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete team
                 </DropdownMenuItem>
@@ -317,7 +317,7 @@ export default function TeamPage() {
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-8 w-8", isStarred && "text-yellow-500")}
+              className={cn("h-8 w-8", isStarred && "text-[#a8893a]")}
               onClick={() => setIsStarred(!isStarred)}
             >
               <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
@@ -769,7 +769,7 @@ function OverviewContent({
                   {/* Skeleton placeholder items */}
                   <div className="space-y-3 opacity-30 mb-6">
                     <div className="flex items-center gap-3 p-3">
-                      <div className="w-8 h-8 bg-green-300 rounded" />
+                      <div className="w-8 h-8 bg-[#d4b65a] rounded" />
                       <div className="h-3 bg-gray-300 rounded w-3/4" />
                     </div>
                     <div className="flex items-center gap-3 p-3">
@@ -777,7 +777,7 @@ function OverviewContent({
                       <div className="h-3 bg-gray-300 rounded w-1/2" />
                     </div>
                     <div className="flex items-center gap-3 p-3">
-                      <div className="w-8 h-8 bg-blue-300 rounded" />
+                      <div className="w-8 h-8 bg-[#c9a84c]/35 rounded" />
                       <div className="h-3 bg-gray-300 rounded w-2/3" />
                     </div>
                   </div>
@@ -886,7 +886,7 @@ function OverviewContent({
                 <div className="h-2 bg-gray-200 rounded-full mb-2" />
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />
                     <span className="text-gray-400">In progress (0%)</span>
                   </div>
                   <div className="w-6 h-6 rounded-full border-2 border-dashed border-gray-300" />

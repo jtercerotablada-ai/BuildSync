@@ -60,7 +60,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 const TITLE_ICON_MAP: Record<string, React.ReactNode> = {
   lock: <Lock className="h-3.5 w-3.5 text-gray-400" />,
   info: <Info className="h-3.5 w-3.5 text-gray-400" />,
-  sparkles: <Sparkles className="h-3.5 w-3.5 text-purple-500" />,
+  sparkles: <Sparkles className="h-3.5 w-3.5 text-[#a8893a]" />,
 };
 
 export function CustomizeWidgetsModal({

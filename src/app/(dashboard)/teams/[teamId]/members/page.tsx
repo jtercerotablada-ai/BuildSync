@@ -165,7 +165,7 @@ export default function TeamMembersPage() {
 
           <Button
             onClick={() => setShowInviteModal(true)}
-            className="bg-green-600 hover:bg-green-700 gap-2"
+            className="bg-[#a8893a] hover:bg-[#a8893a] gap-2"
           >
             <UserPlus className="h-4 w-4" />
             Invite members
@@ -193,7 +193,7 @@ export default function TeamMembersPage() {
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={member.user.image || undefined} />
-                  <AvatarFallback className="bg-purple-100 text-purple-700">
+                  <AvatarFallback className="bg-gray-100 text-black">
                     {getInitials(member.user.name)}
                   </AvatarFallback>
                 </Avatar>
@@ -256,7 +256,7 @@ export default function TeamMembersPage() {
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      className="text-red-600"
+                      className="text-black"
                       onClick={() => handleRemoveMember(member.id)}
                     >
                       <UserMinus className="h-4 w-4 mr-2" />

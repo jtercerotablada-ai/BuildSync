@@ -116,8 +116,8 @@ export default async function ClientDashboardPage() {
 
         <Card className="border-white/10 bg-[#151515]">
           <CardContent className="flex items-center gap-4 p-5">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
-              <CheckCircle className="h-6 w-6 text-amber-500" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#a8893a]/10">
+              <CheckCircle className="h-6 w-6 text-[#a8893a]" />
             </div>
             <div>
               <p className="text-2xl font-bold text-white">{pendingApprovals}</p>
@@ -128,8 +128,8 @@ export default async function ClientDashboardPage() {
 
         <Card className="border-white/10 bg-[#151515]">
           <CardContent className="flex items-center gap-4 p-5">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/10">
-              <MessageSquare className="h-6 w-6 text-blue-500" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#c9a84c]/10">
+              <MessageSquare className="h-6 w-6 text-[#a8893a]" />
             </div>
             <div>
               <p className="text-2xl font-bold text-white">{unreadMessages}</p>
@@ -175,8 +175,8 @@ export default async function ClientDashboardPage() {
                     key={task.id}
                     className="flex items-center gap-3 px-5 py-3"
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500/10">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#c9a84c]/10">
+                      <CheckCircle className="h-4 w-4 text-[#a8893a]" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white truncate">{task.name}</p>

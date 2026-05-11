@@ -120,7 +120,7 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
         <div className="flex items-start gap-3 rounded-lg border border-[#a8893a]/30 bg-[#a8893a]/10 p-4">
           <AlertCircle className="h-5 w-5 text-[#a8893a] mt-0.5 shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-amber-900">
+            <p className="text-sm font-medium text-[#a8893a]">
               Your email is not verified
             </p>
             <p className="text-sm text-[#a8893a] mt-0.5">
@@ -132,7 +132,7 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
             size="sm"
             onClick={handleResendVerification}
             disabled={resending}
-            className="shrink-0 border-amber-300 text-amber-900 hover:bg-[#a8893a]/15"
+            className="shrink-0 border-[#a8893a]/40 text-[#a8893a] hover:bg-[#a8893a]/15"
           >
             {resending ? "Sending..." : "Resend"}
           </Button>

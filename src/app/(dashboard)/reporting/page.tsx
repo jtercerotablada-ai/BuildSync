@@ -359,7 +359,7 @@ export default function ReportingPage() {
                                 Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem
-                                className="text-red-600"
+                                className="text-black"
                                 onClick={() => handleDelete(dashboard.id)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -427,7 +427,7 @@ export default function ReportingPage() {
                               Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              className="text-red-600"
+                              className="text-black"
                               onClick={() => handleDelete(dashboard.id)}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
@@ -454,7 +454,7 @@ export default function ReportingPage() {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="dash-name">
-                Dashboard name <span className="text-red-500">*</span>
+                Dashboard name <span className="text-black">*</span>
               </Label>
               <Input
                 id="dash-name"

@@ -223,7 +223,7 @@ export function FormFieldItem({
             <Switch
               checked={field.required}
               onCheckedChange={(checked) => onUpdate({ required: checked })}
-              className="data-[state=checked]:bg-[#c9a84c]/100"
+              className="data-[state=checked]:bg-[#c9a84c]"
             />
             <span className="text-sm text-gray-600">Required</span>
           </div>
@@ -416,7 +416,7 @@ export function FormFieldItem({
           <Switch
             checked={field.required}
             onCheckedChange={(checked) => onUpdate({ required: checked })}
-            className="data-[state=checked]:bg-[#c9a84c]/100"
+            className="data-[state=checked]:bg-[#c9a84c]"
           />
           <span className="text-sm text-gray-600">Required</span>
         </div>

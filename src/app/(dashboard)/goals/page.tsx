@@ -198,13 +198,13 @@ export default function GoalsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-green-500";
+        return "bg-[#c9a84c]";
       case "AT_RISK":
-        return "bg-yellow-500";
+        return "bg-[#a8893a]";
       case "OFF_TRACK":
-        return "bg-red-500";
+        return "bg-black";
       case "ACHIEVED":
-        return "bg-blue-500";
+        return "bg-[#c9a84c]";
       default:
         return "bg-gray-400";
     }
@@ -421,7 +421,7 @@ export default function GoalsPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">
-                Goal name <span className="text-red-500">*</span>
+                Goal name <span className="text-black">*</span>
               </Label>
               <Input
                 id="name"
@@ -767,7 +767,7 @@ function StrategyMapView({
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-black mb-1">
-                Goal name <span className="text-red-500">*</span>
+                Goal name <span className="text-black">*</span>
               </label>
               <Input
                 type="text"
@@ -914,13 +914,13 @@ function StrategyMapTree({ objectives }: { objectives: Objective[] }) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-green-500";
+        return "bg-[#c9a84c]";
       case "AT_RISK":
-        return "bg-yellow-500";
+        return "bg-[#a8893a]";
       case "OFF_TRACK":
-        return "bg-red-500";
+        return "bg-black";
       case "ACHIEVED":
-        return "bg-blue-500";
+        return "bg-[#c9a84c]";
       default:
         return "bg-gray-400";
     }

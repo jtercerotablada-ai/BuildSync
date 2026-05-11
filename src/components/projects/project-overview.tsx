@@ -94,11 +94,11 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
   const [activities] = useState<ActivityItem[]>([]);
 
   const statusColors = {
-    ON_TRACK: { bg: "bg-[#c9a84c]/100", label: "On track", text: "text-[#a8893a]" },
-    AT_RISK: { bg: "bg-[#a8893a]/100", label: "At risk", text: "text-[#a8893a]" },
-    OFF_TRACK: { bg: "bg-gray-1000", label: "Off track", text: "text-black" },
+    ON_TRACK: { bg: "bg-[#c9a84c]", label: "On track", text: "text-[#a8893a]" },
+    AT_RISK: { bg: "bg-[#a8893a]", label: "At risk", text: "text-[#a8893a]" },
+    OFF_TRACK: { bg: "bg-black", label: "Off track", text: "text-black" },
     ON_HOLD: { bg: "bg-slate-500", label: "On hold", text: "text-slate-700" },
-    COMPLETE: { bg: "bg-[#c9a84c]/100", label: "Complete", text: "text-[#a8893a]" },
+    COMPLETE: { bg: "bg-[#c9a84c]", label: "Complete", text: "text-[#a8893a]" },
   };
 
   const currentStatus = statusColors[project.status as keyof typeof statusColors] || statusColors.ON_TRACK;
@@ -233,7 +233,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
 
             {allMembers.map((member) => (
               <div key={member.id} className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-sm font-medium text-white">
+                <div className="w-8 h-8 rounded-full bg-[#d4b65a] flex items-center justify-center text-sm font-medium text-white">
                   {member.name?.[0] || member.email?.[0] || "?"}
                 </div>
                 <div>
@@ -317,7 +317,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                   {statusUpdates[0].summary}
                 </p>
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center text-xs font-medium text-white">
+                  <div className="w-6 h-6 rounded-full bg-[#d4b65a] flex items-center justify-center text-xs font-medium text-white">
                     {statusUpdates[0].author.name[0]}
                   </div>
                   <span className="text-sm text-slate-600">
@@ -351,7 +351,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                       className={cn(
                         "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
                         activity.type === "status_update"
-                          ? "bg-[#c9a84c]/100"
+                          ? "bg-[#c9a84c]"
                           : "bg-slate-200"
                       )}
                     >
@@ -379,7 +379,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
 
                       {/* Author Avatar for status updates */}
                       {activity.type === "status_update" && activity.author && (
-                        <div className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center text-xs font-medium text-white mt-2">
+                        <div className="w-6 h-6 rounded-full bg-[#d4b65a] flex items-center justify-center text-xs font-medium text-white mt-2">
                           {activity.author[0]}
                         </div>
                       )}

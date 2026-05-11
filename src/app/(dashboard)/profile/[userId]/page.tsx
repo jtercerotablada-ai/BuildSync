@@ -94,7 +94,7 @@ export default async function UserProfilePage({ params }: Props) {
               {user.name || "Unnamed user"}
             </h1>
             {user.emailVerified && (
-              <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+              <CheckCircle className="h-5 w-5 text-[#a8893a] shrink-0" />
             )}
           </div>
           {user.jobTitle && (

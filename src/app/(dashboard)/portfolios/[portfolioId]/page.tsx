@@ -42,11 +42,11 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const STATUS_OPTIONS = [
-  { value: "ON_TRACK", label: "On track", color: "bg-green-500" },
-  { value: "AT_RISK", label: "At risk", color: "bg-yellow-500" },
-  { value: "OFF_TRACK", label: "Off track", color: "bg-red-500" },
+  { value: "ON_TRACK", label: "On track", color: "bg-[#c9a84c]" },
+  { value: "AT_RISK", label: "At risk", color: "bg-[#a8893a]" },
+  { value: "OFF_TRACK", label: "Off track", color: "bg-black" },
   { value: "ON_HOLD", label: "On hold", color: "bg-gray-400" },
-  { value: "COMPLETE", label: "Complete", color: "bg-blue-500" },
+  { value: "COMPLETE", label: "Complete", color: "bg-[#c9a84c]" },
 ];
 
 interface Project {
@@ -276,13 +276,13 @@ export default function PortfolioDetailPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ON_TRACK":
-        return "bg-green-100 text-green-700";
+        return "bg-[#c9a84c]/15 text-[#a8893a]";
       case "AT_RISK":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-[#a8893a]/15 text-[#a8893a]";
       case "OFF_TRACK":
-        return "bg-red-100 text-red-700";
+        return "bg-gray-100 text-black";
       case "COMPLETE":
-        return "bg-blue-100 text-blue-700";
+        return "bg-[#c9a84c]/15 text-[#a8893a]";
       default:
         return "bg-slate-100 text-slate-700";
     }
@@ -418,7 +418,7 @@ export default function PortfolioDetailPage() {
                 Rename
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="text-red-600"
+                className="text-black"
                 onClick={handleDeletePortfolio}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -559,7 +559,7 @@ export default function PortfolioDetailPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
-                      className="text-red-600"
+                      className="text-black"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRemoveProject(pp.project.id);
@@ -646,7 +646,7 @@ export default function PortfolioDetailPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          className="text-red-600"
+                          className="text-black"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRemoveProject(pp.project.id);
@@ -702,7 +702,7 @@ export default function PortfolioDetailPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
-                        className="text-red-600"
+                        className="text-black"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRemoveProject(pp.project.id);

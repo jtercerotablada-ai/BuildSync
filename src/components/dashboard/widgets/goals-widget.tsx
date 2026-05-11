@@ -35,10 +35,10 @@ type TabType = 'my' | 'team' | 'company';
 
 // Progress bar color based on percentage
 const getProgressColor = (progress: number, status: string) => {
-  if (status === 'AT_RISK' || status === 'OFF_TRACK') return 'bg-gray-1000';
-  if (progress >= 70) return 'bg-[#c9a84c]/100';
-  if (progress >= 50) return 'bg-[#a8893a]/100';
-  return 'bg-gray-1000';
+  if (status === 'AT_RISK' || status === 'OFF_TRACK') return 'bg-black';
+  if (progress >= 70) return 'bg-[#c9a84c]';
+  if (progress >= 50) return 'bg-[#a8893a]';
+  return 'bg-black';
 };
 
 // Status text color

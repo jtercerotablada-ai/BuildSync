@@ -238,7 +238,7 @@ export function ProjectMembersDialog({
                 >
                   <Avatar className="h-7 w-7">
                     <AvatarImage src={u.image || ""} />
-                    <AvatarFallback className="text-xs bg-[#a8893a]/15 text-amber-900">
+                    <AvatarFallback className="text-xs bg-[#a8893a]/15 text-[#a8893a]">
                       {initials(u.name, u.email)}
                     </AvatarFallback>
                   </Avatar>
@@ -300,7 +300,7 @@ export function ProjectMembersDialog({
               >
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={m.user.image || ""} />
-                  <AvatarFallback className="text-xs bg-[#a8893a]/15 text-amber-900">
+                  <AvatarFallback className="text-xs bg-[#a8893a]/15 text-[#a8893a]">
                     {initials(m.user.name, m.user.email)}
                   </AvatarFallback>
                 </Avatar>

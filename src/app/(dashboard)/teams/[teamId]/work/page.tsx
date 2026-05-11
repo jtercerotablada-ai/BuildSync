@@ -213,7 +213,7 @@ export default function TeamAllWorkPage() {
                           {project.name}
                         </p>
                         {project.isJoined && (
-                          <p className="text-xs text-green-600">You joined</p>
+                          <p className="text-xs text-[#a8893a]">You joined</p>
                         )}
                       </div>
                     </div>
@@ -227,7 +227,7 @@ export default function TeamAllWorkPage() {
                             className="h-6 w-6 border-2 border-white"
                           >
                             <AvatarImage src={member.image} />
-                            <AvatarFallback className="text-xs bg-purple-100 text-purple-700">
+                            <AvatarFallback className="text-xs bg-gray-100 text-black">
                               {member.name.slice(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>

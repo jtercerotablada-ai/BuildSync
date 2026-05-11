@@ -107,7 +107,7 @@ export function TaskComments({
       <div className="flex gap-3 mb-6">
         <Avatar className="h-8 w-8 flex-shrink-0">
           <AvatarImage src={session?.user?.image || undefined} />
-          <AvatarFallback className="bg-yellow-400 text-white text-xs">
+          <AvatarFallback className="bg-[#d4b65a] text-white text-xs">
             {session?.user?.name?.[0]?.toUpperCase() || 'U'}
           </AvatarFallback>
         </Avatar>

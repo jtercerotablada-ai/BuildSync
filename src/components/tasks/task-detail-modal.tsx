@@ -796,7 +796,7 @@ export function TaskDetailModal({
                         className={cn(
                           'w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0',
                           subtask.completed
-                            ? 'bg-[#c9a84c]/100 border-[#c9a84c]'
+                            ? 'bg-[#c9a84c] border-[#c9a84c]'
                             : 'border-gray-300 hover:border-[#c9a84c]'
                         )}
                       >

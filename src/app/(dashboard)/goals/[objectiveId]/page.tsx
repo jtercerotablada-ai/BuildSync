@@ -122,10 +122,10 @@ interface Objective {
 }
 
 const STATUS_OPTIONS = [
-  { value: "ON_TRACK", label: "On track", color: "bg-green-500", textColor: "text-green-700" },
-  { value: "AT_RISK", label: "At risk", color: "bg-yellow-500", textColor: "text-yellow-700" },
-  { value: "OFF_TRACK", label: "Off track", color: "bg-red-500", textColor: "text-red-700" },
-  { value: "ACHIEVED", label: "Achieved", color: "bg-blue-500", textColor: "text-blue-700" },
+  { value: "ON_TRACK", label: "On track", color: "bg-[#c9a84c]", textColor: "text-[#a8893a]" },
+  { value: "AT_RISK", label: "At risk", color: "bg-[#a8893a]", textColor: "text-[#a8893a]" },
+  { value: "OFF_TRACK", label: "Off track", color: "bg-black", textColor: "text-black" },
+  { value: "ACHIEVED", label: "Achieved", color: "bg-[#c9a84c]", textColor: "text-[#a8893a]" },
   { value: "PARTIAL", label: "Partial", color: "bg-gray-400", textColor: "text-black" },
   { value: "MISSED", label: "Not achieved", color: "bg-gray-300", textColor: "text-black" },
   { value: "DROPPED", label: "Discarded", color: "bg-gray-400", textColor: "text-black" },

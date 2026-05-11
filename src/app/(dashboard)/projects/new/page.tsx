@@ -134,9 +134,9 @@ function TemplatePreviewLarge({ type }: { type: string }) {
           </div>
           <div className="space-y-3">
             {[
-              { name: "Phase 1", color: "bg-purple-400", start: 0, width: 30 },
-              { name: "Phase 2", color: "bg-blue-400", start: 25, width: 35 },
-              { name: "Phase 3", color: "bg-green-400", start: 50, width: 40 },
+              { name: "Phase 1", color: "bg-gray-500", start: 0, width: 30 },
+              { name: "Phase 2", color: "bg-[#d4b65a]", start: 25, width: 35 },
+              { name: "Phase 3", color: "bg-[#d4b65a]", start: 50, width: 40 },
             ].map((task) => (
               <div key={task.name} className="flex items-center gap-2">
                 <div className="w-16 text-xs text-gray-600 truncate">{task.name}</div>
@@ -312,7 +312,7 @@ export default function NewProjectPage() {
               <Button
                 onClick={handleCreateProject}
                 disabled={!projectName.trim() || createProjectMutation.isPending}
-                className="w-full bg-blue-600 hover:bg-blue-700"
+                className="w-full bg-[#c9a84c] hover:bg-[#a8893a]"
               >
                 {createProjectMutation.isPending ? (
                   <>
@@ -328,7 +328,7 @@ export default function NewProjectPage() {
               </Button>
 
               {createProjectMutation.isError && (
-                <p className="text-sm text-red-500 text-center">
+                <p className="text-sm text-black text-center">
                   Failed to create project. Please try again.
                 </p>
               )}
@@ -356,7 +356,7 @@ export default function NewProjectPage() {
                         {template.preview} view
                       </Badge>
                       {template.isNew && (
-                        <Badge className="bg-white border border-black text-blue-700 text-xs">
+                        <Badge className="bg-white border border-black text-[#a8893a] text-xs">
                           New
                         </Badge>
                       )}
@@ -374,23 +374,23 @@ export default function NewProjectPage() {
                   <h3 className="font-medium text-sm text-gray-900">What's included</h3>
 
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
                     <span>{template.sections.length} sections: {template.sections.map(s => s.name).join(", ")}</span>
                   </div>
 
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
                     <span>{template.tasks.length} pre-built tasks with due dates</span>
                   </div>
 
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
                     <span>4 views: List, Board, Timeline, Calendar</span>
                   </div>
 
                   {template.tasks.some(t => t.subtasks && t.subtasks.length > 0) && (
                     <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
                       <span>Subtasks for complex tasks</span>
                     </div>
                   )}
@@ -406,7 +406,7 @@ export default function NewProjectPage() {
             ) : (
               <div className="bg-white rounded-lg border p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 rounded-lg bg-blue-600 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-lg bg-[#c9a84c] flex items-center justify-center">
                     <FolderKanban className="h-6 w-6 text-white" />
                   </div>
                   <div>
@@ -427,12 +427,12 @@ export default function NewProjectPage() {
                   <h3 className="font-medium text-sm text-gray-900">What's included</h3>
 
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
                     <span>3 default sections: To do, In progress, Done</span>
                   </div>
 
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-[#a8893a] flex-shrink-0" />
                     <span>4 views: List, Board, Timeline, Calendar</span>
                   </div>
                 </div>

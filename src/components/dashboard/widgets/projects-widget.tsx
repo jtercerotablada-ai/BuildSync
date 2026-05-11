@@ -69,7 +69,7 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
       case 'ON_TRACK': return 'bg-[#c9a84c]/15 text-[#a8893a] border border-[#c9a84c]/30';
       case 'AT_RISK': return 'bg-[#a8893a]/15 text-[#a8893a] border border-[#a8893a]/30';
       case 'OFF_TRACK': return 'bg-gray-100 text-black border border-gray-300';
-      case 'COMPLETE': return 'bg-[#c9a84c]/15 text-blue-800 border border-[#c9a84c]/30';
+      case 'COMPLETE': return 'bg-[#c9a84c]/15 text-[#a8893a] border border-[#c9a84c]/30';
       default: return 'bg-gray-100 text-gray-700';
     }
   };

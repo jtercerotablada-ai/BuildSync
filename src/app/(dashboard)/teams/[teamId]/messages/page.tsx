@@ -398,8 +398,8 @@ export default function TeamMessagesPage() {
       <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6 py-8">
         {/* Pinned messages */}
         {pinnedMessages.length > 0 && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center gap-2 text-sm font-medium text-yellow-800 mb-2">
+          <div className="mb-4 p-3 bg-[#a8893a]/10 border border-[#a8893a]/30 rounded-lg">
+            <div className="flex items-center gap-2 text-sm font-medium text-[#a8893a] mb-2">
               <Pin className="h-4 w-4" />
               Pinned messages
             </div>
@@ -407,7 +407,7 @@ export default function TeamMessagesPage() {
               {pinnedMessages.map((message) => (
                 <div
                   key={message.id}
-                  className="text-sm text-yellow-700 truncate"
+                  className="text-sm text-[#a8893a] truncate"
                 >
                   <span className="font-medium">{message.author.name}:</span>{" "}
                   {message.content}
@@ -448,14 +448,14 @@ export default function TeamMessagesPage() {
                     <div
                       className={cn(
                         "flex items-start gap-3 group py-1.5",
-                        message.isPinned && "bg-yellow-50 -mx-4 px-4 py-2"
+                        message.isPinned && "bg-[#a8893a]/10 -mx-4 px-4 py-2"
                       )}
                     >
                       <Avatar className="h-8 w-8 flex-shrink-0">
                         <AvatarImage
                           src={message.author.image || undefined}
                         />
-                        <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">
+                        <AvatarFallback className="bg-gray-100 text-black text-xs">
                           {getInitials(message.author.name)}
                         </AvatarFallback>
                       </Avatar>
@@ -469,7 +469,7 @@ export default function TeamMessagesPage() {
                             {formatMessageTime(message.createdAt)}
                           </span>
                           {message.isPinned && (
-                            <Pin className="h-3 w-3 text-yellow-600" />
+                            <Pin className="h-3 w-3 text-[#a8893a]" />
                           )}
                           {isEdited(message) && (
                             <span className="text-xs text-gray-400 italic">
@@ -502,7 +502,7 @@ export default function TeamMessagesPage() {
                               className="h-7 w-7"
                               onClick={() => handleEditMessage(message.id)}
                             >
-                              <Check className="h-3.5 w-3.5 text-green-600" />
+                              <Check className="h-3.5 w-3.5 text-[#a8893a]" />
                             </Button>
                             <Button
                               size="icon"
@@ -558,7 +558,7 @@ export default function TeamMessagesPage() {
                                 className={cn(
                                   "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors",
                                   reaction.hasReacted
-                                    ? "bg-blue-50 border-blue-200 text-blue-700"
+                                    ? "bg-[#c9a84c]/10 border-[#c9a84c]/30 text-[#a8893a]"
                                     : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                                 )}
                               >
@@ -650,7 +650,7 @@ export default function TeamMessagesPage() {
                               {message.isPinned ? "Unpin" : "Pin"}
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              className="text-red-600"
+                              className="text-black"
                               onClick={() => handleDeleteMessage(message.id)}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
@@ -749,7 +749,7 @@ export default function TeamMessagesPage() {
                 type="button"
                 variant="ghost"
                 size="icon"
-                className={cn("h-8 w-8", pendingFile && "text-blue-600")}
+                className={cn("h-8 w-8", pendingFile && "text-[#a8893a]")}
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-4 w-4" />

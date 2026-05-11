@@ -597,7 +597,7 @@ export function ListView({
                           <div className="flex items-center gap-2">
                             <Avatar className="h-6 w-6">
                               <AvatarImage src={task.assignee.image || ""} />
-                              <AvatarFallback className="text-xs bg-amber-400 text-white">
+                              <AvatarFallback className="text-xs bg-[#d4b65a] text-white">
                                 {task.assignee.name?.[0] || "?"}
                               </AvatarFallback>
                             </Avatar>
@@ -808,7 +808,7 @@ export function ListView({
           <Button
             variant="ghost"
             size="sm"
-            className="text-black hover:bg-red-900/30 hover:text-red-300 gap-1.5 h-7 text-xs"
+            className="text-black hover:bg-black/30 hover:text-gray-300 gap-1.5 h-7 text-xs"
             onClick={() => {
               if (confirm(`Delete ${selectedTasks.size} task${selectedTasks.size > 1 ? "s" : ""}? This cannot be undone.`)) {
                 handleBulkAction("delete");

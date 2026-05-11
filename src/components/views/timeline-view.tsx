@@ -744,7 +744,7 @@ export function TimelineView({
                           )}
 
                           {task.assignee && (
-                            <div className="w-6 h-6 rounded-full bg-amber-400 items-center justify-center text-xs font-medium text-white hidden md:flex">
+                            <div className="w-6 h-6 rounded-full bg-[#d4b65a] items-center justify-center text-xs font-medium text-white hidden md:flex">
                               {task.assignee.name?.[0] || "?"}
                             </div>
                           )}

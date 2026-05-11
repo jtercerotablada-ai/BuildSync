@@ -387,7 +387,7 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
               <div className="flex justify-center gap-6 mt-2">
                 {tasksByAssignee.slice(0, 5).map((assignee, i) => (
                   <div key={i} className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-sm font-medium text-white">
+                    <div className="w-8 h-8 rounded-full bg-[#d4b65a] flex items-center justify-center text-sm font-medium text-white">
                       {assignee.initials}
                     </div>
                     <span className="text-xs text-slate-500 mt-1 truncate max-w-[60px]">

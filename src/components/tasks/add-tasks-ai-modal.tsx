@@ -336,7 +336,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
 
             {/* Error */}
             {error && (
-              <div className="flex items-start gap-2 px-3 py-2.5 bg-gray-100 border border-red-100 rounded-lg">
+              <div className="flex items-start gap-2 px-3 py-2.5 bg-gray-100 border border-gray-200 rounded-lg">
                 <AlertCircle className="w-4 h-4 text-black flex-shrink-0 mt-0.5" />
                 <p className="text-[13px] text-black">{error}</p>
               </div>
@@ -402,7 +402,7 @@ export function AddTasksAIModal({ open, onOpenChange, onTasksCreated }: AddTasks
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 px-3 py-2.5 bg-gray-100 border border-red-100 rounded-lg">
+              <div className="flex items-start gap-2 px-3 py-2.5 bg-gray-100 border border-gray-200 rounded-lg">
                 <AlertCircle className="w-4 h-4 text-black flex-shrink-0 mt-0.5" />
                 <p className="text-[13px] text-black">{error}</p>
               </div>

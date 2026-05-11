@@ -140,8 +140,8 @@ export default function ClientSettingsPage() {
         <div
           className={`rounded-lg px-4 py-3 text-sm ${
             message.type === "success"
-              ? "bg-green-500/10 text-green-400 border border-green-500/20"
-              : "bg-red-500/10 text-red-400 border border-red-500/20"
+              ? "bg-[#c9a84c]/10 text-[#a8893a] border border-[#c9a84c]/20"
+              : "bg-black/10 text-black border border-black/20"
           }`}
         >
           {message.text}

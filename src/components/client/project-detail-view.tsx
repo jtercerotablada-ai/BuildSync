@@ -70,11 +70,11 @@ const tabs: { key: Tab; label: string; icon: React.ComponentType<{ className?: s
 function getStatusStyle(status: string) {
   switch (status) {
     case "ON_TRACK":
-      return { bg: "bg-[#c9a84c]/100/10", text: "text-[#a8893a]", label: "On Track" };
+      return { bg: "bg-[#c9a84c]/10", text: "text-[#a8893a]", label: "On Track" };
     case "AT_RISK":
-      return { bg: "bg-[#a8893a]/100/10", text: "text-[#a8893a]", label: "At Risk" };
+      return { bg: "bg-[#a8893a]/10", text: "text-[#a8893a]", label: "At Risk" };
     case "OFF_TRACK":
-      return { bg: "bg-gray-1000/10", text: "text-black", label: "Off Track" };
+      return { bg: "bg-black/10", text: "text-black", label: "Off Track" };
     case "ON_HOLD":
       return { bg: "bg-gray-500/10", text: "text-gray-400", label: "On Hold" };
     case "COMPLETE":

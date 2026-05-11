@@ -408,7 +408,7 @@ export function TeamSettingsModal({
                     members.map((member) => (
                       <div key={member.user.id} className="flex items-center justify-between p-3">
                         <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-gray-1000 flex items-center justify-center text-white text-sm font-medium">
+                          <div className="h-8 w-8 rounded-full bg-black flex items-center justify-center text-white text-sm font-medium">
                             {(member.user.name || member.user.email || "?").slice(0, 2).toUpperCase()}
                           </div>
                           <div>

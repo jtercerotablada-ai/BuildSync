@@ -733,11 +733,11 @@ export default function MyTasksPage() {
     thisWeekEnd.setDate(thisWeekEnd.getDate() + (7 - today.getDay()));
 
     if (date < today) {
-      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-red-600" };
+      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-black" };
     } else if (date.toDateString() === today.toDateString()) {
-      return { text: "Today", className: "text-green-600" };
+      return { text: "Today", className: "text-[#a8893a]" };
     } else if (date.toDateString() === tomorrow.toDateString()) {
-      return { text: "Tomorrow", className: "text-yellow-600" };
+      return { text: "Tomorrow", className: "text-[#a8893a]" };
     } else if (date <= thisWeekEnd) {
       return { text: date.toLocaleDateString("en-US", { weekday: "long" }), className: "text-gray-700" };
     } else {
@@ -1102,7 +1102,7 @@ export default function MyTasksPage() {
                 className={cn(
                   "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
                   filterCount > 0
-                    ? "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                    ? "text-[#a8893a] bg-[#c9a84c]/10 hover:bg-[#c9a84c]/15"
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
                 )}
               >
@@ -1118,7 +1118,7 @@ export default function MyTasksPage() {
             className={cn(
               "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
               sortState.field !== "none"
-                ? "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                ? "text-[#a8893a] bg-[#c9a84c]/10 hover:bg-[#c9a84c]/15"
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
             )}
           >
@@ -1132,7 +1132,7 @@ export default function MyTasksPage() {
             className={cn(
               "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
               groupConfigs.some((g) => g.field !== "none" && g.field !== "sections")
-                ? "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                ? "text-[#a8893a] bg-[#c9a84c]/10 hover:bg-[#c9a84c]/15"
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
             )}
           >
@@ -1642,11 +1642,11 @@ export default function MyTasksPage() {
             <div className="flex items-center gap-3">
               <div className={cn(
                 "w-10 h-10 rounded-lg flex items-center justify-center",
-                calendarSyncType === "google" ? "bg-green-50" : calendarSyncType === "ical" ? "bg-orange-50" : "bg-blue-50"
+                calendarSyncType === "google" ? "bg-[#c9a84c]/10" : calendarSyncType === "ical" ? "bg-[#a8893a]/10" : "bg-[#c9a84c]/10"
               )}>
                 <Calendar className={cn(
                   "w-5 h-5",
-                  calendarSyncType === "google" ? "text-green-600" : calendarSyncType === "ical" ? "text-orange-600" : "text-blue-600"
+                  calendarSyncType === "google" ? "text-[#a8893a]" : calendarSyncType === "ical" ? "text-[#a8893a]" : "text-[#a8893a]"
                 )} />
               </div>
               <div>
@@ -1730,8 +1730,8 @@ export default function MyTasksPage() {
         <DialogContent className="sm:max-w-[480px]">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-green-600" />
+              <div className="w-10 h-10 rounded-lg bg-[#c9a84c]/10 flex items-center justify-center">
+                <FileText className="w-5 h-5 text-[#a8893a]" />
               </div>
               <div>
                 <h3 className="text-[15px] font-semibold text-gray-900">Export to Google Sheets</h3>
@@ -1882,14 +1882,14 @@ function TaskSection({
           {/* Inline input row — appears at TOP of section (Asana behavior) */}
           {isAddingTask && (
             <div
-              className="flex items-center px-4 md:px-6 border-b border-[var(--border-subtle)] bg-blue-50/60"
+              className="flex items-center px-4 md:px-6 border-b border-[var(--border-subtle)] bg-[#c9a84c]/10/60"
               style={{ height: "var(--row-h)" }}
             >
               <div className="w-8 flex-shrink-0 flex items-center">
                 {activeTaskType === "MILESTONE" ? (
-                  <Diamond className="w-4 h-4 text-green-600 flex-shrink-0" />
+                  <Diamond className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
                 ) : activeTaskType === "APPROVAL" ? (
-                  <ThumbsUp className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  <ThumbsUp className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
                 ) : (
                   <div className="w-4 h-4 rounded-full border-2 border-gray-200 flex-shrink-0" />
                 )}
@@ -1991,14 +1991,14 @@ function TaskRow({
   const checkboxEl = task.taskType === "MILESTONE" ? (
     <button
       onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
-      className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-green-500" : "text-green-600 hover:text-green-700")}
+      className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-[#a8893a]" : "text-[#a8893a] hover:text-[#a8893a]")}
     >
       <Diamond className="w-4 h-4" />
     </button>
   ) : task.taskType === "APPROVAL" ? (
     <button
       onClick={(e) => { e.stopPropagation(); onToggleComplete(); }}
-      className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-green-500" : "text-orange-500 hover:text-orange-600")}
+      className={cn("flex items-center justify-center flex-shrink-0", task.completed ? "text-[#a8893a]" : "text-[#a8893a] hover:text-[#a8893a]")}
     >
       <ThumbsUp className="w-4 h-4" />
     </button>
@@ -2008,7 +2008,7 @@ function TaskRow({
       className={cn(
         "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0",
         task.completed
-          ? "bg-green-500 border-green-500"
+          ? "bg-[#c9a84c] border-[#c9a84c]"
           : "border-gray-300 hover:border-gray-400"
       )}
     >
@@ -2033,7 +2033,7 @@ function TaskRow({
               {dueDateInfo.text && (
                 <span className={cn(
                   "inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-full",
-                  dueDateInfo.className.includes("red") ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500"
+                  dueDateInfo.className.includes("red") ? "bg-gray-100 text-black" : "bg-gray-100 text-gray-500"
                 )}>
                   {dueDateInfo.text}
                 </span>
@@ -2041,9 +2041,9 @@ function TaskRow({
               {task.priority && task.priority !== "NONE" && (
                 <span className={cn(
                   "inline-flex items-center text-[11px] px-1.5 py-0.5 rounded-full",
-                  task.priority === "HIGH" ? "bg-red-50 text-red-600" :
-                  task.priority === "MEDIUM" ? "bg-amber-50 text-amber-700" :
-                  "bg-blue-50 text-blue-600"
+                  task.priority === "HIGH" ? "bg-gray-100 text-black" :
+                  task.priority === "MEDIUM" ? "bg-[#a8893a]/10 text-[#a8893a]" :
+                  "bg-[#c9a84c]/10 text-[#a8893a]"
                 )}>
                   {task.priority === "HIGH" ? "High" : task.priority === "MEDIUM" ? "Med" : "Low"}
                 </span>
@@ -2176,9 +2176,9 @@ function TaskRow({
 // ============================================
 
 const BOARD_PRIORITY_CONFIG: Record<string, { dot: string; label: string }> = {
-  HIGH: { dot: "bg-red-500", label: "High" },
-  MEDIUM: { dot: "bg-amber-500", label: "Medium" },
-  LOW: { dot: "bg-blue-500", label: "Low" },
+  HIGH: { dot: "bg-black", label: "High" },
+  MEDIUM: { dot: "bg-[#a8893a]", label: "Medium" },
+  LOW: { dot: "bg-[#c9a84c]", label: "Low" },
   NONE: { dot: "", label: "" },
 };
 
@@ -2519,7 +2519,7 @@ function SortableBoardCard({
           onClick={(e) => { e.stopPropagation(); onToggleComplete(task); }}
           className={cn(
             "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
-            task.completed ? "bg-green-500 border-green-500" : "border-slate-300 hover:border-slate-400"
+            task.completed ? "bg-[#c9a84c] border-[#c9a84c]" : "border-slate-300 hover:border-slate-400"
           )}
         >
           {task.completed && <Check className="w-3 h-3 text-white" />}
@@ -2566,7 +2566,7 @@ function SortableBoardCard({
             {task.assignee && (
               <Avatar className="h-5 w-5">
                 <AvatarImage src={task.assignee.image || ""} />
-                <AvatarFallback className="text-[10px] bg-blue-600 text-white">
+                <AvatarFallback className="text-[10px] bg-[#c9a84c] text-white">
                   {task.assignee.name?.[0]?.toUpperCase() || "?"}
                 </AvatarFallback>
               </Avatar>
@@ -2595,7 +2595,7 @@ function BoardTaskOverlay({
       <div className="flex items-start gap-2">
         <div className={cn(
           "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
-          task.completed ? "bg-green-500 border-green-500" : "border-slate-300"
+          task.completed ? "bg-[#c9a84c] border-[#c9a84c]" : "border-slate-300"
         )}>
           {task.completed && <Check className="w-3 h-3 text-white" />}
         </div>
@@ -2603,7 +2603,7 @@ function BoardTaskOverlay({
         {task.assignee && (
           <Avatar className="h-5 w-5 flex-shrink-0">
             <AvatarImage src={task.assignee.image || ""} />
-            <AvatarFallback className="text-[10px] bg-blue-600 text-white">
+            <AvatarFallback className="text-[10px] bg-[#c9a84c] text-white">
               {task.assignee.name?.[0]?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
@@ -3197,7 +3197,7 @@ function TaskDetailPanel({
           <button onClick={handleToggleComplete}>
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-              taskDetail?.completed ? "bg-green-500 border-green-500" : "border-slate-300"
+              taskDetail?.completed ? "bg-[#c9a84c] border-[#c9a84c]" : "border-slate-300"
             )}>
               {taskDetail?.completed && <Check className="w-3 h-3 text-white" />}
             </div>
@@ -3298,7 +3298,7 @@ function TaskDetailPanel({
                   <Button variant="ghost" size="sm" className="h-auto p-0">
                     <span className={cn("text-sm",
                       taskDetail?.priority === "HIGH" ? "text-black" :
-                      taskDetail?.priority === "MEDIUM" ? "text-amber-600" :
+                      taskDetail?.priority === "MEDIUM" ? "text-[#a8893a]" :
                       taskDetail?.priority === "LOW" ? "text-black" : "text-black"
                     )}>
                       {taskDetail?.priority || "None"}
@@ -3310,7 +3310,7 @@ function TaskDetailPanel({
                     <span className="text-black">High</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "MEDIUM")}>
-                    <span className="text-amber-600">Medium</span>
+                    <span className="text-[#a8893a]">Medium</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "LOW")}>
                     <span className="text-black">Low</span>
@@ -3363,7 +3363,7 @@ function TaskDetailPanel({
                   >
                     <div className={cn(
                       "w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors",
-                      subtask.completed ? "bg-green-500 border-green-500" : "border-slate-300 hover:border-slate-400"
+                      subtask.completed ? "bg-[#c9a84c] border-[#c9a84c]" : "border-slate-300 hover:border-slate-400"
                     )}>
                       {subtask.completed && <Check className="w-3 h-3 text-white" />}
                     </div>

@@ -99,7 +99,7 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
       case 'info':
         return <Info className="h-3.5 w-3.5 text-gray-400" />;
       case 'sparkles':
-        return <Sparkles className="h-3.5 w-3.5 text-purple-500" />;
+        return <Sparkles className="h-3.5 w-3.5 text-[#a8893a]" />;
       default:
         return null;
     }

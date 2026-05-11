@@ -107,14 +107,14 @@ export function TaskDetailToolbar({
           size="sm"
           className={cn(
             'gap-2 rounded-full px-4',
-            isCompleted && 'bg-[#c9a84c]/10 border-green-300 text-[#a8893a]'
+            isCompleted && 'bg-[#c9a84c]/10 border-[#c9a84c]/40 text-[#a8893a]'
           )}
           onClick={onToggleComplete}
         >
           <div
             className={cn(
               'w-4 h-4 rounded-full border-2 flex items-center justify-center',
-              isCompleted ? 'bg-[#c9a84c]/100 border-[#c9a84c]' : 'border-gray-400'
+              isCompleted ? 'bg-[#c9a84c] border-[#c9a84c]' : 'border-gray-400'
             )}
           >
             {isCompleted && <Check className="h-2.5 w-2.5 text-white" />}

@@ -231,7 +231,7 @@ export function CreateObjectiveDialog({
                       <div className="flex items-center gap-2">
                         <Avatar className="h-6 w-6">
                           <AvatarImage src={owner.image || undefined} />
-                          <AvatarFallback className="bg-pink-500 text-white text-xs">
+                          <AvatarFallback className="bg-[#c9a84c] text-white text-xs">
                             {getInitials(owner.name)}
                           </AvatarFallback>
                         </Avatar>
@@ -247,7 +247,7 @@ export function CreateObjectiveDialog({
                         <div className="flex items-center gap-2">
                           <Avatar className="h-6 w-6">
                             <AvatarImage src={user.image || undefined} />
-                            <AvatarFallback className="bg-pink-500 text-white text-xs">
+                            <AvatarFallback className="bg-[#c9a84c] text-white text-xs">
                               {getInitials(user.name)}
                             </AvatarFallback>
                           </Avatar>

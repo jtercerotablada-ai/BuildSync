@@ -575,7 +575,7 @@ function AIStudioTab({
               className="flex flex-col items-start p-3.5 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all text-left group"
             >
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-100/60 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-100 border border-gray-200 flex items-center justify-center">
                   <Icon className="w-4 h-4 text-black" />
                 </div>
                 {card.badge && (

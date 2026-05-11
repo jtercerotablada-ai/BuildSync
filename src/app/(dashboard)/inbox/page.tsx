@@ -297,7 +297,7 @@ export default function InboxPage() {
                 <Icon className="hidden md:block w-[15px] h-[15px]" />
                 <span className="text-xs md:text-[13px]">{tab.label}</span>
                 {tab.id === "activity" && unreadCount > 0 && (
-                  <span className="ml-0.5 bg-blue-600 text-white text-[10px] leading-none px-1.5 py-[3px] rounded-full min-w-[18px] text-center font-medium">
+                  <span className="ml-0.5 bg-[#c9a84c] text-white text-[10px] leading-none px-1.5 py-[3px] rounded-full min-w-[18px] text-center font-medium">
                     {unreadCount}
                   </span>
                 )}
@@ -452,7 +452,7 @@ export default function InboxPage() {
 
                 <button
                   onClick={archiveAll}
-                  className="text-[13px] text-gray-500 hover:text-blue-600 hover:underline mt-2 mb-8 px-1"
+                  className="text-[13px] text-gray-500 hover:text-[#a8893a] hover:underline mt-2 mb-8 px-1"
                 >
                   Archive all notifications
                 </button>
@@ -592,7 +592,7 @@ function TabContextMenu({
         onClick={onDelete}
         className={cn(
           itemBase,
-          "text-red-500 hover:bg-red-50"
+          "text-black hover:bg-gray-100"
         )}
       >
         <Trash2 className="w-3.5 h-3.5" />
@@ -821,7 +821,7 @@ function InboxSummaryCard({
 }) {
   return (
     <div className="mx-8 mt-5 mb-2">
-      <div className="relative flex items-center justify-between gap-6 p-5 bg-gradient-to-r from-violet-50/80 via-indigo-50/50 to-blue-50/60 rounded-xl border border-violet-100/60">
+      <div className="relative flex items-center justify-between gap-6 p-5 bg-gradient-to-r from-gray-100 via-gray-100 to-gray-100 rounded-xl border border-gray-200">
         {/* Dismiss button */}
         <button
           onClick={onDismiss}
@@ -832,8 +832,8 @@ function InboxSummaryCard({
 
         {/* Left: icon + text */}
         <div className="flex items-start gap-3.5 flex-1 min-w-0">
-          <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-violet-100/80 flex-shrink-0">
-            <Sparkles className="w-[18px] h-[18px] text-violet-600" />
+          <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-gray-100/80 flex-shrink-0">
+            <Sparkles className="w-[18px] h-[18px] text-black" />
           </div>
           <div className="min-w-0">
             <p className="text-[14px] font-semibold text-gray-900 leading-tight">
@@ -843,7 +843,7 @@ function InboxSummaryCard({
               Get a summary of your most important notifications with AI.
             </p>
             {aiSummary && (
-              <div className="mt-3 p-3 bg-white/80 rounded-lg border border-violet-100/40 text-[13px] text-gray-700 leading-relaxed">
+              <div className="mt-3 p-3 bg-white/80 rounded-lg border border-gray-200 text-[13px] text-gray-700 leading-relaxed">
                 {aiSummary}
               </div>
             )}
@@ -893,7 +893,7 @@ function NotificationItem({
         "flex items-start gap-3 px-3 rounded-lg cursor-pointer group transition-colors",
         compact ? "py-2" : "py-3",
         !notification.read
-          ? "bg-blue-50/40 hover:bg-blue-50/70"
+          ? "bg-[#c9a84c]/5 hover:bg-[#c9a84c]/10"
           : "hover:bg-gray-50"
       )}
       onClick={onClick}
@@ -948,7 +948,7 @@ function NotificationItem({
               {formatRelativeTime(notification.createdAt)}
             </span>
             {!notification.read && (
-              <div className="w-2 h-2 bg-blue-500 rounded-full" />
+              <div className="w-2 h-2 bg-[#c9a84c] rounded-full" />
             )}
           </div>
         </div>
@@ -976,7 +976,7 @@ function NotificationItem({
                   e.stopPropagation();
                   setExpanded(!expanded);
                 }}
-                className="text-[12px] text-blue-600 hover:text-blue-700 mt-0.5"
+                className="text-[12px] text-[#a8893a] hover:text-[#a8893a] mt-0.5"
               >
                 {expanded ? "Show less" : "See more"}
               </button>

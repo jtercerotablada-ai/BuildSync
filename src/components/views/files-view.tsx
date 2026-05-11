@@ -103,7 +103,7 @@ function getFileIcon(type: FileType) {
     case "document":
       return <FileText className="w-6 h-6 text-black" />;
     case "spreadsheet":
-      return <FileSpreadsheet className="w-6 h-6 text-emerald-600" />;
+      return <FileSpreadsheet className="w-6 h-6 text-[#a8893a]" />;
     default:
       return <File className="w-6 h-6 text-gray-500" />;
   }
@@ -115,7 +115,7 @@ function getFileTypeColor(type: FileType) {
     case "video": return "bg-gray-100";
     case "audio": return "bg-[#a8893a]/10";
     case "document": return "bg-gray-100";
-    case "spreadsheet": return "bg-emerald-50";
+    case "spreadsheet": return "bg-[#c9a84c]/10";
     default: return "bg-gray-50";
   }
 }
@@ -288,7 +288,7 @@ function FilesIllustration() {
   return (
     <div className="relative w-28 h-28 mx-auto mb-6">
       <div className="absolute top-0 right-0 w-16 h-20 bg-white rounded-lg border-2 border-black shadow-sm overflow-hidden">
-        <div className="p-1.5 border-b border-red-100">
+        <div className="p-1.5 border-b border-gray-200">
           <div className="flex items-center gap-1">
             <div className="w-4 h-2.5 bg-white rounded-sm" />
             <div className="flex gap-0.5">

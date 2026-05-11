@@ -49,7 +49,7 @@ const DEMO: DemoProject[] = [
   {
     name: "Brickell Mixed-Use Complex",
     description: "Hybrid concrete + steel mixed-use tower, downtown Miami",
-    color: "#4573D2",
+    color: "#c9a84c",
     type: "DESIGN",
     gate: "DESIGN",
     status: "ON_TRACK",
@@ -81,7 +81,7 @@ const DEMO: DemoProject[] = [
   {
     name: "Wynwood Warehouse Conversion",
     description: "Adaptive reuse: industrial warehouse → creative office",
-    color: "#5a8f5e",
+    color: "#c9a84c",
     type: "DESIGN",
     gate: "PRE_DESIGN",
     status: "ON_TRACK",
@@ -97,7 +97,7 @@ const DEMO: DemoProject[] = [
   {
     name: "Brooklyn Bridge Park Pavilion",
     description: "Steel + glass civic pavilion, public works",
-    color: "#9b6dc4",
+    color: "#a8893a",
     type: "CONSTRUCTION",
     gate: "CONSTRUCTION",
     status: "ON_TRACK",
@@ -113,7 +113,7 @@ const DEMO: DemoProject[] = [
   {
     name: "Coral Gables Permit — 4040 Anderson",
     description: "Building permit application + structural code review",
-    color: "#d28a4a",
+    color: "#a8893a",
     type: "PERMIT",
     gate: "PERMITTING",
     status: "AT_RISK",
@@ -129,7 +129,7 @@ const DEMO: DemoProject[] = [
   {
     name: "CDMX Hospital Vertical Expansion",
     description: "2-story vertical addition to existing hospital, seismic upgrade",
-    color: "#c44a5a",
+    color: "#0a0a0a",
     type: "DESIGN",
     gate: "DESIGN",
     status: "OFF_TRACK",
@@ -161,7 +161,7 @@ const DEMO: DemoProject[] = [
   {
     name: "Bogotá Office Tower — Avenida Chile",
     description: "20-story Class A office tower with PT slabs",
-    color: "#4573D2",
+    color: "#c9a84c",
     type: "CONSTRUCTION",
     gate: "CONSTRUCTION",
     status: "ON_TRACK",
