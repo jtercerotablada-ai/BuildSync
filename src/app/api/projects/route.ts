@@ -77,6 +77,18 @@ export async function GET(req: Request) {
             },
           },
         },
+        // Root-level tasks pulled with just `completed` so the
+        // /projects/all PMI-grade list view can derive EV (Earned
+        // Value), CPI, SPI, etc. client-side without N+1 calls.
+        tasks: {
+          where: { parentTaskId: null },
+          select: {
+            id: true,
+            completed: true,
+            taskType: true,
+            dueDate: true,
+          },
+        },
         _count: {
           select: {
             tasks: true,

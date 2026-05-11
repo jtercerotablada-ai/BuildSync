@@ -41,6 +41,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GanttTimeline } from "@/components/projects/gantt-timeline";
+import {
+  computePmiSnapshot,
+  formatCompactCurrency,
+  formatIndex,
+  healthVisual,
+} from "@/lib/pmi-metrics";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -79,6 +85,12 @@ interface Project {
   endDate: string | null;
   owner: { id: string; name: string | null; image: string | null } | null;
   members: { user: { id: string; name: string | null; image: string | null } }[];
+  tasks?: {
+    id: string;
+    completed: boolean;
+    taskType?: string | null;
+    dueDate?: string | null;
+  }[];
   _count: { tasks: number; sections: number };
 }
 
@@ -400,6 +412,27 @@ function ProjectsGridView({ projects }: { projects: Project[] }) {
   );
 }
 
+/**
+ * PMI / EVM dense list view — what a PMP would expect to open.
+ *
+ * Column anatomy (left to right, all left-aligned except numerics):
+ *   #         Project number (TT-YYYY-NNN, monospaced)
+ *   PROJECT   Color bar + name (and gate sub-label) — fills.
+ *   GATE      Phase chip
+ *   %COMP     Earned-value-based progress, with planned dashed bar
+ *   BAC       Budget at Completion ($ compact)
+ *   EV        Earned Value ($ compact)
+ *   PV        Planned Value ($ compact)
+ *   SPI       Schedule Performance Index (color-coded)
+ *   CPI       Cost Performance Index (color-coded)
+ *   EAC       Estimate At Completion ($ compact, red when EAC > BAC)
+ *   FLOAT     Days until planned end; "Slip Xd" when overdue
+ *   HEALTH    Color chip: On track / Watch / At risk / Off track
+ *   OWNER     Avatar
+ *
+ * Every number is `tabular-nums font-mono` so columns align vertically
+ * the way PMs expect from MS Project / Primavera.
+ */
 function ProjectsListView({
   projects,
   onRowClick,
@@ -407,129 +440,264 @@ function ProjectsListView({
   projects: Project[];
   onRowClick: (id: string) => void;
 }) {
-  const columns: { id: string; label: string; className: string }[] = [
-    { id: "name", label: "Name", className: "flex-1" },
-    { id: "number", label: "Project #", className: "w-[110px]" },
-    { id: "type", label: "Type", className: "w-[120px]" },
-    { id: "gate", label: "Gate", className: "w-[120px]" },
-    { id: "status", label: "Status", className: "w-[80px]" },
-    { id: "client", label: "Client", className: "w-[160px]" },
-    { id: "tasks", label: "Tasks", className: "w-[80px]" },
-    { id: "owner", label: "Owner", className: "w-[80px]" },
-  ];
-
   return (
-    <div>
-      {/* Header — same gridline pattern as /goals and /my-tasks */}
-      <div className="hidden md:flex items-stretch border-b border-gray-200 text-xs font-medium text-black uppercase tracking-wide">
-        {columns.map((col, i) => (
-          <div
-            key={col.id}
-            className={cn(
-              "py-2 px-3 flex items-center justify-center",
-              col.className,
-              i > 0 && "border-l border-gray-200"
-            )}
-          >
-            {col.label}
-          </div>
-        ))}
-        <div className="w-10 border-l border-gray-200" />
+    <div className="font-sans">
+      {/* PMBOK-style header. Numeric columns get a right-aligned
+          tabular-nums treatment; categorical columns stay left. */}
+      <div className="hidden md:grid items-stretch border-b border-gray-200 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/60 sticky top-0 z-10"
+           style={{ gridTemplateColumns: "100px minmax(220px, 1fr) 110px 130px 80px 80px 80px 60px 60px 80px 80px 100px 56px" }}>
+        <div className="px-3 py-2 border-l border-gray-200 first:border-l-0">#</div>
+        <div className="px-3 py-2 border-l border-gray-200">Project</div>
+        <div className="px-3 py-2 border-l border-gray-200">Gate</div>
+        <div className="px-3 py-2 border-l border-gray-200">% Comp</div>
+        <div className="px-3 py-2 border-l border-gray-200 text-right">BAC</div>
+        <div className="px-3 py-2 border-l border-gray-200 text-right">EV</div>
+        <div className="px-3 py-2 border-l border-gray-200 text-right">PV</div>
+        <div className="px-2 py-2 border-l border-gray-200 text-right">SPI</div>
+        <div className="px-2 py-2 border-l border-gray-200 text-right">CPI</div>
+        <div className="px-3 py-2 border-l border-gray-200 text-right">EAC</div>
+        <div className="px-3 py-2 border-l border-gray-200 text-right">Float</div>
+        <div className="px-3 py-2 border-l border-gray-200">Health</div>
+        <div className="px-2 py-2 border-l border-gray-200 text-center">Owner</div>
       </div>
 
       {/* Rows */}
-      {projects.map((p) => (
-        <div
-          key={p.id}
-          onClick={() => onRowClick(p.id)}
-          className="hidden md:flex items-stretch hover:bg-gray-50 cursor-pointer border-b border-gray-200"
-        >
-          <div className="flex-1 px-3 py-3 flex items-center justify-center gap-2 min-w-0">
-            <div
-              className="h-5 w-1.5 rounded-sm flex-shrink-0"
-              style={{ backgroundColor: p.color }}
-            />
-            <span className="text-sm text-black text-center truncate">
-              {p.name}
-            </span>
-          </div>
-          <div className="w-[110px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
-            <span className="text-xs text-gray-600 tabular-nums">
-              {p.projectNumber || "—"}
-            </span>
-          </div>
-          <div className="w-[120px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
-            <span className="text-xs text-gray-700 text-center">
-              {p.type ? TYPE_LABEL[p.type] : "—"}
-            </span>
-          </div>
-          <div className="w-[120px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
-            <span className="text-xs text-gray-600 text-center">
-              {p.gate ? GATE_LABEL[p.gate] : "—"}
-            </span>
-          </div>
-          <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
-            <span
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: STATUS_DOT[p.status] || "#a3a3a3" }}
-            />
-          </div>
-          <div className="w-[160px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
-            <span className="text-xs text-gray-600 truncate text-center">
-              {p.clientName || "—"}
-            </span>
-          </div>
-          <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
-            <span className="text-xs text-gray-700 tabular-nums">
-              {p._count.tasks}
-            </span>
-          </div>
-          <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
-            {p.owner ? (
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={p.owner.image || undefined} />
-                <AvatarFallback className="bg-[#c9a84c] text-white text-[10px]">
-                  {(p.owner.name || "?").charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            ) : (
-              <span className="text-xs text-gray-400">—</span>
-            )}
-          </div>
-          <div className="w-10 border-l border-gray-200" />
-        </div>
-      ))}
+      {projects.map((p) => {
+        const taskList = p.tasks || [];
+        const totalTasks = p._count.tasks ?? taskList.length;
+        const completedTasks = taskList.filter((t) => t.completed).length;
+        const pmi = computePmiSnapshot({
+          startDate: p.startDate,
+          endDate: p.endDate,
+          budget: p.budget,
+          status: p.status,
+          taskCount: totalTasks,
+          completedTaskCount: completedTasks,
+        });
+        const hv = healthVisual(pmi.health);
+        const isOverdue =
+          pmi.floatDays !== null &&
+          pmi.floatDays < 0 &&
+          p.status !== "COMPLETED";
 
-      {/* Mobile card-stack for the same rows */}
-      <div className="md:hidden divide-y">
-        {projects.map((p) => (
-          <Link
+        return (
+          <div
             key={p.id}
-            href={`/projects/${p.id}`}
-            className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50"
+            onClick={() => onRowClick(p.id)}
+            className="hidden md:grid items-stretch hover:bg-gray-50 cursor-pointer border-b border-gray-100 text-[12px] group"
+            style={{ gridTemplateColumns: "100px minmax(220px, 1fr) 110px 130px 80px 80px 80px 60px 60px 80px 80px 100px 56px" }}
           >
-            <div
-              className="h-8 w-8 rounded-md flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: p.color }}
+            {/* # */}
+            <div className="px-3 py-2.5 flex items-center font-mono tabular-nums text-[11px] text-gray-600">
+              {p.projectNumber || "—"}
+            </div>
+
+            {/* Project (color bar + name + subline) */}
+            <div className="px-3 py-2.5 border-l border-gray-100 flex items-center gap-2.5 min-w-0">
+              <div
+                className="h-7 w-1 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: p.color }}
+              />
+              <div className="min-w-0">
+                <p className="text-[13px] font-medium text-black truncate group-hover:underline">
+                  {p.name}
+                </p>
+                <p className="text-[10px] text-gray-500 truncate uppercase tracking-wider">
+                  {p.type ? TYPE_LABEL[p.type] : "—"}
+                  {p.clientName ? ` · ${p.clientName}` : ""}
+                </p>
+              </div>
+            </div>
+
+            {/* Gate */}
+            <div className="px-3 py-2.5 border-l border-gray-100 flex items-center">
+              <span className="text-[10px] font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
+                {p.gate ? GATE_LABEL[p.gate] : "—"}
+              </span>
+            </div>
+
+            {/* % Complete with planned-vs-actual mini bars */}
+            <div className="px-3 py-2.5 border-l border-gray-100 flex flex-col justify-center gap-1">
+              <div className="flex items-baseline gap-1">
+                <span className="text-[12px] font-mono font-semibold tabular-nums text-black">
+                  {pmi.percentComplete}%
+                </span>
+                <span className="text-[9px] font-mono tabular-nums text-gray-400">
+                  /{pmi.percentPlanned}%
+                </span>
+              </div>
+              <div className="relative h-1 bg-gray-100 rounded-full">
+                <div
+                  className="absolute inset-y-0 left-0 bg-[#c9a84c] rounded-full"
+                  style={{ width: `${pmi.percentComplete}%` }}
+                />
+                {/* Planned-tick line at planned % position */}
+                {pmi.percentPlanned > 0 && pmi.percentPlanned < 100 && (
+                  <div
+                    className="absolute inset-y-0 w-px bg-black/70"
+                    style={{ left: `${pmi.percentPlanned}%` }}
+                    title={`Planned: ${pmi.percentPlanned}%`}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* BAC */}
+            <NumCell value={formatCompactCurrency(pmi.bac, p.currency || "USD")} />
+            {/* EV */}
+            <NumCell value={formatCompactCurrency(pmi.ev, p.currency || "USD")} />
+            {/* PV */}
+            <NumCell value={formatCompactCurrency(pmi.pv, p.currency || "USD")} />
+            {/* SPI */}
+            <IndexCell value={pmi.spi} />
+            {/* CPI */}
+            <IndexCell value={pmi.cpi} />
+            {/* EAC */}
+            <div className="px-3 py-2.5 border-l border-gray-100 flex items-center justify-end font-mono tabular-nums text-[11px]">
+              <span
+                className={cn(
+                  pmi.eac > pmi.bac * 1.05 && "text-black font-semibold",
+                  pmi.eac <= pmi.bac && pmi.eac > 0 && "text-gray-700"
+                )}
+              >
+                {formatCompactCurrency(pmi.eac, p.currency || "USD")}
+              </span>
+            </div>
+
+            {/* Float / Slip */}
+            <div className="px-3 py-2.5 border-l border-gray-100 flex items-center justify-end">
+              {pmi.floatDays === null ? (
+                <span className="text-[11px] text-gray-300">—</span>
+              ) : pmi.floatDays < 0 ? (
+                <span className="text-[11px] font-mono tabular-nums font-semibold text-black">
+                  -{Math.abs(pmi.floatDays)}d
+                </span>
+              ) : (
+                <span className="text-[11px] font-mono tabular-nums text-gray-700">
+                  {pmi.floatDays}d
+                </span>
+              )}
+            </div>
+
+            {/* Health pill */}
+            <div className="px-3 py-2.5 border-l border-gray-100 flex items-center">
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tabular-nums"
+                style={{ backgroundColor: hv.hex, color: hv.textHex }}
+              >
+                {isOverdue && "▲ "}
+                {hv.label}
+              </span>
+            </div>
+
+            {/* Owner */}
+            <div className="px-2 py-2.5 border-l border-gray-100 flex items-center justify-center">
+              {p.owner ? (
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={p.owner.image || undefined} />
+                  <AvatarFallback className="bg-[#c9a84c] text-white text-[10px]">
+                    {(p.owner.name || "?").charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <span className="text-xs text-gray-300">—</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Mobile card-stack — same data, vertical layout */}
+      <div className="md:hidden divide-y">
+        {projects.map((p) => {
+          const taskList = p.tasks || [];
+          const totalTasks = p._count.tasks ?? taskList.length;
+          const completedTasks = taskList.filter((t) => t.completed).length;
+          const pmi = computePmiSnapshot({
+            startDate: p.startDate,
+            endDate: p.endDate,
+            budget: p.budget,
+            status: p.status,
+            taskCount: totalTasks,
+            completedTaskCount: completedTasks,
+          });
+          const hv = healthVisual(pmi.health);
+          return (
+            <Link
+              key={p.id}
+              href={`/projects/${p.id}`}
+              className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50"
             >
-              <Building2 className="h-4 w-4 text-white/90" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-black truncate">
-                {p.name}
-              </p>
-              <p className="text-[11px] text-gray-500 truncate">
-                {[p.type && TYPE_LABEL[p.type], p.gate && GATE_LABEL[p.gate]]
-                  .filter(Boolean)
-                  .join(" · ") || "—"}
-              </p>
-            </div>
-            <span className="text-xs text-gray-500 tabular-nums">
-              {p._count.tasks}
-            </span>
-          </Link>
-        ))}
+              <div
+                className="h-8 w-1.5 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: p.color }}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-[13px] font-medium text-black truncate">
+                    {p.name}
+                  </p>
+                  <span
+                    className="text-[9px] px-1.5 py-0.5 rounded font-medium tabular-nums"
+                    style={{ backgroundColor: hv.hex, color: hv.textHex }}
+                  >
+                    {hv.label}
+                  </span>
+                </div>
+                <p className="text-[10px] text-gray-500 truncate font-mono">
+                  {p.projectNumber || "—"} · {pmi.percentComplete}% · SPI{" "}
+                  {formatIndex(pmi.spi)} · CPI {formatIndex(pmi.cpi)}
+                </p>
+              </div>
+            </Link>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+function NumCell({ value }: { value: string }) {
+  return (
+    <div className="px-3 py-2.5 border-l border-gray-100 flex items-center justify-end font-mono tabular-nums text-[11px] text-gray-700">
+      {value}
+    </div>
+  );
+}
+
+function IndexCell({ value }: { value: number }) {
+  const formatted = formatIndex(value);
+  // Color-code by PMBOK conventions:
+  //   ≥ 1.00 → gold (over-performing or on plan)
+  //   0.95-0.99 → muted gold
+  //   0.85-0.94 → bold black (watch)
+  //   < 0.85 → black on gold ring (at-risk)
+  let color = "text-gray-400";
+  let weight = "font-mono";
+  if (value > 0) {
+    if (value >= 1) {
+      color = "text-[#a8893a]";
+      weight = "font-mono font-semibold";
+    } else if (value >= 0.95) {
+      color = "text-gray-700";
+      weight = "font-mono";
+    } else if (value >= 0.85) {
+      color = "text-black";
+      weight = "font-mono font-semibold";
+    } else {
+      color = "text-black";
+      weight = "font-mono font-bold";
+    }
+  }
+  return (
+    <div
+      className={cn(
+        "px-2 py-2.5 border-l border-gray-100 flex items-center justify-end text-[11px] tabular-nums",
+        color,
+        weight
+      )}
+    >
+      {formatted}
     </div>
   );
 }

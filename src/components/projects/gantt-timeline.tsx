@@ -31,7 +31,8 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MapPin } from "lucide-react";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MapPin, Diamond } from "lucide-react";
+import { computePmiSnapshot, formatIndex } from "@/lib/pmi-metrics";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -63,8 +64,16 @@ interface GanttProject {
   location: string | null;
   startDate: string | null;
   endDate: string | null;
+  budget?: number | string | null;
+  currency?: string | null;
   projectNumber: string | null;
   owner: { id: string; name: string | null; image: string | null } | null;
+  tasks?: {
+    id: string;
+    completed: boolean;
+    taskType?: string | null;
+    dueDate?: string | null;
+  }[];
   _count: { tasks: number; sections: number };
 }
 
@@ -441,10 +450,19 @@ export function GanttTimeline({
 }
 
 function LaneLabel({ project }: { project: GanttProject }) {
+  const taskList = project.tasks || [];
+  const totalTasks = project._count.tasks ?? taskList.length;
+  const completedTasks = taskList.filter((t) => t.completed).length;
+  const pmi = computePmiSnapshot({
+    startDate: project.startDate,
+    endDate: project.endDate,
+    budget: project.budget ?? null,
+    status: project.status,
+    taskCount: totalTasks,
+    completedTaskCount: completedTasks,
+  });
   const isOverdue =
-    project.endDate &&
-    new Date(project.endDate) < new Date() &&
-    project.status !== "COMPLETED";
+    pmi.floatDays !== null && pmi.floatDays < 0 && project.status !== "COMPLETED";
 
   return (
     <Link
@@ -462,16 +480,22 @@ function LaneLabel({ project }: { project: GanttProject }) {
         <p className="text-sm font-medium text-black truncate group-hover:underline">
           {project.name}
         </p>
-        <div className="flex items-center gap-1.5 text-[10px] text-gray-500 truncate">
+        <div className="flex items-center gap-1.5 text-[10px] text-gray-500 truncate font-mono">
           {project.projectNumber && (
             <span className="font-medium tabular-nums">
               {project.projectNumber}
             </span>
           )}
-          {project.location && (
-            <span className="inline-flex items-center gap-0.5 truncate">
-              <MapPin className="h-2.5 w-2.5" />
-              <span className="truncate">{project.location}</span>
+          {/* SPI / CPI inline badges — give the lane label PMI weight */}
+          {pmi.spi > 0 && (
+            <span
+              className={cn(
+                "tabular-nums",
+                pmi.spi < 0.85 ? "text-black font-semibold" : "text-gray-500"
+              )}
+              title={`Schedule Performance Index: ${pmi.spi.toFixed(2)}`}
+            >
+              SPI {formatIndex(pmi.spi)}
             </span>
           )}
         </div>
@@ -545,6 +569,20 @@ function GanttBar({
       (now.getTime() - start.getTime()) / (end.getTime() - start.getTime());
   } else if (now > end) timeRatio = 1;
 
+  // Milestones — tasks marked taskType=MILESTONE plotted as diamonds
+  // along the bar at their due date. Standard PMBOK Gantt convention.
+  const milestones = (project.tasks || [])
+    .filter((t) => t.taskType === "MILESTONE" && t.dueDate)
+    .map((t) => {
+      const d = new Date(t.dueDate!);
+      if (d < rangeStart || d > rangeEnd) return null;
+      const days = Math.floor(
+        (d.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      return { id: t.id, completed: t.completed, left: days * dayPx };
+    })
+    .filter((m): m is { id: string; completed: boolean; left: number } => m !== null);
+
   return (
     <Link
       href={`/projects/${project.id}`}
@@ -588,6 +626,24 @@ function GanttBar({
           </div>
         )}
       </div>
+      {/* Milestone diamonds on top of the bar. Standard Primavera/MS
+          Project convention — closed black diamond when complete,
+          gold-outlined when pending. */}
+      {milestones.map((m) => (
+        <div
+          key={m.id}
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-20"
+          style={{ left: m.left }}
+        >
+          <Diamond
+            className={cn(
+              "h-3.5 w-3.5 drop-shadow",
+              m.completed ? "fill-black text-black" : "text-[#c9a84c]"
+            )}
+            fill={m.completed ? "currentColor" : "#ffffff"}
+          />
+        </div>
+      ))}
     </Link>
   );
 }

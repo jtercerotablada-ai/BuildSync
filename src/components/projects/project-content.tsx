@@ -60,6 +60,12 @@ import { ProjectMembersDialog } from "@/components/projects/project-members-dial
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
+import {
+  computePmiSnapshot,
+  formatCompactCurrency,
+  formatIndex,
+  healthVisual,
+} from "@/lib/pmi-metrics";
 
 interface Task {
   id: string;
@@ -625,6 +631,75 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           </div>
         )}
 
+        {/* PMI / EVM KPI strip — what a PMP/PgMP looks for first when
+            opening a project: BAC, EV, PV, SPI, CPI, EAC, Float, Health.
+            Numbers in monospaced tabular-nums; SPI/CPI color-coded per
+            PMBOK conventions (≥1 healthy, <0.85 at risk). */}
+        {(() => {
+          const allTasks = project.sections.flatMap((s) => s.tasks);
+          const totalTasks = allTasks.length;
+          const completedTasks = allTasks.filter((t) => t.completed).length;
+          const pmi = computePmiSnapshot({
+            startDate: project.startDate ?? null,
+            endDate: project.endDate ?? null,
+            budget: project.budget ?? null,
+            status: project.status,
+            taskCount: totalTasks,
+            completedTaskCount: completedTasks,
+          });
+          const hv = healthVisual(pmi.health);
+          const currency = project.currency || "USD";
+          return (
+            <div className="hidden md:grid grid-cols-8 gap-2 mt-2 mb-3 border-y border-slate-200 bg-white py-2">
+              <KpiCell label="% Comp" value={`${pmi.percentComplete}%`} sub={`/ ${pmi.percentPlanned}% planned`} />
+              <KpiCell label="BAC" value={formatCompactCurrency(pmi.bac, currency)} sub="Budget" />
+              <KpiCell label="EV" value={formatCompactCurrency(pmi.ev, currency)} sub="Earned" />
+              <KpiCell label="PV" value={formatCompactCurrency(pmi.pv, currency)} sub="Planned" />
+              <KpiCell
+                label="SPI"
+                value={formatIndex(pmi.spi)}
+                sub={pmi.spi >= 1 ? "On schedule" : pmi.spi >= 0.85 ? "Watch" : "Behind"}
+                emphasize={pmi.spi > 0 && pmi.spi < 0.95}
+              />
+              <KpiCell
+                label="CPI"
+                value={formatIndex(pmi.cpi)}
+                sub={pmi.cpi >= 1 ? "Under budget" : pmi.cpi >= 0.85 ? "Watch" : "Over"}
+                emphasize={pmi.cpi > 0 && pmi.cpi < 0.95}
+              />
+              <KpiCell
+                label="EAC"
+                value={formatCompactCurrency(pmi.eac, currency)}
+                sub={
+                  pmi.vac >= 0
+                    ? `+${formatCompactCurrency(pmi.vac, currency)} VAC`
+                    : `${formatCompactCurrency(pmi.vac, currency)} VAC`
+                }
+                emphasize={pmi.vac < 0}
+              />
+              <KpiCell
+                label="Float"
+                value={
+                  pmi.floatDays === null
+                    ? "—"
+                    : pmi.floatDays < 0
+                      ? `-${Math.abs(pmi.floatDays)}d`
+                      : `${pmi.floatDays}d`
+                }
+                sub={
+                  <span
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wider"
+                    style={{ backgroundColor: hv.hex, color: hv.textHex }}
+                  >
+                    {hv.label.toUpperCase()}
+                  </span>
+                }
+                emphasize={pmi.floatDays !== null && pmi.floatDays < 0}
+              />
+            </div>
+          );
+        })()}
+
         {/* View Tabs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-1">
           <div className="flex items-center gap-0 md:gap-1 overflow-x-auto flex-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -1012,6 +1087,46 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
         }}
         onProjectUpdated={() => router.refresh()}
       />
+    </div>
+  );
+}
+
+/**
+ * Single KPI cell used in the project-detail PMI strip. Dense, tabular,
+ * monospaced number — looks like a Primavera / MS Project header.
+ *
+ * `emphasize` flips the value to bold black so under-performing metrics
+ * (SPI/CPI < 0.95, negative VAC, overdue float) pull the eye.
+ */
+function KpiCell({
+  label,
+  value,
+  sub,
+  emphasize = false,
+}: {
+  label: string;
+  value: string;
+  sub?: React.ReactNode;
+  emphasize?: boolean;
+}) {
+  return (
+    <div className="flex flex-col px-2 border-r border-slate-100 last:border-r-0">
+      <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-[1.5px]">
+        {label}
+      </span>
+      <span
+        className={
+          "text-[15px] font-mono tabular-nums leading-tight " +
+          (emphasize ? "font-bold text-black" : "font-semibold text-slate-800")
+        }
+      >
+        {value}
+      </span>
+      {sub !== undefined && (
+        <span className="text-[10px] text-slate-500 font-mono tabular-nums truncate">
+          {sub}
+        </span>
+      )}
     </div>
   );
 }
