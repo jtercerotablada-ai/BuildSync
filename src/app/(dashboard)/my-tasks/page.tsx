@@ -1254,10 +1254,7 @@ export default function MyTasksPage() {
             <div
               onMouseDown={(e) => handleResizeStart(e, null, "dueDate")}
               onDoubleClick={handleResizeReset}
-              className={cn(
-                "absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30 transition-colors",
-                resizingColumn === "dueDate" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
-              )}
+              className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
             />
             <ColumnHeader
               config={{ id: "dueDate", ...COLUMN_CONFIGS.dueDate, width: "100%", minWidth: "100%" }}
@@ -1284,10 +1281,7 @@ export default function MyTasksPage() {
             <div
               onMouseDown={(e) => handleResizeStart(e, "dueDate", "collaborators")}
               onDoubleClick={handleResizeReset}
-              className={cn(
-                "absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30 transition-colors",
-                resizingColumn === "dueDate" || resizingColumn === "collaborators" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
-              )}
+              className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
             />
             <ColumnHeader
               config={{ id: "collaborators", ...COLUMN_CONFIGS.collaborators, width: "100%", minWidth: "100%" }}
@@ -1307,10 +1301,7 @@ export default function MyTasksPage() {
             <div
               onMouseDown={(e) => handleResizeStart(e, "collaborators", "projects")}
               onDoubleClick={handleResizeReset}
-              className={cn(
-                "absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30 transition-colors",
-                resizingColumn === "collaborators" || resizingColumn === "projects" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
-              )}
+              className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
             />
             <ColumnHeader
               config={{ id: "projects", ...COLUMN_CONFIGS.projects, width: "100%", minWidth: "100%" }}
@@ -1337,10 +1328,7 @@ export default function MyTasksPage() {
             <div
               onMouseDown={(e) => handleResizeStart(e, "projects", "visibility")}
               onDoubleClick={handleResizeReset}
-              className={cn(
-                "absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30 transition-colors",
-                resizingColumn === "projects" || resizingColumn === "visibility" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
-              )}
+              className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
             />
             <ColumnHeader
               config={{ id: "visibility", ...COLUMN_CONFIGS.visibility, width: "100%", minWidth: "100%" }}
@@ -1357,10 +1345,7 @@ export default function MyTasksPage() {
             <div
               onMouseDown={(e) => handleResizeStart(e, "visibility", null)}
               onDoubleClick={handleResizeReset}
-              className={cn(
-                "absolute right-0 top-0 bottom-0 w-[6px] -mr-[3px] cursor-col-resize z-30 transition-colors",
-                resizingColumn === "visibility" ? "bg-blue-500" : "bg-transparent hover:bg-blue-400"
-              )}
+              className="absolute right-0 top-0 bottom-0 w-[6px] -mr-[3px] cursor-col-resize z-30"
             />
           </div>
 
