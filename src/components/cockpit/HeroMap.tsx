@@ -51,7 +51,7 @@ export function HeroMap({ projects }: HeroMapProps) {
           scrollWheelZoom: false,
         });
         L.tileLayer(
-          'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+          'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
           {
             attribution: '',
             subdomains: 'abcd',
@@ -87,7 +87,7 @@ export function HeroMap({ projects }: HeroMapProps) {
           <div class="cockpit-marker" style="--marker-fill:${fill}; --marker-ring:${ring};">
             <svg viewBox="0 0 32 32" width="32" height="32">
               <circle cx="16" cy="16" r="14" fill="var(--marker-fill)" stroke="var(--marker-ring)" stroke-width="2.5"/>
-              <text x="16" y="20" text-anchor="middle" font-family="Inter, sans-serif" font-weight="700" font-size="11" fill="#0a0a0a">
+              <text x="16" y="20" text-anchor="middle" font-family="Inter, sans-serif" font-weight="700" font-size="11" fill="#ffffff">
                 ${p.type ? p.type.charAt(0) : '?'}
               </text>
             </svg>
