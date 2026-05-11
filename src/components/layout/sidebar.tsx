@@ -229,21 +229,22 @@ export function Sidebar({
                     open={projectsOpen}
                     onOpenChange={setProjectsOpen}
                   >
-                    <div className="flex items-center justify-between px-3 mb-1">
-                      <CollapsibleTrigger className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
+                    {/* Section header. The + button is rendered as a sibling of
+                        the trigger (not inside it) so clicking + doesn't toggle
+                        the section. Both children get explicit flex-shrink-0 so
+                        Radix's CollapsibleTrigger can't grow to width: 100% and
+                        push the + off the right edge when open. */}
+                    <div className="relative flex items-center justify-between gap-2 px-3 mb-1">
+                      <CollapsibleTrigger className="flex-shrink min-w-0 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
                         <ChevronDown
                           className={cn(
-                            "h-3 w-3 transition-transform",
+                            "h-3 w-3 transition-transform flex-shrink-0",
                             !projectsOpen && "-rotate-90"
                           )}
                         />
                         Projects
                       </CollapsibleTrigger>
-                      <div className="relative flex-shrink-0" ref={projectsDropdownRef}>
-                        {/* Plain <button> instead of shadcn Button — `variant="ghost"
-                            size="icon"` was nesting an h-9 size class that fought
-                            with our h-5 override, leaving an invisible (or tiny)
-                            target. Plain button keeps the + reliably visible. */}
+                      <div className="relative flex-shrink-0 z-10" ref={projectsDropdownRef}>
                         <button
                           type="button"
                           aria-label="Add project or portfolio"
@@ -251,7 +252,7 @@ export function Sidebar({
                             e.stopPropagation();
                             setProjectsDropdownOpen(!projectsDropdownOpen);
                           }}
-                          className="h-5 w-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                          className="h-5 w-5 flex items-center justify-center rounded text-gray-600 hover:text-black hover:bg-gray-100 transition-colors"
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
@@ -332,11 +333,14 @@ export function Sidebar({
                 {/* Teams */}
                 {mounted ? (
                   <Collapsible open={teamsOpen} onOpenChange={setTeamsOpen}>
-                    <div className="flex items-center justify-between px-3 mb-1">
-                      <CollapsibleTrigger className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
+                    {/* Same flex-shrink discipline as Projects above so the
+                        Radix trigger can't grow to fill the row and push the
+                        + off the right edge when the section is open. */}
+                    <div className="relative flex items-center justify-between gap-2 px-3 mb-1">
+                      <CollapsibleTrigger className="flex-shrink min-w-0 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
                         <ChevronDown
                           className={cn(
-                            "h-3 w-3 transition-transform",
+                            "h-3 w-3 transition-transform flex-shrink-0",
                             !teamsOpen && "-rotate-90"
                           )}
                         />
@@ -349,7 +353,7 @@ export function Sidebar({
                           e.stopPropagation();
                           router.push(`${basePath || ""}/teams/new`);
                         }}
-                        className="h-5 w-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0"
+                        className="h-5 w-5 flex items-center justify-center rounded text-gray-600 hover:text-black hover:bg-gray-100 transition-colors flex-shrink-0 z-10 relative"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
