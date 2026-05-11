@@ -2120,14 +2120,14 @@ function TaskRow({
         </div>
 
       {/* Due date */}
-      <div className="hidden md:flex flex-shrink-0 px-3 overflow-hidden items-center justify-center border-l border-gray-200" style={{ width: "var(--col-dueDate)" }}>
+      <div className="hidden md:flex flex-shrink-0 px-3 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-dueDate)" }}>
         <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
       </div>
 
       {/* Collaborators */}
-      <div className="hidden md:flex flex-shrink-0 px-3 overflow-hidden items-center justify-center border-l border-gray-200" style={{ width: "var(--col-collaborators)" }}>
+      <div className="hidden md:flex flex-shrink-0 px-3 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-collaborators)" }}>
         {task.assignee && (
           <Avatar className="w-5 h-5">
             <AvatarImage src={task.assignee.image || undefined} />
@@ -2139,7 +2139,7 @@ function TaskRow({
       </div>
 
       {/* Projects */}
-      <div className="hidden md:flex flex-shrink-0 px-3 overflow-hidden items-center justify-center border-l border-gray-200" style={{ width: "var(--col-projects)" }}>
+      <div className="hidden md:flex flex-shrink-0 px-3 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-projects)" }}>
         {task.project && (
           <div className="flex items-center gap-1.5 min-w-0">
             <div
@@ -2154,7 +2154,7 @@ function TaskRow({
       </div>
 
       {/* Visibility */}
-      <div className="hidden md:flex flex-shrink-0 px-3 overflow-hidden items-center justify-center border-l border-gray-200" style={{ width: "var(--col-visibility)" }}>
+      <div className="hidden md:flex flex-shrink-0 px-3 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-visibility)" }}>
         <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
           <Globe className="w-3 h-3 flex-shrink-0" />
           My workspace
