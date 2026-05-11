@@ -37,10 +37,9 @@ export default function AboutPage() {
               <Image
                 src="/ttc/img/team.jpg"
                 alt="Tercero Tablada Team"
-                width={1200}
-                height={800}
+                fill
                 sizes="(max-width: 768px) 100vw, 50vw"
-                style={{ width: '100%', height: 'auto' }}
+                style={{ objectFit: 'cover' }}
               />
             </div>
             <div className="about__content" data-aos="fade-left" data-aos-delay={100}>
