@@ -34,7 +34,6 @@ import {
   Users,
   Settings2,
   Zap,
-  Sparkles,
   ChevronDown,
   AlertTriangle,
   Flag,
@@ -852,7 +851,7 @@ export default function GoalDetailPage() {
           )}
 
           {/* ========== CHECK-IN BAR + AI COACH ========== */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4">
+          <div className="border rounded-xl bg-white p-4 mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <ConfidenceRing
                 score={objective.confidenceScore ?? null}
@@ -863,7 +862,7 @@ export default function GoalDetailPage() {
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                   Confidence
                 </p>
-                <p className="text-xs text-gray-600 max-w-[200px]">
+                <p className="text-xs text-gray-600 max-w-[260px]">
                   {objective.lastCheckInAt
                     ? `Last check-in ${formatRelativeTime(objective.lastCheckInAt)}`
                     : "No check-in yet — share where you stand"}

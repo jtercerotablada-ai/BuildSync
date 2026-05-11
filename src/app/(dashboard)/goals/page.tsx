@@ -213,12 +213,17 @@ export default function GoalsPage() {
 
   /**
    * Single create flow used by both Blank goal and Template paths.
-   * When `template` is provided, the API receives the KRs in the same
-   * POST and creates them transactionally.
+   * When `template` is provided (either via argument or staged in
+   * `pendingTemplate`), the API receives the KRs in the same POST and
+   * creates them transactionally. The user-edited name/period always
+   * wins over the template defaults — the template only pre-fills
+   * description, progressSource, and KRs.
    */
   async function handleCreate(template?: GoalTemplate | null) {
     const tpl = template ?? pendingTemplate;
-    const name = tpl ? tpl.objective.name : newObjective.name;
+    // Prefer the user's edited name — they may have tweaked the template
+    // suggestion in the dialog before clicking Create.
+    const name = newObjective.name.trim() || tpl?.objective.name || "";
     if (!name.trim()) return;
 
     setCreating(true);
@@ -242,6 +247,7 @@ export default function GoalsPage() {
       const objective = await res.json();
       setObjectives([objective, ...objectives]);
       setCreateOpen(false);
+      setPendingTemplate(null);
       setNewObjective({ name: "", period: "Q1 FY26" });
       // Close dialog first, then navigate — the redirect was happening while
       // the dialog was still mounted, which caused an awkward double-layer.
@@ -380,8 +386,17 @@ export default function GoalsPage() {
                 <DropdownMenuItem
                   key={tpl.id}
                   onClick={() => {
+                    // Stage the template + open the dialog so the user can
+                    // confirm/change the period. The dialog's "Create"
+                    // button then calls handleCreate() which sees
+                    // pendingTemplate and POSTs the KRs along with the
+                    // chosen period.
                     setPendingTemplate(tpl);
-                    handleCreate(tpl);
+                    setNewObjective({
+                      name: tpl.objective.name,
+                      period: "Q1 FY26",
+                    });
+                    setCreateOpen(true);
                   }}
                   className="cursor-pointer"
                 >
@@ -563,12 +578,34 @@ export default function GoalsPage() {
       </div>
 
       {/* Create Goal Dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(o) => {
+          setCreateOpen(o);
+          // Clear the staged template when the dialog closes so the next
+          // "Blank goal" doesn't accidentally inherit KRs from a prior
+          // template choice.
+          if (!o) setPendingTemplate(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create new goal</DialogTitle>
+            <DialogTitle>
+              {pendingTemplate ? `From template: ${pendingTemplate.name}` : "Create new goal"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {pendingTemplate && (
+              <div className="border rounded-lg p-3 bg-gray-50">
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                  {GOAL_TEMPLATE_CATEGORY_LABEL[pendingTemplate.category]} ·{" "}
+                  {pendingTemplate.keyResults.length} key results pre-filled
+                </p>
+                <p className="text-xs text-gray-600">
+                  {pendingTemplate.objective.description}
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="name">
                 Goal name <span className="text-black">*</span>
@@ -612,6 +649,8 @@ export default function GoalsPage() {
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Creating...
                 </>
+              ) : pendingTemplate ? (
+                "Create from template"
               ) : (
                 "Create goal"
               )}
