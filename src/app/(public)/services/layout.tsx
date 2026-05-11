@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Services | Tercero Tablada',
+  title: 'Services',
   description:
-    'Structural engineering services with BIM LOD 300: pre-design and value engineering, post-tensioned concrete design and stressing, peer review, clash detection, and digital construction.',
+    'Structural engineering services with BIM LOD 300: pre-design and value engineering, post-tensioned concrete design, peer review, clash detection, and digital construction.',
   openGraph: {
-    title: 'Services | Tercero Tablada',
+    title: 'Services · Tercero Tablada',
     description:
       'Structural engineering services with BIM LOD 300, post-tension design, peer review, and digital construction.',
     type: 'website',
