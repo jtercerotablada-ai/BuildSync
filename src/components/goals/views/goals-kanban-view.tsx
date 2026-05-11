@@ -7,19 +7,27 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { ViewObjective } from "./types";
 
+import { STATUS_OPTIONS } from "@/lib/goal-utils";
+
 interface KanbanColumn {
   id: string;
   label: string;
   color: string;
 }
 
-const COLUMNS: KanbanColumn[] = [
-  { id: "ON_TRACK", label: "On track", color: "#c9a84c" },
-  { id: "AT_RISK", label: "At risk", color: "#a8893a" },
-  { id: "OFF_TRACK", label: "Off track", color: "#0a0a0a" },
-  { id: "ACHIEVED", label: "Achieved", color: "#c9a84c" },
-  { id: "DROPPED", label: "Dropped", color: "#666666" },
-];
+// Subset of STATUS_OPTIONS that make sense as kanban columns. PARTIAL,
+// MISSED and "No status" are end-of-period / unset and would clutter
+// the board. The colors are driven from the shared palette in
+// goal-utils so a tweak there cascades to every view.
+const KANBAN_STATUSES = ["ON_TRACK", "AT_RISK", "OFF_TRACK", "ACHIEVED", "DROPPED"];
+const COLUMNS: KanbanColumn[] = KANBAN_STATUSES.map((id) => {
+  const opt = STATUS_OPTIONS.find((s) => s.value === id);
+  return {
+    id,
+    label: opt?.label ?? id,
+    color: opt?.hex ?? "#a3a3a3",
+  };
+});
 
 /**
  * Kanban view — columns by status. Drag-and-drop intentionally NOT

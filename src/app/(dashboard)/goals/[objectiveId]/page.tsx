@@ -485,6 +485,10 @@ export default function GoalDetailPage() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={async () => {
               try {
+                // Copy the KR scaffold (names, units, targets, start
+                // values) but reset currentValue so the new goal
+                // starts at 0% — duplicating a goal at 80% progress
+                // and inheriting that 80% wouldn't be useful.
                 const res = await fetch('/api/objectives', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -493,11 +497,25 @@ export default function GoalDetailPage() {
                     period: objective.period,
                     description: objective.description,
                     progressSource: objective.progressSource,
+                    keyResults: objective.keyResults.map((kr) => ({
+                      name: kr.name,
+                      description: kr.description ?? undefined,
+                      targetValue: kr.targetValue,
+                      startValue: kr.startValue,
+                      currentValue: kr.startValue,
+                      unit: kr.unit ?? undefined,
+                      format: kr.format === "NUMBER" ||
+                              kr.format === "PERCENTAGE" ||
+                              kr.format === "CURRENCY" ||
+                              kr.format === "BOOLEAN"
+                        ? kr.format
+                        : "NUMBER",
+                    })),
                   }),
                 });
                 if (res.ok) {
                   const newObj = await res.json();
-                  toast.success('Goal duplicated');
+                  toast.success(`Goal duplicated with ${objective.keyResults.length} key results`);
                   router.push(`/goals/${newObj.id}`);
                 }
               } catch { toast.error('Failed to duplicate'); }

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Target, Folder, Users } from "lucide-react";
+import { Target, Folder, Users, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfidenceRing } from "@/components/goals/confidence-ring";
+import { formatCompactRelative } from "@/lib/date-utils";
 import type { ViewObjective } from "./types";
 
 /**
@@ -112,6 +113,22 @@ export function GoalsCardsView({
               )}
             </div>
           </div>
+
+          {/* Last check-in indicator — surfaces drift (goals that
+              haven't been touched recently). Gold dot when fresh
+              (<7 days), gray when stale, hidden if never checked in. */}
+          {obj.lastCheckInAt && (
+            <div className="flex items-center gap-1 mt-2 pt-2 border-t text-[10px] text-gray-500">
+              <Clock className="h-2.5 w-2.5" />
+              <span>Last check-in {formatCompactRelative(obj.lastCheckInAt)}</span>
+            </div>
+          )}
+          {!obj.lastCheckInAt && (
+            <div className="flex items-center gap-1 mt-2 pt-2 border-t text-[10px] text-gray-400">
+              <Clock className="h-2.5 w-2.5" />
+              <span>No check-in yet</span>
+            </div>
+          )}
         </Link>
       ))}
     </div>
