@@ -14,6 +14,9 @@ const updateObjectiveSchema = z.object({
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
   teamId: z.string().optional().nullable(),
+  // Editable parent so the user can re-parent an objective from the
+  // detail page ("Connect a parent objective"). Passing null detaches.
+  parentId: z.string().optional().nullable(),
   // Owner-rated 1-10 confidence the goal will land. Editable from the
   // confidence ring on the detail page; the check-in endpoint also
   // updates this, but allowing direct PATCH lets the ring save without
@@ -201,6 +204,29 @@ export async function PATCH(
     }
     if (data.confidenceScore !== undefined) {
       updateData.confidenceScore = data.confidenceScore;
+    }
+    if (data.parentId !== undefined) {
+      // Guard against self-parenting (would create an immediate cycle)
+      // and reject cross-workspace parents.
+      if (data.parentId === objectiveId) {
+        return NextResponse.json(
+          { error: "An objective cannot be its own parent" },
+          { status: 400 }
+        );
+      }
+      if (data.parentId) {
+        const parent = await prisma.objective.findUnique({
+          where: { id: data.parentId },
+          select: { workspaceId: true },
+        });
+        if (!parent || parent.workspaceId !== existingObj.workspaceId) {
+          return NextResponse.json(
+            { error: "Parent objective not found in this workspace" },
+            { status: 404 }
+          );
+        }
+      }
+      updateData.parentId = data.parentId;
     }
 
     const objective = await prisma.objective.update({

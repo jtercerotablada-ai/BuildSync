@@ -14,6 +14,9 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
+// Subset of the shared STATUS_OPTIONS used for weekly check-ins — we
+// intentionally don't expose PARTIAL / MISSED / "No status" here since
+// those are end-of-period terminal states, not weekly cadence.
 const STATUS_OPTIONS = [
   { value: "ON_TRACK", label: "On track", color: "#c9a84c" },
   { value: "AT_RISK", label: "At risk", color: "#a8893a" },

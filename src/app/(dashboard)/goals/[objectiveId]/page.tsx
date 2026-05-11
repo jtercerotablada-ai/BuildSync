@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -44,8 +45,18 @@ import { toast } from "sonner";
 import { GoalProgressChart } from "@/components/goals/goal-progress-chart";
 import { ConfidenceRing } from "@/components/goals/confidence-ring";
 import { CheckInDialog } from "@/components/goals/check-in-dialog";
-import { LinkedProjectsPanel } from "@/components/goals/linked-projects-panel";
+import { LinkedWorkPanel } from "@/components/goals/linked-work-panel";
 import { AICoachPanel } from "@/components/goals/ai-coach-panel";
+import { ParentObjectivePicker } from "@/components/goals/parent-objective-picker";
+import {
+  STATUS_OPTIONS as SHARED_STATUS_OPTIONS,
+  getStatusOption as sharedGetStatusOption,
+  getInitials as sharedGetInitials,
+} from "@/lib/goal-utils";
+import {
+  formatRelativeTime as sharedFormatRelativeTime,
+  getTimeRemaining as sharedGetTimeRemaining,
+} from "@/lib/date-utils";
 
 interface KeyResult {
   id: string;
@@ -91,6 +102,7 @@ interface Objective {
     id: string;
     name: string;
   };
+  parent?: { id: string; name: string } | null;
   keyResults: KeyResult[];
   children: {
     id: string;
@@ -126,53 +138,16 @@ interface Objective {
   };
 }
 
-const STATUS_OPTIONS = [
-  { value: "ON_TRACK", label: "On track", color: "bg-[#c9a84c]", textColor: "text-[#a8893a]" },
-  { value: "AT_RISK", label: "At risk", color: "bg-[#a8893a]", textColor: "text-[#a8893a]" },
-  { value: "OFF_TRACK", label: "Off track", color: "bg-black", textColor: "text-black" },
-  { value: "ACHIEVED", label: "Achieved", color: "bg-[#c9a84c]", textColor: "text-[#a8893a]" },
-  { value: "PARTIAL", label: "Partial", color: "bg-gray-400", textColor: "text-black" },
-  { value: "MISSED", label: "Not achieved", color: "bg-gray-300", textColor: "text-black" },
-  { value: "DROPPED", label: "Discarded", color: "bg-gray-400", textColor: "text-black" },
-  { value: null, label: "No status", color: "bg-gray-400", textColor: "text-black" },
-];
-
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-}
-
-function formatRelativeTime(date: string): string {
-  const d = new Date(date);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  const time = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-
-  if (diffDays === 0) return `Today at ${time}`;
-  if (diffDays === 1) return `Yesterday at ${time}`;
-  return `${d.toLocaleDateString("en-US")} at ${time}`;
-}
+// Re-export the shared options under the local names so the rest of
+// the file (which already references `STATUS_OPTIONS`, `getInitials`,
+// `formatRelativeTime`, `getTimeRemaining`) keeps working without
+// having to rename every callsite.
+const STATUS_OPTIONS = SHARED_STATUS_OPTIONS;
+const getInitials = sharedGetInitials;
+const formatRelativeTime = sharedFormatRelativeTime;
 
 function getTimeRemaining(period: string | null, endDate: string | null): string {
-  if (!period && !endDate) return "";
-
-  if (endDate) {
-    const end = new Date(endDate);
-    const now = new Date();
-    const diffMs = end.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Due today";
-    if (diffDays === 1) return "Due tomorrow";
-    if (diffDays < 30) return `${diffDays} days remaining`;
-    const diffMonths = Math.ceil(diffDays / 30);
-    return `${diffMonths} ${diffMonths === 1 ? "month" : "months"} remaining${period ? ` in ${period}` : ""}`;
-  }
-
-  return period ? `In ${period}` : "";
+  return sharedGetTimeRemaining(period, endDate);
 }
 
 export default function GoalDetailPage() {
@@ -192,6 +167,7 @@ export default function GoalDetailPage() {
   const [isLiked, setIsLiked] = useState(false);
   const [isStarred, setIsStarred] = useState(false);
   const [checkInOpen, setCheckInOpen] = useState(false);
+  const [parentPickerOpen, setParentPickerOpen] = useState(false);
 
   async function handleConfidenceChange(next: number) {
     try {
@@ -225,6 +201,41 @@ export default function GoalDetailPage() {
   useEffect(() => {
     fetchObjective();
   }, [objectiveId]);
+
+  // "Star" is a local follow indicator — surfaces this goal in the
+  // user's bookmark list. We keep it in localStorage until a real
+  // GoalFollow model is added. Likes (ObjectiveLike) are a separate
+  // social signal and stay backed by the database.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("goals.starred");
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      setIsStarred(list.includes(objectiveId));
+    } catch {
+      // ignore
+    }
+  }, [objectiveId]);
+
+  function toggleStar() {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("goals.starred");
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      const next = list.includes(objectiveId)
+        ? list.filter((id) => id !== objectiveId)
+        : [...list, objectiveId];
+      localStorage.setItem("goals.starred", JSON.stringify(next));
+      setIsStarred(next.includes(objectiveId));
+      toast.success(
+        next.includes(objectiveId)
+          ? "Added to starred goals"
+          : "Removed from starred"
+      );
+    } catch {
+      toast.error("Couldn't update star");
+    }
+  }
 
   async function fetchObjective() {
     try {
@@ -513,8 +524,12 @@ export default function GoalDetailPage() {
           <Button
             variant="ghost"
             size="icon"
-            className={cn("h-8 w-8 hidden sm:inline-flex", isStarred && "text-black")}
-            onClick={() => setIsStarred(!isStarred)}
+            className={cn(
+              "h-8 w-8 hidden sm:inline-flex",
+              isStarred && "text-[#c9a84c]"
+            )}
+            onClick={toggleStar}
+            aria-label={isStarred ? "Unstar goal" : "Star goal"}
           >
             <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
           </Button>
@@ -619,32 +634,6 @@ export default function GoalDetailPage() {
               </div>
             </div>
 
-            {/* Fields */}
-            <div className="flex items-center">
-              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0">Fields</span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-                    <Plus className="h-3 w-3" />
-                    Add field
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => toast.info('Text field added')}>
-                    Text
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Number field added')}>
-                    Number
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Date field added')}>
-                    Date
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info('Selection field added')}>
-                    Selection
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
           </div>
 
           {/* Send feedback link */}
@@ -881,12 +870,6 @@ export default function GoalDetailPage() {
 
           <AICoachPanel objectiveId={objective.id} />
 
-          <LinkedProjectsPanel
-            objectiveId={objective.id}
-            progressSource={objective.progressSource}
-            onChanged={fetchObjective}
-          />
-
           <CheckInDialog
             open={checkInOpen}
             onOpenChange={setCheckInOpen}
@@ -894,6 +877,14 @@ export default function GoalDetailPage() {
             currentStatus={objective.status}
             currentConfidence={objective.confidenceScore ?? null}
             onSuccess={fetchObjective}
+          />
+
+          <ParentObjectivePicker
+            open={parentPickerOpen}
+            onOpenChange={setParentPickerOpen}
+            objectiveId={objective.id}
+            currentParent={objective.parent ?? null}
+            onChanged={fetchObjective}
           />
 
           {/* ========== DESCRIPTION ========== */}
@@ -908,104 +899,233 @@ export default function GoalDetailPage() {
             />
           </div>
 
-          {/* ========== PARENT GOALS ========== */}
+          {/* ========== PARENT OBJECTIVE ========== */}
           <div className="mb-8">
-            <h3 className="font-semibold text-gray-900 mb-3">Parent objectives</h3>
-            <button
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
-              onClick={() => router.push('/goals')}
-            >
-              <Plus className="h-4 w-4" />
-              Connect a parent objective
-            </button>
-          </div>
-
-          {/* ========== RELATED WORK ========== */}
-          <div className="mb-8">
-            <h3 className="font-semibold text-gray-900 mb-3">Related work</h3>
-            {objective.projects.length > 0 ? (
-              <div className="space-y-2">
-                {objective.projects.map((op) => (
-                  <div
-                    key={op.id}
-                    className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-white"
-                    onClick={() => router.push(`/projects/${op.project.id}`)}
-                  >
-                    <div
-                      className="w-3 h-3 rounded"
-                      style={{ backgroundColor: op.project.color }}
-                    />
-                    <span className="font-medium text-gray-900">{op.project.name}</span>
-                  </div>
-                ))}
+            <h3 className="font-semibold text-gray-900 mb-3">Parent objective</h3>
+            {objective.parent ? (
+              <div className="group flex items-center gap-3 border rounded-lg px-3 py-2 bg-white hover:border-gray-400 transition-colors">
+                <Flag className="h-4 w-4 text-[#c9a84c] flex-shrink-0" />
+                <Link
+                  href={`/goals/${objective.parent.id}`}
+                  className="flex-1 text-sm font-medium text-black hover:underline truncate"
+                >
+                  {objective.parent.name}
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-gray-500"
+                  onClick={() => setParentPickerOpen(true)}
+                >
+                  Change
+                </Button>
               </div>
             ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
-                    <Plus className="h-4 w-4" />
-                    Link relevant tasks, projects, or portfolios
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => router.push('/projects')}>
-                    Link project
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push('/portfolios')}>
-                    Link portfolio
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <button
+                type="button"
+                onClick={() => setParentPickerOpen(true)}
+                className="flex items-center gap-2 text-sm text-gray-500 hover:text-black transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                Connect a parent objective
+              </button>
             )}
           </div>
 
+          {/* ========== LINKED WORK (projects + tasks) ========== */}
+          <LinkedWorkPanel
+            objectiveId={objective.id}
+            progressSource={objective.progressSource}
+            onChanged={fetchObjective}
+          />
+
           {/* ========== ACTIVITY FEED ========== */}
           <div className="border-t pt-6">
-            {/* Activity items */}
-            <div className="space-y-4 mb-6">
-              {/* Status updates / comments (newest first) */}
-              {(objective.statusUpdates || []).map((update) => {
-                const author = update.author || objective.owner;
-                const statusOption = getStatusOption(update.status);
-                return (
-                  <div key={update.id} className="flex items-start gap-3">
-                    <Avatar className="h-8 w-8 border border-black flex-shrink-0">
-                      <AvatarImage src={author?.image || ""} />
-                      <AvatarFallback className="text-xs bg-white text-black">
-                        {getInitials(author?.name || null)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm">
-                        <span className="font-medium text-gray-900">{author?.name || "Someone"}</span>
-                        {" "}<span className="text-gray-400">· {formatRelativeTime(update.createdAt)}</span>
-                      </p>
-                      <div className="mt-1 inline-flex items-start gap-2 px-3 py-2 bg-gray-50 rounded-lg max-w-full">
-                        <div className={cn("h-3 w-3 rounded-full flex-shrink-0 mt-1", statusOption.color)} />
-                        <p className="text-sm text-gray-700 break-words whitespace-pre-wrap">{update.summary}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <h3 className="font-semibold text-gray-900 mb-4">Activity</h3>
+            {/* Build a single chronological timeline from heterogeneous
+                events: check-ins (ObjectiveStatusUpdate), KR progress
+                updates (KeyResultUpdate), and the creation event. Sort
+                newest-first so the user sees what changed most recently. */}
+            {(() => {
+              type FeedItem =
+                | {
+                    kind: "checkin";
+                    id: string;
+                    createdAt: string;
+                    status: string;
+                    summary: string;
+                    author: { name: string | null; image: string | null } | null;
+                  }
+                | {
+                    kind: "kr";
+                    id: string;
+                    createdAt: string;
+                    krName: string;
+                    krUnit: string | null;
+                    previousValue: number;
+                    newValue: number;
+                    note: string | null;
+                  }
+                | {
+                    kind: "created";
+                    id: string;
+                    createdAt: string;
+                    author: { name: string | null; image: string | null };
+                  };
 
-              {/* Default "created" activity */}
-              <div className="flex items-start gap-3">
-                <Avatar className="h-8 w-8 border border-black flex-shrink-0">
-                  <AvatarImage src={objective.owner.image || ""} />
-                  <AvatarFallback className="text-xs bg-white text-black">
-                    {getInitials(objective.owner.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="text-sm">
-                    <span className="font-medium text-gray-900">{objective.owner.name}</span>
-                    {" "}<span className="text-gray-600">created this objective</span>
-                    {" "}<span className="text-gray-400">· {formatRelativeTime(objective.createdAt)}</span>
-                  </p>
+              const items: FeedItem[] = [];
+
+              for (const update of objective.statusUpdates || []) {
+                items.push({
+                  kind: "checkin",
+                  id: `c-${update.id}`,
+                  createdAt: update.createdAt,
+                  status: update.status,
+                  summary: update.summary,
+                  author: update.author || {
+                    name: objective.owner.name,
+                    image: objective.owner.image,
+                  },
+                });
+              }
+
+              for (const kr of objective.keyResults) {
+                for (const u of kr.updates) {
+                  items.push({
+                    kind: "kr",
+                    id: `kr-${u.id}`,
+                    createdAt: u.createdAt,
+                    krName: kr.name,
+                    krUnit: kr.unit,
+                    previousValue: u.previousValue,
+                    newValue: u.newValue,
+                    note: u.note,
+                  });
+                }
+              }
+
+              items.push({
+                kind: "created",
+                id: `created-${objective.id}`,
+                createdAt: objective.createdAt,
+                author: objective.owner,
+              });
+
+              items.sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime()
+              );
+
+              return (
+                <div className="space-y-4 mb-6">
+                  {items.map((item) => {
+                    if (item.kind === "checkin") {
+                      const author = item.author;
+                      const statusOption = getStatusOption(item.status);
+                      return (
+                        <div key={item.id} className="flex items-start gap-3">
+                          <Avatar className="h-8 w-8 border border-black flex-shrink-0">
+                            <AvatarImage src={author?.image || ""} />
+                            <AvatarFallback className="text-xs bg-white text-black">
+                              {getInitials(author?.name || null)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">
+                              <span className="font-medium text-gray-900">
+                                {author?.name || "Someone"}
+                              </span>{" "}
+                              <span className="text-gray-600">
+                                posted a check-in
+                              </span>{" "}
+                              <span className="text-gray-400">
+                                · {formatRelativeTime(item.createdAt)}
+                              </span>
+                            </p>
+                            <div className="mt-1 inline-flex items-start gap-2 px-3 py-2 bg-gray-50 rounded-lg max-w-full">
+                              <div
+                                className={cn(
+                                  "h-3 w-3 rounded-full flex-shrink-0 mt-1",
+                                  statusOption.color
+                                )}
+                              />
+                              <p className="text-sm text-gray-700 break-words whitespace-pre-wrap">
+                                {item.summary}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (item.kind === "kr") {
+                      const delta = item.newValue - item.previousValue;
+                      const deltaStr =
+                        delta > 0
+                          ? `+${delta.toLocaleString()}`
+                          : delta.toLocaleString();
+                      return (
+                        <div key={item.id} className="flex items-start gap-3">
+                          <Avatar className="h-8 w-8 border border-black flex-shrink-0">
+                            <AvatarFallback className="text-xs bg-white text-black">
+                              KR
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">
+                              <span className="text-gray-600">
+                                <span className="font-medium text-gray-900">
+                                  {item.krName}
+                                </span>{" "}
+                                updated from{" "}
+                                {item.previousValue.toLocaleString()} →{" "}
+                                {item.newValue.toLocaleString()}
+                                {item.krUnit ? ` ${item.krUnit}` : ""}{" "}
+                                <span className="font-medium text-[#c9a84c]">
+                                  ({deltaStr})
+                                </span>
+                              </span>{" "}
+                              <span className="text-gray-400">
+                                · {formatRelativeTime(item.createdAt)}
+                              </span>
+                            </p>
+                            {item.note && (
+                              <p className="text-xs text-gray-500 mt-1 italic">
+                                "{item.note}"
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    // created
+                    return (
+                      <div key={item.id} className="flex items-start gap-3">
+                        <Avatar className="h-8 w-8 border border-black flex-shrink-0">
+                          <AvatarImage src={item.author.image || ""} />
+                          <AvatarFallback className="text-xs bg-white text-black">
+                            {getInitials(item.author.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-sm">
+                            <span className="font-medium text-gray-900">
+                              {item.author.name || "Someone"}
+                            </span>{" "}
+                            <span className="text-gray-600">
+                              created this objective
+                            </span>{" "}
+                            <span className="text-gray-400">
+                              · {formatRelativeTime(item.createdAt)}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Comment input */}
             <div className="flex items-start gap-3">
