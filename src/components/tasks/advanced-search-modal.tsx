@@ -293,7 +293,7 @@ export function AdvancedSearchModal({
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
           <div className="flex items-center gap-4">
-            <button className="text-[13px] text-blue-600 hover:text-blue-700 font-medium transition-colors">
+            <button className="text-[13px] text-[#a8893a] hover:text-[#a8893a] font-medium transition-colors">
               Add filter
             </button>
             <button

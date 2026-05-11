@@ -89,9 +89,9 @@ interface BoardViewProps {
 // ============================================
 
 const PRIORITY_CONFIG: Record<string, { dot: string; label: string }> = {
-  HIGH: { dot: "bg-red-500", label: "High" },
-  MEDIUM: { dot: "bg-amber-500", label: "Medium" },
-  LOW: { dot: "bg-blue-500", label: "Low" },
+  HIGH: { dot: "bg-gray-1000", label: "High" },
+  MEDIUM: { dot: "bg-[#a8893a]/100", label: "Medium" },
+  LOW: { dot: "bg-[#c9a84c]/100", label: "Low" },
   NONE: { dot: "", label: "" },
 };
 
@@ -418,7 +418,7 @@ export function BoardView({
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     {task.dueDate && (
                       <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
-                        !task.completed && isMobileOverdue(task.dueDate) ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-600"
+                        !task.completed && isMobileOverdue(task.dueDate) ? "bg-gray-100 text-black" : "bg-gray-100 text-gray-600"
                       )}>
                         <CalendarDays className="h-3 w-3" />
                         {formatMobileDate(task.dueDate)}
@@ -426,9 +426,9 @@ export function BoardView({
                     )}
                     {task.priority && task.priority !== "NONE" && (
                       <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
-                        task.priority === "HIGH" ? "bg-red-50 text-red-600" :
-                        task.priority === "MEDIUM" ? "bg-yellow-50 text-yellow-700" :
-                        "bg-blue-50 text-blue-600"
+                        task.priority === "HIGH" ? "bg-gray-100 text-black" :
+                        task.priority === "MEDIUM" ? "bg-[#a8893a]/10 text-[#a8893a]" :
+                        "bg-[#c9a84c]/10 text-[#a8893a]"
                       )}>
                         {task.priority === "HIGH" ? "\u{1F534}" : task.priority === "MEDIUM" ? "\u{1F7E1}" : "\u{1F535}"}
                         {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
@@ -690,7 +690,7 @@ function BoardColumn({
                 Add task
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+              <DropdownMenuItem onClick={handleDelete} className="text-black">
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete section
               </DropdownMenuItem>
@@ -831,7 +831,7 @@ function SortableTaskCard({
           className={cn(
             "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
             task.completed
-              ? "bg-green-500 border-green-500"
+              ? "bg-[#c9a84c]/100 border-[#c9a84c]"
               : "border-slate-300 hover:border-slate-400"
           )}
         >
@@ -863,7 +863,7 @@ function SortableTaskCard({
           {task.assignee ? (
             <Avatar className="h-5 w-5">
               <AvatarImage src={task.assignee.image || ""} />
-              <AvatarFallback className="text-[10px] bg-blue-600 text-white">
+              <AvatarFallback className="text-[10px] bg-[#c9a84c] text-white">
                 {task.assignee.name?.[0]?.toUpperCase() || "?"}
               </AvatarFallback>
             </Avatar>
@@ -901,7 +901,7 @@ function TaskCardOverlay({ task }: { task: Task }) {
         <div
           className={cn(
             "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
-            task.completed ? "bg-green-500 border-green-500" : "border-slate-300"
+            task.completed ? "bg-[#c9a84c]/100 border-[#c9a84c]" : "border-slate-300"
           )}
         >
           {task.completed && <Check className="w-3 h-3 text-white" />}
@@ -912,7 +912,7 @@ function TaskCardOverlay({ task }: { task: Task }) {
         {task.assignee && (
           <Avatar className="h-5 w-5 flex-shrink-0">
             <AvatarImage src={task.assignee.image || ""} />
-            <AvatarFallback className="text-[10px] bg-blue-600 text-white">
+            <AvatarFallback className="text-[10px] bg-[#c9a84c] text-white">
               {task.assignee.name?.[0]?.toUpperCase() || "?"}
             </AvatarFallback>
           </Avatar>
@@ -954,9 +954,9 @@ function DueDateBadge({
         completed
           ? "text-slate-400"
           : overdue
-            ? "text-red-500 font-medium"
+            ? "text-black font-medium"
             : today
-              ? "text-orange-500"
+              ? "text-[#a8893a]"
               : "text-slate-400"
       )}
     >

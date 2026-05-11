@@ -99,7 +99,7 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="text-red-600"
+                  className="text-black"
                   onClick={async () => {
                     try {
                       const res = await fetch(`/api/teams/${team.id}`, { method: "DELETE" });

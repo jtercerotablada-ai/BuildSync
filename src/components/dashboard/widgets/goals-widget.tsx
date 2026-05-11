@@ -35,18 +35,18 @@ type TabType = 'my' | 'team' | 'company';
 
 // Progress bar color based on percentage
 const getProgressColor = (progress: number, status: string) => {
-  if (status === 'AT_RISK' || status === 'OFF_TRACK') return 'bg-red-500';
-  if (progress >= 70) return 'bg-green-500';
-  if (progress >= 50) return 'bg-yellow-500';
-  return 'bg-red-500';
+  if (status === 'AT_RISK' || status === 'OFF_TRACK') return 'bg-gray-1000';
+  if (progress >= 70) return 'bg-[#c9a84c]/100';
+  if (progress >= 50) return 'bg-[#a8893a]/100';
+  return 'bg-gray-1000';
 };
 
 // Status text color
 const getStatusTextColor = (progress: number, status: string) => {
-  if (status === 'AT_RISK' || status === 'OFF_TRACK') return 'text-red-600';
-  if (progress >= 70) return 'text-green-600';
-  if (progress >= 50) return 'text-yellow-600';
-  return 'text-red-600';
+  if (status === 'AT_RISK' || status === 'OFF_TRACK') return 'text-black';
+  if (progress >= 70) return 'text-[#a8893a]';
+  if (progress >= 50) return 'text-[#a8893a]';
+  return 'text-black';
 };
 
 export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
@@ -193,7 +193,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
         )}
       </div>
 
-      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
+      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">

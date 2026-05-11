@@ -138,7 +138,8 @@ function UtilizationGauge({ percent }: { percent: number }) {
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
-  const color = clamped < 50 ? '#5a7d8f' : clamped < 80 ? '#5a8f5e' : clamped < 95 ? '#d28a4a' : '#c44a5a';
+  // Monochrome + gold gauge: low = gray, normal/high = gold tiers, max = black (severe).
+  const color = clamped < 50 ? '#9ca3af' : clamped < 80 ? '#c9a84c' : clamped < 95 ? '#a8893a' : '#0a0a0a';
 
   return (
     <div className="cockpit-gauge">

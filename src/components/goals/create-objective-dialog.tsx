@@ -202,7 +202,7 @@ export function CreateObjectiveDialog({
             {/* Goal title */}
             <div className="space-y-2">
               <Label htmlFor="title" className="text-sm text-gray-700">
-                Goal title <span className="text-red-500">*</span>
+                Goal title <span className="text-black">*</span>
               </Label>
               <Input
                 id="title"
@@ -442,7 +442,7 @@ export function CreateObjectiveDialog({
 
             {/* Tip */}
             <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg">
-              <Lightbulb className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+              <Lightbulb className="h-4 w-4 text-[#a8893a] mt-0.5 flex-shrink-0" />
               <p className="text-sm text-gray-500">
                 <span className="font-medium text-gray-600">Pro tip:</span>{" "}
                 You can edit these details and progress settings after creating

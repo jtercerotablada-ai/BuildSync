@@ -44,10 +44,10 @@ export function StatusUpdatesWidget() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ON_TRACK': return 'bg-green-500';
-      case 'AT_RISK': return 'bg-yellow-500';
-      case 'OFF_TRACK': return 'bg-red-500';
-      case 'COMPLETE': return 'bg-blue-500';
+      case 'ON_TRACK': return 'bg-[#c9a84c]/100';
+      case 'AT_RISK': return 'bg-[#a8893a]/100';
+      case 'OFF_TRACK': return 'bg-gray-1000';
+      case 'COMPLETE': return 'bg-[#c9a84c]/100';
       default: return 'bg-gray-400';
     }
   };

@@ -129,7 +129,7 @@ export function DependencySelector({
                 {dep.blockingTask.name}
               </span>
               {dep.blockingTask.completed && (
-                <Check className="h-3 w-3 text-green-500 flex-shrink-0" />
+                <Check className="h-3 w-3 text-[#a8893a] flex-shrink-0" />
               )}
               <button
                 onClick={() => onRemove(dep.id)}

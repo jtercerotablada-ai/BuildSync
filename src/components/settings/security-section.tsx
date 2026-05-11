@@ -22,7 +22,7 @@ function getPasswordStrength(password: string): number {
 }
 
 const strengthLabels = ["", "Weak", "Fair", "Good", "Strong"];
-const strengthColors = ["", "bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-green-500"];
+const strengthColors = ["", "bg-gray-1000", "bg-[#a8893a]/100", "bg-[#a8893a]/100", "bg-[#c9a84c]/100"];
 
 export function SecuritySection({ hasOAuth, hasPassword }: SecuritySectionProps) {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -73,13 +73,13 @@ export function SecuritySection({ hasOAuth, hasPassword }: SecuritySectionProps)
   return (
     <div className="space-y-6">
       {hasOAuth && !hasPassword && (
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
+        <div className="flex items-start gap-3 rounded-lg border border-[#c9a84c]/30 bg-[#c9a84c]/10 p-4">
+          <Shield className="h-5 w-5 text-[#a8893a] mt-0.5" />
           <div>
             <p className="text-sm font-medium text-blue-900">
               Signed in with Google
             </p>
-            <p className="text-sm text-blue-700">
+            <p className="text-sm text-[#a8893a]">
               Your account uses Google authentication. You don&apos;t have a
               password set.
             </p>

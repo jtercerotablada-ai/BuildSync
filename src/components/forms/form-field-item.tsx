@@ -142,7 +142,7 @@ export function FormFieldItem({
           <div className="flex-1">
             <label className="text-sm font-medium text-gray-700 block mb-3">
               {field.label || 'New question'}
-              {field.required && <span className="text-red-500 ml-0.5">*</span>}
+              {field.required && <span className="text-black ml-0.5">*</span>}
             </label>
 
             {/* Drop zone preview */}
@@ -179,7 +179,7 @@ export function FormFieldItem({
           <Input
             value={field.label}
             onChange={(e) => onUpdate({ label: e.target.value })}
-            className="text-base font-medium bg-white border-2 border-blue-500 focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="text-base font-medium bg-white border-2 border-[#c9a84c] focus-visible:ring-0 focus-visible:ring-offset-0"
             placeholder="New question"
             autoFocus
           />
@@ -210,7 +210,7 @@ export function FormFieldItem({
               type="checkbox"
               checked={field.allowMultiple || false}
               onChange={(e) => onUpdate({ allowMultiple: e.target.checked })}
-              className="h-4 w-4 rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+              className="h-4 w-4 rounded border-gray-300 text-[#a8893a] focus:ring-blue-500"
             />
             <span className="text-sm text-gray-700">Allow multiple attachments</span>
           </label>
@@ -223,7 +223,7 @@ export function FormFieldItem({
             <Switch
               checked={field.required}
               onCheckedChange={(checked) => onUpdate({ required: checked })}
-              className="data-[state=checked]:bg-blue-500"
+              className="data-[state=checked]:bg-[#c9a84c]/100"
             />
             <span className="text-sm text-gray-600">Required</span>
           </div>
@@ -267,9 +267,9 @@ export function FormFieldItem({
             {/* Delete */}
             <button
               onClick={onDelete}
-              className="p-2 rounded hover:bg-red-50 transition-colors"
+              className="p-2 rounded hover:bg-gray-100 transition-colors"
             >
-              <Trash2 className="h-4 w-4 text-gray-500 hover:text-red-500" />
+              <Trash2 className="h-4 w-4 text-gray-500 hover:text-black" />
             </button>
           </div>
         </div>
@@ -298,7 +298,7 @@ export function FormFieldItem({
           <div className="flex-1">
             <label className="text-sm font-medium text-gray-700">
               {field.label}
-              {field.required && <span className="text-red-500 ml-0.5">*</span>}
+              {field.required && <span className="text-black ml-0.5">*</span>}
             </label>
 
             {field.description && (
@@ -386,7 +386,7 @@ export function FormFieldItem({
         <Input
           value={field.label}
           onChange={(e) => onUpdate({ label: e.target.value })}
-          className="text-base font-medium bg-white border-2 border-blue-500 focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="text-base font-medium bg-white border-2 border-[#c9a84c] focus-visible:ring-0 focus-visible:ring-offset-0"
           placeholder="Question"
           autoFocus
         />
@@ -416,7 +416,7 @@ export function FormFieldItem({
           <Switch
             checked={field.required}
             onCheckedChange={(checked) => onUpdate({ required: checked })}
-            className="data-[state=checked]:bg-blue-500"
+            className="data-[state=checked]:bg-[#c9a84c]/100"
           />
           <span className="text-sm text-gray-600">Required</span>
         </div>
@@ -450,9 +450,9 @@ export function FormFieldItem({
           {/* Delete */}
           <button
             onClick={onDelete}
-            className="p-2 rounded hover:bg-red-50 transition-colors"
+            className="p-2 rounded hover:bg-gray-100 transition-colors"
           >
-            <Trash2 className="h-4 w-4 text-gray-500 hover:text-red-500" />
+            <Trash2 className="h-4 w-4 text-gray-500 hover:text-black" />
           </button>
         </div>
       </div>

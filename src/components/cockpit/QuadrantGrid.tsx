@@ -82,7 +82,7 @@ function TeamPanel({ data }: { data: CockpitData }) {
                 <div className="cockpit-team-row__bar">
                   <div
                     className="cockpit-team-row__fill"
-                    style={{ width: `${pct}%`, background: overload ? '#c44a5a' : '#5a8f5e' }}
+                    style={{ width: `${pct}%`, background: overload ? '#0a0a0a' : '#c9a84c' }}
                   />
                 </div>
                 <span className="cockpit-team-row__load">{m.load}</span>

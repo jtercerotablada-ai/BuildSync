@@ -199,7 +199,7 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
               {/* Remove widget */}
               <DropdownMenuItem
                 onClick={() => onHide(id)}
-                className="text-red-500 focus:text-red-500 focus:bg-red-50 cursor-pointer"
+                className="text-black focus:text-black focus:bg-gray-100 cursor-pointer"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Remove widget

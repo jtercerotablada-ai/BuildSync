@@ -113,7 +113,7 @@ export function CreateProjectDialog({
   const [name, setName] = useState("");
   const [type, setType] = useState<string>("");
   const [gate, setGate] = useState<string>("PRE_DESIGN");
-  const [color, setColor] = useState("#4573D2");
+  const [color, setColor] = useState("#c9a84c");
 
   // Client & location
   const [clientName, setClientName] = useState("");
@@ -136,7 +136,7 @@ export function CreateProjectDialog({
     setName("");
     setType("");
     setGate("PRE_DESIGN");
-    setColor("#4573D2");
+    setColor("#c9a84c");
     setClientName("");
     setLocation("");
     setLatitude(null);
@@ -156,7 +156,7 @@ export function CreateProjectDialog({
       setName(initialProject.name ?? "");
       setType(initialProject.type ?? "");
       setGate(initialProject.gate ?? "PRE_DESIGN");
-      setColor(initialProject.color ?? "#4573D2");
+      setColor(initialProject.color ?? "#c9a84c");
       setClientName(initialProject.clientName ?? "");
       setLocation(initialProject.location ?? "");
       setLatitude(initialProject.latitude ?? null);
@@ -391,12 +391,12 @@ export function CreateProjectDialog({
                   <Label htmlFor="location">
                     Location
                     {geocodeStatus === "ok" && (
-                      <span className="ml-2 text-[11px] text-green-600 font-normal">
+                      <span className="ml-2 text-[11px] text-[#a8893a] font-normal">
                         ✓ Pinned on map
                       </span>
                     )}
                     {geocodeStatus === "miss" && (
-                      <span className="ml-2 text-[11px] text-amber-600 font-normal">
+                      <span className="ml-2 text-[11px] text-[#a8893a] font-normal">
                         Location saved, not geocoded
                       </span>
                     )}

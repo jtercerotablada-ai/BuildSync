@@ -112,7 +112,7 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
             {value.owner && (
               <Avatar className="h-6 w-6">
                 <AvatarImage src={value.owner.image || undefined} />
-                <AvatarFallback className="text-xs bg-blue-600 text-white">
+                <AvatarFallback className="text-xs bg-[#c9a84c] text-white">
                   {getInitials(value.owner.name || 'U')}
                 </AvatarFallback>
               </Avatar>
@@ -146,7 +146,7 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Add this task to a project..."
-              className="h-9 text-sm border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+              className="h-9 text-sm border-gray-200 focus:border-[#c9a84c] focus:ring-blue-500"
             />
           ) : (
             <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
@@ -191,7 +191,7 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
                   {project.owner && (
                     <Avatar className="h-6 w-6">
                       <AvatarImage src={project.owner.image || undefined} />
-                      <AvatarFallback className="text-xs bg-blue-600 text-white">
+                      <AvatarFallback className="text-xs bg-[#c9a84c] text-white">
                         {getInitials(project.owner.name || 'U')}
                       </AvatarFallback>
                     </Avatar>

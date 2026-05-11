@@ -576,10 +576,10 @@ function AIStudioTab({
             >
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-100/60 flex items-center justify-center">
-                  <Icon className="w-4 h-4 text-purple-600" />
+                  <Icon className="w-4 h-4 text-black" />
                 </div>
                 {card.badge && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-semibold text-purple-600 bg-purple-50 rounded-md">
+                  <span className="px-1.5 py-0.5 text-[10px] font-semibold text-black bg-gray-100 rounded-md">
                     {card.badge}
                   </span>
                 )}

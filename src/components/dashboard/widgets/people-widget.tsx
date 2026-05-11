@@ -141,7 +141,7 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
             {/* Remove widget */}
             <DropdownMenuItem
               onClick={onRemove}
-              className="cursor-pointer text-red-600 focus:text-red-600"
+              className="cursor-pointer text-black focus:text-black"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Remove widget
@@ -150,7 +150,7 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
         </DropdownMenu>
       </div>
 
-      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
+      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
 
       {/* ========== CONTENT ========== */}
       <div className="flex-1 overflow-y-auto">

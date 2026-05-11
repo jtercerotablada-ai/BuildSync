@@ -128,9 +128,9 @@ interface TaskDetail {
 
 const PRIORITY_OPTIONS = [
   { value: "NONE", label: "No priority", color: "" },
-  { value: "LOW", label: "Low", color: "text-blue-600" },
-  { value: "MEDIUM", label: "Medium", color: "text-yellow-600" },
-  { value: "HIGH", label: "High", color: "text-red-600" },
+  { value: "LOW", label: "Low", color: "text-[#a8893a]" },
+  { value: "MEDIUM", label: "Medium", color: "text-[#a8893a]" },
+  { value: "HIGH", label: "High", color: "text-black" },
 ];
 
 export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
@@ -345,7 +345,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={handleLike} title="Like">
-            <ThumbsUp className={cn("h-4 w-4", task._count.likes > 0 && "text-blue-600 fill-blue-600")} />
+            <ThumbsUp className={cn("h-4 w-4", task._count.likes > 0 && "text-[#a8893a] fill-blue-600")} />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copied"); }}>
             <Link2 className="h-4 w-4" />
@@ -366,7 +366,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
                 Archive
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+              <DropdownMenuItem onClick={handleDelete} className="text-black">
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
               </DropdownMenuItem>

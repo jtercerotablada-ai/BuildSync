@@ -81,13 +81,13 @@ interface DashboardViewProps {
 // ============================================
 
 const COLORS = {
-  primary: "#8B5CF6", // purple
-  secondary: "#3B82F6", // blue
+  primary: "#a8893a", // purple
+  secondary: "#c9a84c", // blue
   success: "#22C55E", // green
   warning: "#F97316", // orange
-  danger: "#EF4444", // red
+  danger: "#0a0a0a", // red
   gray: "#9CA3AF", // gray
-  chart: ["#8B5CF6", "#3B82F6", "#22C55E", "#F97316", "#EF4444", "#EC4899", "#14B8A6"],
+  chart: ["#a8893a", "#c9a84c", "#22C55E", "#F97316", "#0a0a0a", "#c9a84c", "#14B8A6"],
 };
 
 // ============================================

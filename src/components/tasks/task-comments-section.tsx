@@ -92,7 +92,7 @@ function renderActivityText(activity: Activity): React.ReactNode {
       return (
         <>
           changed due date to{' '}
-          <span className="text-blue-600">
+          <span className="text-[#a8893a]">
             {data?.dueDate ? new Date(data.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'none'}
           </span>
         </>
@@ -240,7 +240,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
                   {(index === 0 || item.type === 'comment') ? (
                     <Avatar className="h-7 w-7 flex-shrink-0">
                       <AvatarImage src={item.user.image || undefined} />
-                      <AvatarFallback className="text-xs bg-blue-600 text-white">
+                      <AvatarFallback className="text-xs bg-[#c9a84c] text-white">
                         {getInitials(item.user.name || 'U')}
                       </AvatarFallback>
                     </Avatar>
@@ -270,7 +270,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
                           <div className="flex items-center gap-2 mt-1">
                             <Button
                               size="sm"
-                              className="h-7 text-xs bg-blue-600 hover:bg-blue-700"
+                              className="h-7 text-xs bg-[#c9a84c] hover:bg-[#a8893a]"
                               onClick={() => {
                                 onCommentEdit?.(item.id, editingContent);
                                 setEditingCommentId(null);
@@ -326,7 +326,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
                               onCommentDelete?.(item.id);
                             }
                           }}
-                          className="text-red-600"
+                          className="text-black"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
                           Delete
@@ -341,7 +341,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
             {!showAllActivity && sortedItems.length > 2 && (
               <button
                 onClick={() => setShowAllActivity(true)}
-                className="text-sm text-blue-600 hover:underline pl-10"
+                className="text-sm text-[#a8893a] hover:underline pl-10"
               >
                 Show {sortedItems.length - 2} previous updates
               </button>
@@ -355,7 +355,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
         <div className="flex items-start gap-3">
           <Avatar className="h-8 w-8 flex-shrink-0">
             <AvatarImage src={currentUser.image || undefined} />
-            <AvatarFallback className="text-xs bg-blue-600 text-white">
+            <AvatarFallback className="text-xs bg-[#c9a84c] text-white">
               {getInitials(currentUser.name)}
             </AvatarFallback>
           </Avatar>
@@ -387,7 +387,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
                   size="sm"
                   disabled={!newComment.trim() || isSubmitting}
                   onClick={handleSubmit}
-                  className="gap-2 bg-blue-600 hover:bg-blue-700"
+                  className="gap-2 bg-[#c9a84c] hover:bg-[#a8893a]"
                 >
                   <Send className="h-4 w-4" />
                   Send

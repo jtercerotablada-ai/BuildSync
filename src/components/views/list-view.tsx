@@ -405,7 +405,7 @@ export function ListView({
                     }}
                     onBlur={() => handleRenameSection(section.id)}
                     onClick={(e) => e.stopPropagation()}
-                    className="font-semibold text-slate-900 bg-transparent outline-none border-b-2 border-blue-500 px-1"
+                    className="font-semibold text-slate-900 bg-transparent outline-none border-b-2 border-[#c9a84c] px-1"
                     autoFocus
                   />
                 ) : (
@@ -437,7 +437,7 @@ export function ListView({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => handleDeleteSection(section.id, section.tasks.length)}
-                    className="text-red-600"
+                    className="text-black"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete section
@@ -483,7 +483,7 @@ export function ListView({
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                             {task.dueDate && (
                               <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
-                                !task.completed && isOverdue(task.dueDate) ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-600"
+                                !task.completed && isOverdue(task.dueDate) ? "bg-gray-100 text-black" : "bg-gray-100 text-gray-600"
                               )}>
                                 <CalendarDays className="h-3 w-3" />
                                 {formatMobileDate(task.dueDate)}
@@ -491,9 +491,9 @@ export function ListView({
                             )}
                             {task.priority && task.priority !== "NONE" && (
                               <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
-                                task.priority === "HIGH" ? "bg-red-50 text-red-600" :
-                                task.priority === "MEDIUM" ? "bg-yellow-50 text-yellow-700" :
-                                "bg-blue-50 text-blue-600"
+                                task.priority === "HIGH" ? "bg-gray-100 text-black" :
+                                task.priority === "MEDIUM" ? "bg-[#a8893a]/10 text-[#a8893a]" :
+                                "bg-[#c9a84c]/10 text-[#a8893a]"
                               )}>
                                 {task.priority === "HIGH" ? "\u{1F534}" : task.priority === "MEDIUM" ? "\u{1F7E1}" : "\u{1F535}"}
                                 {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
@@ -539,7 +539,7 @@ export function ListView({
                           }}
                           className={cn(
                             someSelected ? "rounded" : "rounded-full",
-                            selectedTasks.has(task.id) && "border-blue-600 data-[state=checked]:bg-blue-600"
+                            selectedTasks.has(task.id) && "border-[#c9a84c] data-[state=checked]:bg-[#c9a84c]"
                           )}
                         />
                       </div>
@@ -556,7 +556,7 @@ export function ListView({
                               if (e.key === "Escape") cancelEditing();
                             }}
                             onBlur={() => saveInlineEdit(task.id, "name", editingValue)}
-                            className="w-full px-1 py-0.5 text-sm outline-none border-b-2 border-blue-500 bg-transparent"
+                            className="w-full px-1 py-0.5 text-sm outline-none border-b-2 border-[#c9a84c] bg-transparent"
                             autoFocus
                           />
                         ) : (
@@ -677,15 +677,15 @@ export function ListView({
                       {/* Status */}
                       <div>
                         {task.completed ? (
-                          <Badge variant="secondary" className="text-xs bg-green-50 text-green-700 border-green-200">
+                          <Badge variant="secondary" className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30">
                             Done
                           </Badge>
                         ) : task.dueDate && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate)) ? (
-                          <Badge variant="secondary" className="text-xs bg-red-50 text-red-700 border-red-200">
+                          <Badge variant="secondary" className="text-xs bg-gray-100 text-black border-gray-300">
                             Overdue
                           </Badge>
                         ) : (
-                          <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                          <Badge variant="secondary" className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30">
                             To do
                           </Badge>
                         )}
@@ -808,7 +808,7 @@ export function ListView({
           <Button
             variant="ghost"
             size="sm"
-            className="text-red-400 hover:bg-red-900/30 hover:text-red-300 gap-1.5 h-7 text-xs"
+            className="text-black hover:bg-red-900/30 hover:text-red-300 gap-1.5 h-7 text-xs"
             onClick={() => {
               if (confirm(`Delete ${selectedTasks.size} task${selectedTasks.size > 1 ? "s" : ""}? This cannot be undone.`)) {
                 handleBulkAction("delete");

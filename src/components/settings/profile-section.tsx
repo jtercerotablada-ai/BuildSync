@@ -117,13 +117,13 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
 
       {/* Email verification banner */}
       {profile && !profile.emailVerified && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+        <div className="flex items-start gap-3 rounded-lg border border-[#a8893a]/30 bg-[#a8893a]/10 p-4">
+          <AlertCircle className="h-5 w-5 text-[#a8893a] mt-0.5 shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-amber-900">
               Your email is not verified
             </p>
-            <p className="text-sm text-amber-700 mt-0.5">
+            <p className="text-sm text-[#a8893a] mt-0.5">
               Check your inbox for a verification link, or request a new one.
             </p>
           </div>
@@ -132,7 +132,7 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
             size="sm"
             onClick={handleResendVerification}
             disabled={resending}
-            className="shrink-0 border-amber-300 text-amber-900 hover:bg-amber-100"
+            className="shrink-0 border-amber-300 text-amber-900 hover:bg-[#a8893a]/15"
           >
             {resending ? "Sending..." : "Resend"}
           </Button>
@@ -177,7 +177,7 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
           <div className="flex items-center gap-2">
             <Label htmlFor="email">Email</Label>
             {profile?.emailVerified && (
-              <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+              <span className="inline-flex items-center gap-1 text-xs text-[#a8893a] bg-[#c9a84c]/10 border border-[#c9a84c]/30 rounded-full px-2 py-0.5">
                 <CheckCircle className="h-3 w-3" />
                 Verified
               </span>

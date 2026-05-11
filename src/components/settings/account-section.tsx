@@ -80,10 +80,10 @@ export function AccountSection({ name, email, createdAt }: AccountSectionProps) 
       </div>
 
       {/* Danger Zone */}
-      <div className="rounded-lg border border-red-200 p-4 space-y-4 max-w-md">
+      <div className="rounded-lg border border-gray-300 p-4 space-y-4 max-w-md">
         <div className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-red-600" />
-          <h3 className="text-sm font-semibold text-red-600">Danger zone</h3>
+          <AlertTriangle className="h-5 w-5 text-black" />
+          <h3 className="text-sm font-semibold text-black">Danger zone</h3>
         </div>
         <p className="text-sm text-muted-foreground">
           Once you delete your account, there is no going back. All your data

@@ -748,7 +748,7 @@ function OverviewContent({
                     >
                       <div
                         className="w-8 h-8 rounded flex items-center justify-center"
-                        style={{ backgroundColor: project.color || "#4573D2" }}
+                        style={{ backgroundColor: project.color || "#c9a84c" }}
                       >
                         <FolderKanban className="h-4 w-4 text-white" />
                       </div>

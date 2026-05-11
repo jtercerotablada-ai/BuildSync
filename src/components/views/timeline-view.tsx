@@ -95,7 +95,7 @@ type ZoomLevel = "day" | "week" | "month" | "quarter";
 // ============================================
 
 const PRIORITY_COLORS: Record<string, string> = {
-  NONE: "#3B82F6", // blue-500
+  NONE: "#c9a84c", // blue-500
   LOW: "#60A5FA", // blue-400
   MEDIUM: "#FBBF24", // yellow-400
   HIGH: "#F97316", // orange-500
@@ -103,9 +103,9 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const STATUS_COLORS = {
   notStarted: "#9CA3AF",
-  inProgress: "#3B82F6",
+  inProgress: "#c9a84c",
   completed: "#22C55E",
-  delayed: "#EF4444",
+  delayed: "#0a0a0a",
   atRisk: "#F97316",
 };
 
@@ -877,8 +877,8 @@ export function TimelineView({
                                 >
                                   <Diamond
                                     className="w-6 h-6"
-                                    fill="#8B5CF6"
-                                    color="#8B5CF6"
+                                    fill="#a8893a"
+                                    color="#a8893a"
                                   />
                                 </div>
                               ) : (

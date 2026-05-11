@@ -22,11 +22,11 @@ interface ProjectProgressCardProps {
 function getStatusColor(status: string) {
   switch (status) {
     case "ON_TRACK":
-      return { ring: "#22c55e", bg: "bg-green-500/10", text: "text-green-400", label: "On Track" };
+      return { ring: "#22c55e", bg: "bg-[#c9a84c]/100/10", text: "text-[#a8893a]", label: "On Track" };
     case "AT_RISK":
-      return { ring: "#eab308", bg: "bg-yellow-500/10", text: "text-yellow-400", label: "At Risk" };
+      return { ring: "#eab308", bg: "bg-[#a8893a]/100/10", text: "text-[#a8893a]", label: "At Risk" };
     case "OFF_TRACK":
-      return { ring: "#ef4444", bg: "bg-red-500/10", text: "text-red-400", label: "Off Track" };
+      return { ring: "#ef4444", bg: "bg-gray-1000/10", text: "text-black", label: "Off Track" };
     case "ON_HOLD":
       return { ring: "#6b7280", bg: "bg-gray-500/10", text: "text-gray-400", label: "On Hold" };
     case "COMPLETE":

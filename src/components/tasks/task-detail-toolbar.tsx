@@ -107,14 +107,14 @@ export function TaskDetailToolbar({
           size="sm"
           className={cn(
             'gap-2 rounded-full px-4',
-            isCompleted && 'bg-green-50 border-green-300 text-green-700'
+            isCompleted && 'bg-[#c9a84c]/10 border-green-300 text-[#a8893a]'
           )}
           onClick={onToggleComplete}
         >
           <div
             className={cn(
               'w-4 h-4 rounded-full border-2 flex items-center justify-center',
-              isCompleted ? 'bg-green-500 border-green-500' : 'border-gray-400'
+              isCompleted ? 'bg-[#c9a84c]/100 border-[#c9a84c]' : 'border-gray-400'
             )}
           >
             {isCompleted && <Check className="h-2.5 w-2.5 text-white" />}
@@ -132,7 +132,7 @@ export function TaskDetailToolbar({
                 size="sm"
                 className={cn(
                   'h-8 px-2 gap-1',
-                  likesCount > 0 ? 'text-blue-600' : 'text-gray-500'
+                  likesCount > 0 ? 'text-[#a8893a]' : 'text-gray-500'
                 )}
                 onClick={onToggleLike}
               >
@@ -273,7 +273,7 @@ export function TaskDetailToolbar({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleDelete}
-                className="text-red-600 focus:text-red-600"
+                className="text-black focus:text-black"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete task

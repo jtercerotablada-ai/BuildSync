@@ -94,7 +94,7 @@ export function TaskSubtasks({
               className={cn(
                 'w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors',
                 subtask.completed
-                  ? 'bg-green-500 border-green-500'
+                  ? 'bg-[#c9a84c]/100 border-[#c9a84c]'
                   : 'border-gray-300 hover:border-gray-400'
               )}
             >

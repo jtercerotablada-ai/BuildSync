@@ -198,7 +198,7 @@ export function TeamSettingsModal({
                     <p className="text-sm text-gray-700">
                       {team.name} does not have a team admin.
                     </p>
-                    <button className="text-sm text-blue-600 hover:underline" onClick={() => toast.info('Team admins can manage team settings, members, and permissions.')}>
+                    <button className="text-sm text-[#a8893a] hover:underline" onClick={() => toast.info('Team admins can manage team settings, members, and permissions.')}>
                       What's a team admin?
                     </button>
                   </div>
@@ -231,12 +231,12 @@ export function TeamSettingsModal({
               {/* Team name */}
               <div className="space-y-1.5">
                 <Label className="text-sm text-gray-700">
-                  Team name <span className="text-red-500">*</span>
+                  Team name <span className="text-black">*</span>
                 </Label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="focus:ring-blue-500 focus:border-blue-500"
+                  className="focus:ring-blue-500 focus:border-[#c9a84c]"
                 />
               </div>
 
@@ -248,7 +248,7 @@ export function TeamSettingsModal({
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Type / for menu"
                   rows={4}
-                  className="focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  className="focus:ring-blue-500 focus:border-[#c9a84c] resize-none"
                 />
               </div>
 
@@ -265,13 +265,13 @@ export function TeamSettingsModal({
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-500">Endorsed</span>
                       <BadgeCheck className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-amber-600 hover:underline cursor-pointer" onClick={() => toast.info('TT Enterprise features coming soon')}>
+                      <span className="text-sm text-[#a8893a] hover:underline cursor-pointer" onClick={() => toast.info('TT Enterprise features coming soon')}>
                         Upgrade to TT Enterprise
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       Endorsed teams are recommended by admins in your organization.{" "}
-                      <button className="text-blue-600 hover:underline" onClick={() => toast.info('Endorsed teams are recommended by admins and appear highlighted in team directories.')}>Learn more</button>
+                      <button className="text-[#a8893a] hover:underline" onClick={() => toast.info('Endorsed teams are recommended by admins and appear highlighted in team directories.')}>Learn more</button>
                     </p>
                   </div>
                 </div>
@@ -408,7 +408,7 @@ export function TeamSettingsModal({
                     members.map((member) => (
                       <div key={member.user.id} className="flex items-center justify-between p-3">
                         <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                          <div className="h-8 w-8 rounded-full bg-gray-1000 flex items-center justify-center text-white text-sm font-medium">
                             {(member.user.name || member.user.email || "?").slice(0, 2).toUpperCase()}
                           </div>
                           <div>
@@ -445,9 +445,9 @@ export function TeamSettingsModal({
               {/* Preview banner — the permission dropdowns below are UI-only
                * until the team-permissions endpoint lands. Be honest about
                * it instead of letting users think they're toggling state. */}
-              <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 flex items-start gap-2">
-                <div className="text-amber-600 text-sm" aria-hidden="true">⚠</div>
-                <div className="text-xs text-amber-800 leading-relaxed">
+              <div className="p-3 rounded-lg border border-[#a8893a]/30 bg-[#a8893a]/10 flex items-start gap-2">
+                <div className="text-[#a8893a] text-sm" aria-hidden="true">⚠</div>
+                <div className="text-xs text-[#a8893a] leading-relaxed">
                   <strong>Preview only.</strong> Permission rules below show the planned roles model. They don&rsquo;t yet save to the server — defaults apply: team admins can edit, all members can invite, only admins can remove.
                 </div>
               </div>
@@ -539,13 +539,13 @@ export function TeamSettingsModal({
               </div>
 
               {/* Danger Zone */}
-              <div className="p-4 border border-red-200 rounded-lg bg-red-50">
-                <h4 className="text-sm font-medium text-red-800 mb-1">Danger zone</h4>
-                <p className="text-xs text-red-600 mb-3">
+              <div className="p-4 border border-gray-300 rounded-lg bg-gray-100">
+                <h4 className="text-sm font-medium text-black mb-1">Danger zone</h4>
+                <p className="text-xs text-black mb-3">
                   These actions cannot be undone.
                 </p>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="text-red-600 border-red-300 hover:bg-red-100" onClick={async () => {
+                  <Button variant="outline" size="sm" className="text-black border-gray-400 hover:bg-gray-100" onClick={async () => {
                     if (!confirm('Archive this team? Members will no longer be able to access it.')) return;
                     try {
                       const res = await fetch(`/api/teams/${team.id}`, {
@@ -585,7 +585,7 @@ export function TeamSettingsModal({
             <Button
               onClick={handleSave}
               disabled={!name.trim() || isSaving}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-[#c9a84c] hover:bg-[#a8893a]"
             >
               {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Update Team

@@ -45,10 +45,10 @@ export async function POST(req: Request) {
 
     // Generate a random color for the team
     const colors = [
-      "#EF4444", "#F97316", "#F59E0B", "#84CC16",
-      "#22C55E", "#14B8A6", "#06B6D4", "#0EA5E9",
-      "#3B82F6", "#6366F1", "#8B5CF6", "#A855F7",
-      "#D946EF", "#EC4899", "#F43F5E",
+      "#0a0a0a", "#F97316", "#a8893a", "#84CC16",
+      "#22C55E", "#14B8A6", "#a8893a", "#0EA5E9",
+      "#c9a84c", "#6366F1", "#a8893a", "#A855F7",
+      "#D946EF", "#c9a84c", "#F43F5E",
     ];
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
 

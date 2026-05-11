@@ -259,7 +259,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
             {/* Remove widget */}
             <DropdownMenuItem
               onClick={onRemove}
-              className="cursor-pointer text-red-600 focus:text-red-600"
+              className="cursor-pointer text-black focus:text-black"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Remove widget
@@ -318,7 +318,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
         </button>
       )}
 
-      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
+      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
 
       {/* ========== TASK LIST ========== */}
       <div className="flex-1 overflow-y-auto">
@@ -388,13 +388,13 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
                         <span
                           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs"
                           style={{
-                            backgroundColor: `${task.project.color || '#3B82F6'}20`,
-                            color: task.project.color || '#3B82F6'
+                            backgroundColor: `${task.project.color || '#c9a84c'}20`,
+                            color: task.project.color || '#c9a84c'
                           }}
                         >
                           <span
                             className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: task.project.color || '#3B82F6' }}
+                            style={{ backgroundColor: task.project.color || '#c9a84c' }}
                           />
                           {task.project.name}
                         </span>

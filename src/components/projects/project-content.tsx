@@ -416,7 +416,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                   <Archive className="h-4 w-4 mr-2" />
                   Archive
                 </DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600" onClick={() => {
+                <DropdownMenuItem className="text-black" onClick={() => {
                   if (confirm('Delete this project? This cannot be undone.')) {
                     fetch(`/api/projects/${project.id}`, { method: 'DELETE' }).then(res => {
                       if (res.ok) { toast.success('Project deleted'); router.push('/home'); }
@@ -433,7 +433,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-8 w-8", isStarred && "text-yellow-500")}
+              className={cn("h-8 w-8", isStarred && "text-[#a8893a]")}
               onClick={() => { setIsStarred(!isStarred); toast.success(isStarred ? 'Removed from favorites' : 'Added to favorites'); }}
             >
               <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
@@ -611,7 +611,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                     className="flex-1 h-1.5 rounded-full transition-colors"
                     style={{
                       background: reached
-                        ? PROJECT_TYPE_COLOR[project.type ?? "DESIGN"] ?? "#4573D2"
+                        ? PROJECT_TYPE_COLOR[project.type ?? "DESIGN"] ?? "#c9a84c"
                         : "#e5e7eb",
                     }}
                     title={GATE_LABEL[g]}
@@ -632,7 +632,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onClick={() => handleViewChange("overview")}
               className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "overview"
-                  ? "border-blue-600 text-blue-600"
+                  ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -643,7 +643,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onClick={() => handleViewChange("list")}
               className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "list"
-                  ? "border-blue-600 text-blue-600"
+                  ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -654,7 +654,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onClick={() => handleViewChange("board")}
               className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "board"
-                  ? "border-blue-600 text-blue-600"
+                  ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -665,7 +665,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onClick={() => handleViewChange("timeline")}
               className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "timeline"
-                  ? "border-blue-600 text-blue-600"
+                  ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -676,7 +676,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onClick={() => handleViewChange("dashboard")}
               className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "dashboard"
-                  ? "border-blue-600 text-blue-600"
+                  ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -687,7 +687,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onClick={() => handleViewChange("calendar")}
               className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "calendar"
-                  ? "border-blue-600 text-blue-600"
+                  ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -698,7 +698,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onClick={() => handleViewChange("workflow")}
               className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "workflow"
-                  ? "border-blue-600 text-blue-600"
+                  ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -709,7 +709,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onClick={() => handleViewChange("messages")}
               className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "messages"
-                  ? "border-blue-600 text-blue-600"
+                  ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -720,7 +720,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onClick={() => handleViewChange("files")}
               className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                 currentView === "files"
-                  ? "border-blue-600 text-blue-600"
+                  ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -756,11 +756,11 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               {/* Filter */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className={cn(activeFilters.size > 0 && "text-blue-600 bg-blue-50")}>
+                  <Button variant="ghost" size="sm" className={cn(activeFilters.size > 0 && "text-[#a8893a] bg-[#c9a84c]/10")}>
                     <Filter className="mr-2 h-4 w-4" />
                     Filter
                     {activeFilters.size > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1 text-xs bg-blue-100 text-blue-700">
+                      <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1 text-xs bg-[#c9a84c]/15 text-[#a8893a]">
                         {activeFilters.size}
                       </Badge>
                     )}
@@ -786,7 +786,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                   {activeFilters.size > 0 && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setActiveFilters(new Set())} className="text-red-600">
+                      <DropdownMenuItem onClick={() => setActiveFilters(new Set())} className="text-black">
                         <X className="mr-2 h-4 w-4" />
                         Clear filters
                       </DropdownMenuItem>
@@ -798,10 +798,10 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               {/* Sort */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className={cn(sortBy && "text-blue-600 bg-blue-50")}>
+                  <Button variant="ghost" size="sm" className={cn(sortBy && "text-[#a8893a] bg-[#c9a84c]/10")}>
                     {sortDirection === "desc" ? <SortDesc className="mr-2 h-4 w-4" /> : <SortAsc className="mr-2 h-4 w-4" />}
                     Sort
-                    {sortBy && <span className="ml-1 text-xs text-blue-600">({sortBy === "due_date" ? "date" : sortBy === "alphabetical" ? "A-Z" : sortBy})</span>}
+                    {sortBy && <span className="ml-1 text-xs text-[#a8893a]">({sortBy === "due_date" ? "date" : sortBy === "alphabetical" ? "A-Z" : sortBy})</span>}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
@@ -828,7 +828,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                   {sortBy && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => { setSortBy(null); setSortDirection("asc"); }} className="text-red-600">
+                      <DropdownMenuItem onClick={() => { setSortBy(null); setSortDirection("asc"); }} className="text-black">
                         <X className="mr-2 h-4 w-4" />
                         Clear sort
                       </DropdownMenuItem>
@@ -840,7 +840,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               {/* Options */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className={cn(!showCompleted && "text-blue-600 bg-blue-50")}>
+                  <Button variant="ghost" size="sm" className={cn(!showCompleted && "text-[#a8893a] bg-[#c9a84c]/10")}>
                     <Settings className="mr-2 h-4 w-4" />
                     Options
                   </Button>
@@ -881,7 +881,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
 
               {/* Clear all indicator */}
               {hasActiveFilters && (
-                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={clearAllFilters}>
+                <Button variant="ghost" size="sm" className="text-black hover:text-black hover:bg-gray-100" onClick={clearAllFilters}>
                   <X className="mr-1 h-3.5 w-3.5" />
                   Clear all
                 </Button>

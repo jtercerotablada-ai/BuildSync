@@ -236,7 +236,7 @@ export function ManagePrivacyModal({ open, onOpenChange }: ManagePrivacyModalPro
               <a
                 href="#"
                 onClick={(e) => e.preventDefault()}
-                className="text-blue-600 hover:text-blue-700 hover:underline"
+                className="text-[#a8893a] hover:text-[#a8893a] hover:underline"
               >
                 Learn more
               </a>

@@ -199,7 +199,7 @@ export default function CreateTeamPage() {
 
   // Generate consistent color based on email/name
   const getAvatarColor = (identifier: string) => {
-    const colors = ['#EC4899', '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4'];
+    const colors = ['#c9a84c', '#a8893a', '#c9a84c', '#c9a84c', '#a8893a', '#0a0a0a', '#a8893a'];
     const index = identifier.charCodeAt(0) % colors.length;
     return colors[index];
   };

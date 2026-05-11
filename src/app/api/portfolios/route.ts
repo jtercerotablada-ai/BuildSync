@@ -99,7 +99,7 @@ export async function POST(req: Request) {
       data: {
         name: data.name,
         description: data.description,
-        color: data.color || "#7C3AED",
+        color: data.color || "#a8893a",
         privacy: data.privacy || "WORKSPACE",
         workspaceId: workspaceMember.workspaceId,
         ownerId: userId,

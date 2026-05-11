@@ -505,7 +505,7 @@ export default function TeamPage() {
                     >
                       <div
                         className="w-8 h-8 rounded flex items-center justify-center"
-                        style={{ backgroundColor: item.color || "#4573D2" }}
+                        style={{ backgroundColor: item.color || "#c9a84c" }}
                       >
                         <FolderKanban className="h-4 w-4 text-white" />
                       </div>

@@ -70,11 +70,11 @@ const tabs: { key: Tab; label: string; icon: React.ComponentType<{ className?: s
 function getStatusStyle(status: string) {
   switch (status) {
     case "ON_TRACK":
-      return { bg: "bg-green-500/10", text: "text-green-400", label: "On Track" };
+      return { bg: "bg-[#c9a84c]/100/10", text: "text-[#a8893a]", label: "On Track" };
     case "AT_RISK":
-      return { bg: "bg-yellow-500/10", text: "text-yellow-400", label: "At Risk" };
+      return { bg: "bg-[#a8893a]/100/10", text: "text-[#a8893a]", label: "At Risk" };
     case "OFF_TRACK":
-      return { bg: "bg-red-500/10", text: "text-red-400", label: "Off Track" };
+      return { bg: "bg-gray-1000/10", text: "text-black", label: "Off Track" };
     case "ON_HOLD":
       return { bg: "bg-gray-500/10", text: "text-gray-400", label: "On Hold" };
     case "COMPLETE":
@@ -208,7 +208,7 @@ export function ProjectDetailView({
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-white/50">Completed</span>
-                <span className="text-green-400 font-medium">{project.completedTasks}</span>
+                <span className="text-[#a8893a] font-medium">{project.completedTasks}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-white/50">Remaining</span>

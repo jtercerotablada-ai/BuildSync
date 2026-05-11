@@ -109,9 +109,9 @@ const widgetCategories = {
 function BarChartIcon() {
   return (
     <svg width="64" height="48" viewBox="0 0 64 48" fill="none">
-      <rect x="4" y="20" width="12" height="24" rx="2" fill="#64748B" />
+      <rect x="4" y="20" width="12" height="24" rx="2" fill="#888888" />
       <rect x="20" y="12" width="12" height="32" rx="2" fill="#94A3B8" />
-      <rect x="36" y="8" width="12" height="36" rx="2" fill="#64748B" />
+      <rect x="36" y="8" width="12" height="36" rx="2" fill="#888888" />
       <rect x="52" y="16" width="8" height="28" rx="2" fill="#CBD5E1" />
     </svg>
   );
@@ -120,9 +120,9 @@ function BarChartIcon() {
 function HorizontalBarIcon() {
   return (
     <svg width="64" height="48" viewBox="0 0 64 48" fill="none">
-      <rect x="4" y="4" width="40" height="8" rx="2" fill="#64748B" />
+      <rect x="4" y="4" width="40" height="8" rx="2" fill="#888888" />
       <rect x="4" y="16" width="28" height="8" rx="2" fill="#94A3B8" />
-      <rect x="4" y="28" width="52" height="8" rx="2" fill="#64748B" />
+      <rect x="4" y="28" width="52" height="8" rx="2" fill="#888888" />
       <rect x="4" y="40" width="20" height="6" rx="2" fill="#CBD5E1" />
     </svg>
   );
@@ -132,7 +132,7 @@ function DonutChartIcon() {
   return (
     <svg width="64" height="48" viewBox="0 0 64 48" fill="none">
       <path d="M32 4C18.7 4 8 14.7 8 28s10.7 24 24 24 24-10.7 24-24S45.3 4 32 4zm0 36c-6.6 0-12-5.4-12-12s5.4-12 12-12 12 5.4 12 12-5.4 12-12 12z" fill="#CBD5E1" />
-      <path d="M32 4v12c6.6 0 12 5.4 12 12h12c0-13.3-10.7-24-24-24z" fill="#64748B" />
+      <path d="M32 4v12c6.6 0 12 5.4 12 12h12c0-13.3-10.7-24-24-24z" fill="#888888" />
       <path d="M44 28c0-6.6-5.4-12-12-12V4c13.3 0 24 10.7 24 24h-12z" fill="#94A3B8" />
     </svg>
   );
@@ -141,12 +141,12 @@ function DonutChartIcon() {
 function LineChartIcon() {
   return (
     <svg width="64" height="48" viewBox="0 0 64 48" fill="none">
-      <path d="M4 40L16 28L28 32L40 16L56 8" stroke="#64748B" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M4 40L16 28L28 32L40 16L56 8" stroke="#888888" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
       <path d="M4 44L16 34L28 38L40 22L56 14" stroke="#CBD5E1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" strokeDasharray="4 4" />
-      <circle cx="16" cy="28" r="3" fill="#64748B" />
-      <circle cx="28" cy="32" r="3" fill="#64748B" />
-      <circle cx="40" cy="16" r="3" fill="#64748B" />
-      <circle cx="56" cy="8" r="3" fill="#64748B" />
+      <circle cx="16" cy="28" r="3" fill="#888888" />
+      <circle cx="28" cy="32" r="3" fill="#888888" />
+      <circle cx="40" cy="16" r="3" fill="#888888" />
+      <circle cx="56" cy="8" r="3" fill="#888888" />
     </svg>
   );
 }
@@ -154,13 +154,13 @@ function LineChartIcon() {
 function StackedBarIcon() {
   return (
     <svg width="64" height="48" viewBox="0 0 64 48" fill="none">
-      <rect x="4" y="28" width="12" height="16" rx="2" fill="#64748B" />
+      <rect x="4" y="28" width="12" height="16" rx="2" fill="#888888" />
       <rect x="4" y="16" width="12" height="12" rx="2" fill="#94A3B8" />
-      <rect x="20" y="20" width="12" height="24" rx="2" fill="#64748B" />
+      <rect x="20" y="20" width="12" height="24" rx="2" fill="#888888" />
       <rect x="20" y="8" width="12" height="12" rx="2" fill="#CBD5E1" />
-      <rect x="36" y="24" width="12" height="20" rx="2" fill="#64748B" />
+      <rect x="36" y="24" width="12" height="20" rx="2" fill="#888888" />
       <rect x="36" y="12" width="12" height="12" rx="2" fill="#94A3B8" />
-      <rect x="52" y="32" width="8" height="12" rx="2" fill="#64748B" />
+      <rect x="52" y="32" width="8" height="12" rx="2" fill="#888888" />
       <rect x="52" y="20" width="8" height="12" rx="2" fill="#CBD5E1" />
     </svg>
   );
@@ -170,7 +170,7 @@ function NumberIcon() {
   return (
     <svg width="64" height="48" viewBox="0 0 64 48" fill="none">
       <rect x="8" y="8" width="48" height="32" rx="4" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="2" />
-      <text x="32" y="32" textAnchor="middle" fontSize="20" fontWeight="600" fill="#64748B">42</text>
+      <text x="32" y="32" textAnchor="middle" fontSize="20" fontWeight="600" fill="#888888">42</text>
     </svg>
   );
 }
@@ -181,10 +181,10 @@ function LollipopChartIcon() {
       <line x1="12" y1="8" x2="12" y2="44" stroke="#E2E8F0" strokeWidth="2" />
       <line x1="28" y1="8" x2="28" y2="44" stroke="#E2E8F0" strokeWidth="2" />
       <line x1="44" y1="8" x2="44" y2="44" stroke="#E2E8F0" strokeWidth="2" />
-      <circle cx="12" cy="16" r="6" fill="#64748B" />
+      <circle cx="12" cy="16" r="6" fill="#888888" />
       <circle cx="28" cy="24" r="6" fill="#94A3B8" />
       <circle cx="44" cy="12" r="6" fill="#CBD5E1" />
-      <line x1="12" y1="22" x2="12" y2="44" stroke="#64748B" strokeWidth="2" />
+      <line x1="12" y1="22" x2="12" y2="44" stroke="#888888" strokeWidth="2" />
       <line x1="28" y1="30" x2="28" y2="44" stroke="#94A3B8" strokeWidth="2" />
       <line x1="44" y1="18" x2="44" y2="44" stroke="#CBD5E1" strokeWidth="2" />
     </svg>
@@ -733,7 +733,7 @@ export default function DashboardPage() {
                             {widget.config.data.map((entry, index) => (
                               <Cell
                                 key={index}
-                                fill={entry.color || "#64748B"}
+                                fill={entry.color || "#888888"}
                               />
                             ))}
                           </Bar>
@@ -764,7 +764,7 @@ export default function DashboardPage() {
                             {widget.config.data.map((entry, index) => (
                               <Cell
                                 key={index}
-                                fill={entry.color || "#64748B"}
+                                fill={entry.color || "#888888"}
                               />
                             ))}
                           </Pie>

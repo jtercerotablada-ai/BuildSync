@@ -173,7 +173,7 @@ function InlineSelect({
                   footerAction.onClick();
                   setOpen(false);
                 }}
-                className="w-full flex items-center gap-2.5 px-3 h-9 text-[13px] text-blue-600 hover:bg-black/[0.04] cursor-pointer transition-colors text-left"
+                className="w-full flex items-center gap-2.5 px-3 h-9 text-[13px] text-[#a8893a] hover:bg-black/[0.04] cursor-pointer transition-colors text-left"
               >
                 <Plus className="w-4 h-4 flex-shrink-0" />
                 <span className="flex-1">{footerAction.label}</span>

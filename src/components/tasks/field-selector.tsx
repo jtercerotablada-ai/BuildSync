@@ -15,9 +15,9 @@ import { cn } from '@/lib/utils';
 type Priority = 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE' | null;
 
 const priorityOptions: { value: Priority; label: string; color: string; bg: string }[] = [
-  { value: 'HIGH', label: 'High', color: 'bg-red-500', bg: 'bg-red-100 text-red-700' },
-  { value: 'MEDIUM', label: 'Medium', color: 'bg-yellow-500', bg: 'bg-yellow-100 text-yellow-700' },
-  { value: 'LOW', label: 'Low', color: 'bg-green-500', bg: 'bg-green-100 text-green-700' },
+  { value: 'HIGH', label: 'High', color: 'bg-gray-1000', bg: 'bg-gray-100 text-black' },
+  { value: 'MEDIUM', label: 'Medium', color: 'bg-[#a8893a]/100', bg: 'bg-[#a8893a]/15 text-[#a8893a]' },
+  { value: 'LOW', label: 'Low', color: 'bg-[#c9a84c]/100', bg: 'bg-[#c9a84c]/15 text-[#a8893a]' },
 ];
 
 interface PrioritySelectorProps {
@@ -57,7 +57,7 @@ export function PrioritySelector({ value, onChange }: PrioritySelectorProps) {
             <span className={cn('w-3 h-3 rounded-full', option.color)} />
             <span>{option.label}</span>
             {value === option.value && (
-              <Check className="h-4 w-4 ml-auto text-blue-600" />
+              <Check className="h-4 w-4 ml-auto text-[#a8893a]" />
             )}
           </DropdownMenuItem>
         ))}
@@ -83,9 +83,9 @@ export function PrioritySelector({ value, onChange }: PrioritySelectorProps) {
 type Status = 'ON_TRACK' | 'AT_RISK' | 'OFF_TRACK' | null;
 
 const statusOptions: { value: Status; label: string; color: string; bg: string }[] = [
-  { value: 'ON_TRACK', label: 'On track', color: 'bg-green-500', bg: 'bg-green-100 text-green-700' },
-  { value: 'AT_RISK', label: 'At risk', color: 'bg-yellow-500', bg: 'bg-yellow-100 text-yellow-700' },
-  { value: 'OFF_TRACK', label: 'Off track', color: 'bg-red-500', bg: 'bg-red-100 text-red-700' },
+  { value: 'ON_TRACK', label: 'On track', color: 'bg-[#c9a84c]/100', bg: 'bg-[#c9a84c]/15 text-[#a8893a]' },
+  { value: 'AT_RISK', label: 'At risk', color: 'bg-[#a8893a]/100', bg: 'bg-[#a8893a]/15 text-[#a8893a]' },
+  { value: 'OFF_TRACK', label: 'Off track', color: 'bg-gray-1000', bg: 'bg-gray-100 text-black' },
 ];
 
 interface StatusSelectorProps {
@@ -108,7 +108,7 @@ export function StatusSelector({ value, onChange, completed }: StatusSelectorPro
             <span className="text-sm text-gray-600">Status</span>
           </div>
           {completed ? (
-            <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-[#c9a84c]/15 text-[#a8893a]">
               Done
             </span>
           ) : selected ? (
@@ -130,7 +130,7 @@ export function StatusSelector({ value, onChange, completed }: StatusSelectorPro
             <span className={cn('w-3 h-3 rounded-full', option.color)} />
             <span>{option.label}</span>
             {value === option.value && (
-              <Check className="h-4 w-4 ml-auto text-blue-600" />
+              <Check className="h-4 w-4 ml-auto text-[#a8893a]" />
             )}
           </DropdownMenuItem>
         ))}

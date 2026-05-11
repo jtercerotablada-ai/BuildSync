@@ -785,7 +785,7 @@ export function PrivateNotepadWidget({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={onRemove}
-              className="cursor-pointer text-red-600 focus:text-red-600"
+              className="cursor-pointer text-black focus:text-black"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Remove widget
@@ -794,7 +794,7 @@ export function PrivateNotepadWidget({
         </DropdownMenu>
       </div>
 
-      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
+      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
 
       {/* Editor area */}
       <div className="flex-1 overflow-y-auto relative min-h-[120px] mb-2">
@@ -974,7 +974,7 @@ export function PrivateNotepadWidget({
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-purple-600" />
+                <Sparkles className="h-5 w-5 text-black" />
                 <h3 className="font-semibold">AI Assist</h3>
               </div>
               <button
@@ -1014,9 +1014,9 @@ export function PrivateNotepadWidget({
                         className="w-full flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-left"
                       >
                         {isLoading ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
+                          <Loader2 className="h-5 w-5 animate-spin text-black" />
                         ) : (
-                          <Icon className="h-5 w-5 text-purple-600" />
+                          <Icon className="h-5 w-5 text-black" />
                         )}
                         <span className="font-medium text-sm">{option.label}</span>
                         {isLoading && (
@@ -1032,13 +1032,13 @@ export function PrivateNotepadWidget({
               {aiResult && (
                 <div className="space-y-3">
                   <p className="text-xs text-gray-500">Result:</p>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-gray-700 max-h-48 overflow-y-auto">
+                  <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 text-sm text-gray-700 max-h-48 overflow-y-auto">
                     {aiResult}
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={applyAIResult}
-                      className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm"
+                      className="flex-1 bg-black text-white py-2 px-4 rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm"
                     >
                       Replace text
                     </button>

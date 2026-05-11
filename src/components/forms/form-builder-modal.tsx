@@ -974,7 +974,7 @@ export function FormBuilderModal({
             </span>
             <button
               onClick={() => setVisibility(visibility === 'anyone' ? 'organization' : 'anyone')}
-              className="text-sm text-blue-600 hover:underline"
+              className="text-sm text-[#a8893a] hover:underline"
             >
               Change
             </button>
@@ -987,7 +987,7 @@ export function FormBuilderModal({
             >
               <Star className={cn(
                 "h-4 w-4",
-                isFavorite ? "fill-yellow-400 text-yellow-400" : "text-gray-400"
+                isFavorite ? "fill-yellow-400 text-[#a8893a]" : "text-gray-400"
               )} />
             </button>
 
@@ -1152,8 +1152,8 @@ export function FormBuilderModal({
               </DndContext>
 
               {/* Drop zone */}
-              <div className="bg-blue-50 border-2 border-dashed border-blue-200 rounded-b-xl p-8 text-center">
-                <p className="text-blue-500 text-sm">Drag another question here</p>
+              <div className="bg-[#c9a84c]/10 border-2 border-dashed border-[#c9a84c]/30 rounded-b-xl p-8 text-center">
+                <p className="text-[#a8893a] text-sm">Drag another question here</p>
               </div>
             </div>
           </div>
@@ -1255,7 +1255,7 @@ export function FormBuilderModal({
             <Button
               variant="outline"
               onClick={handleDiscard}
-              className="text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400"
+              className="text-black border-gray-400 hover:bg-gray-100 hover:border-red-400"
             >
               Discard form
             </Button>
@@ -1266,7 +1266,7 @@ export function FormBuilderModal({
 
           <Button
             onClick={handlePublish}
-            className="bg-blue-600 hover:bg-blue-700 px-6"
+            className="bg-[#c9a84c] hover:bg-[#a8893a] px-6"
           >
             Publish
           </Button>
@@ -1496,7 +1496,7 @@ export function FormBuilderModal({
                       key={i}
                       className={cn(
                         "w-6 h-6 border rounded transition-colors",
-                        isHovered ? "bg-blue-500 border-blue-500" : "bg-white border-gray-300 hover:border-blue-400"
+                        isHovered ? "bg-[#c9a84c]/100 border-[#c9a84c]" : "bg-white border-gray-300 hover:border-blue-400"
                       )}
                       onMouseEnter={() => setHoveredCell({ row: row + 1, col: col + 1 })}
                       onClick={() => insertTable(row + 1, col + 1)}

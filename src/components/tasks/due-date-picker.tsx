@@ -241,7 +241,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
                     ? 'text-gray-900 hover:bg-gray-100'
                     : 'text-gray-300 hover:bg-gray-50',
                   isToday(item.date) && !isSelected(item.date) && 'border border-gray-400',
-                  isSelected(item.date) && 'bg-blue-600 text-white hover:bg-blue-700',
+                  isSelected(item.date) && 'bg-[#c9a84c] text-white hover:bg-[#a8893a]',
                 )}
               >
                 {item.day}

@@ -610,11 +610,11 @@ export function TaskDetailModal({
             />
 
             {/* ========== INFO BANNER ========== */}
-            <div className="flex items-center gap-2 px-4 md:px-6 py-2 bg-blue-50 text-sm text-gray-600 flex-shrink-0">
-              <Info className="h-4 w-4 text-blue-500" />
+            <div className="flex items-center gap-2 px-4 md:px-6 py-2 bg-[#c9a84c]/10 text-sm text-gray-600 flex-shrink-0">
+              <Info className="h-4 w-4 text-[#a8893a]" />
               <span>
                 This task is visible to members of{' '}
-                <span className="text-blue-600 font-medium">
+                <span className="text-[#a8893a] font-medium">
                   {task.project?.name || 'your workspace'}
                 </span>
               </span>
@@ -670,7 +670,7 @@ export function TaskDetailModal({
                             <button className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
                               <Avatar className="h-6 w-6">
                                 <AvatarImage src={task.assignee.image || undefined} />
-                                <AvatarFallback className="text-xs bg-blue-600 text-white">
+                                <AvatarFallback className="text-xs bg-[#c9a84c] text-white">
                                   {getInitials(task.assignee.name || 'U')}
                                 </AvatarFallback>
                               </Avatar>
@@ -700,8 +700,8 @@ export function TaskDetailModal({
                         trigger={
                           task.dueDate ? (
                             <button className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
-                              <CalendarIcon className="h-4 w-4 text-green-600" />
-                              <span className="text-sm text-green-600 font-medium">
+                              <CalendarIcon className="h-4 w-4 text-[#a8893a]" />
+                              <span className="text-sm text-[#a8893a] font-medium">
                                 {formatDueDate(task.dueDate).text}
                               </span>
                             </button>
@@ -796,8 +796,8 @@ export function TaskDetailModal({
                         className={cn(
                           'w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors flex-shrink-0',
                           subtask.completed
-                            ? 'bg-green-500 border-green-500'
-                            : 'border-gray-300 hover:border-green-500'
+                            ? 'bg-[#c9a84c]/100 border-[#c9a84c]'
+                            : 'border-gray-300 hover:border-[#c9a84c]'
                         )}
                       >
                         {subtask.completed && <Check className="h-2.5 w-2.5 text-white" />}
@@ -821,7 +821,7 @@ export function TaskDetailModal({
                         <span
                           onClick={() => handleSubtaskEdit(subtask.id, subtask.name)}
                           className={cn(
-                            'text-sm flex-1 cursor-pointer hover:text-blue-600',
+                            'text-sm flex-1 cursor-pointer hover:text-[#a8893a]',
                             subtask.completed && 'line-through text-gray-400'
                           )}
                         >
@@ -838,7 +838,7 @@ export function TaskDetailModal({
                       )}
                       <button
                         onClick={() => handleSubtaskDelete(subtask.id)}
-                        className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-black opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>

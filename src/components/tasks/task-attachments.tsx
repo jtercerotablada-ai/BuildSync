@@ -41,26 +41,26 @@ function getFileIcon(mimeType: string) {
   const lowerMime = mimeType.toLowerCase();
 
   if (lowerMime === 'application/pdf') {
-    return <FileText className={cn(iconClass, "text-red-500")} />;
+    return <FileText className={cn(iconClass, "text-black")} />;
   }
   if (lowerMime.startsWith('image/')) {
-    return <Image className={cn(iconClass, "text-blue-500")} />;
+    return <Image className={cn(iconClass, "text-[#a8893a]")} />;
   }
   if (lowerMime.includes('spreadsheet') || lowerMime.includes('excel') || lowerMime === 'text/csv') {
-    return <FileSpreadsheet className={cn(iconClass, "text-green-600")} />;
+    return <FileSpreadsheet className={cn(iconClass, "text-[#a8893a]")} />;
   }
   if (lowerMime.includes('word') || lowerMime.includes('document')) {
-    return <FileText className={cn(iconClass, "text-blue-600")} />;
+    return <FileText className={cn(iconClass, "text-[#a8893a]")} />;
   }
   return <File className={cn(iconClass, "text-gray-500")} />;
 }
 
 function getFileBgColor(mimeType: string) {
   const lowerMime = mimeType.toLowerCase();
-  if (lowerMime === 'application/pdf') return 'bg-red-50';
-  if (lowerMime.startsWith('image/')) return 'bg-blue-50';
-  if (lowerMime.includes('spreadsheet') || lowerMime.includes('excel') || lowerMime === 'text/csv') return 'bg-green-50';
-  if (lowerMime.includes('word') || lowerMime.includes('document')) return 'bg-blue-50';
+  if (lowerMime === 'application/pdf') return 'bg-gray-100';
+  if (lowerMime.startsWith('image/')) return 'bg-[#c9a84c]/10';
+  if (lowerMime.includes('spreadsheet') || lowerMime.includes('excel') || lowerMime === 'text/csv') return 'bg-[#c9a84c]/10';
+  if (lowerMime.includes('word') || lowerMime.includes('document')) return 'bg-[#c9a84c]/10';
   return 'bg-gray-50';
 }
 
@@ -135,7 +135,7 @@ export function TaskAttachments({ taskId, attachments, onUpload, onDelete }: Tas
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => handleDelete(attachment.id)}
-                className="text-red-600"
+                className="text-black"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete

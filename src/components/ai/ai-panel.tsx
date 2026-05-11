@@ -227,7 +227,7 @@ export function AIPanel({ isOpen, onClose }: AIPanelProps) {
                     className={cn(
                       'max-w-[85%] rounded-2xl px-4 py-3',
                       message.role === 'user'
-                        ? 'bg-blue-500 text-white'
+                        ? 'bg-[#c9a84c]/100 text-white'
                         : 'bg-gray-100 text-gray-900'
                     )}
                   >

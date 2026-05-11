@@ -43,7 +43,7 @@ export const campaignManagement: TemplateDefinition = {
   description: "Plan, schedule, and track complex marketing campaigns with a workflow built to manage deadlines and deliverables.",
   category: "marketing",
   preview: "timeline",
-  color: "#7C3AED",
+  color: "#a8893a",
   isTrusted: true,
   company: "ClassPass",
   defaultView: "TIMELINE",
@@ -96,7 +96,7 @@ export const creativeRequests: TemplateDefinition = {
   description: "Track creative work requests, collect feedback, and manage each production stage to deliver assets on time.",
   category: "marketing",
   preview: "list",
-  color: "#EC4899",
+  color: "#c9a84c",
   isNew: true,
   defaultView: "LIST",
   sections: [
@@ -123,7 +123,7 @@ export const contentCalendar: TemplateDefinition = {
   description: "Oversee content types, statuses, and channels to manage publications across teams.",
   category: "marketing",
   preview: "calendar",
-  color: "#10B981",
+  color: "#c9a84c",
   isTrusted: true,
   company: "AppLovin",
   defaultView: "CALENDAR",
@@ -152,7 +152,7 @@ export const socialMediaCalendar: TemplateDefinition = {
   description: "Plan content by channel and campaign, set deadlines, and track approvals to publish on time.",
   category: "marketing",
   preview: "board",
-  color: "#3B82F6",
+  color: "#c9a84c",
   defaultView: "BOARD",
   sections: [
     { name: "Content Ideas", description: "Brainstorming content" },
@@ -174,7 +174,7 @@ export const eventPlanning: TemplateDefinition = {
   description: "Manage event tasks from planning to execution. Keep strategy, vendors, and promotion organized in one place.",
   category: "marketing",
   preview: "list",
-  color: "#F59E0B",
+  color: "#a8893a",
   isNew: true,
   defaultView: "LIST",
   sections: [
@@ -221,7 +221,7 @@ export const productLaunch: TemplateDefinition = {
   description: "Plan and execute a product launch from start to reporting.",
   category: "marketing",
   preview: "list",
-  color: "#8B5CF6",
+  color: "#a8893a",
   isNew: true,
   defaultView: "TIMELINE",
   sections: [
@@ -267,7 +267,7 @@ export const goalSettingOperations: TemplateDefinition = {
   description: "Manage the goal-setting process across teams to enable alignment and progress toward company-wide objectives.",
   category: "operations",
   preview: "list",
-  color: "#059669",
+  color: "#c9a84c",
   isNew: true,
   defaultView: "LIST",
   sections: [
@@ -293,7 +293,7 @@ export const crossFunctionalProject: TemplateDefinition = {
   description: "Create tasks, add due dates, and organize work by stages to coordinate teams across your organization.",
   category: "operations",
   preview: "timeline",
-  color: "#0891B2",
+  color: "#a8893a",
   defaultView: "TIMELINE",
   sections: [
     { name: "Initiation", description: "Project kickoff" },
@@ -421,7 +421,7 @@ export const projectManagement: TemplateDefinition = {
   description: "Plan projects, assign tasks, and manage deadlines to keep work moving from start to delivery.",
   category: "productivity",
   preview: "board",
-  color: "#4573D2",
+  color: "#c9a84c",
   isNew: true,
   defaultView: "BOARD",
   sections: [
@@ -443,7 +443,7 @@ export const meetingAgenda: TemplateDefinition = {
   description: "Record agenda topics, next steps, and pending actions to keep meetings productive.",
   category: "productivity",
   preview: "list",
-  color: "#64748B",
+  color: "#888888",
   defaultView: "LIST",
   sections: [
     { name: "Agenda Items", description: "Topics to discuss" },
@@ -464,7 +464,7 @@ export const requestTracking: TemplateDefinition = {
   description: "Capture, prioritize, and monitor requests until completion.",
   category: "productivity",
   preview: "list",
-  color: "#EF4444",
+  color: "#0a0a0a",
   isNew: true,
   defaultView: "LIST",
   sections: [
@@ -551,7 +551,7 @@ export const webDesignProcess: TemplateDefinition = {
   description: "Organize design stages, assign owners, and track feedback to keep work moving.",
   category: "design",
   preview: "board",
-  color: "#EC4899",
+  color: "#c9a84c",
   defaultView: "BOARD",
   sections: [
     { name: "Discovery", description: "Research phase" },
@@ -582,7 +582,7 @@ export const creativeAssetApproval: TemplateDefinition = {
   description: "Share designs, collect feedback, and manage approvals to speed up creative work.",
   category: "design",
   preview: "board",
-  color: "#F59E0B",
+  color: "#a8893a",
   defaultView: "BOARD",
   sections: [
     { name: "Draft", description: "Initial designs" },
@@ -604,7 +604,7 @@ export const designProjectPlan: TemplateDefinition = {
   description: "Create repeatable workflows, assign tasks, and manage timelines to deliver design projects on time.",
   category: "design",
   preview: "timeline",
-  color: "#7C3AED",
+  color: "#a8893a",
   defaultView: "TIMELINE",
   sections: [
     { name: "Brief & Research", description: "Understanding the problem" },
@@ -635,7 +635,7 @@ export const userResearchSessions: TemplateDefinition = {
   description: "Plan sessions, record insights, and prioritize findings to make informed decisions.",
   category: "design",
   preview: "list",
-  color: "#06B6D4",
+  color: "#a8893a",
   defaultView: "LIST",
   sections: [
     { name: "Planning", description: "Research planning" },
@@ -664,7 +664,7 @@ export const engineeringProjectPlan: TemplateDefinition = {
   description: "Break work into tasks with due dates, organized by priority and stage.",
   category: "engineering",
   preview: "list",
-  color: "#3B82F6",
+  color: "#c9a84c",
   defaultView: "LIST",
   sections: [
     { name: "Requirements", description: "Project requirements" },
@@ -696,7 +696,7 @@ export const bugTracking: TemplateDefinition = {
   description: "File, assign, and prioritize bugs in one place to fix issues faster.",
   category: "engineering",
   preview: "board",
-  color: "#EF4444",
+  color: "#0a0a0a",
   defaultView: "BOARD",
   sections: [
     { name: "New", description: "Newly reported bugs" },
@@ -718,7 +718,7 @@ export const sprintPlanning: TemplateDefinition = {
   description: "Define sprint goals, set milestones, and assign tasks to coordinate your team.",
   category: "engineering",
   preview: "list",
-  color: "#8B5CF6",
+  color: "#a8893a",
   defaultView: "BOARD",
   sections: [
     { name: "Backlog", description: "Items to consider" },
@@ -741,7 +741,7 @@ export const sprintRetrospective: TemplateDefinition = {
   description: "Collect feedback, identify improvements, and assign follow-up tasks after each sprint.",
   category: "engineering",
   preview: "list",
-  color: "#10B981",
+  color: "#c9a84c",
   defaultView: "LIST",
   sections: [
     { name: "What went well", description: "Successes to celebrate" },
@@ -818,7 +818,7 @@ export const candidateTracking: TemplateDefinition = {
   description: "Track candidates, schedule interviews, and manage hiring from application to offer.",
   category: "hr",
   preview: "board",
-  color: "#8B5CF6",
+  color: "#a8893a",
   defaultView: "BOARD",
   sections: [
     { name: "Applied", description: "New applications" },
@@ -843,7 +843,7 @@ export const customerOnboarding: TemplateDefinition = {
   description: "Track onboarding tasks, collect feedback in forms, and manage work across teams.",
   category: "sales",
   preview: "board",
-  color: "#10B981",
+  color: "#c9a84c",
   defaultView: "BOARD",
   sections: [
     { name: "Welcome", description: "Initial setup" },
@@ -872,7 +872,7 @@ export const salesPipeline: TemplateDefinition = {
   description: "Automate pipeline steps, integrate with Salesforce, and track deals at a glance.",
   category: "sales",
   preview: "list",
-  color: "#3B82F6",
+  color: "#c9a84c",
   defaultView: "BOARD",
   sections: [
     { name: "Lead", description: "New leads" },
@@ -895,7 +895,7 @@ export const digitalFundraising: TemplateDefinition = {
   description: "Plan timelines and manage approvals to keep the fundraising campaign on track.",
   category: "sales",
   preview: "list",
-  color: "#EC4899",
+  color: "#c9a84c",
   defaultView: "TIMELINE",
   sections: [
     { name: "Planning", description: "Campaign planning" },

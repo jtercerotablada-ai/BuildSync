@@ -159,7 +159,7 @@ export function OptionsDrawer({
           <div className="mt-auto border-t border-gray-200 px-5 py-4">
             <button
               onClick={() => toast.info("Send feedback coming soon")}
-              className="text-[13px] text-blue-600 hover:underline"
+              className="text-[13px] text-[#a8893a] hover:underline"
             >
               Send feedback
             </button>

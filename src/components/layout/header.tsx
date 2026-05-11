@@ -120,7 +120,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
         <button
           type="button"
           onClick={openPanel}
-          className="hidden md:flex items-center justify-center h-8 w-8 rounded-md hover:bg-orange-50 transition-colors"
+          className="hidden md:flex items-center justify-center h-8 w-8 rounded-md hover:bg-[#a8893a]/10 transition-colors"
         >
           <Sparkles className="h-[18px] w-[18px]" style={{ color: "#D97757" }} />
         </button>
@@ -176,7 +176,7 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-red-600"
+              className="text-black"
               onClick={() => signOut({ callbackUrl: "/login" })}
             >
               <LogOut className="mr-2 h-4 w-4" />

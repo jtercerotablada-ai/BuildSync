@@ -66,7 +66,7 @@ const DEFAULT_DASHBOARDS: Dashboard[] = [
   },
 ];
 
-const COLORS = ["#000000", "#4573D2", "#7C3AED", "#059669", "#DC2626", "#D97706", "#0891B2"];
+const COLORS = ["#000000", "#c9a84c", "#a8893a", "#c9a84c", "#0a0a0a", "#a8893a", "#a8893a"];
 
 export default function ReportingPage() {
   const { data: session } = useSession();

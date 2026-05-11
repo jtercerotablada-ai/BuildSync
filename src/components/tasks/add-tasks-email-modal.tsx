@@ -75,8 +75,8 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
                 <span className="absolute right-4 flex items-center gap-1.5 text-[12px] text-gray-400 group-hover:text-gray-600 transition-colors">
                   {copied ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-green-500" />
-                      <span className="text-green-600">Copied</span>
+                      <Check className="w-3.5 h-3.5 text-[#a8893a]" />
+                      <span className="text-[#a8893a]">Copied</span>
                     </>
                   ) : (
                     <>
@@ -108,7 +108,7 @@ export function AddTasksEmailModal({ open, onOpenChange }: AddTasksEmailModalPro
           <div>
             <a
               href="#"
-              className="text-[13px] text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+              className="text-[13px] text-[#a8893a] hover:text-[#a8893a] hover:underline transition-colors"
               onClick={(e) => e.preventDefault()}
             >
               Learn more

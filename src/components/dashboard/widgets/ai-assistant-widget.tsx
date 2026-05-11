@@ -318,7 +318,7 @@ export function AIAssistantWidget({
             {/* Remove widget */}
             <DropdownMenuItem
               onClick={onRemove}
-              className="cursor-pointer text-red-600 focus:text-red-600"
+              className="cursor-pointer text-black focus:text-black"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Remove widget

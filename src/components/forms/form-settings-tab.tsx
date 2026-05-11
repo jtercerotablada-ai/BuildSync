@@ -233,7 +233,7 @@ export function FormSettingsTab({
             onCheckedChange={(checked) =>
               updateSetting('copyResponsesToDescription', checked)
             }
-            className="data-[state=checked]:bg-blue-500"
+            className="data-[state=checked]:bg-[#c9a84c]/100"
           />
           <span className="text-sm text-gray-700">
             Copy all responses to task description
@@ -351,7 +351,7 @@ export function FormSettingsTab({
             onCheckedChange={(checked) =>
               updateSetting('showAddNewRequestButton', checked)
             }
-            className="data-[state=checked]:bg-blue-500"
+            className="data-[state=checked]:bg-[#c9a84c]/100"
           />
           <span className="text-sm text-gray-700">
             Show a button to "Add new request"
@@ -375,7 +375,7 @@ export function FormSettingsTab({
             onCheckedChange={(checked) =>
               updateSetting('addSubmittersAsCollaborators', checked)
             }
-            className="data-[state=checked]:bg-blue-500 mt-0.5"
+            className="data-[state=checked]:bg-[#c9a84c]/100 mt-0.5"
           />
           <div>
             <span className="text-sm text-gray-700 block">
@@ -394,7 +394,7 @@ export function FormSettingsTab({
             onCheckedChange={(checked) =>
               updateSetting('receiveEmailReplies', checked)
             }
-            className="data-[state=checked]:bg-blue-500 mt-0.5"
+            className="data-[state=checked]:bg-[#c9a84c]/100 mt-0.5"
           />
           <div>
             <span className="text-sm text-gray-700 block">Receive email replies</span>
@@ -409,7 +409,7 @@ export function FormSettingsTab({
           <Switch
             checked={settings.sendEmailReplies}
             onCheckedChange={(checked) => updateSetting('sendEmailReplies', checked)}
-            className="data-[state=checked]:bg-blue-500 mt-0.5"
+            className="data-[state=checked]:bg-[#c9a84c]/100 mt-0.5"
           />
           <div>
             <span className="text-sm text-gray-700 block">Send email replies</span>

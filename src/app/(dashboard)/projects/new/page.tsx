@@ -23,16 +23,14 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getTemplateById, allTemplates, type TemplateDefinition } from "@/lib/templates-data";
 
-// Color options for project
+// Color options for project — strict monochrome + gold palette.
 const colorOptions = [
-  { value: "#4573D2", label: "Blue" },
-  { value: "#7C3AED", label: "Purple" },
-  { value: "#EC4899", label: "Pink" },
-  { value: "#EF4444", label: "Red" },
-  { value: "#F59E0B", label: "Orange" },
-  { value: "#10B981", label: "Green" },
-  { value: "#06B6D4", label: "Cyan" },
-  { value: "#64748B", label: "Gray" },
+  { value: "#0a0a0a", label: "Black" },
+  { value: "#4a4a4a", label: "Charcoal" },
+  { value: "#888888", label: "Gray" },
+  { value: "#d4b65a", label: "Bright gold" },
+  { value: "#c9a84c", label: "Gold" },
+  { value: "#a8893a", label: "Bronze" },
 ];
 
 // Get view icon
@@ -168,7 +166,7 @@ export default function NewProjectPage() {
   const [template, setTemplate] = useState<TemplateDefinition | null>(null);
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
-  const [projectColor, setProjectColor] = useState("#4573D2");
+  const [projectColor, setProjectColor] = useState("#c9a84c");
   const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
 
   // Load template if templateId is provided

@@ -94,11 +94,11 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
   const [activities] = useState<ActivityItem[]>([]);
 
   const statusColors = {
-    ON_TRACK: { bg: "bg-green-500", label: "On track", text: "text-green-700" },
-    AT_RISK: { bg: "bg-yellow-500", label: "At risk", text: "text-yellow-700" },
-    OFF_TRACK: { bg: "bg-red-500", label: "Off track", text: "text-red-700" },
+    ON_TRACK: { bg: "bg-[#c9a84c]/100", label: "On track", text: "text-[#a8893a]" },
+    AT_RISK: { bg: "bg-[#a8893a]/100", label: "At risk", text: "text-[#a8893a]" },
+    OFF_TRACK: { bg: "bg-gray-1000", label: "Off track", text: "text-black" },
     ON_HOLD: { bg: "bg-slate-500", label: "On hold", text: "text-slate-700" },
-    COMPLETE: { bg: "bg-blue-500", label: "Complete", text: "text-blue-700" },
+    COMPLETE: { bg: "bg-[#c9a84c]/100", label: "Complete", text: "text-[#a8893a]" },
   };
 
   const currentStatus = statusColors[project.status as keyof typeof statusColors] || statusColors.ON_TRACK;
@@ -156,7 +156,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
         <div className="border rounded-lg p-4 mb-6 bg-white">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-violet-600" />
+              <Sparkles className="w-5 h-5 text-black" />
               <span className="font-medium text-slate-900">AI-generated summary</span>
             </div>
             <div className="flex items-center gap-1 text-sm text-slate-500">
@@ -308,7 +308,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
 
             {/* Latest Status Update */}
             {statusUpdates.length > 0 ? (
-              <div className="bg-white rounded-lg border-l-4 border-green-500 p-4 shadow-sm">
+              <div className="bg-white rounded-lg border-l-4 border-[#c9a84c] p-4 shadow-sm">
                 <h4 className="font-medium text-slate-900 mb-1">
                   {statusUpdates[0].title}
                 </h4>
@@ -351,7 +351,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                       className={cn(
                         "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
                         activity.type === "status_update"
-                          ? "bg-green-500"
+                          ? "bg-[#c9a84c]/100"
                           : "bg-slate-200"
                       )}
                     >

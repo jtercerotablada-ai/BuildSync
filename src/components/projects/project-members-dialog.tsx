@@ -238,7 +238,7 @@ export function ProjectMembersDialog({
                 >
                   <Avatar className="h-7 w-7">
                     <AvatarImage src={u.image || ""} />
-                    <AvatarFallback className="text-xs bg-amber-100 text-amber-900">
+                    <AvatarFallback className="text-xs bg-[#a8893a]/15 text-amber-900">
                       {initials(u.name, u.email)}
                     </AvatarFallback>
                   </Avatar>
@@ -277,7 +277,7 @@ export function ProjectMembersDialog({
             <div className="flex-1 min-w-0">
               <p className="text-sm text-gray-900 truncate flex items-center gap-1">
                 {owner.name || owner.email}
-                <Crown className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                <Crown className="h-3 w-3 text-[#a8893a] flex-shrink-0" />
               </p>
               {owner.name && (
                 <p className="text-xs text-gray-500 truncate">{owner.email}</p>
@@ -300,7 +300,7 @@ export function ProjectMembersDialog({
               >
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={m.user.image || ""} />
-                  <AvatarFallback className="text-xs bg-amber-100 text-amber-900">
+                  <AvatarFallback className="text-xs bg-[#a8893a]/15 text-amber-900">
                     {initials(m.user.name, m.user.email)}
                   </AvatarFallback>
                 </Avatar>
@@ -335,7 +335,7 @@ export function ProjectMembersDialog({
                       </DropdownMenuItem>
                     ))}
                     <DropdownMenuItem
-                      className="text-red-600"
+                      className="text-black"
                       onClick={() => removeMember(m)}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />

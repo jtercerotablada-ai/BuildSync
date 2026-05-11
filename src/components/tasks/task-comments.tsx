@@ -112,7 +112,7 @@ export function TaskComments({
           </AvatarFallback>
         </Avatar>
         <div className="flex-1">
-          <div className="border border-gray-200 rounded-lg focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+          <div className="border border-gray-200 rounded-lg focus-within:border-[#c9a84c] focus-within:ring-1 focus-within:ring-blue-500">
             <Textarea
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
@@ -195,7 +195,7 @@ export function TaskComments({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
                       <DropdownMenuItem onClick={() => toast.info("Edit feature coming soon")}>Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600" onClick={() => toast.info("Delete feature coming soon")}>Delete</DropdownMenuItem>
+                      <DropdownMenuItem className="text-black" onClick={() => toast.info("Delete feature coming soon")}>Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

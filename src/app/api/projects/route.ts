@@ -7,7 +7,7 @@ import { getTemplateById } from "@/lib/templates-data";
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
-  color: z.string().optional().default("#4573D2"),
+  color: z.string().optional().default("#c9a84c"),
   icon: z.string().optional(),
   workspaceId: z.string().optional(),
   teamId: z.string().optional(),
@@ -246,7 +246,7 @@ export async function POST(req: Request) {
       data: {
         name,
         description: description || template?.description,
-        color: color || template?.color || "#4573D2",
+        color: color || template?.color || "#c9a84c",
         icon: icon || template?.icon,
         workspaceId: targetWorkspaceId,
         teamId: teamId || null,

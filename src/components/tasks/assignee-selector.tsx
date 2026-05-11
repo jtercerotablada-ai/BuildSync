@@ -117,7 +117,7 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
           {value ? (
             <Avatar className="h-7 w-7 flex-shrink-0">
               <AvatarImage src={value.image || undefined} />
-              <AvatarFallback className="text-xs bg-blue-600 text-white">
+              <AvatarFallback className="text-xs bg-[#c9a84c] text-white">
                 {getInitials(value.name || 'U')}
               </AvatarFallback>
             </Avatar>
@@ -165,12 +165,12 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
               onClick={() => handleSelect(user)}
               className={cn(
                 'w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left',
-                value?.id === user.id && 'bg-blue-50'
+                value?.id === user.id && 'bg-[#c9a84c]/10'
               )}
             >
               <Avatar className="h-8 w-8">
                 <AvatarImage src={user.image || undefined} />
-                <AvatarFallback className="text-xs bg-blue-600 text-white">
+                <AvatarFallback className="text-xs bg-[#c9a84c] text-white">
                   {getInitials(user.name || 'U')}
                 </AvatarFallback>
               </Avatar>
@@ -192,10 +192,10 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
             onClick={handleInviteByEmail}
             className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left"
           >
-            <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center">
-              <Mail className="h-4 w-4 text-blue-600" />
+            <div className="h-8 w-8 rounded-full bg-[#c9a84c]/10 flex items-center justify-center">
+              <Mail className="h-4 w-4 text-[#a8893a]" />
             </div>
-            <span className="text-sm text-blue-600">
+            <span className="text-sm text-[#a8893a]">
               Invite teammates by email
             </span>
           </button>
@@ -204,10 +204,10 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
             onClick={handleAssignMultiple}
             className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left"
           >
-            <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center">
-              <Users className="h-4 w-4 text-blue-600" />
+            <div className="h-8 w-8 rounded-full bg-[#c9a84c]/10 flex items-center justify-center">
+              <Users className="h-4 w-4 text-[#a8893a]" />
             </div>
-            <span className="text-sm text-blue-600">
+            <span className="text-sm text-[#a8893a]">
               Assign to multiple people
             </span>
           </button>

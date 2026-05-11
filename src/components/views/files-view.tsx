@@ -95,13 +95,13 @@ function getFileType(mimeType: string): FileType {
 function getFileIcon(type: FileType) {
   switch (type) {
     case "image":
-      return <Image className="w-6 h-6 text-blue-600" />;
+      return <Image className="w-6 h-6 text-[#a8893a]" />;
     case "video":
-      return <Film className="w-6 h-6 text-purple-600" />;
+      return <Film className="w-6 h-6 text-black" />;
     case "audio":
-      return <Music className="w-6 h-6 text-orange-600" />;
+      return <Music className="w-6 h-6 text-[#a8893a]" />;
     case "document":
-      return <FileText className="w-6 h-6 text-red-600" />;
+      return <FileText className="w-6 h-6 text-black" />;
     case "spreadsheet":
       return <FileSpreadsheet className="w-6 h-6 text-emerald-600" />;
     default:
@@ -111,10 +111,10 @@ function getFileIcon(type: FileType) {
 
 function getFileTypeColor(type: FileType) {
   switch (type) {
-    case "image": return "bg-blue-50";
-    case "video": return "bg-purple-50";
-    case "audio": return "bg-orange-50";
-    case "document": return "bg-red-50";
+    case "image": return "bg-[#c9a84c]/10";
+    case "video": return "bg-gray-100";
+    case "audio": return "bg-[#a8893a]/10";
+    case "document": return "bg-gray-100";
     case "spreadsheet": return "bg-emerald-50";
     default: return "bg-gray-50";
   }
@@ -361,7 +361,7 @@ function FileCard({ file, onDownload, onDelete }: { file: FileAttachment; onDown
           {formatFileSize(file.size)} · {format(new Date(file.createdAt), "MMM d")}
         </p>
         {file.taskName && (
-          <p className="text-xs text-blue-600 mt-1 truncate">{file.taskName}</p>
+          <p className="text-xs text-[#a8893a] mt-1 truncate">{file.taskName}</p>
         )}
       </div>
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
@@ -375,7 +375,7 @@ function FileCard({ file, onDownload, onDelete }: { file: FileAttachment; onDown
           className="p-1.5 bg-white rounded shadow hover:bg-gray-50"
           onClick={(e) => { e.stopPropagation(); onDelete(file); }}
         >
-          <Trash2 className="w-3 h-3 text-red-500" />
+          <Trash2 className="w-3 h-3 text-black" />
         </button>
       </div>
     </div>
@@ -419,7 +419,7 @@ function FilesList({ files, onDownload, onDelete }: FilesActionProps) {
             </div>
             <div className="col-span-2">
               {file.taskName && (
-                <span className="text-sm text-blue-600 truncate">{file.taskName}</span>
+                <span className="text-sm text-[#a8893a] truncate">{file.taskName}</span>
               )}
             </div>
             <div className="col-span-1 flex justify-end">
@@ -434,7 +434,7 @@ function FilesList({ files, onDownload, onDelete }: FilesActionProps) {
                     <Download className="w-4 h-4 mr-2" />
                     Download
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(file); }} className="text-red-600">
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(file); }} className="text-black">
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete
                   </DropdownMenuItem>

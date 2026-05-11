@@ -93,9 +93,9 @@ interface StatusUpdate {
 const statusConfig = {
   "on-track": { label: "On track", color: "#22C55E", bgColor: "#DCFCE7", borderColor: "#22C55E" },
   "at-risk": { label: "At risk", color: "#F97316", bgColor: "#FEF3C7", borderColor: "#F97316" },
-  "off-track": { label: "Off track", color: "#EF4444", bgColor: "#FEE2E2", borderColor: "#EF4444" },
+  "off-track": { label: "Off track", color: "#0a0a0a", bgColor: "#FEE2E2", borderColor: "#0a0a0a" },
   "on-hold": { label: "On hold", color: "#6B7280", bgColor: "#F3F4F6", borderColor: "#6B7280" },
-  "complete": { label: "Complete", color: "#3B82F6", bgColor: "#DBEAFE", borderColor: "#3B82F6" },
+  "complete": { label: "Complete", color: "#c9a84c", bgColor: "#DBEAFE", borderColor: "#c9a84c" },
 };
 
 // ============================================
@@ -106,7 +106,7 @@ export function MessagesView({
   sections,
   projectId,
   projectName = "Project",
-  projectColor = "#3B82F6",
+  projectColor = "#c9a84c",
   projectStatus = "ON_TRACK",
   currentUser: currentUserProp,
 }: MessagesViewProps) {
@@ -523,8 +523,8 @@ function PromotionalCard() {
       {/* Chat Bubbles Illustration */}
       <div className="flex justify-center mb-4">
         <div className="relative">
-          <div className="w-14 h-14 bg-amber-100 rounded-xl flex items-center justify-center">
-            <MessageSquare className="w-7 h-7 text-amber-600" />
+          <div className="w-14 h-14 bg-[#a8893a]/15 rounded-xl flex items-center justify-center">
+            <MessageSquare className="w-7 h-7 text-[#a8893a]" />
           </div>
           <div className="absolute -top-2 -right-3 w-10 h-10 bg-white border border-black rounded-lg flex items-center justify-center rotate-12">
             <MessageSquare className="w-5 h-5 text-black" />

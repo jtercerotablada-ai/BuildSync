@@ -342,12 +342,12 @@ function DropdownItem({
       className={cn(
         "w-full flex items-center gap-2.5 px-3 h-9 text-[13px] transition-colors text-left cursor-pointer",
         accent
-          ? "text-blue-600 hover:bg-black/[0.04]"
+          ? "text-[#a8893a] hover:bg-black/[0.04]"
           : "text-gray-700 hover:bg-black/[0.04]"
       )}
     >
       {icon && (
-        <span className={cn("flex-shrink-0", accent ? "text-blue-500" : "text-gray-400")}>
+        <span className={cn("flex-shrink-0", accent ? "text-[#a8893a]" : "text-gray-400")}>
           {icon}
         </span>
       )}

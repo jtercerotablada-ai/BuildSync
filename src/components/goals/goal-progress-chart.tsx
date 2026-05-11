@@ -164,7 +164,7 @@ export function GoalProgressChart({
             <Area
               type="monotone"
               dataKey="actual"
-              stroke="#3B82F6"
+              stroke="#c9a84c"
               fill="transparent"
               strokeWidth={2}
               dot={(props: { cx?: number; cy?: number; payload?: { isToday?: boolean } }) => {
@@ -176,7 +176,7 @@ export function GoalProgressChart({
                       cx={cx}
                       cy={cy}
                       r={6}
-                      fill="#3B82F6"
+                      fill="#c9a84c"
                       stroke="white"
                       strokeWidth={2}
                     />

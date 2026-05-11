@@ -33,13 +33,13 @@ interface ApprovalCardProps {
 function getStatusBadge(status: string) {
   switch (status) {
     case "PENDING":
-      return { icon: Clock, bg: "bg-amber-500/10", text: "text-amber-400", label: "Pending" };
+      return { icon: Clock, bg: "bg-[#a8893a]/100/10", text: "text-[#a8893a]", label: "Pending" };
     case "APPROVED":
-      return { icon: CheckCircle, bg: "bg-green-500/10", text: "text-green-400", label: "Approved" };
+      return { icon: CheckCircle, bg: "bg-[#c9a84c]/100/10", text: "text-[#a8893a]", label: "Approved" };
     case "REJECTED":
-      return { icon: XCircle, bg: "bg-red-500/10", text: "text-red-400", label: "Rejected" };
+      return { icon: XCircle, bg: "bg-gray-1000/10", text: "text-black", label: "Rejected" };
     case "CHANGES_REQUESTED":
-      return { icon: AlertTriangle, bg: "bg-orange-500/10", text: "text-orange-400", label: "Changes Requested" };
+      return { icon: AlertTriangle, bg: "bg-[#a8893a]/100/10", text: "text-[#a8893a]", label: "Changes Requested" };
     default:
       return { icon: Clock, bg: "bg-gray-500/10", text: "text-gray-400", label: status };
   }
@@ -126,7 +126,7 @@ export function ApprovalCard({ approval }: ApprovalCardProps) {
               <Button
                 onClick={() => handleAction("APPROVED")}
                 disabled={submitting}
-                className="bg-green-600 text-white hover:bg-green-700"
+                className="bg-[#a8893a] text-white hover:bg-[#a8893a]"
               >
                 {submitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -139,7 +139,7 @@ export function ApprovalCard({ approval }: ApprovalCardProps) {
                 onClick={() => handleAction("CHANGES_REQUESTED")}
                 disabled={submitting}
                 variant="outline"
-                className="border-yellow-600/30 text-yellow-400 hover:bg-yellow-600/10 hover:text-yellow-300"
+                className="border-[#a8893a]/30 text-[#a8893a] hover:bg-yellow-600/10 hover:text-yellow-300"
               >
                 <AlertTriangle className="mr-2 h-4 w-4" />
                 Request Changes
@@ -148,7 +148,7 @@ export function ApprovalCard({ approval }: ApprovalCardProps) {
                 onClick={() => handleAction("REJECTED")}
                 disabled={submitting}
                 variant="outline"
-                className="border-red-600/30 text-red-400 hover:bg-red-600/10 hover:text-red-300"
+                className="border-gray-400 text-black hover:bg-black/10 hover:text-red-300"
               >
                 <XCircle className="mr-2 h-4 w-4" />
                 Reject

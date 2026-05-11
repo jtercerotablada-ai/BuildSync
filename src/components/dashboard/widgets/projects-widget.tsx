@@ -66,10 +66,10 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
 
   const getStatusClasses = (status: string) => {
     switch (status) {
-      case 'ON_TRACK': return 'bg-green-100 text-green-800 border border-green-200';
-      case 'AT_RISK': return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
-      case 'OFF_TRACK': return 'bg-red-100 text-red-800 border border-red-200';
-      case 'COMPLETE': return 'bg-blue-100 text-blue-800 border border-blue-200';
+      case 'ON_TRACK': return 'bg-[#c9a84c]/15 text-[#a8893a] border border-[#c9a84c]/30';
+      case 'AT_RISK': return 'bg-[#a8893a]/15 text-[#a8893a] border border-[#a8893a]/30';
+      case 'OFF_TRACK': return 'bg-gray-100 text-black border border-gray-300';
+      case 'COMPLETE': return 'bg-[#c9a84c]/15 text-blue-800 border border-[#c9a84c]/30';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
@@ -105,7 +105,7 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
         </Button>
       </div>
 
-      {error && <p className="text-sm text-red-500 px-4 py-2">{error}</p>}
+      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
 
       {/* Projects List */}
       <div className="flex-1 overflow-y-auto min-h-0">
@@ -147,7 +147,7 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
               >
                 <div
                   className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-semibold text-sm flex-shrink-0"
-                  style={{ backgroundColor: project.color || '#3B82F6' }}
+                  style={{ backgroundColor: project.color || '#c9a84c' }}
                 >
                   {project.icon || project.name?.charAt(0).toUpperCase()}
                 </div>
