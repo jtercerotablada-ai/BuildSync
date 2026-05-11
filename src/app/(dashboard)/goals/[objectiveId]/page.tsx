@@ -21,12 +21,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Progress } from "@/components/ui/progress";
 import {
   Plus,
   Target,
   Loader2,
-  MoreHorizontal,
   Trash2,
   Calendar,
   Edit2,
@@ -48,6 +46,7 @@ import { CheckInDialog } from "@/components/goals/check-in-dialog";
 import { LinkedWorkPanel } from "@/components/goals/linked-work-panel";
 import { AICoachPanel } from "@/components/goals/ai-coach-panel";
 import { ParentObjectivePicker } from "@/components/goals/parent-objective-picker";
+import { KeyResultRow } from "@/components/goals/key-result-row";
 import {
   STATUS_OPTIONS as SHARED_STATUS_OPTIONS,
   getStatusOption as sharedGetStatusOption,
@@ -393,12 +392,6 @@ export default function GoalDetailPage() {
 
   const getStatusOption = (status: string) =>
     STATUS_OPTIONS.find((o) => o.value === status) || STATUS_OPTIONS.find((o) => o.value === null)!;
-
-  const calculateKRProgress = (kr: KeyResult) => {
-    const range = kr.targetValue - kr.startValue;
-    if (range === 0) return kr.currentValue >= kr.targetValue ? 100 : 0;
-    return Math.min(100, Math.max(0, ((kr.currentValue - kr.startValue) / range) * 100));
-  };
 
   if (loading) {
     return (
@@ -805,54 +798,27 @@ export default function GoalDetailPage() {
                   <span className="sm:hidden">Add</span>
                 </Button>
               </div>
+              {/* Inline-editing rows: click the name to rename, click
+                  the value to update progress. The "Update with note"
+                  button still opens the dialog when the user wants
+                  to attach a note to the progress change. */}
               <div className="space-y-3">
-                {objective.keyResults.map((kr) => {
-                  const progress = calculateKRProgress(kr);
-                  return (
-                    <div key={kr.id} className="border rounded-xl p-3 md:p-4 hover:shadow-sm transition-shadow">
-                      <div className="flex items-start justify-between mb-3 gap-2">
-                        <div className="min-w-0 flex-1">
-                          <h4 className="font-medium text-gray-900 break-words">{kr.name}</h4>
-                          {kr.description && (
-                            <p className="text-sm text-gray-500 mt-1 break-words">{kr.description}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-                          <Button variant="outline" size="sm" onClick={() => openUpdateDialog(kr)} className="px-2 md:px-3">
-                            <Edit2 className="h-3 w-3 md:mr-1" />
-                            <span className="hidden md:inline">Update</span>
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                className="text-black"
-                                onClick={() => handleDeleteKeyResult(kr.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Progress value={progress} className="flex-1 h-2" />
-                        <span className="text-xs md:text-sm font-medium text-gray-700 text-right whitespace-nowrap">
-                          {kr.currentValue} / {kr.targetValue}
-                          {kr.unit ? ` ${kr.unit}` : ""}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-2">
-                        {Math.round(progress)}% completed
-                      </div>
-                    </div>
-                  );
-                })}
+                {objective.keyResults.map((kr) => (
+                  <KeyResultRow
+                    key={kr.id}
+                    kr={kr}
+                    objectiveId={objectiveId}
+                    onChanged={fetchObjective}
+                    onDelete={handleDeleteKeyResult}
+                    // Lookup by id so KeyResultRow's local KR type (no
+                    // `updates` field) doesn't have to match the
+                    // page's richer interface — keeps the row reusable.
+                    onOpenNoteDialog={(rowKr) => {
+                      const full = objective.keyResults.find((k) => k.id === rowKr.id);
+                      if (full) openUpdateDialog(full);
+                    }}
+                  />
+                ))}
               </div>
             </div>
           )}
