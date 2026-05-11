@@ -119,7 +119,12 @@
   }
 }
 .cockpit-hero-map {
+  /* z-index: 0 forces a new stacking context so all of Leaflet's internal
+   * panes (z 200-700) stay confined inside this element. Without it the
+   * map's z-700 popup pane sits on top of shadcn/Radix dialogs (z-50),
+   * which is what made the "Create project" modal render behind the map. */
   position: relative;
+  z-index: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
