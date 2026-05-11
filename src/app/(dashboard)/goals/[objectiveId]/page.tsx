@@ -672,44 +672,49 @@ export default function GoalDetailPage() {
 
           </div>
 
-          {/* ========== PROGRESS CARDS ========== */}
+          {/* ========== PROGRESS + CONFIDENCE SUMMARY ========== */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-6 md:mb-8">
             {/* Goal completion card */}
             <div className="border rounded-xl p-4 md:p-6 text-center">
-              <p className="text-xs md:text-sm text-gray-500 mb-2">Objective completion</p>
-              <p className="text-3xl md:text-4xl font-bold text-gray-900 mb-1">{objective.progress}%</p>
+              <p className="text-xs md:text-sm text-gray-500 mb-2">
+                Objective completion
+              </p>
+              <p className="text-3xl md:text-4xl font-bold text-gray-900 mb-1">
+                {objective.progress}%
+              </p>
               <p className="text-xs text-gray-400">
-                {getTimeRemaining(objective.period, objective.endDate)}
+                {getTimeRemaining(objective.period, objective.endDate) || "—"}
               </p>
             </div>
 
-            {/* Status card */}
-            <div className="border rounded-xl p-4 md:p-6 text-center">
-              <p className="text-xs md:text-sm text-gray-500 mb-2">Latest status</p>
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <div className={cn("h-4 w-4 rounded-full flex-shrink-0", currentStatus.color)} />
-                <span className={cn("text-base md:text-lg font-medium", currentStatus.textColor)}>
-                  {currentStatus.label}
-                </span>
+            {/* Confidence + check-in card — replaces the old
+                duplicated "Latest status" card (status now lives in
+                the colored pill in the header). */}
+            <div className="border rounded-xl p-4 md:p-6 flex items-center gap-4">
+              <ConfidenceRing
+                score={objective.confidenceScore ?? null}
+                onChange={handleConfidenceChange}
+                size={72}
+              />
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-xs md:text-sm text-gray-500 mb-1">
+                  Owner confidence
+                </p>
+                <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                  {objective.lastCheckInAt
+                    ? `Last check-in ${formatRelativeTime(objective.lastCheckInAt)}`
+                    : "No check-in yet"}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCheckInOpen(true)}
+                  className="h-7 text-xs"
+                >
+                  <Send className="w-3 h-3 mr-1.5" />
+                  Check in
+                </Button>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="text-xs text-black hover:underline">
-                    Set status
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  {STATUS_OPTIONS.map((option) => (
-                    <DropdownMenuItem
-                      key={option.value || "null"}
-                      onClick={() => handleStatusChange(option.value)}
-                    >
-                      <div className={cn("h-3 w-3 rounded-full mr-2", option.color)} />
-                      {option.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </div>
 
@@ -856,35 +861,8 @@ export default function GoalDetailPage() {
             </div>
           </div>
 
-          {/* ========== CHECK-IN BAR + AI COACH ========== */}
-          <div className="border rounded-xl bg-white p-4 mb-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <ConfidenceRing
-                score={objective.confidenceScore ?? null}
-                onChange={handleConfidenceChange}
-                size={56}
-              />
-              <div>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                  Confidence
-                </p>
-                <p className="text-xs text-gray-600 max-w-[260px]">
-                  {objective.lastCheckInAt
-                    ? `Last check-in ${formatRelativeTime(objective.lastCheckInAt)}`
-                    : "No check-in yet — share where you stand"}
-                </p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => setCheckInOpen(true)}
-              className="bg-black hover:bg-gray-900 text-white"
-            >
-              <Send className="w-3.5 h-3.5 mr-2" />
-              Check in this week
-            </Button>
-          </div>
-
+          {/* AI Coach lives alone now — the check-in/confidence
+              widget moved up into the 2-up summary card above. */}
           <AICoachPanel objectiveId={objective.id} />
 
           <CheckInDialog
