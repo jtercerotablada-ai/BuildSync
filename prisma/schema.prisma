@@ -355,6 +355,16 @@ model Project {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
+  // Engineering firm extensions (nullable to preserve existing rows)
+  type        ProjectType?
+  gate        ProjectGate?      @default(PRE_DESIGN)
+  location    String?
+  latitude    Float?
+  longitude   Float?
+  budget      Decimal?          @db.Decimal(15, 2)
+  currency    String?           @default("USD")
+  clientName  String?
+
   workspaceId String
   teamId      String?
   ownerId     String?
@@ -417,6 +427,23 @@ enum ProjectRole {
   EDITOR
   COMMENTER
   VIEWER
+}
+
+// Engineering firm project taxonomy — distinct lifecycles per type
+enum ProjectType {
+  CONSTRUCTION
+  DESIGN
+  RECERTIFICATION
+  PERMIT
+}
+
+// Engineering lifecycle gates — replaces generic open/closed semantics
+enum ProjectGate {
+  PRE_DESIGN
+  DESIGN
+  PERMITTING
+  CONSTRUCTION
+  CLOSEOUT
 }
 
 // ============ VISTAS DE PROYECTO ============

@@ -13,6 +13,15 @@ const createProjectSchema = z.object({
   teamId: z.string().optional(),
   templateId: z.string().optional(), // Template to use for project creation
   startDate: z.string().optional(), // For calculating relative due dates
+  // Engineering firm extensions
+  type: z.enum(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"]).optional(),
+  gate: z.enum(["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION", "CLOSEOUT"]).optional(),
+  location: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  budget: z.number().optional(),
+  currency: z.string().optional(),
+  clientName: z.string().optional(),
 });
 
 // GET /api/projects - Get user's projects
@@ -100,7 +109,24 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, description, color, icon, workspaceId, teamId, templateId, startDate } = createProjectSchema.parse(body);
+    const {
+      name,
+      description,
+      color,
+      icon,
+      workspaceId,
+      teamId,
+      templateId,
+      startDate,
+      type,
+      gate,
+      location,
+      latitude,
+      longitude,
+      budget,
+      currency,
+      clientName,
+    } = createProjectSchema.parse(body);
 
     // Get template if provided
     const template = templateId ? getTemplateById(templateId) : null;
@@ -204,6 +230,14 @@ export async function POST(req: Request) {
         teamId: teamId || null,
         ownerId: userId,
         startDate: startDate ? new Date(startDate) : new Date(),
+        type: type ?? null,
+        gate: gate ?? "PRE_DESIGN",
+        location: location ?? null,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
+        budget: budget ?? null,
+        currency: currency ?? "USD",
+        clientName: clientName ?? null,
         members: {
           create: {
             userId,
