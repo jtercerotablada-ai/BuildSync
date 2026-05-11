@@ -70,10 +70,10 @@
   --search-bg: #f1f2f4;
   --search-bg-hover: #e8e9eb;
   --search-h: 36px;
-  /* Page canvas — warm cream (#fafaf7), matches the CEO cockpit /home.
-   * Cards, popovers, and surfaces stay pure white so they read as
-   * elevated against this background. */
-  --background: #fafaf7;
+  /* Strict monochrome + gold palette: pure white canvas, no warm tint.
+   * Elevation between canvas and cards is now communicated by borders
+   * and shadows rather than a color shift. */
+  --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);

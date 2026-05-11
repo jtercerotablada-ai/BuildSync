@@ -7,14 +7,16 @@
 .cockpit {
   --gold: #c9a84c;
   --gold-dim: #a8893a;
-  --bg: #fafaf7;
+  /* Strict monochrome + gold. No warm tint anywhere — pure white canvas,
+   * neutral gray for borders and secondary surfaces, true black text. */
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f5f4ef;
-  --border: #e7e5dd;
-  --border-strong: #d4d1c5;
-  --text: #1a1a1a;
-  --text-dim: #6b6a64;
-  --text-faint: #a8a59c;
+  --surface-2: #f5f5f5;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --text: #0a0a0a;
+  --text-dim: #6b7280;
+  --text-faint: #9ca3af;
   --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.06);
   --radius: 10px;
   --gap: 16px;
@@ -637,7 +639,7 @@
   letter-spacing: 0.5px;
 }
 .cockpit-avatar--initials {
-  background: linear-gradient(135deg, #d4d1c5, #e7e5dd);
+  background: linear-gradient(135deg, #d1d5db, #e5e7eb);
   color: #4a4943;
 }
 .cockpit-team-row__name {
