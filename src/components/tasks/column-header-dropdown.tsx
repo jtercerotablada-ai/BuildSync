@@ -172,7 +172,7 @@ export function ColumnHeader({
       className={cn(
         "relative flex items-center gap-1",
         config.flex ? "flex-1 min-w-0" : "",
-        !config.isFirst && "border-l border-gray-300/40 pl-2.5 pr-1"
+        !config.isFirst && "border-l border-gray-200 pl-2.5 pr-1"
       )}
       style={containerStyle}
     >

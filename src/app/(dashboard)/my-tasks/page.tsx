@@ -1363,7 +1363,7 @@ export default function MyTasksPage() {
           {customColumns.map((col) => (
             <div
               key={col.id}
-              className="flex items-center gap-1 border-l border-gray-300/40 pl-2.5 pr-1"
+              className="flex items-center gap-1 border-l border-gray-200 pl-2.5 pr-1"
               style={{ width: "110px", minWidth: "110px", flexShrink: 0 }}
             >
               <span className="text-[11px] font-medium text-gray-500 truncate">{col.name}</span>
@@ -1371,7 +1371,7 @@ export default function MyTasksPage() {
           ))}
 
           {/* Add column (+) button */}
-          <div className="flex-shrink-0 border-l border-gray-300/40">
+          <div className="flex-shrink-0 border-l border-gray-200">
             <AddColumnDropdown
               onSelectType={(ft: FieldTypeConfig, name: string) => {
                 setPreselectedFieldType(ft.id);
@@ -2120,16 +2120,16 @@ function TaskRow({
         </div>
 
       {/* Due date — pl-2.5 pr-1 matches the ColumnHeader's internal padding
-       * (border-l border-gray-300/40 pl-2.5 pr-1) so the header label and
+       * (border-l border-gray-200 pl-2.5 pr-1) so the header label and
        * the data text line up at the exact same x position. */}
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-300/40" style={{ width: "var(--col-dueDate)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-dueDate)" }}>
         <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
       </div>
 
       {/* Collaborators */}
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-300/40" style={{ width: "var(--col-collaborators)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-collaborators)" }}>
         {task.assignee && (
           <Avatar className="w-5 h-5">
             <AvatarImage src={task.assignee.image || undefined} />
@@ -2141,7 +2141,7 @@ function TaskRow({
       </div>
 
       {/* Projects */}
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-300/40" style={{ width: "var(--col-projects)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-projects)" }}>
         {task.project && (
           <div className="flex items-center gap-1.5 min-w-0">
             <div
@@ -2156,7 +2156,7 @@ function TaskRow({
       </div>
 
       {/* Visibility */}
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-300/40" style={{ width: "var(--col-visibility)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-visibility)" }}>
         <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
           <Globe className="w-3 h-3 flex-shrink-0" />
           My workspace
