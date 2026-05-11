@@ -229,13 +229,14 @@ export function Sidebar({
                     open={projectsOpen}
                     onOpenChange={setProjectsOpen}
                   >
-                    {/* Section header. The + button is rendered as a sibling of
-                        the trigger (not inside it) so clicking + doesn't toggle
-                        the section. Both children get explicit flex-shrink-0 so
-                        Radix's CollapsibleTrigger can't grow to width: 100% and
-                        push the + off the right edge when open. */}
-                    <div className="relative flex items-center justify-between gap-2 px-3 mb-1">
-                      <CollapsibleTrigger className="flex-shrink min-w-0 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
+                    {/* Section header. The `+` button is ABSOLUTELY POSITIONED
+                        (out of flow) on the right of the row, so no Radix
+                        Collapsible state change, flex distribution quirk, or
+                        animated trigger width can affect where it lives. The
+                        row reserves `pr-9` so the trigger text never overlaps
+                        the absolute button. */}
+                    <div className="relative pl-3 pr-9 mb-1" ref={projectsDropdownRef}>
+                      <CollapsibleTrigger className="w-full flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
                         <ChevronDown
                           className={cn(
                             "h-3 w-3 transition-transform flex-shrink-0",
@@ -244,43 +245,41 @@ export function Sidebar({
                         />
                         Projects
                       </CollapsibleTrigger>
-                      <div className="relative flex-shrink-0 z-10" ref={projectsDropdownRef}>
-                        <button
-                          type="button"
-                          aria-label="Add project or portfolio"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setProjectsDropdownOpen(!projectsDropdownOpen);
-                          }}
-                          className="h-5 w-5 flex items-center justify-center rounded text-gray-600 hover:text-black hover:bg-gray-100 transition-colors"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                        {projectsDropdownOpen && (
-                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
-                            <button
-                              className="w-full flex items-center gap-3 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
-                              onClick={() => {
-                                setProjectsDropdownOpen(false);
-                                onCreateProject?.();
-                              }}
-                            >
-                              <Folder className="w-4 h-4 text-gray-500" />
-                              New project
-                            </button>
-                            <button
-                              className="w-full flex items-center gap-3 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
-                              onClick={() => {
-                                setProjectsDropdownOpen(false);
-                                onCreatePortfolio?.();
-                              }}
-                            >
-                              <FolderOpen className="w-4 h-4 text-gray-500" />
-                              New portfolio
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        type="button"
+                        aria-label="Add project or portfolio"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setProjectsDropdownOpen(!projectsDropdownOpen);
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-gray-600 hover:text-black hover:bg-gray-100 transition-colors z-10"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                      {projectsDropdownOpen && (
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
+                          <button
+                            className="w-full flex items-center gap-3 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+                            onClick={() => {
+                              setProjectsDropdownOpen(false);
+                              onCreateProject?.();
+                            }}
+                          >
+                            <Folder className="w-4 h-4 text-gray-500" />
+                            New project
+                          </button>
+                          <button
+                            className="w-full flex items-center gap-3 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+                            onClick={() => {
+                              setProjectsDropdownOpen(false);
+                              onCreatePortfolio?.();
+                            }}
+                          >
+                            <FolderOpen className="w-4 h-4 text-gray-500" />
+                            New portfolio
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <CollapsibleContent>
                       <nav className="space-y-0.5">
@@ -333,11 +332,11 @@ export function Sidebar({
                 {/* Teams */}
                 {mounted ? (
                   <Collapsible open={teamsOpen} onOpenChange={setTeamsOpen}>
-                    {/* Same flex-shrink discipline as Projects above so the
-                        Radix trigger can't grow to fill the row and push the
-                        + off the right edge when the section is open. */}
-                    <div className="relative flex items-center justify-between gap-2 px-3 mb-1">
-                      <CollapsibleTrigger className="flex-shrink min-w-0 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
+                    {/* Same absolute-positioning approach as Projects above —
+                        the `+` button is out of the flex flow so Radix's
+                        Collapsible state change cannot displace it. */}
+                    <div className="relative pl-3 pr-9 mb-1">
+                      <CollapsibleTrigger className="w-full flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
                         <ChevronDown
                           className={cn(
                             "h-3 w-3 transition-transform flex-shrink-0",
@@ -353,7 +352,7 @@ export function Sidebar({
                           e.stopPropagation();
                           router.push(`${basePath || ""}/teams/new`);
                         }}
-                        className="h-5 w-5 flex items-center justify-center rounded text-gray-600 hover:text-black hover:bg-gray-100 transition-colors flex-shrink-0 z-10 relative"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-gray-600 hover:text-black hover:bg-gray-100 transition-colors z-10"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
