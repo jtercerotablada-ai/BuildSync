@@ -670,34 +670,40 @@ function GoalsListView({
   }
 
   return (
-    <div className="p-4 md:p-6">
-      {/* Column Headers */}
-      <div className="hidden md:flex items-center border-b pb-2 text-xs font-medium text-black uppercase tracking-wide">
-        {columns.map((col) => (
+    <div>
+      {/* Column Headers — same gridline pattern as /my-tasks list view:
+          `border-l border-gray-200` on every column after the first,
+          `border-b border-gray-200` on the row itself. */}
+      <div className="hidden md:flex items-stretch border-b border-gray-200 text-xs font-medium text-black uppercase tracking-wide">
+        {columns.map((col, i) => (
           <div
             key={col.id}
-            className={cn("px-3 flex items-center gap-1", col.className)}
+            className={cn(
+              "py-2 px-3 flex items-center gap-1",
+              col.className,
+              i > 0 && "border-l border-gray-200"
+            )}
           >
             {col.label}
             <ChevronDown className="w-3 h-3" />
           </div>
         ))}
-        <div className="w-10">
+        <div className="w-10 border-l border-gray-200 flex items-center justify-center">
           <Plus className="w-4 h-4 text-black" />
         </div>
       </div>
 
-      {/* Goals List */}
-      <div className="divide-y">
+      {/* Goals List — every row has same column dividers + bottom border */}
+      <div>
         {objectives.map((objective) => (
           <div key={objective.id}>
             {/* Desktop row */}
             <div
-              className="hidden md:flex items-center py-3 hover:bg-white cursor-pointer group"
+              className="hidden md:flex items-stretch hover:bg-gray-50 cursor-pointer group border-b border-gray-200"
               onClick={() => onRowClick(objective.id)}
             >
               {/* Name */}
-              <div className="flex-1 px-3 flex items-center gap-2">
+              <div className="flex-1 px-3 py-3 flex items-center gap-2">
                 {(objective._count.keyResults > 0 ||
                   objective._count.children > 0) && (
                   <button
@@ -718,7 +724,7 @@ function GoalsListView({
               </div>
 
               {/* Status */}
-              <div className="w-[80px] px-3">
+              <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center">
                 <div
                   className={cn(
                     "w-3 h-3 rounded-full",
@@ -728,8 +734,8 @@ function GoalsListView({
               </div>
 
               {/* Progress */}
-              <div className="w-[140px] px-3">
-                <div className="flex items-center gap-2">
+              <div className="w-[140px] px-3 py-3 border-l border-gray-200 flex items-center">
+                <div className="flex items-center gap-2 w-full">
                   <div className="flex-1 h-2 bg-white border border-black rounded-full overflow-hidden">
                     <div
                       className="h-full bg-black rounded-full transition-all"
@@ -743,21 +749,21 @@ function GoalsListView({
               </div>
 
               {/* Period */}
-              <div className="w-[100px] px-3">
+              <div className="w-[100px] px-3 py-3 border-l border-gray-200 flex items-center">
                 <span className="text-sm text-black">
                   {objective.period || "-"}
                 </span>
               </div>
 
               {/* Team */}
-              <div className="w-[140px] px-3">
+              <div className="w-[140px] px-3 py-3 border-l border-gray-200 flex items-center">
                 <span className="text-sm text-black">
                   {objective.team?.name || "-"}
                 </span>
               </div>
 
               {/* Owner */}
-              <div className="w-[80px] px-3">
+              <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center">
                 {objective.owner ? (
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={objective.owner.image || ""} />
@@ -771,7 +777,7 @@ function GoalsListView({
               </div>
 
               {/* Add Column */}
-              <div className="w-10" />
+              <div className="w-10 border-l border-gray-200" />
             </div>
 
             {/* Mobile card */}
@@ -826,10 +832,11 @@ function GoalsListView({
               )}
             </div>
 
-            {/* Expanded Key Results */}
+            {/* Expanded Key Results — match parent's column dividers
+                so the gridlines run continuously through KR sub-rows */}
             {expandedIds.has(objective.id) &&
               objective.keyResults.length > 0 && (
-                <div className="bg-white border-t">
+                <div className="bg-gray-50/50">
                   {objective.keyResults.map((kr) => {
                     const progress =
                       kr.targetValue - kr.startValue === 0
@@ -846,15 +853,15 @@ function GoalsListView({
                     return (
                       <div
                         key={kr.id}
-                        className="flex items-center py-2 pl-12 text-sm"
+                        className="hidden md:flex items-stretch text-sm border-b border-gray-200 last:border-b-0"
                       >
-                        <div className="flex-1 px-3 flex items-center gap-2 text-black">
+                        <div className="flex-1 pl-12 pr-3 py-2 flex items-center gap-2 text-black">
                           <div className="w-2 h-2 rounded-full bg-black" />
                           {kr.name}
                         </div>
-                        <div className="w-[80px] px-3" />
-                        <div className="w-[140px] px-3">
-                          <div className="flex items-center gap-2">
+                        <div className="w-[80px] px-3 border-l border-gray-200" />
+                        <div className="w-[140px] px-3 py-2 border-l border-gray-200 flex items-center">
+                          <div className="flex items-center gap-2 w-full">
                             <div className="flex-1 h-1.5 bg-white border border-black rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-black rounded-full"
@@ -866,10 +873,10 @@ function GoalsListView({
                             </span>
                           </div>
                         </div>
-                        <div className="w-[100px] px-3" />
-                        <div className="w-[140px] px-3" />
-                        <div className="w-[80px] px-3" />
-                        <div className="w-10" />
+                        <div className="w-[100px] px-3 border-l border-gray-200" />
+                        <div className="w-[140px] px-3 border-l border-gray-200" />
+                        <div className="w-[80px] px-3 border-l border-gray-200" />
+                        <div className="w-10 border-l border-gray-200" />
                       </div>
                     );
                   })}
