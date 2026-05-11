@@ -1,711 +1,570 @@
 "use client";
 
-import { useState, useEffect } from "react";
+/**
+ * /teams/[teamId] — Pro team workspace.
+ *
+ * Rebuilt from a generic Asana-style overview into a real PM
+ * workspace for an engineering firm. The page surfaces:
+ *
+ *   1. Hero header  — name + color band + privacy + KPI tiles (members,
+ *                     active projects, open tasks, overdue, velocity).
+ *   2. Tab strip    — Overview (this page), Members, Work, Messages,
+ *                     Calendar (existing sub-routes).
+ *   3. Members      — dense table with role, open / overdue tasks,
+ *                     completed-last-30d, projects-active, capacity
+ *                     bar, joined date, lead-only role + remove actions.
+ *   4. Capacity matrix — members rows × projects columns with a heat
+ *                        scale and column / row totals. The killer
+ *                        feature for engineering staffing decisions.
+ *   5. Projects     — PMI rows with %Comp / BAC / EAC / SPI / CPI / Float
+ *                     / Health for every project the team owns.
+ *   6. Objectives   — goal chips this team is accountable for.
+ *
+ * All data is pulled in three parallel calls — the team itself, its
+ * workload digest, and the projects with task data — and rendered
+ * client-side. Everything is wired to real endpoints; there are no
+ * dead clicks.
+ */
+
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
-  ChevronDown,
-  Star,
   Users,
-  Plus,
-  FileText,
   FolderKanban,
-  FolderPlus,
-  UserPlus,
-  X,
   LayoutGrid,
   MessageSquare,
   Calendar,
-  BookOpen,
   Target,
-  Briefcase,
-  ExternalLink,
-  Link2,
-  Paperclip,
   Loader2,
   Settings,
-  Trash2,
+  UserPlus,
+  Star,
+  Briefcase,
+  AlertTriangle,
+  TrendingUp,
+  CheckCircle2,
+  Globe,
+  Lock,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { InviteTeamModal, LinkWorkPopover, TeamSettingsModal } from "@/components/teams";
 import { toast } from "sonner";
-
-interface TeamMember {
-  id: string;
-  role: string;
-  user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-    image: string | null;
-  };
-}
-
-interface TeamObjective {
-  id: string;
-  name: string;
-  progress: number;
-  status: "ON_TRACK" | "AT_RISK" | "OFF_TRACK" | null;
-}
+import {
+  CapacityMatrix,
+  type MatrixMember,
+  type MatrixProject,
+} from "@/components/teams/capacity-matrix";
+import {
+  TeamMembersTable,
+  type MemberRow,
+} from "@/components/teams/team-members-table";
+import {
+  TeamProjectsPanel,
+  type TeamProjectRow,
+} from "@/components/teams/team-projects-panel";
+import { InviteTeamModal, TeamSettingsModal } from "@/components/teams";
 
 interface Team {
   id: string;
   name: string;
   description: string | null;
-  avatar: string | null;
   color: string | null;
   privacy: "PUBLIC" | "REQUEST_TO_JOIN" | "PRIVATE";
-  members: TeamMember[];
-  objectives: TeamObjective[];
-  _count: {
-    projects: number;
-    members: number;
-  };
+  workspace?: { id: string; name: string };
+  members: {
+    id: string;
+    role: string;
+    user: { id: string; name: string | null; email: string | null; image: string | null };
+  }[];
+  objectives: {
+    id: string;
+    name: string;
+    progress: number;
+    status: "ON_TRACK" | "AT_RISK" | "OFF_TRACK" | "ACHIEVED" | null;
+  }[];
+  _count: { projects: number; members: number };
 }
 
-interface WorkItem {
+interface WorkloadResponse {
+  members: (MemberRow & { taskByProject: Record<string, number> })[];
+  projects: MatrixProject[];
+  summary: {
+    totalMembers: number;
+    totalProjects: number;
+    totalOpenTasks: number;
+    totalOverdueTasks: number;
+    totalCompletedLast30Days: number;
+    maxOpenPerMember: number;
+  };
+  projectIds: string[];
+}
+
+interface TeamProjectFull {
   id: string;
   name: string;
-  type: "project" | "portfolio" | "template";
-  color?: string;
-  status?: string;
+  color: string;
+  projectNumber: string | null;
+  status: string;
+  gate: string | null;
+  budget: number | string | null;
+  currency: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  owner: { id: string; name: string | null; image: string | null } | null;
+  members: { id: string; name: string | null; image: string | null }[];
 }
 
-export default function TeamPage() {
+export default function TeamWorkspacePage() {
   const params = useParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const teamId = params.teamId as string;
+  const currentUserId =
+    (session?.user as { id?: string } | undefined)?.id || null;
 
   const [team, setTeam] = useState<Team | null>(null);
-  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isStarred, setIsStarred] = useState(false);
-  const [showSetupBanner, setShowSetupBanner] = useState(true);
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [workload, setWorkload] = useState<WorkloadResponse | null>(null);
+  const [projectsFull, setProjectsFull] = useState<TeamProjectRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showInvite, setShowInvite] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [starred, setStarred] = useState(false);
+
+  // ── Load everything in parallel ──────────────────────────────────
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [teamRes, wlRes, projRes] = await Promise.all([
+        fetch(`/api/teams/${teamId}`),
+        fetch(`/api/teams/${teamId}/workload`),
+        fetch(`/api/teams/${teamId}/projects`),
+      ]);
+      if (teamRes.ok) setTeam(await teamRes.json());
+      if (wlRes.ok) setWorkload(await wlRes.json());
+      if (projRes.ok) {
+        const list: TeamProjectFull[] = await projRes.json();
+        // We need budget + dates for PMI calc. /api/teams/[id]/projects
+        // doesn't return budget/dates yet — fetch via /api/projects
+        // and filter to this team's projects. Cheap because we already
+        // have the IDs.
+        const all = await fetch(`/api/projects`).then((r) =>
+          r.ok ? r.json() : []
+        );
+        const allArr: TeamProjectFull[] = Array.isArray(all) ? all : [];
+        const byId = new Map(allArr.map((p) => [p.id, p]));
+        const rows: TeamProjectRow[] = list
+          .map((p) => {
+            const full = byId.get(p.id);
+            if (!full) return null;
+            return {
+              id: p.id,
+              name: p.name,
+              color: p.color,
+              projectNumber: full.projectNumber ?? null,
+              status: full.status,
+              gate: full.gate ?? null,
+              budget: full.budget ?? null,
+              currency: full.currency ?? null,
+              startDate: full.startDate ?? null,
+              endDate: full.endDate ?? null,
+              owner: full.owner,
+              tasks: (full as unknown as { tasks?: TeamProjectRow["tasks"] })
+                .tasks ?? [],
+              totalTaskCount:
+                (full as unknown as { _count?: { tasks?: number } })._count
+                  ?.tasks ?? 0,
+            };
+          })
+          .filter((p): p is TeamProjectRow => p !== null);
+        setProjectsFull(rows);
+      }
+    } catch (e) {
+      console.error("Error loading team workspace:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const [teamRes, workRes] = await Promise.all([
-          fetch(`/api/teams/${teamId}`),
-          fetch(`/api/teams/${teamId}/work`),
-        ]);
-
-        if (teamRes.ok) {
-          const teamData = await teamRes.json();
-          setTeam(teamData);
-        }
-
-        if (workRes.ok) {
-          const workData = await workRes.json();
-          setWorkItems(workData);
-        }
-      } catch (error) {
-        console.error("Error fetching team:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchData();
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
-  const refreshTeam = async () => {
+  // Read starred state from localStorage (mirrors the goal-detail
+  // pattern; no Following model yet).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
-      const res = await fetch(`/api/teams/${teamId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTeam(data);
-      }
-    } catch (error) {
-      console.error("Error refreshing team:", error);
+      const raw = localStorage.getItem("teams.starred");
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      setStarred(list.includes(teamId));
+    } catch {
+      // ignore
     }
-  };
+  }, [teamId]);
 
-  // Calculate setup steps completion
-  const setupSteps = {
-    description: !!team?.description,
-    work: (team?._count?.projects || 0) > 0 || workItems.length > 0,
-    members: (team?._count?.members || 0) > 1,
-  };
-  const completedSteps = Object.values(setupSteps).filter(Boolean).length;
+  function toggleStar() {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("teams.starred");
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      const next = list.includes(teamId)
+        ? list.filter((id) => id !== teamId)
+        : [...list, teamId];
+      localStorage.setItem("teams.starred", JSON.stringify(next));
+      setStarred(next.includes(teamId));
+    } catch {
+      toast.error("Couldn't update star");
+    }
+  }
 
-  // Hide banner if all complete
-  const shouldShowBanner = showSetupBanner && completedSteps < 3;
+  // ── Velocity heuristic: % of work closed in the last 30 days ────
+  const velocityPct = useMemo(() => {
+    if (!workload) return 0;
+    const done = workload.summary.totalCompletedLast30Days;
+    const total = done + workload.summary.totalOpenTasks;
+    if (total === 0) return 0;
+    return Math.round((done / total) * 100);
+  }, [workload]);
 
-  const tabs = [
-    { id: "overview", label: "Overview", icon: LayoutGrid, href: `/teams/${teamId}` },
-    { id: "members", label: "Members", icon: Users, href: `/teams/${teamId}/members` },
-    { id: "work", label: "All work", icon: FolderKanban, href: `/teams/${teamId}/work` },
-    { id: "messages", label: "Messages", icon: MessageSquare, href: `/teams/${teamId}/messages` },
-    { id: "calendar", label: "Calendar", icon: Calendar, href: `/teams/${teamId}/calendar` },
-  ];
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
       </div>
     );
   }
 
   if (!team) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          Team not found
-        </h2>
-        <p className="text-gray-500 mb-4">
-          The team you're looking for doesn't exist or you don't have access.
-        </p>
-        <Button onClick={() => router.push("/")}>Go back home</Button>
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-3">
+        <h2 className="text-lg font-semibold">Team not found</h2>
+        <Button onClick={() => router.push("/teams")}>Back to teams</Button>
       </div>
     );
   }
 
-  const teamName = team.name;
-  const teamInitial = teamName.charAt(0).toUpperCase();
+  const teamColor = team.color || "#c9a84c";
+  const PrivacyIcon = team.privacy === "PRIVATE" ? Lock : Globe;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* ========== HEADER ========== */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Team Avatar */}
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center">
-              {team.avatar ? (
-                <img src={team.avatar} alt="" className="w-full h-full rounded-lg object-cover" />
-              ) : (
-                <span className="text-sm font-medium text-black">{teamInitial}</span>
+    <div className="flex-1 flex flex-col h-full bg-background">
+      {/* ── HERO HEADER ─────────────────────────────────────────── */}
+      <div className="relative border-b">
+        {/* Color band — full-bleed gradient using the team color. */}
+        <div
+          className="h-[72px] md:h-[88px]"
+          style={{
+            background: `linear-gradient(135deg, ${teamColor} 0%, ${teamColor}99 60%, ${teamColor}55 100%)`,
+          }}
+        />
+        <div className="px-4 md:px-6 -mt-6 md:-mt-8 pb-3 md:pb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+          <div className="flex items-end gap-3 md:gap-4 min-w-0">
+            <div
+              className="w-14 h-14 md:w-16 md:h-16 rounded-xl border-4 border-background flex items-center justify-center text-white shadow-sm flex-shrink-0"
+              style={{ backgroundColor: teamColor }}
+            >
+              <Users className="h-7 w-7 md:h-8 md:w-8" />
+            </div>
+            <div className="min-w-0 pb-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                {team.workspace?.name || "Workspace"}
+                <span className="text-gray-300">·</span>
+                <span className="inline-flex items-center gap-1">
+                  <PrivacyIcon className="h-2.5 w-2.5" />
+                  {team.privacy === "PRIVATE" ? "Private" : "Public"}
+                </span>
+              </p>
+              <h1 className="text-xl md:text-2xl font-bold text-black truncate">
+                {team.name}
+              </h1>
+              {team.description && (
+                <p className="text-xs md:text-sm text-gray-500 truncate max-w-[640px]">
+                  {team.description}
+                </p>
               )}
             </div>
-
-            {/* Team Name Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1 font-semibold hover:bg-gray-100 px-2 py-1 rounded transition-colors">
-                {teamName}
-                <ChevronDown className="h-4 w-4 text-gray-400" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuItem onClick={() => setShowSettingsModal(true)}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Team settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-black" onClick={() => setShowSettingsModal(true)}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete team
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Star */}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Button
               variant="ghost"
               size="icon"
-              className={cn("h-8 w-8", isStarred && "text-[#a8893a]")}
-              onClick={() => setIsStarred(!isStarred)}
+              className={cn("h-8 w-8", starred && "text-[#c9a84c]")}
+              onClick={toggleStar}
+              aria-label={starred ? "Unstar team" : "Star team"}
             >
-              <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
+              <Star className={cn("h-4 w-4", starred && "fill-current")} />
             </Button>
-          </div>
-
-          {/* Right: Avatars + Invite */}
-          <div className="flex items-center gap-2">
-            <div className="flex -space-x-2">
-              {team.members.slice(0, 3).map((member) => (
-                <Avatar key={member.id} className="h-8 w-8 border-2 border-white">
-                  <AvatarImage src={member.user.image || undefined} />
-                  <AvatarFallback className="text-xs bg-gray-100 text-black">
-                    {member.user.name?.charAt(0).toUpperCase() || "?"}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-              {team.members.length > 3 && (
-                <div className="h-8 w-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
-                  <span className="text-xs text-gray-600">+{team.members.length - 3}</span>
-                </div>
-              )}
-            </div>
             <Button
-              className="bg-[#a8893a] hover:bg-[#a8893a] gap-2"
-              onClick={() => setShowInviteModal(true)}
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInvite(true)}
             >
-              <Users className="h-4 w-4" />
-              Invite
+              <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+              Invite member
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden md:inline-flex"
+              onClick={() => setShowSettings(true)}
+            >
+              <Settings className="h-3.5 w-3.5 mr-1.5" />
+              Settings
             </Button>
           </div>
         </div>
-
-        {/* Tabs */}
-        <div className="px-6 flex items-center gap-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = tab.id === "overview";
-            return (
-              <button
-                key={tab.id}
-                onClick={() => router.push(tab.href)}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                  isActive
-                    ? "border-gray-900 text-gray-900"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                <Plus className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => router.push(`/teams/${teamId}/work`)}>
-                <FolderKanban className="h-4 w-4 mr-2" />
-                All work
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(`/teams/${teamId}/calendar`)}>
-                <Calendar className="h-4 w-4 mr-2" />
-                Calendar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </div>
 
-      {/* ========== HERO SECTION ========== */}
-      <div className="bg-gradient-to-b from-gray-100 to-gray-50 py-12">
-        <div className="flex flex-col items-center text-center">
-          {/* Large Avatar */}
-          <div className="w-32 h-32 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border-4 border-white shadow-lg flex items-center justify-center mb-6">
-            {team.avatar ? (
-              <img src={team.avatar} alt={team.name} className="w-full h-full rounded-full object-cover" />
-            ) : (
-              <span className="text-5xl font-light text-gray-600">{teamInitial}</span>
-            )}
-          </div>
-
-          {/* Name + Create Work */}
-          <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-semibold text-gray-900">{teamName}</h1>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  Create work
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => router.push(`/projects/new?teamId=${teamId}`)}>
-                  <FolderKanban className="h-4 w-4 mr-2" />
-                  Project
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push(`/portfolios/new?teamId=${teamId}`)}>
-                  <Briefcase className="h-4 w-4 mr-2" />
-                  Portfolio
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push(`/goals/new?teamId=${teamId}`)}>
-                  <Target className="h-4 w-4 mr-2" />
-                  Goal
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push("/templates")}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Template
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* Description */}
-          <button
-            className="mt-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            onClick={() => setShowSettingsModal(true)}
-          >
-            {team.description || "Click to add team description..."}
-          </button>
-        </div>
+      {/* ── TAB STRIP (sub-routes existing) ─────────────────────── */}
+      <div className="flex items-center gap-1 px-4 md:px-6 border-b overflow-x-auto bg-white">
+        {[
+          { id: "overview", label: "Overview", icon: LayoutGrid, href: `/teams/${teamId}` },
+          { id: "members", label: "Members", icon: Users, href: `/teams/${teamId}/members` },
+          { id: "work", label: "All work", icon: FolderKanban, href: `/teams/${teamId}/work` },
+          { id: "messages", label: "Messages", icon: MessageSquare, href: `/teams/${teamId}/messages` },
+          { id: "calendar", label: "Calendar", icon: Calendar, href: `/teams/${teamId}/calendar` },
+        ].map((t) => {
+          const Icon = t.icon;
+          const isActive = t.id === "overview";
+          return (
+            <Link
+              key={t.id}
+              href={t.href}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0",
+                isActive
+                  ? "border-black text-black"
+                  : "border-transparent text-gray-500 hover:text-black"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t.label}
+            </Link>
+          );
+        })}
       </div>
 
-      {/* ========== MAIN CONTENT ========== */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Setup Banner */}
-        {shouldShowBanner && (
-          <div className="bg-white border rounded-xl p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
-                <span className="font-medium text-gray-900">Finish setting up your team</span>
-                <div className="flex items-center gap-2">
-                  <div className={cn(
-                    "w-6 h-6 rounded-full border-2 flex items-center justify-center",
-                    completedSteps === 3 ? "border-[#c9a84c] bg-[#c9a84c]/10" : "border-gray-300"
-                  )}>
-                    {completedSteps === 3 && <span className="text-[#a8893a] text-xs">✓</span>}
-                  </div>
-                  <span className="text-sm text-gray-500">{completedSteps} of 3 steps completed</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowSetupBanner(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      {/* ── KPI STRIP ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-0 border-b bg-white">
+        <KpiTile
+          label="Members"
+          value={String(team._count.members)}
+          icon={Users}
+        />
+        <KpiTile
+          label="Active projects"
+          value={String(team._count.projects)}
+          icon={Briefcase}
+        />
+        <KpiTile
+          label="Open tasks"
+          value={String(workload?.summary.totalOpenTasks ?? 0)}
+          icon={FolderKanban}
+        />
+        <KpiTile
+          label="Overdue"
+          value={String(workload?.summary.totalOverdueTasks ?? 0)}
+          icon={AlertTriangle}
+          emphasize={(workload?.summary.totalOverdueTasks ?? 0) > 0}
+        />
+        <KpiTile
+          label="Velocity 30d"
+          value={`${velocityPct}%`}
+          sub={`${workload?.summary.totalCompletedLast30Days ?? 0} closed`}
+          icon={TrendingUp}
+        />
+      </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Step 1: Description */}
-              <button
-                onClick={() => setShowSettingsModal(true)}
-                className={cn(
-                  "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
-                  setupSteps.description ? "bg-[#c9a84c]/10 border-[#c9a84c]/30" : "bg-white"
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    setupSteps.description ? "bg-[#c9a84c]/15" : "bg-gray-100"
-                  )}>
-                    {setupSteps.description ? (
-                      <span className="text-[#a8893a] text-sm">✓</span>
-                    ) : (
-                      <FileText className="h-4 w-4 text-gray-500" />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className={cn(
-                      "font-medium text-sm",
-                      setupSteps.description ? "text-[#a8893a]" : "text-gray-900"
-                    )}>
-                      Add team description
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Describe the purpose and responsibilities of your team
-                    </p>
-                  </div>
-                </div>
-              </button>
-
-              {/* Step 2: Work */}
-              <LinkWorkPopover
-                teamId={teamId}
-                onSuccess={() => {
-                  fetch(`/api/teams/${teamId}/work`)
-                    .then((res) => res.json())
-                    .then((data) => setWorkItems(data));
-                }}
-              >
-                <button
-                  className={cn(
-                    "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all w-full",
-                    setupSteps.work ? "bg-[#c9a84c]/10 border-[#c9a84c]/30" : "bg-white"
-                  )}
+      {/* ── BODY ────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-auto">
+        <div className="px-4 md:px-6 py-4 md:py-6 space-y-6 md:space-y-8 max-w-[1600px]">
+          {/* Members table */}
+          <section>
+            <SectionHeader
+              title="Members"
+              subtitle={`${team._count.members} on the team`}
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowInvite(true)}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className={cn(
-                      "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                      setupSteps.work ? "bg-[#c9a84c]/15" : "bg-gray-100"
-                    )}>
-                      {setupSteps.work ? (
-                        <span className="text-[#a8893a] text-sm">✓</span>
-                      ) : (
-                        <FolderPlus className="h-4 w-4 text-gray-500" />
-                      )}
-                    </div>
-                    <div>
-                      <h4 className={cn(
-                        "font-medium text-sm",
-                        setupSteps.work ? "text-[#a8893a]" : "text-gray-900"
-                      )}>
-                        Add work
-                      </h4>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Link existing projects, portfolios, or templates
+                  <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+                  Invite member
+                </Button>
+              }
+            />
+            <TeamMembersTable
+              teamId={teamId}
+              currentUserId={currentUserId}
+              members={(workload?.members || []) as MemberRow[]}
+              onChanged={fetchAll}
+            />
+          </section>
+
+          {/* Capacity matrix */}
+          <section>
+            <SectionHeader
+              title="Capacity matrix"
+              subtitle="Open tasks per member × project. Heat color = relative load."
+            />
+            <CapacityMatrix
+              members={(workload?.members || []) as MatrixMember[]}
+              projects={(workload?.projects || []) as MatrixProject[]}
+              maxOpenPerMember={workload?.summary.maxOpenPerMember ?? 1}
+            />
+          </section>
+
+          {/* Team projects (PMI rows) */}
+          <section>
+            <SectionHeader
+              title="Projects"
+              subtitle={`${projectsFull.length} project${projectsFull.length === 1 ? "" : "s"} owned by this team`}
+            />
+            <TeamProjectsPanel projects={projectsFull} />
+          </section>
+
+          {/* Linked objectives */}
+          <section>
+            <SectionHeader
+              title="Objectives"
+              subtitle={`${team.objectives.length} goal${team.objectives.length === 1 ? "" : "s"} this team is accountable for`}
+            />
+            {team.objectives.length === 0 ? (
+              <div className="border border-dashed rounded-xl p-6 text-center text-sm text-gray-500">
+                No objectives assigned to this team yet.{" "}
+                <Link
+                  href="/goals"
+                  className="text-black underline hover:no-underline"
+                >
+                  Open Goals
+                </Link>{" "}
+                to assign one.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {team.objectives.map((o) => (
+                  <Link
+                    key={o.id}
+                    href={`/goals/${o.id}`}
+                    className="block border rounded-xl p-3 bg-white hover:border-gray-400 transition-colors"
+                  >
+                    <div className="flex items-start gap-2 mb-2">
+                      <Target className="h-3.5 w-3.5 text-[#c9a84c] mt-0.5 flex-shrink-0" />
+                      <p className="text-sm font-medium text-black truncate">
+                        {o.name}
                       </p>
                     </div>
-                  </div>
-                </button>
-              </LinkWorkPopover>
-
-              {/* Step 3: Members */}
-              <button
-                onClick={() => setShowInviteModal(true)}
-                className={cn(
-                  "p-4 border rounded-lg text-left hover:border-gray-400 hover:shadow-sm transition-all",
-                  setupSteps.members ? "bg-[#c9a84c]/10 border-[#c9a84c]/30" : "bg-white"
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    setupSteps.members ? "bg-[#c9a84c]/15" : "bg-gray-100"
-                  )}>
-                    {setupSteps.members ? (
-                      <span className="text-[#a8893a] text-sm">✓</span>
-                    ) : (
-                      <UserPlus className="h-4 w-4 text-gray-500" />
-                    )}
-                  </div>
-                  <div>
-                    <h4 className={cn(
-                      "font-medium text-sm",
-                      setupSteps.members ? "text-[#a8893a]" : "text-gray-900"
-                    )}>
-                      Add teammates
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Invite teammates to your new team to collaborate
-                    </p>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Two Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Work Selection (2/3) */}
-          <div className="lg:col-span-2">
-            <div className="bg-white border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Work selection</h3>
-                <button
-                  className="text-sm text-[#a8893a] hover:underline"
-                  onClick={() => router.push(`/teams/${teamId}/work`)}
-                >
-                  View all work
-                </button>
-              </div>
-
-              {workItems.length > 0 ? (
-                <div className="space-y-2">
-                  {workItems.slice(0, 5).map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => router.push(`/${item.type}s/${item.id}`)}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors text-left"
-                    >
-                      <div
-                        className="w-8 h-8 rounded flex items-center justify-center"
-                        style={{ backgroundColor: item.color || "#c9a84c" }}
-                      >
-                        <FolderKanban className="h-4 w-4 text-white" />
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">{item.name}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  {/* Skeleton placeholder items */}
-                  <div className="space-y-3 opacity-30 mb-6">
-                    <div className="flex items-center gap-3 p-3">
-                      <div className="w-8 h-8 bg-[#d4b65a] rounded" />
-                      <div className="h-3 bg-gray-300 rounded w-3/4" />
-                    </div>
-                    <div className="flex items-center gap-3 p-3">
-                      <div className="w-8 h-8 bg-gray-300 rounded" />
-                      <div className="h-3 bg-gray-300 rounded w-1/2" />
-                    </div>
-                    <div className="flex items-center gap-3 p-3">
-                      <div className="w-8 h-8 bg-[#c9a84c]/35 rounded" />
-                      <div className="h-3 bg-gray-300 rounded w-2/3" />
-                    </div>
-                  </div>
-
-                  <p className="text-sm text-gray-500 text-center mb-4">
-                    Organize links to important work, like portfolios, projects, templates, etc.,
-                    so your team members can easily find them.
-                  </p>
-
-                  <div className="flex justify-center">
-                    <LinkWorkPopover
-                      teamId={teamId}
-                      onSuccess={() => {
-                        // Refresh work items
-                        fetch(`/api/teams/${teamId}/work`)
-                          .then((res) => res.json())
-                          .then((data) => setWorkItems(data));
-                      }}
-                    >
-                      <Button className="bg-[#c9a84c] hover:bg-[#a8893a]">
-                        Add work
-                      </Button>
-                    </LinkWorkPopover>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Right Column (1/3) */}
-          <div className="space-y-6">
-            {/* Members Widget */}
-            <div className="bg-white border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Members</h3>
-                <button
-                  className="text-sm text-[#a8893a] hover:underline"
-                  onClick={() => router.push(`/teams/${teamId}/members`)}
-                >
-                  View list of {team.members.length} item{team.members.length !== 1 ? "s" : ""}
-                </button>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {team.members.slice(0, 8).map((member) => (
-                  <Avatar
-                    key={member.id}
-                    className="h-10 w-10 border-2 border-white shadow-sm cursor-pointer hover:scale-105 transition-transform"
-                    title={member.user.name || member.user.email || "Member"}
-                  >
-                    <AvatarImage src={member.user.image || undefined} />
-                    <AvatarFallback className="bg-gray-100 text-black text-sm">
-                      {member.user.name?.charAt(0).toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-                <button
-                  onClick={() => setShowInviteModal(true)}
-                  className="h-10 w-10 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-                {team.members.length > 8 && (
-                  <span className="text-sm text-gray-500">+{team.members.length - 8}</span>
-                )}
-              </div>
-            </div>
-
-            {/* Goals Widget */}
-            <div className="bg-white border rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Goals</h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1">
-                      Create goal
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-72">
-                    <DropdownMenuItem
-                      className="cursor-pointer"
-                      onClick={() => router.push(`/goals/new?teamId=${teamId}`)}
-                    >
-                      <Target className="h-4 w-4 mr-2" />
-                      Blank goal
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="cursor-pointer py-3">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Use goal templates</span>
-                            <ExternalLink className="h-3 w-3 text-gray-400" />
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Standardize how goals are created in your organization.
-                          </p>
-                        </div>
-                      </div>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              {team.objectives && team.objectives.length > 0 ? (
-                <div className="space-y-3">
-                  {team.objectives.map((goal) => (
-                    <button
-                      key={goal.id}
-                      onClick={() => router.push(`/goals/${goal.id}`)}
-                      className="w-full text-left group"
-                    >
-                      <div className="w-full h-2 bg-gray-100 rounded-full mb-2 overflow-hidden">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            goal.status === "ON_TRACK" ? "bg-[#c9a84c]" :
-                            goal.status === "AT_RISK" ? "bg-[#a8893a]" :
-                            goal.status === "OFF_TRACK" ? "bg-black" : "bg-[#c9a84c]"
-                          )}
-                          style={{ width: `${goal.progress}%` }}
+                          className="h-full bg-[#c9a84c]"
+                          style={{ width: `${o.progress}%` }}
                         />
                       </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-900 group-hover:text-[#a8893a] transition-colors">
-                          {goal.name}
-                        </span>
-                        <span className="text-gray-500">{goal.progress}%</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm font-medium text-gray-900 mb-1">
-                    This team hasn't created any goals yet
-                  </p>
-                  <p className="text-xs text-gray-500 mb-4">
-                    Add a goal so the team can see what you want to achieve.
-                  </p>
-
-                  {/* Placeholder progress */}
-                  <div className="opacity-40">
-                    <div className="h-2 bg-gray-200 rounded-full mb-2" />
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-[#c9a84c]" />
-                        <span className="text-gray-400">In progress (0%)</span>
-                      </div>
-                      <div className="w-6 h-6 rounded-full border-2 border-dashed border-gray-300" />
+                      <span className="text-[11px] font-mono tabular-nums text-gray-600 w-9 text-right">
+                        {o.progress}%
+                      </span>
                     </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </div>
 
-      {/* Invite Modal */}
       <InviteTeamModal
         teamId={teamId}
-        open={showInviteModal}
-        onClose={() => setShowInviteModal(false)}
-        onInviteSent={refreshTeam}
+        open={showInvite}
+        onClose={() => setShowInvite(false)}
+        onInviteSent={fetchAll}
       />
-
-      {/* Settings Modal */}
       <TeamSettingsModal
         team={{
           id: team.id,
           name: team.name,
           description: team.description,
           privacy: team.privacy,
+          workspace: team.workspace
+            ? { name: team.workspace.name }
+            : null,
         }}
-        open={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        onSave={refreshTeam}
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        onSave={fetchAll}
       />
+    </div>
+  );
+}
+
+function SectionHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <div>
+        <h2 className="text-sm font-semibold text-black">{title}</h2>
+        {subtitle && (
+          <p className="text-[11px] text-gray-500">{subtitle}</p>
+        )}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function KpiTile({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  emphasize = false,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  emphasize?: boolean;
+}) {
+  return (
+    <div className="px-4 py-3 border-r last:border-r-0 border-gray-200 flex items-center gap-3">
+      <div
+        className={cn(
+          "h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0",
+          emphasize ? "bg-black text-[#c9a84c]" : "bg-gray-100 text-gray-500"
+        )}
+      >
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+          {label}
+        </p>
+        <p
+          className={cn(
+            "text-lg md:text-xl font-mono tabular-nums leading-tight",
+            emphasize ? "font-bold text-black" : "font-semibold text-black"
+          )}
+        >
+          {value}
+        </p>
+        {sub && (
+          <p className="text-[10px] text-gray-500 font-mono tabular-nums truncate">
+            {sub}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
