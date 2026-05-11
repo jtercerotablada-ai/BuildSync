@@ -4,6 +4,16 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId, AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
 
+const keyResultSeedSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  targetValue: z.number(),
+  startValue: z.number().optional(),
+  currentValue: z.number().optional(),
+  unit: z.string().optional(),
+  format: z.enum(["NUMBER", "PERCENTAGE", "CURRENCY", "BOOLEAN"]).optional(),
+});
+
 const createObjectiveSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -12,6 +22,9 @@ const createObjectiveSchema = z.object({
   teamId: z.string().optional(),
   ownerId: z.string().optional(),
   progressSource: z.enum(["MANUAL", "KEY_RESULTS", "SUB_OBJECTIVES", "PROJECTS"]).optional(),
+  // Optional. When present, the objective is created together with these
+  // KRs in a single transaction — used by the engineering goal templates.
+  keyResults: z.array(keyResultSeedSchema).optional(),
 });
 
 // GET /api/objectives - List all objectives
@@ -193,6 +206,25 @@ export async function POST(req: Request) {
         progressSource: data.progressSource || "MANUAL",
         workspaceId: workspaceMember.workspaceId,
         ownerId: resolvedOwnerId,
+        // Template path: seed all KRs in the same transaction so the
+        // created objective is immediately useful (progress = 0% across
+        // the predefined KRs rather than an empty shell).
+        ...(data.keyResults && data.keyResults.length > 0
+          ? {
+              keyResults: {
+                create: data.keyResults.map((kr) => ({
+                  name: kr.name,
+                  description: kr.description,
+                  targetValue: kr.targetValue,
+                  startValue: kr.startValue ?? 0,
+                  currentValue: kr.currentValue ?? kr.startValue ?? 0,
+                  unit: kr.unit,
+                  format: kr.format ?? "NUMBER",
+                  ownerId: resolvedOwnerId,
+                })),
+              },
+            }
+          : {}),
       },
       include: {
         owner: {

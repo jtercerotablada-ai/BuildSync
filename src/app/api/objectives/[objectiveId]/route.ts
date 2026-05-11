@@ -14,6 +14,11 @@ const updateObjectiveSchema = z.object({
   startDate: z.string().optional().nullable(),
   endDate: z.string().optional().nullable(),
   teamId: z.string().optional().nullable(),
+  // Owner-rated 1-10 confidence the goal will land. Editable from the
+  // confidence ring on the detail page; the check-in endpoint also
+  // updates this, but allowing direct PATCH lets the ring save without
+  // forcing a full check-in.
+  confidenceScore: z.number().int().min(1).max(10).optional().nullable(),
 });
 
 // GET /api/objectives/:objectiveId - Get objective details
@@ -193,6 +198,9 @@ export async function PATCH(
     }
     if (data.endDate !== undefined) {
       updateData.endDate = data.endDate ? new Date(data.endDate) : null;
+    }
+    if (data.confidenceScore !== undefined) {
+      updateData.confidenceScore = data.confidenceScore;
     }
 
     const objective = await prisma.objective.update({

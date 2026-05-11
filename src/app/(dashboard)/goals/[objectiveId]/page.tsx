@@ -43,6 +43,10 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { GoalProgressChart } from "@/components/goals/goal-progress-chart";
+import { ConfidenceRing } from "@/components/goals/confidence-ring";
+import { CheckInDialog } from "@/components/goals/check-in-dialog";
+import { LinkedProjectsPanel } from "@/components/goals/linked-projects-panel";
+import { AICoachPanel } from "@/components/goals/ai-coach-panel";
 
 interface KeyResult {
   id: string;
@@ -73,6 +77,8 @@ interface Objective {
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
+  confidenceScore?: number | null;
+  lastCheckInAt?: string | null;
   owner: {
     id: string;
     name: string | null;
@@ -186,6 +192,24 @@ export default function GoalDetailPage() {
   const [comment, setComment] = useState("");
   const [isLiked, setIsLiked] = useState(false);
   const [isStarred, setIsStarred] = useState(false);
+  const [checkInOpen, setCheckInOpen] = useState(false);
+
+  async function handleConfidenceChange(next: number) {
+    try {
+      const res = await fetch(`/api/objectives/${objectiveId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confidenceScore: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setObjective((prev) =>
+        prev ? { ...prev, confidenceScore: next } : null
+      );
+      toast.success("Confidence updated");
+    } catch {
+      toast.error("Couldn't update confidence");
+    }
+  }
 
   const [newKR, setNewKR] = useState({
     name: "",
@@ -827,35 +851,51 @@ export default function GoalDetailPage() {
             </div>
           )}
 
-          {/* ========== AI BANNER ========== */}
-          <div className="border rounded-xl p-3 md:p-4 mb-6 md:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-black flex-shrink-0" />
-              <span className="text-sm">Improve your objective with TT AI</span>
+          {/* ========== CHECK-IN BAR + AI COACH ========== */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <ConfidenceRing
+                score={objective.confidenceScore ?? null}
+                onChange={handleConfidenceChange}
+                size={56}
+              />
+              <div>
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                  Confidence
+                </p>
+                <p className="text-xs text-gray-600 max-w-[200px]">
+                  {objective.lastCheckInAt
+                    ? `Last check-in ${formatRelativeTime(objective.lastCheckInAt)}`
+                    : "No check-in yet — share where you stand"}
+                </p>
+              </div>
             </div>
             <Button
-              variant="outline"
               size="sm"
-              onClick={async () => {
-                try {
-                  const res = await fetch('/api/ai/assist', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      prompt: 'Suggest 3 improvements for this goal. Be concise with bullet points:',
-                      text: `Goal: ${objective.name}\nDescription: ${objective.description || 'None'}\nKey Results: ${objective.keyResults.map(kr => kr.name).join(', ') || 'None'}`,
-                    }),
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    toast.info(data.result, { duration: 10000 });
-                  }
-                } catch { toast.error('Could not get AI suggestions'); }
-              }}
+              onClick={() => setCheckInOpen(true)}
+              className="bg-black hover:bg-gray-900 text-white"
             >
-              See improvements
+              <Send className="w-3.5 h-3.5 mr-2" />
+              Check in this week
             </Button>
           </div>
+
+          <AICoachPanel objectiveId={objective.id} />
+
+          <LinkedProjectsPanel
+            objectiveId={objective.id}
+            progressSource={objective.progressSource}
+            onChanged={fetchObjective}
+          />
+
+          <CheckInDialog
+            open={checkInOpen}
+            onOpenChange={setCheckInOpen}
+            objectiveId={objective.id}
+            currentStatus={objective.status}
+            currentConfidence={objective.confidenceScore ?? null}
+            onSuccess={fetchObjective}
+          />
 
           {/* ========== DESCRIPTION ========== */}
           <div className="mb-8">

@@ -37,9 +37,22 @@ import {
   Settings,
   User,
   Users,
+  List,
+  LayoutGrid,
+  Kanban,
+  Network,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { GoalsCardsView } from "@/components/goals/views/goals-cards-view";
+import { GoalsKanbanView } from "@/components/goals/views/goals-kanban-view";
+import { GoalsTreeView } from "@/components/goals/views/goals-tree-view";
+import {
+  GOAL_TEMPLATES,
+  GOAL_TEMPLATE_CATEGORY_LABEL,
+  type GoalTemplate,
+} from "@/lib/goal-templates-data";
 
 interface KeyResult {
   id: string;
@@ -57,6 +70,8 @@ interface Objective {
   status: string;
   progress: number;
   period: string | null;
+  confidenceScore?: number | null;
+  lastCheckInAt?: string | null;
   owner: {
     id: string;
     name: string | null;
@@ -75,12 +90,26 @@ interface Objective {
   }[];
   _count: {
     keyResults: number;
+    projects?: number;
     children: number;
   };
   parentId?: string | null;
 }
 
-type TabType = "strategy-map" | "team-goals" | "my-goals";
+/**
+ * Two-axis navigation for the Goals listing:
+ *   - FilterMode: scope of which goals to show
+ *   - ViewType: how to render the same dataset (list / kanban / cards / tree)
+ *
+ * The strategy-map onboarding flow is kept as a special pre-empty state
+ * when ViewType="tree" AND there are zero goals; once at least one goal
+ * exists, the tree view renders the real hierarchy.
+ */
+type FilterMode = "all" | "my" | "team";
+type ViewType = "list" | "kanban" | "cards" | "tree";
+
+const VIEW_STORAGE_KEY = "goals.view";
+const FILTER_STORAGE_KEY = "goals.filter";
 
 const PERIODS = [
   "All",
@@ -101,38 +130,63 @@ export default function GoalsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<TabType>("my-goals");
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [selectedView, setSelectedView] = useState<ViewType>("list");
   const [selectedPeriod, setSelectedPeriod] = useState("All");
+  // Template-aware create state. When `pendingTemplate` is set, the
+  // dialog pre-fills name + creates KRs from the template payload.
+  const [pendingTemplate, setPendingTemplate] = useState<GoalTemplate | null>(
+    null
+  );
   const [newObjective, setNewObjective] = useState({
     name: "",
     period: "Q1 FY26",
   });
 
-  // Strategy map onboarding state
+  // Strategy map onboarding state — only used when tree view + empty list.
   const [showStrategyOnboarding, setShowStrategyOnboarding] = useState(true);
 
-  const tabs = [
-    { id: "strategy-map" as TabType, label: "Strategy map" },
-    { id: "team-goals" as TabType, label: "Team goals" },
-    { id: "my-goals" as TabType, label: "My goals" },
-  ];
+  // Restore the user's last view + filter choice on mount. Stored in
+  // localStorage so the view sticks across navigation, not just tab
+  // switches inside this page.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedView = localStorage.getItem(VIEW_STORAGE_KEY) as ViewType | null;
+    if (storedView && ["list", "kanban", "cards", "tree"].includes(storedView)) {
+      setSelectedView(storedView);
+    }
+    const storedFilter = localStorage.getItem(FILTER_STORAGE_KEY) as FilterMode | null;
+    if (storedFilter && ["all", "my", "team"].includes(storedFilter)) {
+      setFilterMode(storedFilter);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(VIEW_STORAGE_KEY, selectedView);
+  }, [selectedView]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(FILTER_STORAGE_KEY, filterMode);
+  }, [filterMode]);
 
   useEffect(() => {
     const controller = new AbortController();
     fetchObjectives(controller.signal);
     return () => controller.abort();
-    // Re-fetch whenever the tab OR the period filter changes — the period
-    // dropdown was previously cosmetic (state changed but no refetch).
+    // Re-fetch whenever filter OR period changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedPeriod]);
+  }, [filterMode, selectedPeriod]);
 
   async function fetchObjectives(signal?: AbortSignal) {
     try {
       const params = new URLSearchParams();
       params.set("parentId", "null");
-      if (activeTab === "my-goals") params.set("ownerId", "me");
-      // Pass the selected period so the list actually filters; without
-      // this the dropdown was cosmetic (audit: was state-only mutation).
+      // "team" mode = list goals tied to a team (not just my own). The
+      // listing endpoint already scopes by workspace; "all" leaves the
+      // query unscoped beyond that.
+      if (filterMode === "my") params.set("ownerId", "me");
       if (selectedPeriod && selectedPeriod !== "All") {
         params.set("period", selectedPeriod);
       }
@@ -140,7 +194,13 @@ export default function GoalsPage() {
       const res = await fetch(`/api/objectives?${params}`, { signal });
       if (res.ok) {
         const data = await res.json();
-        setObjectives(data);
+        // Team-only filter is client-side because the API doesn't
+        // accept "any team" as a query param.
+        const filtered =
+          filterMode === "team"
+            ? (data as Objective[]).filter((o) => o.team)
+            : (data as Objective[]);
+        setObjectives(filtered);
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -151,8 +211,15 @@ export default function GoalsPage() {
     }
   }
 
-  async function handleCreate() {
-    if (!newObjective.name.trim()) return;
+  /**
+   * Single create flow used by both Blank goal and Template paths.
+   * When `template` is provided, the API receives the KRs in the same
+   * POST and creates them transactionally.
+   */
+  async function handleCreate(template?: GoalTemplate | null) {
+    const tpl = template ?? pendingTemplate;
+    const name = tpl ? tpl.objective.name : newObjective.name;
+    if (!name.trim()) return;
 
     setCreating(true);
     try {
@@ -160,9 +227,11 @@ export default function GoalsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newObjective.name,
+          name,
+          description: tpl?.objective.description,
           period: newObjective.period,
-          progressSource: "KEY_RESULTS",
+          progressSource: tpl?.objective.progressSource ?? "KEY_RESULTS",
+          keyResults: tpl?.keyResults,
         }),
       });
 
@@ -242,43 +311,93 @@ export default function GoalsPage() {
         </Button>
       </div>
 
-      {/* Tabs */}
+      {/* Filter pills (replace old tabs) */}
       <div className="flex items-center gap-1 px-4 md:px-6 border-b overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0",
-              activeTab === tab.id
-                ? "border-slate-900 text-black"
-                : "border-transparent text-black hover:text-black"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-        <button
-          className="p-2 text-black hover:text-black hover:bg-slate-100 rounded-md ml-1 flex-shrink-0"
-          onClick={() => setCreateOpen(true)}
-          aria-label="Create goal"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
+        {(
+          [
+            { id: "all" as FilterMode, label: "All goals", icon: Target },
+            { id: "my" as FilterMode, label: "My goals", icon: User },
+            { id: "team" as FilterMode, label: "Team goals", icon: Users },
+          ] as const
+        ).map((opt) => {
+          const Icon = opt.icon;
+          return (
+            <button
+              key={opt.id}
+              onClick={() => setFilterMode(opt.id)}
+              className={cn(
+                "px-3 md:px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex-shrink-0 inline-flex items-center gap-1.5",
+                filterMode === opt.id
+                  ? "border-black text-black"
+                  : "border-transparent text-gray-500 hover:text-black"
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {opt.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-3 border-b bg-white">
         <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-          {/* Create Goal Button */}
-          <Button
-            size="sm"
-            className="bg-black hover:bg-black"
-            onClick={() => setCreateOpen(true)}
-          >
-            <Plus className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Create goal</span>
-          </Button>
+          {/* Create Goal — split button with Templates dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                className="bg-black hover:bg-gray-900 text-white"
+              >
+                <Plus className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">New goal</span>
+                <ChevronDown className="w-3 h-3 ml-1 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuItem
+                onClick={() => {
+                  setPendingTemplate(null);
+                  setCreateOpen(true);
+                }}
+              >
+                <Target className="w-4 h-4 mr-2 text-gray-500" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Blank goal</p>
+                  <p className="text-[11px] text-gray-500">
+                    Start from scratch
+                  </p>
+                </div>
+              </DropdownMenuItem>
+              <div className="border-t my-1" />
+              <div className="px-2 py-1">
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  Engineering templates
+                </p>
+              </div>
+              {GOAL_TEMPLATES.map((tpl) => (
+                <DropdownMenuItem
+                  key={tpl.id}
+                  onClick={() => {
+                    setPendingTemplate(tpl);
+                    handleCreate(tpl);
+                  }}
+                  className="cursor-pointer"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {tpl.name}
+                    </p>
+                    <p className="text-[11px] text-gray-500 truncate">
+                      {GOAL_TEMPLATE_CATEGORY_LABEL[tpl.category]} ·{" "}
+                      {tpl.keyResults.length} KRs
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Period Selector */}
           <div className="flex items-center bg-white border rounded-md">
@@ -311,19 +430,35 @@ export default function GoalsPage() {
         </div>
 
         <div className="flex items-center gap-1 md:gap-2 flex-wrap">
-          {/* Owner/Team Filter Badge */}
-          {activeTab === "my-goals" && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-black rounded-full text-sm max-w-[200px]">
-              <User className="w-4 h-4 text-black flex-shrink-0" />
-              <span className="text-black truncate">Owner: {session?.user?.name || "Me"}</span>
-            </div>
-          )}
-          {activeTab === "team-goals" && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white border border-black rounded-full text-sm max-w-[200px]">
-              <Users className="w-4 h-4 text-black flex-shrink-0" />
-              <span className="text-black truncate">Team: My workspace</span>
-            </div>
-          )}
+          {/* View switcher — 4 buttons. Same data, opinionated layouts. */}
+          <div className="hidden sm:flex items-center bg-white border rounded-md overflow-hidden">
+            {(
+              [
+                { id: "list" as ViewType, icon: List, label: "List" },
+                { id: "kanban" as ViewType, icon: Kanban, label: "Kanban" },
+                { id: "cards" as ViewType, icon: LayoutGrid, label: "Cards" },
+                { id: "tree" as ViewType, icon: Network, label: "Tree" },
+              ] as const
+            ).map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setSelectedView(opt.id)}
+                  aria-label={opt.label}
+                  title={opt.label}
+                  className={cn(
+                    "p-1.5 transition-colors",
+                    selectedView === opt.id
+                      ? "bg-black text-white"
+                      : "text-gray-500 hover:text-black hover:bg-gray-50"
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                </button>
+              );
+            })}
+          </div>
 
           {/* Filter & Options */}
           <DropdownMenu>
@@ -334,14 +469,17 @@ export default function GoalsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => { setSelectedPeriod("All"); }}>
+              <DropdownMenuItem onClick={() => setSelectedPeriod("All")}>
                 All periods
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setActiveTab("my-goals"); }}>
+              <DropdownMenuItem onClick={() => setFilterMode("my")}>
                 My goals only
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setActiveTab("team-goals"); }}>
+              <DropdownMenuItem onClick={() => setFilterMode("team")}>
                 Team goals only
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilterMode("all")}>
+                Reset (all goals)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -366,15 +504,17 @@ export default function GoalsPage() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content — dispatch on selectedView. Strategy-map onboarding
+          flow only shows for the tree view when the list is empty. */}
       <div className="flex-1 overflow-auto">
-        {activeTab === "strategy-map" ? (
+        {selectedView === "tree" &&
+        showStrategyOnboarding &&
+        objectives.length === 0 ? (
           <StrategyMapView
             objectives={objectives}
-            showOnboarding={showStrategyOnboarding && objectives.length === 0}
+            showOnboarding={true}
             onCreateGoal={async (name?: string) => {
               if (name) {
-                // Direct create from strategy map onboarding
                 try {
                   const res = await fetch("/api/objectives", {
                     method: "POST",
@@ -400,7 +540,17 @@ export default function GoalsPage() {
             }}
             onSkipOnboarding={() => setShowStrategyOnboarding(false)}
           />
+        ) : selectedView === "kanban" ? (
+          <GoalsKanbanView
+            objectives={objectives}
+            onStatusChange={() => fetchObjectives()}
+          />
+        ) : selectedView === "cards" ? (
+          <GoalsCardsView objectives={objectives} />
+        ) : selectedView === "tree" ? (
+          <GoalsTreeView objectives={objectives} />
         ) : (
+          /* default: list */
           <GoalsListView
             objectives={objectives}
             expandedIds={expandedIds}
@@ -454,7 +604,7 @@ export default function GoalsPage() {
             </div>
             <Button
               className="w-full bg-black hover:bg-black"
-              onClick={handleCreate}
+              onClick={() => handleCreate()}
               disabled={creating || !newObjective.name.trim()}
             >
               {creating ? (

@@ -897,6 +897,12 @@ model Objective {
   endDate        DateTime?
   period         String? // "Q1 2024", "2024", etc.
   isPrivate      Boolean         @default(false)
+  // Owner self-rated confidence the goal will land, 1-10. Trended via
+  // ObjectiveStatusUpdate history to detect drift early.
+  confidenceScore Int?
+  // Last time the owner did a check-in (status + confidence + note).
+  // Powers the "due for check-in" indicator on the list.
+  lastCheckInAt   DateTime?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
