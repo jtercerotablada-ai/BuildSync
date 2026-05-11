@@ -8,6 +8,8 @@
   <line x1="35" y1="14" x2="35" y2="7" stroke="#c9a84c" stroke-width="1.5" stroke-linecap="round"/>
   <!-- TT with edge-touching kerning (letter-spacing cancels Inter Bold sidebearings) -->
   <text x="28" y="47" font-family="'Inter', Arial, sans-serif" font-weight="700" font-size="30" text-anchor="middle" letter-spacing="-2.5"><tspan fill="#ffffff">T</tspan><tspan fill="#c9a84c">T</tspan></text>
+  <!-- Hairline divider between badge and company text (Variant 01) -->
+  <line x1="62" y1="14" x2="62" y2="42" stroke="#c9a84c" stroke-width="0.6" opacity="0.5"/>
   <!-- Company name -->
   <text x="68" y="20" font-family="'Inter', Arial, sans-serif" font-weight="700" font-size="13" fill="#ffffff" letter-spacing="2.5">TERCERO TABLADA</text>
   <text x="68" y="36" font-family="'Inter', Arial, sans-serif" font-weight="400" font-size="6.5" fill="#999999" letter-spacing="1.2">CIVIL &amp; STRUCTURAL ENGINEERING INC.</text>
