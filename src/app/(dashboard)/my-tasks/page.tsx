@@ -1214,10 +1214,15 @@ export default function MyTasksPage() {
             "--col-visibility": `${columnWidths.visibility}px`,
           } as React.CSSProperties}
         >
-          {/* COLUMN HEADERS - Only show in List view */}
+          <div className="flex-1 overflow-auto">
+          {/* COLUMN HEADERS - sticky inside the scroll container so it shares
+              the same effective width as the task rows below. Living outside
+              the scroll container made the header ~15px wider than each row
+              when a vertical scrollbar appeared, which is what caused the
+              column dividers to jog at the header/data seam. */}
           {view === "list" && (
             <div
-              className="hidden md:flex items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0"
+              className="hidden md:flex items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20"
               style={{ height: "var(--col-header-h, 32px)" }}
             >
           {/* Checkbox spacer */}
@@ -1389,7 +1394,6 @@ export default function MyTasksPage() {
             </div>
           </div>
           )}
-          <div className="flex-1 overflow-auto">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-black" />
