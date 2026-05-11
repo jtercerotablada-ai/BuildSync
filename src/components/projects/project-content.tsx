@@ -42,6 +42,7 @@ import {
   Archive,
   Check,
   X,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -56,6 +57,7 @@ import { MessagesView } from "@/components/views/messages-view";
 import { FilesView } from "@/components/views/files-view";
 import { ProjectOverview } from "@/components/projects/project-overview";
 import { ProjectMembersDialog } from "@/components/projects/project-members-dialog";
+import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 
@@ -115,7 +117,40 @@ interface Project {
     id: string;
     name: string;
   } | null;
+  // Engineering metadata (any of these may be null on legacy rows)
+  projectNumber?: string | null;
+  type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | null;
+  gate?: "PRE_DESIGN" | "DESIGN" | "PERMITTING" | "CONSTRUCTION" | "CLOSEOUT" | null;
+  location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  budget?: number | string | null;
+  currency?: string | null;
+  clientName?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
 }
+
+const PROJECT_TYPE_LABEL: Record<string, string> = {
+  CONSTRUCTION: "Construction",
+  DESIGN: "Design",
+  RECERTIFICATION: "Recertification",
+  PERMIT: "Permit",
+};
+const PROJECT_TYPE_COLOR: Record<string, string> = {
+  CONSTRUCTION: "#c9a84c",
+  DESIGN: "#4573D2",
+  RECERTIFICATION: "#a8893a",
+  PERMIT: "#d28a4a",
+};
+const GATES_ORDER = ["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION", "CLOSEOUT"] as const;
+const GATE_LABEL: Record<string, string> = {
+  PRE_DESIGN: "Pre-Design",
+  DESIGN: "Design",
+  PERMITTING: "Permitting",
+  CONSTRUCTION: "Construction",
+  CLOSEOUT: "Closeout",
+};
 
 interface ProjectContentProps {
   project: Project;
@@ -150,6 +185,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   // Filter/Sort state
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
@@ -475,6 +511,17 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {/* Edit Details */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden md:inline-flex"
+              onClick={() => setEditDialogOpen(true)}
+            >
+              <Edit2 className="h-3.5 w-3.5 mr-1.5" />
+              Edit details
+            </Button>
+
             {/* Customize Button */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -496,6 +543,83 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </DropdownMenu>
           </div>
         </div>
+
+        {/* Engineering metadata strip — shows what was captured at create time.
+            Renders only if any of the fields are populated so legacy projects
+            stay clean. */}
+        {(project.projectNumber || project.type || project.clientName || project.location || project.budget) && (
+          <div className="hidden md:flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-slate-600 mt-1 mb-1.5">
+            {project.projectNumber && (
+              <span className="font-mono text-slate-500 tracking-[0.5px]">
+                {project.projectNumber}
+              </span>
+            )}
+            {project.type && (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-[1.5px] uppercase"
+                style={{
+                  color: PROJECT_TYPE_COLOR[project.type] ?? "#666",
+                  background: `${PROJECT_TYPE_COLOR[project.type] ?? "#666"}15`,
+                }}
+              >
+                {PROJECT_TYPE_LABEL[project.type] ?? project.type}
+              </span>
+            )}
+            {project.clientName && (
+              <span>
+                <span className="text-slate-400">Client</span>{" "}
+                <span className="text-slate-700">{project.clientName}</span>
+              </span>
+            )}
+            {project.location && (
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="h-3 w-3 text-slate-400" />
+                <span className="text-slate-700">{project.location}</span>
+              </span>
+            )}
+            {project.budget != null && project.currency && (
+              <span>
+                <span className="text-slate-400">Budget</span>{" "}
+                <span className="text-slate-700 font-medium">
+                  {new Intl.NumberFormat("en-US", {
+                    style: "currency",
+                    currency: project.currency,
+                    notation: "compact",
+                    maximumFractionDigits: 1,
+                  }).format(Number(project.budget))}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Gate progress bar — 5 segments representing the engineering
+            lifecycle. Visible only when the project has a gate set. */}
+        {project.gate && (
+          <div className="hidden md:flex items-center gap-2 mt-1 mb-1.5">
+            <div className="flex items-center gap-0.5 flex-1 max-w-[420px]">
+              {GATES_ORDER.map((g, i) => {
+                const activeIdx = GATES_ORDER.indexOf(project.gate as typeof GATES_ORDER[number]);
+                const reached = i <= activeIdx;
+                return (
+                  <div
+                    key={g}
+                    className="flex-1 h-1.5 rounded-full transition-colors"
+                    style={{
+                      background: reached
+                        ? PROJECT_TYPE_COLOR[project.type ?? "DESIGN"] ?? "#4573D2"
+                        : "#e5e7eb",
+                    }}
+                    title={GATE_LABEL[g]}
+                  />
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-slate-500 uppercase tracking-[1.5px] font-medium">
+              {GATE_LABEL[project.gate] ?? project.gate}
+            </span>
+          </div>
+        )}
 
         {/* View Tabs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-1">
@@ -860,6 +984,30 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           onMembersChange={() => router.refresh()}
         />
       )}
+
+      {/* Edit Project Dialog — reuses CreateProjectDialog in edit mode */}
+      <CreateProjectDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        initialProject={{
+          id: project.id,
+          projectNumber: project.projectNumber ?? null,
+          name: project.name,
+          type: project.type ?? null,
+          gate: project.gate ?? null,
+          color: project.color,
+          clientName: project.clientName ?? null,
+          location: project.location ?? null,
+          latitude: project.latitude ?? null,
+          longitude: project.longitude ?? null,
+          startDate: project.startDate ?? null,
+          endDate: project.endDate ?? null,
+          budget: project.budget ?? null,
+          currency: project.currency ?? null,
+          description: project.description ?? null,
+        }}
+        onProjectUpdated={() => router.refresh()}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -24,10 +24,34 @@ import {
 import { toast } from "sonner";
 import { MapPin, Loader2 } from "lucide-react";
 
+// Shape used when prefilling the dialog in edit mode. Keep it
+// permissive — only the id is required.
+export interface ProjectInitial {
+  id: string;
+  projectNumber?: string | null;
+  name?: string | null;
+  type?: string | null;
+  gate?: string | null;
+  color?: string | null;
+  clientName?: string | null;
+  location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  budget?: number | string | null;
+  currency?: string | null;
+  description?: string | null;
+}
+
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onProjectCreated?: () => void;
+  /** When set, the dialog opens in edit mode and PATCHes the given project. */
+  initialProject?: ProjectInitial | null;
+  /** Called after a successful edit (use to refresh the parent). */
+  onProjectUpdated?: () => void;
 }
 
 const PROJECT_COLORS = [
@@ -65,13 +89,25 @@ const CURRENCIES = [
   { value: "CAD", label: "CAD — Canadian Dollar" },
 ];
 
+function toDateInput(value: string | null | undefined): string {
+  if (!value) return "";
+  // accept ISO strings ("2026-05-11T00:00:00.000Z") or plain "yyyy-mm-dd"
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
 export function CreateProjectDialog({
   open,
   onOpenChange,
   onProjectCreated,
+  initialProject,
+  onProjectUpdated,
 }: CreateProjectDialogProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+
+  const isEdit = !!initialProject;
 
   // Basics
   const [name, setName] = useState("");
@@ -113,9 +149,31 @@ export function CreateProjectDialog({
     setDescription("");
   };
 
-  // Geocode when the user moves out of the location field. Fires only if
-  // there's text and no cached lat/lng. Silently no-ops on failure — the
-  // user can still create the project without coordinates.
+  // Prefill from initialProject whenever the dialog opens in edit mode.
+  useEffect(() => {
+    if (!open) return;
+    if (initialProject) {
+      setName(initialProject.name ?? "");
+      setType(initialProject.type ?? "");
+      setGate(initialProject.gate ?? "PRE_DESIGN");
+      setColor(initialProject.color ?? "#4573D2");
+      setClientName(initialProject.clientName ?? "");
+      setLocation(initialProject.location ?? "");
+      setLatitude(initialProject.latitude ?? null);
+      setLongitude(initialProject.longitude ?? null);
+      setGeocodeStatus(initialProject.latitude && initialProject.longitude ? "ok" : "idle");
+      setStartDate(toDateInput(initialProject.startDate));
+      setEndDate(toDateInput(initialProject.endDate));
+      setBudget(initialProject.budget != null ? String(initialProject.budget) : "");
+      setCurrency(initialProject.currency ?? "USD");
+      setDescription(initialProject.description ?? "");
+    } else {
+      resetForm();
+    }
+  }, [open, initialProject]);
+
+  // Geocode when the user leaves the location field. Silently no-ops on
+  // failure — the user can still submit without coordinates.
   const handleLocationBlur = async () => {
     const q = location.trim();
     if (!q || (latitude !== null && longitude !== null)) return;
@@ -151,43 +209,65 @@ export function CreateProjectDialog({
 
     setLoading(true);
     try {
-      const payload: Record<string, unknown> = {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        color,
+      // For PATCH: send nulls explicitly so clearing a field actually clears it.
+      // For POST: omit empties so server defaults apply (e.g. gate=PRE_DESIGN).
+      const buildPayload = (forEdit: boolean): Record<string, unknown> => {
+        const p: Record<string, unknown> = {
+          name: name.trim(),
+          color,
+        };
+        const setField = (key: string, value: unknown, emptyMeansNull: boolean) => {
+          if (value === "" || value === null || value === undefined) {
+            if (forEdit) p[key] = emptyMeansNull ? null : undefined;
+          } else {
+            p[key] = value;
+          }
+        };
+        setField("description", description.trim() || null, true);
+        setField("type", type || null, true);
+        if (gate) p.gate = gate; // gate has a server default
+        setField("clientName", clientName.trim() || null, true);
+        setField("location", location.trim() || null, true);
+        setField("latitude", latitude, true);
+        setField("longitude", longitude, true);
+        setField("startDate", startDate || null, true);
+        setField("endDate", endDate || null, true);
+        const budgetNum = budget ? parseFloat(budget) : null;
+        setField("budget", budgetNum != null && !Number.isNaN(budgetNum) ? budgetNum : null, true);
+        if (currency) p.currency = currency;
+        // Strip any explicit undefined so JSON.stringify doesn't drop a `null`
+        Object.keys(p).forEach((k) => p[k] === undefined && delete p[k]);
+        return p;
       };
-      if (type) payload.type = type;
-      if (gate) payload.gate = gate;
-      if (clientName.trim()) payload.clientName = clientName.trim();
-      if (location.trim()) payload.location = location.trim();
-      if (latitude !== null) payload.latitude = latitude;
-      if (longitude !== null) payload.longitude = longitude;
-      if (startDate) payload.startDate = startDate;
-      if (endDate) payload.endDate = endDate;
-      if (budget) {
-        const n = parseFloat(budget);
-        if (!Number.isNaN(n)) payload.budget = n;
+
+      if (isEdit && initialProject) {
+        const payload = buildPayload(true);
+        const response = await fetch(`/api/projects/${initialProject.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error("Failed to update project");
+        toast.success("Project updated");
+        onOpenChange(false);
+        onProjectUpdated?.();
+      } else {
+        const payload = buildPayload(false);
+        const response = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error("Failed to create project");
+        const project = await response.json();
+        toast.success(`Project ${project.projectNumber ?? ""} created`.trim());
+        onOpenChange(false);
+        resetForm();
+        onProjectCreated?.();
+        router.push(`/projects/${project.id}`);
       }
-      if (currency) payload.currency = currency;
-
-      const response = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create project");
-      }
-
-      const project = await response.json();
-      toast.success(`Project ${project.projectNumber ?? ""} created`.trim());
-      onOpenChange(false);
-      resetForm();
-      onProjectCreated?.();
-      router.push(`/projects/${project.id}`);
     } catch {
-      toast.error("Failed to create project");
+      toast.error(isEdit ? "Failed to update project" : "Failed to create project");
     } finally {
       setLoading(false);
     }
@@ -198,9 +278,24 @@ export function CreateProjectDialog({
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create new project</DialogTitle>
+            <DialogTitle>
+              {isEdit ? (
+                <span className="flex items-center gap-2">
+                  Edit project
+                  {initialProject?.projectNumber && (
+                    <span className="font-mono text-[12px] tracking-[0.5px] text-slate-400 font-normal">
+                      {initialProject.projectNumber}
+                    </span>
+                  )}
+                </span>
+              ) : (
+                "Create new project"
+              )}
+            </DialogTitle>
             <DialogDescription>
-              A project number will be assigned automatically once created.
+              {isEdit
+                ? "Update any field below. Empty fields will clear the saved value."
+                : "A project number will be assigned automatically once created."}
             </DialogDescription>
           </DialogHeader>
 
@@ -408,13 +503,19 @@ export function CreateProjectDialog({
               variant="outline"
               onClick={() => {
                 onOpenChange(false);
-                resetForm();
+                if (!isEdit) resetForm();
               }}
             >
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create project"}
+              {loading
+                ? isEdit
+                  ? "Saving..."
+                  : "Creating..."
+                : isEdit
+                ? "Save changes"
+                : "Create project"}
             </Button>
           </DialogFooter>
         </form>

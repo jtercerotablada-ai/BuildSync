@@ -117,9 +117,13 @@ export default async function ProjectPage({
     notFound();
   }
 
-  // Serialize the project data for client component
+  // Serialize the project data for client component.
+  // Prisma's Decimal type doesn't survive JSON.stringify cleanly, so we
+  // coerce `budget` to a plain number here (loses precision past 15
+  // significant digits, fine for any realistic project budget).
   const serializedProject = {
     ...project,
+    budget: project.budget != null ? Number(project.budget) : null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),
     startDate: project.startDate?.toISOString() || null,

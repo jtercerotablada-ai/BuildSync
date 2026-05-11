@@ -209,14 +209,20 @@ async function main() {
   console.log(`✅ Using workspace ${workspaceId} (owner: ${owner.email})\n`);
 
   const now = Date.now();
+  const year = new Date().getFullYear();
 
-  for (const d of DEMO) {
+  for (let idx = 0; idx < DEMO.length; idx++) {
+    const d = DEMO[idx];
     const startDate = new Date(now + d.startOffsetDays * 24 * 60 * 60 * 1000);
     const endDate = new Date(startDate.getTime() + d.durationDays * 24 * 60 * 60 * 1000);
 
     const existing = await prisma.project.findFirst({
       where: { workspaceId, name: d.name },
     });
+
+    // Assign a deterministic projectNumber so reruns don't shuffle them.
+    // Format matches the runtime auto-generator: TT-YYYY-NNN.
+    const projectNumber = `TT-${year}-${String(idx + 1).padStart(3, "0")}`;
 
     const data = {
       name: d.name,
@@ -231,6 +237,7 @@ async function main() {
       budget: d.budget,
       currency: d.currency,
       clientName: d.clientName,
+      projectNumber,
       startDate,
       endDate,
       workspaceId,
