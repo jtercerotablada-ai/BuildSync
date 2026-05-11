@@ -1375,8 +1375,11 @@ export default function MyTasksPage() {
             </div>
           ))}
 
-          {/* Add column (+) button */}
-          <div className="flex-shrink-0 border-l border-gray-200">
+          {/* Add column (+) button — width MUST match the data row's
+              `w-8` spacer at the end of TaskRow (line ~2178) or every
+              column to its left drifts left in the data rows because
+              flex-1 distributes a different remainder. */}
+          <div className="w-8 flex-shrink-0 border-l border-gray-200 flex items-center justify-center">
             <AddColumnDropdown
               onSelectType={(ft: FieldTypeConfig, name: string) => {
                 setPreselectedFieldType(ft.id);
@@ -2174,8 +2177,10 @@ function TaskRow({
         </div>
       ))}
 
-      {/* Spacer for + button column */}
-      <div className="hidden md:block w-8 flex-shrink-0" />
+      {/* Spacer for + button column — matches the AddColumnDropdown
+          wrapper in the header (must be the exact same width or columns
+          to the left misalign because the row's flex-1 redistributes). */}
+      <div className="hidden md:block w-8 flex-shrink-0 border-l border-gray-200" />
     </div>
     </>
   );
