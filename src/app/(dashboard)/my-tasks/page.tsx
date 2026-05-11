@@ -314,9 +314,10 @@ export default function MyTasksPage() {
       setGroupType("priority");
       organizeTasks(tasks, "priority");
     } else if (primary.field === "creator") {
-      // Group by assignee (closest mapping)
-      setGroupType("none");
-      organizeTasks(tasks, "none");
+      // The panel labels this "Creator" but on a personal task list the more
+      // useful grouping is by assignee (delegate / owner). Map accordingly.
+      setGroupType("assignee");
+      organizeTasks(tasks, "assignee");
     } else {
       setGroupType("due_date");
       organizeTasks(tasks, "due_date");
@@ -377,6 +378,28 @@ export default function MyTasksPage() {
         collapsed: false,
         tasks: activeTasks.filter((t) => (t.priority || "NONE") === p),
       })).filter((s) => s.tasks.length > 0);
+      setSections(result);
+      return;
+    }
+
+    if (activeGroup === "assignee") {
+      // Bucket by assignee user id, surfacing "Unassigned" last
+      const byAssignee = new Map<string, { name: string; tasks: Task[] }>();
+      activeTasks.forEach((task) => {
+        const id = task.assignee?.id || "unassigned";
+        const name = task.assignee?.name || "Unassigned";
+        if (!byAssignee.has(id)) byAssignee.set(id, { name, tasks: [] });
+        byAssignee.get(id)!.tasks.push(task);
+      });
+      const result: SmartSection[] = [];
+      byAssignee.forEach(({ name, tasks }, id) => {
+        if (tasks.length === 0 || id === "unassigned") return;
+        result.push({ id, name, collapsed: false, tasks });
+      });
+      const unassigned = byAssignee.get("unassigned");
+      if (unassigned && unassigned.tasks.length > 0) {
+        result.push({ id: "unassigned", name: "Unassigned", collapsed: false, tasks: unassigned.tasks });
+      }
       setSections(result);
       return;
     }
@@ -627,17 +650,38 @@ export default function MyTasksPage() {
   }
 
   async function handleToggleComplete(task: Task) {
+    // Optimistic update — flip the task in local state immediately so the
+    // checkbox animates the moment the user clicks. Roll back if the API
+    // rejects (network error, validation, etc).
+    const next = !task.completed;
+    const prevTasks = tasks;
+    setTasks((cur) =>
+      cur.map((t) =>
+        t.id === task.id
+          ? {
+              ...t,
+              completed: next,
+              completedAt: next ? new Date().toISOString() : null,
+            }
+          : t
+      )
+    );
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed: !task.completed }),
+        body: JSON.stringify({ completed: next }),
       });
-      if (res.ok) {
-        fetchTasks(true);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
+      // Silent refetch in the background to pick up any side-effects (e.g.
+      // server-side completedAt timestamp, dependent task unblock, etc.)
+      fetchTasks(true);
     } catch (error) {
       console.error("Error toggling task:", error);
+      setTasks(prevTasks);
+      toast.error("Couldn't update task — check your connection");
     }
   }
 
@@ -894,19 +938,6 @@ export default function MyTasksPage() {
             {tab.label}
           </button>
         ))}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="ml-1 h-6 w-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors">
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => setView("list")}><List className="w-4 h-4 mr-2" />List view</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView("board")}><Columns className="w-4 h-4 mr-2" />Board view</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView("calendar")}><Calendar className="w-4 h-4 mr-2" />Calendar view</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setView("dashboard")}><BarChart3 className="w-4 h-4 mr-2" />Dashboard view</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
       {/* MOBILE TOOLBAR — compact filter + sort pills */}
