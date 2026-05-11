@@ -42,7 +42,9 @@ export async function GET(req: Request) {
         projectId: data?.projectId as string | undefined,
         sender: {
           name: (data?.authorName as string) || "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.",
-          color: "#000000",
+          // Brand gold — matches the monochrome+gold palette used across
+          // the cockpit, project pages, and badges.
+          color: "#c9a84c",
         },
       };
     });

@@ -88,11 +88,15 @@ export const TYPE_LABEL: Record<ProjectType, string> = {
   PERMIT: "Permit",
 };
 
+// All-monochrome palette (black/white/gold). The four project types use
+// shades within the gold family + a charcoal fallback so they remain
+// visually distinguishable on the map and pipeline without introducing
+// off-palette accent colors.
 export const TYPE_COLOR: Record<ProjectType, string> = {
-  CONSTRUCTION: "#c9a84c", // gold
-  DESIGN: "#4573D2", // blue
-  RECERTIFICATION: "#a8893a", // bronze
-  PERMIT: "#d28a4a", // orange
+  CONSTRUCTION: "#c9a84c", // gold (primary brand accent)
+  DESIGN: "#d4b65a",       // bright gold
+  RECERTIFICATION: "#a8893a", // deep gold / bronze
+  PERMIT: "#1a1a1a",       // black — outlined treatment in badges
 };
 
 export const GATE_LABEL: Record<ProjectGate, string> = {
@@ -111,10 +115,13 @@ export const GATE_INDEX: Record<ProjectGate, number> = {
   CLOSEOUT: 4,
 };
 
+// Status uses gold for active states, black for severe, gray for neutral.
+// "At risk" gets a darker bronze to read distinctly from on-track gold,
+// without resorting to amber/orange.
 export const STATUS_COLOR: Record<ProjectStatus, string> = {
-  ON_TRACK: "#5a8f5e",
-  AT_RISK: "#d28a4a",
-  OFF_TRACK: "#c44a5a",
-  ON_HOLD: "#888888",
-  COMPLETE: "#5a7d8f",
+  ON_TRACK: "#c9a84c", // gold
+  AT_RISK: "#a8893a",  // deep gold / bronze
+  OFF_TRACK: "#0a0a0a", // black (the "severe" signal)
+  ON_HOLD: "#888888",   // gray
+  COMPLETE: "#d4b65a",  // bright gold (success, faded by context)
 };

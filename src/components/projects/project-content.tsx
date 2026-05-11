@@ -137,11 +137,12 @@ const PROJECT_TYPE_LABEL: Record<string, string> = {
   RECERTIFICATION: "Recertification",
   PERMIT: "Permit",
 };
+// Monochrome + gold palette — matches cockpit/types.ts TYPE_COLOR.
 const PROJECT_TYPE_COLOR: Record<string, string> = {
-  CONSTRUCTION: "#c9a84c",
-  DESIGN: "#4573D2",
-  RECERTIFICATION: "#a8893a",
-  PERMIT: "#d28a4a",
+  CONSTRUCTION: "#c9a84c", // gold
+  DESIGN: "#d4b65a",       // bright gold
+  RECERTIFICATION: "#a8893a", // deep gold / bronze
+  PERMIT: "#1a1a1a",       // black (outlined badge treatment)
 };
 const GATES_ORDER = ["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION", "CLOSEOUT"] as const;
 const GATE_LABEL: Record<string, string> = {
@@ -157,12 +158,14 @@ interface ProjectContentProps {
   currentView: string;
 }
 
+// Monochrome + gold palette for status badges. Gold = active/positive,
+// black = severe, gray = neutral. No greens/reds/yellows/blues.
 const STATUS_COLORS = {
-  ON_TRACK: "bg-green-100 text-green-800",
-  AT_RISK: "bg-yellow-100 text-yellow-800",
-  OFF_TRACK: "bg-red-100 text-red-800",
-  ON_HOLD: "bg-gray-100 text-gray-800",
-  COMPLETE: "bg-blue-100 text-blue-800",
+  ON_TRACK: "bg-[#c9a84c]/15 text-[#a8893a]",
+  AT_RISK: "bg-[#a8893a]/15 text-[#a8893a]",
+  OFF_TRACK: "bg-black/90 text-white",
+  ON_HOLD: "bg-gray-100 text-gray-700",
+  COMPLETE: "bg-[#d4b65a]/15 text-[#a8893a]",
 };
 
 const STATUS_LABELS = {
@@ -324,12 +327,13 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
     setShowCreateTask(true);
   };
 
+  // Monochrome + gold. Gold = positive/active, black = severe, gray = neutral.
   const statusConfig = {
-    ON_TRACK: { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500" },
-    AT_RISK: { bg: "bg-yellow-100", text: "text-yellow-700", dot: "bg-yellow-500" },
-    OFF_TRACK: { bg: "bg-red-100", text: "text-red-700", dot: "bg-red-500" },
-    ON_HOLD: { bg: "bg-slate-100", text: "text-slate-700", dot: "bg-slate-500" },
-    COMPLETE: { bg: "bg-blue-100", text: "text-blue-700", dot: "bg-blue-500" },
+    ON_TRACK: { bg: "bg-[#c9a84c]/10", text: "text-[#a8893a]", dot: "bg-[#c9a84c]" },
+    AT_RISK: { bg: "bg-[#a8893a]/15", text: "text-[#a8893a]", dot: "bg-[#a8893a]" },
+    OFF_TRACK: { bg: "bg-black", text: "text-white", dot: "bg-white" },
+    ON_HOLD: { bg: "bg-slate-100", text: "text-slate-700", dot: "bg-slate-400" },
+    COMPLETE: { bg: "bg-[#d4b65a]/15", text: "text-[#a8893a]", dot: "bg-[#d4b65a]" },
   };
 
   const status = statusConfig[project.status as keyof typeof statusConfig] || statusConfig.ON_TRACK;

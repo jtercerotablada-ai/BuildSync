@@ -54,13 +54,13 @@ interface CreateProjectDialogProps {
   onProjectUpdated?: () => void;
 }
 
+// Monochrome + gold palette only — six shades along black → white → gold.
+// Keeps the visual language consistent across the whole product.
 const PROJECT_COLORS = [
-  { value: "#F06A6A", label: "Coral" },
-  { value: "#4573D2", label: "Blue" },
-  { value: "#5DA283", label: "Green" },
-  { value: "#F1BD6C", label: "Yellow" },
-  { value: "#8E7CC3", label: "Purple" },
-  { value: "#E07A5F", label: "Orange" },
+  { value: "#0a0a0a", label: "Black" },
+  { value: "#4a4a4a", label: "Charcoal" },
+  { value: "#888888", label: "Gray" },
+  { value: "#d4b65a", label: "Bright gold" },
   { value: "#c9a84c", label: "Gold" },
   { value: "#a8893a", label: "Bronze" },
 ];
