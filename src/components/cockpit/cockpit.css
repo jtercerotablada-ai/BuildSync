@@ -18,7 +18,9 @@
   --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.35);
   --radius: 10px;
   --gap: 16px;
-  font-family: 'Inter', system-ui, sans-serif;
+  /* Inherit the dashboard's font (Inter via --font-inter on body).
+   * Force-set so any global resets that interrupt inheritance still land here. */
+  font-family: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: calc(100vh - 56px);
@@ -27,14 +29,18 @@
   flex-direction: column;
   gap: var(--gap);
 }
+.cockpit * {
+  font-family: inherit;
+}
 
 /* ────────── Command Bar ────────── */
 .cockpit-command-bar {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr 1fr;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 24px;
   padding: 4px 0;
+  flex-wrap: wrap;
 }
 .cockpit-command-bar__left h1 {
   font-size: 22px;
@@ -48,32 +54,6 @@
   color: var(--text-dim);
   letter-spacing: 0.5px;
   text-transform: uppercase;
-}
-.cockpit-search-trigger {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--text-dim);
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-.cockpit-search-trigger:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-2);
-}
-.cockpit-search-trigger kbd {
-  margin-left: auto;
-  padding: 2px 6px;
-  font-family: inherit;
-  font-size: 11px;
-  background: var(--border);
-  border-radius: 4px;
 }
 .cockpit-command-bar__alerts {
   display: flex;

@@ -47,13 +47,13 @@ export function HeroMap({ projects }: HeroMapProps) {
           center: [20, -60],
           zoom: 3,
           zoomControl: true,
-          attributionControl: true,
+          attributionControl: false, // hide the "Leaflet | © OSM · © CARTO" footer
           scrollWheelZoom: false,
         });
         L.tileLayer(
           'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
           {
-            attribution: '&copy; OSM &middot; &copy; CARTO',
+            attribution: '',
             subdomains: 'abcd',
             maxZoom: 19,
           }

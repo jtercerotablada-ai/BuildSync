@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Search, AlertTriangle, FileSignature, Clock } from 'lucide-react';
+import { AlertTriangle, FileSignature, Clock } from 'lucide-react';
 
 interface CommandBarProps {
   userName?: string | null;
@@ -10,7 +10,6 @@ interface CommandBarProps {
     pendingSignatures: number;
     expiringCompliance: number;
   };
-  onSearchOpen?: () => void;
 }
 
 function greeting() {
@@ -28,7 +27,7 @@ function formatDate() {
   });
 }
 
-export function CommandBar({ userName, alerts, onSearchOpen }: CommandBarProps) {
+export function CommandBar({ userName, alerts }: CommandBarProps) {
   const [, force] = useState(0);
 
   // Refresh greeting/date every minute so the user never sees a stale "evening"
@@ -45,14 +44,6 @@ export function CommandBar({ userName, alerts, onSearchOpen }: CommandBarProps) 
           {userName ? `, ${userName.split(' ')[0]}` : ''}
         </h1>
         <p>{formatDate()}</p>
-      </div>
-
-      <div className="cockpit-command-bar__center">
-        <button onClick={onSearchOpen} className="cockpit-search-trigger" aria-label="Open search (Cmd+K)">
-          <Search size={14} />
-          <span>Search projects, tasks, people…</span>
-          <kbd>⌘K</kbd>
-        </button>
       </div>
 
       <div className="cockpit-command-bar__alerts">
