@@ -192,6 +192,28 @@ export async function POST(req: Request) {
       );
     }
 
+    // Auto-generate the next human-readable project number for this
+    // workspace. Format: TT-YYYY-NNN (3-digit zero-padded). Scoped to
+    // the year + workspace so different workspaces keep independent
+    // counters and a new year restarts at 001.
+    const year = new Date().getFullYear();
+    const prefix = `TT-${year}-`;
+    const lastNumberedProject = await prisma.project.findFirst({
+      where: {
+        workspaceId: targetWorkspaceId,
+        projectNumber: { startsWith: prefix },
+      },
+      orderBy: { projectNumber: "desc" },
+      select: { projectNumber: true },
+    });
+    let nextSeq = 1;
+    if (lastNumberedProject?.projectNumber) {
+      const tail = lastNumberedProject.projectNumber.slice(prefix.length);
+      const parsed = parseInt(tail, 10);
+      if (!Number.isNaN(parsed)) nextSeq = parsed + 1;
+    }
+    const projectNumber = `${prefix}${String(nextSeq).padStart(3, "0")}`;
+
     // Determine sections based on template or default
     const sectionsToCreate = template
       ? template.sections.map((section, index) => ({
@@ -238,6 +260,7 @@ export async function POST(req: Request) {
         budget: budget ?? null,
         currency: currency ?? "USD",
         clientName: clientName ?? null,
+        projectNumber,
         members: {
           create: {
             userId,

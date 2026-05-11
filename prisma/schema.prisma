@@ -356,14 +356,17 @@ model Project {
   updatedAt   DateTime          @updatedAt
 
   // Engineering firm extensions (nullable to preserve existing rows)
-  type        ProjectType?
-  gate        ProjectGate?      @default(PRE_DESIGN)
-  location    String?
-  latitude    Float?
-  longitude   Float?
-  budget      Decimal?          @db.Decimal(15, 2)
-  currency    String?           @default("USD")
-  clientName  String?
+  type          ProjectType?
+  gate          ProjectGate?      @default(PRE_DESIGN)
+  location      String?
+  latitude      Float?
+  longitude     Float?
+  budget        Decimal?          @db.Decimal(15, 2)
+  currency      String?           @default("USD")
+  clientName    String?
+  // Human-readable project number, auto-generated per workspace
+  // (format: TT-YYYY-NNN). Nullable so historic rows don't break.
+  projectNumber String?
 
   workspaceId String
   teamId      String?
