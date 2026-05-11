@@ -239,17 +239,22 @@ export function Sidebar({
                         />
                         Projects
                       </CollapsibleTrigger>
-                      <div className="relative" ref={projectsDropdownRef}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5"
-                          onClick={() =>
-                            setProjectsDropdownOpen(!projectsDropdownOpen)
-                          }
+                      <div className="relative flex-shrink-0" ref={projectsDropdownRef}>
+                        {/* Plain <button> instead of shadcn Button — `variant="ghost"
+                            size="icon"` was nesting an h-9 size class that fought
+                            with our h-5 override, leaving an invisible (or tiny)
+                            target. Plain button keeps the + reliably visible. */}
+                        <button
+                          type="button"
+                          aria-label="Add project or portfolio"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProjectsDropdownOpen(!projectsDropdownOpen);
+                          }}
+                          className="h-5 w-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                         >
-                          <Plus className="h-3 w-3" />
-                        </Button>
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
                         {projectsDropdownOpen && (
                           <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
                             <button
@@ -337,14 +342,17 @@ export function Sidebar({
                         />
                         Teams
                       </CollapsibleTrigger>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5"
-                        onClick={() => router.push(`${basePath || ""}/teams/new`)}
+                      <button
+                        type="button"
+                        aria-label="Create team"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`${basePath || ""}/teams/new`);
+                        }}
+                        className="h-5 w-5 flex items-center justify-center rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0"
                       >
-                        <Plus className="h-3 w-3" />
-                      </Button>
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                     <CollapsibleContent>
                       <nav className="space-y-0.5">
@@ -373,7 +381,7 @@ export function Sidebar({
                                     className="h-4 w-4 rounded flex items-center justify-center"
                                     style={{
                                       backgroundColor:
-                                        team.color || "#6366F1",
+                                        team.color || "#c9a84c",
                                     }}
                                   >
                                     <Users className="h-2.5 w-2.5 text-white" />
