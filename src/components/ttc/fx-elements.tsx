@@ -26,6 +26,20 @@ export function FxElements() {
     // Scroll animations ([data-aos])
     const animatedEls = Array.from(document.querySelectorAll<HTMLElement>('[data-aos]'));
     let aosObserver: IntersectionObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
+
+    const registerAosElement = (el: HTMLElement) => {
+      if (el.classList.contains('aos-animate')) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.top < window.innerHeight && rect.bottom > 0) {
+        el.classList.add('aos-animate');
+      } else if (aosObserver) {
+        aosObserver.observe(el);
+      } else {
+        el.classList.add('aos-animate');
+      }
+    };
+
     if (!('IntersectionObserver' in window)) {
       animatedEls.forEach((el) => el.classList.add('aos-animate'));
     } else {
@@ -45,14 +59,25 @@ export function FxElements() {
         },
         { threshold: 0.05, rootMargin: '0px 0px -50px 0px' }
       );
-      animatedEls.forEach((el) => {
-        const rect = el.getBoundingClientRect();
-        if (rect.top < window.innerHeight && rect.bottom > 0) {
-          el.classList.add('aos-animate');
-        } else {
-          aosObserver?.observe(el);
-        }
-      });
+      animatedEls.forEach(registerAosElement);
+
+      // Catch dynamically rendered [data-aos] elements (e.g. filtered project grids).
+      // Without this, anything added after the initial observer setup stays at
+      // opacity:0 because [data-aos] { opacity: 0 } stays applied until aos-animate.
+      if ('MutationObserver' in window) {
+        mutationObserver = new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            mutation.addedNodes.forEach((node) => {
+              if (!(node instanceof HTMLElement)) return;
+              if (node.hasAttribute('data-aos')) registerAosElement(node);
+              node
+                .querySelectorAll<HTMLElement>('[data-aos]:not(.aos-animate)')
+                .forEach(registerAosElement);
+            });
+          }
+        });
+        mutationObserver.observe(document.body, { childList: true, subtree: true });
+      }
     }
 
     // Custom cursor (desktop only)
@@ -150,6 +175,7 @@ export function FxElements() {
     return () => {
       window.removeEventListener('scroll', updateScrollProgress);
       aosObserver?.disconnect();
+      mutationObserver?.disconnect();
       if (rafId !== null) cancelAnimationFrame(rafId);
       document.removeEventListener('mousemove', onMouseMove);
       hoverables.forEach((el) => {
