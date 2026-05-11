@@ -235,16 +235,32 @@ export function Sidebar({
                         animated trigger width can affect where it lives. The
                         row reserves `pr-9` so the trigger text never overlaps
                         the absolute button. */}
+                    {/* Split header: the chevron toggles the inline list,
+                        the "Projects" label is a Link to the all-projects
+                        page (list / gantt / cards views). Previously the
+                        whole row was a CollapsibleTrigger so the only way
+                        to see all projects together was to expand the
+                        list — Juan wanted a real overview page on click. */}
                     <div className="relative pl-3 pr-9 mb-1" ref={projectsDropdownRef}>
-                      <CollapsibleTrigger className="w-full flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
-                        <ChevronDown
-                          className={cn(
-                            "h-3 w-3 transition-transform flex-shrink-0",
-                            !projectsOpen && "-rotate-90"
-                          )}
-                        />
-                        Projects
-                      </CollapsibleTrigger>
+                      <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        <CollapsibleTrigger
+                          className="p-0.5 -ml-0.5 rounded hover:bg-gray-100 hover:text-gray-700"
+                          aria-label={projectsOpen ? "Collapse projects" : "Expand projects"}
+                        >
+                          <ChevronDown
+                            className={cn(
+                              "h-3 w-3 transition-transform flex-shrink-0",
+                              !projectsOpen && "-rotate-90"
+                            )}
+                          />
+                        </CollapsibleTrigger>
+                        <Link
+                          href={`${basePath || ""}/projects/all`}
+                          className="flex-1 hover:text-gray-700 transition-colors"
+                        >
+                          Projects
+                        </Link>
+                      </div>
                       <button
                         type="button"
                         aria-label="Add project or portfolio"
@@ -336,15 +352,25 @@ export function Sidebar({
                         the `+` button is out of the flex flow so Radix's
                         Collapsible state change cannot displace it. */}
                     <div className="relative pl-3 pr-9 mb-1">
-                      <CollapsibleTrigger className="w-full flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600">
-                        <ChevronDown
-                          className={cn(
-                            "h-3 w-3 transition-transform flex-shrink-0",
-                            !teamsOpen && "-rotate-90"
-                          )}
-                        />
-                        Teams
-                      </CollapsibleTrigger>
+                      <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                        <CollapsibleTrigger
+                          className="p-0.5 -ml-0.5 rounded hover:bg-gray-100 hover:text-gray-700"
+                          aria-label={teamsOpen ? "Collapse teams" : "Expand teams"}
+                        >
+                          <ChevronDown
+                            className={cn(
+                              "h-3 w-3 transition-transform flex-shrink-0",
+                              !teamsOpen && "-rotate-90"
+                            )}
+                          />
+                        </CollapsibleTrigger>
+                        <Link
+                          href={`${basePath || ""}/teams`}
+                          className="flex-1 hover:text-gray-700 transition-colors"
+                        >
+                          Teams
+                        </Link>
+                      </div>
                       <button
                         type="button"
                         aria-label="Create team"

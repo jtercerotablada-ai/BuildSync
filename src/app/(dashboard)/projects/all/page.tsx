@@ -37,8 +37,10 @@ import {
   LayoutGrid,
   MapPin,
   Building2,
+  GanttChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GanttTimeline } from "@/components/projects/gantt-timeline";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -103,7 +105,7 @@ const STATUS_DOT: Record<ProjectStatus, string> = {
   COMPLETED: "#c9a84c",
 };
 
-type View = "grid" | "list";
+type View = "grid" | "list" | "gantt";
 const VIEW_STORAGE_KEY = "projects.view";
 
 export default function ProjectsPage() {
@@ -118,7 +120,7 @@ export default function ProjectsPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem(VIEW_STORAGE_KEY) as View | null;
-    if (stored === "grid" || stored === "list") setView(stored);
+    if (stored === "grid" || stored === "list" || stored === "gantt") setView(stored);
   }, []);
 
   useEffect(() => {
@@ -217,32 +219,36 @@ export default function ProjectsPage() {
           onChange={(v) => setGateFilter(v as ProjectGate | "ALL")}
         />
 
-        {/* View switcher */}
+        {/* View switcher — Grid / List / Gantt timeline. The
+            timeline view is the differentiator vs Asana: bars
+            colored by project gate (PRE_DESIGN → CLOSEOUT), today
+            line, zoom levels, group-by, overdue rings. */}
         <div className="ml-auto flex items-center bg-white border rounded-md overflow-hidden">
-          <button
-            onClick={() => setView("grid")}
-            aria-label="Grid view"
-            className={cn(
-              "p-1.5 transition-colors",
-              view === "grid"
-                ? "bg-black text-white"
-                : "text-gray-500 hover:text-black hover:bg-gray-50"
-            )}
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setView("list")}
-            aria-label="List view"
-            className={cn(
-              "p-1.5 transition-colors",
-              view === "list"
-                ? "bg-black text-white"
-                : "text-gray-500 hover:text-black hover:bg-gray-50"
-            )}
-          >
-            <List className="w-4 h-4" />
-          </button>
+          {(
+            [
+              { id: "grid" as View, icon: LayoutGrid, label: "Grid" },
+              { id: "list" as View, icon: List, label: "List" },
+              { id: "gantt" as View, icon: GanttChart, label: "Gantt" },
+            ] as const
+          ).map((opt) => {
+            const Icon = opt.icon;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setView(opt.id)}
+                aria-label={`${opt.label} view`}
+                title={`${opt.label} view`}
+                className={cn(
+                  "p-1.5 transition-colors",
+                  view === opt.id
+                    ? "bg-black text-white"
+                    : "text-gray-500 hover:text-black hover:bg-gray-50"
+                )}
+              >
+                <Icon className="w-4 h-4" />
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -277,8 +283,13 @@ export default function ProjectsPage() {
               </Button>
             )}
           </div>
+        ) : view === "gantt" ? (
+          <GanttTimeline projects={filtered} />
         ) : view === "list" ? (
-          <ProjectsListView projects={filtered} onRowClick={(id) => router.push(`/projects/${id}`)} />
+          <ProjectsListView
+            projects={filtered}
+            onRowClick={(id) => router.push(`/projects/${id}`)}
+          />
         ) : (
           <ProjectsGridView projects={filtered} />
         )}
