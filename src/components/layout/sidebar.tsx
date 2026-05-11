@@ -252,9 +252,9 @@ export function Sidebar({
                           e.stopPropagation();
                           setProjectsDropdownOpen(!projectsDropdownOpen);
                         }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-gray-600 hover:text-black hover:bg-gray-100 transition-colors z-10"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md bg-white border border-gray-300 text-black shadow-sm hover:bg-gray-100 hover:border-gray-400 transition-colors z-10"
                       >
-                        <Plus className="h-3.5 w-3.5" />
+                        <Plus className="h-4 w-4" />
                       </button>
                       {projectsDropdownOpen && (
                         <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
@@ -352,9 +352,9 @@ export function Sidebar({
                           e.stopPropagation();
                           router.push(`${basePath || ""}/teams/new`);
                         }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-gray-600 hover:text-black hover:bg-gray-100 transition-colors z-10"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md bg-white border border-gray-300 text-black shadow-sm hover:bg-gray-100 hover:border-gray-400 transition-colors z-10"
                       >
-                        <Plus className="h-3.5 w-3.5" />
+                        <Plus className="h-4 w-4" />
                       </button>
                     </div>
                     <CollapsibleContent>
