@@ -918,5 +918,6 @@
   cursor: pointer;
 }
 
-/* Leaflet CSS — minimal pull, only what we need at top level */
-@import url('leaflet/dist/leaflet.css');
+/* Leaflet CSS is imported once at the dashboard layout level
+ * (src/app/(dashboard)/layout.tsx) — Turbopack rejects @import below
+ * the first rule, so we use a JS-side import instead. */
