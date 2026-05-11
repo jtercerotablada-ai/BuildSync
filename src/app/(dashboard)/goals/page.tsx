@@ -671,15 +671,16 @@ function GoalsListView({
 
   return (
     <div>
-      {/* Column Headers — same gridline pattern as /my-tasks list view:
-          `border-l border-gray-200` on every column after the first,
-          `border-b border-gray-200` on the row itself. */}
+      {/* Column Headers — gridlines from /my-tasks + centered content.
+          Every column (header + data) horizontally centers its content
+          per Juan's request — visually consistent grid cells regardless
+          of value width (dot / bar / avatar / text). */}
       <div className="hidden md:flex items-stretch border-b border-gray-200 text-xs font-medium text-black uppercase tracking-wide">
         {columns.map((col, i) => (
           <div
             key={col.id}
             className={cn(
-              "py-2 px-3 flex items-center gap-1",
+              "py-2 px-3 flex items-center justify-center gap-1",
               col.className,
               i > 0 && "border-l border-gray-200"
             )}
@@ -703,7 +704,7 @@ function GoalsListView({
               onClick={() => onRowClick(objective.id)}
             >
               {/* Name */}
-              <div className="flex-1 px-3 py-3 flex items-center gap-2">
+              <div className="flex-1 px-3 py-3 flex items-center justify-center gap-2">
                 {(objective._count.keyResults > 0 ||
                   objective._count.children > 0) && (
                   <button
@@ -720,11 +721,13 @@ function GoalsListView({
                     )}
                   </button>
                 )}
-                <span className="text-sm text-black">{objective.name}</span>
+                <span className="text-sm text-black text-center">
+                  {objective.name}
+                </span>
               </div>
 
               {/* Status */}
-              <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center">
+              <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
                 <div
                   className={cn(
                     "w-3 h-3 rounded-full",
@@ -734,7 +737,7 @@ function GoalsListView({
               </div>
 
               {/* Progress */}
-              <div className="w-[140px] px-3 py-3 border-l border-gray-200 flex items-center">
+              <div className="w-[140px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
                 <div className="flex items-center gap-2 w-full">
                   <div className="flex-1 h-2 bg-white border border-black rounded-full overflow-hidden">
                     <div
@@ -742,28 +745,28 @@ function GoalsListView({
                       style={{ width: `${objective.progress}%` }}
                     />
                   </div>
-                  <span className="text-xs text-black w-8">
+                  <span className="text-xs text-black w-8 text-center">
                     {objective.progress}%
                   </span>
                 </div>
               </div>
 
               {/* Period */}
-              <div className="w-[100px] px-3 py-3 border-l border-gray-200 flex items-center">
-                <span className="text-sm text-black">
+              <div className="w-[100px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
+                <span className="text-sm text-black text-center">
                   {objective.period || "-"}
                 </span>
               </div>
 
               {/* Team */}
-              <div className="w-[140px] px-3 py-3 border-l border-gray-200 flex items-center">
-                <span className="text-sm text-black">
+              <div className="w-[140px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
+                <span className="text-sm text-black text-center">
                   {objective.team?.name || "-"}
                 </span>
               </div>
 
               {/* Owner */}
-              <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center">
+              <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
                 {objective.owner ? (
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={objective.owner.image || ""} />
@@ -855,12 +858,12 @@ function GoalsListView({
                         key={kr.id}
                         className="hidden md:flex items-stretch text-sm border-b border-gray-200 last:border-b-0"
                       >
-                        <div className="flex-1 pl-12 pr-3 py-2 flex items-center gap-2 text-black">
+                        <div className="flex-1 pl-12 pr-3 py-2 flex items-center justify-center gap-2 text-black">
                           <div className="w-2 h-2 rounded-full bg-black" />
-                          {kr.name}
+                          <span className="text-center">{kr.name}</span>
                         </div>
                         <div className="w-[80px] px-3 border-l border-gray-200" />
-                        <div className="w-[140px] px-3 py-2 border-l border-gray-200 flex items-center">
+                        <div className="w-[140px] px-3 py-2 border-l border-gray-200 flex items-center justify-center">
                           <div className="flex items-center gap-2 w-full">
                             <div className="flex-1 h-1.5 bg-white border border-black rounded-full overflow-hidden">
                               <div
@@ -868,7 +871,7 @@ function GoalsListView({
                                 style={{ width: `${progress}%` }}
                               />
                             </div>
-                            <span className="text-xs text-black">
+                            <span className="text-xs text-black text-center">
                               {kr.currentValue}/{kr.targetValue}
                             </span>
                           </div>
