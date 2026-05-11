@@ -17,7 +17,7 @@ export const dictionaries = {
     'hero.titleLine2': 'ENGINEERING + BIM',
     'hero.materials': 'REINFORCED & POST-TENSIONED CONCRETE \u00b7 STEEL \u00b7 WOOD \u00b7 MASONRY',
     'hero.desc': 'We are an international structural engineering firm specializing in residential, vertical, commercial, industrial, and public works projects. We offer first-class services adapted to the specific needs of each project at highly competitive rates.',
-    'hero.credential': 'Registered P.E., S.E.',
+    'hero.credential': 'Registered P.E.',
     'hero.viewProjects': 'View Projects',
     'hero.contactUs': 'Contact Us',
     'hero.scroll': 'Scroll',
@@ -231,7 +231,7 @@ export const dictionaries = {
 
     // Footer
     'footer.tagline': 'International Structural Engineering Firm',
-    'footer.credential': 'Registered P.E., S.E.',
+    'footer.credential': 'Registered P.E.',
     'footer.mainOffice': 'Main Office',
     'footer.navigation': 'Navigation',
     'footer.services': 'Services',
@@ -259,7 +259,7 @@ export const dictionaries = {
     'hero.titleLine2': 'ESTRUCTURAL + BIM',
     'hero.materials': 'CONCRETO REFORZADO Y POSTENSADO \u00b7 ACERO \u00b7 MADERA \u00b7 MAMPOSTERIA',
     'hero.desc': 'Somos un despacho internacional de ingenieria estructural especializado en proyectos residenciales, verticales, comerciales, industriales y de obras publicas. Ofrecemos servicios de primera linea adaptados a las necesidades especificas de cada proyecto a tarifas muy competitivas.',
-    'hero.credential': 'P.E., S.E. Registrado',
+    'hero.credential': 'P.E. Registrado',
     'hero.viewProjects': 'Ver Proyectos',
     'hero.contactUs': 'Contactenos',
     'hero.scroll': 'Desliza',
@@ -473,7 +473,7 @@ export const dictionaries = {
 
     // Footer
     'footer.tagline': 'Despacho Internacional de Ingenieria Estructural',
-    'footer.credential': 'Registered P.E., S.E.',
+    'footer.credential': 'Registered P.E.',
     'footer.mainOffice': 'Oficina Principal',
     'footer.navigation': 'Navegacion',
     'footer.services': 'Servicios',
