@@ -246,7 +246,7 @@ export default function InboxPage() {
   const groupedNotifications = groupNotificationsByTime(filteredNotifications);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white">
+    <div className="flex-1 flex flex-col h-full bg-background">
       {/* ─── Page Header ─── */}
       <div className="flex items-center justify-between px-4 md:px-8 pt-5 md:pt-7 pb-1">
         <h1 className="text-lg md:text-xl font-semibold text-gray-900 tracking-[-0.01em]">

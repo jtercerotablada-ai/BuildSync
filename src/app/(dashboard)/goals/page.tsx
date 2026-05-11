@@ -228,7 +228,7 @@ export default function GoalsPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white">
+    <div className="flex-1 flex flex-col h-full bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b">
         <h1 className="text-lg md:text-xl font-semibold text-black">Goals</h1>

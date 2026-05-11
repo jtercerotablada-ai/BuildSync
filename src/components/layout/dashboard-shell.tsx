@@ -161,7 +161,7 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-white">
+    <div className="flex flex-col h-screen overflow-hidden bg-background">
       {/* Full-width topbar strip */}
       <Header
         onCreateTask={() => setShowQuickCreateTask(true)}
@@ -186,7 +186,7 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
           onCreateProject={() => setShowCreateProject(true)}
           basePath={basePath}
         />
-        <main className="flex-1 overflow-auto bg-white transition-[margin] duration-200 ease-out w-full pb-16 md:pb-0">
+        <main className="flex-1 overflow-auto bg-background transition-[margin] duration-200 ease-out w-full pb-16 md:pb-0">
           {children}
         </main>
       </div>

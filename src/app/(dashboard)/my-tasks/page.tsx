@@ -779,7 +779,7 @@ export default function MyTasksPage() {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-background">
       {/* TITLE ROW — no bottom border (Asana pattern) */}
       <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-0" style={{ height: "var(--page-header-h, 44px)" }}>
         <DropdownMenu>
