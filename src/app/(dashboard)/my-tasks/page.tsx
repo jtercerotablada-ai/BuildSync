@@ -155,6 +155,10 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
+  // Bumped whenever an attachment is uploaded or removed inside the
+  // slide-over. Files tab watches this and refetches so newly added
+  // attachments show up immediately when the user switches tabs.
+  const [attachmentsVersion, setAttachmentsVersion] = useState(0);
   const [sections, setSections] = useState<SmartSection[]>([]);
   const [quickFilters, setQuickFilters] = useState<QuickFilterKey[]>([]);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
@@ -1497,6 +1501,7 @@ export default function MyTasksPage() {
             <DashboardView tasks={tasks} sections={sections} />
           ) : (
             <FilesView
+              refreshKey={attachmentsVersion}
               onTaskClick={(taskId) => {
                 const t = tasks.find((tk) => tk.id === taskId);
                 if (t) openTaskDetail(t);
@@ -1512,6 +1517,7 @@ export default function MyTasksPage() {
             task={selectedTask}
             onClose={() => setTaskPanelOpen(false)}
             onUpdate={() => fetchTasks(true)}
+            onAttachmentsChange={() => setAttachmentsVersion((v) => v + 1)}
             formatDueDate={formatDueDate}
           />
         )}
@@ -3330,8 +3336,12 @@ type FileTypeFilter = "all" | "images" | "pdf" | "docs" | "other";
 
 function FilesView({
   onTaskClick,
+  refreshKey = 0,
 }: {
   onTaskClick?: (taskId: string) => void;
+  /** Bumped by the parent whenever an attachment was uploaded or
+   *  removed elsewhere (e.g. inside the task slide-over). */
+  refreshKey?: number;
 }) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3354,7 +3364,7 @@ function FilesView({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshKey]);
 
   const filtered = useMemo(() => {
     return files.filter((f) => {
@@ -3632,11 +3642,15 @@ function TaskDetailPanel({
   task,
   onClose,
   onUpdate,
+  onAttachmentsChange,
   formatDueDate,
 }: {
   task: Task;
   onClose: () => void;
   onUpdate: () => void;
+  /** Fired when attachments are added or removed so the parent can
+   *  invalidate any cached attachment view (e.g. the Files tab). */
+  onAttachmentsChange?: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
 }) {
   const [taskDetail, setTaskDetail] = useState<any>(null);
@@ -3688,6 +3702,7 @@ function TaskDetailPanel({
       );
       await fetchTaskDetail();
       onUpdate();
+      onAttachmentsChange?.();
     }
     setUploading(false);
     // Reset the input so re-selecting the same file works
@@ -3705,6 +3720,7 @@ function TaskDetailPanel({
       toast.success("Attachment removed");
       await fetchTaskDetail();
       onUpdate();
+      onAttachmentsChange?.();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Couldn't remove attachment"
