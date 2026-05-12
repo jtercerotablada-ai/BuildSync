@@ -2715,14 +2715,15 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
         </span>
       </div>
 
-      {/* Week header — 7 equal columns to match the grid below
-          (Asana renders every weekday the same width regardless of
-          whether it's a weekday or weekend). */}
+      {/* Week header — 7 equal columns, day label left-aligned with
+          the same px-1.5 padding the day number uses inside each
+          cell. This way the header sits directly above its day
+          numbers on the same vertical axis. */}
       <div className="grid grid-cols-7 border-b bg-gray-50/40">
         {weekDays.map((day) => (
           <div
             key={day}
-            className="py-2 text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-r last:border-r-0"
+            className="py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-r last:border-r-0"
           >
             {day}
           </div>
