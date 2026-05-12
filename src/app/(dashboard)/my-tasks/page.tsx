@@ -1408,7 +1408,39 @@ export default function MyTasksPage() {
               <Loader2 className="h-8 w-8 animate-spin text-black" />
             </div>
           ) : view === "list" ? (
-            <div>
+            <ListDndProvider
+              sections={filteredSections}
+              onMoveTask={async (taskId: string, destSectionId: string) => {
+                const sectionMap: Record<string, string | null> = {
+                  "do-today": "DO_TODAY",
+                  "do-next-week": "DO_NEXT_WEEK",
+                  "do-later": "DO_LATER",
+                  "recently-assigned": null,
+                };
+                const myTaskSection = sectionMap[destSectionId] ?? null;
+                // Optimistic: re-derive tasks state to reflect the move
+                setTasks((prev) =>
+                  prev.map((t) =>
+                    t.id === taskId
+                      ? { ...t, myTaskSection: myTaskSection as Task["myTaskSection"] }
+                      : t
+                  )
+                );
+                try {
+                  const res = await fetch(`/api/tasks/${taskId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ myTaskSection }),
+                  });
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  fetchTasks(true);
+                } catch (err) {
+                  console.error("Move task error:", err);
+                  toast.error("Couldn't move task");
+                  fetchTasks(true);
+                }
+              }}
+            >
               {filteredSections.map((section) => (
                 <TaskSection
                   key={section.id}
@@ -1447,7 +1479,7 @@ export default function MyTasksPage() {
                   Add section
                 </button>
               )}
-            </div>
+            </ListDndProvider>
           ) : view === "board" ? (
             <BoardView
               sections={filteredSections}
@@ -1887,8 +1919,20 @@ function TaskSection({
     }, 120);
   };
 
+  // Droppable target for the whole section so dragging a task into
+  // an empty section still has somewhere to land.
+  const { setNodeRef: setSectionDroppableRef, isOver } = useDroppable({
+    id: section.id,
+  });
+
   return (
-    <div>
+    <div
+      ref={setSectionDroppableRef}
+      className={cn(
+        "transition-colors",
+        isOver && "bg-[#c9a84c]/5"
+      )}
+    >
       {/* Section header */}
       <button
         onClick={onToggleSection}
@@ -1910,7 +1954,11 @@ function TaskSection({
 
       {/* Tasks */}
       {!section.collapsed && (
-        <div>
+        <SortableContext
+          id={section.id}
+          items={section.tasks.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
           {/* Inline input row — appears at TOP of section (Asana behavior) */}
           {isAddingTask && (
             <div
@@ -1998,9 +2046,80 @@ function TaskSection({
               <div className="hidden md:block w-8 flex-shrink-0" />
             </button>
           )}
-        </div>
+        </SortableContext>
       )}
     </div>
+  );
+}
+
+/**
+ * Wraps the List view in a DnD context so tasks can be dragged
+ * between sections, the same way they can in Board view. Each
+ * TaskSection registers as a droppable target and renders its tasks
+ * inside a SortableContext; each TaskRow becomes draggable via
+ * useSortable. On drop the parent's onMoveTask handles the PATCH +
+ * optimistic update, identical to Board's contract.
+ */
+function ListDndProvider({
+  sections,
+  onMoveTask,
+  children,
+}: {
+  sections: SmartSection[];
+  onMoveTask: (taskId: string, destSectionId: string) => Promise<void> | void;
+  children: React.ReactNode;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // Figure out destination section. overId can be either a section
+    // id (drop on section header / empty zone) or a task id (drop on
+    // another row), so we resolve task→section.
+    let destSectionId: string | undefined;
+    if (sections.some((s) => s.id === overId)) {
+      destSectionId = overId;
+    } else {
+      for (const s of sections) {
+        if (s.tasks.some((t) => t.id === overId)) {
+          destSectionId = s.id;
+          break;
+        }
+      }
+    }
+    if (!destSectionId) return;
+
+    // Find source. If same section → reorder only (out of scope for
+    // now since we don't persist intra-section position on the server
+    // for myTaskSection — Board has the same limitation).
+    let srcSectionId: string | undefined;
+    for (const s of sections) {
+      if (s.tasks.some((t) => t.id === activeId)) {
+        srcSectionId = s.id;
+        break;
+      }
+    }
+    if (!srcSectionId || srcSectionId === destSectionId) return;
+
+    onMoveTask(activeId, destSectionId);
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={kanbanCollisionDetection}
+      onDragEnd={handleDragEnd}
+    >
+      {children}
+    </DndContext>
   );
 }
 
@@ -2019,6 +2138,25 @@ function TaskRow({
   customColumnCount?: number;
 }) {
   const dueDateInfo = formatDueDate(task.dueDate);
+
+  // Sortable wiring — drag handle lives on the row itself; pointer
+  // events on the checkbox / name still work because dnd-kit only
+  // activates a drag past the activation distance (6px in the
+  // ListDndProvider).
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const dragStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
 
   const checkboxEl = task.taskType === "MILESTONE" ? (
     <button
@@ -2119,10 +2257,25 @@ function TaskRow({
 
       {/* ── Desktop Row ── */}
       <div
+        ref={setNodeRef}
+        style={{ ...dragStyle, height: "var(--row-h)" }}
         onClick={onClick}
         className="hidden md:flex items-center px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors"
-        style={{ height: 'var(--row-h)' }}
       >
+        {/* Drag handle — visible on hover at the far left. The row's
+            own click still opens the slide-over, only this small grip
+            initiates drag. */}
+        <button
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          className="w-4 -ml-1 mr-1 flex items-center justify-center flex-shrink-0 text-gray-300 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing"
+          aria-label="Drag task"
+          title="Drag to move"
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+
         {/* Checkbox */}
         <div className="w-8 flex-shrink-0 flex items-center">{checkboxEl}</div>
 
