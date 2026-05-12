@@ -4025,28 +4025,31 @@ function TaskDetailPanel({
                   ]);
                 }}
                 trigger={
-                  taskDetail?.dueDate || taskDetail?.startDate ? (
-                    <button
-                      className={cn(
-                        "text-sm hover:bg-gray-100 px-2 py-1 rounded cursor-pointer",
-                        dueDateInfo.className
-                      )}
-                    >
-                      {formatRangeLabel(
-                        taskDetail?.startDate
-                          ? new Date(taskDetail.startDate)
-                          : null,
-                        taskDetail?.dueDate
-                          ? new Date(taskDetail.dueDate)
-                          : null,
-                        dueDateInfo.text
-                      )}
-                    </button>
-                  ) : (
-                    <button className="text-sm text-slate-500 hover:text-slate-700 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
-                      No due date
-                    </button>
-                  )
+                  // ONE button regardless of state. Conditional children
+                  // would change the element's React identity on every
+                  // update and Radix would close the popover. We just
+                  // swap the text and class instead.
+                  <button
+                    type="button"
+                    className={cn(
+                      "text-sm hover:bg-gray-100 px-2 py-1 rounded cursor-pointer",
+                      taskDetail?.dueDate || taskDetail?.startDate
+                        ? dueDateInfo.className
+                        : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    {taskDetail?.dueDate || taskDetail?.startDate
+                      ? formatRangeLabel(
+                          taskDetail?.startDate
+                            ? new Date(taskDetail.startDate)
+                            : null,
+                          taskDetail?.dueDate
+                            ? new Date(taskDetail.dueDate)
+                            : null,
+                          dueDateInfo.text
+                        )
+                      : "No due date"}
+                  </button>
                 }
               />
             </div>

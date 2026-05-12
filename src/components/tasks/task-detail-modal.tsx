@@ -727,28 +727,46 @@ export function TaskDetailModal({
                           })
                         }
                         trigger={
-                          task.dueDate || task.startDate ? (
-                            <button className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
-                              <CalendarIcon className="h-4 w-4 text-[#a8893a]" />
-                              <span className="text-sm text-[#a8893a] font-medium">
-                                {formatRangeLabel(
-                                  task.startDate
-                                    ? new Date(task.startDate)
-                                    : null,
-                                  task.dueDate
-                                    ? new Date(task.dueDate)
-                                    : null,
-                                  task.dueDate
-                                    ? formatDueDate(task.dueDate).text
-                                    : ""
-                                )}
-                              </span>
-                            </button>
-                          ) : (
-                            <Button variant="ghost" size="sm" className="text-gray-500 h-8 gap-1">
-                              No due date <ChevronDown className="h-3 w-3" />
-                            </Button>
-                          )
+                          // Single stable button: swapping between
+                          // <button> and <Button> would change React
+                          // element identity and Radix Popover closes
+                          // on trigger remount.
+                          <button
+                            type="button"
+                            className={cn(
+                              "flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer text-sm",
+                              task.dueDate || task.startDate
+                                ? "text-[#a8893a] font-medium"
+                                : "text-gray-500"
+                            )}
+                          >
+                            <CalendarIcon
+                              className={cn(
+                                "h-4 w-4",
+                                task.dueDate || task.startDate
+                                  ? "text-[#a8893a]"
+                                  : "text-gray-400"
+                              )}
+                            />
+                            <span>
+                              {task.dueDate || task.startDate
+                                ? formatRangeLabel(
+                                    task.startDate
+                                      ? new Date(task.startDate)
+                                      : null,
+                                    task.dueDate
+                                      ? new Date(task.dueDate)
+                                      : null,
+                                    task.dueDate
+                                      ? formatDueDate(task.dueDate).text
+                                      : ""
+                                  )
+                                : "No due date"}
+                            </span>
+                            {!(task.dueDate || task.startDate) && (
+                              <ChevronDown className="h-3 w-3" />
+                            )}
+                          </button>
                         }
                       />
                     </div>

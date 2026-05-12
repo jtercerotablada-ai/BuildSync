@@ -100,8 +100,25 @@ export function DueDatePicker({
   trigger,
 }: DueDatePickerProps) {
   const [open, setOpen] = useState(false);
-  const [startInput, setStartInput] = useState(startDate ? formatDateInput(startDate) : '');
-  const [dueInput, setDueInput] = useState(dueDate ? formatDateInput(dueDate) : '');
+  /**
+   * DRAFT state.
+   * The picker holds its own copy of the dates while the popover is
+   * open and only flushes back to the parent when the popover
+   * dismisses. This is critical for two reasons:
+   *   1. Otherwise every calendar click fires a PATCH + refetch on
+   *      the parent, which re-renders the trigger element and tells
+   *      Radix the trigger is gone — Radix then closes the popover.
+   *   2. Asana never PATCH-spams the server while the user is still
+   *      sliding the range around. It commits once on dismiss.
+   */
+  const [localStart, setLocalStart] = useState<Date | null>(startDate);
+  const [localDue, setLocalDue] = useState<Date | null>(dueDate);
+  const [startInput, setStartInput] = useState(
+    startDate ? formatDateInput(startDate) : ''
+  );
+  const [dueInput, setDueInput] = useState(
+    dueDate ? formatDateInput(dueDate) : ''
+  );
   const [viewDate, setViewDate] = useState(startDate || dueDate || new Date());
   /** Which input is the "next click" filling — Asana toggles this on
    *  every click so two clicks can pick a full range. */
@@ -112,19 +129,54 @@ export function DueDatePicker({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Re-sync draft from props every time the popover transitions to
+  // open. Outside of that window we keep the draft so live edits
+  // don't snap back if the parent happens to re-render.
   useEffect(() => {
-    setStartInput(startDate ? formatDateInput(startDate) : '');
-  }, [startDate]);
-  useEffect(() => {
-    setDueInput(dueDate ? formatDateInput(dueDate) : '');
-  }, [dueDate]);
+    if (open) {
+      setLocalStart(startDate);
+      setLocalDue(dueDate);
+      setStartInput(startDate ? formatDateInput(startDate) : '');
+      setDueInput(dueDate ? formatDateInput(dueDate) : '');
+      setFocus(startDate && !dueDate ? 'due' : 'start');
+      if (startDate || dueDate) {
+        setViewDate(startDate || dueDate || new Date());
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
-  /** Commit a new range to the parent, swapping if start > due. */
-  function commit(start: Date | null, due: Date | null) {
+  /**
+   * Update the draft, swapping if start > due so an out-of-order
+   * pair never reaches the parent.
+   */
+  function commitDraft(start: Date | null, due: Date | null) {
     if (start && due && dayOnly(start) > dayOnly(due)) {
-      onChange(due, start);
+      setLocalStart(due);
+      setLocalDue(start);
+      setStartInput(formatDateInput(due));
+      setDueInput(formatDateInput(start));
     } else {
-      onChange(start, due);
+      setLocalStart(start);
+      setLocalDue(due);
+      setStartInput(start ? formatDateInput(start) : '');
+      setDueInput(due ? formatDateInput(due) : '');
+    }
+  }
+
+  /**
+   * Flush draft state up to the parent. Called when the popover
+   * dismisses; skipped when nothing actually changed so the parent
+   * doesn't trigger a no-op PATCH.
+   */
+  function flush() {
+    const startChanged =
+      (localStart?.toDateString() || '') !==
+      (startDate?.toDateString() || '');
+    const dueChanged =
+      (localDue?.toDateString() || '') !== (dueDate?.toDateString() || '');
+    if (startChanged || dueChanged) {
+      onChange(localStart, localDue);
     }
   }
 
@@ -132,12 +184,12 @@ export function DueDatePicker({
     const v = e.target.value;
     setStartInput(v);
     if (v.trim() === '') {
-      commit(null, dueDate);
+      setLocalStart(null);
       return;
     }
     const parsed = parseDateInput(v);
     if (parsed) {
-      commit(parsed, dueDate);
+      commitDraft(parsed, localDue);
       setViewDate(parsed);
     }
   };
@@ -146,33 +198,34 @@ export function DueDatePicker({
     const v = e.target.value;
     setDueInput(v);
     if (v.trim() === '') {
-      commit(startDate, null);
+      setLocalDue(null);
       return;
     }
     const parsed = parseDateInput(v);
     if (parsed) {
-      commit(startDate, parsed);
+      commitDraft(localStart, parsed);
       setViewDate(parsed);
     }
   };
 
   const handleSelectDate = (day: number, month: number, year: number) => {
     const picked = new Date(year, month, day);
-    // Asana behavior: never auto-close on a date pick. The user keeps
-    // adjusting either endpoint until they explicitly dismiss (click
-    // outside, hit Done, or press Esc). Just flip focus to the other
-    // input so two clicks naturally fill a fresh range.
+    // Pure draft update — flip focus so the next click naturally
+    // hits the other endpoint. Nothing here touches the parent, so
+    // the trigger element stays stable and the popover stays open
+    // until the user explicitly dismisses it.
     if (focus === 'start') {
-      commit(picked, dueDate);
+      commitDraft(picked, localDue);
       setFocus('due');
     } else {
-      commit(startDate, picked);
+      commitDraft(localStart, picked);
       setFocus('start');
     }
   };
 
   const handleClear = () => {
-    onChange(null, null);
+    setLocalStart(null);
+    setLocalDue(null);
     setStartInput('');
     setDueInput('');
     setFocus('start');
@@ -228,24 +281,24 @@ export function DueDatePicker({
   const isToday = (date: Date) => date.toDateString() === today.toDateString();
 
   const isStart = (date: Date) =>
-    !!startDate && date.toDateString() === startDate.toDateString();
+    !!localStart && date.toDateString() === localStart.toDateString();
   const isDue = (date: Date) =>
-    !!dueDate && date.toDateString() === dueDate.toDateString();
+    !!localDue && date.toDateString() === localDue.toDateString();
   /** Cell sits strictly between start and due — gets the band fill. */
   const isInRange = (date: Date) => {
-    if (!startDate || !dueDate) return false;
+    if (!localStart || !localDue) return false;
     const t = dayOnly(date);
-    return t > dayOnly(startDate) && t < dayOnly(dueDate);
+    return t > dayOnly(localStart) && t < dayOnly(localDue);
   };
   /** Same-day range (start === due) — show only the endpoint style. */
   const isSingleEndpoint = (date: Date) => {
-    if (startDate && dueDate &&
-      startDate.toDateString() === dueDate.toDateString()) {
-      return date.toDateString() === startDate.toDateString();
+    if (localStart && localDue &&
+      localStart.toDateString() === localDue.toDateString()) {
+      return date.toDateString() === localStart.toDateString();
     }
     // No start, only due — classic single-date highlight.
-    if (!startDate && dueDate) {
-      return date.toDateString() === dueDate.toDateString();
+    if (!localStart && localDue) {
+      return date.toDateString() === localDue.toDateString();
     }
     return false;
   };
@@ -283,7 +336,15 @@ export function DueDatePicker({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        // Flush the draft to the parent on dismiss only. Opening the
+        // popover doesn't need a flush.
+        if (!next) flush();
+        setOpen(next);
+      }}
+    >
       <PopoverTrigger asChild>
         {trigger}
       </PopoverTrigger>
@@ -315,7 +376,7 @@ export function DueDatePicker({
               focus === 'due' && "ring-2 ring-[#c9a84c]/40 border-[#c9a84c]"
             )}
           />
-          {(startDate || dueDate) && (
+          {(localStart || localDue) && (
             <button
               onClick={handleClear}
               className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
