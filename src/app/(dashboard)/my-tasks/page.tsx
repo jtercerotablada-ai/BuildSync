@@ -1544,7 +1544,15 @@ export default function MyTasksPage() {
               onTaskClick={openTaskDetail}
             />
           ) : view === "dashboard" ? (
-            <DashboardView tasks={tasks} sections={sections} />
+            <DashboardView
+              tasks={filteredSections.flatMap((s) => s.tasks)}
+              sections={filteredSections}
+              activeFilterCount={
+                quickFilters.length +
+                activeFilters.length +
+                (searchQuery.trim() ? 1 : 0)
+              }
+            />
           ) : (
             <FilesView
               refreshKey={attachmentsVersion}
@@ -3606,7 +3614,18 @@ function CalendarView({
 }
 
 // Dashboard View with charts
-function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSection[] }) {
+function DashboardView({
+  tasks,
+  sections,
+  activeFilterCount = 0,
+}: {
+  tasks: Task[];
+  sections: SmartSection[];
+  /** How many quick filters + custom filters + search are active on
+   *  the parent page. The dashboard reflects them in every widget
+   *  footer so the user knows the numbers are filtered. */
+  activeFilterCount?: number;
+}) {
   const completed = tasks.filter((t) => t.completed).length;
   const incomplete = tasks.filter((t) => !t.completed).length;
   const overdue = tasks.filter((t) => !t.completed && t.dueDate && new Date(t.dueDate) < new Date()).length;
@@ -3672,19 +3691,19 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
     });
   }
 
-  // Widget footer component (Asana-style)
+  // Widget footer component (Asana-style). The "View all" trigger
+  // was a dead toast — replaced with a quiet indicator of how many
+  // tasks rolled up into this widget so the user can sanity-check
+  // the chart against the filter set.
   const WidgetFooter = ({ filterCount, filterLabel }: { filterCount: number; filterLabel?: string }) => (
     <div className="flex items-center justify-between pt-3 mt-auto border-t border-gray-100">
       <span className="flex items-center gap-1 text-[11px] text-gray-400">
         <Filter className="w-3 h-3" />
         {filterLabel || (filterCount === 0 ? "No filters" : `${filterCount} filter${filterCount > 1 ? "s" : ""}`)}
       </span>
-      <button
-        onClick={() => toast.info("Detailed view coming soon")}
-        className="text-[11px] text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-50 transition-colors"
-      >
-        View all
-      </button>
+      <span className="text-[11px] text-gray-400 font-mono tabular-nums">
+        {total} task{total === 1 ? "" : "s"}
+      </span>
     </div>
   );
 
@@ -3693,20 +3712,22 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
       {/* KPI Metric Cards — Asana style */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         {[
-          { label: "Completed tasks", value: completed, filters: "1 filter" },
-          { label: "Incomplete tasks", value: incomplete, filters: "1 filter" },
-          { label: "Overdue tasks", value: overdue, filters: "1 filter" },
-          { label: "Total tasks", value: total, filters: "No filters" },
+          { label: "Completed tasks", value: completed },
+          { label: "Incomplete tasks", value: incomplete },
+          { label: "Overdue tasks", value: overdue },
+          { label: "Total tasks", value: total },
         ].map((card) => (
           <div
             key={card.label}
             className="bg-white rounded-lg border border-gray-200/80 py-5 px-4 flex flex-col items-center text-center"
           >
             <span className="text-[13px] text-gray-900 font-normal">{card.label}</span>
-            <span className="text-[40px] font-light text-gray-900 leading-tight mt-1.5 mb-2">{card.value}</span>
+            <span className="text-[40px] font-light text-gray-900 leading-tight mt-1.5 mb-2 font-mono tabular-nums">{card.value}</span>
             <span className="flex items-center gap-1 text-[11px] text-gray-400">
               <Filter className="w-2.5 h-2.5" />
-              {card.filters}
+              {activeFilterCount === 0
+                ? "No filters"
+                : `${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""}`}
             </span>
           </div>
         ))}
@@ -3747,7 +3768,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
             </ResponsiveContainer>
           </div>
           <div className="px-5 pb-4">
-            <WidgetFooter filterCount={1} />
+            <WidgetFooter filterCount={activeFilterCount} />
           </div>
         </div>
 
@@ -3782,7 +3803,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
             </div>
           </div>
           <div className="px-5 pb-4">
-            <WidgetFooter filterCount={2} />
+            <WidgetFooter filterCount={activeFilterCount} />
           </div>
         </div>
       </div>
@@ -3828,7 +3849,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
             )}
           </div>
           <div className="px-5 pb-4">
-            <WidgetFooter filterCount={1} />
+            <WidgetFooter filterCount={activeFilterCount} />
           </div>
         </div>
 
@@ -3865,7 +3886,7 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
             </ResponsiveContainer>
           </div>
           <div className="px-5 pb-4">
-            <WidgetFooter filterCount={2} />
+            <WidgetFooter filterCount={activeFilterCount} />
           </div>
         </div>
       </div>
