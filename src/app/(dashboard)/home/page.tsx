@@ -66,6 +66,11 @@ import { HomeRecertRadar } from "@/components/home/home-recert-radar";
 import { HomeUpcomingMilestones } from "@/components/home/home-upcoming-milestones";
 import { HomeGoalsSnapshot } from "@/components/home/home-goals-snapshot";
 import { HomeRecentActivity } from "@/components/home/home-recent-activity";
+import {
+  HomeVitalsRings,
+  type VitalRing,
+} from "@/components/home/home-vitals-rings";
+import { HomePortfolioSkyline } from "@/components/home/home-portfolio-skyline";
 
 // Classic widget fallbacks (rendered when the user has opted into
 // one of the legacy Asana-style widgets via Customize).
@@ -197,6 +202,103 @@ export default function HomePage() {
       spis.length > 0 ? spis.reduce((a, b) => a + b, 0) / spis.length : 0;
     return { closed, overdue, avgSpi, velocity: closed };
   }, [data]);
+
+  // ── Vital rings: SPI / Velocity / Compliance / Capacity ────────
+  const vitalRings: VitalRing[] = useMemo(() => {
+    if (!data) return [];
+    const now = new Date();
+
+    // Schedule ring — SPI clamped to [0, 1.2] → fill ratio (1.0 fills
+    // the ring; over 1.0 it stays full but shows the value).
+    const spiFill = Math.min(1, stats.avgSpi || 0);
+    const spiEmphasis: VitalRing["emphasis"] =
+      stats.avgSpi >= 0.95 ? "good" : stats.avgSpi >= 0.85 ? "warn" : "bad";
+
+    // Velocity ring — closed/week vs a target of one task per active
+    // project per week (rough heuristic).
+    const target = Math.max(1, data.projects.length);
+    const velocityFill = Math.min(1, stats.closed / target);
+    const velocityEmphasis: VitalRing["emphasis"] =
+      velocityFill >= 0.8 ? "good" : velocityFill >= 0.5 ? "warn" : "bad";
+
+    // Compliance ring — % of compliance projects (RECERTIFICATION /
+    // PERMIT) with endDate ≥ 30 days out (= safe). Items inside 30
+    // days subtract from the score.
+    const compliance = data.compliance;
+    const safe = compliance.filter(
+      (p) =>
+        p.endDate &&
+        new Date(p.endDate).getTime() - now.getTime() >
+          30 * 24 * 60 * 60 * 1000
+    ).length;
+    const totalCompliance = Math.max(1, compliance.length);
+    const compFill = compliance.length === 0 ? 1 : safe / totalCompliance;
+    const compEmphasis: VitalRing["emphasis"] =
+      compFill >= 0.8 ? "good" : compFill >= 0.5 ? "warn" : "bad";
+
+    // Capacity ring — average load across the team, normalized to
+    // the busiest member. Higher fill = busier; > 0.9 flips to bold
+    // black (overloaded).
+    const loads = data.team.map((m) => m.load);
+    const peak = Math.max(1, ...loads);
+    const avgLoad = loads.length
+      ? loads.reduce((a, b) => a + b, 0) / loads.length / peak
+      : 0;
+    const capEmphasis: VitalRing["emphasis"] =
+      avgLoad > 0.85 ? "bad" : avgLoad > 0.6 ? "warn" : "good";
+
+    return [
+      {
+        id: "schedule",
+        label: "Schedule SPI",
+        value: spiFill,
+        display: stats.avgSpi > 0 ? stats.avgSpi.toFixed(2) : "—",
+        sublabel:
+          stats.avgSpi >= 0.95
+            ? "On plan"
+            : stats.avgSpi >= 0.85
+              ? "Watch"
+              : stats.avgSpi > 0
+                ? "Behind"
+                : "No baseline",
+        emphasis: spiEmphasis,
+      },
+      {
+        id: "velocity",
+        label: "Velocity / wk",
+        value: velocityFill,
+        display: String(stats.closed),
+        sublabel: `${stats.closed} closed · ${target} target`,
+        emphasis: velocityEmphasis,
+      },
+      {
+        id: "compliance",
+        label: "Compliance",
+        value: compFill,
+        display: `${safe}/${compliance.length || 0}`,
+        sublabel:
+          compliance.length === 0
+            ? "Nothing tracked"
+            : `${compliance.length - safe} within 30d`,
+        emphasis: compEmphasis,
+      },
+      {
+        id: "capacity",
+        label: "Capacity",
+        value: avgLoad,
+        display: `${Math.round(avgLoad * 100)}%`,
+        sublabel:
+          loads.length === 0
+            ? "No team yet"
+            : avgLoad > 0.85
+              ? "Overloaded"
+              : avgLoad > 0.6
+                ? "High"
+                : "Available",
+        emphasis: capEmphasis,
+      },
+    ];
+  }, [data, stats]);
 
   // ── Render a single widget by id ────────────────────────────────
   function renderWidgetBody(id: WidgetType) {
@@ -362,6 +464,17 @@ export default function HomePage() {
         avgSpi={stats.avgSpi}
         velocityWeekly={stats.velocity}
       />
+
+      {/* Signature visual #1 — Apple-Watch-style activity rings. Four
+          live metrics with stroke-dasharray-animated fills + count-up.
+          Reads at-a-glance: are we on schedule, velocity, compliance,
+          capacity right now. */}
+      {data && <HomeVitalsRings rings={vitalRings} />}
+
+      {/* Signature visual #2 — every project as a vertical bar in a
+          city skyline. Height = % complete, color = health. On-brand
+          for a structural firm; no other PM tool ships this view. */}
+      {data && <HomePortfolioSkyline projects={data.projects} />}
 
       {/* Customize bar — the modal renders its own trigger button */}
       <div className="px-4 md:px-6 pt-4 flex items-center justify-end">
