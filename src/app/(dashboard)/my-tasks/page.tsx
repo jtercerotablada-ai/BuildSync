@@ -1417,15 +1417,35 @@ export default function MyTasksPage() {
                   "do-later": "DO_LATER",
                   "recently-assigned": null,
                 };
+                // Drops on any other section id (e.g. user-created
+                // sections under "group by project") aren't supported
+                // yet — bail without optimistic updates so the row
+                // visibly snaps back.
+                if (!(destSectionId in sectionMap)) {
+                  toast.info(
+                    "Drag-drop only supported in the default 'My tasks' grouping"
+                  );
+                  return;
+                }
                 const myTaskSection = sectionMap[destSectionId] ?? null;
-                // Optimistic: re-derive tasks state to reflect the move
-                setTasks((prev) =>
-                  prev.map((t) =>
-                    t.id === taskId
-                      ? { ...t, myTaskSection: myTaskSection as Task["myTaskSection"] }
-                      : t
-                  )
+
+                // Optimistic update: update tasks AND re-derive
+                // sections so the row visually lands in the new
+                // section immediately — otherwise the UI keeps
+                // reading from the stale sections state and the row
+                // "bounces back" until the server responds.
+                const updatedTasks = tasks.map((t) =>
+                  t.id === taskId
+                    ? {
+                        ...t,
+                        myTaskSection:
+                          myTaskSection as Task["myTaskSection"],
+                      }
+                    : t
                 );
+                setTasks(updatedTasks);
+                organizeTasks(updatedTasks);
+
                 try {
                   const res = await fetch(`/api/tasks/${taskId}`, {
                     method: "PATCH",
@@ -1433,10 +1453,13 @@ export default function MyTasksPage() {
                     body: JSON.stringify({ myTaskSection }),
                   });
                   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  // Silent refresh to reconcile with server state
+                  // (in case anything raced).
                   fetchTasks(true);
                 } catch (err) {
                   console.error("Move task error:", err);
-                  toast.error("Couldn't move task");
+                  toast.error("Couldn't move task — reverting");
+                  // Roll back optimistic update
                   fetchTasks(true);
                 }
               }}
