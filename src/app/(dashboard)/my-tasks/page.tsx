@@ -1485,7 +1485,7 @@ export default function MyTasksPage() {
               formatDueDate={formatDueDate}
             />
           ) : view === "calendar" ? (
-            <CalendarView tasks={tasks} />
+            <CalendarView tasks={tasks} onTaskCreated={() => fetchTasks(true)} />
           ) : view === "dashboard" ? (
             <DashboardView tasks={tasks} sections={sections} />
           ) : (
@@ -2625,7 +2625,13 @@ function BoardTaskOverlay({
 }
 
 // Calendar View
-function CalendarView({ tasks }: { tasks: Task[] }) {
+function CalendarView({
+  tasks,
+  onTaskCreated,
+}: {
+  tasks: Task[];
+  onTaskCreated?: () => void;
+}) {
   // ── State driving the "infinite" calendar ─────────────────────
   // `windowStart` is the very first Monday rendered. We seed it at
   // 4 weeks before this week's Monday so the user can scroll up a
@@ -2653,6 +2659,56 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const todayWeekRef = useRef<HTMLDivElement | null>(null);
+
+  // Asana-style inline quick-add: click anywhere on a cell's empty
+  // area → a white input appears inside that cell. Enter or blur
+  // commits, Escape cancels.
+  const [addingForDate, setAddingForDate] = useState<string | null>(null);
+  const [newTaskName, setNewTaskName] = useState("");
+  const [creatingInline, setCreatingInline] = useState(false);
+  const newTaskInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (addingForDate && newTaskInputRef.current) {
+      newTaskInputRef.current.focus();
+    }
+  }, [addingForDate]);
+
+  async function commitInlineTask(forDate: Date) {
+    const name = newTaskName.trim();
+    if (!name) {
+      setAddingForDate(null);
+      setNewTaskName("");
+      return;
+    }
+    setCreatingInline(true);
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          dueDate: forDate.toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      toast.success(
+        `Created "${name}" for ${forDate.toLocaleDateString("en-US")}`
+      );
+      onTaskCreated?.();
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Couldn't create task"
+      );
+    } finally {
+      setCreatingInline(false);
+      setAddingForDate(null);
+      setNewTaskName("");
+    }
+  }
 
   // ── Generate all days from windowStart ────────────────────────
   const allDays = useMemo(() => {
@@ -2843,19 +2899,30 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                 // about the unused variable — not a render dependency.
                 void isCurrentMonth0;
 
+                const isAdding = addingForDate === dateStr;
                 return (
                   <div
                     key={dateStr}
+                    onClick={(e) => {
+                      // Only enter add-mode when the user clicks the
+                      // empty area of the cell — not a task bar or
+                      // any of its children.
+                      if (e.currentTarget === e.target && !isAdding) {
+                        setAddingForDate(dateStr);
+                        setNewTaskName("");
+                      }
+                    }}
                     className={cn(
-                      "border-b border-gray-200 group relative flex flex-col overflow-hidden",
+                      "border-b border-gray-200 group relative flex flex-col overflow-hidden cursor-pointer",
                       dayOfWeek > 0 && "border-l border-gray-200",
                       !isCurrentMonth && "bg-gray-50/40",
                       isWeekend && isCurrentMonth && "bg-gray-50/20",
-                      isToday && "bg-[#c9a84c]/5"
+                      isToday && "bg-[#c9a84c]/5",
+                      isAdding && "ring-2 ring-[#c9a84c]/60 ring-inset"
                     )}
                   >
                     {/* Day number — anchored top-left, compact */}
-                    <div className="flex items-start justify-between px-1.5 pt-1 flex-shrink-0">
+                    <div className="flex items-start justify-between px-1.5 pt-1 flex-shrink-0 pointer-events-none">
                       <span
                         className={cn(
                           "text-[12px] font-mono tabular-nums",
@@ -2896,28 +2963,46 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                         </div>
                       ))}
                       {extra > 0 && (
-                        <button className="text-[10px] font-medium text-gray-500 hover:text-black pl-1.5 mt-0.5">
+                        <button
+                          className="text-[10px] font-medium text-gray-500 hover:text-black pl-1.5 mt-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           +{extra} more
                         </button>
                       )}
-                    </div>
 
-                    {/* Add task on hover */}
-                    <button
-                      className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded p-0.5 hover:bg-gray-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const name = prompt("Task name:");
-                        if (name?.trim()) {
-                          toast.success(
-                            `Task "${name.trim()}" added for ${date.toLocaleDateString("en-US")}`
-                          );
-                        }
-                      }}
-                      aria-label="Add task"
-                    >
-                      <Plus className="w-3 h-3 text-gray-500" />
-                    </button>
+                      {/* Inline Add input — Asana pattern: click any
+                          empty area of a cell, white input appears,
+                          Enter commits, Escape cancels, blur commits
+                          if non-empty. */}
+                      {isAdding && (
+                        <div
+                          className="bg-white border border-gray-300 rounded shadow-sm mt-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            ref={newTaskInputRef}
+                            type="text"
+                            value={newTaskName}
+                            onChange={(e) => setNewTaskName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                commitInlineTask(date);
+                              } else if (e.key === "Escape") {
+                                e.preventDefault();
+                                setAddingForDate(null);
+                                setNewTaskName("");
+                              }
+                            }}
+                            onBlur={() => commitInlineTask(date)}
+                            disabled={creatingInline}
+                            placeholder="Task name…"
+                            className="w-full px-1.5 py-1 text-[11px] bg-transparent border-none outline-none placeholder:text-gray-400"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
