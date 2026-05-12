@@ -2134,32 +2134,26 @@ function ListDndProvider({
   // Local mirror of the section/task structure. Updated during drag
   // so the item visually lands in its destination container while
   // the user is still dragging. Synced back from the parent's
-  // `sections` prop whenever the parent re-renders — except during
-  // an active drag, where syncing would wipe the optimistic move.
+  // `sections` prop whenever the parent re-renders.
   const [localSections, setLocalSections] = useState<SmartSection[]>(sections);
   // The task being dragged — drives the DragOverlay ghost so dnd-kit
   // can move it cleanly between SortableContexts without the actual
-  // TaskRow node having to translate (which is what causes the
-  // bounce-back animation when the source TaskRow unmounts).
+  // TaskRow node having to translate.
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const dragSourceRef = useRef<string | null>(null);
-  const isDraggingRef = useRef(false);
 
   useEffect(() => {
-    // Skip the sync while a drag is in flight so the parent's prop
-    // changing (e.g. from a background refetch) doesn't reset our
-    // optimistic localSections mid-gesture.
-    if (isDraggingRef.current) return;
     setLocalSections(sections);
   }, [sections]);
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const id = String(event.active.id);
-    isDraggingRef.current = true;
-    // Find the task + its source section atomically by walking
-    // localSections at start-of-drag.
-    setLocalSections((prev) => {
-      for (const s of prev) {
+  // Pattern matches BoardView exactly: read localSections from
+  // closure with [localSections] in deps, so the callback is
+  // recreated whenever the dragOver-driven state changes. This way
+  // handleDragEnd sees the latest container assignments.
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const id = String(event.active.id);
+      for (const s of localSections) {
         const task = s.tasks.find((t) => t.id === id);
         if (task) {
           setActiveTask(task);
@@ -2167,9 +2161,9 @@ function ListDndProvider({
           break;
         }
       }
-      return prev;
-    });
-  }, []);
+    },
+    [localSections]
+  );
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
@@ -2177,10 +2171,6 @@ function ListDndProvider({
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    // ALL lookups go inside the updater so we read the latest state.
-    // Closure reads (`localSections.some(...)` outside) would be
-    // stale across rapid dragOver events. This mirrors the exact
-    // pattern BoardView uses.
     setLocalSections((prev) => {
       const srcSection = prev.find((s) =>
         s.tasks.some((t) => t.id === activeId)
@@ -2218,53 +2208,31 @@ function ListDndProvider({
       const src = dragSourceRef.current;
       setActiveTask(null);
       dragSourceRef.current = null;
-      if (!over) {
-        isDraggingRef.current = false;
-        return;
-      }
+      if (!over) return;
 
       const activeId = String(active.id);
       const overId = String(over.id);
 
-      // Resolve destination from current local state — handleDragOver
-      // has already moved the task into the right container, so this
-      // is just confirmation.
+      // Resolve destination from CLOSURE localSections — this is
+      // recreated by useCallback whenever localSections changes, so
+      // by the time handleDragEnd fires it has the post-dragOver
+      // state where the task is already in its destination.
       let destSectionId: string | undefined;
-      setLocalSections((prev) => {
-        if (prev.some((s) => s.id === overId)) {
-          destSectionId = overId;
-        } else {
-          for (const s of prev) {
-            if (s.tasks.some((t) => t.id === overId)) {
-              destSectionId = s.id;
-              break;
-            }
+      if (localSections.some((s) => s.id === overId)) {
+        destSectionId = overId;
+      } else {
+        for (const s of localSections) {
+          if (s.tasks.some((t) => t.id === overId)) {
+            destSectionId = s.id;
+            break;
           }
         }
-        return prev;
-      });
+      }
 
-      if (!destSectionId || !src || src === destSectionId) {
-        isDraggingRef.current = false;
-        return;
-      }
-      // KEEP isDraggingRef true through the awaited PATCH + refetch
-      // round-trip. If we cleared it before the await, the parent's
-      // re-renders during that time would let useEffect overwrite
-      // localSections with the stale prop value — the row would
-      // briefly appear back in its source section. Only after the
-      // server-confirmed sections land in props is it safe to let
-      // the sync resume.
-      try {
-        await onMoveTask(activeId, destSectionId);
-      } finally {
-        isDraggingRef.current = false;
-        // Trigger one explicit sync from props in case parent
-        // updates happened while we were holding the gate closed.
-        setLocalSections(sections);
-      }
+      if (!destSectionId || !src || src === destSectionId) return;
+      await onMoveTask(activeId, destSectionId);
     },
-    [onMoveTask, sections]
+    [localSections, onMoveTask]
   );
 
   return (
