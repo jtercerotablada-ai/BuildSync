@@ -3604,6 +3604,67 @@ function TaskDetailPanel({
   const [newSubtaskName, setNewSubtaskName] = useState("");
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
+  // File upload state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleAttachmentUpload(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    let okCount = 0;
+    for (const file of Array.from(files)) {
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch(`/api/tasks/${task.id}/attachments`, {
+          method: "POST",
+          body: fd,
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        okCount++;
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? `${file.name}: ${err.message}`
+            : `${file.name}: upload failed`
+        );
+      }
+    }
+    if (okCount > 0) {
+      toast.success(
+        `Uploaded ${okCount} file${okCount === 1 ? "" : "s"}`
+      );
+      await fetchTaskDetail();
+      onUpdate();
+    }
+    setUploading(false);
+    // Reset the input so re-selecting the same file works
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleAttachmentDelete(attachmentId: string) {
+    if (!confirm("Remove this attachment?")) return;
+    try {
+      const res = await fetch(
+        `/api/tasks/${task.id}/attachments/${attachmentId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Attachment removed");
+      await fetchTaskDetail();
+      onUpdate();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't remove attachment"
+      );
+    }
+  }
 
   useEffect(() => {
     fetchTaskDetail();
@@ -3694,7 +3755,31 @@ function TaskDetailPanel({
         </div>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => toast.success("Task liked")}><Heart className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => toast.info("File attachments coming soon")}><Paperclip className="h-4 w-4" /></Button>
+          {/* Hidden file input — clicked programmatically by the
+              Paperclip button above. Accepts multiple files at once;
+              each upload hits /api/tasks/:id/attachments which
+              persists to Vercel Blob and creates a DB row. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleAttachmentUpload}
+            accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            title="Attach file"
+          >
+            {uploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Paperclip className="h-4 w-4" />
+            )}
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tasks/${task.id}`); toast.success("Link copied to clipboard"); }}><Link2 className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => { window.open(`/tasks/${task.id}`, "_blank"); }}><Maximize2 className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" onClick={onClose}><X className="h-4 w-4" /></Button>
@@ -3816,6 +3901,100 @@ function TaskDetailPanel({
               placeholder="What is this task about?"
               className="w-full p-2 text-sm border rounded-md resize-none min-h-[80px] outline-none focus:ring-2 focus:ring-slate-200"
             />
+          </div>
+
+          {/* Attachments — uploaded files for this task. Persisted
+              to Vercel Blob via POST /api/tasks/:id/attachments and
+              also surface in the /my-tasks → Files tab via the
+              shared Attachment table. */}
+          <div className="p-4 border-b">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium text-slate-700">
+                Attachments ({taskDetail?.attachments?.length || 0})
+              </h4>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Paperclip className="h-3.5 w-3.5 mr-1" />
+                )}
+                {uploading ? "Uploading…" : "Upload"}
+              </Button>
+            </div>
+            {(!taskDetail?.attachments || taskDetail.attachments.length === 0) ? (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="w-full border border-dashed rounded-lg py-4 text-xs text-gray-500 hover:text-black hover:border-gray-400 hover:bg-gray-50 transition-colors"
+              >
+                Click to upload — images, PDFs, Office docs, up to 10 MB each
+              </button>
+            ) : (
+              <ul className="space-y-1.5">
+                {taskDetail.attachments.map(
+                  (a: {
+                    id: string;
+                    name: string;
+                    url: string;
+                    size: number;
+                    mimeType: string;
+                    createdAt: string;
+                  }) => {
+                    const isImage = a.mimeType.startsWith("image/");
+                    return (
+                      <li
+                        key={a.id}
+                        className="group flex items-center gap-2 px-2 py-1.5 border rounded-md hover:bg-gray-50"
+                      >
+                        {isImage ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={a.url}
+                            alt={a.name}
+                            className="h-8 w-8 object-cover rounded flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="h-8 w-8 rounded bg-gray-100 border flex items-center justify-center flex-shrink-0">
+                            <Paperclip className="h-3.5 w-3.5 text-gray-400" />
+                          </div>
+                        )}
+                        <a
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 min-w-0"
+                        >
+                          <p className="text-[12px] font-medium text-black truncate hover:underline">
+                            {a.name}
+                          </p>
+                          <p className="text-[10px] text-gray-500 font-mono tabular-nums">
+                            {formatFileSize(a.size)} ·{" "}
+                            {new Date(a.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </p>
+                        </a>
+                        <button
+                          onClick={() => handleAttachmentDelete(a.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-black"
+                          aria-label="Remove attachment"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </li>
+                    );
+                  }
+                )}
+              </ul>
+            )}
           </div>
 
           {/* Subtasks */}
