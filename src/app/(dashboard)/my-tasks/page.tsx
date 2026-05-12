@@ -1203,7 +1203,7 @@ export default function MyTasksPage() {
       </div>
 
       {/* CONTENT */}
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-hidden flex relative">
         <div
           ref={listContainerRef}
           className="flex-1 overflow-hidden flex flex-col min-w-0"
@@ -3402,7 +3402,14 @@ function TaskDetailPanel({
   const dueDateInfo = formatDueDate(taskDetail?.dueDate);
 
   return (
-    <div className="w-[500px] border-l bg-white h-full flex flex-col">
+    /* Slide-over panel — absolutely positioned over the list area
+       (parent at /my-tasks is `relative`) so it floats on top
+       without shifting the columns underneath. Same pattern Asana
+       uses for its task detail. Slides in from the right with a
+       subtle shadow. */
+    <div
+      className="absolute top-0 right-0 bottom-0 w-[500px] border-l bg-white flex flex-col z-30 shadow-2xl animate-in slide-in-from-right-5 duration-200"
+    >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2 flex-1">
