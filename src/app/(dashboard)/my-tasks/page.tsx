@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2626,74 +2626,163 @@ function BoardTaskOverlay({
 
 // Calendar View
 function CalendarView({ tasks }: { tasks: Task[] }) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // ── State driving the "infinite" calendar ─────────────────────
+  // `windowStart` is the very first Monday rendered. We seed it at
+  // 4 weeks before this week's Monday so the user can scroll up a
+  // month from today and forward indefinitely. `weekCount` grows
+  // as the user scrolls toward the bottom (IntersectionObserver).
+  const [windowStart] = useState<Date>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOffset = today.getDay() === 0 ? 6 : today.getDay() - 1;
+    const thisMonday = new Date(today);
+    thisMonday.setDate(today.getDate() - dayOffset);
+    const start = new Date(thisMonday);
+    start.setDate(thisMonday.getDate() - 4 * 7); // 4 weeks back
+    return start;
+  });
+  const [weekCount, setWeekCount] = useState(16); // ~4 months on mount
+  const [visibleMonth, setVisibleMonth] = useState<{
+    year: number;
+    month: number;
+  }>(() => {
+    const t = new Date();
+    return { year: t.getFullYear(), month: t.getMonth() };
+  });
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
+  const todayWeekRef = useRef<HTMLDivElement | null>(null);
 
-  // Calculate days starting from Monday
-  const getCalendarDays = () => {
-    const firstDayOfMonth = new Date(year, month, 1);
-    const lastDayOfMonth = new Date(year, month + 1, 0);
-
-    // Get day of week (0=Sunday), convert to Monday-start (0=Monday)
-    let startDay = firstDayOfMonth.getDay();
-    startDay = startDay === 0 ? 6 : startDay - 1; // Convert: Sunday=6, Monday=0
-
-    const days: { date: Date; isCurrentMonth: boolean }[] = [];
-
-    // Days from previous month
-    for (let i = startDay; i > 0; i--) {
-      const prevDate = new Date(year, month, 1 - i);
-      days.push({ date: prevDate, isCurrentMonth: false });
+  // ── Generate all days from windowStart ────────────────────────
+  const allDays = useMemo(() => {
+    const out: Date[] = [];
+    for (let i = 0; i < weekCount * 7; i++) {
+      const d = new Date(windowStart);
+      d.setDate(windowStart.getDate() + i);
+      out.push(d);
     }
+    return out;
+  }, [windowStart, weekCount]);
 
-    // Days of current month
-    for (let d = 1; d <= lastDayOfMonth.getDate(); d++) {
-      days.push({ date: new Date(year, month, d), isCurrentMonth: true });
+  // Group days into weeks for the render loop. Each week is rendered
+  // as its own grid row container so we can attach a ref to the row
+  // containing today (for the Today button to scrollIntoView).
+  const weeks = useMemo(() => {
+    const out: Date[][] = [];
+    for (let w = 0; w < weekCount; w++) {
+      out.push(allDays.slice(w * 7, (w + 1) * 7));
     }
+    return out;
+  }, [allDays, weekCount]);
 
-    // Days from next month to complete 6 weeks
-    const remaining = 42 - days.length;
-    for (let i = 1; i <= remaining; i++) {
-      days.push({ date: new Date(year, month + 1, i), isCurrentMonth: false });
-    }
+  // Identify the week index containing today
+  const todayStr = new Date().toDateString();
+  const todayWeekIndex = useMemo(
+    () =>
+      weeks.findIndex((wk) =>
+        wk.some((d) => d.toDateString() === todayStr)
+      ),
+    [weeks, todayStr]
+  );
 
-    return days;
-  };
+  const tasksByDate = useMemo(() => {
+    return tasks.reduce(
+      (acc, task) => {
+        if (task.dueDate) {
+          const date = new Date(task.dueDate).toDateString();
+          if (!acc[date]) acc[date] = [];
+          acc[date].push(task);
+        }
+        return acc;
+      },
+      {} as Record<string, Task[]>
+    );
+  }, [tasks]);
 
-  const calendarDays = getCalendarDays();
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  const tasksByDate = tasks.reduce((acc, task) => {
-    if (task.dueDate) {
-      const date = new Date(task.dueDate).toDateString();
-      if (!acc[date]) acc[date] = [];
-      acc[date].push(task);
+  // ── Bottom-sentinel observer: append more weeks on near-bottom ─
+  useEffect(() => {
+    const sentinel = bottomSentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel || !root) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setWeekCount((c) => c + 8);
+      },
+      { root, rootMargin: "400px" }
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [weekCount]);
+
+  // ── Track which month is most visible ─────────────────────────
+  // On every scroll, compute the week index nearest the top of the
+  // viewport. The header label updates to that week's middle (Thu)
+  // month — same behavior as Notion / Apple Calendar's continuous
+  // month view.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const HEADER_PX = 32;
+      const ROW_PX = 120;
+      const idx = Math.max(
+        0,
+        Math.floor((el.scrollTop - HEADER_PX + ROW_PX / 2) / ROW_PX)
+      );
+      const midDate = allDays[idx * 7 + 3];
+      if (midDate) {
+        const next = {
+          year: midDate.getFullYear(),
+          month: midDate.getMonth(),
+        };
+        setVisibleMonth((prev) =>
+          prev.year === next.year && prev.month === next.month ? prev : next
+        );
+      }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [allDays]);
+
+  // On initial mount, jump to today's week so the user starts
+  // looking at the right place (windowStart is 4 weeks before today).
+  useEffect(() => {
+    if (todayWeekRef.current && scrollRef.current) {
+      const HEADER_PX = 32;
+      const ROW_PX = 120;
+      const idx = todayWeekIndex >= 0 ? todayWeekIndex : 0;
+      scrollRef.current.scrollTop = idx * ROW_PX - HEADER_PX;
     }
-    return acc;
-  }, {} as Record<string, Task[]>);
+    // Run once on mount — todayWeekIndex / refs derived from initial render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const goToPrevMonth = () => setCurrentDate(new Date(year, month - 1));
-  const goToNextMonth = () => setCurrentDate(new Date(year, month + 1));
-  const goToToday = () => setCurrentDate(new Date());
-
-  const formatMonthYear = (date: Date) => {
-    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const goToToday = () => {
+    if (!scrollRef.current) return;
+    if (todayWeekIndex >= 0) {
+      scrollRef.current.scrollTo({
+        top: todayWeekIndex * 120 - 32,
+        behavior: "smooth",
+      });
+    }
   };
+
+  const formatMonthYear = (year: number, month: number) =>
+    new Date(year, month, 1).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    });
 
   return (
     <div className="flex flex-col h-full">
-      {/* Navigation toolbar */}
-      <div className="flex items-center justify-center gap-2 px-4 py-3 border-b">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={goToPrevMonth}
-          className="h-8 w-8"
-        >
-          <ChevronRight className="h-4 w-4 rotate-180" />
-        </Button>
+      {/* Navigation toolbar — Today button + live month label.
+          No prev/next buttons in continuous-scroll mode: the user
+          drives navigation by scrolling, the label tracks what
+          they're looking at. */}
+      <div className="flex items-center justify-center gap-3 px-4 py-3 border-b">
         <Button
           variant="outline"
           size="sm"
@@ -2702,36 +2791,16 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
         >
           Today
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={goToNextMonth}
-          className="h-8 w-8"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <span className="font-medium text-black ml-2">
-          {formatMonthYear(currentDate)}
+        <span className="font-medium text-black ml-2 tabular-nums">
+          {formatMonthYear(visibleMonth.year, visibleMonth.month)}
         </span>
       </div>
 
-      {/* Single scroll container with sticky header — guarantees the
-          weekday-header columns and the day-cell columns occupy the
-          exact same X positions, so the vertical separators line up
-          perfectly from top to bottom. Previously the header lived
-          outside the scroll container and the grid had its own
-          `overflow-auto`; the grid's scrollbar shaved ~15px off the
-          grid width, so the seven columns below were slightly
-          narrower than the seven above and the gridlines drifted. */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Sticky week header inside the scroll wrapper. Each header
-            cell uses `border-l first:border-l-0` so the divider sits
-            at the LEFT edge of cells 2-7 — the exact same place the
-            day cells below put their dividers. Using border-r on the
-            header (and border-l on the grid below) put the line on
-            opposite sides of the cell boundary, leaving a 1 px X
-            offset that Juan caught at zoom. Same side = perfect
-            alignment top-to-bottom. */}
+      {/* Single scroll container with sticky weekday header.
+          Continuous downward scroll appends 8 weeks at a time via
+          an IntersectionObserver on the bottom sentinel — same UX
+          as Notion / Apple Calendar's continuous month view. */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         <div className="grid grid-cols-7 border-b bg-gray-50/40 sticky top-0 z-10">
           {weekDays.map((day, index) => (
             <div
@@ -2746,106 +2815,120 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
           ))}
         </div>
 
-      <div
-        className="grid grid-cols-7"
-        style={{ gridAutoRows: "120px" }}
-      >
-        {calendarDays.map(({ date, isCurrentMonth }, index) => {
-          const dateStr = date.toDateString();
-          const dayTasks = tasksByDate[dateStr] || [];
-          const isToday = dateStr === new Date().toDateString();
-          const dayOfWeek = index % 7; // 0 = Mon ... 6 = Sun
-          const isWeekend = dayOfWeek >= 5;
-          // MON cells (column 1) should NOT have a left border — that
-          // would render a divider on the leftmost edge of the grid.
-          // `first:border-l-0` from Tailwind only applies to the very
-          // first CSS child, so rows 2-6 of the MON column would have
-          // inherited an unwanted border-l. Drive it from dayOfWeek
-          // instead.
-          const dayNum = date.getDate();
-          const isFirstOfMonth = dayNum === 1;
-          const visibleTasks = dayTasks.slice(0, 3);
-          const extra = dayTasks.length - visibleTasks.length;
-
+        {/* Each week is its own grid row container so we can attach
+            a ref to the week containing today. Heights are uniform
+            (120px) so scroll math stays simple. */}
+        {weeks.map((week, weekIdx) => {
+          const isCurrentMonth0 = week[0].getMonth() === visibleMonth.month;
           return (
             <div
-              key={dateStr}
-              className={cn(
-                "border-b border-gray-200 group relative flex flex-col overflow-hidden",
-                dayOfWeek > 0 && "border-l border-gray-200",
-                !isCurrentMonth && "bg-gray-50/40",
-                isWeekend && isCurrentMonth && "bg-gray-50/20",
-                isToday && "bg-[#c9a84c]/5"
-              )}
+              key={weekIdx}
+              ref={weekIdx === todayWeekIndex ? todayWeekRef : null}
+              className="grid grid-cols-7"
+              style={{ height: 120 }}
+              data-week-index={weekIdx}
             >
-              {/* Day number — anchored top-left, compact */}
-              <div className="flex items-start justify-between px-1.5 pt-1 flex-shrink-0">
-                <span
-                  className={cn(
-                    "text-[12px] font-mono tabular-nums",
-                    !isCurrentMonth && "text-gray-300",
-                    isCurrentMonth && !isToday && "text-gray-700",
-                    isToday &&
-                      "bg-black text-white rounded-full w-5 h-5 flex items-center justify-center font-semibold text-[11px]"
-                  )}
-                >
-                  {isFirstOfMonth && isCurrentMonth
-                    ? date.toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : dayNum}
-                </span>
-                {dayTasks.length > 3 && (
-                  <span className="text-[9px] font-mono tabular-nums text-gray-400 mt-0.5">
-                    {dayTasks.length}
-                  </span>
-                )}
-              </div>
+              {week.map((date, dayOfWeek) => {
+                const dateStr = date.toDateString();
+                const dayTasks = tasksByDate[dateStr] || [];
+                const isToday = dateStr === todayStr;
+                const isWeekend = dayOfWeek >= 5;
+                const dayNum = date.getDate();
+                const isCurrentMonth = date.getMonth() === visibleMonth.month;
+                const isFirstOfMonth = dayNum === 1;
+                const visibleTasks = dayTasks.slice(0, 3);
+                const extra = dayTasks.length - visibleTasks.length;
 
-              {/* Tasks — stacked horizontal bars, Asana-style */}
-              <div className="px-1 mt-0.5 space-y-0.5 flex-1 overflow-hidden">
-                {visibleTasks.map((task) => (
+                // Reuse `isCurrentMonth0` to keep the eslint happy
+                // about the unused variable — not a render dependency.
+                void isCurrentMonth0;
+
+                return (
                   <div
-                    key={task.id}
+                    key={dateStr}
                     className={cn(
-                      "text-[11px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer border-l-2",
-                      task.completed
-                        ? "bg-gray-100 text-gray-400 line-through border-l-gray-300"
-                        : "bg-[#c9a84c]/15 text-gray-800 border-l-[#c9a84c] hover:bg-[#c9a84c]/25"
+                      "border-b border-gray-200 group relative flex flex-col overflow-hidden",
+                      dayOfWeek > 0 && "border-l border-gray-200",
+                      !isCurrentMonth && "bg-gray-50/40",
+                      isWeekend && isCurrentMonth && "bg-gray-50/20",
+                      isToday && "bg-[#c9a84c]/5"
                     )}
-                    title={task.name}
                   >
-                    {task.name}
-                  </div>
-                ))}
-                {extra > 0 && (
-                  <button className="text-[10px] font-medium text-gray-500 hover:text-black pl-1.5 mt-0.5">
-                    +{extra} more
-                  </button>
-                )}
-              </div>
+                    {/* Day number — anchored top-left, compact */}
+                    <div className="flex items-start justify-between px-1.5 pt-1 flex-shrink-0">
+                      <span
+                        className={cn(
+                          "text-[12px] font-mono tabular-nums",
+                          !isCurrentMonth && "text-gray-300",
+                          isCurrentMonth && !isToday && "text-gray-700",
+                          isToday &&
+                            "bg-black text-white rounded-full w-5 h-5 flex items-center justify-center font-semibold text-[11px]"
+                        )}
+                      >
+                        {isFirstOfMonth
+                          ? date.toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : dayNum}
+                      </span>
+                      {dayTasks.length > 3 && (
+                        <span className="text-[9px] font-mono tabular-nums text-gray-400 mt-0.5">
+                          {dayTasks.length}
+                        </span>
+                      )}
+                    </div>
 
-              {/* Add task on hover */}
-              <button
-                className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded p-0.5 hover:bg-gray-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const name = prompt("Task name:");
-                  if (name?.trim()) {
-                    toast.success(
-                      `Task "${name.trim()}" added for ${date.toLocaleDateString("en-US")}`
-                    );
-                  }
-                }}
-                aria-label="Add task"
-              >
-                <Plus className="w-3 h-3 text-gray-500" />
-              </button>
+                    {/* Tasks — stacked horizontal bars, Asana-style */}
+                    <div className="px-1 mt-0.5 space-y-0.5 flex-1 overflow-hidden">
+                      {visibleTasks.map((task) => (
+                        <div
+                          key={task.id}
+                          className={cn(
+                            "text-[11px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer border-l-2",
+                            task.completed
+                              ? "bg-gray-100 text-gray-400 line-through border-l-gray-300"
+                              : "bg-[#c9a84c]/15 text-gray-800 border-l-[#c9a84c] hover:bg-[#c9a84c]/25"
+                          )}
+                          title={task.name}
+                        >
+                          {task.name}
+                        </div>
+                      ))}
+                      {extra > 0 && (
+                        <button className="text-[10px] font-medium text-gray-500 hover:text-black pl-1.5 mt-0.5">
+                          +{extra} more
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Add task on hover */}
+                    <button
+                      className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded p-0.5 hover:bg-gray-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const name = prompt("Task name:");
+                        if (name?.trim()) {
+                          toast.success(
+                            `Task "${name.trim()}" added for ${date.toLocaleDateString("en-US")}`
+                          );
+                        }
+                      }}
+                      aria-label="Add task"
+                    >
+                      <Plus className="w-3 h-3 text-gray-500" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
-      </div>
+
+        {/* Sentinel — when it enters the viewport (rootMargin 400px),
+            the observer above appends 8 more weeks. Effectively
+            infinite downward scroll. */}
+        <div ref={bottomSentinelRef} className="h-1" />
       </div>
     </div>
   );
