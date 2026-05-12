@@ -66,6 +66,9 @@ export async function GET(
             image: true,
           },
         },
+        attachments: {
+          orderBy: { createdAt: "asc" },
+        },
         replies: {
           include: {
             author: {
@@ -75,6 +78,9 @@ export async function GET(
                 email: true,
                 image: true,
               },
+            },
+            attachments: {
+              orderBy: { createdAt: "asc" },
             },
           },
           orderBy: { createdAt: "asc" },

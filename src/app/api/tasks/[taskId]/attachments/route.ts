@@ -57,6 +57,13 @@ export async function POST(
 
     const formData = await req.formData();
     const file = formData.get('file') as File;
+    // Optional commentId: when present, the upload is bound to a
+    // specific comment so it renders inline under that message.
+    const rawCommentId = formData.get('commentId');
+    const commentId =
+      typeof rawCommentId === "string" && rawCommentId.length > 0
+        ? rawCommentId
+        : null;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -69,6 +76,22 @@ export async function POST(
       return NextResponse.json({ error: "File size exceeds 10MB limit" }, { status: 400 });
     }
 
+    // If a commentId was supplied, make sure it belongs to this task.
+    // Otherwise a malicious client could attach files to any comment
+    // by guessing its id.
+    if (commentId) {
+      const comment = await prisma.comment.findFirst({
+        where: { id: commentId, taskId },
+        select: { id: true },
+      });
+      if (!comment) {
+        return NextResponse.json(
+          { error: "Comment not found on this task" },
+          { status: 404 }
+        );
+      }
+    }
+
     const { url: fileUrl } = await uploadFile(file, `tasks/${taskId}`);
 
     // Create attachment record
@@ -79,6 +102,7 @@ export async function POST(
         mimeType: file.type || "application/octet-stream",
         size: fileSize,
         taskId,
+        commentId,
         uploaderId: userId,
       },
     });

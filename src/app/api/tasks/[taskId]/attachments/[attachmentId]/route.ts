@@ -37,8 +37,26 @@ export async function DELETE(
       where: { id: attachmentId },
     });
 
-    // Delete from blob storage
-    await deleteFile(attachment.url);
+    // Delete from blob storage. Wrapped in try/catch because losing
+    // the blob without losing the DB row is recoverable, but losing
+    // the DB row without losing the blob just leaves a dangling file
+    // — and we already removed the row above.
+    try {
+      await deleteFile(attachment.url);
+    } catch (err) {
+      console.error("Blob delete failed (DB row removed):", err);
+    }
+
+    // Activity log — mirror the ATTACHMENT_ADDED entry so the
+    // timeline tells the whole story (added Monday, removed Friday).
+    await prisma.activity.create({
+      data: {
+        type: "ATTACHMENT_REMOVED",
+        taskId,
+        userId,
+        data: { attachmentId, attachmentName: attachment.name },
+      },
+    });
 
     return NextResponse.json({ deleted: true });
   } catch (error) {

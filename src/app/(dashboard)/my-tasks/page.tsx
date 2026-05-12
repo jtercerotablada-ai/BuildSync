@@ -3667,6 +3667,18 @@ function TaskDetailPanel({
   const [uploading, setUploading] = useState(false);
   // In-app file viewer (click a thumbnail to open without leaving)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  // Comment composer: pending files attached to the next comment.
+  // They aren't uploaded until the user submits the comment so
+  // cancelling doesn't waste a Blob slot.
+  const commentFileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingCommentFiles, setPendingCommentFiles] = useState<File[]>([]);
+  const [postingComment, setPostingComment] = useState(false);
+  // Viewer state for clicking an attachment inline inside a comment.
+  // We render the comment's attachments[] list when the user opens it.
+  const [commentViewer, setCommentViewer] = useState<{
+    files: any[];
+    index: number;
+  } | null>(null);
 
   async function handleAttachmentUpload(
     e: React.ChangeEvent<HTMLInputElement>
@@ -3770,20 +3782,89 @@ function TaskDetailPanel({
   }
 
   async function handleAddComment() {
-    if (!newComment.trim()) return;
+    // Accept comments that are just attachments (no text body) so the
+    // user can drop a screenshot without having to caption it. But
+    // require at least one of the two.
+    const hasText = newComment.trim().length > 0;
+    const hasFiles = pendingCommentFiles.length > 0;
+    if (!hasText && !hasFiles) return;
+    setPostingComment(true);
     try {
       const res = await fetch(`/api/tasks/${task.id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newComment }),
+        body: JSON.stringify({
+          // Persist a single non-breaking space when the user attached
+          // a file with no caption — the API requires non-empty content.
+          content: hasText ? newComment : " ",
+        }),
       });
-      if (res.ok) {
-        setNewComment("");
-        fetchTaskDetail();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
       }
-    } catch (error) {
-      console.error("Error adding comment:", error);
+      const created = await res.json();
+
+      // Upload each pending file with the new comment's id so the
+      // attachments render inline under the message instead of as
+      // free-floating files on the task.
+      let attachmentsUploaded = 0;
+      for (const file of pendingCommentFiles) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("commentId", created.id);
+        try {
+          const upRes = await fetch(
+            `/api/tasks/${task.id}/attachments`,
+            { method: "POST", body: fd }
+          );
+          if (!upRes.ok) {
+            const upErr = await upRes.json().catch(() => ({}));
+            throw new Error(upErr.error || `HTTP ${upRes.status}`);
+          }
+          attachmentsUploaded++;
+        } catch (err) {
+          toast.error(
+            err instanceof Error
+              ? `${file.name}: ${err.message}`
+              : `${file.name}: upload failed`
+          );
+        }
+      }
+
+      setNewComment("");
+      setPendingCommentFiles([]);
+      if (commentFileInputRef.current) commentFileInputRef.current.value = "";
+      await fetchTaskDetail();
+      if (attachmentsUploaded > 0) {
+        onUpdate();
+        onAttachmentsChange?.();
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't post comment"
+      );
+    } finally {
+      setPostingComment(false);
     }
+  }
+
+  function handleCommentFilesPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    // Block anything > 10 MB up front so the user gets an instant
+    // error instead of finding out after they hit Send.
+    const ok: File[] = [];
+    for (const f of Array.from(files)) {
+      if (f.size > 10 * 1024 * 1024) {
+        toast.error(`${f.name}: exceeds 10 MB limit`);
+        continue;
+      }
+      ok.push(f);
+    }
+    setPendingCommentFiles((prev) => [...prev, ...ok]);
+    // Reset the input so picking the same file twice in a row works.
+    if (commentFileInputRef.current) commentFileInputRef.current.value = "";
   }
 
   const dueDateInfo = formatDueDate(taskDetail?.dueDate);
@@ -4214,24 +4295,92 @@ function TaskDetailPanel({
           <div className="p-4 space-y-4">
             {activeTab === "comments" ? (
               <>
-                {taskDetail?.comments?.map((comment: any) => (
-                  <div key={comment.id} className="flex gap-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs bg-white border border-black">
-                        {comment.author?.name?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{comment.author?.name}</span>
-                        <span className="text-xs text-black">
-                          {new Date(comment.createdAt).toLocaleDateString()}
-                        </span>
+                {taskDetail?.comments?.map((comment: any) => {
+                  const atts = (comment.attachments ?? []) as Array<{
+                    id: string;
+                    name: string;
+                    url: string;
+                    mimeType: string;
+                    size: number;
+                    createdAt: string;
+                  }>;
+                  return (
+                    <div key={comment.id} className="flex gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="text-xs bg-white border border-black">
+                          {comment.author?.name?.charAt(0) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{comment.author?.name}</span>
+                          <span className="text-xs text-black">
+                            {new Date(comment.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {comment.content && comment.content.trim() && (
+                          <p className="text-sm text-black mt-1 whitespace-pre-wrap break-words">
+                            {comment.content}
+                          </p>
+                        )}
+                        {atts.length > 0 && (
+                          <div className="mt-2 grid grid-cols-2 gap-1.5 max-w-md">
+                            {atts.map((a, i) => {
+                              const isImg = a.mimeType.startsWith("image/");
+                              return (
+                                <button
+                                  key={a.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setCommentViewer({ files: atts, index: i })
+                                  }
+                                  className={cn(
+                                    "group flex items-center gap-2 border rounded-md p-1.5 bg-white hover:border-gray-400 hover:bg-gray-50 text-left transition-colors",
+                                    isImg && "flex-col items-stretch p-0 overflow-hidden"
+                                  )}
+                                  title={a.name}
+                                >
+                                  {isImg ? (
+                                    <>
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={a.url}
+                                        alt={a.name}
+                                        className="w-full h-24 object-cover"
+                                      />
+                                      <div className="px-2 py-1">
+                                        <p className="text-[10px] font-medium text-black truncate">
+                                          {a.name}
+                                        </p>
+                                        <p className="text-[9px] text-gray-500 font-mono tabular-nums">
+                                          {formatFileSize(a.size)}
+                                        </p>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="h-8 w-8 rounded bg-gray-100 border flex items-center justify-center flex-shrink-0">
+                                        <Paperclip className="h-3.5 w-3.5 text-gray-400" />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-[11px] font-medium text-black truncate">
+                                          {a.name}
+                                        </p>
+                                        <p className="text-[9px] text-gray-500 font-mono tabular-nums">
+                                          {formatFileSize(a.size)}
+                                        </p>
+                                      </div>
+                                    </>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                      <p className="text-sm text-black mt-1">{comment.content}</p>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {(!taskDetail?.comments || taskDetail.comments.length === 0) && (
                   <p className="text-sm text-black text-center py-4">No comments yet</p>
                 )}
@@ -4266,13 +4415,90 @@ function TaskDetailPanel({
           <Avatar className="h-8 w-8">
             <AvatarFallback className="text-xs bg-black text-white">U</AvatarFallback>
           </Avatar>
-          <Input
-            placeholder="Add a comment..."
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
-            className="flex-1"
-          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Input
+                placeholder={
+                  pendingCommentFiles.length > 0
+                    ? "Caption (optional)…"
+                    : "Add a comment…"
+                }
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !postingComment) {
+                    e.preventDefault();
+                    handleAddComment();
+                  }
+                }}
+                disabled={postingComment}
+                className="flex-1"
+              />
+              <input
+                ref={commentFileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleCommentFilesPicked}
+                accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => commentFileInputRef.current?.click()}
+                disabled={postingComment}
+                title="Attach file to this comment"
+                className="h-9 w-9 p-0 flex-shrink-0"
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleAddComment}
+                disabled={
+                  postingComment ||
+                  (!newComment.trim() && pendingCommentFiles.length === 0)
+                }
+                className="h-9 px-3 bg-black hover:bg-gray-800 text-white flex-shrink-0"
+              >
+                {postingComment ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  "Post"
+                )}
+              </Button>
+            </div>
+            {pendingCommentFiles.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {pendingCommentFiles.map((f, i) => (
+                  <span
+                    key={`${f.name}-${i}`}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border bg-gray-50 text-[11px] text-black"
+                  >
+                    <Paperclip className="h-3 w-3 text-gray-500" />
+                    <span className="max-w-[140px] truncate">{f.name}</span>
+                    <span className="text-gray-400 font-mono tabular-nums">
+                      {formatFileSize(f.size)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPendingCommentFiles((prev) =>
+                          prev.filter((_, idx) => idx !== i)
+                        )
+                      }
+                      className="text-gray-400 hover:text-black ml-0.5"
+                      aria-label={`Remove ${f.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -4350,6 +4576,14 @@ function TaskDetailPanel({
           files={taskDetail.attachments}
           initialIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
+        />
+      )}
+
+      {commentViewer && commentViewer.files[commentViewer.index] && (
+        <FileViewerModal
+          files={commentViewer.files}
+          initialIndex={commentViewer.index}
+          onClose={() => setCommentViewer(null)}
         />
       )}
     </div>
