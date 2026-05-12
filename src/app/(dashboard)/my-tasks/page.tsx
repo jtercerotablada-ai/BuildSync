@@ -2351,7 +2351,11 @@ function BoardView({
       onDragEnd={handleDragEnd}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
-      <div className="flex gap-3 px-4 md:px-6 py-4 h-full overflow-x-auto">
+      {/* No h-full and no overflow on this row: columns grow with their
+          content (Asana behavior), and the outer page scroll container
+          (the `flex-1 overflow-auto` ancestor that wraps every view)
+          handles both vertical AND horizontal scroll when needed. */}
+      <div className="flex gap-3 px-4 md:px-6 py-4 items-start">
         {localSections.map((section) => (
           <BoardColumn
             key={section.id}
@@ -2420,7 +2424,9 @@ function BoardColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex-shrink-0 w-[280px] flex flex-col rounded-xl max-h-full transition-colors",
+        // No max-h-full — the gray background grows with the cards
+        // instead of being clipped to the viewport. Matches Asana.
+        "flex-shrink-0 w-[280px] flex flex-col rounded-xl transition-colors",
         isOver ? "bg-slate-200/80" : "bg-slate-100/80"
       )}
     >
@@ -2438,8 +2444,10 @@ function BoardColumn({
         </button>
       </div>
 
-      {/* Cards */}
-      <div className="flex-1 px-2 pb-2 overflow-y-auto min-h-[60px]">
+      {/* Cards — no flex-1 / overflow-y-auto so the column's height
+          tracks the cards inside it. Long columns get scrolled by the
+          page-level container above, not by an internal scrollbar. */}
+      <div className="px-2 pb-2 min-h-[60px]">
         <SortableContext id={section.id} items={section.tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-1.5">
             {section.tasks.map((task) => (
