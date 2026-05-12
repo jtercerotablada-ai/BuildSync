@@ -2514,26 +2514,34 @@ function TaskRow({
         </div>
       </div>
 
-      {/* ── Desktop Row ── */}
+      {/* ── Desktop Row ──
+          dnd-kit listeners go on the whole row (same pattern Board
+          uses on SortableBoardCard). The PointerSensor's 5px
+          activation distance means a quick click still opens the
+          slide-over while a real drag motion starts the sortable
+          drag. Putting the listeners only on the (opacity-0) grip
+          handle made the drag impossible to initiate: the SVG
+          target was invisible until hover, and the browser's
+          native text-selection beat dnd-kit to the pointerdown.
+          The grip stays as a hover-only visual hint, but it no
+          longer owns the drag — the row does. */}
       <div
         ref={setNodeRef}
         style={{ ...dragStyle, height: "var(--row-h)" }}
+        {...attributes}
+        {...listeners}
         onClick={onClick}
-        className="hidden md:flex items-center px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors"
+        className="hidden md:flex items-center px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors select-none"
       >
-        {/* Drag handle — visible on hover at the far left. The row's
-            own click still opens the slide-over, only this small grip
-            initiates drag. */}
-        <button
-          {...attributes}
-          {...listeners}
-          onClick={(e) => e.stopPropagation()}
-          className="w-4 -ml-1 mr-1 flex items-center justify-center flex-shrink-0 text-gray-300 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing"
-          aria-label="Drag task"
-          title="Drag to move"
+        {/* Drag hint — visible on hover. Pure decoration now: the
+            whole row is draggable, the icon just shows the user the
+            row CAN be dragged. */}
+        <div
+          className="w-4 -ml-1 mr-1 flex items-center justify-center flex-shrink-0 text-gray-300 opacity-0 group-hover:opacity-100"
+          aria-hidden="true"
         >
           <GripVertical className="w-3.5 h-3.5" />
-        </button>
+        </div>
 
         {/* Checkbox */}
         <div className="w-8 flex-shrink-0 flex items-center">{checkboxEl}</div>
