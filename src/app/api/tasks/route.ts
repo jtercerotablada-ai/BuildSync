@@ -93,6 +93,7 @@ export async function GET(req: Request) {
             id: true,
             name: true,
             color: true,
+            type: true,
           },
         },
         section: {
@@ -211,6 +212,7 @@ export async function POST(req: Request) {
               id: true,
               name: true,
               color: true,
+              type: true,
             },
           },
           section: {

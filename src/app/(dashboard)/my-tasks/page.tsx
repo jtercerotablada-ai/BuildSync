@@ -133,7 +133,12 @@ interface Task {
   taskType?: "TASK" | "MILESTONE" | "APPROVAL";
   createdAt: string;
   assignee: { id: string; name: string | null; email: string | null; image: string | null } | null;
-  project: { id: string; name: string; color: string } | null;
+  project: {
+    id: string;
+    name: string;
+    color: string;
+    type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | null;
+  } | null;
   section: { id: string; name: string } | null;
   subtasks?: { id: string; name: string; completed: boolean }[];
   myTaskSection: "DO_TODAY" | "DO_NEXT_WEEK" | "DO_LATER" | null;
@@ -741,7 +746,15 @@ export default function MyTasksPage() {
     thisWeekEnd.setDate(thisWeekEnd.getDate() + (7 - today.getDay()));
 
     if (date < today) {
-      return { text: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }), className: "text-black" };
+      // PMI/AEC convention: overdue items get a count of working days
+      // overdue, not just the past date. Reads as "Overdue · 3 days"
+      // so it surfaces severity at a glance.
+      const dayMs = 86400000;
+      const days = Math.round((today.getTime() - date.getTime()) / dayMs);
+      return {
+        text: days === 1 ? "Overdue · 1 day" : `Overdue · ${days} days`,
+        className: "text-black font-medium",
+      };
     } else if (date.toDateString() === today.toDateString()) {
       return { text: "Today", className: "text-[#a8893a]" };
     } else if (date.toDateString() === tomorrow.toDateString()) {
@@ -2082,6 +2095,14 @@ function TaskRow({
               <div className="flex items-center gap-1.5 mt-1">
                 <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: task.project.color }} />
                 <span className="text-[11px] text-gray-400 truncate">{task.project.name}</span>
+                {task.project.type && (
+                  <span
+                    className="text-[8px] font-mono font-semibold uppercase tracking-wider px-1 py-px rounded bg-gray-100 text-gray-600 flex-shrink-0"
+                    title={`Project type: ${task.project.type}`}
+                  >
+                    {projectTypeShort(task.project.type)}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -2162,6 +2183,14 @@ function TaskRow({
             <span className="text-[13px] text-gray-600 truncate">
               {task.project.name}
             </span>
+            {task.project.type && (
+              <span
+                className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1 py-px rounded bg-gray-100 text-gray-600 flex-shrink-0"
+                title={`Project type: ${task.project.type}`}
+              >
+                {projectTypeShort(task.project.type)}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -2573,11 +2602,24 @@ function SortableBoardCard({
         </div>
       )}
 
-      {/* Project tag */}
+      {/* Project tag — with engineering-discipline badge */}
       {task.project && (
         <div className="mt-2 flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: task.project.color }} />
-          <span className="text-[11px] text-slate-500 truncate">{task.project.name}</span>
+          <div
+            className="w-2 h-2 rounded-sm flex-shrink-0"
+            style={{ backgroundColor: task.project.color }}
+          />
+          <span className="text-[11px] text-slate-500 truncate">
+            {task.project.name}
+          </span>
+          {task.project.type && (
+            <span
+              className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1 py-px rounded bg-gray-100 text-gray-600 flex-shrink-0"
+              title={`Project type: ${task.project.type}`}
+            >
+              {projectTypeShort(task.project.type)}
+            </span>
+          )}
         </div>
       )}
 
@@ -3990,6 +4032,28 @@ function FileCard({
       </div>
     </div>
   );
+}
+
+/**
+ * Three-letter discipline abbreviation for a project's type. Matches
+ * the convention engineering firms use on drawing title blocks — DES
+ * for design, CON for construction, REC for recertification, PRM for
+ * permit work. Short enough to fit in a chip next to the project name
+ * without truncating it.
+ */
+function projectTypeShort(
+  type: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT"
+): string {
+  switch (type) {
+    case "CONSTRUCTION":
+      return "CON";
+    case "DESIGN":
+      return "DES";
+    case "RECERTIFICATION":
+      return "REC";
+    case "PERMIT":
+      return "PRM";
+  }
 }
 
 function formatFileSize(bytes: number): string {
