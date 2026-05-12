@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2217,8 +2218,10 @@ function ListDndProvider({
       const src = dragSourceRef.current;
       setActiveTask(null);
       dragSourceRef.current = null;
-      isDraggingRef.current = false;
-      if (!over) return;
+      if (!over) {
+        isDraggingRef.current = false;
+        return;
+      }
 
       const activeId = String(active.id);
       const overId = String(over.id);
@@ -2241,10 +2244,27 @@ function ListDndProvider({
         return prev;
       });
 
-      if (!destSectionId || !src || src === destSectionId) return;
-      await onMoveTask(activeId, destSectionId);
+      if (!destSectionId || !src || src === destSectionId) {
+        isDraggingRef.current = false;
+        return;
+      }
+      // KEEP isDraggingRef true through the awaited PATCH + refetch
+      // round-trip. If we cleared it before the await, the parent's
+      // re-renders during that time would let useEffect overwrite
+      // localSections with the stale prop value — the row would
+      // briefly appear back in its source section. Only after the
+      // server-confirmed sections land in props is it safe to let
+      // the sync resume.
+      try {
+        await onMoveTask(activeId, destSectionId);
+      } finally {
+        isDraggingRef.current = false;
+        // Trigger one explicit sync from props in case parent
+        // updates happened while we were holding the gate closed.
+        setLocalSections(sections);
+      }
     },
-    [onMoveTask]
+    [onMoveTask, sections]
   );
 
   return (
@@ -2268,17 +2288,25 @@ function ListDndProvider({
           customColumnCount={customColumnCount}
         />
       ))}
-      {/* DragOverlay — the ghost element that follows the cursor.
-          Critical for cross-container sortable: without it, dnd-kit
-          uses CSS transform on the actual row, which animates back
-          to its source on drop (the bounce). With it, the real row
-          stays put while the ghost floats, then disappears cleanly
-          when the move is committed. */}
-      <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
-        {activeTask && (
-          <TaskRowOverlay task={activeTask} formatDueDate={formatDueDate} />
+      {/* DragOverlay — rendered via portal to document.body. The
+          parent /my-tasks tree wraps everything in flex-1
+          overflow-hidden containers, which would otherwise clip the
+          ghost when the cursor moves off the visible area. The portal
+          lifts the ghost out of that subtree so it tracks the cursor
+          relative to the viewport (the pattern the official dnd-kit
+          multi-container example uses). */}
+      {typeof window !== "undefined" &&
+        createPortal(
+          <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+            {activeTask && (
+              <TaskRowOverlay
+                task={activeTask}
+                formatDueDate={formatDueDate}
+              />
+            )}
+          </DragOverlay>,
+          document.body
         )}
-      </DragOverlay>
     </DndContext>
   );
 }
@@ -2377,11 +2405,17 @@ function TaskRow({
     isDragging,
   } = useSortable({ id: task.id });
 
-  const dragStyle: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  };
+  // When this row is the actively-dragged one, hide the real row
+  // entirely (the DragOverlay portal renders the ghost). Leaving even
+  // partial opacity on the source caused two visible rows during the
+  // drag — the floating ghost and the dimmed original — which read
+  // as a "snap back" the moment the ghost faded out on drop.
+  const dragStyle: React.CSSProperties = isDragging
+    ? { opacity: 0, transition }
+    : {
+        transform: CSS.Transform.toString(transform),
+        transition,
+      };
 
   const checkboxEl = task.taskType === "MILESTONE" ? (
     <button
