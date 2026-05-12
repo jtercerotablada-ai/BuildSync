@@ -2801,12 +2801,12 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
           an IntersectionObserver on the bottom sentinel — same UX
           as Notion / Apple Calendar's continuous month view. */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-7 border-b bg-gray-50/40 sticky top-0 z-10">
+        <div className="grid grid-cols-7 border-b border-gray-200 bg-white sticky top-0 z-10">
           {weekDays.map((day, index) => (
             <div
               key={day}
               className={cn(
-                "py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider",
+                "py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-white",
                 index > 0 && "border-l border-gray-200"
               )}
             >
