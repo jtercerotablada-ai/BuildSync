@@ -2919,36 +2919,56 @@ function CalendarView({
 
   // Pixel constants for the per-week layout. Used by the dynamic
   // height calc AND by the scroll math below — keep them in sync.
-  // Tighter than the original 22px lane: shorter bars + smaller gap
-  // match Asana's density and stop adjacent bars from looking like
-  // separate fat pills.
-  const DAY_HEADER_PX = 24; // height of the day-number row
-  const LANE_PX = 20; // height of a single bar lane (incl. gap)
-  const ROW_BOTTOM_PX = 10; // breathing room under the last bar
-  const ROW_MIN_PX = 86; // floor so empty weeks aren't tiny
+  // LANE_PX = actual bar height (text + padding) + gap-y-0.5 (2px).
+  // A bar is text[11px] × leading-snug ≈ 15 + py-[3px]×2 = 21px,
+  // plus 2px gap, so 22 is the safe lane stride. ROW_BOTTOM gives a
+  // bit of breathing room beneath the last item.
+  const DAY_HEADER_PX = 28; // height of the day-number row (bumped pt)
+  const LANE_PX = 22;
+  const ROW_BOTTOM_PX = 10;
+  const ROW_MIN_PX = 92;
 
   /**
    * Per-week height — grows with how many lanes that week actually
-   * uses. An empty week stays at ROW_MIN_PX so the grid keeps an
-   * even rhythm; a busy week stretches to fit every visible bar
-   * with breathing room at the bottom for the +N more pill.
+   * uses. We don't just take the global max lane: each column might
+   * have its own +N more pill sitting at (column's last bar lane + 1),
+   * so we walk each column and track the deepest grid row that
+   * column needs. The week height = the deepest row across all
+   * columns. This guarantees neither bars nor +N more pills ever
+   * clip out the bottom.
    */
   const weekHeights = useMemo(() => {
     return weeks.map((_, idx) => {
       const segs = segmentsByWeek[idx] || [];
-      let maxVisibleLane = -1;
+      const visibleSegs = segs.filter((s) => s.lane < MAX_LANES);
+      const hasOverflowByDay: Record<number, boolean> = {};
       for (const s of segs) {
-        if (s.lane < MAX_LANES && s.lane > maxVisibleLane) {
-          maxVisibleLane = s.lane;
+        if (s.lane >= MAX_LANES) {
+          for (let d = s.colStart; d < s.colStart + s.colSpan; d++) {
+            hasOverflowByDay[d] = true;
+          }
         }
       }
-      // If anything overflowed past MAX_LANES, reserve a row for the
-      // "+N more" pill so it doesn't sit on top of the last bar.
-      const overflow = segs.some((s) => s.lane >= MAX_LANES) ? LANE_PX : 0;
-      if (maxVisibleLane < 0)
-        return Math.max(ROW_MIN_PX, DAY_HEADER_PX + ROW_BOTTOM_PX + overflow);
-      const content =
-        DAY_HEADER_PX + (maxVisibleLane + 1) * LANE_PX + ROW_BOTTOM_PX + overflow;
+      let maxRow = -1; // deepest grid row (0-indexed) used anywhere
+      for (let day = 0; day < 7; day++) {
+        let columnMaxLane = -1;
+        for (const s of visibleSegs) {
+          if (
+            s.colStart <= day &&
+            s.colStart + s.colSpan > day &&
+            s.lane > columnMaxLane
+          ) {
+            columnMaxLane = s.lane;
+          }
+        }
+        // +N more for this column would land at columnMaxLane + 1
+        const columnRow = hasOverflowByDay[day]
+          ? columnMaxLane + 1
+          : columnMaxLane;
+        if (columnRow > maxRow) maxRow = columnRow;
+      }
+      if (maxRow < 0) return ROW_MIN_PX;
+      const content = DAY_HEADER_PX + (maxRow + 1) * LANE_PX + ROW_BOTTOM_PX;
       return Math.max(ROW_MIN_PX, content);
     });
   }, [weeks, segmentsByWeek]);
@@ -3179,8 +3199,9 @@ function CalendarView({
                         isAdding && "ring-2 ring-[#c9a84c]/60 ring-inset"
                       )}
                     >
-                      {/* Day number */}
-                      <div className="px-1.5 pt-1 pointer-events-none">
+                      {/* Day number — bumped padding so the digit
+                          isn't kissing the cell edge. */}
+                      <div className="px-2 pt-1.5 pointer-events-none">
                         <span
                           className={cn(
                             "text-[12px] font-mono tabular-nums inline-block",
@@ -3198,71 +3219,6 @@ function CalendarView({
                             : dayNum}
                         </span>
                       </div>
-
-                      {/* +N more — opens a popover listing the tasks
-                          that overflowed past MAX_LANES so the user
-                          can still see and click into them, instead
-                          of being a dead pill. */}
-                      {hiddenCount > 0 && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute left-1.5 bottom-1 text-[10px] font-medium text-gray-500 hover:text-black pointer-events-auto px-1 -mx-1 rounded hover:bg-gray-100"
-                            >
-                              +{hiddenCount} more
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            align="start"
-                            className="w-64 p-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="px-3 py-2 border-b">
-                              <p className="text-xs font-semibold text-black">
-                                {date.toLocaleDateString("en-US", {
-                                  weekday: "long",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </p>
-                              <p className="text-[10px] text-gray-500">
-                                {hiddenCount} hidden{" "}
-                                {hiddenCount === 1 ? "task" : "tasks"}
-                              </p>
-                            </div>
-                            <ul className="max-h-64 overflow-y-auto py-1">
-                              {(hiddenTasksByDay[dayOfWeek] || []).map((t) => (
-                                <li key={t.id}>
-                                  <button
-                                    onClick={() => onTaskClick?.(t)}
-                                    className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2"
-                                  >
-                                    <span
-                                      className={cn(
-                                        "w-1.5 h-1.5 rounded-sm flex-shrink-0",
-                                        t.completed
-                                          ? "bg-gray-300"
-                                          : "bg-[#c9a84c]"
-                                      )}
-                                    />
-                                    <span
-                                      className={cn(
-                                        "text-[12px] truncate flex-1",
-                                        t.completed
-                                          ? "text-gray-400 line-through"
-                                          : "text-black"
-                                      )}
-                                    >
-                                      {t.name}
-                                    </span>
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          </PopoverContent>
-                        </Popover>
-                      )}
                     </div>
                   );
                 })}
@@ -3276,7 +3232,7 @@ function CalendarView({
                   bottom — Asana behavior. */}
               <div
                 className="absolute inset-x-0 grid grid-cols-7 gap-y-0.5 pointer-events-none"
-                style={{ top: 24, paddingLeft: 2, paddingRight: 2 }}
+                style={{ top: 28, paddingLeft: 2, paddingRight: 2 }}
               >
                 {visibleSegments.map((seg) => (
                   <div
@@ -3310,6 +3266,97 @@ function CalendarView({
                     </button>
                   </div>
                 ))}
+
+                {/* +N more pills — one per column with overflow,
+                    sitting in the bar overlay grid right after that
+                    column's last visible bar. Lives in the grid (not
+                    absolute on the cell) so it can never be covered
+                    by the bottom bar. Each one is its own popover
+                    listing the hidden tasks for that day. */}
+                {week.map((date, dayOfWeek) => {
+                  const count = hiddenByDay[dayOfWeek];
+                  if (!count) return null;
+                  // Lane right after this column's deepest visible bar
+                  let columnMaxLane = -1;
+                  for (const seg of visibleSegments) {
+                    if (
+                      seg.colStart <= dayOfWeek &&
+                      seg.colStart + seg.colSpan > dayOfWeek &&
+                      seg.lane > columnMaxLane
+                    ) {
+                      columnMaxLane = seg.lane;
+                    }
+                  }
+                  return (
+                    <div
+                      key={`more-${weekIdx}-${dayOfWeek}`}
+                      style={{
+                        gridColumn: `${dayOfWeek + 1} / span 1`,
+                        gridRow: columnMaxLane + 2,
+                      }}
+                      className="px-px min-w-0 pointer-events-auto"
+                    >
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-1.5 py-[2px] text-[10px] font-medium text-gray-500 hover:text-black hover:bg-gray-100 rounded-sm"
+                          >
+                            +{count} more
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="start"
+                          className="w-64 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="px-3 py-2 border-b">
+                            <p className="text-xs font-semibold text-black">
+                              {date.toLocaleDateString("en-US", {
+                                weekday: "long",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </p>
+                            <p className="text-[10px] text-gray-500">
+                              {count} hidden{" "}
+                              {count === 1 ? "task" : "tasks"}
+                            </p>
+                          </div>
+                          <ul className="max-h-64 overflow-y-auto py-1">
+                            {(hiddenTasksByDay[dayOfWeek] || []).map((t) => (
+                              <li key={t.id}>
+                                <button
+                                  onClick={() => onTaskClick?.(t)}
+                                  className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <span
+                                    className={cn(
+                                      "w-1.5 h-1.5 rounded-sm flex-shrink-0",
+                                      t.completed
+                                        ? "bg-gray-300"
+                                        : "bg-[#c9a84c]"
+                                    )}
+                                  />
+                                  <span
+                                    className={cn(
+                                      "text-[12px] truncate flex-1",
+                                      t.completed
+                                        ? "text-gray-400 line-through"
+                                        : "text-black"
+                                    )}
+                                  >
+                                    {t.name}
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  );
+                })}
 
                 {/* Inline Add input — appears as the next bar in the
                     target column's lane stack. Same dimensions as a
