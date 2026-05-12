@@ -249,6 +249,38 @@ export function DueDatePicker({
     }
     return false;
   };
+  const isWeekend = (date: Date) => {
+    const d = date.getDay();
+    return d === 0 || d === 6;
+  };
+
+  /**
+   * Asana behavior: weekend cells inside a range are NOT highlighted —
+   * the visual band breaks across non-working days. Endpoints that
+   * happen to fall on a weekend are still highlighted (the user
+   * explicitly picked them); only the in-between weekend days drop
+   * out so a Mon–Fri block reads as one continuous run.
+   */
+  const shouldFillCell = (date: Date): boolean => {
+    if (isStart(date) || isDue(date) || isSingleEndpoint(date)) return true;
+    if (isInRange(date) && !isWeekend(date)) return true;
+    return false;
+  };
+  /** Round the left edge of a filled cell when nothing fills to its
+   *  left (start of range, day after a weekend, first column of week,
+   *  or first cell of a stand-alone endpoint). */
+  const shouldRoundLeft = (date: Date): boolean => {
+    if (!shouldFillCell(date)) return false;
+    const prev = new Date(date);
+    prev.setDate(prev.getDate() - 1);
+    return !shouldFillCell(prev);
+  };
+  const shouldRoundRight = (date: Date): boolean => {
+    if (!shouldFillCell(date)) return false;
+    const next = new Date(date);
+    next.setDate(next.getDate() + 1);
+    return !shouldFillCell(next);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -335,25 +367,23 @@ export function DueDatePicker({
             ))}
           </div>
 
-          {/* Days grid — no horizontal gap so the range band looks
-              continuous; vertical gap keeps rows separated. */}
+          {/* Days grid — no horizontal gap so adjacent filled cells
+              read as one continuous Asana-style band. The band breaks
+              naturally at weekends and at row boundaries. */}
           <div className="grid grid-cols-7 gap-y-1">
             {allDays.map((item, i) => {
-              const inRange = isInRange(item.date);
-              const isStartCell = isStart(item.date);
-              const isDueCell = isDue(item.date);
-              const isEndpoint = isStartCell || isDueCell;
-              const single = isSingleEndpoint(item.date);
+              const filled = shouldFillCell(item.date);
+              const roundL = shouldRoundLeft(item.date);
+              const roundR = shouldRoundRight(item.date);
 
               return (
                 <div
                   key={i}
                   className={cn(
-                    "h-8 flex items-center justify-center relative",
-                    // Range band background (rounded only at the edges)
-                    inRange && "bg-[#c9a84c]/15",
-                    isStartCell && !single && "bg-[#c9a84c]/15 rounded-l-full",
-                    isDueCell && !single && "bg-[#c9a84c]/15 rounded-r-full",
+                    "h-8 flex items-center justify-center",
+                    filled && "bg-[#c9a84c]",
+                    filled && roundL && "rounded-l-full",
+                    filled && roundR && "rounded-r-full"
                   )}
                 >
                   <button
@@ -362,14 +392,19 @@ export function DueDatePicker({
                     }
                     type="button"
                     className={cn(
-                      'h-8 w-8 flex items-center justify-center text-sm rounded-full transition-colors',
-                      item.currentMonth
-                        ? 'text-gray-900 hover:bg-gray-100'
-                        : 'text-gray-300 hover:bg-gray-50',
-                      isToday(item.date) && !isEndpoint && !single && 'border border-gray-400',
-                      // Endpoints — gold solid
-                      (isEndpoint || single) &&
-                        'bg-[#c9a84c] text-white hover:bg-[#a8893a] z-10',
+                      "h-8 w-8 flex items-center justify-center text-sm transition-colors rounded-full",
+                      // Outside-range cells keep gray text + hover
+                      !filled && item.currentMonth &&
+                        "text-gray-900 hover:bg-gray-100",
+                      !filled && !item.currentMonth &&
+                        "text-gray-300 hover:bg-gray-50",
+                      // Today indicator only when the cell isn't already
+                      // overpowered by the gold range band.
+                      isToday(item.date) && !filled &&
+                        "border border-gray-400",
+                      // Inside-range cells: white text on gold; hover
+                      // darkens to the deep-gold tone.
+                      filled && "text-white hover:bg-[#a8893a]"
                     )}
                   >
                     {item.day}
