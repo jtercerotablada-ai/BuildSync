@@ -2853,12 +2853,19 @@ function CalendarView({
     }
 
     // Lane assignment per week (greedy interval scheduling).
-    // Sort: longer spans first so they claim lower lanes, then by start.
+    // Sort matches Asana's calendar: multi-day (start AND end) ranges
+    // first ordered longest→shortest, single-day tasks come after.
+    // This pushes the highest-information bars to the top lanes and
+    // lets single-day pills fall into "+N more" when space is tight.
     for (const list of out) {
-      list.sort(
-        (a, b) =>
-          b.colSpan - a.colSpan || a.colStart - b.colStart || a.task.id.localeCompare(b.task.id)
-      );
+      list.sort((a, b) => {
+        const aMulti = a.colSpan > 1 ? 0 : 1;
+        const bMulti = b.colSpan > 1 ? 0 : 1;
+        if (aMulti !== bMulti) return aMulti - bMulti;
+        if (a.colSpan !== b.colSpan) return b.colSpan - a.colSpan;
+        if (a.colStart !== b.colStart) return a.colStart - b.colStart;
+        return a.task.id.localeCompare(b.task.id);
+      });
       const lanes: BarSegment[][] = [];
       for (const seg of list) {
         let placed = false;
@@ -2887,8 +2894,10 @@ function CalendarView({
     return out;
   }, [tasks, weeks, allDays]);
 
-  /** Maximum lanes we render before collapsing the rest to "+N more". */
-  const MAX_LANES = 3;
+  /** Maximum lanes we render before collapsing the rest to "+N more".
+   *  4 fits comfortably in a 120px cell after the day-number row,
+   *  which matches Asana's density on month view. */
+  const MAX_LANES = 4;
 
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -3153,14 +3162,14 @@ function CalendarView({
                       }}
                       title={seg.task.name}
                       className={cn(
-                        "w-full block text-left text-[11px] leading-tight px-2 py-0.5 truncate cursor-pointer border-l-2 pointer-events-auto",
+                        "w-full block text-left text-[11px] leading-tight px-2 py-1 truncate cursor-pointer pointer-events-auto font-medium transition-colors",
                         // Rounded corners trim on the side that's
                         // clipped (visual continuation hint).
-                        !seg.clipsLeft && "rounded-l",
-                        !seg.clipsRight && "rounded-r",
+                        !seg.clipsLeft && "rounded-l-md",
+                        !seg.clipsRight && "rounded-r-md",
                         seg.task.completed
-                          ? "bg-gray-100 text-gray-400 line-through border-l-gray-300"
-                          : "bg-[#c9a84c]/25 text-gray-900 border-l-[#c9a84c] hover:bg-[#c9a84c]/40"
+                          ? "bg-gray-200 text-gray-500 line-through"
+                          : "bg-[#c9a84c] text-white hover:bg-[#a8893a]"
                       )}
                     >
                       {seg.task.name}
