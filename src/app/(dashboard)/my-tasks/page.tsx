@@ -1493,7 +1493,12 @@ export default function MyTasksPage() {
           ) : view === "dashboard" ? (
             <DashboardView tasks={tasks} sections={sections} />
           ) : (
-            <FilesView />
+            <FilesView
+              onTaskClick={(taskId) => {
+                const t = tasks.find((tk) => tk.id === taskId);
+                if (t) openTaskDetail(t);
+              }}
+            />
           )}
           </div>
         </div>
@@ -3302,35 +3307,280 @@ function DashboardView({ tasks, sections }: { tasks: Task[]; sections: SmartSect
 }
 
 // Files View — Asana-style empty state
-function FilesView() {
+interface FileItem {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  mimeType: string;
+  createdAt: string;
+  task: {
+    id: string;
+    name: string;
+    completed: boolean;
+    project: { id: string; name: string; color: string } | null;
+  } | null;
+  uploader: { id: string; name: string | null; image: string | null } | null;
+}
+
+type FileTypeFilter = "all" | "images" | "pdf" | "docs" | "other";
+
+function FilesView({
+  onTaskClick,
+}: {
+  onTaskClick?: (taskId: string) => void;
+}) {
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<FileTypeFilter>("all");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch("/api/my-tasks/files")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setFiles(data.files || []);
+      })
+      .catch(() => !cancelled && setFiles([]))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filtered = useMemo(() => {
+    return files.filter((f) => {
+      // Type filter
+      if (typeFilter !== "all") {
+        const isImage = f.mimeType.startsWith("image/");
+        const isPdf = f.mimeType === "application/pdf";
+        const isDoc =
+          f.mimeType.includes("word") ||
+          f.mimeType.includes("excel") ||
+          f.mimeType.includes("spreadsheet") ||
+          f.mimeType.includes("presentation") ||
+          f.mimeType === "text/plain";
+        if (typeFilter === "images" && !isImage) return false;
+        if (typeFilter === "pdf" && !isPdf) return false;
+        if (typeFilter === "docs" && !isDoc) return false;
+        if (typeFilter === "other" && (isImage || isPdf || isDoc)) return false;
+      }
+      // Search
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        return (
+          f.name.toLowerCase().includes(q) ||
+          (f.task?.name || "").toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [files, search, typeFilter]);
+
+  const typeCounts = useMemo(() => {
+    const c = { all: files.length, images: 0, pdf: 0, docs: 0, other: 0 };
+    for (const f of files) {
+      const isImage = f.mimeType.startsWith("image/");
+      const isPdf = f.mimeType === "application/pdf";
+      const isDoc =
+        f.mimeType.includes("word") ||
+        f.mimeType.includes("excel") ||
+        f.mimeType.includes("spreadsheet") ||
+        f.mimeType.includes("presentation") ||
+        f.mimeType === "text/plain";
+      if (isImage) c.images++;
+      else if (isPdf) c.pdf++;
+      else if (isDoc) c.docs++;
+      else c.other++;
+    }
+    return c;
+  }, [files]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[300px]">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
+        <div className="w-16 h-16 rounded-2xl bg-gray-50 border flex items-center justify-center mb-4">
+          <Paperclip className="h-7 w-7 text-gray-300" />
+        </div>
+        <p className="text-[15px] font-medium text-gray-900 max-w-md leading-relaxed">
+          No files yet
+        </p>
+        <p className="text-sm text-gray-500 max-w-md leading-relaxed mt-1">
+          Attachments uploaded to any task assigned to you (or created
+          by you) will appear here.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
-      {/* Illustration matching Asana's style */}
-      <svg width="160" height="130" viewBox="0 0 160 130" fill="none" className="mb-6">
-        {/* Clipboard/document */}
-        <rect x="50" y="10" width="60" height="80" rx="6" fill="#FEE2E2" stroke="#F87171" strokeWidth="1.5" />
-        <rect x="60" y="25" width="30" height="3" rx="1.5" fill="#F87171" opacity="0.5" />
-        <rect x="60" y="33" width="40" height="3" rx="1.5" fill="#F87171" opacity="0.5" />
-        <rect x="60" y="41" width="25" height="3" rx="1.5" fill="#F87171" opacity="0.5" />
-        <circle cx="75" cy="65" r="12" fill="#FCA5A5" stroke="#F87171" strokeWidth="1.5" />
-        <circle cx="75" cy="65" r="4" fill="#F87171" />
-        {/* Chart piece */}
-        <path d="M20 75 A30 30 0 0 1 50 75 L35 75 Z" fill="#FEE2E2" stroke="#F87171" strokeWidth="1.5" />
-        <circle cx="30" cy="68" r="5" fill="#F87171" opacity="0.4" />
-        {/* Image icon */}
-        <rect x="105" y="55" width="40" height="35" rx="5" fill="#FEE2E2" stroke="#F87171" strokeWidth="1.5" />
-        <circle cx="117" cy="67" r="4" fill="#FCA5A5" />
-        <path d="M108 83 L120 72 L128 78 L138 68 L142 83 Z" fill="#F87171" opacity="0.3" />
-        {/* Small decorative dots */}
-        <circle cx="25" cy="40" r="3" fill="#F87171" opacity="0.3" />
-        <circle cx="140" cy="45" r="4" fill="#FCA5A5" opacity="0.4" />
-        <rect x="130" cy="25" width="8" height="8" rx="2" fill="#FEE2E2" stroke="#F87171" strokeWidth="1" transform="rotate(15 134 29)" />
-      </svg>
-      <p className="text-[15px] font-medium text-gray-900 max-w-md leading-relaxed">
-        All attachments from tasks and messages in this project will appear here
-      </p>
+    <div className="flex flex-col h-full">
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2 px-4 md:px-6 py-3 border-b bg-white">
+        <div className="flex items-center gap-1">
+          {(
+            [
+              { id: "all" as const, label: "All", count: typeCounts.all },
+              { id: "images" as const, label: "Images", count: typeCounts.images },
+              { id: "pdf" as const, label: "PDF", count: typeCounts.pdf },
+              { id: "docs" as const, label: "Docs", count: typeCounts.docs },
+              { id: "other" as const, label: "Other", count: typeCounts.other },
+            ]
+          ).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTypeFilter(t.id)}
+              className={cn(
+                "px-2.5 py-1 text-xs font-medium rounded-full border transition-colors flex items-center gap-1.5",
+                typeFilter === t.id
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+              )}
+            >
+              {t.label}
+              <span
+                className={cn(
+                  "tabular-nums text-[10px] font-mono",
+                  typeFilter === t.id ? "text-white/70" : "text-gray-400"
+                )}
+              >
+                {t.count}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+          <Input
+            type="search"
+            placeholder="Search files…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-8 w-full sm:w-56 text-xs"
+          />
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4">
+        {filtered.length === 0 ? (
+          <div className="text-center py-12 text-sm text-gray-500">
+            No files match this filter.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+            {filtered.map((f) => (
+              <FileCard key={f.id} file={f} onOpenTask={onTaskClick} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function FileCard({
+  file,
+  onOpenTask,
+}: {
+  file: FileItem;
+  onOpenTask?: (taskId: string) => void;
+}) {
+  const isImage = file.mimeType.startsWith("image/");
+  const isPdf = file.mimeType === "application/pdf";
+  const ext = file.name.split(".").pop()?.toUpperCase() ?? "";
+
+  return (
+    <div className="group border rounded-xl bg-white overflow-hidden hover:border-gray-400 hover:shadow-sm transition-all">
+      {/* Preview */}
+      <a
+        href={file.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block aspect-[4/3] relative bg-gray-50 border-b overflow-hidden"
+      >
+        {isImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={file.url}
+            alt={file.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center">
+            <div className="w-14 h-16 rounded-md bg-white border flex items-center justify-center mb-1.5 shadow-sm">
+              <span
+                className={cn(
+                  "text-[10px] font-mono font-bold tracking-wider",
+                  isPdf ? "text-[#a8893a]" : "text-gray-500"
+                )}
+              >
+                {ext.slice(0, 4)}
+              </span>
+            </div>
+            <span className="text-[10px] uppercase tracking-wider text-gray-400">
+              {isPdf ? "PDF document" : "File"}
+            </span>
+          </div>
+        )}
+      </a>
+
+      {/* Meta */}
+      <div className="px-3 py-2.5">
+        <p
+          className="text-[12px] font-medium text-black truncate"
+          title={file.name}
+        >
+          {file.name}
+        </p>
+        {file.task && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              if (file.task) onOpenTask?.(file.task.id);
+            }}
+            className="mt-1 w-full text-left inline-flex items-center gap-1.5 text-[10px] text-gray-500 hover:text-black truncate"
+          >
+            {file.task.project && (
+              <span
+                className="w-1.5 h-1.5 rounded-sm flex-shrink-0"
+                style={{ backgroundColor: file.task.project.color }}
+              />
+            )}
+            <span className="truncate">{file.task.name}</span>
+          </button>
+        )}
+        <div className="mt-1.5 flex items-center justify-between text-[10px] text-gray-400 font-mono tabular-nums">
+          <span>{formatFileSize(file.size)}</span>
+          <span>
+            {new Date(file.createdAt).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            })}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (!bytes) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 // Task Detail Panel
