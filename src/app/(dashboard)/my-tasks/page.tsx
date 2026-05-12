@@ -2126,63 +2126,80 @@ function ListDndProvider({
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
+      activationConstraint: { distance: 5 },
     })
   );
 
   // Local mirror of the section/task structure. Updated during drag
-  // so the item visually lands in its destination container. Synced
-  // back to the parent's sections whenever the parent re-renders.
+  // so the item visually lands in its destination container while
+  // the user is still dragging. Synced back from the parent's
+  // `sections` prop whenever the parent re-renders — except during
+  // an active drag, where syncing would wipe the optimistic move.
   const [localSections, setLocalSections] = useState<SmartSection[]>(sections);
+  // The task being dragged — drives the DragOverlay ghost so dnd-kit
+  // can move it cleanly between SortableContexts without the actual
+  // TaskRow node having to translate (which is what causes the
+  // bounce-back animation when the source TaskRow unmounts).
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
   const dragSourceRef = useRef<string | null>(null);
+  const isDraggingRef = useRef(false);
 
   useEffect(() => {
+    // Skip the sync while a drag is in flight so the parent's prop
+    // changing (e.g. from a background refetch) doesn't reset our
+    // optimistic localSections mid-gesture.
+    if (isDraggingRef.current) return;
     setLocalSections(sections);
   }, [sections]);
 
-  const findContainerForTask = (id: string): string | undefined => {
-    for (const s of localSections) {
-      if (s.tasks.some((t) => t.id === id)) return s.id;
-    }
-    return undefined;
-  };
-
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     const id = String(event.active.id);
-    dragSourceRef.current = findContainerForTask(id) ?? null;
-  };
+    isDraggingRef.current = true;
+    // Find the task + its source section atomically by walking
+    // localSections at start-of-drag.
+    setLocalSections((prev) => {
+      for (const s of prev) {
+        const task = s.tasks.find((t) => t.id === id);
+        if (task) {
+          setActiveTask(task);
+          dragSourceRef.current = s.id;
+          break;
+        }
+      }
+      return prev;
+    });
+  }, []);
 
-  const handleDragOver = (event: DragOverEvent) => {
+  const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    const activeContainer = findContainerForTask(activeId);
-    let overContainer: string | undefined;
-    if (localSections.some((s) => s.id === overId)) {
-      overContainer = overId;
-    } else {
-      overContainer = findContainerForTask(overId);
-    }
-
-    if (!activeContainer || !overContainer) return;
-    if (activeContainer === overContainer) return;
-
+    // ALL lookups go inside the updater so we read the latest state.
+    // Closure reads (`localSections.some(...)` outside) would be
+    // stale across rapid dragOver events. This mirrors the exact
+    // pattern BoardView uses.
     setLocalSections((prev) => {
-      const src = prev.find((s) => s.id === activeContainer);
-      const dst = prev.find((s) => s.id === overContainer);
-      if (!src || !dst) return prev;
-      const task = src.tasks.find((t) => t.id === activeId);
+      const srcSection = prev.find((s) =>
+        s.tasks.some((t) => t.id === activeId)
+      );
+      if (!srcSection) return prev;
+
+      let destSection = prev.find((s) => s.id === overId);
+      if (!destSection) {
+        destSection = prev.find((s) => s.tasks.some((t) => t.id === overId));
+      }
+      if (!destSection || srcSection.id === destSection.id) return prev;
+
+      const task = srcSection.tasks.find((t) => t.id === activeId);
       if (!task) return prev;
 
       return prev.map((s) => {
-        if (s.id === activeContainer) {
+        if (s.id === srcSection.id) {
           return { ...s, tasks: s.tasks.filter((t) => t.id !== activeId) };
         }
-        if (s.id === overContainer) {
-          // Insert before the over-row or at the end if dropping on
-          // the section itself.
+        if (s.id === destSection!.id) {
           const idx = s.tasks.findIndex((t) => t.id === overId);
           const next = [...s.tasks];
           if (idx >= 0) next.splice(idx, 0, task);
@@ -2192,30 +2209,43 @@ function ListDndProvider({
         return s;
       });
     });
-  };
+  }, []);
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    const src = dragSourceRef.current;
-    dragSourceRef.current = null;
-    if (!over) return;
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      const src = dragSourceRef.current;
+      setActiveTask(null);
+      dragSourceRef.current = null;
+      isDraggingRef.current = false;
+      if (!over) return;
 
-    const activeId = String(active.id);
-    const overId = String(over.id);
+      const activeId = String(active.id);
+      const overId = String(over.id);
 
-    // Determine destination container the same way dragOver did so
-    // we agree with whatever it committed to localSections.
-    let dst: string | undefined;
-    if (localSections.some((s) => s.id === overId)) {
-      dst = overId;
-    } else {
-      dst = findContainerForTask(overId);
-    }
-    if (!dst) return;
-    if (!src || src === dst) return; // intra-section reorders not persisted
+      // Resolve destination from current local state — handleDragOver
+      // has already moved the task into the right container, so this
+      // is just confirmation.
+      let destSectionId: string | undefined;
+      setLocalSections((prev) => {
+        if (prev.some((s) => s.id === overId)) {
+          destSectionId = overId;
+        } else {
+          for (const s of prev) {
+            if (s.tasks.some((t) => t.id === overId)) {
+              destSectionId = s.id;
+              break;
+            }
+          }
+        }
+        return prev;
+      });
 
-    onMoveTask(activeId, dst);
-  };
+      if (!destSectionId || !src || src === destSectionId) return;
+      await onMoveTask(activeId, destSectionId);
+    },
+    [onMoveTask]
+  );
 
   return (
     <DndContext
@@ -2238,7 +2268,83 @@ function ListDndProvider({
           customColumnCount={customColumnCount}
         />
       ))}
+      {/* DragOverlay — the ghost element that follows the cursor.
+          Critical for cross-container sortable: without it, dnd-kit
+          uses CSS transform on the actual row, which animates back
+          to its source on drop (the bounce). With it, the real row
+          stays put while the ghost floats, then disappears cleanly
+          when the move is committed. */}
+      <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+        {activeTask && (
+          <TaskRowOverlay task={activeTask} formatDueDate={formatDueDate} />
+        )}
+      </DragOverlay>
     </DndContext>
+  );
+}
+
+/**
+ * Ghost rendering of a TaskRow that follows the cursor during drag.
+ * Same visual language as the real row but with a strong shadow and
+ * a tiny tilt so it reads as "in motion." Lives in DragOverlay's
+ * portal so it's free of the source row's clipping container.
+ */
+function TaskRowOverlay({
+  task,
+  formatDueDate,
+}: {
+  task: Task;
+  formatDueDate: (date: string | null) => { text: string; className: string };
+}) {
+  const dueDateInfo = formatDueDate(task.dueDate);
+  const checkboxEl =
+    task.taskType === "MILESTONE" ? (
+      <Diamond className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
+    ) : task.taskType === "APPROVAL" ? (
+      <ThumbsUp className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
+    ) : (
+      <div
+        className={cn(
+          "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0",
+          task.completed
+            ? "bg-[#c9a84c] border-[#c9a84c]"
+            : "border-gray-300"
+        )}
+      >
+        {task.completed && <Check className="w-3 h-3 text-white" />}
+      </div>
+    );
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-2xl rotate-[1deg] min-w-[420px] max-w-[640px] cursor-grabbing">
+      {checkboxEl}
+      <span
+        className={cn(
+          "text-[13px] truncate flex-1",
+          task.completed ? "line-through text-gray-400" : "text-gray-900"
+        )}
+      >
+        {task.name}
+      </span>
+      {dueDateInfo.text && (
+        <span
+          className={cn(
+            "text-[11px] flex-shrink-0 ml-2",
+            dueDateInfo.className
+          )}
+        >
+          {dueDateInfo.text}
+        </span>
+      )}
+      {task.assignee && (
+        <Avatar className="h-5 w-5 flex-shrink-0 ml-1">
+          <AvatarImage src={task.assignee.image || undefined} />
+          <AvatarFallback className="text-[10px] bg-[#c9a84c] text-white">
+            {task.assignee.name?.[0]?.toUpperCase() || "?"}
+          </AvatarFallback>
+        </Avatar>
+      )}
+    </div>
   );
 }
 
