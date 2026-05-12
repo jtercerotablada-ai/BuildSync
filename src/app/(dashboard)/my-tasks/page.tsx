@@ -2724,12 +2724,22 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
           grid width, so the seven columns below were slightly
           narrower than the seven above and the gridlines drifted. */}
       <div className="flex-1 overflow-y-auto">
-        {/* Sticky week header inside the scroll wrapper */}
+        {/* Sticky week header inside the scroll wrapper. Each header
+            cell uses `border-l first:border-l-0` so the divider sits
+            at the LEFT edge of cells 2-7 — the exact same place the
+            day cells below put their dividers. Using border-r on the
+            header (and border-l on the grid below) put the line on
+            opposite sides of the cell boundary, leaving a 1 px X
+            offset that Juan caught at zoom. Same side = perfect
+            alignment top-to-bottom. */}
         <div className="grid grid-cols-7 border-b bg-gray-50/40 sticky top-0 z-10">
-          {weekDays.map((day) => (
+          {weekDays.map((day, index) => (
             <div
               key={day}
-              className="py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-r last:border-r-0"
+              className={cn(
+                "py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider",
+                index > 0 && "border-l border-gray-200"
+              )}
             >
               {day}
             </div>
@@ -2744,7 +2754,14 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
           const dateStr = date.toDateString();
           const dayTasks = tasksByDate[dateStr] || [];
           const isToday = dateStr === new Date().toDateString();
-          const isWeekend = index % 7 >= 5;
+          const dayOfWeek = index % 7; // 0 = Mon ... 6 = Sun
+          const isWeekend = dayOfWeek >= 5;
+          // MON cells (column 1) should NOT have a left border — that
+          // would render a divider on the leftmost edge of the grid.
+          // `first:border-l-0` from Tailwind only applies to the very
+          // first CSS child, so rows 2-6 of the MON column would have
+          // inherited an unwanted border-l. Drive it from dayOfWeek
+          // instead.
           const dayNum = date.getDate();
           const isFirstOfMonth = dayNum === 1;
           const visibleTasks = dayTasks.slice(0, 3);
@@ -2754,7 +2771,8 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
             <div
               key={dateStr}
               className={cn(
-                "border-b border-l first:border-l-0 group relative flex flex-col overflow-hidden",
+                "border-b border-gray-200 group relative flex flex-col overflow-hidden",
+                dayOfWeek > 0 && "border-l border-gray-200",
                 !isCurrentMonth && "bg-gray-50/40",
                 isWeekend && isCurrentMonth && "bg-gray-50/20",
                 isToday && "bg-[#c9a84c]/5"
