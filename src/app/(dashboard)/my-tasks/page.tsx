@@ -2919,10 +2919,13 @@ function CalendarView({
 
   // Pixel constants for the per-week layout. Used by the dynamic
   // height calc AND by the scroll math below — keep them in sync.
+  // Tighter than the original 22px lane: shorter bars + smaller gap
+  // match Asana's density and stop adjacent bars from looking like
+  // separate fat pills.
   const DAY_HEADER_PX = 24; // height of the day-number row
-  const LANE_PX = 22; // height of a single bar lane (incl. gap)
-  const ROW_BOTTOM_PX = 12; // breathing room under the last bar
-  const ROW_MIN_PX = 96; // floor so empty weeks aren't tiny
+  const LANE_PX = 20; // height of a single bar lane (incl. gap)
+  const ROW_BOTTOM_PX = 10; // breathing room under the last bar
+  const ROW_MIN_PX = 86; // floor so empty weeks aren't tiny
 
   /**
    * Per-week height — grows with how many lanes that week actually
@@ -3272,7 +3275,7 @@ function CalendarView({
                   in as "the next bar" instead of floating at the cell
                   bottom — Asana behavior. */}
               <div
-                className="absolute inset-x-0 grid grid-cols-7 gap-y-1 pointer-events-none"
+                className="absolute inset-x-0 grid grid-cols-7 gap-y-0.5 pointer-events-none"
                 style={{ top: 24, paddingLeft: 2, paddingRight: 2 }}
               >
                 {visibleSegments.map((seg) => (
@@ -3282,7 +3285,7 @@ function CalendarView({
                       gridColumn: `${seg.colStart + 1} / span ${seg.colSpan}`,
                       gridRow: seg.lane + 1,
                     }}
-                    className="px-0.5 min-w-0 pointer-events-none"
+                    className="px-px min-w-0 pointer-events-none"
                   >
                     <button
                       onClick={(e) => {
@@ -3291,11 +3294,13 @@ function CalendarView({
                       }}
                       title={seg.task.name}
                       className={cn(
-                        "w-full block text-left text-[11px] leading-tight px-2 py-1 truncate cursor-pointer pointer-events-auto font-medium transition-colors",
+                        // Compact, slightly rounded — bar feel, not
+                        // pill feel. Matches Asana density.
+                        "w-full block text-left text-[11px] leading-snug px-1.5 py-[3px] truncate cursor-pointer pointer-events-auto font-medium transition-colors",
                         // Rounded corners trim on the side that's
                         // clipped (visual continuation hint).
-                        !seg.clipsLeft && "rounded-l-md",
-                        !seg.clipsRight && "rounded-r-md",
+                        !seg.clipsLeft && "rounded-l-sm",
+                        !seg.clipsRight && "rounded-r-sm",
                         seg.task.completed
                           ? "bg-gray-200 text-gray-500 line-through"
                           : "bg-[#c9a84c] text-white hover:bg-[#a8893a]"
@@ -3315,10 +3320,10 @@ function CalendarView({
                       gridColumn: `${addingDayIndex + 1} / span 1`,
                       gridRow: addingLane + 1,
                     }}
-                    className="px-0.5 min-w-0 pointer-events-auto"
+                    className="px-px min-w-0 pointer-events-auto"
                   >
                     <div
-                      className="w-full bg-white border border-[#c9a84c] rounded-md shadow-sm"
+                      className="w-full bg-white border border-[#c9a84c] rounded-sm shadow-sm"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <input
@@ -3339,7 +3344,7 @@ function CalendarView({
                         onBlur={() => commitInlineTask(week[addingDayIndex])}
                         disabled={creatingInline}
                         placeholder="Task name…"
-                        className="w-full px-2 py-1 text-[11px] bg-transparent border-none outline-none placeholder:text-gray-400"
+                        className="w-full px-1.5 py-[3px] text-[11px] leading-snug bg-transparent border-none outline-none placeholder:text-gray-400"
                       />
                     </div>
                   </div>
