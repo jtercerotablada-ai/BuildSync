@@ -132,6 +132,7 @@ interface Task {
   startDate: string | null;
   priority: "NONE" | "LOW" | "MEDIUM" | "HIGH";
   taskType?: "TASK" | "MILESTONE" | "APPROVAL";
+  position?: number;
   createdAt: string;
   assignee: { id: string; name: string | null; email: string | null; image: string | null } | null;
   project: {
@@ -464,6 +465,23 @@ export default function MyTasksPage() {
         }
       }
     });
+
+    // Sort each bucket by position then createdAt — the position
+    // field is what intra-section drag-reorder writes to, so this
+    // is what makes the new order persist visually after the next
+    // re-render. Falls back to createdAt for ties (default position).
+    const sortFn = (a: Task, b: Task) => {
+      const pa = a.position ?? 0;
+      const pb = b.position ?? 0;
+      if (pa !== pb) return pa - pb;
+      return (
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    };
+    recentlyAssigned.sort(sortFn);
+    doToday.sort(sortFn);
+    doNextWeek.sort(sortFn);
+    doLater.sort(sortFn);
 
     // Keep sections that were empty in previous state (don't collapse them)
     // This prevents sections from disappearing and reappearing during moves
@@ -1425,6 +1443,43 @@ export default function MyTasksPage() {
               onAddTask={handleAddTask}
               formatDueDate={formatDueDate}
               customColumnCount={customColumns.length}
+              onReorderTasks={async (sectionId, orderedTaskIds) => {
+                // Optimistic: re-number positions on the in-memory
+                // tasks so the next re-render keeps the dragged order.
+                // Spacing of 1000 leaves room for future inserts
+                // between any two adjacent items without renumbering.
+                const positionMap = new Map<string, number>();
+                orderedTaskIds.forEach((id, idx) =>
+                  positionMap.set(id, idx * 1000)
+                );
+                const updatedTasks = tasks.map((t) =>
+                  positionMap.has(t.id)
+                    ? { ...t, position: positionMap.get(t.id)! }
+                    : t
+                );
+                setTasks(updatedTasks);
+                organizeTasks(updatedTasks);
+                try {
+                  // Persist via parallel per-task PATCH. Cheap for
+                  // typical section sizes; if this grows we'll add a
+                  // batch /api/tasks/reorder endpoint.
+                  await Promise.all(
+                    orderedTaskIds.map((id, idx) =>
+                      fetch(`/api/tasks/${id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ position: idx * 1000 }),
+                      })
+                    )
+                  );
+                  fetchTasks(true);
+                } catch (err) {
+                  console.error("Reorder error:", err);
+                  toast.error("Couldn't save the new order");
+                  fetchTasks(true);
+                }
+                void sectionId;
+              }}
               onMoveTask={async (taskId: string, destSectionId: string) => {
                 const sectionMap: Record<string, string | null> = {
                   "do-today": "DO_TODAY",
@@ -2105,6 +2160,7 @@ function TaskSection({
 function ListDndProvider({
   sections,
   onMoveTask,
+  onReorderTasks,
   onToggleSection,
   onToggleComplete,
   onTaskClick,
@@ -2114,6 +2170,12 @@ function ListDndProvider({
 }: {
   sections: SmartSection[];
   onMoveTask: (taskId: string, destSectionId: string) => Promise<void> | void;
+  /** Persist a new in-section order. The orderedTaskIds is the full
+   *  task id list for the section in its new sequence. */
+  onReorderTasks: (
+    sectionId: string,
+    orderedTaskIds: string[]
+  ) => Promise<void> | void;
   onToggleSection: (sectionId: string) => void;
   onToggleComplete: (task: Task) => void;
   onTaskClick: (task: Task) => void;
@@ -2165,11 +2227,18 @@ function ListDndProvider({
     [localSections]
   );
 
+  /**
+   * Handles BOTH cross-section moves AND intra-section reorders
+   * during the live drag. Cross-section: pull the task from source,
+   * insert at the target row's index in destination. Intra-section:
+   * arrayMove within the same section so the gap follows the cursor.
+   */
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
     const activeId = String(active.id);
     const overId = String(over.id);
+    if (activeId === overId) return;
 
     setLocalSections((prev) => {
       const srcSection = prev.find((s) =>
@@ -2181,7 +2250,21 @@ function ListDndProvider({
       if (!destSection) {
         destSection = prev.find((s) => s.tasks.some((t) => t.id === overId));
       }
-      if (!destSection || srcSection.id === destSection.id) return prev;
+      if (!destSection) return prev;
+
+      // Same-section reorder: move the active task to the index of
+      // the over-task. arrayMove keeps the rest in order and lets
+      // useSortable animate the shift via its transform/transition.
+      if (srcSection.id === destSection.id) {
+        const oldIdx = srcSection.tasks.findIndex((t) => t.id === activeId);
+        const newIdx = srcSection.tasks.findIndex((t) => t.id === overId);
+        if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return prev;
+        return prev.map((s) =>
+          s.id === srcSection.id
+            ? { ...s, tasks: arrayMove(s.tasks, oldIdx, newIdx) }
+            : s
+        );
+      }
 
       const task = srcSection.tasks.find((t) => t.id === activeId);
       if (!task) return prev;
@@ -2213,10 +2296,9 @@ function ListDndProvider({
       const activeId = String(active.id);
       const overId = String(over.id);
 
-      // Resolve destination from CLOSURE localSections — this is
-      // recreated by useCallback whenever localSections changes, so
-      // by the time handleDragEnd fires it has the post-dragOver
-      // state where the task is already in its destination.
+      // Resolve destination from CLOSURE localSections — recreated
+      // by useCallback when localSections changes, so by the time
+      // handleDragEnd fires it has the post-dragOver state.
       let destSectionId: string | undefined;
       if (localSections.some((s) => s.id === overId)) {
         destSectionId = overId;
@@ -2229,10 +2311,22 @@ function ListDndProvider({
         }
       }
 
-      if (!destSectionId || !src || src === destSectionId) return;
+      if (!destSectionId || !src) return;
+
+      if (src === destSectionId) {
+        // Same-section reorder: persist new order.
+        if (activeId === overId) return; // dropped on itself, no change
+        const section = localSections.find((s) => s.id === destSectionId);
+        if (!section) return;
+        const orderedIds = section.tasks.map((t) => t.id);
+        await onReorderTasks(destSectionId, orderedIds);
+        return;
+      }
+
+      // Cross-section move: persist the new section assignment.
       await onMoveTask(activeId, destSectionId);
     },
-    [localSections, onMoveTask]
+    [localSections, onMoveTask, onReorderTasks]
   );
 
   return (
