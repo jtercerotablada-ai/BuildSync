@@ -158,22 +158,16 @@ export function DueDatePicker({
 
   const handleSelectDate = (day: number, month: number, year: number) => {
     const picked = new Date(year, month, day);
+    // Asana behavior: never auto-close on a date pick. The user keeps
+    // adjusting either endpoint until they explicitly dismiss (click
+    // outside, hit Done, or press Esc). Just flip focus to the other
+    // input so two clicks naturally fill a fresh range.
     if (focus === 'start') {
-      // First click of a fresh selection — set start, then advance
-      // focus to "due" so the second click fills the other end.
       commit(picked, dueDate);
       setFocus('due');
-      // If there's no due yet, leave the popover open so the user
-      // can click the second date. Once both are filled, close.
-      if (dueDate) {
-        // We already have due — closing is fine after the user
-        // explicitly changed start.
-        setOpen(false);
-      }
     } else {
       commit(startDate, picked);
       setFocus('start');
-      setOpen(false);
     }
   };
 
@@ -410,15 +404,25 @@ export function DueDatePicker({
               <Repeat className="h-4 w-4" />
             </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-gray-500 h-8"
-            type="button"
-            onClick={handleClear}
-          >
-            Clear
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-gray-500 h-8"
+              type="button"
+              onClick={handleClear}
+            >
+              Clear
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 bg-black hover:bg-gray-800 text-white"
+              type="button"
+              onClick={() => setOpen(false)}
+            >
+              Done
+            </Button>
+          </div>
         </div>
       </PopoverContent>
     </Popover>
