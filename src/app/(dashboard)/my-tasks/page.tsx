@@ -2715,28 +2715,29 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
         </span>
       </div>
 
-      {/* Week header — 7 equal columns, day label left-aligned with
-          the same px-1.5 padding the day number uses inside each
-          cell. This way the header sits directly above its day
-          numbers on the same vertical axis. */}
-      <div className="grid grid-cols-7 border-b bg-gray-50/40">
-        {weekDays.map((day) => (
-          <div
-            key={day}
-            className="py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-r last:border-r-0"
-          >
-            {day}
-          </div>
-        ))}
-      </div>
+      {/* Single scroll container with sticky header — guarantees the
+          weekday-header columns and the day-cell columns occupy the
+          exact same X positions, so the vertical separators line up
+          perfectly from top to bottom. Previously the header lived
+          outside the scroll container and the grid had its own
+          `overflow-auto`; the grid's scrollbar shaved ~15px off the
+          grid width, so the seven columns below were slightly
+          narrower than the seven above and the gridlines drifted. */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Sticky week header inside the scroll wrapper */}
+        <div className="grid grid-cols-7 border-b bg-gray-50/40 sticky top-0 z-10">
+          {weekDays.map((day) => (
+            <div
+              key={day}
+              className="py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-r last:border-r-0"
+            >
+              {day}
+            </div>
+          ))}
+        </div>
 
-      {/* Calendar grid — fixed row height (~120px), all 7 columns
-          equal, day number tightly anchored top-left, tasks stack
-          immediately below as Asana-style horizontal bars. No more
-          `auto-rows-fr` stretching the cells to fill the viewport
-          and making tasks look like they're floating mid-cell. */}
       <div
-        className="grid grid-cols-7 overflow-auto border-r"
+        className="grid grid-cols-7"
         style={{ gridAutoRows: "120px" }}
       >
         {calendarDays.map(({ date, isCurrentMonth }, index) => {
@@ -2826,6 +2827,7 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );
