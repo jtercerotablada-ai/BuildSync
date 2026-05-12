@@ -15,7 +15,7 @@ const createTaskSchema = z.object({
   priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional(),
   parentTaskId: z.string().optional().nullable(),
   taskType: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional(),
-  myTaskSection: z.enum(["DO_TODAY", "DO_NEXT_WEEK", "DO_LATER"]).optional().nullable(),
+  myTaskSection: z.enum(["RECENTLY_ASSIGNED", "DO_TODAY", "DO_NEXT_WEEK", "DO_LATER"]).optional().nullable(),
 });
 
 // GET /api/tasks - Get tasks

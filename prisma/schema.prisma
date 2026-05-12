@@ -567,6 +567,7 @@ enum TaskStatus {
 }
 
 enum MyTaskSection {
+  RECENTLY_ASSIGNED
   DO_TODAY
   DO_NEXT_WEEK
   DO_LATER

@@ -150,7 +150,7 @@ interface Task {
   } | null;
   section: { id: string; name: string } | null;
   subtasks?: { id: string; name: string; completed: boolean }[];
-  myTaskSection: "DO_TODAY" | "DO_NEXT_WEEK" | "DO_LATER" | null;
+  myTaskSection: "RECENTLY_ASSIGNED" | "DO_TODAY" | "DO_NEXT_WEEK" | "DO_LATER" | null;
   _count: { subtasks: number; comments: number; attachments: number };
 }
 
@@ -444,9 +444,13 @@ export default function MyTasksPage() {
     const doLater: Task[] = [];
 
     activeTasks.forEach((task) => {
-      // If myTaskSection is explicitly set, use it (user manually moved the task)
+      // If myTaskSection is explicitly set, honor it. This includes
+      // RECENTLY_ASSIGNED — user-pinned to Recently assigned even if
+      // the task has a dueDate that would otherwise auto-bucket it
+      // into Do today/next week/later.
       if (task.myTaskSection) {
-        if (task.myTaskSection === "DO_TODAY") doToday.push(task);
+        if (task.myTaskSection === "RECENTLY_ASSIGNED") recentlyAssigned.push(task);
+        else if (task.myTaskSection === "DO_TODAY") doToday.push(task);
         else if (task.myTaskSection === "DO_NEXT_WEEK") doNextWeek.push(task);
         else if (task.myTaskSection === "DO_LATER") doLater.push(task);
         return;
@@ -730,7 +734,8 @@ export default function MyTasksPage() {
     try {
       // Map virtual section IDs to myTaskSection enum values
       // This creates tasks WITHOUT fake due dates — the section is stored independently
-      const sectionMap: Record<string, string | null> = {
+      const sectionMap: Record<string, string> = {
+        "recently-assigned": "RECENTLY_ASSIGNED",
         "do-today": "DO_TODAY",
         "do-next-week": "DO_NEXT_WEEK",
         "do-later": "DO_LATER",
@@ -1481,11 +1486,11 @@ export default function MyTasksPage() {
                 void sectionId;
               }}
               onMoveTask={async (taskId: string, destSectionId: string) => {
-                const sectionMap: Record<string, string | null> = {
+                const sectionMap: Record<string, string> = {
+                  "recently-assigned": "RECENTLY_ASSIGNED",
                   "do-today": "DO_TODAY",
                   "do-next-week": "DO_NEXT_WEEK",
                   "do-later": "DO_LATER",
-                  "recently-assigned": null,
                 };
                 // Drops on any other section id (e.g. user-created
                 // sections under "group by project") aren't supported
@@ -1570,11 +1575,11 @@ export default function MyTasksPage() {
               onAddTask={handleAddTask}
               onMoveTask={async (taskId: string, destSectionId: string) => {
                 // Map virtual section ID to myTaskSection enum value
-                const sectionMap: Record<string, string | null> = {
+                const sectionMap: Record<string, string> = {
+                  "recently-assigned": "RECENTLY_ASSIGNED",
                   "do-today": "DO_TODAY",
                   "do-next-week": "DO_NEXT_WEEK",
                   "do-later": "DO_LATER",
-                  "recently-assigned": null,
                 };
                 const myTaskSection = sectionMap[destSectionId] ?? null;
 

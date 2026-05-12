@@ -16,7 +16,7 @@ const updateTaskSchema = z.object({
   startDate: z.string().optional().nullable(),
   priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional().nullable(),
   taskStatus: z.enum(["ON_TRACK", "AT_RISK", "OFF_TRACK"]).optional().nullable(),
-  myTaskSection: z.enum(["DO_TODAY", "DO_NEXT_WEEK", "DO_LATER"]).optional().nullable(),
+  myTaskSection: z.enum(["RECENTLY_ASSIGNED", "DO_TODAY", "DO_NEXT_WEEK", "DO_LATER"]).optional().nullable(),
   position: z.number().optional(),
 });
 
