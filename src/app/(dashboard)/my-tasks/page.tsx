@@ -138,6 +138,13 @@ interface Task {
     name: string;
     color: string;
     type?: "CONSTRUCTION" | "DESIGN" | "RECERTIFICATION" | "PERMIT" | null;
+    gate?:
+      | "PRE_DESIGN"
+      | "DESIGN"
+      | "PERMITTING"
+      | "CONSTRUCTION"
+      | "CLOSEOUT"
+      | null;
   } | null;
   section: { id: string; name: string } | null;
   subtasks?: { id: string; name: string; completed: boolean }[];

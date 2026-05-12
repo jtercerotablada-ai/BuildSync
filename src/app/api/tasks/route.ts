@@ -94,6 +94,7 @@ export async function GET(req: Request) {
             name: true,
             color: true,
             type: true,
+            gate: true,
           },
         },
         section: {
@@ -213,6 +214,7 @@ export async function POST(req: Request) {
               name: true,
               color: true,
               type: true,
+              gate: true,
             },
           },
           section: {
