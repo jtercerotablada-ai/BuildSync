@@ -1,5 +1,27 @@
 'use client';
 
+/**
+ * DueDatePicker — Asana-style date range picker.
+ *
+ * Despite the name (kept for callsite compatibility), this component
+ * now manages BOTH a start date and a due date. A task that has both
+ * shows as a band on the calendar; a task with only a due date
+ * collapses to a single highlighted cell.
+ *
+ * Props
+ * - startDate / dueDate: the current range (either may be null)
+ * - onChange(start, due): fires whenever the range changes
+ * - trigger: the element that opens the popover
+ *
+ * Interaction model
+ * - Two inline inputs at the top, one for start and one for due.
+ * - Clicking a date in the calendar fills the currently-focused
+ *   input, then auto-advances focus to the other input (Asana behavior).
+ * - If the user picks a "due" earlier than "start", we swap them
+ *   silently — that's what every other range picker does.
+ * - "Clear" wipes both dates.
+ */
+
 import { useState, useEffect } from 'react';
 import {
   ChevronLeft,
@@ -19,8 +41,12 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface DueDatePickerProps {
-  value: Date | null;
-  onChange: (date: Date | null) => void;
+  /** Optional start of the range. */
+  startDate?: Date | null;
+  /** End of the range — also used as the single date if startDate is null. */
+  dueDate: Date | null;
+  /** Fires when either endpoint changes. */
+  onChange: (startDate: Date | null, dueDate: Date | null) => void;
   trigger: React.ReactNode;
 }
 
@@ -62,52 +88,100 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return day === 0 ? 6 : day - 1;
 }
 
-export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) {
+/** Strip time so two dates can be compared by day. */
+function dayOnly(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+export function DueDatePicker({
+  startDate = null,
+  dueDate,
+  onChange,
+  trigger,
+}: DueDatePickerProps) {
   const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(value ? formatDateInput(value) : '');
-  const [viewDate, setViewDate] = useState(value || new Date());
+  const [startInput, setStartInput] = useState(startDate ? formatDateInput(startDate) : '');
+  const [dueInput, setDueInput] = useState(dueDate ? formatDateInput(dueDate) : '');
+  const [viewDate, setViewDate] = useState(startDate || dueDate || new Date());
+  /** Which input is the "next click" filling — Asana toggles this on
+   *  every click so two clicks can pick a full range. */
+  const [focus, setFocus] = useState<'start' | 'due'>(
+    startDate && !dueDate ? 'due' : 'start'
+  );
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   useEffect(() => {
-    if (value) {
-      setInputValue(formatDateInput(value));
-      setViewDate(value);
+    setStartInput(startDate ? formatDateInput(startDate) : '');
+  }, [startDate]);
+  useEffect(() => {
+    setDueInput(dueDate ? formatDateInput(dueDate) : '');
+  }, [dueDate]);
+
+  /** Commit a new range to the parent, swapping if start > due. */
+  function commit(start: Date | null, due: Date | null) {
+    if (start && due && dayOnly(start) > dayOnly(due)) {
+      onChange(due, start);
     } else {
-      setInputValue('');
+      onChange(start, due);
     }
-  }, [value]);
+  }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setInputValue(newValue);
-
-    const parsed = parseDateInput(newValue);
+  const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setStartInput(v);
+    if (v.trim() === '') {
+      commit(null, dueDate);
+      return;
+    }
+    const parsed = parseDateInput(v);
     if (parsed) {
-      onChange(parsed);
+      commit(parsed, dueDate);
       setViewDate(parsed);
     }
   };
 
-  const handleInputBlur = () => {
-    const parsed = parseDateInput(inputValue);
+  const handleDueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setDueInput(v);
+    if (v.trim() === '') {
+      commit(startDate, null);
+      return;
+    }
+    const parsed = parseDateInput(v);
     if (parsed) {
-      onChange(parsed);
-    } else if (value) {
-      setInputValue(formatDateInput(value));
+      commit(startDate, parsed);
+      setViewDate(parsed);
     }
   };
 
   const handleSelectDate = (day: number, month: number, year: number) => {
-    const newDate = new Date(year, month, day);
-    onChange(newDate);
-    setOpen(false);
+    const picked = new Date(year, month, day);
+    if (focus === 'start') {
+      // First click of a fresh selection — set start, then advance
+      // focus to "due" so the second click fills the other end.
+      commit(picked, dueDate);
+      setFocus('due');
+      // If there's no due yet, leave the popover open so the user
+      // can click the second date. Once both are filled, close.
+      if (dueDate) {
+        // We already have due — closing is fine after the user
+        // explicitly changed start.
+        setOpen(false);
+      }
+    } else {
+      commit(startDate, picked);
+      setFocus('start');
+      setOpen(false);
+    }
   };
 
   const handleClear = () => {
-    onChange(null);
-    setInputValue('');
+    onChange(null, null);
+    setStartInput('');
+    setDueInput('');
+    setFocus('start');
   };
 
   const handlePrevMonth = () => {
@@ -157,12 +231,29 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
 
   const allDays = [...prevDays, ...currentDays, ...nextDays];
 
-  const isToday = (date: Date) => {
-    return date.toDateString() === today.toDateString();
-  };
+  const isToday = (date: Date) => date.toDateString() === today.toDateString();
 
-  const isSelected = (date: Date) => {
-    return value && date.toDateString() === value.toDateString();
+  const isStart = (date: Date) =>
+    !!startDate && date.toDateString() === startDate.toDateString();
+  const isDue = (date: Date) =>
+    !!dueDate && date.toDateString() === dueDate.toDateString();
+  /** Cell sits strictly between start and due — gets the band fill. */
+  const isInRange = (date: Date) => {
+    if (!startDate || !dueDate) return false;
+    const t = dayOnly(date);
+    return t > dayOnly(startDate) && t < dayOnly(dueDate);
+  };
+  /** Same-day range (start === due) — show only the endpoint style. */
+  const isSingleEndpoint = (date: Date) => {
+    if (startDate && dueDate &&
+      startDate.toDateString() === dueDate.toDateString()) {
+      return date.toDateString() === startDate.toDateString();
+    }
+    // No start, only due — classic single-date highlight.
+    if (!startDate && dueDate) {
+      return date.toDateString() === dueDate.toDateString();
+    }
+    return false;
   };
 
   return (
@@ -171,36 +262,56 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
         {trigger}
       </PopoverTrigger>
       <PopoverContent
-        className="w-[280px] p-0"
+        className="w-[320px] p-0"
         align="start"
         sideOffset={4}
       >
-        {/* ========== DATE INPUT ========== */}
+        {/* ========== DATE INPUTS (start + due) ========== */}
         <div className="flex items-center border-b px-3 py-2 gap-2">
-          <span className="text-sm text-gray-500">+ Due date</span>
-          <div className="flex-1" />
           <Input
-            value={inputValue}
-            onChange={handleInputChange}
-            onBlur={handleInputBlur}
-            placeholder="MM/DD/YY"
-            className="w-24 h-7 text-sm text-right border-gray-300"
+            value={startInput}
+            onChange={handleStartChange}
+            onFocus={() => setFocus('start')}
+            placeholder="Start"
+            className={cn(
+              "flex-1 h-7 text-xs text-center border-gray-300 px-1",
+              focus === 'start' && "ring-2 ring-[#c9a84c]/40 border-[#c9a84c]"
+            )}
           />
-          {value && (
+          <span className="text-gray-400">→</span>
+          <Input
+            value={dueInput}
+            onChange={handleDueChange}
+            onFocus={() => setFocus('due')}
+            placeholder="Due"
+            className={cn(
+              "flex-1 h-7 text-xs text-center border-gray-300 px-1",
+              focus === 'due' && "ring-2 ring-[#c9a84c]/40 border-[#c9a84c]"
+            )}
+          />
+          {(startDate || dueDate) && (
             <button
               onClick={handleClear}
               className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
+              title="Clear dates"
+              type="button"
             >
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
 
+        {/* Focus hint */}
+        <div className="px-3 pt-2 text-[10px] uppercase tracking-wider text-gray-400">
+          Picking {focus === 'start' ? 'start date' : 'due date'}
+        </div>
+
         {/* ========== MONTH NAVIGATION ========== */}
-        <div className="flex items-center justify-between px-3 py-2">
+        <div className="flex items-center justify-between px-3 py-1">
           <button
             onClick={handlePrevMonth}
             className="p-1 hover:bg-gray-100 rounded text-gray-600"
+            type="button"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -210,6 +321,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
           <button
             onClick={handleNextMonth}
             className="p-1 hover:bg-gray-100 rounded text-gray-600"
+            type="button"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -218,7 +330,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
         {/* ========== CALENDAR ========== */}
         <div className="px-3 pb-2">
           {/* Days of the week */}
-          <div className="grid grid-cols-7 gap-1 mb-1">
+          <div className="grid grid-cols-7 gap-y-1 mb-1">
             {DAYS_OF_WEEK.map((day, i) => (
               <div
                 key={i}
@@ -229,24 +341,48 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
             ))}
           </div>
 
-          {/* Days of the month */}
-          <div className="grid grid-cols-7 gap-1">
-            {allDays.map((item, i) => (
-              <button
-                key={i}
-                onClick={() => handleSelectDate(item.day, item.month, item.year)}
-                className={cn(
-                  'h-8 w-8 flex items-center justify-center text-sm rounded-full transition-colors',
-                  item.currentMonth
-                    ? 'text-gray-900 hover:bg-gray-100'
-                    : 'text-gray-300 hover:bg-gray-50',
-                  isToday(item.date) && !isSelected(item.date) && 'border border-gray-400',
-                  isSelected(item.date) && 'bg-[#c9a84c] text-white hover:bg-[#a8893a]',
-                )}
-              >
-                {item.day}
-              </button>
-            ))}
+          {/* Days grid — no horizontal gap so the range band looks
+              continuous; vertical gap keeps rows separated. */}
+          <div className="grid grid-cols-7 gap-y-1">
+            {allDays.map((item, i) => {
+              const inRange = isInRange(item.date);
+              const isStartCell = isStart(item.date);
+              const isDueCell = isDue(item.date);
+              const isEndpoint = isStartCell || isDueCell;
+              const single = isSingleEndpoint(item.date);
+
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "h-8 flex items-center justify-center relative",
+                    // Range band background (rounded only at the edges)
+                    inRange && "bg-[#c9a84c]/15",
+                    isStartCell && !single && "bg-[#c9a84c]/15 rounded-l-full",
+                    isDueCell && !single && "bg-[#c9a84c]/15 rounded-r-full",
+                  )}
+                >
+                  <button
+                    onClick={() =>
+                      handleSelectDate(item.day, item.month, item.year)
+                    }
+                    type="button"
+                    className={cn(
+                      'h-8 w-8 flex items-center justify-center text-sm rounded-full transition-colors',
+                      item.currentMonth
+                        ? 'text-gray-900 hover:bg-gray-100'
+                        : 'text-gray-300 hover:bg-gray-50',
+                      isToday(item.date) && !isEndpoint && !single && 'border border-gray-400',
+                      // Endpoints — gold solid
+                      (isEndpoint || single) &&
+                        'bg-[#c9a84c] text-white hover:bg-[#a8893a] z-10',
+                    )}
+                  >
+                    {item.day}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -258,6 +394,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
               size="icon"
               className="h-8 w-8 text-gray-500"
               title="Add time"
+              type="button"
               onClick={() => toast.info("Add time coming soon")}
             >
               <Clock className="h-4 w-4" />
@@ -267,6 +404,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
               size="icon"
               className="h-8 w-8 text-gray-500"
               title="Set to repeat"
+              type="button"
               onClick={() => toast.info("Recurring tasks coming soon")}
             >
               <Repeat className="h-4 w-4" />
@@ -276,6 +414,7 @@ export function DueDatePicker({ value, onChange, trigger }: DueDatePickerProps) 
             variant="ghost"
             size="sm"
             className="text-gray-500 h-8"
+            type="button"
             onClick={handleClear}
           >
             Clear

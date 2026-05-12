@@ -3637,6 +3637,44 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+/**
+ * Renders a Mon DD label for a single date, or "Mon DD – Mon DD" for
+ * a range. Returns the fallback (formatted "due" string from
+ * formatDueDate) when only a due is set, so the existing relative
+ * phrasing ("Today", "Tomorrow", "Yesterday") is preserved for
+ * single-date tasks.
+ */
+function formatRangeLabel(
+  start: Date | null,
+  due: Date | null,
+  singleFallback: string
+): string {
+  if (!start && due) return singleFallback;
+  if (start && !due) {
+    return `From ${start.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    })}`;
+  }
+  if (start && due) {
+    const sameYear = start.getFullYear() === due.getFullYear();
+    const startStr = start.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: sameYear ? undefined : "numeric",
+    });
+    const dueStr = due.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: sameYear ? undefined : "numeric",
+    });
+    // Same-day range collapses to single date for compactness.
+    if (start.toDateString() === due.toDateString()) return startStr;
+    return `${startStr} – ${dueStr}`;
+  }
+  return "";
+}
+
 // Task Detail Panel
 function TaskDetailPanel({
   task,
@@ -3972,12 +4010,37 @@ function TaskDetailPanel({
             <div className="flex items-center gap-4">
               <span className="w-24 text-sm text-black">Due date</span>
               <DueDatePicker
-                value={taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null}
-                onChange={(date) => handleUpdate("dueDate", date?.toISOString() || null)}
+                startDate={
+                  taskDetail?.startDate ? new Date(taskDetail.startDate) : null
+                }
+                dueDate={
+                  taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null
+                }
+                onChange={async (start, due) => {
+                  // Persist both in parallel so a range update is a
+                  // single optimistic write from the user's POV.
+                  await Promise.all([
+                    handleUpdate("startDate", start?.toISOString() || null),
+                    handleUpdate("dueDate", due?.toISOString() || null),
+                  ]);
+                }}
                 trigger={
-                  taskDetail?.dueDate ? (
-                    <button className={cn("text-sm hover:bg-gray-100 px-2 py-1 rounded cursor-pointer", dueDateInfo.className)}>
-                      {dueDateInfo.text}
+                  taskDetail?.dueDate || taskDetail?.startDate ? (
+                    <button
+                      className={cn(
+                        "text-sm hover:bg-gray-100 px-2 py-1 rounded cursor-pointer",
+                        dueDateInfo.className
+                      )}
+                    >
+                      {formatRangeLabel(
+                        taskDetail?.startDate
+                          ? new Date(taskDetail.startDate)
+                          : null,
+                        taskDetail?.dueDate
+                          ? new Date(taskDetail.dueDate)
+                          : null,
+                        dueDateInfo.text
+                      )}
                     </button>
                   ) : (
                     <button className="text-sm text-slate-500 hover:text-slate-700 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">

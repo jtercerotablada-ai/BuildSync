@@ -161,6 +161,27 @@ function formatDueDate(date: string): { text: string; isSpecial: boolean } {
   return { text: format(d, 'MMM d'), isSpecial: false };
 }
 
+/**
+ * Mon DD – Mon DD when both endpoints are set, otherwise falls back
+ * to the legacy single-date label. Keeps "Today"/"Tomorrow" intact
+ * for single-due tasks so the natural-language phrasing is preserved.
+ */
+function formatRangeLabel(
+  start: Date | null,
+  due: Date | null,
+  singleFallback: string
+): string {
+  if (!start && due) return singleFallback;
+  if (start && !due) return `From ${format(start, 'MMM d')}`;
+  if (start && due) {
+    if (start.toDateString() === due.toDateString()) {
+      return format(start, 'MMM d');
+    }
+    return `${format(start, 'MMM d')} – ${format(due, 'MMM d')}`;
+  }
+  return '';
+}
+
 export function TaskDetailModal({
   taskId,
   open,
@@ -695,14 +716,32 @@ export function TaskDetailModal({
                     </div>
                     <div className="flex-1">
                       <DueDatePicker
-                        value={task.dueDate ? new Date(task.dueDate) : null}
-                        onChange={(date) => updateTask({ dueDate: date?.toISOString() || null })}
+                        startDate={
+                          task.startDate ? new Date(task.startDate) : null
+                        }
+                        dueDate={task.dueDate ? new Date(task.dueDate) : null}
+                        onChange={(start, due) =>
+                          updateTask({
+                            startDate: start?.toISOString() || null,
+                            dueDate: due?.toISOString() || null,
+                          })
+                        }
                         trigger={
-                          task.dueDate ? (
+                          task.dueDate || task.startDate ? (
                             <button className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
                               <CalendarIcon className="h-4 w-4 text-[#a8893a]" />
                               <span className="text-sm text-[#a8893a] font-medium">
-                                {formatDueDate(task.dueDate).text}
+                                {formatRangeLabel(
+                                  task.startDate
+                                    ? new Date(task.startDate)
+                                    : null,
+                                  task.dueDate
+                                    ? new Date(task.dueDate)
+                                    : null,
+                                  task.dueDate
+                                    ? formatDueDate(task.dueDate).text
+                                    : ""
+                                )}
                               </span>
                             </button>
                           ) : (
