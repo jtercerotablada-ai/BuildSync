@@ -3045,6 +3045,28 @@ function CalendarView({
             }
           }
 
+          // Which column (0-6) is the user adding into within this
+          // week, and what lane (row in the bar overlay) should the
+          // new-task input occupy? We use the same lane math the bars
+          // use, so the input slots in as "the next bar" exactly like
+          // Asana — instead of floating at the bottom of the cell.
+          const addingDayIndex = addingForDate
+            ? week.findIndex((d) => d.toDateString() === addingForDate)
+            : -1;
+          let addingLane = 0;
+          if (addingDayIndex >= 0) {
+            let maxLane = -1;
+            for (const seg of visibleSegments) {
+              if (
+                seg.colStart <= addingDayIndex &&
+                seg.colStart + seg.colSpan > addingDayIndex
+              ) {
+                if (seg.lane > maxLane) maxLane = seg.lane;
+              }
+            }
+            addingLane = Math.min(maxLane + 1, MAX_LANES - 1);
+          }
+
           return (
             <div
               key={weekIdx}
@@ -3114,42 +3136,17 @@ function CalendarView({
                           +{hiddenCount} more
                         </button>
                       )}
-
-                      {/* Inline Add input */}
-                      {isAdding && (
-                        <div
-                          className="absolute left-1 right-1 bottom-1 bg-white border border-gray-300 rounded shadow-sm pointer-events-auto"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            ref={newTaskInputRef}
-                            type="text"
-                            value={newTaskName}
-                            onChange={(e) => setNewTaskName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                commitInlineTask(date);
-                              } else if (e.key === "Escape") {
-                                e.preventDefault();
-                                setAddingForDate(null);
-                                setNewTaskName("");
-                              }
-                            }}
-                            onBlur={() => commitInlineTask(date)}
-                            disabled={creatingInline}
-                            placeholder="Task name…"
-                            className="w-full px-1.5 py-1 text-[11px] bg-transparent border-none outline-none placeholder:text-gray-400"
-                          />
-                        </div>
-                      )}
                     </div>
                   );
                 })}
               </div>
 
               {/* Bars overlay — uses CSS grid spanning so a 3-day task
-                  becomes a single wide pill across 3 columns. */}
+                  becomes a single wide pill across 3 columns. The inline
+                  add-task input also lives in this grid (positioned to
+                  the right column and the next free lane) so it slots
+                  in as "the next bar" instead of floating at the cell
+                  bottom — Asana behavior. */}
               <div
                 className="absolute inset-x-0 grid grid-cols-7 gap-y-1 pointer-events-none"
                 style={{ top: 24, paddingLeft: 2, paddingRight: 2 }}
@@ -3184,6 +3181,45 @@ function CalendarView({
                     </button>
                   </div>
                 ))}
+
+                {/* Inline Add input — appears as the next bar in the
+                    target column's lane stack. Same dimensions as a
+                    task bar so the visual rhythm doesn't break. */}
+                {addingDayIndex >= 0 && (
+                  <div
+                    style={{
+                      gridColumn: `${addingDayIndex + 1} / span 1`,
+                      gridRow: addingLane + 1,
+                    }}
+                    className="px-0.5 min-w-0 pointer-events-auto"
+                  >
+                    <div
+                      className="w-full bg-white border border-[#c9a84c] rounded-md shadow-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        ref={newTaskInputRef}
+                        type="text"
+                        value={newTaskName}
+                        onChange={(e) => setNewTaskName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            commitInlineTask(week[addingDayIndex]);
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            setAddingForDate(null);
+                            setNewTaskName("");
+                          }
+                        }}
+                        onBlur={() => commitInlineTask(week[addingDayIndex])}
+                        disabled={creatingInline}
+                        placeholder="Task name…"
+                        className="w-full px-2 py-1 text-[11px] bg-transparent border-none outline-none placeholder:text-gray-400"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );
