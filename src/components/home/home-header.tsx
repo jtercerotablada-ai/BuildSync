@@ -3,10 +3,9 @@
 /**
  * Home header — greeting + date + personal stat strip + period selector.
  *
- * Mirrors Asana's pattern (Buenas noches, Juan / Mi semana / 0 tareas
- * finalizadas / 0 colaboradores / Personalizar) but enriched for an
- * engineering firm:
- *   - Time-aware greeting (Buenos días / Buenas tardes / Buenas noches)
+ * Mirrors Asana's pattern (greeting / My week / 0 tasks completed /
+ * 0 collaborators / Personalize) but enriched for an engineering firm:
+ *   - Time-aware greeting (Good morning / afternoon / evening)
  *   - Personal PMI stats: avg SPI across my projects, weekly velocity
  *   - Period selector: Today / This week / Next 14 days /
  *     Look-ahead 3 weeks (PMI vocab) / Quarter
@@ -43,7 +42,7 @@ const PERIOD_LABEL: Record<HomePeriod, string> = {
 function greeting(name?: string | null): string {
   const h = new Date().getHours();
   const greet =
-    h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
+    h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
   return name ? `${greet}, ${name.split(" ")[0]}` : greet;
 }
 
