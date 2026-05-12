@@ -55,6 +55,7 @@ import {
   GripVertical,
   Pencil,
   Trash2,
+  Download,
 } from "lucide-react";
 import {
   GoogleCalendarIcon,
@@ -89,6 +90,7 @@ import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
 import { FileViewerModal } from "@/components/files/file-viewer-modal";
+import { downloadFile } from "@/lib/download";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ColumnHeader, COLUMN_CONFIGS, type ColumnConfig } from "@/components/tasks/column-header-dropdown";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -3520,8 +3522,30 @@ function FileCard({
   const isPdf = file.mimeType === "application/pdf";
   const ext = file.name.split(".").pop()?.toUpperCase() ?? "";
 
+  async function handleDownload(e: React.MouseEvent) {
+    e.stopPropagation();
+    try {
+      await downloadFile(file.url, file.name);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't download file"
+      );
+    }
+  }
+
   return (
-    <div className="group border rounded-xl bg-white overflow-hidden hover:border-gray-400 hover:shadow-sm transition-all">
+    <div className="group relative border rounded-xl bg-white overflow-hidden hover:border-gray-400 hover:shadow-sm transition-all">
+      {/* Hover-revealed actions: download */}
+      <button
+        type="button"
+        onClick={handleDownload}
+        className="absolute top-2 right-2 z-10 h-7 w-7 inline-flex items-center justify-center rounded-md bg-black/70 text-white opacity-0 group-hover:opacity-100 hover:bg-black transition-opacity"
+        title="Download"
+        aria-label={`Download ${file.name}`}
+      >
+        <Download className="h-3.5 w-3.5" />
+      </button>
+
       {/* Preview — click opens in-app viewer instead of new tab */}
       <button
         type="button"
@@ -4011,13 +4035,34 @@ function TaskDetailPanel({
                             })}
                           </p>
                         </button>
-                        <button
-                          onClick={() => handleAttachmentDelete(a.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-black"
-                          aria-label="Remove attachment"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await downloadFile(a.url, a.name);
+                              } catch (err) {
+                                toast.error(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Couldn't download file"
+                                );
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-black"
+                            aria-label={`Download ${a.name}`}
+                            title="Download"
+                          >
+                            <Download className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => handleAttachmentDelete(a.id)}
+                            className="p-1 text-gray-400 hover:text-black"
+                            aria-label="Remove attachment"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
                       </li>
                     );
                   }

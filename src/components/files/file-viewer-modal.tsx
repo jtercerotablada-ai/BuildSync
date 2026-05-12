@@ -29,6 +29,8 @@ import {
   RotateCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { downloadFile } from "@/lib/download";
+import { toast } from "sonner";
 
 export interface ViewerFile {
   id: string;
@@ -226,14 +228,22 @@ export function FileViewerModal({
           </span>
         )}
 
-        <a
-          href={current.url}
-          download={current.name}
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await downloadFile(current.url, current.name);
+            } catch (err) {
+              toast.error(
+                err instanceof Error ? err.message : "Couldn't download file"
+              );
+            }
+          }}
           className="h-8 w-8 inline-flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 rounded-md"
           title="Download"
         >
           <Download className="h-4 w-4" />
-        </a>
+        </button>
         <a
           href={current.url}
           target="_blank"
@@ -462,14 +472,22 @@ function FilePreviewSurface({
       <p className="text-sm text-white/60 mb-5">
         Download it to open in the original application.
       </p>
-      <a
-        href={file.url}
-        download={file.name}
+      <button
+        type="button"
+        onClick={async () => {
+          try {
+            await downloadFile(file.url, file.name);
+          } catch (err) {
+            toast.error(
+              err instanceof Error ? err.message : "Couldn't download file"
+            );
+          }
+        }}
         className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#c9a84c] hover:bg-[#a8893a] text-black font-medium text-sm transition-colors"
       >
         <Download className="h-4 w-4" />
         Download {formatBytes(file.size)}
-      </a>
+      </button>
       {/* Backdrop is the only way to close from here; keep it as a no-op so
           eslint doesn't complain about unused prop. */}
       <button type="button" className="hidden" onClick={onClickBackdrop} />
@@ -519,14 +537,22 @@ function TextPreview({ url }: { url: string }) {
         <p className="text-sm text-white/60 mb-5">
           Download it to inspect locally.
         </p>
-        <a
-          href={url}
-          download
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await downloadFile(url, "download");
+            } catch (err) {
+              toast.error(
+                err instanceof Error ? err.message : "Couldn't download file"
+              );
+            }
+          }}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#c9a84c] hover:bg-[#a8893a] text-black font-medium text-sm transition-colors"
         >
           <Download className="h-4 w-4" />
           Download
-        </a>
+        </button>
       </div>
     );
   }
