@@ -1485,7 +1485,11 @@ export default function MyTasksPage() {
               formatDueDate={formatDueDate}
             />
           ) : view === "calendar" ? (
-            <CalendarView tasks={tasks} onTaskCreated={() => fetchTasks(true)} />
+            <CalendarView
+              tasks={tasks}
+              onTaskCreated={() => fetchTasks(true)}
+              onTaskClick={openTaskDetail}
+            />
           ) : view === "dashboard" ? (
             <DashboardView tasks={tasks} sections={sections} />
           ) : (
@@ -2628,9 +2632,11 @@ function BoardTaskOverlay({
 function CalendarView({
   tasks,
   onTaskCreated,
+  onTaskClick,
 }: {
   tasks: Task[];
   onTaskCreated?: () => void;
+  onTaskClick?: (task: Task) => void;
 }) {
   // ── State driving the "infinite" calendar ─────────────────────
   // `windowStart` is the very first Monday rendered. We seed it at
@@ -2946,11 +2952,19 @@ function CalendarView({
                       )}
                     </div>
 
-                    {/* Tasks — stacked horizontal bars, Asana-style */}
+                    {/* Tasks — stacked horizontal bars, Asana-style.
+                        Click any bar → opens the same slide-over
+                        task detail panel that the List and Board
+                        views use. stopPropagation so the cell's
+                        "enter add mode" handler doesn't also fire. */}
                     <div className="px-1 mt-0.5 space-y-0.5 flex-1 overflow-hidden">
                       {visibleTasks.map((task) => (
                         <div
                           key={task.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onTaskClick?.(task);
+                          }}
                           className={cn(
                             "text-[11px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer border-l-2",
                             task.completed
