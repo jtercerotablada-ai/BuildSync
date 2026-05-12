@@ -2715,23 +2715,29 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
         </span>
       </div>
 
-      {/* Week header - Monday start, weekend narrower */}
-      <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_0.7fr_0.7fr] border-b">
-        {weekDays.map((day, index) => (
+      {/* Week header — 7 equal columns to match the grid below
+          (Asana renders every weekday the same width regardless of
+          whether it's a weekday or weekend). */}
+      <div className="grid grid-cols-7 border-b bg-gray-50/40">
+        {weekDays.map((day) => (
           <div
             key={day}
-            className={cn(
-              "py-2 text-center text-xs font-medium text-black uppercase border-r last:border-r-0",
-              index >= 5 && "bg-white"
-            )}
+            className="py-2 text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wider border-r last:border-r-0"
           >
             {day}
           </div>
         ))}
       </div>
 
-      {/* Calendar grid */}
-      <div className="flex-1 grid grid-cols-[1fr_1fr_1fr_1fr_1fr_0.7fr_0.7fr] auto-rows-fr overflow-auto">
+      {/* Calendar grid — fixed row height (~120px), all 7 columns
+          equal, day number tightly anchored top-left, tasks stack
+          immediately below as Asana-style horizontal bars. No more
+          `auto-rows-fr` stretching the cells to fill the viewport
+          and making tasks look like they're floating mid-cell. */}
+      <div
+        className="grid grid-cols-7 overflow-auto border-r"
+        style={{ gridAutoRows: "120px" }}
+      >
         {calendarDays.map(({ date, isCurrentMonth }, index) => {
           const dateStr = date.toDateString();
           const dayTasks = tasksByDate[dateStr] || [];
@@ -2739,65 +2745,82 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
           const isWeekend = index % 7 >= 5;
           const dayNum = date.getDate();
           const isFirstOfMonth = dayNum === 1;
+          const visibleTasks = dayTasks.slice(0, 3);
+          const extra = dayTasks.length - visibleTasks.length;
 
           return (
             <div
               key={dateStr}
               className={cn(
-                "border-r border-b p-1 min-h-[90px] group relative",
-                !isCurrentMonth && "bg-white/50",
-                isWeekend && "bg-white/30"
+                "border-b border-l first:border-l-0 group relative flex flex-col overflow-hidden",
+                !isCurrentMonth && "bg-gray-50/40",
+                isWeekend && isCurrentMonth && "bg-gray-50/20",
+                isToday && "bg-[#c9a84c]/5"
               )}
             >
-              {/* Day number */}
-              <div className="flex items-start justify-between">
+              {/* Day number — anchored top-left, compact */}
+              <div className="flex items-start justify-between px-1.5 pt-1 flex-shrink-0">
                 <span
                   className={cn(
-                    "text-sm",
-                    !isCurrentMonth && "text-slate-300",
-                    isToday && "bg-black text-white rounded-full w-6 h-6 flex items-center justify-center font-medium"
+                    "text-[12px] font-mono tabular-nums",
+                    !isCurrentMonth && "text-gray-300",
+                    isCurrentMonth && !isToday && "text-gray-700",
+                    isToday &&
+                      "bg-black text-white rounded-full w-5 h-5 flex items-center justify-center font-semibold text-[11px]"
                   )}
                 >
                   {isFirstOfMonth && isCurrentMonth
-                    ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                    ? date.toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })
                     : dayNum}
                 </span>
-                {dayTasks.length > 2 && (
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full mt-2" />
+                {dayTasks.length > 3 && (
+                  <span className="text-[9px] font-mono tabular-nums text-gray-400 mt-0.5">
+                    {dayTasks.length}
+                  </span>
                 )}
               </div>
 
-              {/* Tasks */}
-              <div className="mt-1 space-y-0.5">
-                {dayTasks.slice(0, 2).map((task) => (
+              {/* Tasks — stacked horizontal bars, Asana-style */}
+              <div className="px-1 mt-0.5 space-y-0.5 flex-1 overflow-hidden">
+                {visibleTasks.map((task) => (
                   <div
                     key={task.id}
-                    className="text-xs p-1 bg-white border rounded shadow-sm truncate cursor-pointer hover:bg-white"
+                    className={cn(
+                      "text-[11px] leading-tight px-1.5 py-0.5 rounded truncate cursor-pointer border-l-2",
+                      task.completed
+                        ? "bg-gray-100 text-gray-400 line-through border-l-gray-300"
+                        : "bg-[#c9a84c]/15 text-gray-800 border-l-[#c9a84c] hover:bg-[#c9a84c]/25"
+                    )}
                     title={task.name}
                   >
                     {task.name}
                   </div>
                 ))}
-                {dayTasks.length > 2 && (
-                  <span className="text-xs text-black pl-1">
-                    +{dayTasks.length - 2} more
-                  </span>
+                {extra > 0 && (
+                  <button className="text-[10px] font-medium text-gray-500 hover:text-black pl-1.5 mt-0.5">
+                    +{extra} more
+                  </button>
                 )}
               </div>
 
               {/* Add task on hover */}
               <button
-                className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 text-xs text-black hover:text-black flex items-center gap-0.5 transition-opacity"
+                className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white border rounded p-0.5 hover:bg-gray-50"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const name = prompt('Task name:');
+                  const name = prompt("Task name:");
                   if (name?.trim()) {
-                    toast.success(`Task "${name.trim()}" added for ${date.toLocaleDateString("en-US")}`);
+                    toast.success(
+                      `Task "${name.trim()}" added for ${date.toLocaleDateString("en-US")}`
+                    );
                   }
                 }}
+                aria-label="Add task"
               >
-                <Plus className="w-3 h-3" />
-                Add
+                <Plus className="w-3 h-3 text-gray-500" />
               </button>
             </div>
           );
