@@ -88,6 +88,7 @@ import { CustomFieldModal, type CreatedFieldInfo } from "@/components/tasks/cust
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
+import { FileViewerModal } from "@/components/files/file-viewer-modal";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ColumnHeader, COLUMN_CONFIGS, type ColumnConfig } from "@/components/tasks/column-header-dropdown";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -3334,6 +3335,8 @@ function FilesView({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<FileTypeFilter>("all");
+  // In-app file viewer (clicking a card opens it instead of new tab)
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -3480,12 +3483,26 @@ function FilesView({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
-            {filtered.map((f) => (
-              <FileCard key={f.id} file={f} onOpenTask={onTaskClick} />
+            {filtered.map((f, i) => (
+              <FileCard
+                key={f.id}
+                file={f}
+                onOpenTask={onTaskClick}
+                onOpen={() => setViewerIndex(i)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {viewerIndex !== null && filtered[viewerIndex] && (
+        <FileViewerModal
+          files={filtered}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+          onOpenTask={onTaskClick}
+        />
+      )}
     </div>
   );
 }
@@ -3493,9 +3510,11 @@ function FilesView({
 function FileCard({
   file,
   onOpenTask,
+  onOpen,
 }: {
   file: FileItem;
   onOpenTask?: (taskId: string) => void;
+  onOpen?: () => void;
 }) {
   const isImage = file.mimeType.startsWith("image/");
   const isPdf = file.mimeType === "application/pdf";
@@ -3503,12 +3522,11 @@ function FileCard({
 
   return (
     <div className="group border rounded-xl bg-white overflow-hidden hover:border-gray-400 hover:shadow-sm transition-all">
-      {/* Preview */}
-      <a
-        href={file.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block aspect-[4/3] relative bg-gray-50 border-b overflow-hidden"
+      {/* Preview — click opens in-app viewer instead of new tab */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="block w-full aspect-[4/3] relative bg-gray-50 border-b overflow-hidden cursor-zoom-in"
       >
         {isImage ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -3534,16 +3552,18 @@ function FileCard({
             </span>
           </div>
         )}
-      </a>
+      </button>
 
       {/* Meta */}
       <div className="px-3 py-2.5">
-        <p
-          className="text-[12px] font-medium text-black truncate"
+        <button
+          type="button"
+          onClick={onOpen}
+          className="block w-full text-left text-[12px] font-medium text-black truncate hover:underline"
           title={file.name}
         >
           {file.name}
-        </p>
+        </button>
         {file.task && (
           <button
             onClick={(e) => {
@@ -3607,6 +3627,8 @@ function TaskDetailPanel({
   // File upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  // In-app file viewer (click a thumbnail to open without leaving)
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   async function handleAttachmentUpload(
     e: React.ChangeEvent<HTMLInputElement>
@@ -3939,37 +3961,44 @@ function TaskDetailPanel({
             ) : (
               <ul className="space-y-1.5">
                 {taskDetail.attachments.map(
-                  (a: {
-                    id: string;
-                    name: string;
-                    url: string;
-                    size: number;
-                    mimeType: string;
-                    createdAt: string;
-                  }) => {
+                  (
+                    a: {
+                      id: string;
+                      name: string;
+                      url: string;
+                      size: number;
+                      mimeType: string;
+                      createdAt: string;
+                    },
+                    i: number
+                  ) => {
                     const isImage = a.mimeType.startsWith("image/");
                     return (
                       <li
                         key={a.id}
                         className="group flex items-center gap-2 px-2 py-1.5 border rounded-md hover:bg-gray-50"
                       >
-                        {isImage ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={a.url}
-                            alt={a.name}
-                            className="h-8 w-8 object-cover rounded flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="h-8 w-8 rounded bg-gray-100 border flex items-center justify-center flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setViewerIndex(i)}
+                          className="h-8 w-8 flex-shrink-0 rounded overflow-hidden border bg-gray-100 flex items-center justify-center cursor-zoom-in"
+                          aria-label={`Open ${a.name}`}
+                        >
+                          {isImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={a.url}
+                              alt={a.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
                             <Paperclip className="h-3.5 w-3.5 text-gray-400" />
-                          </div>
-                        )}
-                        <a
-                          href={a.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 min-w-0"
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewerIndex(i)}
+                          className="flex-1 min-w-0 text-left"
                         >
                           <p className="text-[12px] font-medium text-black truncate hover:underline">
                             {a.name}
@@ -3981,7 +4010,7 @@ function TaskDetailPanel({
                               day: "numeric",
                             })}
                           </p>
-                        </a>
+                        </button>
                         <button
                           onClick={() => handleAttachmentDelete(a.id)}
                           className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-black"
@@ -4254,6 +4283,14 @@ function TaskDetailPanel({
           Leave task
         </Button>
       </div>
+
+      {viewerIndex !== null && taskDetail?.attachments?.[viewerIndex] && (
+        <FileViewerModal
+          files={taskDetail.attachments}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
     </div>
   );
 }
