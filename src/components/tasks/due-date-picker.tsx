@@ -427,9 +427,14 @@ export function DueDatePicker({
           )}
         </div>
 
-        {/* Focus hint */}
+        {/* Focus hint — reflects what the next click does. After the
+            user has set both endpoints the hint switches to a
+            "range set" confirmation so it doesn't keep telling them
+            to pick something they already picked. */}
         <div className="px-3 pt-2 text-[10px] uppercase tracking-wider text-gray-400">
-          Picking {focus === 'start' ? 'start date' : 'due date'}
+          {localStart && localDue
+            ? 'Range set · click Done'
+            : `Picking ${focus === 'start' ? 'start date' : 'due date'}`}
         </div>
 
         {/* ========== MONTH NAVIGATION ========== */}

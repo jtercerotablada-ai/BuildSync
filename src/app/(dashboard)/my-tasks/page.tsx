@@ -2463,9 +2463,18 @@ function BoardColumn({
         </SortableContext>
 
         {section.tasks.length === 0 && !isAddingTask && (
-          <div className="py-8 text-center">
-            <p className="text-xs text-slate-400">No tasks</p>
-          </div>
+          <button
+            type="button"
+            onClick={onStartAddTask}
+            className={cn(
+              "w-full text-center text-xs rounded-lg border-2 border-dashed transition-colors py-6",
+              isOver
+                ? "border-[#c9a84c] bg-[#c9a84c]/10 text-[#a8893a]"
+                : "border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-500"
+            )}
+          >
+            {isOver ? "Drop task here" : "No tasks · click to add"}
+          </button>
         )}
 
         {isAddingTask && (
@@ -2934,7 +2943,7 @@ function CalendarView({
     if (!el) return;
     const onScroll = () => {
       const HEADER_PX = 32;
-      const ROW_PX = 120;
+      const ROW_PX = 144;
       const idx = Math.max(
         0,
         Math.floor((el.scrollTop - HEADER_PX + ROW_PX / 2) / ROW_PX)
@@ -2959,7 +2968,7 @@ function CalendarView({
   useEffect(() => {
     if (todayWeekRef.current && scrollRef.current) {
       const HEADER_PX = 32;
-      const ROW_PX = 120;
+      const ROW_PX = 144;
       const idx = todayWeekIndex >= 0 ? todayWeekIndex : 0;
       scrollRef.current.scrollTop = idx * ROW_PX - HEADER_PX;
     }
@@ -2971,7 +2980,7 @@ function CalendarView({
     if (!scrollRef.current) return;
     if (todayWeekIndex >= 0) {
       scrollRef.current.scrollTo({
-        top: todayWeekIndex * 120 - 32,
+        top: todayWeekIndex * 144 - 32,
         behavior: "smooth",
       });
     }
@@ -3036,20 +3045,31 @@ function CalendarView({
         {weeks.map((week, weekIdx) => {
           const weekSegments = segmentsByWeek[weekIdx] || [];
           const visibleSegments = weekSegments.filter((s) => s.lane < MAX_LANES);
+          // Track BOTH the count and the actual task list per day so
+          // the "+N more" pill can open a popover listing the hidden
+          // tasks instead of being a dead button.
           const hiddenByDay: Record<number, number> = {};
+          const hiddenTasksByDay: Record<number, Task[]> = {};
           for (const s of weekSegments) {
             if (s.lane >= MAX_LANES) {
               for (let d = s.colStart; d < s.colStart + s.colSpan; d++) {
                 hiddenByDay[d] = (hiddenByDay[d] || 0) + 1;
+                if (!hiddenTasksByDay[d]) hiddenTasksByDay[d] = [];
+                // Dedupe — a segment spanning multiple days shouldn't
+                // appear multiple times in one day's list.
+                if (!hiddenTasksByDay[d].some((t) => t.id === s.task.id)) {
+                  hiddenTasksByDay[d].push(s.task);
+                }
               }
             }
           }
 
           // Which column (0-6) is the user adding into within this
           // week, and what lane (row in the bar overlay) should the
-          // new-task input occupy? We use the same lane math the bars
-          // use, so the input slots in as "the next bar" exactly like
-          // Asana — instead of floating at the bottom of the cell.
+          // new-task input occupy? The cap is MAX_LANES (not
+          // MAX_LANES - 1) so when a column is fully packed the
+          // input gets its own extra row below the existing bars —
+          // never overlapping them.
           const addingDayIndex = addingForDate
             ? week.findIndex((d) => d.toDateString() === addingForDate)
             : -1;
@@ -3064,7 +3084,7 @@ function CalendarView({
                 if (seg.lane > maxLane) maxLane = seg.lane;
               }
             }
-            addingLane = Math.min(maxLane + 1, MAX_LANES - 1);
+            addingLane = maxLane + 1;
           }
 
           return (
@@ -3072,7 +3092,7 @@ function CalendarView({
               key={weekIdx}
               ref={weekIdx === todayWeekIndex ? todayWeekRef : null}
               className="relative border-b border-gray-200"
-              style={{ height: 120 }}
+              style={{ height: 144 }}
               data-week-index={weekIdx}
             >
               {/* Background cells — borders, tint, today, add-mode */}
@@ -3125,16 +3145,69 @@ function CalendarView({
                         </span>
                       </div>
 
-                      {/* +N more — anchored at the bottom-left of the
-                          cell, only when extra segments overflow this
-                          cell's column. */}
+                      {/* +N more — opens a popover listing the tasks
+                          that overflowed past MAX_LANES so the user
+                          can still see and click into them, instead
+                          of being a dead pill. */}
                       {hiddenCount > 0 && (
-                        <button
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute left-1.5 bottom-1 text-[10px] font-medium text-gray-500 hover:text-black pointer-events-auto"
-                        >
-                          +{hiddenCount} more
-                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute left-1.5 bottom-1 text-[10px] font-medium text-gray-500 hover:text-black pointer-events-auto px-1 -mx-1 rounded hover:bg-gray-100"
+                            >
+                              +{hiddenCount} more
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="start"
+                            className="w-64 p-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="px-3 py-2 border-b">
+                              <p className="text-xs font-semibold text-black">
+                                {date.toLocaleDateString("en-US", {
+                                  weekday: "long",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </p>
+                              <p className="text-[10px] text-gray-500">
+                                {hiddenCount} hidden{" "}
+                                {hiddenCount === 1 ? "task" : "tasks"}
+                              </p>
+                            </div>
+                            <ul className="max-h-64 overflow-y-auto py-1">
+                              {(hiddenTasksByDay[dayOfWeek] || []).map((t) => (
+                                <li key={t.id}>
+                                  <button
+                                    onClick={() => onTaskClick?.(t)}
+                                    className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2"
+                                  >
+                                    <span
+                                      className={cn(
+                                        "w-1.5 h-1.5 rounded-sm flex-shrink-0",
+                                        t.completed
+                                          ? "bg-gray-300"
+                                          : "bg-[#c9a84c]"
+                                      )}
+                                    />
+                                    <span
+                                      className={cn(
+                                        "text-[12px] truncate flex-1",
+                                        t.completed
+                                          ? "text-gray-400 line-through"
+                                          : "text-black"
+                                      )}
+                                    >
+                                      {t.name}
+                                    </span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </PopoverContent>
+                        </Popover>
                       )}
                     </div>
                   );
@@ -4386,7 +4459,7 @@ function TaskDetailPanel({
                         <button
                           type="button"
                           onClick={() => setViewerIndex(i)}
-                          className="flex-1 min-w-0 text-left"
+                          className="flex-1 min-w-0 text-left cursor-zoom-in"
                         >
                           <p className="text-[12px] font-medium text-black truncate hover:underline">
                             {a.name}
