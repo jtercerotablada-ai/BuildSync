@@ -4017,12 +4017,26 @@ function TaskDetailPanel({
                   taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null
                 }
                 onChange={async (start, due) => {
-                  // Persist both in parallel so a range update is a
-                  // single optimistic write from the user's POV.
-                  await Promise.all([
-                    handleUpdate("startDate", start?.toISOString() || null),
-                    handleUpdate("dueDate", due?.toISOString() || null),
-                  ]);
+                  // ONE PATCH with both fields — not two parallel ones.
+                  // Two PATCHes each trigger their own refetch and the
+                  // GETs race; whichever GET resolves last wins, which
+                  // can silently drop one of the two new values.
+                  try {
+                    const res = await fetch(`/api/tasks/${task.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        startDate: start?.toISOString() || null,
+                        dueDate: due?.toISOString() || null,
+                      }),
+                    });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    await fetchTaskDetail();
+                    onUpdate();
+                  } catch (err) {
+                    console.error("Error saving date range:", err);
+                    toast.error("Couldn't save the date range");
+                  }
                 }}
                 trigger={
                   // ONE button regardless of state. Conditional children

@@ -22,7 +22,7 @@
  * - "Clear" wipes both dates.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -165,19 +165,51 @@ export function DueDatePicker({
   }
 
   /**
+   * Refs that always reflect the LATEST draft + props at flush time.
+   * Using state directly in flush() captures whatever values existed
+   * when the close-callback was registered — which is stale by the
+   * time the user finishes clicking. Refs sidestep the closure issue.
+   */
+  const localStartRef = useRef(localStart);
+  const localDueRef = useRef(localDue);
+  const startDateRef = useRef(startDate);
+  const dueDateRef = useRef(dueDate);
+  const onChangeRef = useRef(onChange);
+  localStartRef.current = localStart;
+  localDueRef.current = localDue;
+  startDateRef.current = startDate;
+  dueDateRef.current = dueDate;
+  onChangeRef.current = onChange;
+
+  /**
    * Flush draft state up to the parent. Called when the popover
    * dismisses; skipped when nothing actually changed so the parent
    * doesn't trigger a no-op PATCH.
    */
   function flush() {
+    const ls = localStartRef.current;
+    const ld = localDueRef.current;
+    const sd = startDateRef.current;
+    const dd = dueDateRef.current;
     const startChanged =
-      (localStart?.toDateString() || '') !==
-      (startDate?.toDateString() || '');
+      (ls?.toDateString() || '') !== (sd?.toDateString() || '');
     const dueChanged =
-      (localDue?.toDateString() || '') !== (dueDate?.toDateString() || '');
+      (ld?.toDateString() || '') !== (dd?.toDateString() || '');
     if (startChanged || dueChanged) {
-      onChange(localStart, localDue);
+      onChangeRef.current(ls, ld);
     }
+  }
+
+  /**
+   * Single source of truth for "dismiss the popover and persist."
+   * Wired to Done button, Esc key (via Radix onOpenChange), click-
+   * outside (also Radix onOpenChange), and a future X button. Any
+   * close path goes through here so the server can never end up
+   * out of sync with the draft.
+   */
+  function dismiss() {
+    flush();
+    setOpen(false);
   }
 
   const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -339,10 +371,17 @@ export function DueDatePicker({
     <Popover
       open={open}
       onOpenChange={(next) => {
-        // Flush the draft to the parent on dismiss only. Opening the
-        // popover doesn't need a flush.
-        if (!next) flush();
-        setOpen(next);
+        // Radix calls this when IT decides to close — Esc, click
+        // outside, focus trap escape, etc. We funnel those paths
+        // through dismiss() too so they flush before closing.
+        // The Done button calls dismiss() directly, bypassing this
+        // (since changing controlled `open` from a child doesn't
+        // re-fire onOpenChange in Radix's controlled mode).
+        if (!next) {
+          dismiss();
+        } else {
+          setOpen(true);
+        }
       }}
     >
       <PopoverTrigger asChild>
@@ -514,7 +553,7 @@ export function DueDatePicker({
               size="sm"
               className="h-8 bg-black hover:bg-gray-800 text-white"
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={dismiss}
             >
               Done
             </Button>
