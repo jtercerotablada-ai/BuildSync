@@ -42,9 +42,9 @@ export function HomeRecertRadar({
     .slice(0, 6);
 
   return (
-    <div className="border rounded-xl bg-white overflow-hidden">
-      <div className="px-4 py-3 border-b flex items-center justify-between">
-        <div>
+    <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0 pr-12">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold text-black leading-tight">
             Recertification radar
           </h3>
@@ -54,21 +54,21 @@ export function HomeRecertRadar({
         </div>
         <Link
           href="/projects/all"
-          className="text-[11px] text-gray-500 hover:text-black inline-flex items-center gap-0.5"
+          className="text-[11px] text-gray-500 hover:text-black inline-flex items-center gap-0.5 flex-shrink-0"
         >
           All <ChevronRight className="h-3 w-3" />
         </Link>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 text-center">
           <ShieldCheck className="h-6 w-6 text-[#c9a84c]/60 mb-2" />
           <p className="text-sm text-gray-500 max-w-[260px]">
             Nothing on the radar in the next {horizonDays} days.
           </p>
         </div>
       ) : (
-        <ul className="divide-y">
+        <ul className="divide-y flex-1 overflow-y-auto">
           {filtered.map(({ p, days }) => {
             const tone: "critical" | "watch" | "upcoming" =
               days < 0

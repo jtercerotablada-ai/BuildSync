@@ -105,124 +105,137 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
     }
   };
 
+  // Shared menu — same options whether we render the legacy chrome
+  // or the floating "naked" mode for PMI tiles.
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "h-7 w-7",
+            hideHeader
+              ? "bg-white/90 backdrop-blur border border-gray-200 shadow-sm text-gray-500 hover:text-black hover:bg-white"
+              : "h-8 w-8 text-gray-400 hover:text-gray-600"
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        {/* Custom actions */}
+        {menuActions && menuActions.length > 0 && (
+          <>
+            {menuActions.map((action, index) => (
+              <DropdownMenuItem
+                key={index}
+                onClick={action.onClick}
+                className="cursor-pointer"
+              >
+                {action.icon}
+                {action.label}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {/* Size options */}
+        {onSizeChange && (
+          <>
+            <DropdownMenuItem
+              onClick={() => onSizeChange("half")}
+              className="cursor-pointer"
+            >
+              {size === "half" ? (
+                <Check className="h-4 w-4 mr-2" />
+              ) : (
+                <span className="w-4 mr-2" />
+              )}
+              Half size
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => onSizeChange("full")}
+              className="cursor-pointer"
+            >
+              {size === "full" ? (
+                <Check className="h-4 w-4 mr-2" />
+              ) : (
+                <span className="w-4 mr-2" />
+              )}
+              Full size
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {/* Remove widget */}
+        <DropdownMenuItem
+          onClick={() => onHide(id)}
+          className="text-black focus:text-black focus:bg-gray-100 cursor-pointer"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Remove widget
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        'bg-white rounded-lg border border-gray-200 shadow-sm group relative',
-        'h-[320px] flex flex-col',
+        "group relative h-full flex flex-col",
         // Size determines column span
-        size === 'full' ? 'col-span-1 md:col-span-2' : 'col-span-1',
-        // Dragging state - placeholder style
-        isDragging && 'opacity-40 border-2 border-dashed border-gray-400 bg-gray-50 shadow-inner',
-        // Hover indicator when another widget is being dragged over this one
-        isOver && !isDragging && 'ring-2 ring-black ring-offset-2',
-        // Normal hover state (only when not dragging)
-        !isDragging && 'transition-all duration-200 hover:shadow-md',
+        size === "full" ? "col-span-1 md:col-span-2" : "col-span-1",
+        // Chrome only when the widget doesn't bring its own (classic
+        // Asana widgets). PMI tiles render their own card frame, so we
+        // stay invisible and avoid the double-border artifact on the
+        // corners.
+        !hideHeader &&
+          "bg-white rounded-lg border border-gray-200 shadow-sm transition-all duration-200 hover:shadow-md",
+        // Dragging state
+        isDragging &&
+          (hideHeader
+            ? "opacity-40"
+            : "opacity-40 border-2 border-dashed border-gray-400 bg-gray-50 shadow-inner"),
+        // Hover-over target during drag
+        isOver && !isDragging && "ring-2 ring-black ring-offset-2 rounded-2xl"
       )}
     >
-      {/* Widget Header - Only show if hideHeader is false */}
       {!hideHeader ? (
-        <div
-          {...attributes}
-          {...listeners}
-          className="flex items-center justify-between px-4 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
-        >
-          <div className="flex items-center gap-2">
-            {/* Title with optional icon */}
-            <h3 className="font-semibold text-gray-900 flex items-center gap-1.5">
-              {widget?.title}
-              {renderTitleIcon()}
-            </h3>
+        /* ── Classic widget chrome — header + menu inline ───────── */
+        <>
+          <div
+            {...attributes}
+            {...listeners}
+            className="flex items-center justify-between px-4 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
+          >
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-1.5">
+                {widget?.title}
+                {renderTitleIcon()}
+              </h3>
+            </div>
+            {menu}
           </div>
-
-          {/* Widget Menu - Three dots */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-gray-400 hover:text-gray-600"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {/* Custom actions */}
-              {menuActions && menuActions.length > 0 && (
-                <>
-                  {menuActions.map((action, index) => (
-                    <DropdownMenuItem
-                      key={index}
-                      onClick={action.onClick}
-                      className="cursor-pointer"
-                    >
-                      {action.icon}
-                      {action.label}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                </>
-              )}
-
-              {/* Size options - only show if onSizeChange is provided */}
-              {onSizeChange && (
-                <>
-                  <DropdownMenuItem
-                    onClick={() => onSizeChange('half')}
-                    className="cursor-pointer"
-                  >
-                    {size === 'half' ? (
-                      <Check className="h-4 w-4 mr-2" />
-                    ) : (
-                      <span className="w-4 mr-2" />
-                    )}
-                    Half size
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => onSizeChange('full')}
-                    className="cursor-pointer"
-                  >
-                    {size === 'full' ? (
-                      <Check className="h-4 w-4 mr-2" />
-                    ) : (
-                      <span className="w-4 mr-2" />
-                    )}
-                    Full size
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-
-              {/* Remove widget */}
-              <DropdownMenuItem
-                onClick={() => onHide(id)}
-                className="text-black focus:text-black focus:bg-gray-100 cursor-pointer"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Remove widget
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+          <div className="flex-1 overflow-hidden px-4 pb-4">{children}</div>
+        </>
       ) : (
-        /* Drag handle bar for widgets with custom headers */
-        <div
-          {...attributes}
-          {...listeners}
-          className="absolute top-0 left-0 right-12 h-14 cursor-grab active:cursor-grabbing touch-none z-[5]"
-        />
+        /* ── Naked mode — child controls all chrome.
+              Drag handle covers the top 56px (leaves 48px on the right
+              for the floating menu button). The menu floats absolute. */
+        <>
+          <div
+            {...attributes}
+            {...listeners}
+            className="absolute top-0 left-0 right-12 h-14 cursor-grab active:cursor-grabbing touch-none z-[5]"
+          />
+          <div className="absolute top-2 right-2 z-10">{menu}</div>
+          <div className="flex-1 overflow-hidden">{children}</div>
+        </>
       )}
-
-      {/* Widget Content */}
-      <div className={cn(
-        'flex-1 overflow-hidden',
-        hideHeader ? 'px-4 py-4' : 'px-4 pb-4'
-      )}>
-        {children}
-      </div>
     </div>
   );
 }

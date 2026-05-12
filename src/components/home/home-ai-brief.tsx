@@ -31,8 +31,8 @@ export function HomeAIBrief({ data }: { data: CockpitData }) {
   const lines = buildBrief(data);
 
   return (
-    <div className="mx-4 md:mx-6 my-4 border rounded-xl bg-white overflow-hidden">
-      <div className="px-4 py-3 border-b bg-gradient-to-r from-[#c9a84c]/5 via-white to-white flex items-center justify-between gap-3">
+    <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b bg-gradient-to-r from-[#c9a84c]/5 via-white to-white flex items-center justify-between gap-3 flex-shrink-0">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-[#c9a84c]" />
           <h3 className="text-sm font-semibold text-black">Brief</h3>
@@ -43,7 +43,7 @@ export function HomeAIBrief({ data }: { data: CockpitData }) {
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 text-[11px] text-gray-500"
+          className="h-7 text-[11px] text-gray-500 mr-9"
           disabled
           title="AI refresh available after Day 4 ships — currently deterministic"
         >
@@ -51,7 +51,7 @@ export function HomeAIBrief({ data }: { data: CockpitData }) {
           Refresh
         </Button>
       </div>
-      <ul className="px-4 py-3 space-y-1.5">
+      <ul className="px-4 py-3 space-y-1.5 flex-1 overflow-y-auto">
         {lines.map((line, i) => (
           <li
             key={i}

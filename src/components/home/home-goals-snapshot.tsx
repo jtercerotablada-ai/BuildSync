@@ -48,9 +48,9 @@ export function HomeGoalsSnapshot() {
   }, []);
 
   return (
-    <div className="border rounded-xl bg-white overflow-hidden">
-      <div className="px-4 py-3 border-b flex items-center justify-between">
-        <div>
+    <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0 pr-12">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold text-black leading-tight">
             Goals
           </h3>
@@ -60,17 +60,17 @@ export function HomeGoalsSnapshot() {
         </div>
         <Link
           href="/goals"
-          className="text-[11px] text-gray-500 hover:text-black inline-flex items-center gap-0.5"
+          className="text-[11px] text-gray-500 hover:text-black inline-flex items-center gap-0.5 flex-shrink-0"
         >
           All <ChevronRight className="h-3 w-3" />
         </Link>
       </div>
       {loading ? (
-        <div className="flex items-center justify-center py-8">
+        <div className="flex-1 flex items-center justify-center py-8">
           <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
         </div>
       ) : objectives.length === 0 ? (
-        <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 text-center">
           <Target className="h-6 w-6 text-gray-300 mb-2" />
           <p className="text-sm text-gray-500 max-w-[240px]">
             No goals yet. Define quarterly OKRs to surface them here.
@@ -83,7 +83,7 @@ export function HomeGoalsSnapshot() {
           </Link>
         </div>
       ) : (
-        <ul className="divide-y">
+        <ul className="divide-y flex-1 overflow-y-auto">
           {objectives.map((o) => {
             const onTrack = o.status === "ON_TRACK" || o.status === "ACHIEVED";
             return (

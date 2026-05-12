@@ -47,8 +47,8 @@ export function HomeUpcomingMilestones({
   const days = Array.from(byDay.entries()).slice(0, 7);
 
   return (
-    <div className="border rounded-xl bg-white overflow-hidden">
-      <div className="px-4 py-3 border-b">
+    <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b flex-shrink-0 pr-12">
         <h3 className="text-sm font-semibold text-black leading-tight">
           Upcoming milestones
         </h3>
@@ -58,14 +58,14 @@ export function HomeUpcomingMilestones({
         </p>
       </div>
       {days.length === 0 ? (
-        <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 text-center">
           <Flag className="h-6 w-6 text-gray-300 mb-2" />
           <p className="text-sm text-gray-500 max-w-[260px]">
             No milestones in the next {horizonDays} days.
           </p>
         </div>
       ) : (
-        <ul>
+        <ul className="flex-1 overflow-y-auto">
           {days.map(([day, items]) => {
             const d = new Date(day);
             const label = d.toLocaleDateString("en-US", {

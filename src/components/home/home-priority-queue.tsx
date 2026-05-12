@@ -174,6 +174,8 @@ function EmptyState({
 }
 
 // Shared tile container (kept local to avoid component-lib churn).
+// h-full flex flex-col so the tile fills its widget grid cell and
+// the list inside (children) scrolls when content overflows.
 function TileWrapper({
   title,
   subtitle,
@@ -184,8 +186,8 @@ function TileWrapper({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border rounded-xl bg-white overflow-hidden">
-      <div className="px-4 py-3 border-b">
+    <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b flex-shrink-0 pr-12">
         <h3 className="text-sm font-semibold text-black leading-tight">
           {title}
         </h3>
@@ -193,7 +195,7 @@ function TileWrapper({
           <p className="text-[11px] text-gray-500">{subtitle}</p>
         )}
       </div>
-      {children}
+      <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
   );
 }

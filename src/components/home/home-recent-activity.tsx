@@ -13,8 +13,8 @@ import { formatCompactRelative } from "@/lib/date-utils";
 
 export function HomeRecentActivity({ items }: { items: ActivityItem[] }) {
   return (
-    <div className="border rounded-xl bg-white overflow-hidden">
-      <div className="px-4 py-3 border-b">
+    <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b flex-shrink-0 pr-12">
         <h3 className="text-sm font-semibold text-black leading-tight">
           Recent activity
         </h3>
@@ -23,14 +23,14 @@ export function HomeRecentActivity({ items }: { items: ActivityItem[] }) {
         </p>
       </div>
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 text-center">
           <Activity className="h-6 w-6 text-gray-300 mb-2" />
           <p className="text-sm text-gray-500">
             No activity yet across your projects.
           </p>
         </div>
       ) : (
-        <ul className="divide-y">
+        <ul className="divide-y flex-1 overflow-y-auto">
           {items.slice(0, 8).map((a) => {
             const actor = a.assignee || a.creator;
             const verb = a.completedAt ? "completed" : "updated";

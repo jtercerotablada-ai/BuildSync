@@ -310,55 +310,30 @@ export default function HomePage() {
       );
     }
     switch (id) {
-      // ── PMI tiles ──
+      // ── PMI tiles — render directly. WidgetContainer in "naked"
+      //    mode (hideHeader=true) has no inner padding, so the tile's
+      //    own card frame fills the grid cell cleanly. The floating
+      //    ⋯ menu sits absolute at top-right via WidgetContainer.
       case "ai-brief":
-        return data ? (
-          <div className="-mx-4 -my-4">
-            <HomeAIBrief data={data} />
-          </div>
-        ) : null;
+        return data ? <HomeAIBrief data={data} /> : null;
       case "priority-queue":
         return data ? (
-          <div className="-mx-4 -my-4 h-full overflow-auto">
-            <HomePriorityQueue criticalTasks={data.criticalPath} />
-          </div>
+          <HomePriorityQueue criticalTasks={data.criticalPath} />
         ) : null;
       case "active-projects-pmi":
-        return data ? (
-          <div className="-mx-4 -my-4 h-full overflow-auto">
-            <HomeActiveProjects projects={data.projects} />
-          </div>
-        ) : null;
+        return data ? <HomeActiveProjects projects={data.projects} /> : null;
       case "team-capacity":
-        return data ? (
-          <div className="-mx-4 -my-4 h-full overflow-auto">
-            <HomeTeamCapacity members={data.team} />
-          </div>
-        ) : null;
+        return data ? <HomeTeamCapacity members={data.team} /> : null;
       case "upcoming-milestones":
         return data ? (
-          <div className="-mx-4 -my-4 h-full overflow-auto">
-            <HomeUpcomingMilestones tasks={data.criticalPath} />
-          </div>
+          <HomeUpcomingMilestones tasks={data.criticalPath} />
         ) : null;
       case "recert-radar":
-        return data ? (
-          <div className="-mx-4 -my-4 h-full overflow-auto">
-            <HomeRecertRadar projects={data.projects} />
-          </div>
-        ) : null;
+        return data ? <HomeRecertRadar projects={data.projects} /> : null;
       case "goals-snapshot-pmi":
-        return (
-          <div className="-mx-4 -my-4 h-full overflow-auto">
-            <HomeGoalsSnapshot />
-          </div>
-        );
+        return <HomeGoalsSnapshot />;
       case "recent-activity":
-        return data ? (
-          <div className="-mx-4 -my-4 h-full overflow-auto">
-            <HomeRecentActivity items={data.activity} />
-          </div>
-        ) : null;
+        return data ? <HomeRecentActivity items={data.activity} /> : null;
 
       // ── Classic widgets (opt-in) ──
       case "my-tasks":

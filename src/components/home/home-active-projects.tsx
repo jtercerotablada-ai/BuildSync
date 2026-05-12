@@ -62,9 +62,9 @@ export function HomeActiveProjects({
   const top = sorted.slice(0, 5);
 
   return (
-    <div className="border rounded-xl bg-white overflow-hidden">
-      <div className="px-4 py-3 border-b flex items-center justify-between">
-        <div>
+    <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0 pr-12">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold text-black leading-tight">
             Active projects
           </h3>
@@ -74,12 +74,12 @@ export function HomeActiveProjects({
         </div>
         <Link
           href="/projects/all"
-          className="text-[11px] text-gray-500 hover:text-black inline-flex items-center gap-0.5"
+          className="text-[11px] text-gray-500 hover:text-black inline-flex items-center gap-0.5 flex-shrink-0"
         >
           View all <ChevronRight className="h-3 w-3" />
         </Link>
       </div>
-      <ul className="divide-y">
+      <ul className="divide-y flex-1 overflow-y-auto">
         {top.map(({ p, pmi }) => (
           <ProjectRow key={p.id} project={p} pmi={pmi} />
         ))}

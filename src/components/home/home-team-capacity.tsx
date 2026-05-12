@@ -18,13 +18,13 @@ import type { TeamMember } from "@/components/cockpit/types";
 export function HomeTeamCapacity({ members }: { members: TeamMember[] }) {
   if (members.length === 0) {
     return (
-      <div className="border rounded-xl bg-white overflow-hidden">
-        <div className="px-4 py-3 border-b">
+      <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
+        <div className="px-4 py-3 border-b flex-shrink-0 pr-12">
           <h3 className="text-sm font-semibold text-black leading-tight">
             People
           </h3>
         </div>
-        <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 text-center">
           <Users className="h-6 w-6 text-gray-300 mb-2" />
           <p className="text-sm text-gray-500">
             Invite a teammate from /teams to start tracking capacity.
@@ -39,9 +39,9 @@ export function HomeTeamCapacity({ members }: { members: TeamMember[] }) {
   const top = sorted.slice(0, 6);
 
   return (
-    <div className="border rounded-xl bg-white overflow-hidden">
-      <div className="px-4 py-3 border-b flex items-center justify-between">
-        <div>
+    <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
+      <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0 pr-12">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold text-black leading-tight">
             People
           </h3>
@@ -51,12 +51,12 @@ export function HomeTeamCapacity({ members }: { members: TeamMember[] }) {
         </div>
         <Link
           href="/teams"
-          className="text-[11px] text-gray-500 hover:text-black inline-flex items-center gap-0.5"
+          className="text-[11px] text-gray-500 hover:text-black inline-flex items-center gap-0.5 flex-shrink-0"
         >
           View all <ChevronRight className="h-3 w-3" />
         </Link>
       </div>
-      <ul className="divide-y">
+      <ul className="divide-y flex-1 overflow-y-auto">
         {top.map((m) => {
           const pct = Math.round((m.load / peak) * 100);
           return (
