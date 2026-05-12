@@ -1415,8 +1415,15 @@ export default function MyTasksPage() {
               <Loader2 className="h-8 w-8 animate-spin text-black" />
             </div>
           ) : view === "list" ? (
+            <>
             <ListDndProvider
               sections={filteredSections}
+              onToggleSection={toggleSection}
+              onToggleComplete={handleToggleComplete}
+              onTaskClick={openTaskDetail}
+              onAddTask={handleAddTask}
+              formatDueDate={formatDueDate}
+              customColumnCount={customColumns.length}
               onMoveTask={async (taskId: string, destSectionId: string) => {
                 const sectionMap: Record<string, string | null> = {
                   "do-today": "DO_TODAY",
@@ -1470,20 +1477,8 @@ export default function MyTasksPage() {
                   fetchTasks(true);
                 }
               }}
-            >
-              {filteredSections.map((section) => (
-                <TaskSection
-                  key={section.id}
-                  section={section}
-                  onToggleSection={() => toggleSection(section.id)}
-                  onToggleComplete={handleToggleComplete}
-                  onTaskClick={openTaskDetail}
-                  onAddTask={handleAddTask}
-                  formatDueDate={formatDueDate}
-                  customColumnCount={customColumns.length}
-                />
-              ))}
-
+            />
+            <div>
               {/* Add section button */}
               {isAddingSection ? (
                 <div className="flex items-center gap-2 px-6 py-3">
@@ -1509,7 +1504,8 @@ export default function MyTasksPage() {
                   Add section
                 </button>
               )}
-            </ListDndProvider>
+            </div>
+            </>
           ) : view === "board" ? (
             <BoardView
               sections={filteredSections}
@@ -2091,21 +2087,42 @@ function TaskSection({
 }
 
 /**
- * Wraps the List view in a DnD context so tasks can be dragged
- * between sections, the same way they can in Board view. Each
- * TaskSection registers as a droppable target and renders its tasks
- * inside a SortableContext; each TaskRow becomes draggable via
- * useSortable. On drop the parent's onMoveTask handles the PATCH +
- * optimistic update, identical to Board's contract.
+ * Drag-and-drop wrapper for the List view.
+ *
+ * dnd-kit doesn't visually move a sortable item across containers
+ * for you — it just reports drag events. If a drop ends inside the
+ * same SortableContext the item started in, dnd-kit's CSS transform
+ * is reverted, which looks exactly like the item snapping back to
+ * its original position.
+ *
+ * The trick (same one Board uses internally) is to maintain a local
+ * copy of the sections + tasks and mutate it during onDragOver so
+ * the item already lives in the destination container by the time
+ * the drop fires. Then dnd-kit happily commits the drop and the
+ * parent's onMoveTask persists to the server.
  */
 function ListDndProvider({
   sections,
   onMoveTask,
-  children,
+  onToggleSection,
+  onToggleComplete,
+  onTaskClick,
+  onAddTask,
+  formatDueDate,
+  customColumnCount,
 }: {
   sections: SmartSection[];
   onMoveTask: (taskId: string, destSectionId: string) => Promise<void> | void;
-  children: React.ReactNode;
+  onToggleSection: (sectionId: string) => void;
+  onToggleComplete: (task: Task) => void;
+  onTaskClick: (task: Task) => void;
+  onAddTask: (
+    name: string,
+    sectionId: string,
+    taskType?: "TASK" | "MILESTONE" | "APPROVAL"
+  ) => Promise<boolean>;
+  formatDueDate: (date: string | null) => { text: string; className: string };
+  customColumnCount: number;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -2113,50 +2130,114 @@ function ListDndProvider({
     })
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  // Local mirror of the section/task structure. Updated during drag
+  // so the item visually lands in its destination container. Synced
+  // back to the parent's sections whenever the parent re-renders.
+  const [localSections, setLocalSections] = useState<SmartSection[]>(sections);
+  const dragSourceRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setLocalSections(sections);
+  }, [sections]);
+
+  const findContainerForTask = (id: string): string | undefined => {
+    for (const s of localSections) {
+      if (s.tasks.some((t) => t.id === id)) return s.id;
+    }
+    return undefined;
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const id = String(event.active.id);
+    dragSourceRef.current = findContainerForTask(id) ?? null;
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    // Figure out destination section. overId can be either a section
-    // id (drop on section header / empty zone) or a task id (drop on
-    // another row), so we resolve task→section.
-    let destSectionId: string | undefined;
-    if (sections.some((s) => s.id === overId)) {
-      destSectionId = overId;
+    const activeContainer = findContainerForTask(activeId);
+    let overContainer: string | undefined;
+    if (localSections.some((s) => s.id === overId)) {
+      overContainer = overId;
     } else {
-      for (const s of sections) {
-        if (s.tasks.some((t) => t.id === overId)) {
-          destSectionId = s.id;
-          break;
+      overContainer = findContainerForTask(overId);
+    }
+
+    if (!activeContainer || !overContainer) return;
+    if (activeContainer === overContainer) return;
+
+    setLocalSections((prev) => {
+      const src = prev.find((s) => s.id === activeContainer);
+      const dst = prev.find((s) => s.id === overContainer);
+      if (!src || !dst) return prev;
+      const task = src.tasks.find((t) => t.id === activeId);
+      if (!task) return prev;
+
+      return prev.map((s) => {
+        if (s.id === activeContainer) {
+          return { ...s, tasks: s.tasks.filter((t) => t.id !== activeId) };
         }
-      }
-    }
-    if (!destSectionId) return;
+        if (s.id === overContainer) {
+          // Insert before the over-row or at the end if dropping on
+          // the section itself.
+          const idx = s.tasks.findIndex((t) => t.id === overId);
+          const next = [...s.tasks];
+          if (idx >= 0) next.splice(idx, 0, task);
+          else next.push(task);
+          return { ...s, tasks: next };
+        }
+        return s;
+      });
+    });
+  };
 
-    // Find source. If same section → reorder only (out of scope for
-    // now since we don't persist intra-section position on the server
-    // for myTaskSection — Board has the same limitation).
-    let srcSectionId: string | undefined;
-    for (const s of sections) {
-      if (s.tasks.some((t) => t.id === activeId)) {
-        srcSectionId = s.id;
-        break;
-      }
-    }
-    if (!srcSectionId || srcSectionId === destSectionId) return;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    const src = dragSourceRef.current;
+    dragSourceRef.current = null;
+    if (!over) return;
 
-    onMoveTask(activeId, destSectionId);
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // Determine destination container the same way dragOver did so
+    // we agree with whatever it committed to localSections.
+    let dst: string | undefined;
+    if (localSections.some((s) => s.id === overId)) {
+      dst = overId;
+    } else {
+      dst = findContainerForTask(overId);
+    }
+    if (!dst) return;
+    if (!src || src === dst) return; // intra-section reorders not persisted
+
+    onMoveTask(activeId, dst);
   };
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={kanbanCollisionDetection}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
-      {children}
+      {localSections.map((section) => (
+        <TaskSection
+          key={section.id}
+          section={section}
+          onToggleSection={() => onToggleSection(section.id)}
+          onToggleComplete={onToggleComplete}
+          onTaskClick={onTaskClick}
+          onAddTask={onAddTask}
+          formatDueDate={formatDueDate}
+          customColumnCount={customColumnCount}
+        />
+      ))}
     </DndContext>
   );
 }
