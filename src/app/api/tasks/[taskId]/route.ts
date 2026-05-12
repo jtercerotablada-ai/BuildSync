@@ -60,6 +60,8 @@ export async function GET(
             id: true,
             name: true,
             color: true,
+            type: true,
+            gate: true,
           },
         },
         section: {
@@ -352,6 +354,8 @@ export async function PATCH(
             id: true,
             name: true,
             color: true,
+            type: true,
+            gate: true,
           },
         },
         section: {

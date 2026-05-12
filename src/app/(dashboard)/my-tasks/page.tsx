@@ -4056,6 +4056,33 @@ function projectTypeShort(
   }
 }
 
+/**
+ * Compact label for the project's current lifecycle gate. The full
+ * enum is verbose ("PRE_DESIGN", "PERMITTING") so we ship a short
+ * version that reads cleanly in a chip without dominating the row.
+ */
+function formatGateShort(
+  gate:
+    | "PRE_DESIGN"
+    | "DESIGN"
+    | "PERMITTING"
+    | "CONSTRUCTION"
+    | "CLOSEOUT"
+): string {
+  switch (gate) {
+    case "PRE_DESIGN":
+      return "Pre-design";
+    case "DESIGN":
+      return "Design";
+    case "PERMITTING":
+      return "Permitting";
+    case "CONSTRUCTION":
+      return "Construction";
+    case "CLOSEOUT":
+      return "Closeout";
+  }
+}
+
 function formatFileSize(bytes: number): string {
   if (!bytes) return "—";
   if (bytes < 1024) return `${bytes} B`;
@@ -4345,7 +4372,7 @@ function TaskDetailPanel({
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
           <button onClick={handleToggleComplete}>
             <div className={cn(
               "w-5 h-5 rounded-full border-2 flex items-center justify-center",
@@ -4354,11 +4381,27 @@ function TaskDetailPanel({
               {taskDetail?.completed && <Check className="w-3 h-3 text-white" />}
             </div>
           </button>
+          {/* Task-type glyph — milestone and approval get a small
+              monochrome+gold icon so the type is legible without
+              opening a dropdown. Regular tasks stay clean. */}
+          {taskDetail?.taskType === "MILESTONE" && (
+            <Diamond
+              className="h-4 w-4 text-[#c9a84c] flex-shrink-0"
+              fill="#c9a84c"
+              aria-label="Milestone"
+            />
+          )}
+          {taskDetail?.taskType === "APPROVAL" && (
+            <ThumbsUp
+              className="h-4 w-4 text-[#c9a84c] flex-shrink-0"
+              aria-label="Approval"
+            />
+          )}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => name !== taskDetail?.name && handleUpdate("name", name)}
-            className="text-lg font-medium flex-1 outline-none"
+            className="text-lg font-medium flex-1 outline-none min-w-0"
           />
         </div>
         <div className="flex items-center gap-1">
@@ -4400,6 +4443,28 @@ function TaskDetailPanel({
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
+          {/* Overdue strip — only when the task is past due AND not
+              already completed. Same monochrome+gold treatment as
+              the rest of the slide-over, just slightly louder so it
+              registers as a flag rather than decoration. */}
+          {taskDetail?.dueDate &&
+            !taskDetail.completed &&
+            new Date(taskDetail.dueDate).getTime() <
+              new Date(new Date().toDateString()).getTime() && (
+              <div className="px-4 py-2 bg-black text-white text-[12px] font-medium flex items-center gap-2 border-b border-black">
+                <Flag className="h-3.5 w-3.5 text-[#c9a84c] flex-shrink-0" />
+                {(() => {
+                  const dayMs = 86400000;
+                  const today = new Date(new Date().toDateString());
+                  const due = new Date(taskDetail.dueDate);
+                  const days = Math.round(
+                    (today.getTime() - due.getTime()) / dayMs
+                  );
+                  return `Overdue · ${days} day${days === 1 ? "" : "s"} past due`;
+                })()}
+              </div>
+            )}
+
           {/* Visibility */}
           <div className="px-4 py-2 bg-white text-xs text-black flex items-center gap-1">
             <Globe className="h-3 w-3" />
@@ -4497,7 +4562,7 @@ function TaskDetailPanel({
 
             <div className="flex items-start gap-4">
               <span className="w-24 text-sm text-black pt-1">Projects</span>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <ProjectSelector
                   value={taskDetail?.project ? {
                     id: taskDetail.project.id,
@@ -4506,6 +4571,31 @@ function TaskDetailPanel({
                   } : null}
                   onChange={(project) => handleUpdate("projectId", project?.id || null)}
                 />
+                {/* Engineering meta on the linked project — discipline
+                    type (CON/DES/REC/PRM) and current lifecycle gate
+                    (Pre-design → Closeout) — surfaced inline so the
+                    user doesn't have to navigate to the project page
+                    to know which stage they're working in. */}
+                {taskDetail?.project && (taskDetail.project.type || taskDetail.project.gate) && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    {taskDetail.project.type && (
+                      <span
+                        className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-100 text-gray-600"
+                        title={`Project type: ${taskDetail.project.type}`}
+                      >
+                        {projectTypeShort(taskDetail.project.type)}
+                      </span>
+                    )}
+                    {taskDetail.project.gate && (
+                      <span
+                        className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#c9a84c]/15 text-[#a8893a]"
+                        title={`Lifecycle gate: ${taskDetail.project.gate}`}
+                      >
+                        {formatGateShort(taskDetail.project.gate)}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
