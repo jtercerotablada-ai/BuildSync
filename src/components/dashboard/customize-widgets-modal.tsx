@@ -20,6 +20,10 @@ import {
   Sparkles,
   Lock,
   Info,
+  AlertTriangle,
+  Flag,
+  ShieldCheck,
+  Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -55,6 +59,11 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   FileText: <FileText className="h-5 w-5" />,
   AtSign: <AtSign className="h-5 w-5" />,
   Sparkles: <Sparkles className="h-5 w-5" />,
+  // PMI tile icons added in the Home rebuild
+  AlertTriangle: <AlertTriangle className="h-5 w-5" />,
+  Flag: <Flag className="h-5 w-5" />,
+  ShieldCheck: <ShieldCheck className="h-5 w-5" />,
+  Activity: <Activity className="h-5 w-5" />,
 };
 
 const TITLE_ICON_MAP: Record<string, React.ReactNode> = {

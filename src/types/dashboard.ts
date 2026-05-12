@@ -1,4 +1,5 @@
 export type WidgetType =
+  // ── Classic Asana-style widgets (kept from the original dashboard) ──
   | 'my-tasks'
   | 'projects'
   | 'goals'
@@ -11,7 +12,16 @@ export type WidgetType =
   | 'forms'
   | 'mentions'
   | 'learning'
-  | 'ai-assistant';
+  | 'ai-assistant'
+  // ── PMI-grade tiles introduced in the Home rebuild ───────────────
+  | 'ai-brief'
+  | 'priority-queue'
+  | 'active-projects-pmi'
+  | 'team-capacity'
+  | 'upcoming-milestones'
+  | 'recert-radar'
+  | 'goals-snapshot-pmi'
+  | 'recent-activity';
 
 export interface WidgetConfig {
   id: WidgetType;
@@ -36,30 +46,97 @@ export interface UserWidgetPreferences {
 // Uniform height of ~320px for square aspect
 
 export const AVAILABLE_WIDGETS: WidgetConfig[] = [
-  // === DEFAULT ENABLED WIDGETS ===
+  // ── PMI-grade tiles (default home layout for engineering firms) ──
   {
-    id: 'my-tasks',
-    title: 'My tasks',
-    description: 'Tasks assigned to you',
-    icon: 'CheckSquare',
+    id: 'ai-brief',
+    title: 'Brief',
+    titleIcon: 'sparkles',
+    description: 'What matters most across the portfolio right now',
+    icon: 'Sparkles',
+    defaultEnabled: true,
+    defaultOrder: 0,
+  },
+  {
+    id: 'priority-queue',
+    title: 'Priority queue',
+    description: 'Overdue and due-today items, urgency-sorted',
+    icon: 'AlertTriangle',
     defaultEnabled: true,
     defaultOrder: 1,
   },
   {
-    id: 'projects',
-    title: 'Projects',
-    description: 'Your recent projects',
+    id: 'active-projects-pmi',
+    title: 'Active projects',
+    description: 'SPI + health + current gate per project',
     icon: 'FolderKanban',
     defaultEnabled: true,
     defaultOrder: 2,
   },
   {
-    id: 'goals',
-    title: 'Goals',
-    description: 'Track your objectives and key results',
-    icon: 'Target',
+    id: 'team-capacity',
+    title: 'People',
+    description: 'Capacity load relative to peak member',
+    icon: 'Users',
     defaultEnabled: true,
     defaultOrder: 3,
+  },
+  {
+    id: 'upcoming-milestones',
+    title: 'Upcoming milestones',
+    description: 'Next 14 days of priority work, grouped by day',
+    icon: 'Flag',
+    defaultEnabled: true,
+    defaultOrder: 4,
+  },
+  {
+    id: 'recert-radar',
+    title: 'Recertification radar',
+    description: 'Filings & permits due in the next 120 days',
+    icon: 'ShieldCheck',
+    defaultEnabled: true,
+    defaultOrder: 5,
+  },
+  {
+    id: 'goals-snapshot-pmi',
+    title: 'Goals',
+    description: 'Top OKRs with confidence score',
+    icon: 'Target',
+    defaultEnabled: true,
+    defaultOrder: 6,
+  },
+  {
+    id: 'recent-activity',
+    title: 'Recent activity',
+    description: 'Chronological feed across all projects',
+    icon: 'Activity',
+    defaultEnabled: true,
+    defaultOrder: 7,
+  },
+
+  // ── Classic Asana-style widgets (opt-in via Customize) ──
+  {
+    id: 'my-tasks',
+    title: 'My tasks',
+    description: 'Tasks assigned to you',
+    icon: 'CheckSquare',
+    defaultEnabled: false,
+    defaultOrder: 10,
+  },
+  {
+    id: 'projects',
+    title: 'Recent projects (classic)',
+    description: 'Simple list of recently updated projects',
+    icon: 'FolderKanban',
+    defaultEnabled: false,
+    defaultOrder: 11,
+  },
+  {
+    id: 'goals',
+    title: 'Goals (classic)',
+    description: 'Original goals widget',
+    icon: 'Target',
+    defaultEnabled: false,
+    defaultOrder: 12,
   },
   // === OPTIONAL WIDGETS ===
   {
