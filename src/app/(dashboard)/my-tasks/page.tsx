@@ -2911,10 +2911,57 @@ function CalendarView({
     return out;
   }, [tasks, weeks, allDays]);
 
-  /** Maximum lanes we render before collapsing the rest to "+N more".
-   *  4 fits comfortably in a 120px cell after the day-number row,
-   *  which matches Asana's density on month view. */
-  const MAX_LANES = 4;
+  /** Hard cap on how many lanes a single week can show before
+   *  overflow collapses to the "+N more" popover. Bumped from 4 to
+   *  6 now that rows can grow tall to fit them — most weeks will
+   *  use 0-3 lanes anyway, and busy weeks no longer get clipped. */
+  const MAX_LANES = 6;
+
+  // Pixel constants for the per-week layout. Used by the dynamic
+  // height calc AND by the scroll math below — keep them in sync.
+  const DAY_HEADER_PX = 24; // height of the day-number row
+  const LANE_PX = 22; // height of a single bar lane (incl. gap)
+  const ROW_BOTTOM_PX = 12; // breathing room under the last bar
+  const ROW_MIN_PX = 96; // floor so empty weeks aren't tiny
+
+  /**
+   * Per-week height — grows with how many lanes that week actually
+   * uses. An empty week stays at ROW_MIN_PX so the grid keeps an
+   * even rhythm; a busy week stretches to fit every visible bar
+   * with breathing room at the bottom for the +N more pill.
+   */
+  const weekHeights = useMemo(() => {
+    return weeks.map((_, idx) => {
+      const segs = segmentsByWeek[idx] || [];
+      let maxVisibleLane = -1;
+      for (const s of segs) {
+        if (s.lane < MAX_LANES && s.lane > maxVisibleLane) {
+          maxVisibleLane = s.lane;
+        }
+      }
+      // If anything overflowed past MAX_LANES, reserve a row for the
+      // "+N more" pill so it doesn't sit on top of the last bar.
+      const overflow = segs.some((s) => s.lane >= MAX_LANES) ? LANE_PX : 0;
+      if (maxVisibleLane < 0)
+        return Math.max(ROW_MIN_PX, DAY_HEADER_PX + ROW_BOTTOM_PX + overflow);
+      const content =
+        DAY_HEADER_PX + (maxVisibleLane + 1) * LANE_PX + ROW_BOTTOM_PX + overflow;
+      return Math.max(ROW_MIN_PX, content);
+    });
+  }, [weeks, segmentsByWeek]);
+
+  /** Cumulative offset of each week from the top of the grid — used
+   *  by the visible-month scroll listener and goToToday to navigate
+   *  weeks of variable height. */
+  const weekOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let acc = 0;
+    for (let i = 0; i < weekHeights.length; i++) {
+      offsets.push(acc);
+      acc += weekHeights[i];
+    }
+    return offsets;
+  }, [weekHeights]);
 
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -2934,20 +2981,25 @@ function CalendarView({
   }, [weekCount]);
 
   // ── Track which month is most visible ─────────────────────────
-  // On every scroll, compute the week index nearest the top of the
-  // viewport. The header label updates to that week's middle (Thu)
-  // month — same behavior as Notion / Apple Calendar's continuous
-  // month view.
+  // With dynamic row heights, week N is no longer at `N * ROW_PX` —
+  // we walk the prefix-sum offsets to find which week's top edge
+  // crosses the current scrollTop. The label tracks that week's
+  // middle (Thursday) so half-visible months tip past the threshold
+  // smoothly.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = () => {
       const HEADER_PX = 32;
-      const ROW_PX = 144;
-      const idx = Math.max(
-        0,
-        Math.floor((el.scrollTop - HEADER_PX + ROW_PX / 2) / ROW_PX)
-      );
+      const target = el.scrollTop - HEADER_PX;
+      // Find the last week whose top is <= target (binary search would
+      // be tidier but linear is fine for the few-hundred weeks we ever
+      // render at once).
+      let idx = 0;
+      for (let i = 0; i < weekOffsets.length; i++) {
+        if (weekOffsets[i] <= target) idx = i;
+        else break;
+      }
       const midDate = allDays[idx * 7 + 3];
       if (midDate) {
         const next = {
@@ -2961,26 +3013,25 @@ function CalendarView({
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, [allDays]);
+  }, [allDays, weekOffsets]);
 
-  // On initial mount, jump to today's week so the user starts
-  // looking at the right place (windowStart is 4 weeks before today).
+  // On initial mount, jump to today's week.
   useEffect(() => {
     if (todayWeekRef.current && scrollRef.current) {
       const HEADER_PX = 32;
-      const ROW_PX = 144;
       const idx = todayWeekIndex >= 0 ? todayWeekIndex : 0;
-      scrollRef.current.scrollTop = idx * ROW_PX - HEADER_PX;
+      scrollRef.current.scrollTop = (weekOffsets[idx] ?? 0) - HEADER_PX;
     }
-    // Run once on mount — todayWeekIndex / refs derived from initial render.
+    // Run once on mount — refs and offsets derived from initial render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const goToToday = () => {
     if (!scrollRef.current) return;
     if (todayWeekIndex >= 0) {
+      const HEADER_PX = 32;
       scrollRef.current.scrollTo({
-        top: todayWeekIndex * 144 - 32,
+        top: (weekOffsets[todayWeekIndex] ?? 0) - HEADER_PX,
         behavior: "smooth",
       });
     }
@@ -3092,7 +3143,7 @@ function CalendarView({
               key={weekIdx}
               ref={weekIdx === todayWeekIndex ? todayWeekRef : null}
               className="relative border-b border-gray-200"
-              style={{ height: 144 }}
+              style={{ height: weekHeights[weekIdx] ?? ROW_MIN_PX }}
               data-week-index={weekIdx}
             >
               {/* Background cells — borders, tint, today, add-mode */}
