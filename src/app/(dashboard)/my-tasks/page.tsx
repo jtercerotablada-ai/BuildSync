@@ -1622,6 +1622,40 @@ export default function MyTasksPage() {
                 setSections((prev) => [...prev, newSection]);
                 toast.success(`Section "${name.trim()}" added`);
               }}
+              onReorderTasks={async (sectionId, orderedTaskIds) => {
+                // Same persistence pattern List view uses — re-number
+                // positions for every task in the section, parallel
+                // PATCHes. Server respects orderBy position so the
+                // new order survives refetch + reloads.
+                const positionMap = new Map<string, number>();
+                orderedTaskIds.forEach((id, idx) =>
+                  positionMap.set(id, idx * 1000)
+                );
+                const updatedTasks = tasks.map((t) =>
+                  positionMap.has(t.id)
+                    ? { ...t, position: positionMap.get(t.id)! }
+                    : t
+                );
+                setTasks(updatedTasks);
+                organizeTasks(updatedTasks);
+                try {
+                  await Promise.all(
+                    orderedTaskIds.map((id, idx) =>
+                      fetch(`/api/tasks/${id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ position: idx * 1000 }),
+                      })
+                    )
+                  );
+                  fetchTasks(true);
+                } catch (err) {
+                  console.error("Board reorder error:", err);
+                  toast.error("Couldn't save the new order");
+                  fetchTasks(true);
+                }
+                void sectionId;
+              }}
               formatDueDate={formatDueDate}
             />
           ) : view === "calendar" ? (
@@ -2328,8 +2362,17 @@ function ListDndProvider({
         return;
       }
 
-      // Cross-section move: persist the new section assignment.
+      // Cross-section move: persist the section change, THEN
+      // renumber positions in the destination so the moved row
+      // lands at its drop index — not stuck at its source-section
+      // position value, which could be 0 (top) or some other stale
+      // number that puts the row in the wrong slot.
       await onMoveTask(activeId, destSectionId);
+      const destSection = localSections.find((s) => s.id === destSectionId);
+      if (destSection) {
+        const orderedIds = destSection.tasks.map((t) => t.id);
+        await onReorderTasks(destSectionId, orderedIds);
+      }
     },
     [localSections, onMoveTask, onReorderTasks]
   );
@@ -2723,6 +2766,7 @@ function BoardView({
   onTaskClick,
   onAddTask,
   onMoveTask,
+  onReorderTasks,
   onAddSection,
   formatDueDate,
 }: {
@@ -2731,6 +2775,8 @@ function BoardView({
   onTaskClick: (task: Task) => void;
   onAddTask: (name: string, sectionId: string) => Promise<boolean>;
   onMoveTask: (taskId: string, destSectionId: string) => Promise<void>;
+  /** Persist a new in-section order. Same contract as List view. */
+  onReorderTasks: (sectionId: string, orderedTaskIds: string[]) => Promise<void> | void;
   onAddSection: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
 }) {
@@ -2820,27 +2866,30 @@ function BoardView({
 
     if (!destSectionId) return;
 
-    // Same section → reorder only (no API call needed)
+    // Same column → persist new order. handleDragOver already
+    // mutated localSections, so the current order in destSection
+    // reflects what the user dropped.
     if (destSectionId === originalSourceId) {
       if (activeId !== overId) {
-        setLocalSections((prev) => {
-          const section = prev.find((s) => s.id === destSectionId);
-          if (!section) return prev;
-          const oldIdx = section.tasks.findIndex((t) => t.id === activeId);
-          const newIdx = section.tasks.findIndex((t) => t.id === overId);
-          if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return prev;
-          return prev.map((s) =>
-            s.id === section.id ? { ...s, tasks: arrayMove(s.tasks, oldIdx, newIdx) } : s
-          );
-        });
+        const section = localSections.find((s) => s.id === destSectionId);
+        if (section) {
+          const orderedIds = section.tasks.map((t) => t.id);
+          await onReorderTasks(destSectionId, orderedIds);
+        }
       }
       return;
     }
 
-    // Cross-column move: persist to API
-    // (handleDragOver already moved the task visually in localSections)
+    // Cross-column move: persist the section change, then renumber
+    // positions in the destination column so the moved card lands
+    // where the user dropped it (not at the default position=0).
     await onMoveTask(activeId, destSectionId);
-  }, [localSections, onMoveTask]);
+    const destSection = localSections.find((s) => s.id === destSectionId);
+    if (destSection) {
+      const orderedIds = destSection.tasks.map((t) => t.id);
+      await onReorderTasks(destSectionId, orderedIds);
+    }
+  }, [localSections, onMoveTask, onReorderTasks]);
 
   const handleAddTaskSubmit = async (sectionId: string) => {
     if (!newTaskName.trim()) {
