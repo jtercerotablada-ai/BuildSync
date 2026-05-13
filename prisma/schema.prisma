@@ -826,14 +826,22 @@ model Message {
   projectId   String?
   authorId    String?
 
+  // Threading — replies point at the root they belong to. Roots
+  // have parentMessageId = null. We don't support nested-nested
+  // (replies-to-replies) on purpose; flatter threads read better.
+  parentMessageId String?
+
   workspace   Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project     Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   author      User?               @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  parent      Message?            @relation("MessageThread", fields: [parentMessageId], references: [id], onDelete: Cascade)
+  replies     Message[]           @relation("MessageThread")
   attachments MessageAttachment[]
   reactions   MessageReaction[]
 
   @@index([workspaceId])
   @@index([projectId])
+  @@index([parentMessageId])
 }
 
 model TeamMessage {

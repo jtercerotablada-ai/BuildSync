@@ -4,85 +4,123 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
 /**
- * GET /api/projects/:projectId/messages
- * POST /api/projects/:projectId/messages
+ * GET  /api/messages/:messageId/replies — fetch the full thread.
+ * POST /api/messages/:messageId/replies — post a new reply.
  *
- * The project's message thread — the team channel where status
- * updates, decisions, and discussion live. Same data model my-tasks
- * and the project Overview tab already write to, just surfaced
- * here as a chronologically sorted feed with author + reactions
- * + attachments.
+ * Replies share the Message model with a `parentMessageId` link.
+ * Threads are intentionally flat (only one level deep) — replying
+ * to a reply binds to the same root, not to the reply itself.
+ * That keeps reading order linear and the UI simple.
  *
- * GET returns the most recent 100 messages (paginatable later via
- * a `before` cursor). Order is newest-first; the UI reverses to
- * read chronologically.
- *
- * POST creates a new message authored by the current user.
+ * Access is gated by the parent message's project access, just
+ * like reactions and pin — anyone who can read the project can
+ * see the thread; anyone who can post in the project can reply.
  */
 
-const createSchema = z.object({
+const replyCreateSchema = z.object({
   content: z.string().min(1).max(10000),
 });
 
-async function assertProjectAccess(projectId: string, userId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+interface ParentAccess {
+  parent: {
+    id: string;
+    projectId: string | null;
+    parentMessageId: string | null;
+    project: {
+      id: string;
+      ownerId: string | null;
+      visibility: string;
+      workspaceId: string;
+      members: { userId: string }[];
+    } | null;
+  };
+  // The root we should bind replies to (resolves "reply-to-reply"
+  // to the actual root, keeping threads flat).
+  rootId: string;
+}
+
+async function loadParentWithAccess(
+  messageId: string,
+  userId: string
+): Promise<
+  | { ok: true; data: ParentAccess }
+  | { ok: false; status: number; error: string }
+> {
+  const msg = await prisma.message.findUnique({
+    where: { id: messageId },
     select: {
       id: true,
-      ownerId: true,
-      visibility: true,
-      workspaceId: true,
-      members: { select: { userId: true, role: true } },
+      projectId: true,
+      parentMessageId: true,
+      project: {
+        select: {
+          id: true,
+          ownerId: true,
+          visibility: true,
+          workspaceId: true,
+          members: { select: { userId: true } },
+        },
+      },
     },
   });
-
-  if (!project) return { ok: false as const, status: 404 };
-
-  const member = project.members.find((m) => m.userId === userId);
-  const isOwner = project.ownerId === userId;
-  const isMember = !!member;
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project, member };
+  if (!msg) {
+    return { ok: false, status: 404, error: "Not found" };
   }
 
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project, member: null };
+  if (msg.project) {
+    const isOwner = msg.project.ownerId === userId;
+    const isMember = msg.project.members.some((m) => m.userId === userId);
+    let allowed =
+      isOwner || isMember || msg.project.visibility === "PUBLIC";
+    if (!allowed && msg.project.visibility === "WORKSPACE") {
+      const wsMember = await prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: {
+            userId,
+            workspaceId: msg.project.workspaceId,
+          },
+        },
+      });
+      if (wsMember) allowed = true;
+    }
+    if (!allowed) {
+      return { ok: false, status: 403, error: "Forbidden" };
+    }
   }
 
-  return { ok: false as const, status: 403 };
+  return {
+    ok: true,
+    data: {
+      parent: msg,
+      // Replies always attach to the root, never to another reply.
+      rootId: msg.parentMessageId ?? msg.id,
+    },
+  };
 }
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const { messageId } = await params;
 
-    const { projectId } = await params;
-    const access = await assertProjectAccess(projectId, userId);
+    const access = await loadParentWithAccess(messageId, userId);
     if (!access.ok) {
       return NextResponse.json(
-        { error: access.status === 404 ? "Not found" : "Forbidden" },
+        { error: access.error },
         { status: access.status }
       );
     }
 
-    // Root messages only — replies live under their parent and are
-    // fetched on demand via /api/messages/:id/replies when the user
-    // expands a thread. This keeps the main feed flat and snappy.
-    const messages = await prisma.message.findMany({
-      where: { projectId, parentMessageId: null },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+    // Always read replies off the root, even if a reply id was passed.
+    const replies = await prisma.message.findMany({
+      where: { parentMessageId: access.data.rootId },
+      orderBy: { createdAt: "asc" },
       include: {
         author: {
           select: { id: true, name: true, email: true, image: true },
@@ -106,21 +144,10 @@ export async function GET(
             createdAt: true,
           },
         },
-        // Thread meta: total reply count + the newest reply's
-        // timestamp so the UI can render "3 replies · last 5m ago".
-        replies: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { createdAt: true },
-        },
-        _count: { select: { replies: true } },
       },
     });
 
-    // Light shaping: ISO strings, group reactions by emoji for
-    // simpler client rendering, expose the current user's reaction
-    // state so the UI can toggle correctly.
-    const shaped = messages.map((m) => {
+    const shaped = replies.map((m) => {
       const reactionsByEmoji: Record<
         string,
         {
@@ -148,7 +175,6 @@ export async function GET(
           reactionsByEmoji[r.emoji].mine = true;
         }
       }
-
       return {
         id: m.id,
         content: m.content,
@@ -164,16 +190,14 @@ export async function GET(
           createdAt: a.createdAt.toISOString(),
         })),
         mine: m.author?.id === userId,
-        replyCount: m._count.replies,
-        lastReplyAt: m.replies[0]?.createdAt.toISOString() ?? null,
       };
     });
 
     return NextResponse.json(shaped);
   } catch (err) {
-    console.error("[messages GET] error:", err);
+    console.error("[replies GET] error:", err);
     return NextResponse.json(
-      { error: "Failed to fetch messages" },
+      { error: "Failed to load replies" },
       { status: 500 }
     );
   }
@@ -181,25 +205,25 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const { messageId } = await params;
 
-    const { projectId } = await params;
-    const access = await assertProjectAccess(projectId, userId);
+    const access = await loadParentWithAccess(messageId, userId);
     if (!access.ok) {
       return NextResponse.json(
-        { error: access.status === 404 ? "Not found" : "Forbidden" },
+        { error: access.error },
         { status: access.status }
       );
     }
 
     const body = await req.json();
-    const parsed = createSchema.safeParse(body);
+    const parsed = replyCreateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid payload" },
@@ -209,9 +233,10 @@ export async function POST(
 
     const created = await prisma.message.create({
       data: {
-        projectId,
+        projectId: access.data.parent.projectId,
         authorId: userId,
         content: parsed.data.content.trim(),
+        parentMessageId: access.data.rootId,
       },
       include: {
         author: {
@@ -231,15 +256,13 @@ export async function POST(
         reactions: [],
         attachments: [],
         mine: true,
-        replyCount: 0,
-        lastReplyAt: null,
       },
       { status: 201 }
     );
   } catch (err) {
-    console.error("[messages POST] error:", err);
+    console.error("[replies POST] error:", err);
     return NextResponse.json(
-      { error: "Failed to post message" },
+      { error: "Failed to post reply" },
       { status: 500 }
     );
   }

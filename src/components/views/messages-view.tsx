@@ -84,6 +84,11 @@ interface MessageRow {
   reactions: MessageReaction[];
   attachments: MessageAttachment[];
   mine: boolean;
+  // Thread meta — only populated on root messages. Replies don't
+  // have nested replies (threads are flat) so these stay at 0/null
+  // for any reply rendered inside a thread.
+  replyCount?: number;
+  lastReplyAt?: string | null;
 }
 
 interface MessagesViewProps {
@@ -136,6 +141,27 @@ export function MessagesView({
     messageId: string;
     index: number;
   } | null>(null);
+
+  // ── Thread state ────────────────────────────────────────
+  // Replies cache keyed by root id. Empty array = thread loaded but
+  // has no replies yet. Undefined = not loaded.
+  const [repliesByThread, setRepliesByThread] = useState<
+    Record<string, MessageRow[]>
+  >({});
+  // Which thread roots are currently expanded inline.
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(
+    () => new Set()
+  );
+  // Composer drafts per thread (lets the user step away from one
+  // thread and come back to the same draft).
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>(
+    {}
+  );
+  // In-flight reply sends per thread root — keeps the send button
+  // disabled while POSTing.
+  const [replySending, setReplySending] = useState<Set<string>>(
+    () => new Set()
+  );
 
   // Real-time poll bookkeeping. The scroll container ref lets us
   // detect "user is at the bottom" so background polls can auto-scroll
@@ -358,6 +384,241 @@ export function MessagesView({
     setHasNewBelow(false);
   }, []);
 
+  // ── Generic state updater across roots + replies ───────
+  // Reactions, edits, deletes, and attachment ops can target either
+  // a root message or a reply. This helper walks both maps so call
+  // sites don't have to know which one holds a given id.
+  const updateAnyMessage = useCallback(
+    (id: string, fn: (m: MessageRow) => MessageRow) => {
+      let found = false;
+      setMessages((prev) => {
+        let touched = false;
+        const next = prev.map((m) => {
+          if (m.id === id) {
+            touched = true;
+            found = true;
+            return fn(m);
+          }
+          return m;
+        });
+        return touched ? next : prev;
+      });
+      if (found) return;
+      setRepliesByThread((prev) => {
+        const next: Record<string, MessageRow[]> = {};
+        let touched = false;
+        for (const [rootId, list] of Object.entries(prev)) {
+          let listChanged = false;
+          const updated = list.map((m) => {
+            if (m.id === id) {
+              listChanged = true;
+              touched = true;
+              return fn(m);
+            }
+            return m;
+          });
+          next[rootId] = listChanged ? updated : list;
+        }
+        return touched ? next : prev;
+      });
+    },
+    []
+  );
+
+  // Snapshot helper — used by handlers that need to roll back on
+  // error. Returns both maps so the rollback call site can restore
+  // the exact pre-mutation state.
+  const captureSnapshot = useCallback(
+    () => ({ messages, repliesByThread }),
+    [messages, repliesByThread]
+  );
+  const restoreSnapshot = useCallback(
+    (snap: { messages: MessageRow[]; repliesByThread: Record<string, MessageRow[]> }) => {
+      setMessages(snap.messages);
+      setRepliesByThread(snap.repliesByThread);
+    },
+    []
+  );
+
+  // Remove a message anywhere — used by delete handler.
+  const removeAnyMessage = useCallback((id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    setRepliesByThread((prev) => {
+      const next: Record<string, MessageRow[]> = {};
+      let touched = false;
+      for (const [rootId, list] of Object.entries(prev)) {
+        const filtered = list.filter((m) => m.id !== id);
+        if (filtered.length !== list.length) touched = true;
+        next[rootId] = filtered;
+      }
+      return touched ? next : prev;
+    });
+  }, []);
+
+  // ── Thread fetch / expand ──────────────────────────────
+  const fetchReplies = useCallback(async (rootId: string) => {
+    try {
+      const res = await fetch(`/api/messages/${rootId}/replies`);
+      if (!res.ok) throw new Error("Failed");
+      const data: MessageRow[] = await res.json();
+      setRepliesByThread((prev) => ({ ...prev, [rootId]: data }));
+    } catch {
+      toast.error("Couldn't load replies");
+    }
+  }, []);
+
+  const toggleThread = useCallback(
+    (rootId: string) => {
+      setExpandedThreads((prev) => {
+        const next = new Set(prev);
+        if (next.has(rootId)) {
+          next.delete(rootId);
+        } else {
+          next.add(rootId);
+          // Fetch on first open; subsequent opens reuse the cache
+          // and rely on the poller below for freshness.
+          if (!repliesByThread[rootId]) {
+            void fetchReplies(rootId);
+          }
+        }
+        return next;
+      });
+    },
+    [repliesByThread, fetchReplies]
+  );
+
+  // Poll the replies of every currently-open thread every 10s. We
+  // reuse the same visibility-aware timer rhythm as the root poll
+  // so users see new replies land without manual refresh.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const tick = () => {
+      if (document.hidden) return;
+      for (const rootId of expandedThreads) {
+        void fetchReplies(rootId);
+      }
+    };
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(tick, 10000);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        tick();
+        start();
+      }
+    };
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [expandedThreads, fetchReplies]);
+
+  // ── Send reply ─────────────────────────────────────────
+  const handleSendReply = useCallback(
+    async (rootId: string) => {
+      const content = (replyDrafts[rootId] || "").trim();
+      if (!content) return;
+      if (replySending.has(rootId)) return;
+
+      setReplySending((prev) => new Set(prev).add(rootId));
+      const tempId = `temp-${Date.now()}`;
+      const optimistic: MessageRow = {
+        id: tempId,
+        content,
+        isPinned: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        author: currentUser
+          ? {
+              id: currentUser.id,
+              name: currentUser.name,
+              email: null,
+              image: currentUser.image,
+            }
+          : null,
+        reactions: [],
+        attachments: [],
+        mine: true,
+      };
+      // Optimistic insert into the thread + bump replyCount on the
+      // root so users see the badge update before the server round-
+      // trip resolves.
+      setRepliesByThread((prev) => ({
+        ...prev,
+        [rootId]: [...(prev[rootId] || []), optimistic],
+      }));
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === rootId
+            ? {
+                ...m,
+                replyCount: (m.replyCount || 0) + 1,
+                lastReplyAt: optimistic.createdAt,
+              }
+            : m
+        )
+      );
+      setReplyDrafts((prev) => ({ ...prev, [rootId]: "" }));
+
+      try {
+        const res = await fetch(`/api/messages/${rootId}/replies`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error || "Failed to send");
+        }
+        const created: MessageRow = await res.json();
+        // Swap the temp row for the server's row.
+        setRepliesByThread((prev) => {
+          const list = prev[rootId] || [];
+          return {
+            ...prev,
+            [rootId]: list.map((m) => (m.id === tempId ? created : m)),
+          };
+        });
+      } catch (err) {
+        // Roll back the thread + root counter, restore the draft.
+        setRepliesByThread((prev) => ({
+          ...prev,
+          [rootId]: (prev[rootId] || []).filter((m) => m.id !== tempId),
+        }));
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === rootId
+              ? {
+                  ...m,
+                  replyCount: Math.max(0, (m.replyCount || 1) - 1),
+                }
+              : m
+          )
+        );
+        setReplyDrafts((prev) => ({ ...prev, [rootId]: content }));
+        toast.error(err instanceof Error ? err.message : "Failed to reply");
+      } finally {
+        setReplySending((prev) => {
+          const next = new Set(prev);
+          next.delete(rootId);
+          return next;
+        });
+      }
+    },
+    [replyDrafts, replySending, currentUser]
+  );
+
   // ── Upload one file to an existing message ─────────────
   // Used both during initial send (for pendingFiles) and from the
   // hover-add UI on existing messages (future surface). Updates the
@@ -383,13 +644,12 @@ export function MessagesView({
           throw new Error(body?.error || "Upload failed");
         }
         const created: MessageAttachment = await res.json();
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === messageId
-              ? { ...m, attachments: [...m.attachments, created] }
-              : m
-          )
-        );
+        // Works for both root messages and replies — the helper
+        // walks both maps.
+        updateAnyMessage(messageId, (m) => ({
+          ...m,
+          attachments: [...m.attachments, created],
+        }));
       } catch (err) {
         toast.error(
           err instanceof Error
@@ -406,7 +666,7 @@ export function MessagesView({
         });
       }
     },
-    []
+    [updateAnyMessage]
   );
 
   // ── Send ────────────────────────────────────────────────
@@ -519,17 +779,11 @@ export function MessagesView({
     messageId: string,
     attachmentId: string
   ) => {
-    const snapshot = messages;
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === messageId
-          ? {
-              ...m,
-              attachments: m.attachments.filter((a) => a.id !== attachmentId),
-            }
-          : m
-      )
-    );
+    const snapshot = captureSnapshot();
+    updateAnyMessage(messageId, (m) => ({
+      ...m,
+      attachments: m.attachments.filter((a) => a.id !== attachmentId),
+    }));
     try {
       const res = await fetch(
         `/api/messages/${messageId}/attachments/${attachmentId}`,
@@ -540,7 +794,7 @@ export function MessagesView({
         throw new Error(body?.error || "Failed to delete");
       }
     } catch (err) {
-      setMessages(snapshot);
+      restoreSnapshot(snapshot);
       toast.error(
         err instanceof Error ? err.message : "Failed to remove file"
       );
@@ -557,10 +811,8 @@ export function MessagesView({
     async (messageId: string) => {
       const content = editingContent.trim();
       if (!content) return;
-      const snapshot = messages;
-      setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, content } : m))
-      );
+      const snapshot = captureSnapshot();
+      updateAnyMessage(messageId, (m) => ({ ...m, content }));
       setEditingId(null);
       try {
         const res = await fetch(`/api/messages/${messageId}`, {
@@ -573,20 +825,48 @@ export function MessagesView({
           throw new Error(body?.error || "Failed to update");
         }
       } catch (err) {
-        setMessages(snapshot);
+        restoreSnapshot(snapshot);
         toast.error(
           err instanceof Error ? err.message : "Failed to update"
         );
       }
     },
-    [editingContent, messages]
+    [editingContent, captureSnapshot, restoreSnapshot, updateAnyMessage]
   );
 
   // ── Delete ───────────────────────────────────────────────
   const handleDelete = async (messageId: string) => {
     if (!confirm("Delete this message? This can't be undone.")) return;
-    const snapshot = messages;
-    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    const snapshot = captureSnapshot();
+    // Find which root, if any, this message belonged to so we can
+    // decrement the replyCount when deleting a reply.
+    let parentRootId: string | null = null;
+    for (const [rid, list] of Object.entries(repliesByThread)) {
+      if (list.some((m) => m.id === messageId)) {
+        parentRootId = rid;
+        break;
+      }
+    }
+    removeAnyMessage(messageId);
+    if (parentRootId) {
+      const rid = parentRootId;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === rid
+            ? { ...m, replyCount: Math.max(0, (m.replyCount || 1) - 1) }
+            : m
+        )
+      );
+    } else {
+      // Deleting a root also drops any locally-cached reply list
+      // for that thread (server cascade will handle the DB rows).
+      setRepliesByThread((prev) => {
+        if (!(messageId in prev)) return prev;
+        const next = { ...prev };
+        delete next[messageId];
+        return next;
+      });
+    }
     try {
       const res = await fetch(`/api/messages/${messageId}`, {
         method: "DELETE",
@@ -597,7 +877,7 @@ export function MessagesView({
       }
       toast.success("Message deleted");
     } catch (err) {
-      setMessages(snapshot);
+      restoreSnapshot(snapshot);
       toast.error(err instanceof Error ? err.message : "Failed to delete");
     }
   };
@@ -630,51 +910,49 @@ export function MessagesView({
 
   // ── React ────────────────────────────────────────────────
   const handleReact = async (messageId: string, emoji: string) => {
-    const snapshot = messages;
-    // Optimistic toggle of the emoji on this message.
-    setMessages((prev) =>
-      prev.map((m) => {
-        if (m.id !== messageId) return m;
-        const existing = m.reactions.find((r) => r.emoji === emoji);
-        if (existing) {
-          if (existing.mine) {
-            // Un-react — remove me from the bucket.
-            const nextCount = existing.count - 1;
-            if (nextCount <= 0) {
-              return {
-                ...m,
-                reactions: m.reactions.filter((r) => r.emoji !== emoji),
-              };
-            }
+    const snapshot = captureSnapshot();
+    // Optimistic toggle of the emoji on the target message
+    // (regardless of whether it lives in roots or in a thread).
+    updateAnyMessage(messageId, (m) => {
+      const existing = m.reactions.find((r) => r.emoji === emoji);
+      if (existing) {
+        if (existing.mine) {
+          // Un-react — remove me from the bucket.
+          const nextCount = existing.count - 1;
+          if (nextCount <= 0) {
             return {
               ...m,
-              reactions: m.reactions.map((r) =>
-                r.emoji === emoji
-                  ? { ...r, count: nextCount, mine: false }
-                  : r
-              ),
+              reactions: m.reactions.filter((r) => r.emoji !== emoji),
             };
           }
-          // Add me to existing bucket.
           return {
             ...m,
             reactions: m.reactions.map((r) =>
               r.emoji === emoji
-                ? { ...r, count: r.count + 1, mine: true }
+                ? { ...r, count: nextCount, mine: false }
                 : r
             ),
           };
         }
-        // New bucket — me first.
+        // Add me to existing bucket.
         return {
           ...m,
-          reactions: [
-            ...m.reactions,
-            { emoji, count: 1, users: [], mine: true },
-          ],
+          reactions: m.reactions.map((r) =>
+            r.emoji === emoji
+              ? { ...r, count: r.count + 1, mine: true }
+              : r
+          ),
         };
-      })
-    );
+      }
+      // New bucket — me first.
+      return {
+        ...m,
+        reactions: [
+          ...m.reactions,
+          { emoji, count: 1, users: [], mine: true },
+        ],
+      };
+    });
 
     try {
       const res = await fetch(`/api/messages/${messageId}/reactions`, {
@@ -684,7 +962,7 @@ export function MessagesView({
       });
       if (!res.ok) throw new Error("Failed");
     } catch {
-      setMessages(snapshot);
+      restoreSnapshot(snapshot);
       toast.error("Failed to react");
     }
   };
@@ -723,6 +1001,7 @@ export function MessagesView({
               <MessageItem
                 key={m.id}
                 message={m}
+                isReply={false}
                 editing={editingId === m.id}
                 editingContent={editingContent}
                 uploadingCount={uploadingByMessage[m.id] || 0}
@@ -745,6 +1024,39 @@ export function MessagesView({
                     void uploadFileToMessage(m.id, f);
                   }
                 }}
+                // Thread-only props
+                threadExpanded={expandedThreads.has(m.id)}
+                threadReplies={repliesByThread[m.id]}
+                replyDraft={replyDrafts[m.id] || ""}
+                replyIsSending={replySending.has(m.id)}
+                replyEditingId={editingId}
+                replyEditingContent={editingContent}
+                onToggleThread={() => toggleThread(m.id)}
+                onReplyDraftChange={(v) =>
+                  setReplyDrafts((prev) => ({ ...prev, [m.id]: v }))
+                }
+                onSendReply={() => handleSendReply(m.id)}
+                onReplyStartEdit={(reply) => startEdit(reply)}
+                onReplyCommitEdit={(replyId) => commitEdit(replyId)}
+                onReplyCancelEdit={() => setEditingId(null)}
+                onReplyEditingContentChange={setEditingContent}
+                onReplyReact={(replyId, emoji) =>
+                  handleReact(replyId, emoji)
+                }
+                onReplyDelete={(replyId) => handleDelete(replyId)}
+                onReplyCopyLink={(replyId) => copyLink(replyId)}
+                onReplyOpenAttachment={(replyId, idx) =>
+                  setViewer({ messageId: replyId, index: idx })
+                }
+                onReplyDeleteAttachment={(replyId, attachmentId) =>
+                  handleDeleteAttachment(replyId, attachmentId)
+                }
+                onReplyAddFiles={(replyId, files) => {
+                  for (const f of files) {
+                    void uploadFileToMessage(replyId, f);
+                  }
+                }}
+                replyUploadingByMessage={uploadingByMessage}
               />
             ))
           )}
@@ -893,6 +1205,7 @@ export function MessagesView({
 
 interface MessageItemProps {
   message: MessageRow;
+  isReply: boolean;
   editing: boolean;
   editingContent: string;
   uploadingCount: number;
@@ -907,10 +1220,37 @@ interface MessageItemProps {
   onOpenAttachment: (index: number) => void;
   onDeleteAttachment: (attachmentId: string) => void;
   onAddFiles: (files: File[]) => void;
+  // Thread props — only meaningful when isReply === false. The
+  // reply-level handlers fan-out to the parent state because all
+  // mutations go through the same updateAnyMessage helper there.
+  threadExpanded?: boolean;
+  threadReplies?: MessageRow[];
+  replyDraft?: string;
+  replyIsSending?: boolean;
+  replyEditingId?: string | null;
+  replyEditingContent?: string;
+  replyUploadingByMessage?: Record<string, number>;
+  onToggleThread?: () => void;
+  onReplyDraftChange?: (v: string) => void;
+  onSendReply?: () => void;
+  onReplyStartEdit?: (reply: MessageRow) => void;
+  onReplyCommitEdit?: (replyId: string) => void;
+  onReplyCancelEdit?: () => void;
+  onReplyEditingContentChange?: (v: string) => void;
+  onReplyReact?: (replyId: string, emoji: string) => void;
+  onReplyDelete?: (replyId: string) => void;
+  onReplyCopyLink?: (replyId: string) => void;
+  onReplyOpenAttachment?: (replyId: string, idx: number) => void;
+  onReplyDeleteAttachment?: (
+    replyId: string,
+    attachmentId: string
+  ) => void;
+  onReplyAddFiles?: (replyId: string, files: File[]) => void;
 }
 
 function MessageItem({
   message,
+  isReply,
   editing,
   editingContent,
   uploadingCount,
@@ -925,8 +1265,30 @@ function MessageItem({
   onOpenAttachment,
   onDeleteAttachment,
   onAddFiles,
+  threadExpanded,
+  threadReplies,
+  replyDraft,
+  replyIsSending,
+  replyEditingId,
+  replyEditingContent,
+  replyUploadingByMessage,
+  onToggleThread,
+  onReplyDraftChange,
+  onSendReply,
+  onReplyStartEdit,
+  onReplyCommitEdit,
+  onReplyCancelEdit,
+  onReplyEditingContentChange,
+  onReplyReact,
+  onReplyDelete,
+  onReplyCopyLink,
+  onReplyOpenAttachment,
+  onReplyDeleteAttachment,
+  onReplyAddFiles,
 }: MessageItemProps) {
   const addFilesInputRef = useRef<HTMLInputElement | null>(null);
+  const replyCount = message.replyCount ?? 0;
+  const hasThread = !isReply && replyCount > 0;
   const m = message;
   const authorName = m.author?.name || m.author?.email || "Unknown";
   const initial = (authorName).charAt(0).toUpperCase();
@@ -999,6 +1361,17 @@ function MessageItem({
             </PopoverContent>
           </Popover>
 
+          {!isReply && onToggleThread && (
+            <button
+              type="button"
+              onClick={onToggleThread}
+              className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
+              title="Reply in thread"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             onClick={onCopyLink}
             className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600"
@@ -1017,10 +1390,12 @@ function MessageItem({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onPinToggle}>
-                <Pin className="w-4 h-4 mr-2" />
-                {m.isPinned ? "Unpin" : "Pin"}
-              </DropdownMenuItem>
+              {!isReply && (
+                <DropdownMenuItem onClick={onPinToggle}>
+                  <Pin className="w-4 h-4 mr-2" />
+                  {m.isPinned ? "Unpin" : "Pin"}
+                </DropdownMenuItem>
+              )}
               {m.mine && (
                 <>
                   <DropdownMenuItem onClick={onStartEdit}>
@@ -1213,6 +1588,132 @@ function MessageItem({
           </>
         )}
       </div>
+
+      {/* ── Thread surface (root messages only) ─────────────── */}
+      {!isReply && (hasThread || threadExpanded) && (
+        <div className="border-t bg-slate-50/60">
+          <button
+            type="button"
+            onClick={onToggleThread}
+            className="w-full px-4 py-2 flex items-center justify-between gap-2 text-xs font-medium text-[#a8893a] hover:bg-slate-50 transition-colors"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" />
+              {replyCount > 0
+                ? `${replyCount} ${replyCount === 1 ? "reply" : "replies"}`
+                : "Reply in thread"}
+              {!threadExpanded && m.lastReplyAt && replyCount > 0 && (
+                <span className="text-slate-400 font-normal">
+                  · last {formatRelative(m.lastReplyAt)}
+                </span>
+              )}
+            </span>
+            <span className="text-slate-400">
+              {threadExpanded ? "Hide" : "View"}
+            </span>
+          </button>
+
+          {threadExpanded && (
+            <div className="px-4 pb-3 pl-[52px] space-y-2">
+              {!threadReplies ? (
+                <div className="py-4 flex items-center justify-center text-slate-400">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                </div>
+              ) : threadReplies.length === 0 ? (
+                <p className="py-2 text-xs text-slate-400">
+                  No replies yet — be the first.
+                </p>
+              ) : (
+                threadReplies.map((r) => (
+                  <MessageItem
+                    key={r.id}
+                    message={r}
+                    isReply={true}
+                    editing={replyEditingId === r.id}
+                    editingContent={replyEditingContent || ""}
+                    uploadingCount={replyUploadingByMessage?.[r.id] || 0}
+                    onEditingContentChange={
+                      onReplyEditingContentChange || (() => {})
+                    }
+                    onStartEdit={() => onReplyStartEdit?.(r)}
+                    onCommitEdit={() => onReplyCommitEdit?.(r.id)}
+                    onCancelEdit={() => onReplyCancelEdit?.()}
+                    onDelete={() => onReplyDelete?.(r.id)}
+                    onPinToggle={() => {}}
+                    onReact={(emoji) => onReplyReact?.(r.id, emoji)}
+                    onCopyLink={() => onReplyCopyLink?.(r.id)}
+                    onOpenAttachment={(idx) =>
+                      onReplyOpenAttachment?.(r.id, idx)
+                    }
+                    onDeleteAttachment={(aid) =>
+                      onReplyDeleteAttachment?.(r.id, aid)
+                    }
+                    onAddFiles={(files) =>
+                      onReplyAddFiles?.(r.id, files)
+                    }
+                  />
+                ))
+              )}
+
+              {/* Reply composer */}
+              <ReplyComposer
+                draft={replyDraft || ""}
+                sending={!!replyIsSending}
+                onChange={(v) => onReplyDraftChange?.(v)}
+                onSend={() => onSendReply?.()}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Reply composer ──────────────────────────────────────────────
+
+interface ReplyComposerProps {
+  draft: string;
+  sending: boolean;
+  onChange: (v: string) => void;
+  onSend: () => void;
+}
+
+function ReplyComposer({
+  draft,
+  sending,
+  onChange,
+  onSend,
+}: ReplyComposerProps) {
+  return (
+    <div className="flex items-end gap-2 bg-white rounded-lg border focus-within:border-[#c9a84c] transition-colors">
+      <textarea
+        value={draft}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onSend();
+          }
+        }}
+        placeholder="Reply…"
+        rows={1}
+        maxLength={10000}
+        disabled={sending}
+        className="flex-1 outline-none text-sm py-2 px-3 resize-none bg-transparent min-h-[36px] max-h-[160px]"
+      />
+      <Button
+        size="sm"
+        onClick={onSend}
+        disabled={!draft.trim() || sending}
+        className="m-1.5 bg-black hover:bg-gray-900 text-white"
+      >
+        {sending ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <Send className="w-3.5 h-3.5" />
+        )}
+      </Button>
     </div>
   );
 }

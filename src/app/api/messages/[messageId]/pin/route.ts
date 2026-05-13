@@ -41,6 +41,14 @@ export async function POST(
     if (!msg) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    // Replies aren't pinnable on purpose — pinning lives at the
+    // root level so the thread surface stays the unit of "important".
+    if (msg.parentMessageId) {
+      return NextResponse.json(
+        { error: "Replies can't be pinned — pin the parent message" },
+        { status: 400 }
+      );
+    }
 
     // Access gate — must be able to read the project at minimum.
     if (msg.project) {
