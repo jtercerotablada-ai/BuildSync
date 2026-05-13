@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Star,
   Users,
   Plus,
@@ -93,6 +95,20 @@ interface Project {
   _count?: { tasks: number };
 }
 
+interface MessageReaction {
+  emoji: string;
+  count: number;
+  hasReacted: boolean;
+}
+
+interface MessageAttachment {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  mimeType: string;
+}
+
 interface Message {
   id: string;
   content: string;
@@ -101,9 +117,11 @@ interface Message {
   author: {
     id: string;
     name: string | null;
-    email: string | null;
+    email?: string | null;
     image: string | null;
   };
+  reactions?: MessageReaction[];
+  attachments?: MessageAttachment[];
 }
 
 interface Team {
@@ -145,6 +163,7 @@ export default function TeamPage() {
     try {
       // First, fetch teams to get the real team data
       const teamsRes = await fetch("/api/teams/list");
+      let firstTeamId: string | null = null;
       if (teamsRes.ok) {
         const teamsData = await teamsRes.json();
         setTeams(teamsData);
@@ -152,13 +171,21 @@ export default function TeamPage() {
         // Set the first team as current if available
         if (teamsData.length > 0) {
           setCurrentTeam(teamsData[0]);
+          firstTeamId = teamsData[0].id;
         }
       }
+
+      // Messages are scoped to the team — fetch from the team
+      // endpoint so reactions + attachments come back along with
+      // the messages themselves.
+      const messagesUrl = firstTeamId
+        ? `/api/teams/${firstTeamId}/messages`
+        : null;
 
       const [membersRes, projectsRes, messagesRes] = await Promise.all([
         fetch("/api/workspace/members"),
         fetch("/api/projects"),
-        fetch("/api/workspace/messages"),
+        messagesUrl ? fetch(messagesUrl) : Promise.resolve(null),
       ]);
 
       if (membersRes.ok) {
@@ -169,9 +196,10 @@ export default function TeamPage() {
         const data = await projectsRes.json();
         setProjects(data);
       }
-      if (messagesRes.ok) {
+      if (messagesRes && messagesRes.ok) {
         const data = await messagesRes.json();
-        setMessages(data.messages || []);
+        // Team endpoint returns an array directly.
+        setMessages(Array.isArray(data) ? data : data.messages || []);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -420,8 +448,9 @@ export default function TeamPage() {
         />
       )}
 
-      {activeTab === "members" && (
+      {activeTab === "members" && currentTeam && (
         <MembersContent
+          teamId={currentTeam.id}
           members={members}
           onInvite={() => setShowInviteModal(true)}
           onRefresh={fetchData}
@@ -432,12 +461,16 @@ export default function TeamPage() {
         <WorkContent projects={projects} />
       )}
 
-      {activeTab === "messages" && (
-        <MessagesContent messages={messages} onRefresh={fetchData} />
+      {activeTab === "messages" && currentTeam && (
+        <MessagesContent
+          teamId={currentTeam.id}
+          messages={messages}
+          onRefresh={fetchData}
+        />
       )}
 
-      {activeTab === "calendar" && (
-        <CalendarContent projects={projects} />
+      {activeTab === "calendar" && currentTeam && (
+        <CalendarContent teamId={currentTeam.id} projects={projects} />
       )}
 
       {/* Invite Modal */}
@@ -913,16 +946,38 @@ const fieldTypes = [
 
 // ========== MEMBERS CONTENT ==========
 function MembersContent({
+  teamId,
   members,
   onInvite,
   onRefresh,
 }: {
+  teamId: string;
   members: Member[];
   onInvite: () => void;
   onRefresh: () => void;
 }) {
+  const router = useRouter();
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  async function handleRemoveMember(memberId: string, memberName: string) {
+    if (!confirm(`Remove ${memberName} from this team?`)) return;
+    try {
+      const res = await fetch(`/api/teams/${teamId}/members/${memberId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      toast.success(`${memberName} removed from team`);
+      onRefresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't remove member"
+      );
+    }
+  }
   const [customFields, setCustomFields] = useState<Array<{
     id: string;
     name: string;
@@ -1144,7 +1199,11 @@ function MembersContent({
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => toast.info(`Viewing profile of ${member.user.name || member.user.email}`)}>View profile</DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => router.push(`/profile/${member.user.id}`)}
+                      >
+                        View profile
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => window.open(`mailto:${member.user.email}`, '_blank')}>
                         <Mail className="h-4 w-4 mr-2" />
                         Send message
@@ -1152,7 +1211,15 @@ function MembersContent({
                       {member.role !== "OWNER" && (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-black">
+                          <DropdownMenuItem
+                            className="text-black focus:text-black"
+                            onClick={() =>
+                              handleRemoveMember(
+                                member.id,
+                                member.user.name || member.user.email || "this member"
+                              )
+                            }
+                          >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Remove from team
                           </DropdownMenuItem>
@@ -1340,36 +1407,114 @@ function WorkContent({ projects }: { projects: Project[] }) {
 
 // ========== MESSAGES CONTENT ==========
 function MessagesContent({
+  teamId,
   messages,
   onRefresh,
 }: {
+  teamId: string;
   messages: Message[];
   onRefresh: () => void;
 }) {
   const [newMessage, setNewMessage] = useState("");
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Common emoji set — Asana / Slack use a similar quick palette.
+  const QUICK_EMOJIS = ["👍", "❤️", "🎉", "🙏", "✅", "🔥", "😂", "👀"];
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
-    if (!newMessage.trim() || isSending) return;
+    const hasText = newMessage.trim().length > 0;
+    const hasFiles = pendingFiles.length > 0;
+    if ((!hasText && !hasFiles) || isSending) return;
 
     setIsSending(true);
     try {
-      const res = await fetch("/api/workspace/messages", {
+      const res = await fetch(`/api/teams/${teamId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newMessage }),
+        body: JSON.stringify({
+          // The API requires non-empty content, so a single space is
+          // the minimum payload for an attachment-only message.
+          content: hasText ? newMessage : " ",
+        }),
       });
-
-      if (res.ok) {
-        setNewMessage("");
-        onRefresh();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
       }
-    } catch (error) {
-      toast.error("Error sending message");
+      const created = await res.json();
+
+      // Upload each pending file to the message endpoint.
+      for (const file of pendingFiles) {
+        const fd = new FormData();
+        fd.append("file", file);
+        try {
+          const upRes = await fetch(
+            `/api/teams/${teamId}/messages/${created.id}/attachments`,
+            { method: "POST", body: fd }
+          );
+          if (!upRes.ok) {
+            const upErr = await upRes.json().catch(() => ({}));
+            throw new Error(upErr.error || `HTTP ${upRes.status}`);
+          }
+        } catch (err) {
+          toast.error(
+            err instanceof Error
+              ? `${file.name}: ${err.message}`
+              : `${file.name}: upload failed`
+          );
+        }
+      }
+
+      setNewMessage("");
+      setPendingFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      onRefresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Error sending message"
+      );
     } finally {
       setIsSending(false);
     }
+  }
+
+  function handleFilesPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const ok: File[] = [];
+    for (const f of Array.from(files)) {
+      if (f.size > 10 * 1024 * 1024) {
+        toast.error(`${f.name}: exceeds 10 MB limit`);
+        continue;
+      }
+      ok.push(f);
+    }
+    setPendingFiles((prev) => [...prev, ...ok]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function toggleReaction(messageId: string, emoji: string) {
+    try {
+      const res = await fetch(
+        `/api/teams/${teamId}/messages/${messageId}/reactions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emoji }),
+        }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onRefresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't update reaction"
+      );
+    }
+    setReactionPickerFor(null);
   }
 
   return (
@@ -1378,27 +1523,144 @@ function MessagesContent({
 
       <div className="bg-white border rounded-xl overflow-hidden">
         {/* Messages list */}
-        <div className="max-h-[500px] overflow-y-auto p-4 space-y-4">
+        <div className="max-h-[600px] overflow-y-auto p-4 space-y-4">
           {messages.length > 0 ? (
-            messages.map((message) => (
-              <div key={message.id} className="flex items-start gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={message.author.image || undefined} />
-                  <AvatarFallback className="bg-white text-black border border-black text-xs">
-                    {message.author.name?.charAt(0).toUpperCase() || "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm text-gray-900">{message.author.name}</span>
-                    <span className="text-xs text-gray-400">
-                      {new Date(message.createdAt).toLocaleString()}
-                    </span>
+            messages.map((message) => {
+              const reactions = message.reactions || [];
+              const attachments = message.attachments || [];
+              return (
+                <div
+                  key={message.id}
+                  className="flex items-start gap-3 group"
+                >
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarImage src={message.author.image || undefined} />
+                    <AvatarFallback className="bg-white text-black border border-black text-xs">
+                      {message.author.name?.charAt(0).toUpperCase() || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm text-gray-900">
+                        {message.author.name}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(message.createdAt).toLocaleString()}
+                      </span>
+                      {/* React-to-message button — hidden until row
+                          is hovered to avoid visual noise. */}
+                      <Popover
+                        open={reactionPickerFor === message.id}
+                        onOpenChange={(open) =>
+                          setReactionPickerFor(open ? message.id : null)
+                        }
+                      >
+                        <PopoverTrigger asChild>
+                          <button
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-700 ml-1"
+                            title="Add reaction"
+                          >
+                            <span className="text-base leading-none">😊</span>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-1.5" align="start">
+                          <div className="flex gap-1">
+                            {QUICK_EMOJIS.map((e) => (
+                              <button
+                                key={e}
+                                onClick={() => toggleReaction(message.id, e)}
+                                className="h-8 w-8 rounded hover:bg-gray-100 text-lg leading-none"
+                              >
+                                {e}
+                              </button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    {message.content && message.content.trim() && (
+                      <p className="text-sm text-gray-700 mt-0.5 whitespace-pre-wrap break-words">
+                        {message.content}
+                      </p>
+                    )}
+
+                    {/* Attachments */}
+                    {attachments.length > 0 && (
+                      <div className="mt-2 grid grid-cols-2 gap-1.5 max-w-md">
+                        {attachments.map((a) => {
+                          const isImg = a.mimeType.startsWith("image/");
+                          return (
+                            <a
+                              key={a.id}
+                              href={a.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn(
+                                "flex items-center gap-2 border rounded-md p-1.5 bg-white hover:border-gray-400 hover:bg-gray-50 transition-colors",
+                                isImg && "flex-col items-stretch p-0 overflow-hidden"
+                              )}
+                              title={a.name}
+                            >
+                              {isImg ? (
+                                <>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={a.url}
+                                    alt={a.name}
+                                    className="w-full h-24 object-cover"
+                                  />
+                                  <div className="px-2 py-1">
+                                    <p className="text-[10px] font-medium text-black truncate">
+                                      {a.name}
+                                    </p>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="h-8 w-8 rounded bg-gray-100 border flex items-center justify-center flex-shrink-0">
+                                    <Paperclip className="h-3.5 w-3.5 text-gray-400" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-medium text-black truncate">
+                                      {a.name}
+                                    </p>
+                                  </div>
+                                </>
+                              )}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Reaction pills */}
+                    {reactions.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {reactions.map((r) => (
+                          <button
+                            key={r.emoji}
+                            onClick={() => toggleReaction(message.id, r.emoji)}
+                            className={cn(
+                              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[11px]",
+                              r.hasReacted
+                                ? "bg-[#c9a84c]/15 border-[#c9a84c] text-[#a8893a]"
+                                : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                            )}
+                          >
+                            <span className="text-sm leading-none">
+                              {r.emoji}
+                            </span>
+                            <span className="font-mono tabular-nums">
+                              {r.count}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-700 mt-0.5">{message.content}</p>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="text-center py-12">
               <MessageSquare className="h-12 w-12 text-gray-200 mx-auto mb-3" />
@@ -1407,19 +1669,84 @@ function MessagesContent({
           )}
         </div>
 
-        {/* Message input */}
-        <form onSubmit={handleSendMessage} className="border-t p-4 flex items-center gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Write a message..."
-            className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-black"
-            disabled={isSending}
-          />
-          <Button type="submit" size="icon" className="h-10 w-10 rounded-full" disabled={!newMessage.trim() || isSending}>
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
+        {/* Message composer */}
+        <form
+          onSubmit={handleSendMessage}
+          className="border-t p-3 flex flex-col gap-2"
+        >
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFilesPicked}
+              accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-full flex-shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSending}
+              title="Attach file"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder={
+                pendingFiles.length > 0
+                  ? "Caption (optional)…"
+                  : "Write a message..."
+              }
+              className="flex-1 px-4 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              disabled={isSending}
+            />
+            <Button
+              type="submit"
+              size="icon"
+              className="h-10 w-10 rounded-full flex-shrink-0"
+              disabled={
+                isSending ||
+                (!newMessage.trim() && pendingFiles.length === 0)
+              }
+            >
+              {isSending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          {pendingFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {pendingFiles.map((f, i) => (
+                <span
+                  key={`${f.name}-${i}`}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border bg-gray-50 text-[11px] text-black"
+                >
+                  <Paperclip className="h-3 w-3 text-gray-500" />
+                  <span className="max-w-[140px] truncate">{f.name}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPendingFiles((prev) =>
+                        prev.filter((_, idx) => idx !== i)
+                      )
+                    }
+                    className="text-gray-400 hover:text-black"
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </form>
       </div>
     </div>
@@ -1427,15 +1754,319 @@ function MessagesContent({
 }
 
 // ========== CALENDAR CONTENT ==========
-function CalendarContent({ projects }: { projects: Project[] }) {
+interface CalendarTask {
+  id: string;
+  name: string;
+  dueDate: string;
+  completed: boolean;
+  project: { id: string; name: string; color: string } | null;
+  assignee: { id: string; name: string | null; image: string | null } | null;
+}
+
+function CalendarContent({
+  teamId,
+  projects,
+}: {
+  teamId: string;
+  projects: Project[];
+}) {
+  const router = useRouter();
+  const [tasks, setTasks] = useState<CalendarTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  // Anchor month/year for the visible grid.
+  const [viewMonth, setViewMonth] = useState<{ year: number; month: number }>(
+    () => {
+      const t = new Date();
+      return { year: t.getFullYear(), month: t.getMonth() };
+    }
+  );
+  // Inline quick-add state — click a day cell to start.
+  const [addingDate, setAddingDate] = useState<string | null>(null);
+  const [newTaskName, setNewTaskName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/teams/${teamId}/tasks`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setTasks(Array.isArray(data) ? data : []);
+      })
+      .catch(() => !cancelled && setTasks([]))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId]);
+
+  // Group tasks by local-date string for O(1) cell lookup.
+  const tasksByDate = useMemo(() => {
+    const map: Record<string, CalendarTask[]> = {};
+    for (const t of tasks) {
+      const key = new Date(t.dueDate).toDateString();
+      if (!map[key]) map[key] = [];
+      map[key].push(t);
+    }
+    return map;
+  }, [tasks]);
+
+  // Build the visible grid: weeks of Mon-Sun covering this month.
+  const grid = useMemo(() => {
+    const first = new Date(viewMonth.year, viewMonth.month, 1);
+    // Mon-first offset (US calendar uses Sun, but the rest of
+    // BuildSync renders Mon-first — keep consistent).
+    const dow = first.getDay() === 0 ? 6 : first.getDay() - 1;
+    const gridStart = new Date(first);
+    gridStart.setDate(first.getDate() - dow);
+    const days: Date[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart);
+      d.setDate(gridStart.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [viewMonth]);
+
+  const todayStr = new Date().toDateString();
+  const monthLabel = new Date(viewMonth.year, viewMonth.month, 1).toLocaleDateString(
+    "en-US",
+    { month: "long", year: "numeric" }
+  );
+
+  async function commitInlineTask(forDate: Date) {
+    const name = newTaskName.trim();
+    if (!name) {
+      setAddingDate(null);
+      setNewTaskName("");
+      return;
+    }
+    if (projects.length === 0) {
+      toast.error("Team needs at least one project to add tasks");
+      setAddingDate(null);
+      setNewTaskName("");
+      return;
+    }
+    setCreating(true);
+    try {
+      const iso = `${forDate.getFullYear()}-${String(
+        forDate.getMonth() + 1
+      ).padStart(2, "0")}-${String(forDate.getDate()).padStart(2, "0")}`;
+      const res = await fetch(`/api/teams/${teamId}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, dueDate: iso }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const created = await res.json();
+      setTasks((prev) => [...prev, created]);
+      toast.success(`Added "${name}"`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't create task"
+      );
+    } finally {
+      setCreating(false);
+      setAddingDate(null);
+      setNewTaskName("");
+    }
+  }
+
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">Calendar</h2>
-      <div className="bg-white border rounded-xl p-12 text-center">
-        <Calendar className="h-12 w-12 text-gray-200 mx-auto mb-3" />
-        <p className="text-lg font-medium text-gray-900 mb-2">Team calendar</p>
-        <p className="text-sm text-gray-500">Tasks with due dates will appear here</p>
+    <div className="max-w-7xl mx-auto px-6 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-semibold text-gray-900">Calendar</h2>
+          <span className="text-sm text-gray-500">
+            {tasks.length} task{tasks.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const t = new Date();
+              setViewMonth({ year: t.getFullYear(), month: t.getMonth() });
+            }}
+          >
+            Today
+          </Button>
+          <button
+            onClick={() =>
+              setViewMonth(({ year, month }) =>
+                month === 0
+                  ? { year: year - 1, month: 11 }
+                  : { year, month: month - 1 }
+              )
+            }
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md border hover:bg-gray-50"
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-sm font-medium text-black tabular-nums min-w-[140px] text-center">
+            {monthLabel}
+          </span>
+          <button
+            onClick={() =>
+              setViewMonth(({ year, month }) =>
+                month === 11
+                  ? { year: year + 1, month: 0 }
+                  : { year, month: month + 1 }
+              )
+            }
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md border hover:bg-gray-50"
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
+
+      {loading ? (
+        <div className="bg-white border rounded-xl p-12 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400 mx-auto" />
+        </div>
+      ) : (
+        <div className="bg-white border rounded-xl overflow-hidden">
+          {/* Weekday header */}
+          <div className="grid grid-cols-7 border-b">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => (
+              <div
+                key={d}
+                className={cn(
+                  "py-2 px-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500",
+                  i > 0 && "border-l"
+                )}
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+
+          {/* Grid */}
+          <div className="grid grid-cols-7">
+            {grid.map((date, i) => {
+              const dateStr = date.toDateString();
+              const dayTasks = tasksByDate[dateStr] || [];
+              const isToday = dateStr === todayStr;
+              const inMonth = date.getMonth() === viewMonth.month;
+              const dow = i % 7;
+              const isWeekend = dow >= 5;
+              const isAdding = addingDate === dateStr;
+              const visible = dayTasks.slice(0, 3);
+              const extra = dayTasks.length - visible.length;
+
+              return (
+                <div
+                  key={dateStr + i}
+                  onClick={(e) => {
+                    if (e.currentTarget === e.target && !isAdding) {
+                      setAddingDate(dateStr);
+                      setNewTaskName("");
+                    }
+                  }}
+                  className={cn(
+                    "min-h-[110px] p-1.5 cursor-pointer relative flex flex-col gap-1 group",
+                    dow > 0 && "border-l",
+                    Math.floor(i / 7) > 0 && "border-t",
+                    !inMonth && "bg-gray-50/40",
+                    isWeekend && inMonth && "bg-gray-50/20",
+                    isToday && "bg-[#c9a84c]/5",
+                    isAdding && "ring-2 ring-[#c9a84c]/60 ring-inset"
+                  )}
+                >
+                  {/* Day number */}
+                  <div className="flex items-center justify-between pointer-events-none">
+                    <span
+                      className={cn(
+                        "text-[11px] font-mono tabular-nums",
+                        !inMonth && "text-gray-300",
+                        inMonth && !isToday && "text-gray-700",
+                        isToday &&
+                          "bg-black text-white rounded-full w-5 h-5 flex items-center justify-center font-semibold text-[10px]"
+                      )}
+                    >
+                      {date.getDate()}
+                    </span>
+                    {dayTasks.length > 3 && (
+                      <span className="text-[9px] font-mono tabular-nums text-gray-400">
+                        {dayTasks.length}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Task pills */}
+                  {visible.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/projects/${t.project?.id || ""}`);
+                      }}
+                      title={`${t.name}${t.project ? ` · ${t.project.name}` : ""}`}
+                      className={cn(
+                        "w-full text-left text-[10px] leading-tight px-1.5 py-[2px] truncate rounded-sm font-medium",
+                        t.completed
+                          ? "bg-gray-100 text-gray-400 line-through"
+                          : "bg-[#c9a84c] text-white hover:bg-[#a8893a]"
+                      )}
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                  {extra > 0 && (
+                    <span className="text-[9px] text-gray-500 pl-1">
+                      +{extra} more
+                    </span>
+                  )}
+
+                  {/* Inline add input */}
+                  {isAdding && (
+                    <div
+                      className="bg-white border border-[#c9a84c] rounded-sm shadow-sm mt-auto"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        autoFocus
+                        type="text"
+                        value={newTaskName}
+                        onChange={(e) => setNewTaskName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            commitInlineTask(date);
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            setAddingDate(null);
+                            setNewTaskName("");
+                          }
+                        }}
+                        onBlur={() => commitInlineTask(date)}
+                        disabled={creating}
+                        placeholder="Task name…"
+                        className="w-full px-1.5 py-1 text-[10px] bg-transparent border-none outline-none placeholder:text-gray-400"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {projects.length === 0 && !loading && (
+        <p className="text-xs text-gray-500 mt-3">
+          This team has no linked projects yet. Add a project to start tracking
+          tasks on the calendar.
+        </p>
+      )}
     </div>
   );
 }

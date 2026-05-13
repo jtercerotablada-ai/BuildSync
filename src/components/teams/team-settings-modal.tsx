@@ -6,7 +6,6 @@ import {
   Mail,
   Lock,
   Users,
-  BadgeCheck,
   Trash2,
   Loader2,
   UserPlus,
@@ -252,30 +251,11 @@ export function TeamSettingsModal({
                 />
               </div>
 
-              {/* Team status (premium - disabled) */}
-              <div className="space-y-2">
-                <Label className="text-sm text-gray-700">Team status</Label>
-                <div className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    disabled
-                    className="mt-1 opacity-50"
-                  />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Endorsed</span>
-                      <BadgeCheck className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-[#a8893a] hover:underline cursor-pointer" onClick={() => toast.info('TT Enterprise features coming soon')}>
-                        Upgrade to TT Enterprise
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Endorsed teams are recommended by admins in your organization.{" "}
-                      <button className="text-[#a8893a] hover:underline" onClick={() => toast.info('Endorsed teams are recommended by admins and appear highlighted in team directories.')}>Learn more</button>
-                    </p>
-                  </div>
-                </div>
-              </div>
+              {/* "Team status" block (Endorsed teams + Upgrade to TT
+                  Enterprise) lived here. Both options routed to
+                  "coming soon" toasts and the checkbox was hard-
+                  disabled. Removed until either lands as a real
+                  feature — keeps Settings honest about what works. */}
 
               {/* Team privacy */}
               <div className="space-y-3">
