@@ -176,28 +176,30 @@ export default function ProjectsPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
-      {/* Header — large title left, primary Create button right.
-          Matches the Asana "Buscar proyectos" pattern: big page
-          title in dedicated row, blue CTA on the far right. */}
-      <div className="flex items-center justify-between px-4 md:px-8 pt-6 md:pt-8 pb-4">
-        <h1 className="text-[22px] md:text-[28px] font-semibold text-black tracking-tight">
-          Browse projects
-          <span className="ml-2 text-sm font-normal text-gray-400 tabular-nums">
-            {filtered.length}
-          </span>
-        </h1>
-        <Button
-          onClick={() => router.push("/projects/new")}
-          className="bg-black hover:bg-gray-900 text-white"
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          Create project
-        </Button>
-      </div>
+      {/* All chrome above the data lives in a single centered
+          container so the page reads like Asana's project browser:
+          title, search, filters, table all share the same gutter
+          and don't bleed edge-to-edge on wide screens. */}
+      <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-6 md:pt-8">
+        {/* Header — big title centered, Create button on the right. */}
+        <div className="flex items-center justify-between mb-5">
+          <h1 className="text-[22px] md:text-[28px] font-semibold text-black tracking-tight">
+            Browse projects
+            <span className="ml-2 text-sm font-normal text-gray-400 tabular-nums">
+              {filtered.length}
+            </span>
+          </h1>
+          <Button
+            onClick={() => router.push("/projects/new")}
+            className="bg-black hover:bg-gray-900 text-white"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            Create project
+          </Button>
+        </div>
 
-      {/* Search — full-width, prominent. */}
-      <div className="px-4 md:px-8 pb-3">
-        <div className="relative max-w-full">
+        {/* Search */}
+        <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             type="search"
@@ -207,83 +209,81 @@ export default function ProjectsPage() {
             className="pl-9 h-10 w-full bg-gray-50 border-gray-200 focus-visible:bg-white"
           />
         </div>
-      </div>
 
-      {/* Filter chips row — each filter is a dropdown chip Asana-
-          style. Cleaner than the previous inline button group when
-          the gate axis has 5 options. The view switcher sits on the
-          right of the same row. */}
-      <div className="flex flex-wrap items-center gap-2 px-4 md:px-8 pb-4">
-        <FilterChip
-          label="Type"
-          activeLabel={typeFilter === "ALL" ? null : TYPE_LABEL[typeFilter as ProjectType]}
-          options={[
-            { value: "ALL", label: "All types" },
-            ...(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"] as const).map(
-              (t) => ({ value: t, label: TYPE_LABEL[t] })
-            ),
-          ]}
-          value={typeFilter}
-          onChange={(v) => setTypeFilter(v as ProjectType | "ALL")}
-        />
-        <FilterChip
-          label="Gate"
-          activeLabel={gateFilter === "ALL" ? null : GATE_LABEL[gateFilter as ProjectGate]}
-          options={[
-            { value: "ALL", label: "All gates" },
-            ...(
+        {/* Filter chips + view switcher */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <FilterChip
+            label="Type"
+            activeLabel={typeFilter === "ALL" ? null : TYPE_LABEL[typeFilter as ProjectType]}
+            options={[
+              { value: "ALL", label: "All types" },
+              ...(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"] as const).map(
+                (t) => ({ value: t, label: TYPE_LABEL[t] })
+              ),
+            ]}
+            value={typeFilter}
+            onChange={(v) => setTypeFilter(v as ProjectType | "ALL")}
+          />
+          <FilterChip
+            label="Gate"
+            activeLabel={gateFilter === "ALL" ? null : GATE_LABEL[gateFilter as ProjectGate]}
+            options={[
+              { value: "ALL", label: "All gates" },
+              ...(
+                [
+                  "PRE_DESIGN",
+                  "DESIGN",
+                  "PERMITTING",
+                  "CONSTRUCTION",
+                  "CLOSEOUT",
+                ] as const
+              ).map((g) => ({ value: g, label: GATE_LABEL[g] })),
+            ]}
+            value={gateFilter}
+            onChange={(v) => setGateFilter(v as ProjectGate | "ALL")}
+          />
+
+          <div className="ml-auto flex items-center bg-white border rounded-md overflow-hidden">
+            {(
               [
-                "PRE_DESIGN",
-                "DESIGN",
-                "PERMITTING",
-                "CONSTRUCTION",
-                "CLOSEOUT",
+                { id: "list" as View, icon: List, label: "List" },
+                { id: "grid" as View, icon: LayoutGrid, label: "Grid" },
+                { id: "gantt" as View, icon: GanttChart, label: "Gantt" },
               ] as const
-            ).map((g) => ({ value: g, label: GATE_LABEL[g] })),
-          ]}
-          value={gateFilter}
-          onChange={(v) => setGateFilter(v as ProjectGate | "ALL")}
-        />
-
-        {/* View switcher — Grid / List / Gantt. The timeline view
-            is the differentiator vs Asana. */}
-        <div className="ml-auto flex items-center bg-white border rounded-md overflow-hidden">
-          {(
-            [
-              { id: "list" as View, icon: List, label: "List" },
-              { id: "grid" as View, icon: LayoutGrid, label: "Grid" },
-              { id: "gantt" as View, icon: GanttChart, label: "Gantt" },
-            ] as const
-          ).map((opt) => {
-            const Icon = opt.icon;
-            return (
-              <button
-                key={opt.id}
-                onClick={() => setView(opt.id)}
-                aria-label={`${opt.label} view`}
-                title={`${opt.label} view`}
-                className={cn(
-                  "p-1.5 transition-colors",
-                  view === opt.id
-                    ? "bg-black text-white"
-                    : "text-gray-500 hover:text-black hover:bg-gray-50"
-                )}
-              >
-                <Icon className="w-4 h-4" />
-              </button>
-            );
-          })}
+            ).map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setView(opt.id)}
+                  aria-label={`${opt.label} view`}
+                  title={`${opt.label} view`}
+                  className={cn(
+                    "p-1.5 transition-colors",
+                    view === opt.id
+                      ? "bg-black text-white"
+                      : "text-gray-500 hover:text-black hover:bg-gray-50"
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
+      {/* Content — Grid and List share the same centered max-width
+          container as the header above. Gantt opts out: the
+          timeline is a horizontal scroll view and wants the full
+          page width to show as many weeks as possible. */}
+      <div className="flex-1 overflow-auto pb-8">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-16">
+          <div className="flex flex-col items-center justify-center h-full py-16 px-4">
             <div className="w-16 h-16 bg-white border border-black rounded-full flex items-center justify-center mb-4">
               <Folder className="h-8 w-8 text-black" />
             </div>
@@ -309,13 +309,17 @@ export default function ProjectsPage() {
           </div>
         ) : view === "gantt" ? (
           <GanttTimeline projects={filtered} />
-        ) : view === "list" ? (
-          <ProjectsListView
-            projects={filtered}
-            onRowClick={(id) => router.push(`/projects/${id}`)}
-          />
         ) : (
-          <ProjectsGridView projects={filtered} />
+          <div className="max-w-7xl w-full mx-auto px-4 md:px-6">
+            {view === "list" ? (
+              <ProjectsListView
+                projects={filtered}
+                onRowClick={(id) => router.push(`/projects/${id}`)}
+              />
+            ) : (
+              <ProjectsGridView projects={filtered} />
+            )}
+          </div>
         )}
       </div>
     </div>
