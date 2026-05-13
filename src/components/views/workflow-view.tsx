@@ -28,6 +28,10 @@ import {
   type WorkflowRuleRow,
   ACTION_LABELS,
 } from "@/lib/workflow-types";
+import {
+  WorkflowActionDialog,
+  actionNeedsConfig,
+} from "@/components/views/workflow-action-dialog";
 
 // ============================================
 // TYPES
@@ -105,6 +109,16 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
+  // Action-configuration dialog state. When the user picks an action
+  // type that needs config (assignee, comment template, project, etc.)
+  // we open this dialog instead of POSTing a placeholder rule. Only
+  // MARK_COMPLETE bypasses the dialog because it has no targets to
+  // pick.
+  const [pendingAction, setPendingAction] = useState<{
+    sectionId: string;
+    actionType: WorkflowActionType;
+  } | null>(null);
+
   // ── Initial fetch ───────────────────────────────────────────
   useEffect(() => {
     let canceled = false;
@@ -148,12 +162,25 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
   }, {});
 
   // ── Mutations ──────────────────────────────────────────────
-  const addAction = async (
+
+  // Entry point from the per-section "+ Add action" menu. If the
+  // action needs config (assignee, comment template, project), we
+  // open the dialog; if not (MARK_COMPLETE), we POST directly.
+  const startAddAction = (
     sectionId: string,
     actionType: WorkflowActionType
   ) => {
+    if (!actionNeedsConfig(actionType)) {
+      commitAction(sectionId, makeDefaultAction(actionType));
+      return;
+    }
+    setPendingAction({ sectionId, actionType });
+  };
+
+  // Actually POST a configured action — called either directly
+  // (MARK_COMPLETE) or from the dialog's onConfirm.
+  const commitAction = async (sectionId: string, action: WorkflowAction) => {
     try {
-      const action = makeDefaultAction(actionType);
       const res = await fetch(
         `/api/projects/${projectId}/workflow/rules`,
         {
@@ -173,7 +200,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
       setWorkflow((prev) =>
         prev ? { ...prev, rules: [...prev.rules, created] } : prev
       );
-      toast.success(`${ACTION_LABELS[actionType]} added`);
+      toast.success(`${ACTION_LABELS[action.type]} configured`);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to add rule"
@@ -236,13 +263,12 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                     workflow?.rules.length === 1 ? "" : "s"
                   } configured.`}
             </p>
-            {/* Phase-2 disclosure: actions persist now, but the
-                trigger engine ships in the next phase. We say it
-                out loud so the user knows what to expect. */}
+            {/* Active: rules run automatically the moment a task
+                lands in this section (via List drag, Board drop,
+                Timeline edit, or PATCH on any other view). */}
             <p className="text-[11px] text-[#a8893a] mt-3 leading-snug">
-              ⓘ Rules persist but only fire automatically once Phase 2
-              (the trigger engine) ships. For now they're configuration
-              you can audit before turning on.
+              ⓘ Rules fire automatically when a task is moved into
+              the matching section, from any view.
             </p>
           </div>
 
@@ -296,7 +322,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                 <SectionCard
                   section={section}
                   rules={rulesBySection[section.id] || []}
-                  onAddAction={(type) => addAction(section.id, type)}
+                  onAddAction={(type) => startAddAction(section.id, type)}
                   onRemoveRule={removeRule}
                 />
                 {index < sections.length - 1 && (
@@ -309,6 +335,25 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Action configuration dialog — opens when the picked action
+          needs targets (assignee, collaborators, comment template,
+          project). MARK_COMPLETE skips this dialog and commits
+          straight from startAddAction. */}
+      <WorkflowActionDialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingAction(null);
+        }}
+        actionType={pendingAction?.actionType ?? null}
+        projectId={projectId}
+        onConfirm={(action) => {
+          if (pendingAction) {
+            commitAction(pendingAction.sectionId, action);
+            setPendingAction(null);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   NotFoundError,
   getErrorStatus,
 } from "@/lib/auth-guards";
+import { executeRulesOnSectionChange } from "@/lib/workflow-engine";
 
 const reorderSchema = z.object({
   sectionId: z.string().min(1),
@@ -62,6 +63,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // Snapshot which tasks are entering this section for the first
+    // time (their old sectionId differs from the destination) so we
+    // can fire workflow rules AFTER the transaction commits. Tasks
+    // that were already in this section and just reordered don't
+    // re-fire rules — that would compound side effects on every
+    // drag inside the same column.
+    const preMove = await prisma.task.findMany({
+      where: { id: { in: orderedTaskIds } },
+      select: { id: true, sectionId: true, projectId: true },
+    });
+    const incomingTasks = preMove.filter((t) => t.sectionId !== sectionId);
+
     // Atomic renumber. Index in orderedTaskIds becomes the position,
     // and we also nail the sectionId in case any task is being moved
     // into this section from elsewhere as part of the same gesture.
@@ -73,6 +86,18 @@ export async function POST(req: Request) {
         })
       )
     );
+
+    // Fire workflow rules for each task that just crossed sections.
+    // Engine is fire-and-forget — failures get logged inside and
+    // never break the reorder response.
+    for (const t of incomingTasks) {
+      if (!t.projectId) continue;
+      await executeRulesOnSectionChange(
+        { taskId: t.id, actorUserId: userId },
+        sectionId,
+        t.projectId
+      );
+    }
 
     return NextResponse.json({
       success: true,

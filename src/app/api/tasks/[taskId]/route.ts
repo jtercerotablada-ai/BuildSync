@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { GoalProgressService } from "@/lib/goal-progress";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { executeRulesOnSectionChange } from "@/lib/workflow-engine";
 
 const updateTaskSchema = z.object({
   name: z.string().min(1).optional(),
@@ -402,6 +403,28 @@ export async function PATCH(
         // Log but don't fail the request if progress calculation fails
         console.error("Error recalculating goal progress:", progressError);
       }
+    }
+
+    // Fire workflow rules when a task lands in a new section. The
+    // engine is fire-and-forget for caller purposes — any rule
+    // failure is logged inside the engine and never propagates
+    // back to the user's task move. The new sectionId we look up
+    // is whatever ended up in updateData.sectionId (could come
+    // from explicit section change OR auto-assign on project move).
+    const newSectionId =
+      typeof updateData.sectionId === "string" ? updateData.sectionId : null;
+    const sectionDidChange =
+      newSectionId !== null && newSectionId !== existingTask.sectionId;
+    const projectIdForRules = task.projectId;
+    if (sectionDidChange && projectIdForRules) {
+      // Awaited so the response goes out with side-effects applied,
+      // keeping the UI consistent on refresh. If performance ever
+      // becomes a concern this can be queued instead.
+      await executeRulesOnSectionChange(
+        { taskId, actorUserId: userId },
+        newSectionId,
+        projectIdForRules
+      );
     }
 
     return NextResponse.json(task);
