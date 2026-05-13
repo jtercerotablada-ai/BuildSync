@@ -40,6 +40,8 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  Diamond,
+  ThumbsUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, isToday, isTomorrow, isPast, parseISO } from "date-fns";
@@ -49,6 +51,8 @@ import { toast } from "sonner";
 // TYPES
 // ============================================
 
+type TaskType = "TASK" | "MILESTONE" | "APPROVAL";
+
 interface Task {
   id: string;
   name: string;
@@ -56,6 +60,7 @@ interface Task {
   completed: boolean;
   dueDate: string | null;
   priority: string;
+  taskType?: TaskType | null;
   assignee: {
     id: string;
     name: string | null;
@@ -824,20 +829,12 @@ function SortableTaskCard({
       )}
       onClick={onClick}
     >
-      {/* Top row: checkbox + name */}
+      {/* Top row: type-aware completion icon + name. MILESTONE = gold
+          Diamond, APPROVAL = gold ThumbsUp, default regular task =
+          round checkbox. Matches the same convention as List view + AEC
+          tools (MS Project / Primavera). */}
       <div className="flex items-start gap-2">
-        <button
-          onClick={handleToggleComplete}
-          className={cn(
-            "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
-            task.completed
-              ? "bg-[#c9a84c] border-[#c9a84c]"
-              : "border-slate-300 hover:border-slate-400"
-          )}
-        >
-          {task.completed && <Check className="w-3 h-3 text-white" />}
-        </button>
-
+        <CardCompletionIcon task={task} onToggle={handleToggleComplete} />
         <span
           className={cn(
             "text-[13px] leading-snug flex-1 min-w-0",
@@ -898,14 +895,7 @@ function TaskCardOverlay({ task }: { task: Task }) {
   return (
     <div className="bg-white rounded-lg shadow-xl border border-slate-200 p-3 w-[280px] cursor-grabbing rotate-[2deg]">
       <div className="flex items-start gap-2">
-        <div
-          className={cn(
-            "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5",
-            task.completed ? "bg-[#c9a84c] border-[#c9a84c]" : "border-slate-300"
-          )}
-        >
-          {task.completed && <Check className="w-3 h-3 text-white" />}
-        </div>
+        <CardCompletionIcon task={task} onToggle={() => {}} />
         <span className="text-[13px] leading-snug flex-1 min-w-0 text-slate-800">
           {task.name}
         </span>
@@ -924,6 +914,60 @@ function TaskCardOverlay({ task }: { task: Task }) {
         </div>
       )}
     </div>
+  );
+}
+
+// =============================================================
+// CARD COMPLETION ICON (shared by SortableBoardCard + Overlay)
+// =============================================================
+function CardCompletionIcon({
+  task,
+  onToggle,
+}: {
+  task: Task;
+  onToggle: (e: React.MouseEvent) => void;
+}) {
+  if (task.taskType === "MILESTONE") {
+    return (
+      <button
+        onClick={onToggle}
+        className={cn(
+          "flex items-center justify-center flex-shrink-0 mt-0.5",
+          task.completed ? "text-[#a8893a]" : "text-[#c9a84c] hover:text-[#a8893a]"
+        )}
+        aria-label={task.completed ? "Mark milestone incomplete" : "Mark milestone complete"}
+      >
+        <Diamond className="w-4 h-4" />
+      </button>
+    );
+  }
+  if (task.taskType === "APPROVAL") {
+    return (
+      <button
+        onClick={onToggle}
+        className={cn(
+          "flex items-center justify-center flex-shrink-0 mt-0.5",
+          task.completed ? "text-[#a8893a]" : "text-[#c9a84c] hover:text-[#a8893a]"
+        )}
+        aria-label={task.completed ? "Mark approval incomplete" : "Approve"}
+      >
+        <ThumbsUp className="w-4 h-4" />
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={onToggle}
+      className={cn(
+        "w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
+        task.completed
+          ? "bg-[#c9a84c] border-[#c9a84c]"
+          : "border-slate-300 hover:border-slate-400"
+      )}
+      aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
+    >
+      {task.completed && <Check className="w-3 h-3 text-white" />}
+    </button>
   );
 }
 

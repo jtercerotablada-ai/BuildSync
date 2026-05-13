@@ -74,6 +74,10 @@ interface Task {
   completed: boolean;
   dueDate: string | null;
   priority: string;
+  // Engineering-firm task taxonomy: regular task, milestone (Diamond
+  // icon), or approval gate (ThumbsUp). Optional so legacy rows that
+  // never had the column populated keep deserializing.
+  taskType?: "TASK" | "MILESTONE" | "APPROVAL" | null;
   assignee: {
     id: string;
     name: string | null;

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,6 +29,10 @@ import {
   CheckCircle2,
   ArrowRight,
   X,
+  Check,
+  Diamond,
+  ThumbsUp,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, isToday, isTomorrow, isPast, parseISO } from "date-fns";
@@ -35,6 +40,27 @@ import { toast } from "sonner";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
 import type { FieldTypeConfig } from "@/lib/field-types";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  MeasuringStrategy,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragOverEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { kanbanCollisionDetection } from "@/lib/kanban-collision-detection";
+
+type TaskType = "TASK" | "MILESTONE" | "APPROVAL";
 
 interface Task {
   id: string;
@@ -43,6 +69,10 @@ interface Task {
   completed: boolean;
   dueDate: string | null;
   priority: string;
+  // Optional so legacy rows / cached pages keep rendering; the API
+  // serializes the enum verbatim when present and the UI swaps the
+  // round checkbox for a Diamond (milestone) or ThumbsUp (approval).
+  taskType?: TaskType | null;
   assignee: {
     id: string;
     name: string | null;
@@ -111,9 +141,171 @@ export function ListView({
   const [preselectedFieldName, setPreselectedFieldName] = useState("");
   const [initialTab, setInitialTab] = useState<"create" | "library">("create");
 
-  const allTaskIds = sections.flatMap((s) => s.tasks.map((t) => t.id));
+  // Drag & drop state — same pattern as my-tasks ListDndProvider.
+  // localSections is the optimistic source of truth during a drag so
+  // the user sees the task land in the new position before the server
+  // round-trip completes. handleDragOver mutates it cross-section;
+  // handleDragEnd commits the final position to the server.
+  const [localSections, setLocalSections] = useState<Section[]>(sections);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const isDraggingRef = useRef(false);
+  const dragSourceSectionRef = useRef<string | null>(null);
+
+  // Sync from server props — but never clobber an in-flight drag.
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    setLocalSections(sections);
+  }, [sections]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  );
+
+  const allTaskIds = useMemo(
+    () => localSections.flatMap((s) => s.tasks.map((t) => t.id)),
+    [localSections]
+  );
   const allSelected = allTaskIds.length > 0 && allTaskIds.every((id) => selectedTasks.has(id));
   const someSelected = selectedTasks.size > 0;
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const id = event.active.id as string;
+    isDraggingRef.current = true;
+    for (const section of localSections) {
+      const task = section.tasks.find((t) => t.id === id);
+      if (task) {
+        setActiveTask(task);
+        dragSourceSectionRef.current = section.id;
+        break;
+      }
+    }
+  }, [localSections]);
+
+  // Mid-drag updater that runs entirely inside setLocalSections so
+  // there are no stale closure reads of localSections. This is the
+  // exact pattern that makes the my-tasks list drag visually fluid
+  // across columns without the dreaded bounce-back.
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    setLocalSections((prev) => {
+      const srcSection = prev.find((s) =>
+        s.tasks.some((t) => t.id === activeId)
+      );
+      if (!srcSection) return prev;
+
+      let destSection = prev.find((s) => s.id === overId);
+      if (!destSection) {
+        destSection = prev.find((s) =>
+          s.tasks.some((t) => t.id === overId)
+        );
+      }
+      if (!destSection || srcSection.id === destSection.id) return prev;
+
+      const task = srcSection.tasks.find((t) => t.id === activeId);
+      if (!task) return prev;
+
+      return prev.map((s) => {
+        if (s.id === srcSection.id) {
+          return { ...s, tasks: s.tasks.filter((t) => t.id !== activeId) };
+        }
+        if (s.id === destSection!.id) {
+          const idx = s.tasks.findIndex((t) => t.id === overId);
+          const newTasks = [...s.tasks];
+          if (idx >= 0) newTasks.splice(idx, 0, task);
+          else newTasks.push(task);
+          return { ...s, tasks: newTasks };
+        }
+        return s;
+      });
+    });
+  }, []);
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      const originalSourceId = dragSourceSectionRef.current;
+      setActiveTask(null);
+      dragSourceSectionRef.current = null;
+      isDraggingRef.current = false;
+
+      if (!over) return;
+      const activeId = active.id as string;
+      const overId = over.id as string;
+
+      // Resolve destination section from current localSections
+      // (which handleDragOver has already pre-mutated for cross-
+      // section drags).
+      let destSectionId: string | undefined;
+      if (localSections.some((s) => s.id === overId)) {
+        destSectionId = overId;
+      } else {
+        for (const s of localSections) {
+          if (s.tasks.some((t) => t.id === overId)) {
+            destSectionId = s.id;
+            break;
+          }
+        }
+      }
+      if (!destSectionId) return;
+
+      const destSection = localSections.find((s) => s.id === destSectionId);
+      if (!destSection) return;
+      const destIndex = destSection.tasks.findIndex(
+        (t) => t.id === activeId
+      );
+
+      // Same-section reorder (no section change): use arrayMove for
+      // the local optimistic update, then persist position.
+      if (originalSourceId === destSectionId && overId !== destSectionId) {
+        const oldIndex = sections
+          .find((s) => s.id === destSectionId)
+          ?.tasks.findIndex((t) => t.id === activeId);
+        const newIndex = sections
+          .find((s) => s.id === destSectionId)
+          ?.tasks.findIndex((t) => t.id === overId);
+        if (
+          oldIndex !== undefined &&
+          newIndex !== undefined &&
+          oldIndex >= 0 &&
+          newIndex >= 0 &&
+          oldIndex !== newIndex
+        ) {
+          setLocalSections((prev) =>
+            prev.map((s) =>
+              s.id === destSectionId
+                ? { ...s, tasks: arrayMove(s.tasks, oldIndex, newIndex) }
+                : s
+            )
+          );
+        }
+      }
+
+      // Persist to the server. The PATCH endpoint already accepts
+      // sectionId + position for both same-section reorders and
+      // cross-section moves.
+      try {
+        const res = await fetch(`/api/tasks/${activeId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sectionId: destSectionId,
+            position: destIndex >= 0 ? destIndex : 0,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed");
+        router.refresh();
+      } catch {
+        toast.error("Failed to move task");
+        // Roll back to server truth.
+        setLocalSections(sections);
+      }
+    },
+    [localSections, sections, router]
+  );
 
   const toggleTaskSelection = (taskId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -378,9 +570,21 @@ export function ListView({
         </div>
       </div>
 
-      {/* Sections and Tasks */}
+      {/* Sections and Tasks — wrapped in DndContext so rows can be
+          dragged within a section (reorder) and across sections
+          (move). The pattern matches my-tasks ListDndProvider: source
+          row is hidden via opacity:0 during drag, a portal-mounted
+          DragOverlay renders the ghost, no bounce-back. */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={kanbanCollisionDetection}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      >
       <div className="flex-1 overflow-auto">
-        {sections.map((section) => (
+        {localSections.map((section) => (
           <div key={section.id} className="border-b border-slate-200">
             {/* Section Header */}
             <div className="flex items-center gap-2 px-3 md:px-6 py-2 hover:bg-slate-50 group">
@@ -448,253 +652,33 @@ export function ListView({
 
             {/* Section Content */}
             {expandedSections.has(section.id) && (
+              <SortableContext
+                items={section.tasks.map((t) => t.id)}
+                strategy={verticalListSortingStrategy}
+                id={section.id}
+              >
               <div>
                 {/* Tasks */}
                 {section.tasks.map((task) => (
-                  <div key={task.id}>
-                    {/* ===== Mobile Task Card ===== */}
-                    <div
-                      className="md:hidden mobile-task-card"
-                      onClick={() => onTaskClick(task.id)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleTaskComplete(e, task.id, task.completed);
-                          }}
-                          className={cn(
-                            "mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
-                            task.completed
-                              ? "bg-[#c9a84c] border-[#c9a84c]"
-                              : "border-gray-300"
-                          )}
-                        >
-                          {task.completed && (
-                            <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
-                              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          )}
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm font-medium leading-tight", task.completed && "line-through text-gray-400")}>
-                            {task.name}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                            {task.dueDate && (
-                              <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
-                                !task.completed && isOverdue(task.dueDate) ? "bg-gray-100 text-black" : "bg-gray-100 text-gray-600"
-                              )}>
-                                <CalendarDays className="h-3 w-3" />
-                                {formatMobileDate(task.dueDate)}
-                              </span>
-                            )}
-                            {task.priority && task.priority !== "NONE" && (
-                              <span className={cn("inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
-                                task.priority === "HIGH" ? "bg-gray-100 text-black" :
-                                task.priority === "MEDIUM" ? "bg-[#a8893a]/10 text-[#a8893a]" :
-                                "bg-[#c9a84c]/10 text-[#a8893a]"
-                              )}>
-                                {task.priority === "HIGH" ? "\u{1F534}" : task.priority === "MEDIUM" ? "\u{1F7E1}" : "\u{1F535}"}
-                                {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
-                              </span>
-                            )}
-                            {task._count.subtasks > 0 && (
-                              <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                                {task.subtasks.filter((s) => s.completed).length}/{task._count.subtasks} subtasks
-                              </span>
-                            )}
-                          </div>
-                          {task.assignee && (
-                            <div className="flex items-center gap-1.5 mt-1.5">
-                              <div className="h-5 w-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-medium text-gray-600 overflow-hidden">
-                                {task.assignee.image ? (
-                                  <img src={task.assignee.image} className="h-full w-full object-cover" alt="" />
-                                ) : (
-                                  task.assignee.name?.[0]
-                                )}
-                              </div>
-                              <span className="text-xs text-gray-500">{task.assignee.name}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* ===== Desktop Grid Row ===== */}
-                    <div
-                      className="hidden md:grid grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-100 group"
-                      onClick={() => onTaskClick(task.id)}
-                    >
-                      {/* Checkbox - select or complete */}
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={selectedTasks.has(task.id) || (!someSelected && task.completed)}
-                          onClick={(e) => {
-                            if (someSelected) {
-                              toggleTaskSelection(task.id, e);
-                            } else {
-                              handleTaskComplete(e, task.id, task.completed);
-                            }
-                          }}
-                          className={cn(
-                            someSelected ? "rounded" : "rounded-full",
-                            selectedTasks.has(task.id) && "border-[#c9a84c] data-[state=checked]:bg-[#c9a84c]"
-                          )}
-                        />
-                      </div>
-
-                      {/* Task Name - Inline Editable */}
-                      <div className="flex items-center gap-2 min-w-0" onClick={(e) => e.stopPropagation()}>
-                        {editingTaskId === task.id && editingField === "name" ? (
-                          <input
-                            type="text"
-                            value={editingValue}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveInlineEdit(task.id, "name", editingValue);
-                              if (e.key === "Escape") cancelEditing();
-                            }}
-                            onBlur={() => saveInlineEdit(task.id, "name", editingValue)}
-                            className="w-full px-1 py-0.5 text-sm outline-none border-b-2 border-[#c9a84c] bg-transparent"
-                            autoFocus
-                          />
-                        ) : (
-                          <span
-                            className={cn(
-                              "truncate text-sm cursor-text hover:bg-slate-100 px-1 py-0.5 rounded -mx-1",
-                              task.completed && "line-through text-slate-400"
-                            )}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEditing(task.id, "name", task.name);
-                            }}
-                          >
-                            {task.name}
-                          </span>
-                        )}
-                        {!(editingTaskId === task.id && editingField === "name") && (
-                          <>
-                            {task._count.subtasks > 0 && (
-                              <span className="text-xs text-slate-500 flex-shrink-0" onClick={() => onTaskClick(task.id)}>
-                                {task.subtasks.filter((s) => s.completed).length}/
-                                {task._count.subtasks}
-                              </span>
-                            )}
-                            {task._count.comments > 0 && (
-                              <MessageSquare className="h-3 w-3 text-slate-400 flex-shrink-0" onClick={() => onTaskClick(task.id)} />
-                            )}
-                            {task._count.attachments > 0 && (
-                              <Paperclip className="h-3 w-3 text-slate-400 flex-shrink-0" onClick={() => onTaskClick(task.id)} />
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      {/* Assignee */}
-                      <div>
-                        {task.assignee ? (
-                          <div className="flex items-center gap-2">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={task.assignee.image || ""} />
-                              <AvatarFallback className="text-xs bg-[#d4b65a] text-white">
-                                {task.assignee.name?.[0] || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm text-slate-700 truncate">
-                              {task.assignee.name}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
-                            <User className="w-3 h-3 text-slate-300" />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Due Date - Inline Editable */}
-                      <div onClick={(e) => e.stopPropagation()}>
-                        {editingTaskId === task.id && editingField === "dueDate" ? (
-                          <input
-                            type="date"
-                            value={editingValue}
-                            onChange={(e) => {
-                              saveInlineEdit(task.id, "dueDate", e.target.value);
-                            }}
-                            onBlur={() => cancelEditing()}
-                            onKeyDown={(e) => { if (e.key === "Escape") cancelEditing(); }}
-                            className="text-sm border rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 w-full"
-                            autoFocus
-                          />
-                        ) : (
-                          <div
-                            className="cursor-pointer hover:bg-slate-100 rounded px-1 py-0.5 -mx-1"
-                            onClick={() => startEditing(task.id, "dueDate", task.dueDate ? task.dueDate.split("T")[0] : "")}
-                          >
-                            {task.dueDate ? (
-                              <DueDateBadge dueDate={task.dueDate} completed={task.completed} />
-                            ) : (
-                              <span className="text-slate-400 text-sm">---</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Priority - Inline Editable */}
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className="hover:bg-slate-100 rounded px-1 py-0.5 -mx-1 w-full text-left">
-                              {task.priority && task.priority !== "NONE" ? (
-                                <Badge
-                                  variant="secondary"
-                                  className={cn(
-                                    "text-xs",
-                                    PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS]
-                                  )}
-                                >
-                                  {PRIORITY_LABELS[task.priority as keyof typeof PRIORITY_LABELS]}
-                                </Badge>
-                              ) : (
-                                <span className="text-slate-400 text-sm">---</span>
-                              )}
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start">
-                            {(["HIGH", "MEDIUM", "LOW", "NONE"] as const).map((p) => (
-                              <DropdownMenuItem
-                                key={p}
-                                onClick={() => saveInlineEdit(task.id, "priority", p)}
-                                className={cn(task.priority === p && "bg-slate-100")}
-                              >
-                                {p === "NONE" ? "No priority" : PRIORITY_LABELS[p]}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-
-                      {/* Status */}
-                      <div>
-                        {task.completed ? (
-                          <Badge variant="secondary" className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30">
-                            Done
-                          </Badge>
-                        ) : task.dueDate && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate)) ? (
-                          <Badge variant="secondary" className="text-xs bg-gray-100 text-black border-gray-300">
-                            Overdue
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30">
-                            To do
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Empty column for "+" */}
-                      <div></div>
-                    </div>
-                  </div>
+                  <SortableTaskRow
+                    key={task.id}
+                    task={task}
+                    sectionId={section.id}
+                    onTaskClick={onTaskClick}
+                    handleTaskComplete={handleTaskComplete}
+                    isOverdue={isOverdue}
+                    formatMobileDate={formatMobileDate}
+                    selectedTasks={selectedTasks}
+                    someSelected={someSelected}
+                    toggleTaskSelection={toggleTaskSelection}
+                    editingTaskId={editingTaskId}
+                    editingField={editingField}
+                    editingValue={editingValue}
+                    setEditingValue={setEditingValue}
+                    startEditing={startEditing}
+                    cancelEditing={cancelEditing}
+                    saveInlineEdit={saveInlineEdit}
+                  />
                 ))}
 
                 {/* Add Task Input - Inline */}
@@ -742,6 +726,7 @@ export function ListView({
                   <div className="hidden md:block"></div>
                 </div>
               </div>
+              </SortableContext>
             )}
           </div>
         ))}
@@ -755,6 +740,18 @@ export function ListView({
           Add section
         </button>
       </div>
+
+      {/* DragOverlay — portal-mounted ghost that follows the cursor.
+          The source row gets opacity:0 while this ghost is alive, so
+          the drop never reads as a snap-back. */}
+      {typeof window !== "undefined" &&
+        createPortal(
+          <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+            {activeTask && <TaskRowOverlay task={activeTask} />}
+          </DragOverlay>,
+          document.body
+        )}
+      </DndContext>
 
       {/* Floating Bulk Actions Bar */}
       {someSelected && (
@@ -864,6 +861,477 @@ function DueDateBadge({
     >
       <Calendar className="h-3 w-3" />
       {label}
+    </div>
+  );
+}
+
+// =============================================================
+// TASK COMPLETION ICON
+// =============================================================
+// MILESTONE → gold Diamond, APPROVAL → gold ThumbsUp, default
+// regular task → round checkbox. AEC users immediately recognize
+// the icons (Diamond = milestone is industry standard since
+// MS Project / Primavera).
+function TaskCompletionIcon({
+  task,
+  onToggle,
+  size = "default",
+}: {
+  task: Task;
+  onToggle: (e: React.MouseEvent) => void;
+  size?: "default" | "small";
+}) {
+  const dim = size === "small" ? "w-4 h-4" : "h-5 w-5";
+
+  if (task.taskType === "MILESTONE") {
+    return (
+      <button
+        onClick={onToggle}
+        className={cn(
+          "flex items-center justify-center flex-shrink-0",
+          task.completed ? "text-[#a8893a]" : "text-[#c9a84c] hover:text-[#a8893a]"
+        )}
+        aria-label={task.completed ? "Mark milestone incomplete" : "Mark milestone complete"}
+      >
+        <Diamond className={dim} />
+      </button>
+    );
+  }
+  if (task.taskType === "APPROVAL") {
+    return (
+      <button
+        onClick={onToggle}
+        className={cn(
+          "flex items-center justify-center flex-shrink-0",
+          task.completed ? "text-[#a8893a]" : "text-[#c9a84c] hover:text-[#a8893a]"
+        )}
+        aria-label={task.completed ? "Mark approval incomplete" : "Approve"}
+      >
+        <ThumbsUp className={dim} />
+      </button>
+    );
+  }
+  return (
+    <button
+      onClick={onToggle}
+      className={cn(
+        size === "small"
+          ? "w-[18px] h-[18px]"
+          : "h-5 w-5",
+        "rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+        task.completed
+          ? "bg-[#c9a84c] border-[#c9a84c]"
+          : "border-gray-300 hover:border-gray-400"
+      )}
+      aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
+    >
+      {task.completed && <Check className="h-3 w-3 text-white" />}
+    </button>
+  );
+}
+
+// =============================================================
+// SORTABLE TASK ROW
+// =============================================================
+// Wraps each row in useSortable so dnd-kit can register it as a
+// sortable item. The grip lives on the whole row (mirroring
+// my-tasks' approach) — a quick click still opens the slide-over,
+// a real drag motion starts the sortable drag past the 6px
+// activation threshold defined in ListView's sensor config.
+
+interface SortableTaskRowProps {
+  task: Task;
+  sectionId: string;
+  onTaskClick: (taskId: string) => void;
+  handleTaskComplete: (e: React.MouseEvent, taskId: string, completed: boolean) => void;
+  isOverdue: (dueDate: string) => boolean;
+  formatMobileDate: (dueDate: string) => string;
+  selectedTasks: Set<string>;
+  someSelected: boolean;
+  toggleTaskSelection: (taskId: string, e: React.MouseEvent) => void;
+  editingTaskId: string | null;
+  editingField: string | null;
+  editingValue: string;
+  setEditingValue: (v: string) => void;
+  startEditing: (taskId: string, field: string, currentValue: string) => void;
+  cancelEditing: () => void;
+  saveInlineEdit: (taskId: string, field: string, value: string) => Promise<void>;
+}
+
+function SortableTaskRow({
+  task,
+  onTaskClick,
+  handleTaskComplete,
+  isOverdue,
+  formatMobileDate,
+  selectedTasks,
+  someSelected,
+  toggleTaskSelection,
+  editingTaskId,
+  editingField,
+  editingValue,
+  setEditingValue,
+  startEditing,
+  cancelEditing,
+  saveInlineEdit,
+}: SortableTaskRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  // Hide the source row entirely while dragging — the portal-mounted
+  // DragOverlay paints the visual ghost. Anything other than full
+  // opacity:0 here reads as a "snap back" the moment the ghost fades.
+  const dragStyle: React.CSSProperties = isDragging
+    ? { opacity: 0, transition }
+    : {
+        transform: CSS.Transform.toString(transform),
+        transition,
+      };
+
+  const completionIcon = (
+    <TaskCompletionIcon
+      task={task}
+      onToggle={(e) => {
+        e.stopPropagation();
+        handleTaskComplete(e, task.id, task.completed);
+      }}
+    />
+  );
+
+  return (
+    <div ref={setNodeRef} style={dragStyle} {...attributes} {...listeners}>
+      {/* ===== Mobile Task Card ===== */}
+      <div
+        className="md:hidden mobile-task-card"
+        onClick={() => onTaskClick(task.id)}
+      >
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5">{completionIcon}</div>
+          <div className="flex-1 min-w-0">
+            <p
+              className={cn(
+                "text-sm font-medium leading-tight",
+                task.completed && "line-through text-gray-400"
+              )}
+            >
+              {task.name}
+            </p>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {task.dueDate && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
+                    !task.completed && isOverdue(task.dueDate)
+                      ? "bg-gray-100 text-black"
+                      : "bg-gray-100 text-gray-600"
+                  )}
+                >
+                  <CalendarDays className="h-3 w-3" />
+                  {formatMobileDate(task.dueDate)}
+                </span>
+              )}
+              {task.priority && task.priority !== "NONE" && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full",
+                    task.priority === "HIGH"
+                      ? "bg-gray-100 text-black"
+                      : task.priority === "MEDIUM"
+                        ? "bg-[#a8893a]/10 text-[#a8893a]"
+                        : "bg-[#c9a84c]/10 text-[#a8893a]"
+                  )}
+                >
+                  {task.priority.charAt(0) + task.priority.slice(1).toLowerCase()}
+                </span>
+              )}
+              {task._count.subtasks > 0 && (
+                <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                  {task.subtasks.filter((s) => s.completed).length}/
+                  {task._count.subtasks} subtasks
+                </span>
+              )}
+            </div>
+            {task.assignee && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <div className="h-5 w-5 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-medium text-gray-600 overflow-hidden">
+                  {task.assignee.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={task.assignee.image}
+                      className="h-full w-full object-cover"
+                      alt=""
+                    />
+                  ) : (
+                    task.assignee.name?.[0]
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">
+                  {task.assignee.name}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Desktop Grid Row ===== */}
+      <div
+        className="hidden md:grid grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-100 group"
+        onClick={() => onTaskClick(task.id)}
+      >
+        {/* Checkbox - select or complete (icon swaps per task type) */}
+        <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+          <GripVertical
+            className="h-3.5 w-3.5 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+            aria-hidden
+          />
+          {someSelected ? (
+            <Checkbox
+              checked={selectedTasks.has(task.id)}
+              onClick={(e) => toggleTaskSelection(task.id, e)}
+              className={cn(
+                "rounded",
+                selectedTasks.has(task.id) &&
+                  "border-[#c9a84c] data-[state=checked]:bg-[#c9a84c]"
+              )}
+            />
+          ) : (
+            <TaskCompletionIcon
+              task={task}
+              onToggle={(e) => {
+                e.stopPropagation();
+                handleTaskComplete(e, task.id, task.completed);
+              }}
+              size="small"
+            />
+          )}
+        </div>
+
+        {/* Task Name - Inline Editable */}
+        <div
+          className="flex items-center gap-2 min-w-0"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {editingTaskId === task.id && editingField === "name" ? (
+            <input
+              type="text"
+              value={editingValue}
+              onChange={(e) => setEditingValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter")
+                  saveInlineEdit(task.id, "name", editingValue);
+                if (e.key === "Escape") cancelEditing();
+              }}
+              onBlur={() => saveInlineEdit(task.id, "name", editingValue)}
+              className="w-full px-1 py-0.5 text-sm outline-none border-b-2 border-[#c9a84c] bg-transparent"
+              autoFocus
+            />
+          ) : (
+            <span
+              className={cn(
+                "truncate text-sm cursor-text hover:bg-slate-100 px-1 py-0.5 rounded -mx-1",
+                task.completed && "line-through text-slate-400"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                startEditing(task.id, "name", task.name);
+              }}
+            >
+              {task.name}
+            </span>
+          )}
+          {!(editingTaskId === task.id && editingField === "name") && (
+            <>
+              {task._count.subtasks > 0 && (
+                <span
+                  className="text-xs text-slate-500 flex-shrink-0"
+                  onClick={() => onTaskClick(task.id)}
+                >
+                  {task.subtasks.filter((s) => s.completed).length}/
+                  {task._count.subtasks}
+                </span>
+              )}
+              {task._count.comments > 0 && (
+                <MessageSquare
+                  className="h-3 w-3 text-slate-400 flex-shrink-0"
+                  onClick={() => onTaskClick(task.id)}
+                />
+              )}
+              {task._count.attachments > 0 && (
+                <Paperclip
+                  className="h-3 w-3 text-slate-400 flex-shrink-0"
+                  onClick={() => onTaskClick(task.id)}
+                />
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Assignee */}
+        <div>
+          {task.assignee ? (
+            <div className="flex items-center gap-2">
+              <Avatar className="h-6 w-6">
+                <AvatarImage src={task.assignee.image || ""} />
+                <AvatarFallback className="text-xs bg-[#d4b65a] text-white">
+                  {task.assignee.name?.[0] || "?"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm text-slate-700 truncate">
+                {task.assignee.name}
+              </span>
+            </div>
+          ) : (
+            <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center">
+              <User className="w-3 h-3 text-slate-300" />
+            </div>
+          )}
+        </div>
+
+        {/* Due Date - Inline Editable */}
+        <div onClick={(e) => e.stopPropagation()}>
+          {editingTaskId === task.id && editingField === "dueDate" ? (
+            <input
+              type="date"
+              value={editingValue}
+              onChange={(e) => {
+                saveInlineEdit(task.id, "dueDate", e.target.value);
+              }}
+              onBlur={() => cancelEditing()}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") cancelEditing();
+              }}
+              className="text-sm border rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 w-full"
+              autoFocus
+            />
+          ) : (
+            <div
+              className="cursor-pointer hover:bg-slate-100 rounded px-1 py-0.5 -mx-1"
+              onClick={() =>
+                startEditing(
+                  task.id,
+                  "dueDate",
+                  task.dueDate ? task.dueDate.split("T")[0] : ""
+                )
+              }
+            >
+              {task.dueDate ? (
+                <DueDateBadge
+                  dueDate={task.dueDate}
+                  completed={task.completed}
+                />
+              ) : (
+                <span className="text-slate-400 text-sm">---</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Priority - Inline Editable */}
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="hover:bg-slate-100 rounded px-1 py-0.5 -mx-1 w-full text-left">
+                {task.priority && task.priority !== "NONE" ? (
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      "text-xs",
+                      PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS]
+                    )}
+                  >
+                    {PRIORITY_LABELS[task.priority as keyof typeof PRIORITY_LABELS]}
+                  </Badge>
+                ) : (
+                  <span className="text-slate-400 text-sm">---</span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {(["HIGH", "MEDIUM", "LOW", "NONE"] as const).map((p) => (
+                <DropdownMenuItem
+                  key={p}
+                  onClick={() => saveInlineEdit(task.id, "priority", p)}
+                  className={cn(task.priority === p && "bg-slate-100")}
+                >
+                  {p === "NONE" ? "No priority" : PRIORITY_LABELS[p]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Status */}
+        <div>
+          {task.completed ? (
+            <Badge
+              variant="secondary"
+              className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30"
+            >
+              Done
+            </Badge>
+          ) : task.dueDate &&
+            isPast(parseISO(task.dueDate)) &&
+            !isToday(parseISO(task.dueDate)) ? (
+            <Badge
+              variant="secondary"
+              className="text-xs bg-gray-100 text-black border-gray-300"
+            >
+              Overdue
+            </Badge>
+          ) : (
+            <Badge
+              variant="secondary"
+              className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30"
+            >
+              To do
+            </Badge>
+          )}
+        </div>
+
+        {/* Empty column for "+" */}
+        <div></div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// DRAG OVERLAY — simplified row painted over the cursor
+// =============================================================
+function TaskRowOverlay({ task }: { task: Task }) {
+  return (
+    <div className="bg-white border-2 border-[#c9a84c] rounded-md shadow-2xl px-4 py-2 flex items-center gap-3 min-w-[480px] max-w-[720px] pointer-events-none rotate-[0.5deg]">
+      <TaskCompletionIcon
+        task={task}
+        onToggle={() => {}}
+        size="small"
+      />
+      <span
+        className={cn(
+          "text-sm font-medium truncate flex-1",
+          task.completed && "line-through text-slate-400"
+        )}
+      >
+        {task.name}
+      </span>
+      {task.dueDate && (
+        <DueDateBadge dueDate={task.dueDate} completed={task.completed} />
+      )}
+      {task.assignee && (
+        <Avatar className="h-6 w-6 flex-shrink-0">
+          <AvatarImage src={task.assignee.image || ""} />
+          <AvatarFallback className="text-xs bg-[#d4b65a] text-white">
+            {task.assignee.name?.[0] || "?"}
+          </AvatarFallback>
+        </Avatar>
+      )}
     </div>
   );
 }
