@@ -493,38 +493,38 @@ export function CalendarView({
         </div>
       </div>
 
-      {/* Week Day Headers — sticky so they stay visible while
-          scrolling through long months. */}
-      <div
-        className={cn(
-          "grid border-b sticky top-0 z-20 bg-white",
-          gridCols
-        )}
-      >
-        {weekDays.map((day, index) => (
-          <div
-            key={day}
-            className={cn(
-              "py-1 md:py-2 text-center text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider border-r last:border-r-0",
-              showWeekends && index >= 5 && "bg-white"
-            )}
-          >
-            <span className="hidden md:inline">{day}</span>
-            <span className="md:hidden">{day.charAt(0)}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar — per-week containers with VARIABLE heights based
-          on how many lanes each individual week actually needs. Each
-          row stacks two grids:
-            (a) BACKGROUND day grid — borders, weekend tint, today
-                tint, day number, hit-target for quick-add.
-            (b) FOREGROUND bar overlay — solid gold pills via CSS
-                grid spanning. The inline add input lives in this
-                grid too as "the next bar" in the lane stack.
-          Matches the my-tasks calendar treatment (Asana-style). */}
+      {/* Calendar — single scroll container that holds BOTH the
+          weekday header AND the per-week rows. Critical: when a
+          scrollbar appears for tall content, putting the weekday
+          header here keeps it the same width as the day cells below;
+          if the header lived outside the scroll container, the
+          scrollbar would shrink the cells but not the header, and
+          the columns would drift out of alignment. Same trick
+          my-tasks uses. */}
       <div className="flex-1 overflow-auto">
+        {/* Week Day Headers — sticky inside the scroll container so
+            they stay visible AND maintain alignment with the day
+            grid below. */}
+        <div
+          className={cn(
+            "grid border-b sticky top-0 z-20 bg-white",
+            gridCols
+          )}
+        >
+          {weekDays.map((day, index) => (
+            <div
+              key={day}
+              className={cn(
+                "py-1 md:py-2 text-center text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider border-r last:border-r-0",
+                showWeekends && index >= 5 && "bg-white"
+              )}
+            >
+              <span className="hidden md:inline">{day}</span>
+              <span className="md:hidden">{day.charAt(0)}</span>
+            </div>
+          ))}
+        </div>
+
         {weeks.map((week, weekIdx) => {
           const segments = segmentsByWeek[weekIdx] || [];
           const isWeek = viewMode === "week";
