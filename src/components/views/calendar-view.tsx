@@ -79,6 +79,15 @@ interface CalendarViewProps {
 
 type ViewMode = "month" | "week";
 
+// Layout constants for the per-week renderer. Hoisted out of the
+// week.map callback so they're declared once per file load instead
+// of once per week per render.
+const DAY_HEADER_PX = 26;
+const LANE_PX = 22;
+const ROW_BOTTOM_PX = 10;
+const ROW_MIN_MONTH_PX = 90;
+const ROW_MIN_WEEK_PX = 400;
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -322,8 +331,12 @@ export function CalendarView({
 
       toast.success("Task created");
       router.refresh();
-      setNewTaskName("");
-      setIsCreatingTask(null);
+      // Functional update — if the user has already opened quick-add
+      // on ANOTHER cell during the in-flight POST, don't clobber that
+      // new active cell when we clear the previous one. Only reset
+      // when the active cell is still the one we just persisted.
+      setIsCreatingTask((prev) => (prev === dateStr ? null : prev));
+      setNewTaskName((prev) => (prev === "" ? prev : ""));
     } catch {
       toast.error("Failed to create task");
     }
@@ -350,6 +363,8 @@ export function CalendarView({
           size="icon"
           onClick={goToPrev}
           className="h-10 w-10 md:h-8 md:w-8"
+          aria-label={viewMode === "week" ? "Previous week" : "Previous month"}
+          title={viewMode === "week" ? "Previous week" : "Previous month"}
         >
           <ChevronRight className="h-4 w-4 rotate-180" />
         </Button>
@@ -358,6 +373,7 @@ export function CalendarView({
           size="sm"
           onClick={goToToday}
           className="px-3"
+          aria-label="Jump to today"
         >
           Today
         </Button>
@@ -366,6 +382,8 @@ export function CalendarView({
           size="icon"
           onClick={goToNext}
           className="h-10 w-10 md:h-8 md:w-8"
+          aria-label={viewMode === "week" ? "Next week" : "Next month"}
+          title={viewMode === "week" ? "Next week" : "Next month"}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -377,9 +395,14 @@ export function CalendarView({
 
         {/* Extra controls - subtle, right-aligned */}
         <div className="ml-auto flex items-center gap-1">
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+          <div
+            className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5"
+            role="group"
+            aria-label="Calendar view mode"
+          >
             <button
               onClick={() => setViewMode("week")}
+              aria-pressed={viewMode === "week"}
               className={cn(
                 "px-2 py-0.5 text-xs font-medium rounded transition-colors",
                 viewMode === "week"
@@ -391,6 +414,7 @@ export function CalendarView({
             </button>
             <button
               onClick={() => setViewMode("month")}
+              aria-pressed={viewMode === "month"}
               className={cn(
                 "px-2 py-0.5 text-xs font-medium rounded transition-colors",
                 viewMode === "month"
@@ -402,11 +426,31 @@ export function CalendarView({
             </button>
           </div>
 
+          {/* Filter dropdown — variant switches to "secondary" when
+              any filter is active so the toolbar visually announces
+              "you're not seeing every task" without forcing the user
+              to read the label. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-slate-500">
+              <Button
+                variant={calFilter !== "all" ? "secondary" : "ghost"}
+                size="sm"
+                className={cn(
+                  "h-7 px-2 text-xs",
+                  calFilter !== "all" ? "text-[#a8893a]" : "text-slate-500"
+                )}
+                aria-label={
+                  calFilter === "all"
+                    ? "Filter tasks"
+                    : `Filter: ${calFilter === "incomplete" ? "Incomplete" : "Completed"} tasks`
+                }
+              >
                 <Filter className="w-3.5 h-3.5 mr-1" />
-                {calFilter !== "all" ? (calFilter === "incomplete" ? "Incomplete" : "Completed") : "Filter"}
+                {calFilter !== "all"
+                  ? calFilter === "incomplete"
+                    ? "Incomplete"
+                    : "Completed"
+                  : "Filter"}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -415,10 +459,29 @@ export function CalendarView({
               <DropdownMenuItem onClick={() => setCalFilter("completed")}>Completed tasks</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Settings dropdown — gold dot indicator when weekends are
+              hidden, so the cockpit-wide language "gold = something
+              non-default is active" stays consistent. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-slate-500">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-slate-500 relative"
+                aria-label={
+                  showWeekends
+                    ? "Calendar settings"
+                    : "Calendar settings (weekends hidden)"
+                }
+              >
                 <Settings className="w-3.5 h-3.5" />
+                {!showWeekends && (
+                  <span
+                    aria-hidden
+                    className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#c9a84c]"
+                  />
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -551,12 +614,13 @@ export function CalendarView({
             if (bottom > maxRow) maxRow = bottom;
           }
 
-          // 4px top padding (above day number) + 22px day number row
-          // + (maxRow + 1) × 22px lane height + 10px bottom breathing.
-          const DAY_HEADER_PX = 26;
-          const LANE_PX = 22;
-          const ROW_BOTTOM_PX = 10;
-          const ROW_MIN_PX = isWeek ? 400 : 90;
+          // Compose total content height:
+          //   DAY_HEADER_PX (day number row above the bars)
+          // + (maxRow + 1) × LANE_PX (visible bar lanes)
+          // + ROW_BOTTOM_PX (breathing room beneath the last lane)
+          // Then clamp to the per-view minimum (taller for week view
+          // because the user opted in to see detail).
+          const ROW_MIN_PX = isWeek ? ROW_MIN_WEEK_PX : ROW_MIN_MONTH_PX;
           const contentPx =
             maxRow >= 0
               ? DAY_HEADER_PX + (maxRow + 1) * LANE_PX + ROW_BOTTOM_PX
