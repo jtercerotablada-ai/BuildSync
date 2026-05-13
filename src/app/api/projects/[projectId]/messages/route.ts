@@ -250,7 +250,9 @@ export async function POST(
           projectId,
           actorUserId: userId,
           mentionUserIds: ids,
-          authorName: created.author?.name ?? created.author?.email ?? "Someone",
+          authorName:
+            created.author?.name ?? created.author?.email ?? "Someone",
+          authorImage: created.author?.image ?? null,
           contentPreview: created.content,
         });
         const mentions = await prisma.messageMention.findMany({

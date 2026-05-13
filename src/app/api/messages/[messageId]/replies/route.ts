@@ -269,6 +269,7 @@ export async function POST(
           mentionUserIds: ids,
           authorName:
             created.author?.name ?? created.author?.email ?? "Someone",
+          authorImage: created.author?.image ?? null,
           contentPreview: created.content,
           rootMessageId: access.data.rootId,
         });

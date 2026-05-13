@@ -96,7 +96,9 @@ export async function PATCH(
           projectId: msg.project.id,
           actorUserId: userId,
           mentionUserIds: ids,
-          authorName: updated.author?.name ?? updated.author?.email ?? "Someone",
+          authorName:
+            updated.author?.name ?? updated.author?.email ?? "Someone",
+          authorImage: updated.author?.image ?? null,
           contentPreview: updated.content,
           rootMessageId: msg.parentMessageId ?? messageId,
         });

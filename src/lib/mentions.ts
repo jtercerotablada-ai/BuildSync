@@ -73,6 +73,9 @@ interface SyncOptions {
   // When provided, used as the notification title. Falls back to
   // a sensible default if omitted.
   authorName?: string;
+  // Avatar image url of the author. Lets the inbox render the real
+  // sender's face instead of the generic company fallback.
+  authorImage?: string | null;
   // The first ~140 chars of the message content (for the preview
   // shown in the inbox row).
   contentPreview: string;
@@ -123,6 +126,8 @@ export async function persistMentionsForNewMessage(opts: SyncOptions) {
         messageId,
         projectId,
         rootMessageId: opts.rootMessageId ?? messageId,
+        authorName: opts.authorName ?? null,
+        authorImage: opts.authorImage ?? null,
       },
     })),
   });
@@ -186,6 +191,8 @@ export async function syncMentionsForEditedMessage(opts: SyncOptions) {
         messageId,
         projectId,
         rootMessageId: opts.rootMessageId ?? messageId,
+        authorName: opts.authorName ?? null,
+        authorImage: opts.authorImage ?? null,
       },
     })),
   });

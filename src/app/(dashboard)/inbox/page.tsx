@@ -20,6 +20,11 @@ import {
   Pencil,
   Copy,
   Trash2,
+  AtSign,
+  MessageCircle,
+  CheckSquare,
+  CheckCircle2,
+  Mail,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -36,7 +41,7 @@ interface Notification {
   title: string;
   sender: {
     name: string;
-    avatar?: string;
+    avatar?: string | null;
     color: string;
   };
   preview: string;
@@ -45,7 +50,37 @@ interface Notification {
   type: "task_assigned" | "comment" | "mention" | "update" | "system";
   taskId?: string;
   projectId?: string;
+  // Set when a mention notification points at a specific message —
+  // the inbox uses this to deep-link straight to the message in
+  // the project's Messages tab (with scroll + highlight).
+  messageId?: string;
+  rootMessageId?: string;
 }
+
+// Visual type metadata. Each notification type gets a small icon
+// overlay + a color that distinguishes mention/comment/assign/etc.
+// at a glance, without hiding the sender's avatar.
+const TYPE_META: Record<
+  Notification["type"],
+  {
+    icon: React.ComponentType<{
+      className?: string;
+      style?: React.CSSProperties;
+    }>;
+    color: string;
+    label: string;
+  }
+> = {
+  mention: { icon: AtSign, color: "#c9a84c", label: "Mention" },
+  comment: { icon: MessageCircle, color: "#0a0a0a", label: "Comment" },
+  task_assigned: {
+    icon: CheckSquare,
+    color: "#0a0a0a",
+    label: "Assigned",
+  },
+  update: { icon: CheckCircle2, color: "#a8893a", label: "Update" },
+  system: { icon: Mail, color: "#6b7280", label: "System" },
+};
 
 // Helper function to format relative time
 function formatRelativeTime(date: Date): string {
@@ -121,6 +156,42 @@ export default function InboxPage() {
 
   useEffect(() => {
     fetchNotifications();
+  }, [fetchNotifications]);
+
+  // Real-time polling — refresh every 30s while the tab is visible.
+  // Slower cadence than messages-view (10s) because the inbox is
+  // glance-able rather than chat-like; 30s is a fair freshness/cost
+  // trade-off. Pauses while hidden; refreshes immediately on focus.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const tick = () => {
+      if (document.hidden) return;
+      void fetchNotifications();
+    };
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(tick, 30000);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        tick();
+        start();
+      }
+    };
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [fetchNotifications]);
 
   const tabs = [
@@ -225,12 +296,36 @@ export default function InboxPage() {
 
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
+
+    // Mention deep-link: open the project's Messages tab and scroll
+    // to the specific message id. messages-view.tsx reads ?message=
+    // and highlights it. The project page reads `?view=` to pick
+    // the active tab (see app/(dashboard)/projects/[id]/page.tsx).
+    if (notification.type === "mention" && notification.projectId) {
+      const params = new URLSearchParams();
+      params.set("view", "messages");
+      if (notification.messageId) {
+        params.set("message", notification.messageId);
+      }
+      if (
+        notification.rootMessageId &&
+        notification.rootMessageId !== notification.messageId
+      ) {
+        // For a mention inside a reply, open the parent thread too.
+        params.set("thread", notification.rootMessageId);
+      }
+      router.push(`/projects/${notification.projectId}?${params.toString()}`);
+      return;
+    }
+
     if (notification.taskId && notification.projectId) {
       router.push(
         `/projects/${notification.projectId}?task=${notification.taskId}`
       );
     } else if (notification.taskId) {
       router.push(`/my-tasks?task=${notification.taskId}`);
+    } else if (notification.projectId) {
+      router.push(`/projects/${notification.projectId}`);
     }
   };
 
@@ -886,6 +981,8 @@ function NotificationItem({
   onArchive?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const meta = TYPE_META[notification.type] ?? TYPE_META.system;
+  const TypeIcon = meta.icon;
 
   return (
     <div
@@ -913,23 +1010,46 @@ function NotificationItem({
         <Archive className="w-[15px] h-[15px] text-gray-400 hover:text-gray-600" />
       </button>
 
-      {/* Avatar */}
-      <div
-        className={cn(
-          "rounded-full flex items-center justify-center text-white font-medium flex-shrink-0",
-          compact ? "w-6 h-6 text-[10px]" : "w-8 h-8 text-[12px]"
-        )}
-        style={{ backgroundColor: notification.sender.color }}
-      >
-        {notification.sender.avatar ? (
-          <img
-            src={notification.sender.avatar}
-            alt={notification.sender.name}
-            className="w-full h-full rounded-full object-cover"
+      {/* Avatar with type-icon overlay */}
+      <div className="relative flex-shrink-0">
+        <div
+          className={cn(
+            "rounded-full flex items-center justify-center text-white font-medium overflow-hidden",
+            compact ? "w-6 h-6 text-[10px]" : "w-8 h-8 text-[12px]"
+          )}
+          style={
+            notification.sender.avatar
+              ? undefined
+              : { backgroundColor: notification.sender.color }
+          }
+        >
+          {notification.sender.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={notification.sender.avatar}
+              alt={notification.sender.name}
+              className="w-full h-full rounded-full object-cover"
+            />
+          ) : (
+            notification.sender.name.charAt(0).toUpperCase()
+          )}
+        </div>
+        {/* Type badge — small overlapping circle in the bottom-right
+            so users see "this is a mention / comment / assignment"
+            without reading the title. */}
+        <div
+          className={cn(
+            "absolute -bottom-0.5 -right-0.5 rounded-full bg-white flex items-center justify-center border",
+            compact ? "w-3.5 h-3.5" : "w-4 h-4"
+          )}
+          style={{ borderColor: meta.color }}
+          title={meta.label}
+        >
+          <TypeIcon
+            className={cn(compact ? "w-2 h-2" : "w-2.5 h-2.5")}
+            style={{ color: meta.color }}
           />
-        ) : (
-          notification.sender.name.charAt(0).toUpperCase()
-        )}
+        </div>
       </div>
 
       {/* Content */}

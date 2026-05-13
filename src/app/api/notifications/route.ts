@@ -28,7 +28,15 @@ export async function GET(req: Request) {
 
     // Transform to frontend format
     const formattedNotifications = notifications.map((n) => {
-      const data = n.data as Record<string, unknown> | null;
+      const data = (n.data as Record<string, unknown> | null) ?? {};
+      const senderName =
+        (data.authorName as string | undefined) ??
+        (data.senderName as string | undefined) ??
+        "BuildSync";
+      const senderImage =
+        (data.authorImage as string | null | undefined) ??
+        (data.senderImage as string | null | undefined) ??
+        null;
 
       return {
         id: n.id,
@@ -38,12 +46,17 @@ export async function GET(req: Request) {
         read: n.read,
         archived: n.archived,
         createdAt: n.createdAt.toISOString(),
-        taskId: data?.taskId as string | undefined,
-        projectId: data?.projectId as string | undefined,
+        // Deep-link payload — the inbox uses these to navigate.
+        taskId: (data.taskId as string | undefined) ?? undefined,
+        projectId: (data.projectId as string | undefined) ?? undefined,
+        messageId: (data.messageId as string | undefined) ?? undefined,
+        rootMessageId:
+          (data.rootMessageId as string | undefined) ?? undefined,
         sender: {
-          name: (data?.authorName as string) || "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.",
-          // Brand gold — matches the monochrome+gold palette used across
-          // the cockpit, project pages, and badges.
+          name: senderName,
+          avatar: senderImage,
+          // Brand gold — matches the monochrome+gold palette used
+          // across the cockpit when there's no real avatar.
           color: "#c9a84c",
         },
       };

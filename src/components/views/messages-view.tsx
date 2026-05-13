@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Send,
   Smile,
@@ -132,6 +133,17 @@ export function MessagesView({
   projectId,
   currentUser,
 }: MessagesViewProps) {
+  // ── Deep-link params ────────────────────────────────────
+  // The inbox routes mention notifications to /projects/[id]?view=
+  // messages&message=ID(&thread=ROOTID). We read those once on
+  // mount, then scroll + briefly highlight the matching message.
+  const searchParams = useSearchParams();
+  const targetMessageId = searchParams.get("message");
+  const targetThreadId = searchParams.get("thread");
+  const [highlightedMessageId, setHighlightedMessageId] = useState<
+    string | null
+  >(null);
+
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [newContent, setNewContent] = useState("");
@@ -351,6 +363,11 @@ export function MessagesView({
     fetchMessages();
   }, [fetchMessages]);
 
+  // (Deep-link scroll + highlight effect lives further down, after
+  // fetchReplies is declared, so the useEffect can reference it
+  // without a use-before-declaration error.)
+  const deepLinkAppliedRef = useRef(false);
+
   // Real-time polling: every 10s when the tab is visible, plus an
   // immediate refresh whenever the tab regains focus (so coming back
   // to a stale tab feels instant). Pauses while sending to avoid
@@ -514,6 +531,53 @@ export function MessagesView({
       toast.error("Couldn't load replies");
     }
   }, []);
+
+  // Deep-link scroll + highlight. Runs once messages land. If the
+  // target lives inside a thread (targetThreadId set), we expand
+  // the thread + fetch its replies first, then scroll.
+  useEffect(() => {
+    if (loading) return;
+    if (!targetMessageId) return;
+    if (deepLinkAppliedRef.current) return;
+
+    const target = targetMessageId;
+    const thread = targetThreadId;
+
+    // Auto-expand the thread if needed. We only do this once; the
+    // poller takes over from there.
+    if (thread && !expandedThreads.has(thread)) {
+      setExpandedThreads((prev) => {
+        const next = new Set(prev);
+        next.add(thread);
+        return next;
+      });
+      if (!repliesByThread[thread]) {
+        void fetchReplies(thread);
+      }
+    }
+
+    // Wait a frame for the DOM to settle (especially after the
+    // optional thread expansion), then scroll + highlight.
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`message-${target}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightedMessageId(target);
+        deepLinkAppliedRef.current = true;
+        // Drop the highlight after a few seconds so the page
+        // settles back to normal.
+        window.setTimeout(() => setHighlightedMessageId(null), 3000);
+      }
+    });
+  }, [
+    loading,
+    targetMessageId,
+    targetThreadId,
+    messages,
+    expandedThreads,
+    repliesByThread,
+    fetchReplies,
+  ]);
 
   const toggleThread = useCallback(
     (rootId: string) => {
@@ -1094,6 +1158,8 @@ export function MessagesView({
                 key={m.id}
                 message={m}
                 isReply={false}
+                highlighted={highlightedMessageId === m.id}
+                highlightedReplyId={highlightedMessageId}
                 editing={editingId === m.id}
                 editingContent={editingContent}
                 uploadingCount={uploadingByMessage[m.id] || 0}
@@ -1304,6 +1370,14 @@ export function MessagesView({
 interface MessageItemProps {
   message: MessageRow;
   isReply: boolean;
+  // Set when the inbox deep-link points at this exact message id.
+  // The row pulses gold for 3 seconds so the user spots which
+  // message they were sent to.
+  highlighted?: boolean;
+  // Same notion but for descendants — passed down so a reply
+  // inside the expanded thread can match its id and highlight
+  // itself even when the parent root doesn't.
+  highlightedReplyId?: string | null;
   editing: boolean;
   editingContent: string;
   uploadingCount: number;
@@ -1352,6 +1426,8 @@ interface MessageItemProps {
 function MessageItem({
   message,
   isReply,
+  highlighted,
+  highlightedReplyId,
   editing,
   editingContent,
   uploadingCount,
@@ -1401,8 +1477,10 @@ function MessageItem({
     <div
       id={`message-${m.id}`}
       className={cn(
-        "bg-white rounded-lg border shadow-sm overflow-hidden group",
-        m.isPinned && "border-l-4 border-l-[#c9a84c]"
+        "bg-white rounded-lg border shadow-sm overflow-hidden group transition-shadow",
+        m.isPinned && "border-l-4 border-l-[#c9a84c]",
+        highlighted &&
+          "ring-2 ring-[#c9a84c] ring-offset-2 ring-offset-slate-50 shadow-lg animate-pulse"
       )}
     >
       {/* Header */}
@@ -1732,6 +1810,8 @@ function MessageItem({
                     key={r.id}
                     message={r}
                     isReply={true}
+                    highlighted={highlightedReplyId === r.id}
+                    highlightedReplyId={highlightedReplyId}
                     editing={replyEditingId === r.id}
                     editingContent={replyEditingContent || ""}
                     uploadingCount={replyUploadingByMessage?.[r.id] || 0}
