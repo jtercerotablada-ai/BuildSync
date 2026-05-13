@@ -77,6 +77,7 @@ model User {
   ownedProjects     Project[]         @relation("ProjectOwner")
   ownedPortfolios   Portfolio[]       @relation("PortfolioOwner")
   messages          Message[]         @relation("MessageAuthor")
+  messageMentions   MessageMention[]  @relation("UserMentions")
   teamMessages      TeamMessage[]     @relation("TeamMessageAuthor")
   workspaceNotes    WorkspaceNote[]   @relation("NoteAuthor")
   noteCollaborators NoteCollaborator[]
@@ -838,10 +839,27 @@ model Message {
   replies     Message[]           @relation("MessageThread")
   attachments MessageAttachment[]
   reactions   MessageReaction[]
+  mentions    MessageMention[]
 
   @@index([workspaceId])
   @@index([projectId])
   @@index([parentMessageId])
+}
+
+model MessageMention {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation("UserMentions", fields: [userId], references: [id], onDelete: Cascade)
+
+  // One row per (message, user) — re-mentioning the same user in
+  // the same message is idempotent.
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@index([messageId])
 }
 
 model TeamMessage {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { syncMentionsForEditedMessage } from "@/lib/mentions";
 
 /**
  * PATCH /api/messages/:messageId — edit content (author only).
@@ -18,6 +19,9 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 
 const patchSchema = z.object({
   content: z.string().min(1).max(10000),
+  // Edits sync mentions too — clients pass the new resolved set
+  // and the server diffs against existing rows.
+  mentionUserIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
 async function loadMessageWithProject(messageId: string) {
@@ -75,6 +79,44 @@ export async function PATCH(
       },
     });
 
+    // Sync mentions if the client included a new mention set.
+    // Missing field = leave existing mentions alone (used for the
+    // current text-only edit path; UI sends the array explicitly
+    // once it tracks them).
+    let resolvedMentions: {
+      userId: string;
+      name: string | null;
+      image: string | null;
+    }[] = [];
+    const ids = parsed.data.mentionUserIds;
+    if (ids !== undefined && msg.project?.id) {
+      try {
+        await syncMentionsForEditedMessage({
+          messageId,
+          projectId: msg.project.id,
+          actorUserId: userId,
+          mentionUserIds: ids,
+          authorName: updated.author?.name ?? updated.author?.email ?? "Someone",
+          contentPreview: updated.content,
+          rootMessageId: msg.parentMessageId ?? messageId,
+        });
+      } catch (err) {
+        console.error("[message PATCH] mention sync failed:", err);
+      }
+    }
+    const mentions = await prisma.messageMention.findMany({
+      where: { messageId },
+      select: {
+        userId: true,
+        user: { select: { id: true, name: true, image: true } },
+      },
+    });
+    resolvedMentions = mentions.map((mn) => ({
+      userId: mn.userId,
+      name: mn.user.name,
+      image: mn.user.image,
+    }));
+
     return NextResponse.json({
       id: updated.id,
       content: updated.content,
@@ -82,6 +124,7 @@ export async function PATCH(
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
       author: updated.author,
+      mentions: resolvedMentions,
     });
   } catch (err) {
     console.error("[message PATCH] error:", err);

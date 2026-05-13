@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { persistMentionsForNewMessage } from "@/lib/mentions";
 
 /**
  * GET /api/projects/:projectId/messages
@@ -22,6 +23,10 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 
 const createSchema = z.object({
   content: z.string().min(1).max(10000),
+  // Optional list of user ids the author tagged via @ mention.
+  // Server validates each one against project membership before
+  // persisting; unknown ids are silently dropped.
+  mentionUserIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
 async function assertProjectAccess(projectId: string, userId: string) {
@@ -114,6 +119,14 @@ export async function GET(
           select: { createdAt: true },
         },
         _count: { select: { replies: true } },
+        // Mentions — needed for chip rendering. Light shape: just
+        // the user id + display fields.
+        mentions: {
+          select: {
+            userId: true,
+            user: { select: { id: true, name: true, image: true } },
+          },
+        },
       },
     });
 
@@ -166,6 +179,11 @@ export async function GET(
         mine: m.author?.id === userId,
         replyCount: m._count.replies,
         lastReplyAt: m.replies[0]?.createdAt.toISOString() ?? null,
+        mentions: m.mentions.map((mn) => ({
+          userId: mn.userId,
+          name: mn.user.name,
+          image: mn.user.image,
+        })),
       };
     });
 
@@ -220,6 +238,38 @@ export async function POST(
       },
     });
 
+    // Fan-out mentions after creation. Errors here shouldn't fail
+    // the user's send — log them but return the message anyway so
+    // the optimistic UI swap completes.
+    let resolvedMentions: { userId: string; name: string | null; image: string | null }[] = [];
+    const ids = parsed.data.mentionUserIds ?? [];
+    if (ids.length > 0) {
+      try {
+        await persistMentionsForNewMessage({
+          messageId: created.id,
+          projectId,
+          actorUserId: userId,
+          mentionUserIds: ids,
+          authorName: created.author?.name ?? created.author?.email ?? "Someone",
+          contentPreview: created.content,
+        });
+        const mentions = await prisma.messageMention.findMany({
+          where: { messageId: created.id },
+          select: {
+            userId: true,
+            user: { select: { id: true, name: true, image: true } },
+          },
+        });
+        resolvedMentions = mentions.map((mn) => ({
+          userId: mn.userId,
+          name: mn.user.name,
+          image: mn.user.image,
+        }));
+      } catch (err) {
+        console.error("[messages POST] mention fan-out failed:", err);
+      }
+    }
+
     return NextResponse.json(
       {
         id: created.id,
@@ -233,6 +283,7 @@ export async function POST(
         mine: true,
         replyCount: 0,
         lastReplyAt: null,
+        mentions: resolvedMentions,
       },
       { status: 201 }
     );

@@ -69,6 +69,20 @@ interface MessageAttachment {
   createdAt: string;
 }
 
+interface MentionRef {
+  userId: string;
+  name: string | null;
+  image: string | null;
+}
+
+interface ProjectMemberLite {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+  jobTitle: string | null;
+}
+
 interface MessageRow {
   id: string;
   content: string;
@@ -89,6 +103,10 @@ interface MessageRow {
   // for any reply rendered inside a thread.
   replyCount?: number;
   lastReplyAt?: string | null;
+  // @ mentions resolved by the server. Used both to render gold
+  // chips inside the content and to power the inbox notification
+  // hand-off (already done server-side).
+  mentions?: MentionRef[];
 }
 
 interface MessagesViewProps {
@@ -162,6 +180,36 @@ export function MessagesView({
   const [replySending, setReplySending] = useState<Set<string>>(
     () => new Set()
   );
+
+  // ── Mention state ──────────────────────────────────────
+  // Project members for the @ typeahead. Fetched once on mount.
+  const [members, setMembers] = useState<ProjectMemberLite[]>([]);
+  // userIds the author has tagged in the current main draft. Tracked
+  // separately from the textarea text so we can persist the resolved
+  // ids on send (text alone is ambiguous when two members share a
+  // first name).
+  const [mentionUserIds, setMentionUserIds] = useState<string[]>([]);
+  // Per-thread mention tracking for reply composers.
+  const [replyMentionUserIds, setReplyMentionUserIds] = useState<
+    Record<string, string[]>
+  >({});
+
+  useEffect(() => {
+    // Best-effort: a 403 or 500 here just disables @ typeahead, the
+    // composer still works in plain mode.
+    fetch(`/api/projects/${projectId}/members`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: { user: ProjectMemberLite }[] | unknown) => {
+        if (!Array.isArray(data)) return;
+        const list = data
+          .map((row) => (row as { user?: ProjectMemberLite }).user)
+          .filter((u): u is ProjectMemberLite => Boolean(u));
+        setMembers(list);
+      })
+      .catch(() => {
+        // Silent failure — composer falls back to plain text mode.
+      });
+  }, [projectId]);
 
   // Real-time poll bookkeeping. The scroll container ref lets us
   // detect "user is at the bottom" so background polls can auto-scroll
@@ -531,6 +579,17 @@ export function MessagesView({
       if (!content) return;
       if (replySending.has(rootId)) return;
 
+      // Same effective-mentions filter as the main composer: only
+      // ping users whose "@Name" handle is still in the reply body.
+      const staged = replyMentionUserIds[rootId] || [];
+      const effectiveMentions = staged.filter((uid) => {
+        const member = members.find((m) => m.id === uid);
+        if (!member) return false;
+        const display = member.name || member.email;
+        if (!display) return false;
+        return content.includes(`@${display}`);
+      });
+
       setReplySending((prev) => new Set(prev).add(rootId));
       const tempId = `temp-${Date.now()}`;
       const optimistic: MessageRow = {
@@ -570,12 +629,21 @@ export function MessagesView({
         )
       );
       setReplyDrafts((prev) => ({ ...prev, [rootId]: "" }));
+      setReplyMentionUserIds((prev) => {
+        if (!(rootId in prev)) return prev;
+        const next = { ...prev };
+        delete next[rootId];
+        return next;
+      });
 
       try {
         const res = await fetch(`/api/messages/${rootId}/replies`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({
+            content,
+            mentionUserIds: effectiveMentions,
+          }),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => null);
@@ -607,6 +675,10 @@ export function MessagesView({
           )
         );
         setReplyDrafts((prev) => ({ ...prev, [rootId]: content }));
+        setReplyMentionUserIds((prev) => ({
+          ...prev,
+          [rootId]: effectiveMentions,
+        }));
         toast.error(err instanceof Error ? err.message : "Failed to reply");
       } finally {
         setReplySending((prev) => {
@@ -616,7 +688,7 @@ export function MessagesView({
         });
       }
     },
-    [replyDrafts, replySending, currentUser]
+    [replyDrafts, replySending, currentUser, replyMentionUserIds, members]
   );
 
   // ── Upload one file to an existing message ─────────────
@@ -682,6 +754,19 @@ export function MessagesView({
     const safeContent = content || (files.length > 0 ? "📎" : "");
     if (!safeContent) return;
 
+    // Filter the staged mentions down to those whose handle still
+    // appears in the message text. A user can mention then delete
+    // the "@Name" before sending; we should drop those userIds so
+    // they don't get pinged for a mention that's no longer in the
+    // message body.
+    const effectiveMentions = mentionUserIds.filter((uid) => {
+      const member = members.find((m) => m.id === uid);
+      if (!member) return false;
+      const display = member.name || member.email;
+      if (!display) return false;
+      return safeContent.includes(`@${display}`);
+    });
+
     // Optimistic insert — show the message immediately, replace
     // with the server's version once the POST resolves so the id
     // matches and reactions can target it.
@@ -707,13 +792,17 @@ export function MessagesView({
     setMessages((prev) => [...prev, optimistic]);
     setNewContent("");
     setPendingFiles([]);
+    setMentionUserIds([]);
     setSending(true);
 
     try {
       const res = await fetch(`/api/projects/${projectId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: safeContent }),
+        body: JSON.stringify({
+          content: safeContent,
+          mentionUserIds: effectiveMentions,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -740,6 +829,7 @@ export function MessagesView({
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setNewContent(content);
       setPendingFiles(files);
+      setMentionUserIds(effectiveMentions);
       toast.error(err instanceof Error ? err.message : "Failed to send");
     } finally {
       setSending(false);
@@ -751,6 +841,8 @@ export function MessagesView({
     projectId,
     currentUser,
     uploadFileToMessage,
+    mentionUserIds,
+    members,
   ]);
 
   // ── Pending file selection ─────────────────────────────
@@ -1057,6 +1149,14 @@ export function MessagesView({
                   }
                 }}
                 replyUploadingByMessage={uploadingByMessage}
+                members={members}
+                onReplyMentionAdd={(member) =>
+                  setReplyMentionUserIds((prev) => {
+                    const list = prev[m.id] || [];
+                    if (list.includes(member.id)) return prev;
+                    return { ...prev, [m.id]: [...list, member.id] };
+                  })
+                }
               />
             ))
           )}
@@ -1118,24 +1218,22 @@ export function MessagesView({
                   {(currentUser?.name || "Y").charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <textarea
-                ref={inputRef}
+              <MentionTextarea
+                textareaRef={inputRef}
                 value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder="Send a message — Enter to send, Shift+Enter for newline"
+                onChange={setNewContent}
+                members={members}
+                onMentionAdd={(member) =>
+                  setMentionUserIds((prev) =>
+                    prev.includes(member.id) ? prev : [...prev, member.id]
+                  )
+                }
+                onSend={handleSend}
+                placeholder="Send a message — Enter to send, Shift+Enter for newline. @ to mention."
                 rows={1}
                 maxLength={10000}
                 disabled={sending}
-                className="flex-1 outline-none text-sm py-3 resize-none bg-transparent min-h-[40px] max-h-[200px]"
-                style={{
-                  height: "auto",
-                }}
+                className="w-full outline-none text-sm py-3 resize-none bg-transparent min-h-[40px] max-h-[200px]"
               />
               <input
                 ref={fileInputRef}
@@ -1246,6 +1344,9 @@ interface MessageItemProps {
     attachmentId: string
   ) => void;
   onReplyAddFiles?: (replyId: string, files: File[]) => void;
+  // @ mention plumbing for the reply composer
+  members?: ProjectMemberLite[];
+  onReplyMentionAdd?: (member: ProjectMemberLite) => void;
 }
 
 function MessageItem({
@@ -1285,6 +1386,8 @@ function MessageItem({
   onReplyOpenAttachment,
   onReplyDeleteAttachment,
   onReplyAddFiles,
+  members,
+  onReplyMentionAdd,
 }: MessageItemProps) {
   const addFilesInputRef = useRef<HTMLInputElement | null>(null);
   const replyCount = message.replyCount ?? 0;
@@ -1450,7 +1553,7 @@ function MessageItem({
           </div>
         ) : (
           <p className="text-sm text-slate-700 whitespace-pre-wrap break-words">
-            {m.content}
+            {renderMessageBody(m.content, m.mentions)}
           </p>
         )}
 
@@ -1659,7 +1762,9 @@ function MessageItem({
               <ReplyComposer
                 draft={replyDraft || ""}
                 sending={!!replyIsSending}
+                members={members || []}
                 onChange={(v) => onReplyDraftChange?.(v)}
+                onMentionAdd={(member) => onReplyMentionAdd?.(member)}
                 onSend={() => onSendReply?.()}
               />
             </div>
@@ -1675,32 +1780,33 @@ function MessageItem({
 interface ReplyComposerProps {
   draft: string;
   sending: boolean;
+  members: ProjectMemberLite[];
   onChange: (v: string) => void;
+  onMentionAdd: (member: ProjectMemberLite) => void;
   onSend: () => void;
 }
 
 function ReplyComposer({
   draft,
   sending,
+  members,
   onChange,
+  onMentionAdd,
   onSend,
 }: ReplyComposerProps) {
   return (
     <div className="flex items-end gap-2 bg-white rounded-lg border focus-within:border-[#c9a84c] transition-colors">
-      <textarea
+      <MentionTextarea
         value={draft}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            onSend();
-          }
-        }}
-        placeholder="Reply…"
+        onChange={onChange}
+        members={members}
+        onMentionAdd={onMentionAdd}
+        onSend={onSend}
+        placeholder="Reply… @ to mention."
         rows={1}
         maxLength={10000}
         disabled={sending}
-        className="flex-1 outline-none text-sm py-2 px-3 resize-none bg-transparent min-h-[36px] max-h-[160px]"
+        className="w-full outline-none text-sm py-2 px-3 resize-none bg-transparent min-h-[36px] max-h-[160px]"
       />
       <Button
         size="sm"
@@ -1714,6 +1820,227 @@ function ReplyComposer({
           <Send className="w-3.5 h-3.5" />
         )}
       </Button>
+    </div>
+  );
+}
+
+// ─── MentionTextarea ─────────────────────────────────────────────
+//
+// A textarea wrapper that surfaces an inline picker when the user
+// types "@". Selecting a member inserts "@FullName " at the cursor
+// and reports the resolved userId via onMentionAdd so the parent
+// can stage it for the eventual POST.
+//
+// The picker pops up above the textarea (using bottom-full) so it
+// never gets clipped by the composer container. Keyboard nav: Up/
+// Down to highlight, Enter/Tab to confirm, Escape to cancel.
+//
+// Members are filtered case-insensitively against the in-progress
+// query (the text between "@" and the cursor). Only the first 8
+// matches render — typing narrows the list further.
+
+interface MentionTextareaProps {
+  value: string;
+  onChange: (v: string) => void;
+  members: ProjectMemberLite[];
+  onMentionAdd: (member: ProjectMemberLite) => void;
+  onSend: () => void;
+  placeholder?: string;
+  disabled?: boolean;
+  rows?: number;
+  maxLength?: number;
+  className?: string;
+  textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
+}
+
+function MentionTextarea({
+  value,
+  onChange,
+  members,
+  onMentionAdd,
+  onSend,
+  placeholder,
+  disabled,
+  rows = 1,
+  maxLength,
+  className,
+  textareaRef,
+}: MentionTextareaProps) {
+  const localRef = useRef<HTMLTextAreaElement | null>(null);
+  const ref = textareaRef ?? localRef;
+  // Trigger = the user is currently inside an @ context. Null when
+  // they aren't (i.e. closed or never opened).
+  const [trigger, setTrigger] = useState<{
+    atIndex: number;
+    query: string;
+  } | null>(null);
+  const [highlight, setHighlight] = useState(0);
+
+  // Filter members against the live query. Case-insensitive on
+  // both first/last name. Email is included as a fallback so
+  // un-named accounts are still reachable.
+  const matches = trigger
+    ? members
+        .filter((m) => {
+          const q = trigger.query.toLowerCase();
+          if (!q) return true;
+          return (
+            (m.name || "").toLowerCase().includes(q) ||
+            (m.email || "").toLowerCase().includes(q)
+          );
+        })
+        .slice(0, 8)
+    : [];
+
+  // Keep the highlighted index in range as the matches shrink.
+  useEffect(() => {
+    if (highlight >= matches.length) setHighlight(0);
+  }, [matches.length, highlight]);
+
+  // Helper: parse the current text+cursor and decide if we're in
+  // an @ context. The rules:
+  //   - There must be an "@" at some index before the cursor.
+  //   - No whitespace or newline between "@" and the cursor.
+  //   - The "@" must be at position 0 or follow whitespace (so we
+  //     don't trigger on emails like foo@bar).
+  const detectTrigger = (
+    text: string,
+    cursor: number
+  ): { atIndex: number; query: string } | null => {
+    for (let i = cursor - 1; i >= 0; i--) {
+      const ch = text[i];
+      if (ch === "@") {
+        const prev = i === 0 ? "" : text[i - 1];
+        if (prev === "" || /\s/.test(prev)) {
+          return { atIndex: i, query: text.slice(i + 1, cursor) };
+        }
+        return null;
+      }
+      if (/\s/.test(ch)) return null;
+    }
+    return null;
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const next = e.target.value;
+    onChange(next);
+    const cursor = e.target.selectionStart ?? next.length;
+    const t = detectTrigger(next, cursor);
+    setTrigger(t);
+    if (t) setHighlight(0);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (trigger && matches.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlight((h) => (h + 1) % matches.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlight((h) => (h - 1 + matches.length) % matches.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        confirmMention(matches[highlight]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setTrigger(null);
+        return;
+      }
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
+  };
+
+  const confirmMention = (member: ProjectMemberLite) => {
+    if (!trigger) return;
+    const displayName = member.name || member.email || "user";
+    const before = value.slice(0, trigger.atIndex);
+    // Cursor was at trigger.atIndex + 1 + trigger.query.length.
+    const after = value.slice(
+      trigger.atIndex + 1 + trigger.query.length
+    );
+    const inserted = `@${displayName} `;
+    const next = before + inserted + after;
+    onChange(next);
+    onMentionAdd(member);
+    setTrigger(null);
+    // Restore focus + move cursor to right after the inserted
+    // mention so the user can keep typing.
+    requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      const pos = before.length + inserted.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  return (
+    <div className="relative flex-1">
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        rows={rows}
+        maxLength={maxLength}
+        disabled={disabled}
+        className={className}
+      />
+      {trigger && matches.length > 0 && (
+        <div className="absolute left-0 bottom-full mb-1 w-64 max-h-64 overflow-auto rounded-md border bg-white shadow-lg z-20">
+          <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-slate-400 border-b">
+            Mention
+          </div>
+          {matches.map((m, idx) => {
+            const display = m.name || m.email || "Unknown";
+            const initial = display.charAt(0).toUpperCase();
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onMouseEnter={() => setHighlight(idx)}
+                onMouseDown={(e) => {
+                  // mousedown (not click) so the textarea doesn't
+                  // lose focus before we can re-focus it.
+                  e.preventDefault();
+                  confirmMention(m);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-slate-50",
+                  idx === highlight && "bg-[#c9a84c]/10"
+                )}
+              >
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={m.image || ""} />
+                  <AvatarFallback className="text-[10px] bg-[#d4b65a] text-white">
+                    {initial}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-slate-900 truncate">
+                    {display}
+                  </p>
+                  {m.jobTitle && (
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {m.jobTitle}
+                    </p>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1738,6 +2065,63 @@ function EmptyState() {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
+
+// Render message content with @ mentions promoted to gold chips.
+// Mentions are matched by the server-resolved display name (the same
+// "@FirstName Lastname" string the composer inserted at send-time),
+// so a user who edits and removes the "@Name" handle but leaves the
+// row in the mentions table won't see a phantom chip — and a user
+// who types "@Name" by hand without picking from the typeahead will
+// just see plain text (no row, no chip).
+function renderMessageBody(
+  content: string,
+  mentions?: MentionRef[]
+): React.ReactNode {
+  if (!mentions || mentions.length === 0) return content;
+
+  // Build the list of display strings ("@FullName") with longest
+  // first so "@John Smith" wins over "@John" when both exist.
+  const handles = mentions
+    .map((m) => ({
+      display: m.name || "user",
+      userId: m.userId,
+    }))
+    .filter((h) => h.display.length > 0)
+    .sort((a, b) => b.display.length - a.display.length);
+  if (handles.length === 0) return content;
+
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `@(${handles.map((h) => escape(h.display)).join("|")})(?=$|[^\\w])`,
+    "g"
+  );
+
+  const parts: React.ReactNode[] = [];
+  let lastIdx = 0;
+  let key = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(content)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(content.slice(lastIdx, match.index));
+    }
+    const display = match[1];
+    const handle = handles.find((h) => h.display === display);
+    parts.push(
+      <span
+        key={`mention-${key++}`}
+        data-userid={handle?.userId}
+        className="inline-flex items-center px-1 py-0.5 rounded bg-[#c9a84c]/15 text-[#a8893a] font-medium text-[13px]"
+      >
+        @{display}
+      </span>
+    );
+    lastIdx = match.index + match[0].length;
+  }
+  if (lastIdx < content.length) {
+    parts.push(content.slice(lastIdx));
+  }
+  return parts;
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

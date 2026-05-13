@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { persistMentionsForNewMessage } from "@/lib/mentions";
 
 /**
  * GET  /api/messages/:messageId/replies — fetch the full thread.
@@ -19,6 +20,7 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 
 const replyCreateSchema = z.object({
   content: z.string().min(1).max(10000),
+  mentionUserIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
 interface ParentAccess {
@@ -144,6 +146,12 @@ export async function GET(
             createdAt: true,
           },
         },
+        mentions: {
+          select: {
+            userId: true,
+            user: { select: { id: true, name: true, image: true } },
+          },
+        },
       },
     });
 
@@ -190,6 +198,11 @@ export async function GET(
           createdAt: a.createdAt.toISOString(),
         })),
         mine: m.author?.id === userId,
+        mentions: m.mentions.map((mn) => ({
+          userId: mn.userId,
+          name: mn.user.name,
+          image: mn.user.image,
+        })),
       };
     });
 
@@ -245,6 +258,37 @@ export async function POST(
       },
     });
 
+    let resolvedMentions: { userId: string; name: string | null; image: string | null }[] = [];
+    const ids = parsed.data.mentionUserIds ?? [];
+    if (ids.length > 0 && access.data.parent.projectId) {
+      try {
+        await persistMentionsForNewMessage({
+          messageId: created.id,
+          projectId: access.data.parent.projectId,
+          actorUserId: userId,
+          mentionUserIds: ids,
+          authorName:
+            created.author?.name ?? created.author?.email ?? "Someone",
+          contentPreview: created.content,
+          rootMessageId: access.data.rootId,
+        });
+        const mentions = await prisma.messageMention.findMany({
+          where: { messageId: created.id },
+          select: {
+            userId: true,
+            user: { select: { id: true, name: true, image: true } },
+          },
+        });
+        resolvedMentions = mentions.map((mn) => ({
+          userId: mn.userId,
+          name: mn.user.name,
+          image: mn.user.image,
+        }));
+      } catch (err) {
+        console.error("[replies POST] mention fan-out failed:", err);
+      }
+    }
+
     return NextResponse.json(
       {
         id: created.id,
@@ -256,6 +300,7 @@ export async function POST(
         reactions: [],
         attachments: [],
         mine: true,
+        mentions: resolvedMentions,
       },
       { status: 201 }
     );
