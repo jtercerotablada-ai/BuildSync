@@ -247,27 +247,29 @@ export default function TeamWorkspacePage() {
     );
   }
 
-  const teamColor = team.color || "#c9a84c";
+  const teamInitial = team.name.charAt(0).toUpperCase();
   const PrivacyIcon = team.privacy === "PRIVATE" ? Lock : Globe;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
-      {/* ── HERO HEADER ─────────────────────────────────────────── */}
+      {/* ── HERO HEADER ─────────────────────────────────────────────
+          Flat light-gray band identical to the /team Overview pattern
+          (and Asana's reference): a neutral 88px-tall strip with the
+          team avatar straddling the band/content boundary. The
+          per-team color used to drive a magenta-gradient hero here,
+          which read as loud and didn't compose well with the KPI
+          strip below it. The color still surfaces on KPI tiles,
+          project cards, and capacity bars where it carries meaning. */}
       <div className="relative border-b">
-        {/* Color band — full-bleed gradient using the team color. */}
-        <div
-          className="h-[72px] md:h-[88px]"
-          style={{
-            background: `linear-gradient(135deg, ${teamColor} 0%, ${teamColor}99 60%, ${teamColor}55 100%)`,
-          }}
-        />
+        <div className="h-[72px] md:h-[88px] bg-gray-100" />
         <div className="px-4 md:px-6 -mt-6 md:-mt-8 pb-3 md:pb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div className="flex items-end gap-3 md:gap-4 min-w-0">
             <div
-              className="w-14 h-14 md:w-16 md:h-16 rounded-xl border-4 border-background flex items-center justify-center text-white shadow-sm flex-shrink-0"
-              style={{ backgroundColor: teamColor }}
+              className="w-14 h-14 md:w-16 md:h-16 rounded-xl bg-gray-300 ring-4 ring-white flex items-center justify-center flex-shrink-0"
             >
-              <Users className="h-7 w-7 md:h-8 md:w-8" />
+              <span className="text-2xl md:text-3xl font-light text-gray-600">
+                {teamInitial}
+              </span>
             </div>
             <div className="min-w-0 pb-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
