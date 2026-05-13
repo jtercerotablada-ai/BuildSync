@@ -42,6 +42,7 @@ import {
   Trash2,
   Diamond,
   ThumbsUp,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, isToday, isTomorrow, isPast, parseISO } from "date-fns";
@@ -722,11 +723,23 @@ function BoardColumn({
           </div>
         </SortableContext>
 
-        {/* Empty state */}
+        {/* Empty state — doubles as drop-target affordance during drag
+            and quick-add affordance on click. Mirrors the my-tasks
+            board treatment so the user gets immediate feedback when
+            hovering over an empty column with a dragged card. */}
         {section.tasks.length === 0 && !isAddingTask && (
-          <div className="py-8 text-center">
-            <p className="text-xs text-slate-400">No tasks</p>
-          </div>
+          <button
+            type="button"
+            onClick={onStartAddTask}
+            className={cn(
+              "w-full text-center text-xs rounded-lg border-2 border-dashed transition-colors py-6",
+              isOver
+                ? "border-[#c9a84c] bg-[#c9a84c]/10 text-[#a8893a]"
+                : "border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-500"
+            )}
+          >
+            {isOver ? "Drop task here" : "No tasks · click to add"}
+          </button>
         )}
 
         {/* Inline add task */}
@@ -871,7 +884,8 @@ function SortableTaskCard({
           {/* Meta info */}
           <div className="flex items-center gap-2 text-slate-400">
             {task._count.subtasks > 0 && (
-              <span className="text-[11px] tabular-nums">
+              <span className="text-[11px] tabular-nums flex items-center gap-0.5">
+                <Layers className="w-3 h-3" />
                 {task.subtasks.filter((s) => s.completed).length}/{task._count.subtasks}
               </span>
             )}
