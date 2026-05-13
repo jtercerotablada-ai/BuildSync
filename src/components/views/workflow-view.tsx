@@ -12,6 +12,10 @@ import {
   Info,
   Loader2,
   ChevronDown,
+  FileText,
+  Link2 as LinkIcon,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +36,8 @@ import {
   WorkflowActionDialog,
   actionNeedsConfig,
 } from "@/components/views/workflow-action-dialog";
+import { FormBuilderDialog } from "@/components/views/form-builder-dialog";
+import type { FormRow } from "@/lib/form-types";
 
 // ============================================
 // TYPES
@@ -119,21 +125,32 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     actionType: WorkflowActionType;
   } | null>(null);
 
+  // Forms (Phase 3 source). Loaded once on mount alongside the
+  // workflow so the Sources panel can render counts + public links
+  // without a second round trip.
+  const [forms, setForms] = useState<FormRow[]>([]);
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
+  const [editingForm, setEditingForm] = useState<FormRow | null>(null);
+
   // ── Initial fetch ───────────────────────────────────────────
   useEffect(() => {
     let canceled = false;
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/projects/${projectId}/workflow`);
-        if (!res.ok) throw new Error("Failed to load workflow");
-        const data: WorkflowRow = await res.json();
+        const [wfRes, formsRes] = await Promise.all([
+          fetch(`/api/projects/${projectId}/workflow`),
+          fetch(`/api/projects/${projectId}/forms`),
+        ]);
+        if (!wfRes.ok) throw new Error("Failed to load workflow");
+        const wfData: WorkflowRow = await wfRes.json();
         if (!canceled) {
-          setWorkflow(data);
-          // Show onboarding only when the project has no rules yet —
-          // matches "first time" UX without forcing a dismissable
-          // toggle that breaks on refresh.
-          setShowOnboarding(data.rules.length === 0);
+          setWorkflow(wfData);
+          setShowOnboarding(wfData.rules.length === 0);
+        }
+        if (formsRes.ok) {
+          const formsData: FormRow[] = await formsRes.json();
+          if (!canceled && Array.isArray(formsData)) setForms(formsData);
         }
       } catch (err) {
         if (!canceled) {
@@ -208,6 +225,43 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     }
   };
 
+  // ── Form mutations ──────────────────────────────────────────
+  const handleFormSaved = (saved: FormRow) => {
+    setForms((prev) => {
+      const idx = prev.findIndex((f) => f.id === saved.id);
+      if (idx === -1) return [saved, ...prev];
+      const next = [...prev];
+      next[idx] = saved;
+      return next;
+    });
+    setEditingForm(null);
+  };
+
+  const handleFormDelete = async (formId: string) => {
+    if (!confirm("Delete this form? Past submissions are kept but new ones will be rejected.")) {
+      return;
+    }
+    const snapshot = forms;
+    setForms((prev) => prev.filter((f) => f.id !== formId));
+    try {
+      const res = await fetch(`/api/forms/${formId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Failed to delete form");
+      }
+      toast.success("Form deleted");
+    } catch (err) {
+      setForms(snapshot);
+      toast.error(err instanceof Error ? err.message : "Failed to delete form");
+    }
+  };
+
+  const copyFormLink = (formId: string) => {
+    const url = `${window.location.origin}/forms/${formId}`;
+    navigator.clipboard.writeText(url);
+    toast.success("Public form link copied");
+  };
+
   const removeRule = async (ruleId: string) => {
     // Optimistic: remove from UI immediately, roll back on failure.
     const snapshot = workflow;
@@ -272,48 +326,121 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
             </p>
           </div>
 
-          {/* Onboarding panel (only when no rules) */}
-          {showOnboarding && (
-            <>
-              <div className="flex-shrink-0">
-                <div className="w-72 bg-white rounded-lg border shadow-sm">
-                  <div className="p-4">
-                    <h2 className="text-sm font-semibold text-slate-900 text-center mb-3">
-                      How will tasks be added to this project?
-                    </h2>
+          {/* Sources panel — Forms section (Phase 3). Always visible
+              since forms are an ongoing config, not just onboarding.
+              Empty state matches the old "How will tasks be added"
+              card when there are no forms yet. */}
+          <div className="flex-shrink-0">
+            <div className="w-72 bg-white rounded-lg border shadow-sm">
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    Sources
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingForm(null);
+                      setFormDialogOpen(true);
+                    }}
+                    className="text-[11px] text-[#a8893a] hover:text-[#8a7028] font-medium"
+                  >
+                    + New form
+                  </button>
+                </div>
 
-                    <div className="flex items-start gap-2 p-2.5 bg-slate-50 rounded-lg text-xs mb-3">
-                      <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-slate-600">
-                        Anyone with access to this project can add tasks
-                        manually. Form-based sources land in a later
-                        phase.
-                      </p>
-                    </div>
+                <div className="flex items-start gap-2 p-2.5 bg-slate-50 rounded-lg text-xs mb-3">
+                  <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-slate-600">
+                    Anyone with the form's link can submit a task.
+                    Submissions land in the first section, then your
+                    workflow rules take over.
+                  </p>
+                </div>
 
-                    <div className="mt-4 flex justify-center">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => setShowOnboarding(false)}
+                {forms.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 text-center py-3">
+                    No forms yet. Create one and share its public link.
+                  </p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {forms.map((f) => (
+                      <li
+                        key={f.id}
+                        className="border rounded-md p-2 text-xs"
                       >
-                        Got it
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-1.5 min-w-0">
+                            <FileText className="w-3.5 h-3.5 text-[#a8893a] flex-shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-slate-900 truncate">
+                                {f.name}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                {f.submissionCount ?? 0} submission
+                                {f.submissionCount === 1 ? "" : "s"}
+                                {!f.isActive && " · inactive"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => copyFormLink(f.id)}
+                              title="Copy public link"
+                              className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
+                            >
+                              <LinkIcon className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingForm(f);
+                                setFormDialogOpen(true);
+                              }}
+                              title="Edit form"
+                              className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleFormDelete(f.id)}
+                              title="Delete form"
+                              className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
-              {/* Connector */}
-              <div className="flex items-center self-start mt-[88px]">
-                <div className="w-4 h-px bg-slate-300" />
-                <div className="w-7 h-7 rounded-full border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 flex-shrink-0">
-                  <Plus className="w-4 h-4" />
-                </div>
-                <div className="w-4 h-px bg-slate-300" />
+                {showOnboarding && forms.length === 0 && (
+                  <div className="mt-3 flex justify-center">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setShowOnboarding(false)}
+                    >
+                      Got it
+                    </Button>
+                  </div>
+                )}
               </div>
-            </>
-          )}
+            </div>
+          </div>
+
+          {/* Connector from Sources to Sections */}
+          <div className="flex items-center self-start mt-[88px]">
+            <div className="w-4 h-px bg-slate-300" />
+            <div className="w-7 h-7 rounded-full border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 flex-shrink-0">
+              <Plus className="w-4 h-4" />
+            </div>
+            <div className="w-4 h-px bg-slate-300" />
+          </div>
 
           {/* Section cards with connectors */}
           <div className="flex items-start flex-1">
@@ -353,6 +480,20 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
             setPendingAction(null);
           }
         }}
+      />
+
+      {/* Form builder — create / edit a form (Phase 3 source). */}
+      <FormBuilderDialog
+        open={formDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFormDialogOpen(false);
+            setEditingForm(null);
+          }
+        }}
+        projectId={projectId}
+        initial={editingForm}
+        onSaved={handleFormSaved}
       />
     </div>
   );
