@@ -103,9 +103,24 @@ export function CalendarView({
     typeof window !== 'undefined' && window.innerWidth < 768 ? "week" : "month"
   );
   const [isCreatingTask, setIsCreatingTask] = useState<string | null>(null);
+  // When the user drags across multiple cells before releasing, the
+  // end date is captured here. handleCreateTask then sends both
+  // startDate (isCreatingTask) and dueDate (rangeEnd) to the API so
+  // the task renders as a multi-day bar from the start.
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState("");
   const [calFilter, setCalFilter] = useState<"all" | "incomplete" | "completed">("all");
   const [showWeekends, setShowWeekends] = useState(true);
+
+  // Drag-to-create state. Mousedown on a cell starts it; mousemove
+  // updates currentDateStr as the cursor crosses other cells; mouseup
+  // commits — click (start === current) opens single-day quick-add,
+  // drag (start !== current) opens range quick-add with the start
+  // and end already pinned. Mirrors MS Project / Asana drag-to-create.
+  const [dragCreate, setDragCreate] = useState<{
+    startDateStr: string;
+    currentDateStr: string;
+  } | null>(null);
 
   // Ref-based focus management — the bare `autoFocus` attribute only
   // fires on initial mount, so when the user clicks from one cell's
@@ -121,6 +136,55 @@ export function CalendarView({
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [isCreatingTask]);
+
+  // Global drag tracker — only mounted while a drag is in progress.
+  // Listens at window level so the user can drag from one cell, exit
+  // the calendar momentarily, re-enter, and still have the gesture
+  // tracked. data-cell-date on each cell is the bread-crumb the
+  // pointer reads off the DOM hit-test.
+  useEffect(() => {
+    if (!dragCreate) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Walk up from the pointer target to find a cell with a date
+      // attached. Anything outside the calendar grid is ignored.
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const cellEl = target.closest<HTMLElement>("[data-cell-date]");
+      if (!cellEl) return;
+      const dateStr = cellEl.getAttribute("data-cell-date");
+      if (!dateStr) return;
+      setDragCreate((prev) =>
+        prev && prev.currentDateStr !== dateStr
+          ? { ...prev, currentDateStr: dateStr }
+          : prev
+      );
+    };
+
+    const handleMouseUp = () => {
+      setDragCreate((prev) => {
+        if (!prev) return null;
+        // Order the two endpoints chronologically — the user can
+        // drag right-to-left or up-and-around without breaking
+        // anything.
+        const a = prev.startDateStr;
+        const b = prev.currentDateStr;
+        const [startStr, endStr] = a <= b ? [a, b] : [b, a];
+        setIsCreatingTask(startStr);
+        // Only mark a range when the two endpoints differ; a plain
+        // click resolves to single-day quick-add.
+        setRangeEnd(startStr !== endStr ? endStr : null);
+        return null;
+      });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragCreate]);
 
   // Flatten all tasks and apply filter
   const allTasks = useMemo(() => {
@@ -290,9 +354,22 @@ export function CalendarView({
   // CREATE TASK
   // ============================================
 
-  const handleCreateTask = async (dateStr: string) => {
+  // Local-noon Date from a yyyy-MM-dd string. Using `new Date(str)`
+  // would parse as UTC midnight which then shifts the day in
+  // negative-UTC timezones (Miami / America/New_York). Noon is safe
+  // across every IANA zone — task pins to the picked calendar day.
+  const toLocalNoon = (dateStr: string): Date => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, (m ?? 1) - 1, d ?? 1, 12, 0, 0);
+  };
+
+  const handleCreateTask = async (
+    dateStr: string,
+    endDateStr?: string | null
+  ) => {
     if (!newTaskName.trim()) {
       setIsCreatingTask(null);
+      setRangeEnd(null);
       setNewTaskName("");
       return;
     }
@@ -304,25 +381,28 @@ export function CalendarView({
         return;
       }
 
-      // Build a local-midnight Date for the picked day. Using
-      // `new Date("2026-05-13")` parses as UTC midnight, which in
-      // negative-UTC timezones (Miami / America/New_York is UTC-4)
-      // converts to "the day before" 8pm — the task would land on
-      // the previous day on the calendar. Splitting the yyyy-MM-dd
-      // string and constructing Date with explicit local components
-      // pins the dueDate to the calendar day the user clicked.
-      const [y, m, d] = dateStr.split("-").map(Number);
-      const localMidnight = new Date(y, (m ?? 1) - 1, d ?? 1, 12, 0, 0);
+      const startNoon = toLocalNoon(dateStr);
+      const dueNoon =
+        endDateStr && endDateStr !== dateStr
+          ? toLocalNoon(endDateStr)
+          : startNoon;
+
+      // Body always has dueDate; startDate only when the user
+      // actually dragged across multiple cells (range create).
+      const body: Record<string, unknown> = {
+        name: newTaskName.trim(),
+        projectId,
+        sectionId: firstSection.id,
+        dueDate: dueNoon.toISOString(),
+      };
+      if (endDateStr && endDateStr !== dateStr) {
+        body.startDate = startNoon.toISOString();
+      }
 
       const response = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newTaskName.trim(),
-          projectId,
-          sectionId: firstSection.id,
-          dueDate: localMidnight.toISOString(),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -336,6 +416,7 @@ export function CalendarView({
       // new active cell when we clear the previous one. Only reset
       // when the active cell is still the one we just persisted.
       setIsCreatingTask((prev) => (prev === dateStr ? null : prev));
+      setRangeEnd((prev) => (prev === endDateStr ? null : prev));
       setNewTaskName((prev) => (prev === "" ? prev : ""));
     } catch {
       toast.error("Failed to create task");
@@ -645,23 +726,44 @@ export function CalendarView({
                   const isFirstOfMonth = dayNum === 1;
                   const isAdding = isCreatingTask === dateStr;
 
+                  // Whether this cell is between drag-create start and
+                  // current — used to paint the gold ghost-band so the
+                  // user sees what range they're about to create.
+                  const inDragRange = (() => {
+                    if (!dragCreate) return false;
+                    const a = dragCreate.startDateStr;
+                    const b = dragCreate.currentDateStr;
+                    const [lo, hi] = a <= b ? [a, b] : [b, a];
+                    return dateStr >= lo && dateStr <= hi;
+                  })();
+
                   return (
                     <div
                       key={dateStr}
+                      data-cell-date={dateStr}
                       className={cn(
-                        "border-r last:border-r-0 relative h-full",
+                        "border-r last:border-r-0 relative h-full select-none",
                         !isCurrentMonth && !isWeek && "bg-slate-50/40",
                         isWeekendDay && showWeekends && isCurrentMonth && "bg-slate-50/20",
                         isCurrentDay && "bg-[#c9a84c]/5",
+                        inDragRange && "bg-[#c9a84c]/15",
                         isAdding &&
                           "ring-2 ring-[#c9a84c]/60 ring-inset",
-                        !isAdding &&
-                          "cursor-pointer hover:bg-[#c9a84c]/[0.04]"
+                        !isAdding && !dragCreate &&
+                          "cursor-pointer hover:bg-[#c9a84c]/[0.04]",
+                        dragCreate && "cursor-crosshair"
                       )}
-                      onClick={(e) => {
-                        if (e.target === e.currentTarget) {
-                          setIsCreatingTask(dateStr);
-                        }
+                      onMouseDown={(e) => {
+                        // Only seed a drag from the cell's empty
+                        // background — clicking a bar / popover /
+                        // input should NOT start a drag-to-create.
+                        if (e.target !== e.currentTarget) return;
+                        if (e.button !== 0) return; // left-click only
+                        e.preventDefault();
+                        setDragCreate({
+                          startDateStr: dateStr,
+                          currentDateStr: dateStr,
+                        });
                       }}
                     >
                       {/* Day number — pinned to top-left, above the bar
@@ -837,11 +939,32 @@ export function CalendarView({
 
                 {/* Inline add input — appears as the next bar in the
                     target column's lane stack. Same dimensions as a
-                    task bar so the rhythm doesn't break. */}
-                {addingColIndex >= 0 && (
+                    task bar so the rhythm doesn't break. When the
+                    user dragged across multiple days, the input
+                    spans those columns inside this week so the
+                    visual matches the bar that will land. */}
+                {(() => {
+                  if (addingColIndex < 0) return null;
+                  // How many columns does the input span inside THIS
+                  // week? rangeEnd may live in a future week, in
+                  // which case the input spans to the right edge of
+                  // this week and the bar will continue next week.
+                  let inputColSpan = 1;
+                  if (rangeEnd) {
+                    const rangeEndInWeek = week.findIndex(
+                      (d) => format(d, "yyyy-MM-dd") === rangeEnd
+                    );
+                    if (rangeEndInWeek >= 0 && rangeEndInWeek >= addingColIndex) {
+                      inputColSpan = rangeEndInWeek - addingColIndex + 1;
+                    } else if (rangeEndInWeek < 0) {
+                      // End is in a later week — span to end of this week
+                      inputColSpan = week.length - addingColIndex;
+                    }
+                  }
+                  return (
                   <div
                     style={{
-                      gridColumn: `${addingColIndex + 1} / span 1`,
+                      gridColumn: `${addingColIndex + 1} / span ${inputColSpan}`,
                       gridRow: addingLane + 1,
                     }}
                     className="px-px min-w-0 pointer-events-auto"
@@ -860,10 +983,11 @@ export function CalendarView({
                           if (!dateStr) return;
                           if (e.key === "Enter") {
                             e.preventDefault();
-                            handleCreateTask(dateStr);
+                            handleCreateTask(dateStr, rangeEnd);
                           } else if (e.key === "Escape") {
                             e.preventDefault();
                             setIsCreatingTask(null);
+                            setRangeEnd(null);
                             setNewTaskName("");
                           }
                         }}
@@ -871,17 +995,31 @@ export function CalendarView({
                           const dateStr = isCreatingTask;
                           if (!dateStr) return;
                           if (newTaskName.trim()) {
-                            handleCreateTask(dateStr);
+                            handleCreateTask(dateStr, rangeEnd);
                           } else {
                             setIsCreatingTask(null);
+                            setRangeEnd(null);
                           }
                         }}
-                        placeholder="Task name…"
+                        placeholder={
+                          rangeEnd
+                            ? `Task name… (${
+                                Math.round(
+                                  (toLocalNoon(rangeEnd).getTime() -
+                                    toLocalNoon(
+                                      isCreatingTask ?? rangeEnd
+                                    ).getTime()) /
+                                    (1000 * 60 * 60 * 24)
+                                ) + 1
+                              }-day task)`
+                            : "Task name…"
+                        }
                         className="w-full px-1.5 py-[3px] text-[11px] leading-snug bg-transparent border-none outline-none placeholder:text-slate-400"
                       />
                     </div>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
           );
