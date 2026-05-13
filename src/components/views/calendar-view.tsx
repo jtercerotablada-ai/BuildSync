@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight,
@@ -97,6 +97,21 @@ export function CalendarView({
   const [newTaskName, setNewTaskName] = useState("");
   const [calFilter, setCalFilter] = useState<"all" | "incomplete" | "completed">("all");
   const [showWeekends, setShowWeekends] = useState(true);
+
+  // Ref-based focus management — the bare `autoFocus` attribute only
+  // fires on initial mount, so when the user clicks from one cell's
+  // active input to another the input stayed unfocused. The effect
+  // below also resets the in-progress name so the new cell doesn't
+  // inherit a half-typed task from the previous one (B4).
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (isCreatingTask) {
+      setNewTaskName("");
+      // requestAnimationFrame so React has actually mounted the
+      // input before we try to focus.
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [isCreatingTask]);
 
   // Flatten all tasks and apply filter
   const allTasks = useMemo(() => {
@@ -280,6 +295,16 @@ export function CalendarView({
         return;
       }
 
+      // Build a local-midnight Date for the picked day. Using
+      // `new Date("2026-05-13")` parses as UTC midnight, which in
+      // negative-UTC timezones (Miami / America/New_York is UTC-4)
+      // converts to "the day before" 8pm — the task would land on
+      // the previous day on the calendar. Splitting the yyyy-MM-dd
+      // string and constructing Date with explicit local components
+      // pins the dueDate to the calendar day the user clicked.
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const localMidnight = new Date(y, (m ?? 1) - 1, d ?? 1, 12, 0, 0);
+
       const response = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -287,7 +312,7 @@ export function CalendarView({
           name: newTaskName.trim(),
           projectId,
           sectionId: firstSection.id,
-          dueDate: new Date(dateStr).toISOString(),
+          dueDate: localMidnight.toISOString(),
         }),
       });
 
@@ -480,14 +505,49 @@ export function CalendarView({
             }
           }
 
+          // Which column is currently in add-mode in this week?
+          const addingColIndex =
+            isCreatingTask &&
+            week.some((d) => format(d, "yyyy-MM-dd") === isCreatingTask)
+              ? week.findIndex(
+                  (d) => format(d, "yyyy-MM-dd") === isCreatingTask
+                )
+              : -1;
+
+          // Place the +N more pill and the inline-add input on the
+          // SAME column's next free lane. If both would land at the
+          // same row, the input goes one row LOWER so they don't
+          // collide. We compute both lane values up front so the
+          // weekHeight calc below knows the true deepest row.
+          const moreLaneByCol: Record<number, number> = {};
+          for (let c = 0; c < week.length; c++) {
+            if (hiddenByCol[c] && hiddenByCol[c] > 0) {
+              moreLaneByCol[c] = (columnMaxLane[c] ?? -1) + 1;
+            }
+          }
+          const addingLane =
+            addingColIndex >= 0
+              ? moreLaneByCol[addingColIndex] !== undefined
+                ? // Another row past the +N more pill so they stack
+                  // cleanly instead of overlapping (B2 fix).
+                  moreLaneByCol[addingColIndex] + 1
+                : (columnMaxLane[addingColIndex] ?? -1) + 1
+              : 0;
+
           // Walk every column: its bottom row is its deepest lane,
-          // bumped one more if a +N more pill needs to sit there.
+          // bumped one more if a +N more pill needs to sit there,
+          // and bumped AGAIN if the inline-add input lives in this
+          // column (so the row never overflows the weekHeight — B3
+          // fix). Then derive total content height.
           let maxRow = -1;
           for (let c = 0; c < week.length; c++) {
-            const bottom =
-              hiddenByCol[c] && hiddenByCol[c] > 0
-                ? columnMaxLane[c] + 1
-                : columnMaxLane[c];
+            let bottom = columnMaxLane[c];
+            if (moreLaneByCol[c] !== undefined) {
+              bottom = moreLaneByCol[c];
+            }
+            if (c === addingColIndex && addingLane > bottom) {
+              bottom = addingLane;
+            }
             if (bottom > maxRow) maxRow = bottom;
           }
 
@@ -502,22 +562,6 @@ export function CalendarView({
               ? DAY_HEADER_PX + (maxRow + 1) * LANE_PX + ROW_BOTTOM_PX
               : ROW_MIN_PX;
           const weekHeight = Math.max(ROW_MIN_PX, contentPx);
-
-          // Which column is currently in add-mode in this week?
-          const addingColIndex =
-            isCreatingTask &&
-            week.some((d) => format(d, "yyyy-MM-dd") === isCreatingTask)
-              ? week.findIndex(
-                  (d) => format(d, "yyyy-MM-dd") === isCreatingTask
-                )
-              : -1;
-          // The input lands at the next-free lane in that column so
-          // it slots in as a brand-new bar instead of floating at the
-          // cell bottom.
-          let addingLane = 0;
-          if (addingColIndex >= 0) {
-            addingLane = (columnMaxLane[addingColIndex] ?? -1) + 1;
-          }
 
           return (
             <div
@@ -654,12 +698,15 @@ export function CalendarView({
                   const count = hiddenByCol[dayOfWeek];
                   if (!count) return null;
                   const dayDate = week[dayOfWeek];
+                  // moreLaneByCol is 0-indexed; CSS grid rows are
+                  // 1-indexed, hence +1.
+                  const gridRow = (moreLaneByCol[dayOfWeek] ?? 0) + 1;
                   return (
                     <div
                       key={`more-${weekIdx}-${dayOfWeek}`}
                       style={{
                         gridColumn: `${dayOfWeek + 1} / span 1`,
-                        gridRow: (columnMaxLane[dayOfWeek] ?? -1) + 2,
+                        gridRow,
                       }}
                       className="px-px min-w-0 pointer-events-auto"
                     >
@@ -740,6 +787,7 @@ export function CalendarView({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <input
+                        ref={inputRef}
                         type="text"
                         value={newTaskName}
                         onChange={(e) => setNewTaskName(e.target.value)}
@@ -766,7 +814,6 @@ export function CalendarView({
                         }}
                         placeholder="Task name…"
                         className="w-full px-1.5 py-[3px] text-[11px] leading-snug bg-transparent border-none outline-none placeholder:text-slate-400"
-                        autoFocus
                       />
                     </div>
                   </div>
