@@ -11,6 +11,7 @@ import {
   Diamond,
   AlertTriangle,
   ThumbsUp,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -132,6 +133,32 @@ export function TimelineView({
   // the filter and shows the full schedule.
   const [lookAhead, setLookAhead] = useState<"all" | "3w" | "6w">("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  // Dependencies — loaded once on mount, render path is FINISH_TO_START
+  // arrows between task bars. Phase 3 only; the schema has the rows
+  // but the rest of the cockpit doesn't surface them yet.
+  type DependencyRow = {
+    id: string;
+    type: "FINISH_TO_START" | "START_TO_START" | "FINISH_TO_FINISH" | "START_TO_FINISH";
+    dependentTaskId: string;
+    blockingTaskId: string;
+  };
+  const [dependencies, setDependencies] = useState<DependencyRow[]>([]);
+  const [showDependencies, setShowDependencies] = useState(true);
+
+  useEffect(() => {
+    let canceled = false;
+    fetch(`/api/projects/${projectId}/dependencies`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: DependencyRow[]) => {
+        if (!canceled && Array.isArray(data)) setDependencies(data);
+      })
+      .catch(() => {
+        if (!canceled) setDependencies([]);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [projectId]);
   const [dragState, setDragState] = useState<{
     taskId: string;
     // "left"/"right" handles resize one edge. "move" drags the whole
@@ -342,6 +369,64 @@ export function TimelineView({
       return { left, width };
     },
     [columns, config.columnWidth, zoomLevel, currentDate]
+  );
+
+  // Layout constants used by both the row map and the SVG arrow
+  // geometry. Declared early so the useCallback below can close over
+  // a stable value (TS const block-scoping otherwise errored at the
+  // taskRowMap call site that's higher up in the file than the old
+  // declaration block).
+  const rowHeight = 44;
+
+  // ============================================
+  // GLOBAL TASK ROW MAP (taskId → rowIndex)
+  // ============================================
+  // Walks filteredSections in render order and assigns each visible
+  // task its absolute row index inside the Gantt chart. Section
+  // headers and collapsed sections are accounted for so the Y of any
+  // task bar lines up perfectly with where the arrow needs to land.
+
+  const taskRowMap = useMemo(() => {
+    const map = new Map<string, number>();
+    let row = 0;
+    for (const section of filteredSections) {
+      row++; // section header row
+      if (collapsedSections.has(section.id)) continue;
+      for (const task of section.tasks) {
+        map.set(task.id, row);
+        row++;
+      }
+    }
+    return map;
+  }, [filteredSections, collapsedSections]);
+
+  // Map taskId → all the screen coordinates we need to draw an arrow
+  // ending or starting at this task. Returns null if the task isn't
+  // currently visible (outside the timeline window OR collapsed).
+  const getTaskScreenPos = useCallback(
+    (taskId: string) => {
+      const row = taskRowMap.get(taskId);
+      if (row === undefined) return null;
+      // Find the task object so we can compute its bar position.
+      let task: Task | null = null;
+      for (const s of filteredSections) {
+        const t = s.tasks.find((x) => x.id === taskId);
+        if (t) {
+          task = t;
+          break;
+        }
+      }
+      if (!task) return null;
+      const pos = getTaskPosition(task);
+      if (!pos) return null;
+      const yCenter = row * rowHeight + rowHeight / 2;
+      return {
+        xLeft: pos.left,
+        xRight: pos.left + pos.width,
+        yCenter,
+      };
+    },
+    [taskRowMap, filteredSections, getTaskPosition, rowHeight]
   );
 
   // ============================================
@@ -586,7 +671,6 @@ export function TimelineView({
   }, []);
 
   const sidebarWidth = isMobile ? 120 : 280;
-  const rowHeight = 44;
   const headerHeight = 80;
 
   return (
@@ -668,6 +752,22 @@ export function TimelineView({
             Due soon
           </Button>
 
+          <Button
+            variant={showDependencies ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setShowDependencies(!showDependencies)}
+            title="Show dependency arrows between tasks"
+            disabled={dependencies.length === 0}
+          >
+            <Link2 className="w-4 h-4 mr-1" />
+            Dependencies
+            {dependencies.length > 0 && (
+              <span className="ml-1 text-[10px] tabular-nums text-slate-400">
+                {dependencies.length}
+              </span>
+            )}
+          </Button>
+
           <div className="h-6 w-px bg-slate-200 mx-2" />
 
           <DropdownMenu>
@@ -731,9 +831,14 @@ export function TimelineView({
               Task Name
             </div>
 
-            {/* Sections & Tasks */}
-            {filteredSections.map((section) => {
+            {/* Sections & Tasks — each section gets a WBS number
+                (1.0, 2.0, 3.0...) and each task gets its parent
+                number plus its 1-based index (1.1, 1.2, 2.5...).
+                Matches PMI/AEC WBS convention so a structural firm
+                can pull a sub-row by its number in a meeting. */}
+            {filteredSections.map((section, sectionIdx) => {
               const isCollapsed = collapsedSections.has(section.id);
+              const wbsSection = `${sectionIdx + 1}.0`;
 
               return (
                 <div key={section.id}>
@@ -748,6 +853,9 @@ export function TimelineView({
                     ) : (
                       <ChevronDown className="w-4 h-4 text-slate-400" />
                     )}
+                    <span className="text-[10px] font-mono font-semibold text-[#a8893a] tabular-nums flex-shrink-0 hidden md:inline">
+                      {wbsSection}
+                    </span>
                     <span className="font-semibold text-xs md:text-sm text-slate-900 truncate">
                       {section.name}
                     </span>
@@ -758,11 +866,12 @@ export function TimelineView({
 
                   {/* Tasks */}
                   {!isCollapsed &&
-                    section.tasks.map((task) => {
+                    section.tasks.map((task, taskIdx) => {
                       const isMilestone = isTaskMilestone(task);
                       const isApproval = isTaskApproval(task);
                       const dueSoon = isTaskDueSoon(task);
                       const progress = getTaskProgress(task);
+                      const wbsTask = `${sectionIdx + 1}.${taskIdx + 1}`;
 
                       return (
                         <div
@@ -777,6 +886,12 @@ export function TimelineView({
                             onTaskClick(task.id);
                           }}
                         >
+                          {/* WBS number — small, monospaced, gold.
+                              Hidden on mobile where space is tight. */}
+                          <span className="text-[10px] font-mono text-[#a8893a]/70 tabular-nums flex-shrink-0 hidden md:inline w-10">
+                            {wbsTask}
+                          </span>
+
                           {/* Task-type marker — gold Diamond for
                               MILESTONE, gold ThumbsUp for APPROVAL,
                               gold square for regular tasks. */}
@@ -890,6 +1005,94 @@ export function TimelineView({
                 >
                   <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-black rounded-full" />
                 </div>
+              )}
+
+              {/* DEPENDENCY ARROWS — SVG overlay drawn above the
+                  grid but below the task bars (z-index 5). Each
+                  FINISH_TO_START dep renders as an "elbow"
+                  connector: right edge of the blocker → small
+                  horizontal stub → vertical leg → small horizontal
+                  stub ending in an arrowhead at the dependent's
+                  left edge. START_TO_START / FINISH_TO_FINISH /
+                  START_TO_FINISH use the equivalent endpoint pair.
+                  Skipped silently if either task is outside the
+                  visible timeline window. */}
+              {showDependencies && dependencies.length > 0 && (
+                <svg
+                  className="absolute inset-0 pointer-events-none z-[5]"
+                  width={columns.length * config.columnWidth}
+                  height="100%"
+                  style={{
+                    width: columns.length * config.columnWidth,
+                  }}
+                >
+                  <defs>
+                    <marker
+                      id="dep-arrowhead"
+                      markerWidth="6"
+                      markerHeight="6"
+                      refX="5"
+                      refY="3"
+                      orient="auto"
+                    >
+                      <polygon points="0 0, 6 3, 0 6" fill="#a8893a" />
+                    </marker>
+                  </defs>
+                  {dependencies.map((dep) => {
+                    const blocking = getTaskScreenPos(dep.blockingTaskId);
+                    const dependent = getTaskScreenPos(dep.dependentTaskId);
+                    if (!blocking || !dependent) return null;
+
+                    let sx = 0;
+                    let sy = 0;
+                    let ex = 0;
+                    let ey = 0;
+                    if (dep.type === "FINISH_TO_START") {
+                      sx = blocking.xRight;
+                      sy = blocking.yCenter;
+                      ex = dependent.xLeft;
+                      ey = dependent.yCenter;
+                    } else if (dep.type === "START_TO_START") {
+                      sx = blocking.xLeft;
+                      sy = blocking.yCenter;
+                      ex = dependent.xLeft;
+                      ey = dependent.yCenter;
+                    } else if (dep.type === "FINISH_TO_FINISH") {
+                      sx = blocking.xRight;
+                      sy = blocking.yCenter;
+                      ex = dependent.xRight;
+                      ey = dependent.yCenter;
+                    } else {
+                      // START_TO_FINISH (rare)
+                      sx = blocking.xLeft;
+                      sy = blocking.yCenter;
+                      ex = dependent.xRight;
+                      ey = dependent.yCenter;
+                    }
+
+                    // Elbow path: short horizontal stub out of the
+                    // blocker, vertical run, short horizontal stub
+                    // into the dependent. 10px clearance from the bar
+                    // edge keeps the line off the bar's rounded corner.
+                    const stub = 10;
+                    const midX =
+                      ex >= sx + 2 * stub
+                        ? sx + stub
+                        : ex - stub;
+                    const path = `M ${sx} ${sy} L ${midX} ${sy} L ${midX} ${ey} L ${ex} ${ey}`;
+
+                    return (
+                      <path
+                        key={dep.id}
+                        d={path}
+                        stroke="#a8893a"
+                        strokeWidth="1.5"
+                        fill="none"
+                        markerEnd="url(#dep-arrowhead)"
+                      />
+                    );
+                  })}
+                </svg>
               )}
 
               {/* Section Rows */}
