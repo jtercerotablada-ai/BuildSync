@@ -516,8 +516,12 @@ export function ProjectOverview({
 
   return (
     <div className="flex flex-col lg:flex-row h-full">
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto p-6 max-w-5xl">
+      {/* Main Content — no max-width so the pulse grid + roster + goals
+          stretch across wide monitors instead of crowding into a
+          1024px ribbon. Padding scales with breakpoint so 2K/4K
+          screens get breathing room without losing data density on
+          smaller laptops. */}
+      <div className="flex-1 overflow-auto p-4 md:p-6 xl:p-8 2xl:p-10">
         {/* Project pulse — replaces the old AI summary stubs with real
             numbers derived from project data. Six compact cells in a
             monochrome+gold grid; mobile collapses to 2 columns. */}
