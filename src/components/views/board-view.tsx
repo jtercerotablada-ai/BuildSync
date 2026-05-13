@@ -541,7 +541,12 @@ export function BoardView({
         onDragEnd={handleDragEnd}
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       >
-        <div className="hidden md:flex gap-3 px-6 py-4 h-full overflow-x-auto">
+        {/* Outer container is responsible for BOTH axes of scroll
+            (vertical + horizontal). Each column has no internal
+            overflow, so its gray background grows with the cards
+            inside it (Asana behavior). Without this, every column
+            stretched to viewport height even when half-empty. */}
+        <div className="hidden md:flex gap-3 px-6 py-4 overflow-auto items-start min-h-full">
           {localSections.map((section) => (
             <BoardColumn
               key={section.id}
@@ -659,7 +664,11 @@ function BoardColumn({
     <div
       ref={setDroppableRef}
       className={cn(
-        "flex-shrink-0 w-[260px] md:w-[280px] flex flex-col rounded-xl max-h-full transition-colors",
+        // No max-h-full — the gray background grows with the cards
+        // inside it instead of being clipped to viewport height.
+        // The outer board container handles vertical scroll when a
+        // column grows past the page.
+        "flex-shrink-0 w-[260px] md:w-[280px] flex flex-col rounded-xl transition-colors",
         isOver ? "bg-slate-200/80" : "bg-slate-100/80"
       )}
     >
@@ -731,8 +740,11 @@ function BoardColumn({
         </div>
       </div>
 
-      {/* Task Cards */}
-      <div className="flex-1 px-2 pb-2 overflow-y-auto min-h-[60px]">
+      {/* Task Cards — no flex-1 / no overflow-y-auto so the column's
+          height tracks the cards inside it. Long columns get
+          scrolled by the page-level container above, not by an
+          internal scrollbar. */}
+      <div className="px-2 pb-2 min-h-[60px]">
         <SortableContext
           id={section.id}
           items={section.tasks.map((t) => t.id)}
