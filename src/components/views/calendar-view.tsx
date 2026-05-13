@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   Plus,
   Filter,
   Settings,
+  Diamond,
+  ThumbsUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +40,8 @@ import { toast } from "sonner";
 // TYPES
 // ============================================
 
+type TaskType = "TASK" | "MILESTONE" | "APPROVAL";
+
 interface Task {
   id: string;
   name: string;
@@ -46,6 +50,7 @@ interface Task {
   dueDate: string | null;
   startDate?: string | null;
   priority: string;
+  taskType?: TaskType | null;
   assignee: {
     id: string;
     name: string | null;
@@ -126,15 +131,32 @@ export function CalendarView({
   }, [currentDate, viewMode, showWeekends]);
 
   // ============================================
-  // GET TASKS FOR A DAY (simple: due date matches)
+  // GET TASKS FOR A DAY
   // ============================================
+  // - Single-day task (only dueDate): renders on its dueDate.
+  // - Multi-day task (startDate AND dueDate distinct): renders on the
+  //   start date with a small "→ MMM d" continuation marker so the
+  //   user sees the range without re-architecting the grid into a
+  //   Gantt-style overlay (that's the P3 refactor).
 
   const getTasksForDay = (day: Date) => {
     return allTasks.filter((task) => {
-      if (!task.dueDate) return false;
-      const taskDue = parseISO(task.dueDate);
-      return isSameDay(taskDue, day);
+      if (!task.dueDate && !task.startDate) return false;
+      const anchorRaw = task.startDate || task.dueDate;
+      if (!anchorRaw) return false;
+      const anchor = parseISO(anchorRaw);
+      return isSameDay(anchor, day);
     });
+  };
+
+  // For each task that's actually multi-day, compute the continuation
+  // label shown after the name.
+  const continuationLabel = (task: Task): string | null => {
+    if (!task.startDate || !task.dueDate) return null;
+    const s = parseISO(task.startDate);
+    const e = parseISO(task.dueDate);
+    if (isSameDay(s, e)) return null;
+    return `→ ${format(e, "MMM d")}`;
   };
 
   // ============================================
@@ -328,11 +350,26 @@ export function CalendarView({
                   "border-r border-b p-0.5 md:p-1 group relative",
                   isWeek ? "min-h-[200px] md:min-h-[400px]" : "min-h-[52px] md:min-h-[90px]",
                   !isCurrentMonth && !isWeek && "bg-white/50",
-                  isWeekendDay && showWeekends && "bg-white/30"
+                  isWeekendDay && showWeekends && "bg-white/30",
+                  // Whole cell is now the quick-add affordance: hover
+                  // gives a subtle tint so it reads as clickable. The
+                  // pills themselves have higher z-index so clicking
+                  // a pill still opens the slide-over.
+                  isCreatingTask !== dateStr &&
+                    "cursor-pointer hover:bg-[#c9a84c]/[0.04]"
                 )}
+                onClick={(e) => {
+                  // Only enter quick-add mode if the click is on the
+                  // cell background, not on a pill or another button.
+                  if (e.target === e.currentTarget) {
+                    setIsCreatingTask(dateStr);
+                  }
+                }}
               >
                 {/* Day number */}
-                <div className="flex items-start justify-between">
+                <div
+                  className="flex items-start justify-between pointer-events-none"
+                >
                   <span
                     className={cn(
                       "text-xs md:text-sm",
@@ -373,24 +410,49 @@ export function CalendarView({
                   </div>
                 )}
 
-                {/* Tasks - Desktop: full task cards */}
+                {/* Tasks - Desktop: full task pills with type icon +
+                    continuation label for multi-day ranges */}
                 <div className="hidden md:block mt-1 space-y-0.5">
-                  {dayTasks.slice(0, maxVisible).map((task) => (
-                    <div
-                      key={task.id}
-                      className={cn(
-                        "text-xs p-1 bg-white border rounded shadow-sm truncate cursor-pointer hover:bg-white",
-                        task.completed && "line-through text-slate-400 opacity-60"
-                      )}
-                      title={task.name}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onTaskClick(task.id);
-                      }}
-                    >
-                      {task.name}
-                    </div>
-                  ))}
+                  {dayTasks.slice(0, maxVisible).map((task) => {
+                    const cont = continuationLabel(task);
+                    const TypeIcon =
+                      task.taskType === "MILESTONE"
+                        ? Diamond
+                        : task.taskType === "APPROVAL"
+                          ? ThumbsUp
+                          : null;
+                    return (
+                      <div
+                        key={task.id}
+                        className={cn(
+                          "text-xs px-1.5 py-0.5 bg-white border rounded shadow-sm flex items-center gap-1 cursor-pointer hover:border-[#c9a84c] transition-colors",
+                          task.completed && "line-through text-slate-400 opacity-60",
+                          cont && "border-l-2 border-l-[#c9a84c]"
+                        )}
+                        title={
+                          cont
+                            ? `${task.name}  •  ${format(parseISO(task.startDate!), "MMM d")} ${cont}`
+                            : task.name
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTaskClick(task.id);
+                        }}
+                      >
+                        {TypeIcon && (
+                          <TypeIcon className="h-3 w-3 text-[#a8893a] flex-shrink-0" />
+                        )}
+                        <span className="truncate flex-1 min-w-0">
+                          {task.name}
+                        </span>
+                        {cont && (
+                          <span className="text-[10px] text-[#a8893a] tabular-nums flex-shrink-0 font-medium">
+                            {cont}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                   {dayTasks.length > maxVisible && (
                     <span className="text-xs text-black pl-1">
                       +{dayTasks.length - maxVisible} more
@@ -398,8 +460,9 @@ export function CalendarView({
                   )}
                 </div>
 
-                {/* Hover: Add Task Button or Inline Input */}
-                {isCreatingTask === dateStr ? (
+                {/* Quick-add input (rendered when this is the active
+                    cell). Cell-level click handler above seeds this. */}
+                {isCreatingTask === dateStr && (
                   <input
                     type="text"
                     value={newTaskName}
@@ -418,18 +481,11 @@ export function CalendarView({
                         setIsCreatingTask(null);
                       }
                     }}
+                    onClick={(e) => e.stopPropagation()}
                     placeholder="Task name"
-                    className="w-full text-xs px-2 py-1 border rounded mt-1 outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full text-xs px-2 py-1 border rounded mt-1 outline-none focus:ring-2 focus:ring-[#c9a84c]"
                     autoFocus
                   />
-                ) : (
-                  <button
-                    onClick={() => setIsCreatingTask(dateStr)}
-                    className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 text-xs text-black hover:text-black flex items-center gap-0.5 transition-opacity"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add
-                  </button>
                 )}
               </div>
             );
