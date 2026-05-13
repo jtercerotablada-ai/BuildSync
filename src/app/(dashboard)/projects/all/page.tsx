@@ -176,9 +176,10 @@ export default function ProjectsPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
-      {/* Header — back to the original: title left, Create button
-          right, on the same row. */}
-      <div className="flex items-center justify-between px-4 md:px-8 pt-6 md:pt-8 pb-4">
+      {/* Header — title left, Create button right. Padding scales with
+          viewport so on big monitors the title aligns with the table
+          column gutter instead of hugging the rail. */}
+      <div className="flex items-center justify-between px-4 md:px-8 xl:px-12 2xl:px-16 pt-6 md:pt-8 pb-4">
         <h1 className="text-[22px] md:text-[28px] font-semibold text-black tracking-tight">
           Browse projects
           <span className="ml-2 text-sm font-normal text-gray-400 tabular-nums">
@@ -195,7 +196,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Search */}
-      <div className="px-4 md:px-8 pb-3">
+      <div className="px-4 md:px-8 xl:px-12 2xl:px-16 pb-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -209,7 +210,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Filter chips + view switcher */}
-      <div className="flex flex-wrap items-center gap-2 px-4 md:px-8 pb-4">
+      <div className="flex flex-wrap items-center gap-2 px-4 md:px-8 xl:px-12 2xl:px-16 pb-4">
           <FilterChip
             label="Type"
             activeLabel={typeFilter === "ALL" ? null : TYPE_LABEL[typeFilter as ProjectType]}
@@ -306,7 +307,12 @@ export default function ProjectsPage() {
         ) : view === "gantt" ? (
           <GanttTimeline projects={filtered} />
         ) : (
-          <div className="max-w-7xl w-full mx-auto px-4 md:px-6">
+          // Table fills the available viewport instead of locking at a
+          // max width — on a 27" / 4K monitor the old max-w-7xl left a
+          // skinny ribbon in the middle with empty space on both sides.
+          // Padding tightens slightly at xl/2xl breakpoints so the
+          // table reads comfortably without feeling pinned to the edges.
+          <div className="w-full px-4 md:px-8 xl:px-12 2xl:px-16">
             {view === "list" ? (
               <ProjectsListView
                 projects={filtered}
