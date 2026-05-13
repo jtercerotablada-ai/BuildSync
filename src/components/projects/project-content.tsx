@@ -1028,6 +1028,15 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               projectName={project.name}
               projectColor={project.color}
               projectStatus={project.status}
+              currentUser={
+                session?.user
+                  ? {
+                      id: session.user.email || "",
+                      name: session.user.name || null,
+                      image: session.user.image || null,
+                    }
+                  : undefined
+              }
             />
           )}
           {currentView === "files" && (
