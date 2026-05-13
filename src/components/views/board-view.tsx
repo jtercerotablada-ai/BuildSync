@@ -119,9 +119,17 @@ export function BoardView({
 
   // Optimistic state: local copy of sections for instant UI updates
   const [localSections, setLocalSections] = useState<Section[]>(sections);
+  const dragSourceSectionRef = useRef<string | null>(null);
+  // Guard against the useEffect below clobbering localSections while
+  // a drag is in flight. Without this, a parent re-render mid-drag
+  // (eg. router.refresh from another action) would snap the dragged
+  // card back to its server-side position.
+  const isDraggingRef = useRef(false);
 
-  // Sync local state when prop changes (after router.refresh)
+  // Sync local state when prop changes (after router.refresh) — but
+  // never mid-drag.
   useEffect(() => {
+    if (isDraggingRef.current) return;
     setLocalSections(sections);
   }, [sections]);
 
@@ -131,12 +139,11 @@ export function BoardView({
     })
   );
 
-  const dragSourceSectionRef = useRef<string | null>(null);
-
   // ---- DRAG START ----
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const taskId = event.active.id as string;
+      isDraggingRef.current = true;
       for (const section of localSections) {
         const task = section.tasks.find((t) => t.id === taskId);
         if (task) {
@@ -147,6 +154,21 @@ export function BoardView({
       }
     },
     [localSections]
+  );
+
+  // Atomic reorder of a section. The endpoint wraps every position
+  // update in a single $transaction so the column is never left in a
+  // half-renumbered state on partial failure.
+  const persistReorder = useCallback(
+    async (sectionId: string, orderedTaskIds: string[]) => {
+      const res = await fetch("/api/tasks/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionId, orderedTaskIds }),
+      });
+      if (!res.ok) throw new Error("Failed to reorder");
+    },
+    []
   );
 
   // ---- DRAG OVER (optimistic cross-column move) ----
@@ -191,21 +213,33 @@ export function BoardView({
   );
 
   // ---- DRAG END (persist to backend) ----
+  //
+  // Same-section drag: arrayMove locally, then persist the full new
+  // order with a single reorder call so positions are coherent across
+  // every card (not just the dragged one, which used to leave
+  // duplicate `position` values and undefined ordering on refresh).
+  //
+  // Cross-section drag: handleDragOver already optimistically moved
+  // the task into the destination column at the correct index. On
+  // drop we persist the full destination order — same endpoint —
+  // which also writes the new sectionId on the moved task. One HTTP
+  // round-trip, atomic in $transaction.
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveTask(null);
       const originalSourceId = dragSourceSectionRef.current;
       dragSourceSectionRef.current = null;
+      isDraggingRef.current = false;
 
-      if (!over) return;
+      if (!over) {
+        return;
+      }
 
       const activeId = active.id as string;
       const overId = over.id as string;
 
-      if (activeId === overId) return;
-
-      // Determine destination from the drop target (event data, not stale state)
+      // Resolve destination section from the drop target.
       let destSectionId: string | undefined;
       if (localSections.some((s) => s.id === overId)) {
         destSectionId = overId;
@@ -217,57 +251,48 @@ export function BoardView({
           }
         }
       }
-
       if (!destSectionId) return;
 
-      // Same section → reorder only
-      if (destSectionId === originalSourceId) {
-        setLocalSections((prev) => {
-          const section = prev.find((s) => s.id === destSectionId);
-          if (!section) return prev;
+      // Same-section path: arrayMove the local copy first so the
+      // optimistic order matches what we're about to persist.
+      let workingSections = localSections;
+      if (destSectionId === originalSourceId && activeId !== overId) {
+        const section = workingSections.find((s) => s.id === destSectionId);
+        if (section) {
           const oldIndex = section.tasks.findIndex((t) => t.id === activeId);
           const newIndex = section.tasks.findIndex((t) => t.id === overId);
-          if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
-          return prev.map((s) =>
-            s.id === section.id ? { ...s, tasks: arrayMove(s.tasks, oldIndex, newIndex) } : s
-          );
-        });
-
-        try {
-          const section = localSections.find((s) => s.id === destSectionId);
-          const newIndex = section?.tasks.findIndex((t) => t.id === overId) ?? 0;
-          const res = await fetch(`/api/tasks/${activeId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ position: newIndex }),
-          });
-          if (!res.ok) throw new Error();
-          router.refresh();
-        } catch {
-          toast.error("Failed to reorder task");
-          setLocalSections(sections); // rollback
+          if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
+            workingSections = workingSections.map((s) =>
+              s.id === section.id
+                ? { ...s, tasks: arrayMove(s.tasks, oldIndex, newIndex) }
+                : s
+            );
+            setLocalSections(workingSections);
+          }
         }
-        return;
       }
 
-      // Cross-column move: persist to backend
+      // Whatever order is in workingSections for the destination is
+      // the authoritative new order. Persist it atomically.
+      const destSection = workingSections.find((s) => s.id === destSectionId);
+      if (!destSection) return;
+      const orderedIds = destSection.tasks.map((t) => t.id);
+
       try {
-        const res = await fetch(`/api/tasks/${activeId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sectionId: destSectionId }),
-        });
-        if (!res.ok) throw new Error();
+        await persistReorder(destSectionId, orderedIds);
         router.refresh();
       } catch {
         toast.error("Failed to move task");
-        setLocalSections(sections); // rollback
+        setLocalSections(sections); // rollback to server truth
       }
     },
-    [localSections, sections, router]
+    [localSections, sections, router, persistReorder]
   );
 
   // ---- CREATE TASK ----
+  // After a successful create the input stays open and clears its
+  // value so the user can batch-add tasks (Asana / my-tasks UX).
+  // Escape or click-outside (handled at the column level) closes it.
   const handleAddTaskSubmit = async (sectionId: string) => {
     if (!newTaskName.trim()) {
       setAddingTaskInSection(null);
@@ -288,8 +313,9 @@ export function BoardView({
       if (!res.ok) throw new Error();
       toast.success("Task created");
       router.refresh();
+      // Keep the input open for consecutive creation — only clear the
+      // value, don't close the input.
       setNewTaskName("");
-      setAddingTaskInSection(null);
     } catch {
       toast.error("Failed to create task");
     }

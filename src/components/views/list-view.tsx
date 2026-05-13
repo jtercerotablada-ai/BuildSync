@@ -252,56 +252,49 @@ export function ListView({
       }
       if (!destSectionId) return;
 
-      const destSection = localSections.find((s) => s.id === destSectionId);
-      if (!destSection) return;
-      const destIndex = destSection.tasks.findIndex(
-        (t) => t.id === activeId
-      );
-
-      // Same-section reorder (no section change): use arrayMove for
-      // the local optimistic update, then persist position.
+      // Same-section path: arrayMove the local copy first so the
+      // ordering we're about to persist matches what the user sees.
+      let workingSections = localSections;
       if (originalSourceId === destSectionId && overId !== destSectionId) {
-        const oldIndex = sections
-          .find((s) => s.id === destSectionId)
-          ?.tasks.findIndex((t) => t.id === activeId);
-        const newIndex = sections
-          .find((s) => s.id === destSectionId)
-          ?.tasks.findIndex((t) => t.id === overId);
-        if (
-          oldIndex !== undefined &&
-          newIndex !== undefined &&
-          oldIndex >= 0 &&
-          newIndex >= 0 &&
-          oldIndex !== newIndex
-        ) {
-          setLocalSections((prev) =>
-            prev.map((s) =>
-              s.id === destSectionId
+        const section = workingSections.find((s) => s.id === destSectionId);
+        if (section) {
+          const oldIndex = section.tasks.findIndex((t) => t.id === activeId);
+          const newIndex = section.tasks.findIndex((t) => t.id === overId);
+          if (oldIndex >= 0 && newIndex >= 0 && oldIndex !== newIndex) {
+            workingSections = workingSections.map((s) =>
+              s.id === section.id
                 ? { ...s, tasks: arrayMove(s.tasks, oldIndex, newIndex) }
                 : s
-            )
-          );
+            );
+            setLocalSections(workingSections);
+          }
         }
       }
 
-      // Persist to the server. The PATCH endpoint already accepts
-      // sectionId + position for both same-section reorders and
-      // cross-section moves.
+      // Persist the full destination order atomically. Same endpoint
+      // handles both same-section reorders and cross-section moves;
+      // it wraps every update in $transaction so the column is never
+      // left half-renumbered on partial failure. Crucially, this
+      // renumbers EVERY task in the destination section, fixing the
+      // "drop lands at the wrong index" bug a single-row PATCH had.
+      const destSection = workingSections.find((s) => s.id === destSectionId);
+      if (!destSection) return;
+      const orderedIds = destSection.tasks.map((t) => t.id);
+
       try {
-        const res = await fetch(`/api/tasks/${activeId}`, {
-          method: "PATCH",
+        const res = await fetch("/api/tasks/reorder", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sectionId: destSectionId,
-            position: destIndex >= 0 ? destIndex : 0,
+            orderedTaskIds: orderedIds,
           }),
         });
         if (!res.ok) throw new Error("Failed");
         router.refresh();
       } catch {
         toast.error("Failed to move task");
-        // Roll back to server truth.
-        setLocalSections(sections);
+        setLocalSections(sections); // rollback to server truth
       }
     },
     [localSections, sections, router]
