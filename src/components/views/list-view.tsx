@@ -1106,16 +1106,17 @@ function SortableTaskRow({
           )}
         </div>
 
-        {/* Task Name - Inline Editable */}
-        <div
-          className="flex items-center gap-2 min-w-0"
-          onClick={(e) => e.stopPropagation()}
-        >
+        {/* Task Name — clicking the name (or anywhere in this column)
+            opens the slide-over panel. Inline rename moved to a
+            dedicated Pencil icon that surfaces on hover, matching
+            the my-tasks pattern. */}
+        <div className="flex items-center gap-2 min-w-0">
           {editingTaskId === task.id && editingField === "name" ? (
             <input
               type="text"
               value={editingValue}
               onChange={(e) => setEditingValue(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => {
                 if (e.key === "Enter")
                   saveInlineEdit(task.id, "name", editingValue);
@@ -1126,41 +1127,41 @@ function SortableTaskRow({
               autoFocus
             />
           ) : (
-            <span
-              className={cn(
-                "truncate text-sm cursor-text hover:bg-slate-100 px-1 py-0.5 rounded -mx-1",
-                task.completed && "line-through text-slate-400"
-              )}
-              onClick={(e) => {
-                e.stopPropagation();
-                startEditing(task.id, "name", task.name);
-              }}
-            >
-              {task.name}
-            </span>
-          )}
-          {!(editingTaskId === task.id && editingField === "name") && (
             <>
+              <span
+                className={cn(
+                  "truncate text-sm",
+                  task.completed && "line-through text-slate-400"
+                )}
+              >
+                {task.name}
+              </span>
+              {/* Hover-only rename trigger — keeps inline edit
+                  available without hijacking the row's open-panel
+                  click. */}
+              <button
+                type="button"
+                aria-label="Rename task"
+                title="Rename"
+                className="p-0.5 text-slate-300 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startEditing(task.id, "name", task.name);
+                }}
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
               {task._count.subtasks > 0 && (
-                <span
-                  className="text-xs text-slate-500 flex-shrink-0"
-                  onClick={() => onTaskClick(task.id)}
-                >
+                <span className="text-xs text-slate-500 flex-shrink-0">
                   {task.subtasks.filter((s) => s.completed).length}/
                   {task._count.subtasks}
                 </span>
               )}
               {task._count.comments > 0 && (
-                <MessageSquare
-                  className="h-3 w-3 text-slate-400 flex-shrink-0"
-                  onClick={() => onTaskClick(task.id)}
-                />
+                <MessageSquare className="h-3 w-3 text-slate-400 flex-shrink-0" />
               )}
               {task._count.attachments > 0 && (
-                <Paperclip
-                  className="h-3 w-3 text-slate-400 flex-shrink-0"
-                  onClick={() => onTaskClick(task.id)}
-                />
+                <Paperclip className="h-3 w-3 text-slate-400 flex-shrink-0" />
               )}
             </>
           )}
