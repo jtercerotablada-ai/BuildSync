@@ -1113,37 +1113,13 @@ export default function MyTasksPage() {
 
         {/* RIGHT: Filter / Sort / Group / Options + Search — only for list/board/calendar */}
         <div className="flex items-center gap-0.5">
-          {(view === "dashboard") ? (
-            <div className="flex items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-1 px-2 h-7 text-[13px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors">
-                    <Plus className="w-3.5 h-3.5" />
-                    Add widget
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" sideOffset={4}>
-                  <DropdownMenuItem onClick={() => toast.info("Tasks by section widget added")}>Tasks by section</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info("Completion chart widget added")}>Completion chart</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info("Tasks by project widget added")}>Tasks by project</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toast.info("Completion timeline widget added")}>Completion timeline</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <button
-                onClick={() => toast.info("Send us feedback at feedback@ttcivilstructural.com")}
-                className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors px-2 h-7"
-              >
-                Send feedback
-              </button>
-            </div>
-          ) : (view === "files") ? (
-            <button
-              onClick={() => toast.info("Send us feedback at feedback@ttcivilstructural.com")}
-              className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors px-2 h-7"
-            >
-              Send feedback
-            </button>
-          ) : <>
+          {/* Dashboard and Files used to render an "Add widget"
+              dropdown + "Send feedback" link in this slot, but both
+              were stubs (the dashboard's widgets are fixed; the
+              feedback button just opened a toast). Removed until
+              backed by real flows so the toolbar reflects only what
+              actually works. */}
+          {view === "dashboard" || view === "files" ? null : <>
           {/* Filter button — toggles floating FilterPanel */}
           {(() => {
             const filterCount = quickFilters.length + activeFilters.filter((f) => f.value || ["is_set", "is_not_set"].includes(f.operator)).length;
@@ -1719,7 +1695,6 @@ export default function MyTasksPage() {
             setOptionsDrawerOpen(false);
             setGroupPanelOpen(true);
           }}
-          hiddenColumnsCount={7}
         />
       </div>
 

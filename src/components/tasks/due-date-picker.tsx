@@ -26,8 +26,6 @@ import { useState, useEffect, useRef } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  Clock,
-  Repeat,
   X,
 } from 'lucide-react';
 import {
@@ -38,7 +36,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
 
 interface DueDatePickerProps {
   /** Optional start of the range. */
@@ -520,49 +517,31 @@ export function DueDatePicker({
           </div>
         </div>
 
-        {/* ========== FOOTER WITH OPTIONS ========== */}
-        <div className="flex items-center justify-between px-3 py-2 border-t">
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-gray-500"
-              title="Add time"
-              type="button"
-              onClick={() => toast.info("Add time coming soon")}
-            >
-              <Clock className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-gray-500"
-              title="Set to repeat"
-              type="button"
-              onClick={() => toast.info("Recurring tasks coming soon")}
-            >
-              <Repeat className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-gray-500 h-8"
-              type="button"
-              onClick={handleClear}
-            >
-              Clear
-            </Button>
-            <Button
-              size="sm"
-              className="h-8 bg-black hover:bg-gray-800 text-white"
-              type="button"
-              onClick={dismiss}
-            >
-              Done
-            </Button>
-          </div>
+        {/* ========== FOOTER ========== */}
+        {/* The Clock ("add time") and Repeat ("recurring task") icons
+            previously sat on the left of this footer but were stubs
+            that opened "coming soon" toasts. They've been removed
+            until the underlying features land — surfacing UI for
+            non-functional behavior just teaches users to ignore
+            buttons. The footer is now Clear + Done aligned right. */}
+        <div className="flex items-center justify-end gap-1 px-3 py-2 border-t">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-gray-500 h-8"
+            type="button"
+            onClick={handleClear}
+          >
+            Clear
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 bg-black hover:bg-gray-800 text-white"
+            type="button"
+            onClick={dismiss}
+          >
+            Done
+          </Button>
         </div>
       </PopoverContent>
     </Popover>

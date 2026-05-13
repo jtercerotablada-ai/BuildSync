@@ -3,13 +3,11 @@
 import { useEffect, useRef } from "react";
 import {
   ChevronRight,
-  Columns,
   Filter,
   ArrowUpDown,
   LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 
 interface OptionsDrawerProps {
   open: boolean;
@@ -17,16 +15,12 @@ interface OptionsDrawerProps {
   onOpenFilters: () => void;
   onOpenSort: () => void;
   onOpenGroups: () => void;
-  hiddenColumnsCount?: number;
 }
 
+// "Show/hide columns" was here but routed to a "coming soon" toast.
+// Removed until the columns settings actually exist — the rest of
+// the rows (Filters, Sort, Groups) all open real panels.
 const optionRows = [
-  {
-    id: "columns",
-    label: "Show/hide columns",
-    icon: Columns,
-    action: "columns" as const,
-  },
   {
     id: "filters",
     label: "Filters",
@@ -53,7 +47,6 @@ export function OptionsDrawer({
   onOpenFilters,
   onOpenSort,
   onOpenGroups,
-  hiddenColumnsCount = 7,
 }: OptionsDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -69,9 +62,6 @@ export function OptionsDrawer({
 
   function handleRowClick(action: string) {
     switch (action) {
-      case "columns":
-        toast.info("Column settings coming soon");
-        break;
       case "filters":
         onOpenFilters();
         break;
@@ -144,25 +134,19 @@ export function OptionsDrawer({
                   <span className="flex-1 text-[14px] font-medium text-gray-800">
                     {item.label}
                   </span>
-                  {item.id === "columns" && (
-                    <span className="text-[12px] text-gray-400 mr-1">
-                      {hiddenColumnsCount} hidden
-                    </span>
-                  )}
                   <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-400 transition-colors" />
                 </button>
               );
             })}
           </div>
 
-          {/* Footer */}
+          {/* Footer — "Send feedback" link removed; was a stub
+              toast. We'll wire it to a real channel (Crisp/email)
+              when there's something behind it. */}
           <div className="mt-auto border-t border-gray-200 px-5 py-4">
-            <button
-              onClick={() => toast.info("Send feedback coming soon")}
-              className="text-[13px] text-[#a8893a] hover:underline"
-            >
-              Send feedback
-            </button>
+            <span className="text-[12px] text-gray-400">
+              Tip: press Esc to close
+            </span>
           </div>
         </>
       )}

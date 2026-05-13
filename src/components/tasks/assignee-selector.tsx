@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Mail, Users, Search } from 'lucide-react';
+import { X, Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import {
@@ -10,7 +10,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
 
 interface User {
   id: string;
@@ -90,16 +89,6 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
     e.stopPropagation();
     onChange(null);
     setSearch('');
-  };
-
-  const handleInviteByEmail = () => {
-    toast.info('Email invitation coming soon');
-    setOpen(false);
-  };
-
-  const handleAssignMultiple = () => {
-    toast.info('Multiple assignees coming soon');
-    setOpen(false);
   };
 
   return (
@@ -186,32 +175,11 @@ export function AssigneeSelector({ value, onChange, trigger }: AssigneeSelectorP
           ))}
         </div>
 
-        {/* ========== ADDITIONAL OPTIONS ========== */}
-        <div className="border-t">
-          <button
-            onClick={handleInviteByEmail}
-            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left"
-          >
-            <div className="h-8 w-8 rounded-full bg-[#c9a84c]/10 flex items-center justify-center">
-              <Mail className="h-4 w-4 text-[#a8893a]" />
-            </div>
-            <span className="text-sm text-[#a8893a]">
-              Invite teammates by email
-            </span>
-          </button>
-
-          <button
-            onClick={handleAssignMultiple}
-            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left"
-          >
-            <div className="h-8 w-8 rounded-full bg-[#c9a84c]/10 flex items-center justify-center">
-              <Users className="h-4 w-4 text-[#a8893a]" />
-            </div>
-            <span className="text-sm text-[#a8893a]">
-              Assign to multiple people
-            </span>
-          </button>
-        </div>
+        {/* "Invite teammates by email" and "Assign to multiple
+            people" used to live here, but both opened "coming soon"
+            toasts. Removed until backed by real flows — better to
+            ship a clean selector than advertise non-functional
+            actions. */}
       </PopoverContent>
     </Popover>
   );
