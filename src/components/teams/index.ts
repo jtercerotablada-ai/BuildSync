@@ -13,5 +13,9 @@ export { FieldMembersModal } from "./field-members-modal";
 // Pro team-workspace components — rolled out for the rebuild of
 // /teams/[teamId] that turned the page into a PMI-grade workspace.
 export { CapacityMatrix } from "./capacity-matrix";
+export type {
+  MatrixMember,
+  MatrixProject,
+} from "./capacity-matrix";
 export { TeamMembersTable } from "./team-members-table";
 export { TeamProjectsPanel } from "./team-projects-panel";

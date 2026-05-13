@@ -72,7 +72,14 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { TeamSettingsModal, LinkWorkPopover, AddFieldFlow } from "@/components/teams";
+import {
+  TeamSettingsModal,
+  LinkWorkPopover,
+  AddFieldFlow,
+  CapacityMatrix,
+  type MatrixMember,
+  type MatrixProject,
+} from "@/components/teams";
 
 interface Member {
   id: string;
@@ -457,8 +464,8 @@ export default function TeamPage() {
         />
       )}
 
-      {activeTab === "work" && (
-        <WorkContent projects={projects} />
+      {activeTab === "work" && currentTeam && (
+        <WorkContent teamId={currentTeam.id} projects={projects} />
       )}
 
       {activeTab === "messages" && currentTeam && (
@@ -1021,29 +1028,122 @@ function MembersContent({
     toast.success(`Field "${field.title}" added`);
   };
 
+  // Capacity matrix view — pulled lazily from the workload endpoint
+  // when the user toggles to "Capacity". Without this toggle the
+  // expensive heat-map computation never runs.
+  type MembersView = "list" | "capacity";
+  const [membersView, setMembersView] = useState<MembersView>("list");
+  const [workload, setWorkload] = useState<{
+    members: MatrixMember[];
+    projects: MatrixProject[];
+    maxOpenPerMember: number;
+  } | null>(null);
+  const [loadingWorkload, setLoadingWorkload] = useState(false);
+
+  useEffect(() => {
+    if (membersView !== "capacity") return;
+    let cancelled = false;
+    setLoadingWorkload(true);
+    fetch(`/api/teams/${teamId}/workload`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setWorkload({
+          members: data.members || [],
+          projects: data.projects || [],
+          maxOpenPerMember: data.summary?.maxOpenPerMember ?? 1,
+        });
+      })
+      .catch(() => !cancelled && setWorkload(null))
+      .finally(() => !cancelled && setLoadingWorkload(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [membersView, teamId]);
+
   return (
     <div className="bg-white min-h-[calc(100vh-120px)]">
       <div className="px-6 py-6">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-6">
-          <Button variant="outline" className="gap-2" onClick={onInvite}>
-            <Plus className="h-4 w-4" />
-            Add member
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" className="gap-2" onClick={onInvite}>
+              <Plus className="h-4 w-4" />
+              Add member
+            </Button>
+            {/* View toggle — List (default member table) vs
+                Capacity (the heat-map matrix that shows who is
+                loaded on what across this team's projects). */}
+            <div className="inline-flex h-8 rounded-md border bg-white overflow-hidden">
+              <button
+                onClick={() => setMembersView("list")}
+                className={cn(
+                  "px-3 text-[13px] font-medium",
+                  membersView === "list"
+                    ? "bg-black text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                List
+              </button>
+              <button
+                onClick={() => setMembersView("capacity")}
+                className={cn(
+                  "px-3 text-[13px] font-medium border-l",
+                  membersView === "capacity"
+                    ? "bg-black text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                )}
+                title="Show who's loaded on what across team projects"
+              >
+                Capacity
+              </button>
+            </div>
+          </div>
 
           <div className="flex items-center gap-4">
             <button className="text-sm text-gray-500 hover:underline" onClick={() => window.open("mailto:feedback@ttcivilstructural.com", "_blank")}>
               Send feedback
             </button>
-            <button
-              className="p-2 hover:bg-gray-100 rounded"
-              onClick={() => setShowSearch(!showSearch)}
-            >
-              <Search className="h-4 w-4 text-gray-500" />
-            </button>
+            {membersView === "list" && (
+              <button
+                className="p-2 hover:bg-gray-100 rounded"
+                onClick={() => setShowSearch(!showSearch)}
+              >
+                <Search className="h-4 w-4 text-gray-500" />
+              </button>
+            )}
           </div>
         </div>
 
+        {/* Capacity view — render matrix and bail out before the
+            list table below. */}
+        {membersView === "capacity" && (
+          <>
+            {loadingWorkload ? (
+              <div className="border rounded-xl p-12 text-center">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400 mx-auto" />
+              </div>
+            ) : workload ? (
+              <CapacityMatrix
+                members={workload.members}
+                projects={workload.projects}
+                maxOpenPerMember={workload.maxOpenPerMember}
+              />
+            ) : (
+              <div className="border rounded-xl p-12 text-center">
+                <p className="text-sm text-gray-500">
+                  Couldn&apos;t load workload data.
+                </p>
+              </div>
+            )}
+            {/* Hide the table below by short-circuiting the parent
+                Fragment — wrap the rest in a conditional. */}
+          </>
+        )}
+
+        {membersView === "list" && (
+        <>
         {/* Search input (toggleable) */}
         {showSearch && (
           <div className="mb-4">
@@ -1232,17 +1332,58 @@ function MembersContent({
             ))}
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );
 }
 
 // ========== WORK CONTENT ==========
-function WorkContent({ projects }: { projects: Project[] }) {
+interface TeamTask {
+  id: string;
+  name: string;
+  dueDate: string | null;
+  completed: boolean;
+  project: { id: string; name: string; color: string } | null;
+  assignee: { id: string; name: string | null; image: string | null } | null;
+}
+
+type WorkView = "projects" | "tasks";
+type GroupBy = "none" | "project" | "status" | "assignee";
+
+function WorkContent({
+  teamId,
+  projects,
+}: {
+  teamId: string;
+  projects: Project[];
+}) {
   const router = useRouter();
+  const [view, setView] = useState<WorkView>("projects");
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [groupBy, setGroupBy] = useState<GroupBy>("project");
+  const [tasks, setTasks] = useState<TeamTask[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+
+  // Fetch tasks lazily — only when the user switches to the Tasks view
+  useEffect(() => {
+    if (view !== "tasks") return;
+    let cancelled = false;
+    setLoadingTasks(true);
+    fetch(`/api/teams/${teamId}/tasks`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setTasks(Array.isArray(data) ? data : []);
+      })
+      .catch(() => !cancelled && setTasks([]))
+      .finally(() => !cancelled && setLoadingTasks(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [view, teamId]);
 
   const filteredProjects = projects
     .filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -1253,153 +1394,302 @@ function WorkContent({ projects }: { projects: Project[] }) {
       return b.name.localeCompare(a.name);
     });
 
+  // Build task groups for the Tasks view based on groupBy + search.
+  const filteredTasks = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return tasks.filter(
+      (t) => !q || t.name.toLowerCase().includes(q) || (t.project?.name || "").toLowerCase().includes(q)
+    );
+  }, [tasks, searchQuery]);
+
+  const taskGroups = useMemo(() => {
+    if (groupBy === "none") {
+      return [{ key: "all", label: "All tasks", tasks: filteredTasks }];
+    }
+    const buckets = new Map<
+      string,
+      { key: string; label: string; tasks: TeamTask[] }
+    >();
+    for (const t of filteredTasks) {
+      let key: string;
+      let label: string;
+      if (groupBy === "project") {
+        key = t.project?.id || "no-project";
+        label = t.project?.name || "No project";
+      } else if (groupBy === "status") {
+        key = t.completed ? "done" : "open";
+        label = t.completed ? "Completed" : "Open";
+      } else {
+        key = t.assignee?.id || "unassigned";
+        label = t.assignee?.name || "Unassigned";
+      }
+      if (!buckets.has(key)) buckets.set(key, { key, label, tasks: [] });
+      buckets.get(key)!.tasks.push(t);
+    }
+    return Array.from(buckets.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
+  }, [filteredTasks, groupBy]);
+
   return (
     <div className="bg-white min-h-[calc(100vh-120px)]">
       <div className="p-6">
-        <div className="flex gap-6">
-          {/* ===== LEFT COLUMN: PROJECTS ===== */}
-          <div className="flex-1 border rounded-lg">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">Projects</h2>
-              <div className="flex items-center gap-2">
-                {showSearch ? (
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search projects..."
-                    className="w-48 h-8"
-                    autoFocus
-                    onBlur={() => {
-                      if (!searchQuery) setShowSearch(false);
-                    }}
-                  />
-                ) : (
-                  <button
-                    onClick={() => setShowSearch(true)}
-                    className="p-2 hover:bg-gray-100 rounded"
-                  >
-                    <Search className="h-4 w-4 text-gray-500" />
-                  </button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => router.push("/projects/new")}
-                >
-                  New project
-                </Button>
-              </div>
-            </div>
-
-            {/* Table Header */}
-            <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 border-b text-sm text-gray-500">
-              <div className="col-span-8">Name</div>
-              <div className="col-span-4 flex items-center justify-end">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-1 hover:text-gray-700">
-                      <ChevronDown className="h-3 w-3" />
-                      {sortOrder === "asc" ? "A to Z" : "Z to A"}
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setSortOrder("asc")}>
-                      A to Z
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortOrder("desc")}>
-                      Z to A
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            {/* Projects List */}
-            <div className="divide-y">
-              {filteredProjects.length === 0 ? (
-                <div className="p-8 text-center">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
-                    <FolderKanban className="h-6 w-6 text-gray-400" />
-                  </div>
-                  <p className="text-gray-500 mb-3">
-                    {searchQuery
-                      ? `No projects found for "${searchQuery}"`
-                      : "No projects in this team yet"}
-                  </p>
-                  {!searchQuery && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push("/projects/new")}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Create project
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                filteredProjects.map((project) => (
-                  <div
-                    key={project.id}
-                    onClick={() => router.push(`/projects/${project.id}`)}
-                    className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer"
-                  >
-                    {/* Name */}
-                    <div className="col-span-8 flex items-center gap-3">
-                      <div
-                        className="w-8 h-8 rounded flex items-center justify-center"
-                        style={{ backgroundColor: project.color || "#6b7280" }}
-                      >
-                        <Settings className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{project.name}</p>
-                        <p className="text-xs text-black">You joined</p>
-                      </div>
-                    </div>
-
-                    {/* Space for sort column */}
-                    <div className="col-span-4" />
-                  </div>
-                ))
+        {/* View toggle — Projects (default) vs Tasks aggregated
+            from team's projects. Asana shows both; we mirror that. */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="inline-flex h-8 rounded-md border bg-white overflow-hidden">
+            <button
+              onClick={() => setView("projects")}
+              className={cn(
+                "px-3 text-[13px] font-medium",
+                view === "projects"
+                  ? "bg-black text-white"
+                  : "text-gray-600 hover:bg-gray-50"
               )}
-            </div>
+            >
+              Projects
+            </button>
+            <button
+              onClick={() => setView("tasks")}
+              className={cn(
+                "px-3 text-[13px] font-medium border-l",
+                view === "tasks"
+                  ? "bg-black text-white"
+                  : "text-gray-600 hover:bg-gray-50"
+              )}
+            >
+              Tasks
+            </button>
           </div>
-
-          {/* ===== RIGHT COLUMN: TEMPLATES ===== */}
-          <div className="w-72">
-            <h2 className="text-lg font-semibold mb-4">Templates</h2>
-
-            <div className="space-y-3">
-              {/* New template */}
+          <div className="flex items-center gap-2">
+            {showSearch ? (
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={view === "tasks" ? "Search tasks..." : "Search projects..."}
+                className="w-56 h-8"
+                autoFocus
+                onBlur={() => {
+                  if (!searchQuery) setShowSearch(false);
+                }}
+              />
+            ) : (
               <button
-                onClick={() => router.push("/templates")}
-                className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2"
+                onClick={() => setShowSearch(true)}
+                className="p-2 hover:bg-gray-100 rounded"
+                title="Search"
               >
-                <div className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                  <Plus className="h-5 w-5 text-gray-400" />
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  New template
-                </span>
+                <Search className="h-4 w-4 text-gray-500" />
               </button>
-
-              {/* Explore all templates */}
-              <button
-                onClick={() => router.push("/templates")}
-                className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2"
-              >
-                <div className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-gray-400" />
-                </div>
-                <span className="text-sm font-medium text-gray-700 text-center">
-                  Explore all templates
-                </span>
-              </button>
-            </div>
+            )}
+            {view === "tasks" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="inline-flex items-center gap-1 px-2.5 h-8 border rounded-md text-[13px] text-gray-700 hover:bg-gray-50">
+                    Group: {groupBy === "none" ? "None" : groupBy === "project" ? "Project" : groupBy === "status" ? "Status" : "Assignee"}
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setGroupBy("project")}>By project</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setGroupBy("status")}>By status</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setGroupBy("assignee")}>By assignee</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setGroupBy("none")}>None</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {view === "projects" && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="inline-flex items-center gap-1 px-2.5 h-8 border rounded-md text-[13px] text-gray-700 hover:bg-gray-50">
+                    Sort: {sortOrder === "asc" ? "A → Z" : "Z → A"}
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setSortOrder("asc")}>A to Z</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortOrder("desc")}>Z to A</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/projects/new")}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              New project
+            </Button>
           </div>
         </div>
+
+        {view === "projects" ? (
+          <div className="flex gap-6">
+            {/* ===== LEFT COLUMN: PROJECTS LIST ===== */}
+            <div className="flex-1 border rounded-lg">
+              <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 border-b text-sm text-gray-500">
+                <div className="col-span-12">Name</div>
+              </div>
+
+              <div className="divide-y">
+                {filteredProjects.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                      <FolderKanban className="h-6 w-6 text-gray-400" />
+                    </div>
+                    <p className="text-gray-500 mb-3">
+                      {searchQuery
+                        ? `No projects found for "${searchQuery}"`
+                        : "No projects in this team yet"}
+                    </p>
+                    {!searchQuery && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push("/projects/new")}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Create project
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  filteredProjects.map((project) => (
+                    <div
+                      key={project.id}
+                      onClick={() => router.push(`/projects/${project.id}`)}
+                      className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <div className="col-span-12 flex items-center gap-3">
+                        <div
+                          className="w-8 h-8 rounded flex items-center justify-center"
+                          style={{ backgroundColor: project.color || "#6b7280" }}
+                        >
+                          <Settings className="h-4 w-4 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{project.name}</p>
+                          <p className="text-xs text-gray-500">You joined</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* ===== RIGHT COLUMN: TEMPLATES ===== */}
+            <div className="w-72">
+              <h2 className="text-lg font-semibold mb-4">Templates</h2>
+              <div className="space-y-3">
+                <button
+                  onClick={() => router.push("/templates")}
+                  className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2"
+                >
+                  <div className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
+                    <Plus className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">New template</span>
+                </button>
+                <button
+                  onClick={() => router.push("/templates")}
+                  className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2"
+                >
+                  <div className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
+                    <FileText className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 text-center">Explore all templates</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ===== TASKS VIEW — aggregated from team's projects ===== */
+          <div className="border rounded-lg">
+            {loadingTasks ? (
+              <div className="p-12 text-center">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400 mx-auto" />
+              </div>
+            ) : filteredTasks.length === 0 ? (
+              <div className="p-12 text-center">
+                <FolderKanban className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">
+                  {searchQuery
+                    ? `No tasks match "${searchQuery}"`
+                    : "No tasks with due dates in this team's projects yet"}
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {taskGroups.map((group) => (
+                  <div key={group.key}>
+                    {groupBy !== "none" && (
+                      <div className="px-4 py-2 bg-gray-50 border-b text-[12px] font-semibold text-gray-700 flex items-center gap-2">
+                        <span>{group.label}</span>
+                        <span className="text-gray-400 font-mono tabular-nums">{group.tasks.length}</span>
+                      </div>
+                    )}
+                    {group.tasks.map((t) => (
+                      <div
+                        key={t.id}
+                        onClick={() => t.project && router.push(`/projects/${t.project.id}`)}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <div
+                          className={cn(
+                            "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0",
+                            t.completed
+                              ? "bg-[#c9a84c] border-[#c9a84c]"
+                              : "border-gray-300"
+                          )}
+                        >
+                          {t.completed && (
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          )}
+                        </div>
+                        <span
+                          className={cn(
+                            "flex-1 text-[13px] truncate",
+                            t.completed
+                              ? "line-through text-gray-400"
+                              : "text-gray-900"
+                          )}
+                        >
+                          {t.name}
+                        </span>
+                        {t.project && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 flex-shrink-0">
+                            <span
+                              className="w-1.5 h-1.5 rounded-sm"
+                              style={{ backgroundColor: t.project.color }}
+                            />
+                            {t.project.name}
+                          </span>
+                        )}
+                        {t.dueDate && (
+                          <span className="text-[11px] text-gray-500 tabular-nums flex-shrink-0">
+                            {new Date(t.dueDate).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        )}
+                        {t.assignee && (
+                          <Avatar className="h-5 w-5 flex-shrink-0">
+                            <AvatarImage src={t.assignee.image || undefined} />
+                            <AvatarFallback className="text-[9px] bg-[#c9a84c] text-white">
+                              {(t.assignee.name || "?").charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
