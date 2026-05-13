@@ -28,16 +28,17 @@ async function assertProjectAccess(projectId: string, userId: string) {
       ownerId: true,
       visibility: true,
       workspaceId: true,
-      members: { select: { userId: true } },
+      members: { select: { userId: true, role: true } },
     },
   });
 
   if (!project) return { ok: false as const, status: 404 };
 
+  const member = project.members.find((m) => m.userId === userId) ?? null;
   const isOwner = project.ownerId === userId;
-  const isMember = project.members.some((m) => m.userId === userId);
+  const isMember = !!member;
   if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project };
+    return { ok: true as const, project, member };
   }
 
   if (project.visibility === "WORKSPACE") {
@@ -46,10 +47,24 @@ async function assertProjectAccess(projectId: string, userId: string) {
         userId_workspaceId: { userId, workspaceId: project.workspaceId },
       },
     });
-    if (wsMember) return { ok: true as const, project };
+    if (wsMember) return { ok: true as const, project, member: null };
   }
 
   return { ok: false as const, status: 403 };
+}
+
+// Mirrors the role gate in /api/projects/[id] PATCH: only the owner,
+// an ADMIN, or an EDITOR can change the live project.status. Anyone
+// with read access can still post a status-update record — they just
+// can't drive the cockpit-wide badge.
+function canEditProject(
+  project: { ownerId: string | null },
+  member: { role: string } | null,
+  userId: string
+): boolean {
+  if (project.ownerId === userId) return true;
+  if (!member) return false;
+  return member.role === "ADMIN" || member.role === "EDITOR";
 }
 
 // GET /api/projects/:projectId/status-updates
@@ -143,6 +158,21 @@ export async function POST(
       );
     }
 
+    // Posting a status-update record is open to any viewer/commenter
+    // (they're posting a comment, effectively). But driving the live
+    // project.status badge is a write action and gated to editors+.
+    const wantsSync = parsed.data.syncProjectStatus;
+    const canSync = canEditProject(access.project, access.member, userId);
+    if (wantsSync && !canSync) {
+      return NextResponse.json(
+        {
+          error:
+            "You don't have permission to change this project's status. Ask an editor or admin.",
+        },
+        { status: 403 }
+      );
+    }
+
     const created = await prisma.statusUpdate.create({
       data: {
         projectId,
@@ -152,7 +182,7 @@ export async function POST(
       },
     });
 
-    if (parsed.data.syncProjectStatus) {
+    if (wantsSync) {
       await prisma.project.update({
         where: { id: projectId },
         data: { status: parsed.data.status },

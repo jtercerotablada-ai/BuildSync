@@ -70,6 +70,10 @@ interface ProjectShape {
 
 interface ProjectOverviewProps {
   project: ProjectShape;
+  // Open the project members dialog. Wired by the parent
+  // (ProjectContent) so the Overview can reuse the same modal as the
+  // header avatars instead of navigating to a non-existent route.
+  onManageMembers?: () => void;
 }
 
 interface StatusUpdate {
@@ -189,13 +193,38 @@ function initial(person: { name: string | null; email: string | null }) {
   return (person.name?.[0] || person.email?.[0] || "?").toUpperCase();
 }
 
-export function ProjectOverview({ project }: ProjectOverviewProps) {
+export function ProjectOverview({
+  project,
+  onManageMembers,
+}: ProjectOverviewProps) {
   const router = useRouter();
   const [description, setDescription] = useState(project.description || "");
   const [statusUpdates, setStatusUpdates] = useState<StatusUpdate[]>([]);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [goals, setGoals] = useState<ConnectedGoal[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(true);
+
+  // Track which description value the local state was last seeded
+  // from, so we only pull updates from the server when the user is
+  // NOT actively editing. Without this, a router.refresh() triggered
+  // by another action (e.g. posting a status update) would clobber
+  // typed-but-not-yet-blurred text.
+  const [seededDescription, setSeededDescription] = useState(
+    project.description || ""
+  );
+  useEffect(() => {
+    const incoming = project.description || "";
+    // Only adopt the server value if the user hasn't diverged from
+    // the previously-seeded value — i.e. they're not mid-edit.
+    if (description === seededDescription && incoming !== seededDescription) {
+      setDescription(incoming);
+      setSeededDescription(incoming);
+    } else if (incoming !== seededDescription) {
+      // User has unsaved edits AND the server changed. Keep the
+      // user's edits but update the baseline so blur-save still works.
+      setSeededDescription(incoming);
+    }
+  }, [project.description, description, seededDescription]);
 
   // Composer state
   const [composerOpen, setComposerOpen] = useState(false);
@@ -218,19 +247,32 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
 
   const saveDescription = useCallback(
     async (value: string) => {
-      if (value === (project.description || "")) return;
+      if (value === seededDescription) return;
       try {
         const res = await fetch(`/api/projects/${project.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ description: value || null }),
         });
-        if (!res.ok) throw new Error("Failed");
-      } catch {
-        toast.error("Failed to save description");
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          const msg =
+            (body && typeof body === "object" && "error" in body
+              ? String(body.error)
+              : null) || "Failed to save description";
+          throw new Error(msg);
+        }
+        // Promote the just-saved value to the new baseline so the
+        // "Saves on blur" indicator disappears and re-edits don't
+        // re-POST the same value.
+        setSeededDescription(value);
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to save description"
+        );
       }
     },
-    [project.id, project.description]
+    [project.id, seededDescription]
   );
 
   // Fetch the feed on mount. All three endpoints are project-scoped
@@ -381,7 +423,17 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           }),
         }
       );
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) {
+        // Surface the backend's permission/validation message verbatim
+        // so the user knows WHY it failed (e.g. "Ask an editor or
+        // admin" for viewers), not just a generic "Failed".
+        const body = await res.json().catch(() => null);
+        const msg =
+          (body && typeof body === "object" && "error" in body
+            ? String(body.error)
+            : null) || "Failed to post status update";
+        throw new Error(msg);
+      }
       const created = (await res.json()) as StatusUpdate;
       setStatusUpdates((prev) => [created, ...prev]);
       setActivities((prev) => [
@@ -400,8 +452,10 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
       setComposerOpen(false);
       toast.success("Status update posted");
       router.refresh();
-    } catch {
-      toast.error("Failed to post status update");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to post status update"
+      );
     } finally {
       setPosting(false);
     }
@@ -542,7 +596,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
             <h2 className="text-base font-semibold text-slate-900">
               Project description
             </h2>
-            {description !== (project.description || "") && (
+            {description !== seededDescription && (
               <span className="text-xs text-slate-400 italic">
                 Saves on blur
               </span>
@@ -564,18 +618,22 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
             <h2 className="text-base font-semibold text-slate-900">
               Project roles
             </h2>
-            <button
-              type="button"
-              onClick={() => router.push(`/projects/${project.id}/members`)}
-              className="text-xs text-[#a8893a] hover:text-[#8a7028] font-medium"
-            >
-              Manage all →
-            </button>
+            {onManageMembers && (
+              <button
+                type="button"
+                onClick={onManageMembers}
+                className="text-xs text-[#a8893a] hover:text-[#8a7028] font-medium"
+              >
+                Manage all →
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-4 flex-wrap">
             <button
+              type="button"
               className="flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 hover:bg-slate-50 hover:border-slate-400"
-              onClick={() => router.push(`/projects/${project.id}/members`)}
+              onClick={onManageMembers}
+              disabled={!onManageMembers}
             >
               <Plus className="w-4 h-4" />
               Add member
@@ -855,16 +913,21 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                       >
                         {u.summary}
                       </p>
-                      {u.author && (
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-5 h-5 rounded-full bg-[#d4b65a] flex items-center justify-center text-[10px] font-medium text-white">
-                            {initial(u.author)}
-                          </div>
-                          <span className="text-[11px] text-slate-500">
-                            {u.author.name || u.author.email}
-                          </span>
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className={cn(
+                            "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium text-white",
+                            u.author ? "bg-[#d4b65a]" : "bg-slate-300"
+                          )}
+                        >
+                          {u.author ? initial(u.author) : "?"}
                         </div>
-                      )}
+                        <span className="text-[11px] text-slate-500">
+                          {u.author
+                            ? u.author.name || u.author.email
+                            : "Deleted user"}
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
@@ -909,7 +972,9 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] text-slate-900 leading-tight">
                         <span className="font-medium">
-                          {a.actor?.name || a.actor?.email || "Someone"}
+                          {a.actor
+                            ? a.actor.name || a.actor.email || "Someone"
+                            : "Deleted user"}
                         </span>{" "}
                         <span className="text-slate-500">{a.title}</span>
                       </p>

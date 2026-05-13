@@ -970,7 +970,10 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
       <div className="flex-1 overflow-hidden flex">
         <div className={cn("flex-1 flex flex-col", currentView !== "calendar" && currentView !== "board" && "overflow-auto")}>
           {currentView === "overview" && (
-            <ProjectOverview project={project} />
+            <ProjectOverview
+              project={project}
+              onManageMembers={() => setMembersDialogOpen(true)}
+            />
           )}
           {currentView === "list" && (
             <ListView
