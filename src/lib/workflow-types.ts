@@ -15,10 +15,13 @@
 
 // ─── Triggers ────────────────────────────────────────────────────
 
-export type WorkflowTrigger = {
-  type: "TASK_MOVED_TO_SECTION";
-  sectionId: string;
-};
+export type WorkflowTrigger =
+  | { type: "TASK_MOVED_TO_SECTION"; sectionId: string }
+  | { type: "TASK_COMPLETED" };
+// Future: TASK_CREATED, TASK_DUE_TOMORROW (needs cron),
+// CUSTOM_FIELD_CHANGED, ASSIGNEE_CHANGED.
+
+export type WorkflowTriggerType = WorkflowTrigger["type"];
 
 // ─── Actions ─────────────────────────────────────────────────────
 
@@ -27,7 +30,12 @@ export type WorkflowAction =
   | { type: "ADD_COLLABORATORS"; userIds: string[] }
   | { type: "ADD_COMMENT"; content: string }
   | { type: "MARK_COMPLETE" }
-  | { type: "ADD_TO_PROJECT"; projectId: string };
+  | { type: "ADD_TO_PROJECT"; projectId: string }
+  | {
+      type: "SET_PRIORITY";
+      priority: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+    }
+  | { type: "ADD_SUBTASK"; name: string };
 
 export type WorkflowActionType = WorkflowAction["type"];
 
@@ -58,4 +66,11 @@ export const ACTION_LABELS: Record<WorkflowActionType, string> = {
   ADD_COMMENT: "Add comment",
   MARK_COMPLETE: "Mark complete",
   ADD_TO_PROJECT: "Add to another project",
+  SET_PRIORITY: "Set priority",
+  ADD_SUBTASK: "Add a subtask",
+};
+
+export const TRIGGER_LABELS: Record<WorkflowTriggerType, string> = {
+  TASK_MOVED_TO_SECTION: "When a task moves to this section",
+  TASK_COMPLETED: "When a task is marked complete",
 };

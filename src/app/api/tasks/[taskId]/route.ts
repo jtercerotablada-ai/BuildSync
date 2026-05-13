@@ -4,7 +4,10 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { GoalProgressService } from "@/lib/goal-progress";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
-import { executeRulesOnSectionChange } from "@/lib/workflow-engine";
+import {
+  executeRulesOnSectionChange,
+  executeRulesOnTaskCompleted,
+} from "@/lib/workflow-engine";
 
 const updateTaskSchema = z.object({
   name: z.string().min(1).optional(),
@@ -417,12 +420,20 @@ export async function PATCH(
       newSectionId !== null && newSectionId !== existingTask.sectionId;
     const projectIdForRules = task.projectId;
     if (sectionDidChange && projectIdForRules) {
-      // Awaited so the response goes out with side-effects applied,
-      // keeping the UI consistent on refresh. If performance ever
-      // becomes a concern this can be queued instead.
       await executeRulesOnSectionChange(
         { taskId, actorUserId: userId },
         newSectionId,
+        projectIdForRules
+      );
+    }
+
+    // Fire workflow rules on positive-completion transition only —
+    // re-uncompleting a task doesn't re-fire the chain, by design.
+    const completionDidFlipTrue =
+      data.completed === true && existingTask.completed === false;
+    if (completionDidFlipTrue && projectIdForRules) {
+      await executeRulesOnTaskCompleted(
+        { taskId, actorUserId: userId },
         projectIdForRules
       );
     }

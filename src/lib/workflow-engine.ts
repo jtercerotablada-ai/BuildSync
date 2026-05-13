@@ -44,8 +44,39 @@ export async function executeRulesOnSectionChange(
   toSectionId: string,
   projectId: string
 ): Promise<void> {
+  await executeRulesMatching(ctx, projectId, (trigger) => {
+    return (
+      trigger?.type === "TASK_MOVED_TO_SECTION" &&
+      trigger.sectionId === toSectionId
+    );
+  });
+}
+
+/**
+ * Apply every rule whose trigger is TASK_COMPLETED. Called from
+ * PATCH /api/tasks/:id AFTER the task's completed flag flips to
+ * true. Uncompleting doesn't fire — only the positive transition.
+ */
+export async function executeRulesOnTaskCompleted(
+  ctx: ExecuteContext,
+  projectId: string
+): Promise<void> {
+  await executeRulesMatching(ctx, projectId, (trigger) => {
+    return trigger?.type === "TASK_COMPLETED";
+  });
+}
+
+/**
+ * Shared core — pulls every rule on the project's active workflows,
+ * runs those whose trigger satisfies `matches`. Single error
+ * boundary; per-action errors are caught + logged inside runAction.
+ */
+async function executeRulesMatching(
+  ctx: ExecuteContext,
+  projectId: string,
+  matches: (trigger: WorkflowTrigger) => boolean
+): Promise<void> {
   try {
-    // Pull every active workflow for the project, plus their rules.
     const workflows = await prisma.workflow.findMany({
       where: { projectId, isActive: true },
       include: { rules: true },
@@ -54,20 +85,13 @@ export async function executeRulesOnSectionChange(
     for (const wf of workflows) {
       for (const rule of wf.rules) {
         const trigger = rule.trigger as unknown as WorkflowTrigger;
-        if (
-          trigger?.type !== "TASK_MOVED_TO_SECTION" ||
-          trigger.sectionId !== toSectionId
-        ) {
-          continue;
-        }
+        if (!matches(trigger)) continue;
 
         const actions = (rule.actions as unknown as WorkflowAction[]) || [];
         for (const action of actions) {
           try {
             await runAction(ctx, action);
           } catch (err) {
-            // Swallow — never propagate a single action's failure
-            // back to the caller (the task move already succeeded).
             console.error(
               `[workflow-engine] action ${action.type} failed for rule ${rule.id}:`,
               err
@@ -77,7 +101,7 @@ export async function executeRulesOnSectionChange(
       }
     }
   } catch (err) {
-    console.error("[workflow-engine] section-change run failed:", err);
+    console.error("[workflow-engine] rule execution failed:", err);
   }
 }
 
@@ -130,6 +154,41 @@ async function runAction(
       await prisma.task.update({
         where: { id: ctx.taskId },
         data: { completed: true, completedAt: new Date() },
+      });
+      return;
+
+    case "SET_PRIORITY":
+      await prisma.task.update({
+        where: { id: ctx.taskId },
+        data: { priority: action.priority },
+      });
+      return;
+
+    case "ADD_SUBTASK":
+      // Idempotent: don't double-add the same-named subtask if the
+      // rule re-fires on the same task. Subtasks share the parent's
+      // project + section by convention.
+      if (!action.name?.trim()) return;
+      const existingSub = await prisma.task.findFirst({
+        where: {
+          parentTaskId: ctx.taskId,
+          name: action.name.trim(),
+        },
+        select: { id: true },
+      });
+      if (existingSub) return;
+      const parent = await prisma.task.findUnique({
+        where: { id: ctx.taskId },
+        select: { projectId: true, sectionId: true },
+      });
+      await prisma.task.create({
+        data: {
+          name: action.name.trim(),
+          parentTaskId: ctx.taskId,
+          projectId: parent?.projectId ?? null,
+          sectionId: parent?.sectionId ?? null,
+          creatorId: ctx.actorUserId,
+        },
       });
       return;
 

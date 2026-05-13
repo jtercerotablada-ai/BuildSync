@@ -16,6 +16,9 @@ import {
   Link2 as LinkIcon,
   Pencil,
   Trash2,
+  Flag,
+  Zap,
+  Inbox,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +40,7 @@ import {
   actionNeedsConfig,
 } from "@/components/views/workflow-action-dialog";
 import { FormBuilderDialog } from "@/components/views/form-builder-dialog";
+import { FormSubmissionsDialog } from "@/components/views/form-submissions-dialog";
 import type { FormRow } from "@/lib/form-types";
 
 // ============================================
@@ -71,6 +75,8 @@ const ACTION_ICONS: Record<WorkflowActionType, React.ReactNode> = {
   ADD_COMMENT: <MessageSquare className="w-4 h-4" />,
   MARK_COMPLETE: <CheckCircle className="w-4 h-4" />,
   ADD_TO_PROJECT: <Plus className="w-4 h-4" />,
+  SET_PRIORITY: <Flag className="w-4 h-4" />,
+  ADD_SUBTASK: <CheckCircle className="w-4 h-4" />,
 };
 
 const PICKABLE_ACTIONS: WorkflowActionType[] = [
@@ -79,6 +85,8 @@ const PICKABLE_ACTIONS: WorkflowActionType[] = [
   "ADD_COMMENT",
   "MARK_COMPLETE",
   "ADD_TO_PROJECT",
+  "SET_PRIORITY",
+  "ADD_SUBTASK",
 ];
 
 /**
@@ -103,6 +111,10 @@ function makeDefaultAction(type: WorkflowActionType): WorkflowAction {
       return { type: "MARK_COMPLETE" };
     case "ADD_TO_PROJECT":
       return { type: "ADD_TO_PROJECT", projectId: "" };
+    case "SET_PRIORITY":
+      return { type: "SET_PRIORITY", priority: "MEDIUM" };
+    case "ADD_SUBTASK":
+      return { type: "ADD_SUBTASK", name: "Follow up" };
   }
 }
 
@@ -120,8 +132,12 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
   // we open this dialog instead of POSTing a placeholder rule. Only
   // MARK_COMPLETE bypasses the dialog because it has no targets to
   // pick.
+  // `target` is "section:<id>" for per-section rules or "completion"
+  // for the project-wide "When task is completed" rules. Both flows
+  // share the same dialog; only the trigger written on the rule
+  // changes.
   const [pendingAction, setPendingAction] = useState<{
-    sectionId: string;
+    target: { kind: "section"; sectionId: string } | { kind: "completion" };
     actionType: WorkflowActionType;
   } | null>(null);
 
@@ -131,6 +147,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
   const [forms, setForms] = useState<FormRow[]>([]);
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [editingForm, setEditingForm] = useState<FormRow | null>(null);
+  const [submissionsForm, setSubmissionsForm] = useState<FormRow | null>(null);
 
   // ── Initial fetch ───────────────────────────────────────────
   useEffect(() => {
@@ -167,16 +184,20 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     };
   }, [projectId]);
 
-  // ── Group rules by section for the per-card render ─────────
-  const rulesBySection = (workflow?.rules || []).reduce<
-    Record<string, WorkflowRuleRow[]>
-  >((acc, rule) => {
-    if (rule.trigger?.type !== "TASK_MOVED_TO_SECTION") return acc;
-    const sid = rule.trigger.sectionId;
-    if (!acc[sid]) acc[sid] = [];
-    acc[sid].push(rule);
-    return acc;
-  }, {});
+  // ── Group rules by section (for per-section cards) AND collect
+  //    project-wide TASK_COMPLETED rules into their own bucket so
+  //    the "On completion" card can show them separately.
+  const rulesBySection: Record<string, WorkflowRuleRow[]> = {};
+  const completionRules: WorkflowRuleRow[] = [];
+  for (const rule of workflow?.rules || []) {
+    const t = rule.trigger;
+    if (t?.type === "TASK_MOVED_TO_SECTION") {
+      if (!rulesBySection[t.sectionId]) rulesBySection[t.sectionId] = [];
+      rulesBySection[t.sectionId].push(rule);
+    } else if (t?.type === "TASK_COMPLETED") {
+      completionRules.push(rule);
+    }
+  }
 
   // ── Mutations ──────────────────────────────────────────────
 
@@ -188,25 +209,54 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     actionType: WorkflowActionType
   ) => {
     if (!actionNeedsConfig(actionType)) {
-      commitAction(sectionId, makeDefaultAction(actionType));
+      commitAction(
+        { kind: "section", sectionId },
+        makeDefaultAction(actionType)
+      );
       return;
     }
-    setPendingAction({ sectionId, actionType });
+    setPendingAction({
+      target: { kind: "section", sectionId },
+      actionType,
+    });
   };
 
-  // Actually POST a configured action — called either directly
-  // (MARK_COMPLETE) or from the dialog's onConfirm.
-  const commitAction = async (sectionId: string, action: WorkflowAction) => {
+  // Same entry point but for the project-wide "When task completed"
+  // rules card.
+  const startAddCompletionAction = (actionType: WorkflowActionType) => {
+    if (!actionNeedsConfig(actionType)) {
+      commitAction(
+        { kind: "completion" },
+        makeDefaultAction(actionType)
+      );
+      return;
+    }
+    setPendingAction({
+      target: { kind: "completion" },
+      actionType,
+    });
+  };
+
+  // Actually POST a configured action. The trigger written on the
+  // rule is derived from the target kind.
+  const commitAction = async (
+    target:
+      | { kind: "section"; sectionId: string }
+      | { kind: "completion" },
+    action: WorkflowAction
+  ) => {
+    const trigger =
+      target.kind === "section"
+        ? { type: "TASK_MOVED_TO_SECTION" as const, sectionId: target.sectionId }
+        : { type: "TASK_COMPLETED" as const };
+
     try {
       const res = await fetch(
         `/api/projects/${projectId}/workflow/rules`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            trigger: { type: "TASK_MOVED_TO_SECTION", sectionId },
-            actions: [action],
-          }),
+          body: JSON.stringify({ trigger, actions: [action] }),
         }
       );
       if (!res.ok) {
@@ -386,6 +436,14 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                           <div className="flex items-center gap-0.5 flex-shrink-0">
                             <button
                               type="button"
+                              onClick={() => setSubmissionsForm(f)}
+                              title="View submissions"
+                              className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
+                            >
+                              <Inbox className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => copyFormLink(f.id)}
                               title="Copy public link"
                               className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
@@ -459,6 +517,20 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                 )}
               </div>
             ))}
+
+            {/* Connector + project-wide completion card. Fires
+                whenever ANY task on this project flips to
+                completed (regardless of section). */}
+            {sections.length > 0 && (
+              <div className="flex items-center self-center h-full py-16">
+                <div className="w-4 h-px bg-slate-300" />
+              </div>
+            )}
+            <CompletionCard
+              rules={completionRules}
+              onAddAction={startAddCompletionAction}
+              onRemoveRule={removeRule}
+            />
           </div>
         </div>
       </div>
@@ -476,7 +548,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
         projectId={projectId}
         onConfirm={(action) => {
           if (pendingAction) {
-            commitAction(pendingAction.sectionId, action);
+            commitAction(pendingAction.target, action);
             setPendingAction(null);
           }
         }}
@@ -494,6 +566,22 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
         projectId={projectId}
         initial={editingForm}
         onSaved={handleFormSaved}
+      />
+
+      {/* Submissions inbox per form (Phase 4.B). Opens the list of
+          past submissions with a deep-link to the task each one
+          generated. */}
+      <FormSubmissionsDialog
+        open={submissionsForm !== null}
+        onOpenChange={(open) => {
+          if (!open) setSubmissionsForm(null);
+        }}
+        form={submissionsForm}
+        onOpenTask={(taskId) => {
+          // Navigate to the project's task — opens via /tasks/[id]
+          // which redirects to the right project view + slide-over.
+          window.open(`/tasks/${taskId}`, "_blank");
+        }}
       />
     </div>
   );
@@ -585,6 +673,100 @@ function SectionCard({
         </div>
 
         {/* Add-action dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="mt-2 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
+              <Plus className="w-3 h-3" />
+              Add action
+              <ChevronDown className="w-3 h-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48">
+            {PICKABLE_ACTIONS.map((type) => (
+              <DropdownMenuItem
+                key={type}
+                onClick={() => onAddAction(type)}
+                className="gap-2"
+              >
+                <span className="text-[#a8893a]">{ACTION_ICONS[type]}</span>
+                {ACTION_LABELS[type]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// COMPLETION CARD — project-wide rules that fire when any task
+// is marked complete, regardless of which section it's in.
+// ============================================
+
+interface CompletionCardProps {
+  rules: WorkflowRuleRow[];
+  onAddAction: (type: WorkflowActionType) => void;
+  onRemoveRule: (ruleId: string) => void;
+}
+
+function CompletionCard({
+  rules,
+  onAddAction,
+  onRemoveRule,
+}: CompletionCardProps) {
+  const ruleChips = rules.flatMap((r) =>
+    (r.actions as WorkflowAction[]).map((a, idx) => ({
+      ruleId: r.id,
+      actionIdx: idx,
+      type: a.type,
+    }))
+  );
+
+  return (
+    <div className="w-52 flex-shrink-0 bg-white rounded-lg border border-[#c9a84c]/40 shadow-sm">
+      <div className="p-3 border-b bg-[#c9a84c]/[0.04]">
+        <div className="flex items-center gap-1.5 mb-1">
+          <Zap className="w-3.5 h-3.5 text-[#a8893a]" />
+          <span className="text-xs text-[#a8893a] font-semibold uppercase tracking-wider">
+            Trigger
+          </span>
+        </div>
+        <h3 className="font-semibold text-slate-900 text-sm">
+          On completion
+        </h3>
+        <p className="text-xs text-slate-500 mt-1">
+          Fires when any task in this project is marked complete.
+        </p>
+      </div>
+
+      <div className="p-3">
+        <div className="space-y-1">
+          {ruleChips.length === 0 && (
+            <div className="text-center py-3 text-xs text-slate-400">
+              No completion rules configured
+            </div>
+          )}
+          {ruleChips.map((chip) => (
+            <div
+              key={`${chip.ruleId}-${chip.actionIdx}`}
+              className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded text-xs group"
+            >
+              <span className="text-[#a8893a]">{ACTION_ICONS[chip.type]}</span>
+              <span className="text-slate-700 flex-1">
+                {ACTION_LABELS[chip.type]}
+              </span>
+              <button
+                onClick={() => onRemoveRule(chip.ruleId)}
+                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-200 rounded transition-all"
+                aria-label="Remove rule"
+              >
+                <X className="w-3 h-3 text-slate-400" />
+              </button>
+            </div>
+          ))}
+        </div>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="mt-2 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">

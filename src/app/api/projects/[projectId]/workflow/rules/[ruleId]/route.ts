@@ -12,10 +12,13 @@ import { getCurrentUserId } from "@/lib/auth-utils";
  * a workflow whose project the user can edit (owner / ADMIN / EDITOR).
  */
 
-const triggerSchema = z.object({
-  type: z.literal("TASK_MOVED_TO_SECTION"),
-  sectionId: z.string().min(1),
-});
+const triggerSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("TASK_MOVED_TO_SECTION"),
+    sectionId: z.string().min(1),
+  }),
+  z.object({ type: z.literal("TASK_COMPLETED") }),
+]);
 
 const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("SET_ASSIGNEE"), userId: z.string().nullable() }),
@@ -29,6 +32,14 @@ const actionSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("MARK_COMPLETE") }),
   z.object({ type: z.literal("ADD_TO_PROJECT"), projectId: z.string().min(1) }),
+  z.object({
+    type: z.literal("SET_PRIORITY"),
+    priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]),
+  }),
+  z.object({
+    type: z.literal("ADD_SUBTASK"),
+    name: z.string().min(1).max(200),
+  }),
 ]);
 
 const patchRuleSchema = z.object({

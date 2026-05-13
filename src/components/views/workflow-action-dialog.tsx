@@ -77,6 +77,10 @@ export function WorkflowActionDialog({
   >([]);
   const [commentContent, setCommentContent] = useState("");
   const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
+  const [pickedPriority, setPickedPriority] = useState<
+    "NONE" | "LOW" | "MEDIUM" | "HIGH"
+  >("MEDIUM");
+  const [subtaskName, setSubtaskName] = useState("");
 
   // Reset state when the dialog opens with a new action type
   useEffect(() => {
@@ -85,6 +89,8 @@ export function WorkflowActionDialog({
     setPickedCollaboratorIds([]);
     setCommentContent("");
     setPickedProjectId(null);
+    setPickedPriority("MEDIUM");
+    setSubtaskName("");
   }, [open, actionType]);
 
   // Load the right targets list for the action
@@ -168,6 +174,16 @@ export function WorkflowActionDialog({
           return;
         }
         payload = { type: "ADD_TO_PROJECT", projectId: pickedProjectId };
+        break;
+      case "SET_PRIORITY":
+        payload = { type: "SET_PRIORITY", priority: pickedPriority };
+        break;
+      case "ADD_SUBTASK":
+        if (!subtaskName.trim()) {
+          toast.error("Name the subtask");
+          return;
+        }
+        payload = { type: "ADD_SUBTASK", name: subtaskName.trim() };
         break;
       case "MARK_COMPLETE":
         payload = { type: "MARK_COMPLETE" };
@@ -340,6 +356,56 @@ export function WorkflowActionDialog({
                   ))}
                 </div>
               )}
+            </>
+          )}
+
+          {/* SET_PRIORITY — pick HIGH/MEDIUM/LOW/NONE */}
+          {actionType === "SET_PRIORITY" && (
+            <>
+              <p className="text-sm text-slate-500">
+                Set the task priority to:
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {(["HIGH", "MEDIUM", "LOW", "NONE"] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPickedPriority(p)}
+                    className={`px-3 py-2 rounded-md border text-sm text-left transition-colors ${
+                      pickedPriority === p
+                        ? "border-[#c9a84c] bg-[#c9a84c]/10 text-[#a8893a] font-medium"
+                        : "border-slate-200 text-slate-700 hover:border-slate-300"
+                    }`}
+                  >
+                    {p === "NONE"
+                      ? "No priority"
+                      : p.charAt(0) + p.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ADD_SUBTASK — name a subtask to create */}
+          {actionType === "ADD_SUBTASK" && (
+            <>
+              <p className="text-sm text-slate-500">
+                A subtask will be created on the task with this name:
+              </p>
+              <input
+                type="text"
+                value={subtaskName}
+                onChange={(e) => setSubtaskName(e.target.value)}
+                maxLength={200}
+                placeholder="e.g. Confirm PE seal on file"
+                className="w-full px-3 py-2 text-sm border rounded-md outline-none focus:ring-2 focus:ring-[#c9a84c]"
+                autoFocus
+              />
+              <p className="text-[11px] text-slate-400">
+                Idempotent: if a subtask with this exact name already
+                exists on the task, the rule skips it instead of
+                creating duplicates.
+              </p>
             </>
           )}
 
