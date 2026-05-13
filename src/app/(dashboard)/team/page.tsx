@@ -550,29 +550,38 @@ function OverviewContent({
 
   return (
     <>
-      {/* Hero Section */}
-      <div className="bg-gradient-to-b from-gray-100 to-gray-50 py-12">
-        <div className="flex flex-col items-center text-center">
-          {/* Large Avatar */}
-          <div
-            className="w-32 h-32 rounded-full shadow-lg flex items-center justify-center mb-6"
-            style={{ backgroundColor: teamColor }}
-          >
-            <span className="text-5xl font-light text-white">{teamInitial}</span>
+      {/* Hero band — flat light-gray strip a-la Asana. The avatar
+          sits at the boundary between the band and the content
+          below it, half-overlapping each side. Team name + Create
+          work button align horizontally below the avatar, inside
+          the main content area (not in the band itself). */}
+      <div className="relative">
+        <div className="bg-gray-100 h-[140px]" />
+        <div className="max-w-6xl mx-auto px-6">
+          {/* Avatar — gray neutral, like Asana. Overlaps the band/
+              content boundary by half its own height. */}
+          <div className="relative -mt-[68px] flex justify-center">
+            <div className="w-[136px] h-[136px] rounded-full bg-gray-300 flex items-center justify-center ring-4 ring-white">
+              <span className="text-5xl font-light text-gray-600">
+                {teamInitial}
+              </span>
+            </div>
           </div>
 
-          {/* Name + Create Work */}
-          <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-semibold text-gray-900">{teamName}</h1>
-
+          {/* Team name + Create work — single horizontal row,
+              centered under the avatar. */}
+          <div className="flex items-center justify-center gap-4 mt-5">
+            <h1 className="text-[22px] font-semibold text-gray-900">
+              {teamName}
+            </h1>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" size="sm" className="gap-1.5 h-8">
                   Create work
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuItem onClick={() => router.push("/projects/new")}>
                   <FolderKanban className="h-4 w-4 mr-2" />
                   Project
@@ -594,46 +603,48 @@ function OverviewContent({
             </DropdownMenu>
           </div>
 
-          {/* Description */}
-          {isEditingDescription ? (
-            <div className="mt-4 w-full max-w-md">
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full p-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-black resize-none"
-                rows={3}
-                placeholder="Describe the purpose and responsibilities of the team..."
-                autoFocus
-              />
-              <div className="flex justify-end gap-2 mt-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setDescription(team?.description || "");
-                    setIsEditingDescription(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={handleSaveDescription}>
-                  Save
-                </Button>
+          {/* Description (editable) */}
+          <div className="flex justify-center mt-1.5 mb-6">
+            {isEditingDescription ? (
+              <div className="w-full max-w-md">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full p-3 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-black resize-none"
+                  rows={3}
+                  placeholder="Describe the purpose and responsibilities of the team..."
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2 mt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setDescription(team?.description || "");
+                      setIsEditingDescription(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleSaveDescription}>
+                    Save
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <button
-              className="mt-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              onClick={() => setIsEditingDescription(true)}
-            >
-              {team?.description || "Click to add team description..."}
-            </button>
-          )}
+            ) : (
+              <button
+                className="text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
+                onClick={() => setIsEditingDescription(true)}
+              >
+                {team?.description || "Click to add team description..."}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-6 pb-12">
         {/* Setup Banner */}
         {shouldShowBanner && (
           <div className="bg-white border rounded-xl p-6 mb-6">
