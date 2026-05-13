@@ -176,32 +176,21 @@ export default function ProjectsPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
-      {/* Header — title centered, Create button absolute-positioned
-          on the far right so the h1 itself sits on the page axis.
-          The rest of the layout stays edge-to-edge (the previous
-          attempt that wrapped everything in max-w-7xl made the
-          table feel cramped on wide screens). */}
-      <div className="relative px-4 md:px-8 pt-6 md:pt-8 pb-4">
-        <h1 className="text-[22px] md:text-[28px] font-semibold text-black tracking-tight text-center">
+      {/* Header — title alone, centered. Create button moves down
+          to the search row so the title text isn't competing with
+          anything on its line. */}
+      <div className="px-4 md:px-8 pt-6 md:pt-8 pb-4 text-center">
+        <h1 className="text-[22px] md:text-[28px] font-semibold text-black tracking-tight">
           Browse projects
           <span className="ml-2 text-sm font-normal text-gray-400 tabular-nums">
             {filtered.length}
           </span>
         </h1>
-        <div className="absolute right-4 md:right-8 top-6 md:top-8">
-          <Button
-            onClick={() => router.push("/projects/new")}
-            className="bg-black hover:bg-gray-900 text-white"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            Create project
-          </Button>
-        </div>
       </div>
 
-      {/* Search */}
-      <div className="px-4 md:px-8 pb-3">
-        <div className="relative">
+      {/* Search + Create button */}
+      <div className="flex items-center gap-2 px-4 md:px-8 pb-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             type="search"
@@ -211,6 +200,13 @@ export default function ProjectsPage() {
             className="pl-9 h-10 w-full bg-gray-50 border-gray-200 focus-visible:bg-white"
           />
         </div>
+        <Button
+          onClick={() => router.push("/projects/new")}
+          className="bg-black hover:bg-gray-900 text-white"
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          Create project
+        </Button>
       </div>
 
       {/* Filter chips + view switcher */}
