@@ -17,6 +17,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
   startOfMonth,
@@ -395,19 +400,24 @@ export function CalendarView({
               <DropdownMenuItem onClick={() => setShowWeekends(!showWeekends)}>
                 {showWeekends ? "Hide weekends" : "Show weekends"}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("Coming soon")}>Color by project</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
-      {/* Week Day Headers */}
-      <div className={cn("grid border-b", gridCols)}>
+      {/* Week Day Headers — sticky so they stay visible while
+          scrolling through long months. */}
+      <div
+        className={cn(
+          "grid border-b sticky top-0 z-20 bg-white",
+          gridCols
+        )}
+      >
         {weekDays.map((day, index) => (
           <div
             key={day}
             className={cn(
-              "py-1 md:py-2 text-center text-[10px] md:text-xs font-medium text-black uppercase border-r last:border-r-0",
+              "py-1 md:py-2 text-center text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider border-r last:border-r-0",
               showWeekends && index >= 5 && "bg-white"
             )}
           >
@@ -417,37 +427,106 @@ export function CalendarView({
         ))}
       </div>
 
-      {/* Calendar — per-week containers. Each row stacks two grids:
-          a background day grid (for cell affordances + quick-add) and
-          a bar overlay (CSS-grid with grid-column span + lane rows)
-          so multi-day tasks render as horizontal bars spanning days.
-          Mobile keeps the compact dot-strip representation. */}
+      {/* Calendar — per-week containers with VARIABLE heights based
+          on how many lanes each individual week actually needs. Each
+          row stacks two grids:
+            (a) BACKGROUND day grid — borders, weekend tint, today
+                tint, day number, hit-target for quick-add.
+            (b) FOREGROUND bar overlay — solid gold pills via CSS
+                grid spanning. The inline add input lives in this
+                grid too as "the next bar" in the lane stack.
+          Matches the my-tasks calendar treatment (Asana-style). */}
       <div className="flex-1 overflow-auto">
         {weeks.map((week, weekIdx) => {
           const segments = segmentsByWeek[weekIdx] || [];
           const isWeek = viewMode === "week";
-          // Lane count drives how tall the bar zone needs to be.
-          // Clamp to avoid rows growing forever on busy projects.
-          const laneCount = Math.min(
-            isWeek ? 30 : 6,
-            Math.max(1, ...segments.map((s) => s.lane + 1), 1)
+
+          // Per-week lane cap. Anything over this collapses into the
+          // "+N more" popover. Week view gets a generous 30 lanes
+          // because the user opted in to see everything in detail;
+          // month view caps at 6 so a busy week doesn't blow up the
+          // row height.
+          const MAX_LANES = isWeek ? 30 : 6;
+
+          // Visible segments are the ones that fit in MAX_LANES;
+          // anything past goes into +N more for the columns it
+          // would have covered.
+          const visibleSegments = segments.filter(
+            (s) => s.lane < MAX_LANES
           );
-          const overflowSegments = segments.filter(
-            (s) => s.lane >= laneCount
-          );
-          // Compute per-day overflow counts ("+N more") for any
-          // segments that didn't fit into visible lanes.
-          const overflowByCol: number[] = Array(week.length).fill(0);
-          for (const seg of overflowSegments) {
-            for (let c = seg.colStart; c < seg.colStart + seg.colSpan; c++) {
-              overflowByCol[c]++;
+          const hiddenByCol: Record<number, number> = {};
+          const hiddenTasksByCol: Record<number, Task[]> = {};
+          for (const s of segments) {
+            if (s.lane >= MAX_LANES) {
+              for (let c = s.colStart; c < s.colStart + s.colSpan; c++) {
+                hiddenByCol[c] = (hiddenByCol[c] || 0) + 1;
+                if (!hiddenTasksByCol[c]) hiddenTasksByCol[c] = [];
+                if (
+                  !hiddenTasksByCol[c].some((t) => t.id === s.task.id)
+                ) {
+                  hiddenTasksByCol[c].push(s.task);
+                }
+              }
             }
           }
 
+          // Per-column deepest lane (used both for the variable
+          // week-height calc AND for placing the +N more pill /
+          // inline-add input at "the next free lane" in that column.
+          const columnMaxLane: number[] = Array(week.length).fill(-1);
+          for (const s of visibleSegments) {
+            for (let c = s.colStart; c < s.colStart + s.colSpan; c++) {
+              if (s.lane > columnMaxLane[c]) columnMaxLane[c] = s.lane;
+            }
+          }
+
+          // Walk every column: its bottom row is its deepest lane,
+          // bumped one more if a +N more pill needs to sit there.
+          let maxRow = -1;
+          for (let c = 0; c < week.length; c++) {
+            const bottom =
+              hiddenByCol[c] && hiddenByCol[c] > 0
+                ? columnMaxLane[c] + 1
+                : columnMaxLane[c];
+            if (bottom > maxRow) maxRow = bottom;
+          }
+
+          // 4px top padding (above day number) + 22px day number row
+          // + (maxRow + 1) × 22px lane height + 10px bottom breathing.
+          const DAY_HEADER_PX = 26;
+          const LANE_PX = 22;
+          const ROW_BOTTOM_PX = 10;
+          const ROW_MIN_PX = isWeek ? 400 : 90;
+          const contentPx =
+            maxRow >= 0
+              ? DAY_HEADER_PX + (maxRow + 1) * LANE_PX + ROW_BOTTOM_PX
+              : ROW_MIN_PX;
+          const weekHeight = Math.max(ROW_MIN_PX, contentPx);
+
+          // Which column is currently in add-mode in this week?
+          const addingColIndex =
+            isCreatingTask &&
+            week.some((d) => format(d, "yyyy-MM-dd") === isCreatingTask)
+              ? week.findIndex(
+                  (d) => format(d, "yyyy-MM-dd") === isCreatingTask
+                )
+              : -1;
+          // The input lands at the next-free lane in that column so
+          // it slots in as a brand-new bar instead of floating at the
+          // cell bottom.
+          let addingLane = 0;
+          if (addingColIndex >= 0) {
+            addingLane = (columnMaxLane[addingColIndex] ?? -1) + 1;
+          }
+
           return (
-            <div key={weekIdx} className="relative border-b">
+            <div
+              key={weekIdx}
+              className="relative border-b border-slate-200"
+              style={{ height: weekHeight }}
+            >
               {/* Background day grid */}
-              <div className={cn("grid", gridCols)}>
+              <div className={cn("grid h-full", gridCols)}>
                 {week.map((day) => {
                   const dateStr = format(day, "yyyy-MM-dd");
                   const isCurrentMonth = isSameMonth(day, currentDate);
@@ -456,25 +535,21 @@ export function CalendarView({
                   const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
                   const dayNum = day.getDate();
                   const isFirstOfMonth = dayNum === 1;
+                  const isAdding = isCreatingTask === dateStr;
 
                   return (
                     <div
                       key={dateStr}
                       className={cn(
-                        "border-r last:border-r-0 p-0.5 md:p-1 relative",
-                        isWeek
-                          ? "min-h-[400px]"
-                          : "min-h-[90px] md:min-h-[110px]",
-                        !isCurrentMonth && !isWeek && "bg-white/50",
-                        isWeekendDay && showWeekends && "bg-white/30",
-                        isCreatingTask !== dateStr &&
+                        "border-r last:border-r-0 relative h-full",
+                        !isCurrentMonth && !isWeek && "bg-slate-50/40",
+                        isWeekendDay && showWeekends && isCurrentMonth && "bg-slate-50/20",
+                        isCurrentDay && "bg-[#c9a84c]/5",
+                        isAdding &&
+                          "ring-2 ring-[#c9a84c]/60 ring-inset",
+                        !isAdding &&
                           "cursor-pointer hover:bg-[#c9a84c]/[0.04]"
                       )}
-                      style={{
-                        // Reserve enough space for the bar lanes so day
-                        // numbers and overflow chips don't overlap bars.
-                        paddingTop: 4 + laneCount * 22 + 4,
-                      }}
                       onClick={(e) => {
                         if (e.target === e.currentTarget) {
                           setIsCreatingTask(dateStr);
@@ -482,15 +557,16 @@ export function CalendarView({
                       }}
                     >
                       {/* Day number — pinned to top-left, above the bar
-                          area, with pointer-events:none so the bar
-                          overlay catches the click cleanly. */}
-                      <div className="absolute top-1 left-1 right-1 flex items-start justify-between pointer-events-none">
+                          area, pointer-events:none so the bar overlay
+                          catches the click cleanly. */}
+                      <div className="px-2 pt-1.5 pointer-events-none">
                         <span
                           className={cn(
-                            "text-xs md:text-sm",
+                            "text-[12px] font-mono tabular-nums inline-block",
                             !isCurrentMonth && !isWeek && "text-slate-300",
+                            isCurrentMonth && !isCurrentDay && "text-slate-700",
                             isCurrentDay &&
-                              "bg-black text-white rounded-full w-6 h-6 flex items-center justify-center font-medium"
+                              "bg-black text-white rounded-full w-5 h-5 flex items-center justify-center font-semibold text-[11px]"
                           )}
                         >
                           {isFirstOfMonth && isCurrentMonth && !isWeek
@@ -501,76 +577,43 @@ export function CalendarView({
                             : dayNum}
                         </span>
                       </div>
-
-                      {/* Per-day overflow chip */}
-                      {(() => {
-                        const colIdx = week.indexOf(day);
-                        const extra = overflowByCol[colIdx] || 0;
-                        if (extra === 0) return null;
-                        return (
-                          <div className="absolute bottom-1 left-1 text-[10px] text-slate-500 font-medium pointer-events-none">
-                            +{extra} more
-                          </div>
-                        );
-                      })()}
-
-                      {/* Quick-add input pinned over bar area */}
-                      {isCreatingTask === dateStr && (
-                        <input
-                          type="text"
-                          value={newTaskName}
-                          onChange={(e) => setNewTaskName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter")
-                              handleCreateTask(dateStr);
-                            if (e.key === "Escape") {
-                              setIsCreatingTask(null);
-                              setNewTaskName("");
-                            }
-                          }}
-                          onBlur={() => {
-                            if (newTaskName.trim()) {
-                              handleCreateTask(dateStr);
-                            } else {
-                              setIsCreatingTask(null);
-                            }
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          placeholder="Task name"
-                          className="absolute bottom-1 left-1 right-1 text-xs px-2 py-1 border rounded outline-none focus:ring-2 focus:ring-[#c9a84c] bg-white z-20"
-                          autoFocus
-                        />
-                      )}
                     </div>
                   );
                 })}
               </div>
 
-              {/* Bar overlay — CSS grid that mirrors the day grid so
-                  segments can use `gridColumn: span N` to abarcar
-                  múltiples celdas. Lane rows are 22px tall each. */}
+              {/* Foreground bar overlay — CSS grid that mirrors the
+                  day grid. pointer-events:none on the wrapper so
+                  click-through to the empty cell still works; bars
+                  re-enable pointer-events to be clickable. */}
               <div
                 className={cn(
-                  "absolute left-0 right-0 grid gap-y-0.5 px-1 pointer-events-none",
+                  "absolute left-0 right-0 grid gap-y-0.5 px-px pointer-events-none",
                   gridCols
                 )}
                 style={{
-                  top: 22, // below the day number row
-                  gridTemplateRows: `repeat(${laneCount}, 20px)`,
+                  top: DAY_HEADER_PX,
+                  gridAutoRows: `${LANE_PX - 2}px`,
                 }}
               >
-                {segments
-                  .filter((s) => s.lane < laneCount)
-                  .map((seg) => {
-                    const TypeIcon =
-                      seg.task.taskType === "MILESTONE"
-                        ? Diamond
-                        : seg.task.taskType === "APPROVAL"
-                          ? ThumbsUp
-                          : null;
-                    return (
+                {/* Solid-gold task bars (Asana style) */}
+                {visibleSegments.map((seg) => {
+                  const TypeIcon =
+                    seg.task.taskType === "MILESTONE"
+                      ? Diamond
+                      : seg.task.taskType === "APPROVAL"
+                        ? ThumbsUp
+                        : null;
+                  return (
+                    <div
+                      key={`${weekIdx}-${seg.task.id}-${seg.colStart}`}
+                      style={{
+                        gridColumn: `${seg.colStart + 1} / span ${seg.colSpan}`,
+                        gridRow: seg.lane + 1,
+                      }}
+                      className="px-px min-w-0"
+                    >
                       <button
-                        key={`${weekIdx}-${seg.task.id}-${seg.colStart}`}
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -584,35 +627,150 @@ export function CalendarView({
                               )} → ${format(parseISO(seg.task.dueDate), "MMM d")}`
                             : seg.task.name
                         }
-                        style={{
-                          gridColumn: `${seg.colStart + 1} / span ${seg.colSpan}`,
-                          gridRow: seg.lane + 1,
-                        }}
                         className={cn(
-                          "pointer-events-auto h-5 flex items-center gap-1 px-1.5 text-[11px] font-medium truncate cursor-pointer shadow-sm transition-colors",
+                          "w-full block text-left text-[11px] leading-snug px-1.5 py-[3px] truncate cursor-pointer pointer-events-auto font-medium transition-colors flex items-center gap-1",
+                          !seg.clipsLeft && "rounded-l-sm",
+                          !seg.clipsRight && "rounded-r-sm",
                           seg.task.completed
-                            ? "bg-slate-100 text-slate-400 line-through"
-                            : "bg-white text-slate-800 hover:bg-[#fdf7e8]",
-                          seg.colSpan > 1
-                            ? "border-2 border-[#c9a84c]"
-                            : "border border-slate-200 hover:border-[#c9a84c]",
-                          seg.clipsLeft && !seg.clipsRight && "rounded-r",
-                          seg.clipsRight && !seg.clipsLeft && "rounded-l",
-                          !seg.clipsLeft && !seg.clipsRight && "rounded",
-                          seg.clipsLeft && seg.clipsRight && "rounded-none"
+                            ? "bg-slate-200 text-slate-500 line-through"
+                            : "bg-[#c9a84c] text-white hover:bg-[#a8893a]"
                         )}
                       >
                         {TypeIcon && (
-                          <TypeIcon className="h-3 w-3 text-[#a8893a] flex-shrink-0" />
+                          <TypeIcon className="h-3 w-3 flex-shrink-0" />
                         )}
-                        <span className="truncate flex-1 min-w-0">
-                          {seg.clipsLeft ? "… " : ""}
+                        <span className="truncate">
                           {seg.task.name}
-                          {seg.clipsRight ? " …" : ""}
                         </span>
                       </button>
-                    );
-                  })}
+                    </div>
+                  );
+                })}
+
+                {/* "+N more" — real Popover per overflowing column,
+                    listing the hidden tasks. Sits at the lane right
+                    after that column's deepest visible bar. */}
+                {week.map((_, dayOfWeek) => {
+                  const count = hiddenByCol[dayOfWeek];
+                  if (!count) return null;
+                  const dayDate = week[dayOfWeek];
+                  return (
+                    <div
+                      key={`more-${weekIdx}-${dayOfWeek}`}
+                      style={{
+                        gridColumn: `${dayOfWeek + 1} / span 1`,
+                        gridRow: (columnMaxLane[dayOfWeek] ?? -1) + 2,
+                      }}
+                      className="px-px min-w-0 pointer-events-auto"
+                    >
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-1.5 py-[2px] text-[10px] font-medium text-slate-500 hover:text-black hover:bg-slate-100 rounded-sm"
+                          >
+                            +{count} more
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="start"
+                          className="w-64 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="px-3 py-2 border-b">
+                            <p className="text-xs font-semibold text-black">
+                              {dayDate.toLocaleDateString("en-US", {
+                                weekday: "long",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </p>
+                            <p className="text-[10px] text-slate-500">
+                              {count} hidden {count === 1 ? "task" : "tasks"}
+                            </p>
+                          </div>
+                          <ul className="max-h-64 overflow-y-auto py-1">
+                            {(hiddenTasksByCol[dayOfWeek] || []).map((t) => (
+                              <li key={t.id}>
+                                <button
+                                  onClick={() => onTaskClick(t.id)}
+                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2"
+                                >
+                                  <span
+                                    className={cn(
+                                      "w-1.5 h-1.5 rounded-sm flex-shrink-0",
+                                      t.completed
+                                        ? "bg-slate-300"
+                                        : "bg-[#c9a84c]"
+                                    )}
+                                  />
+                                  <span
+                                    className={cn(
+                                      "text-[12px] truncate flex-1",
+                                      t.completed
+                                        ? "text-slate-400 line-through"
+                                        : "text-black"
+                                    )}
+                                  >
+                                    {t.name}
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  );
+                })}
+
+                {/* Inline add input — appears as the next bar in the
+                    target column's lane stack. Same dimensions as a
+                    task bar so the rhythm doesn't break. */}
+                {addingColIndex >= 0 && (
+                  <div
+                    style={{
+                      gridColumn: `${addingColIndex + 1} / span 1`,
+                      gridRow: addingLane + 1,
+                    }}
+                    className="px-px min-w-0 pointer-events-auto"
+                  >
+                    <div
+                      className="w-full bg-white border border-[#c9a84c] rounded-sm shadow-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="text"
+                        value={newTaskName}
+                        onChange={(e) => setNewTaskName(e.target.value)}
+                        onKeyDown={(e) => {
+                          const dateStr = isCreatingTask;
+                          if (!dateStr) return;
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleCreateTask(dateStr);
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            setIsCreatingTask(null);
+                            setNewTaskName("");
+                          }
+                        }}
+                        onBlur={() => {
+                          const dateStr = isCreatingTask;
+                          if (!dateStr) return;
+                          if (newTaskName.trim()) {
+                            handleCreateTask(dateStr);
+                          } else {
+                            setIsCreatingTask(null);
+                          }
+                        }}
+                        placeholder="Task name…"
+                        className="w-full px-1.5 py-[3px] text-[11px] leading-snug bg-transparent border-none outline-none placeholder:text-slate-400"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );
