@@ -38,7 +38,14 @@ import {
   MapPin,
   Building2,
   GanttChart,
+  ChevronDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { GanttTimeline } from "@/components/projects/gantt-timeline";
 import {
@@ -127,7 +134,10 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<ProjectType | "ALL">("ALL");
   const [gateFilter, setGateFilter] = useState<ProjectGate | "ALL">("ALL");
-  const [view, setView] = useState<View>("grid");
+  // Default to list view — matches Asana's project browser and is
+  // denser for AEC users who want to scan many projects fast.
+  // Grid and Gantt are still one click away.
+  const [view, setView] = useState<View>("list");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -166,43 +176,47 @@ export default function ProjectsPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 md:px-6 py-3 md:py-4 border-b">
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg md:text-xl font-semibold text-black">
-            Projects
-          </h1>
-          <span className="text-xs text-gray-500 tabular-nums">
-            ({filtered.length})
+      {/* Header — large title left, primary Create button right.
+          Matches the Asana "Buscar proyectos" pattern: big page
+          title in dedicated row, blue CTA on the far right. */}
+      <div className="flex items-center justify-between px-4 md:px-8 pt-6 md:pt-8 pb-4">
+        <h1 className="text-[22px] md:text-[28px] font-semibold text-black tracking-tight">
+          Browse projects
+          <span className="ml-2 text-sm font-normal text-gray-400 tabular-nums">
+            {filtered.length}
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-            <Input
-              type="search"
-              placeholder="Search projects…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9 w-full sm:w-64"
-            />
-          </div>
-          <Button
-            size="sm"
-            onClick={() => router.push("/projects/new")}
-            className="bg-black hover:bg-gray-900 text-white"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            New project
-          </Button>
+        </h1>
+        <Button
+          onClick={() => router.push("/projects/new")}
+          className="bg-black hover:bg-gray-900 text-white"
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          Create project
+        </Button>
+      </div>
+
+      {/* Search — full-width, prominent. */}
+      <div className="px-4 md:px-8 pb-3">
+        <div className="relative max-w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            type="search"
+            placeholder="Search for a project"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-10 w-full bg-gray-50 border-gray-200 focus-visible:bg-white"
+          />
         </div>
       </div>
 
-      {/* Filter row */}
-      <div className="flex flex-wrap items-center gap-3 px-4 md:px-6 py-3 border-b bg-white">
-        {/* Type pills */}
-        <FilterGroup
+      {/* Filter chips row — each filter is a dropdown chip Asana-
+          style. Cleaner than the previous inline button group when
+          the gate axis has 5 options. The view switcher sits on the
+          right of the same row. */}
+      <div className="flex flex-wrap items-center gap-2 px-4 md:px-8 pb-4">
+        <FilterChip
           label="Type"
+          activeLabel={typeFilter === "ALL" ? null : TYPE_LABEL[typeFilter as ProjectType]}
           options={[
             { value: "ALL", label: "All types" },
             ...(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"] as const).map(
@@ -212,9 +226,9 @@ export default function ProjectsPage() {
           value={typeFilter}
           onChange={(v) => setTypeFilter(v as ProjectType | "ALL")}
         />
-        {/* Gate pills */}
-        <FilterGroup
+        <FilterChip
           label="Gate"
+          activeLabel={gateFilter === "ALL" ? null : GATE_LABEL[gateFilter as ProjectGate]}
           options={[
             { value: "ALL", label: "All gates" },
             ...(
@@ -231,15 +245,13 @@ export default function ProjectsPage() {
           onChange={(v) => setGateFilter(v as ProjectGate | "ALL")}
         />
 
-        {/* View switcher — Grid / List / Gantt timeline. The
-            timeline view is the differentiator vs Asana: bars
-            colored by project gate (PRE_DESIGN → CLOSEOUT), today
-            line, zoom levels, group-by, overdue rings. */}
+        {/* View switcher — Grid / List / Gantt. The timeline view
+            is the differentiator vs Asana. */}
         <div className="ml-auto flex items-center bg-white border rounded-md overflow-hidden">
           {(
             [
-              { id: "grid" as View, icon: LayoutGrid, label: "Grid" },
               { id: "list" as View, icon: List, label: "List" },
+              { id: "grid" as View, icon: LayoutGrid, label: "Grid" },
               { id: "gantt" as View, icon: GanttChart, label: "Gantt" },
             ] as const
           ).map((opt) => {
@@ -310,37 +322,57 @@ export default function ProjectsPage() {
   );
 }
 
-function FilterGroup({
+/**
+ * Asana-style dropdown chip filter. The trigger collapses to a
+ * single rounded chip with the active label (or just the filter
+ * label + chevron when nothing is selected), and clicking opens
+ * a menu of options. Cleaner than rendering every option as its
+ * own visible pill when there are many options (e.g. 5 gates).
+ */
+function FilterChip({
   label,
+  activeLabel,
   options,
   value,
   onChange,
 }: {
   label: string;
+  activeLabel: string | null;
   options: { value: string; label: string }[];
   value: string;
   onChange: (v: string) => void;
 }) {
+  const isActive = activeLabel !== null;
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mr-1">
-        {label}
-      </span>
-      {options.map((opt) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
           className={cn(
-            "px-2.5 py-1 text-xs rounded-full border transition-colors",
-            value === opt.value
+            "inline-flex items-center gap-1.5 px-3 h-8 rounded-full border text-[13px] transition-colors",
+            isActive
               ? "bg-black text-white border-black"
-              : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+              : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
           )}
         >
-          {opt.label}
+          {isActive ? `${label}: ${activeLabel}` : label}
+          <ChevronDown className="h-3.5 w-3.5 opacity-70" />
         </button>
-      ))}
-    </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48">
+        {options.map((opt) => (
+          <DropdownMenuItem
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "cursor-pointer",
+              value === opt.value && "bg-gray-50 font-medium"
+            )}
+          >
+            {opt.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
