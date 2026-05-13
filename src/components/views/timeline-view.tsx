@@ -8,18 +8,9 @@ import {
   ChevronLeft,
   Plus,
   Filter,
-  ArrowUpDown,
-  Settings,
-  ZoomIn,
-  ZoomOut,
   Diamond,
-  Link2,
-  GripVertical,
   AlertTriangle,
-  Target,
-  MoreHorizontal,
-  Calendar,
-  X,
+  ThumbsUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +52,10 @@ interface Task {
   dueDate: string | null;
   startDate?: string | null;
   priority: string;
+  // Engineering taxonomy honoured here so MILESTONE/APPROVAL tasks
+  // render as gold Diamond / ThumbsUp instead of a regular bar, the
+  // same way they do in List + Board + Calendar (P1).
+  taskType?: "TASK" | "MILESTONE" | "APPROVAL" | null;
   assignee: {
     id: string;
     name: string | null;
@@ -91,23 +86,23 @@ interface TimelineViewProps {
 type ZoomLevel = "day" | "week" | "month" | "quarter";
 
 // ============================================
-// PRIORITY & STATUS COLORS
+// PRIORITY & STATUS COLORS — monochrome + gold palette
 // ============================================
+// Matches the rest of the cockpit: NONE is a soft slate, LOW/MEDIUM
+// climb up the gold ramp, HIGH lands on black so a high-priority task
+// reads with maximum contrast against the slate grid.
 
 const PRIORITY_COLORS: Record<string, string> = {
-  NONE: "#c9a84c", // blue-500
-  LOW: "#60A5FA", // blue-400
-  MEDIUM: "#FBBF24", // yellow-400
-  HIGH: "#F97316", // orange-500
+  NONE: "#9ca3af",   // slate-400
+  LOW: "#d4b65a",    // bright gold
+  MEDIUM: "#c9a84c", // gold
+  HIGH: "#0a0a0a",   // black
 };
 
-const STATUS_COLORS = {
-  notStarted: "#9CA3AF",
-  inProgress: "#c9a84c",
-  completed: "#22C55E",
-  delayed: "#0a0a0a",
-  atRisk: "#F97316",
-};
+// Completed bars get a muted slate fill + strike-through; in-progress
+// bars use the priority color and overlay a darker gradient for the
+// remaining work. "Due soon" is rendered via a gold ring on the bar.
+const COMPLETED_BAR_FILL = "#94a3b8"; // slate-400
 
 // ============================================
 // MAIN COMPONENT
@@ -125,9 +120,10 @@ export function TimelineView({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("week");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [showDependencies, setShowDependencies] = useState(true);
-  const [showCriticalPath, setShowCriticalPath] = useState(true);
-  const [showBaseline, setShowBaseline] = useState(false);
+  // "Due soon" highlight — honest name for the simple at-risk flag
+  // (tasks due within 7 days, not yet complete). True CPM critical
+  // path with forward/backward pass + total float lands in Phase 3.
+  const [showDueSoon, setShowDueSoon] = useState(true);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
   const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week" | "has_deps">("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -137,6 +133,11 @@ export function TimelineView({
     startX: number;
     originalStart: string | null;
     originalDue: string;
+    // Live pixel delta from drag start — updated on every mousemove
+    // so the bar can render its in-flight position before the server
+    // commits. Without this, resizing felt completely silent until
+    // mouseup + router.refresh redrew the bar.
+    deltaX: number;
   } | null>(null);
 
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -145,13 +146,22 @@ export function TimelineView({
   const filteredSections = useMemo(() => {
     if (taskFilter === "all") return sections;
     const now = new Date();
-    const weekEnd = addDays(startOfWeek(now, { weekStartsOn: 1 }), 6);
+    // "Due this week" means within the Monday→Sunday window that
+    // contains today — NOT every task with dueDate <= Sunday (the
+    // previous implementation also matched every overdue task in
+    // history, which was the wrong half of the calendar).
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekEnd = addDays(weekStart, 6);
     return sections.map((section) => ({
       ...section,
       tasks: section.tasks.filter((task) => {
         if (taskFilter === "incomplete") return !task.completed;
         if (taskFilter === "completed") return task.completed;
-        if (taskFilter === "due_this_week") return task.dueDate && parseISO(task.dueDate) <= weekEnd;
+        if (taskFilter === "due_this_week") {
+          if (!task.dueDate) return false;
+          const due = parseISO(task.dueDate);
+          return due >= weekStart && due <= weekEnd;
+        }
         return true;
       }),
     }));
@@ -363,14 +373,23 @@ export function TimelineView({
       startX: e.clientX,
       originalStart: task.startDate || null,
       originalDue: task.dueDate,
+      deltaX: 0,
     });
   }, []);
 
   useEffect(() => {
     if (!dragState) return;
 
+    // Update the live deltaX on every mousemove so the bar can paint
+    // its preview position while the user is still dragging. Snaps
+    // to whole days so the visual matches what'll actually persist
+    // (no sub-day "phantom" shifts).
     const handleMouseMove = (e: MouseEvent) => {
-      // Visual feedback is handled by position recalculation on refresh
+      const dx = e.clientX - dragState.startX;
+      const snappedDays = Math.round(pixelsToDays(dx));
+      const snappedPx = snappedDays * (config.columnWidth /
+        (zoomLevel === "day" ? 1 : zoomLevel === "week" ? 7 : zoomLevel === "month" ? 30 : 90));
+      setDragState((prev) => (prev ? { ...prev, deltaX: snappedPx } : prev));
     };
 
     const handleMouseUp = async (e: MouseEvent) => {
@@ -413,7 +432,7 @@ export function TimelineView({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [dragState, pixelsToDays, router]);
+  }, [dragState, pixelsToDays, router, config.columnWidth, zoomLevel]);
 
   // ============================================
   // NAVIGATION
@@ -479,22 +498,34 @@ export function TimelineView({
   };
 
   // ============================================
-  // DETERMINE IF TASK IS CRITICAL
+  // DETERMINE IF TASK IS DUE SOON
   // ============================================
+  // Lightweight at-risk flag: due within 7 days and not yet complete.
+  // This is NOT true critical-path; CPM with total float = 0 lands
+  // in Phase 3 once we wire forward/backward pass.
 
-  const isTaskCritical = (task: Task) => {
+  const isTaskDueSoon = (task: Task) => {
     if (!task.dueDate) return false;
+    if (task.completed) return false;
     const dueDate = parseISO(task.dueDate);
     const today = new Date();
     const daysUntilDue = differenceInDays(dueDate, today);
-    return daysUntilDue <= 3 && !task.completed;
+    return daysUntilDue >= 0 && daysUntilDue <= 7;
   };
 
   // ============================================
   // DETERMINE IF TASK IS A MILESTONE
   // ============================================
+  // Two ways a task can be a milestone:
+  //   1. Explicit taskType === "MILESTONE" (preferred — matches the
+  //      List / Board / Calendar treatment).
+  //   2. Implicit: a 0-duration task (startDate === dueDate or no
+  //      startDate set and the bar would collapse).
+  // The explicit form wins so a stakeholder can mark a milestone
+  // intentionally without juggling dates.
 
   const isTaskMilestone = (task: Task) => {
+    if (task.taskType === "MILESTONE") return true;
     if (!task.dueDate) return false;
     const taskEnd = parseISO(task.dueDate);
     const taskStart = task.startDate
@@ -502,6 +533,10 @@ export function TimelineView({
       : new Date(taskEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
     return isSameDay(taskStart, taskEnd);
   };
+
+  // Approval gates (taskType === "APPROVAL") render with the gold
+  // ThumbsUp icon in place of a regular bar.
+  const isTaskApproval = (task: Task) => task.taskType === "APPROVAL";
 
   // ============================================
   // RENDER
@@ -585,30 +620,18 @@ export function TimelineView({
 
           <div className="h-6 w-px bg-slate-200 mx-2" />
 
-          {/* View Options */}
+          {/* View Options — only ship toggles that actually render
+              something. Dependencies arrows, baseline ghost bars, and
+              true CPM critical path are queued for Phase 3 when the
+              data model + algorithm are in place. */}
           <Button
-            variant={showDependencies ? "secondary" : "ghost"}
+            variant={showDueSoon ? "secondary" : "ghost"}
             size="sm"
-            onClick={() => setShowDependencies(!showDependencies)}
-          >
-            <Link2 className="w-4 h-4 mr-1" />
-            Dependencies
-          </Button>
-          <Button
-            variant={showCriticalPath ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setShowCriticalPath(!showCriticalPath)}
+            onClick={() => setShowDueSoon(!showDueSoon)}
+            title="Highlight tasks due within 7 days"
           >
             <AlertTriangle className="w-4 h-4 mr-1" />
-            Critical
-          </Button>
-          <Button
-            variant={showBaseline ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setShowBaseline(!showBaseline)}
-          >
-            <Target className="w-4 h-4 mr-1" />
-            Baseline
+            Due soon
           </Button>
 
           <div className="h-6 w-px bg-slate-200 mx-2" />
@@ -625,23 +648,6 @@ export function TimelineView({
               <DropdownMenuItem onClick={() => setTaskFilter("incomplete")}>Incomplete tasks</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTaskFilter("completed")}>Completed tasks</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTaskFilter("due_this_week")}>Due this week</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Settings className="w-4 h-4 mr-1" />
-                Options
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowDependencies(!showDependencies)}>
-                {showDependencies ? "Hide" : "Show"} dependencies
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowCriticalPath(!showCriticalPath)}>
-                {showCriticalPath ? "Hide" : "Show"} critical path
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("Coming soon")}>Compact mode</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -696,7 +702,8 @@ export function TimelineView({
                   {!isCollapsed &&
                     section.tasks.map((task) => {
                       const isMilestone = isTaskMilestone(task);
-                      const isCritical = isTaskCritical(task);
+                      const isApproval = isTaskApproval(task);
+                      const dueSoon = isTaskDueSoon(task);
                       const progress = getTaskProgress(task);
 
                       return (
@@ -712,13 +719,16 @@ export function TimelineView({
                             onTaskClick(task.id);
                           }}
                         >
-                          <GripVertical className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 hidden md:block" />
-
+                          {/* Task-type marker — gold Diamond for
+                              MILESTONE, gold ThumbsUp for APPROVAL,
+                              gold square for regular tasks. */}
                           {isMilestone ? (
-                            <Diamond className="w-4 h-4 text-black" />
+                            <Diamond className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
+                          ) : isApproval ? (
+                            <ThumbsUp className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
                           ) : (
                             <div
-                              className="w-3 h-3 rounded-sm"
+                              className="w-3 h-3 rounded-sm flex-shrink-0"
                               style={{
                                 backgroundColor:
                                   PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.NONE,
@@ -735,16 +745,21 @@ export function TimelineView({
                             {task.name}
                           </span>
 
-                          {isCritical && showCriticalPath && (
-                            <AlertTriangle className="w-3 h-3 text-black hidden md:block" />
+                          {dueSoon && showDueSoon && (
+                            <AlertTriangle
+                              className="w-3 h-3 text-[#a8893a] hidden md:block flex-shrink-0"
+                              aria-label="Due within 7 days"
+                            />
                           )}
 
                           {progress > 0 && progress < 100 && (
-                            <span className="text-xs text-slate-500 hidden md:inline">{progress}%</span>
+                            <span className="text-xs text-slate-500 hidden md:inline tabular-nums">
+                              {progress}%
+                            </span>
                           )}
 
                           {task.assignee && (
-                            <div className="w-6 h-6 rounded-full bg-[#d4b65a] items-center justify-center text-xs font-medium text-white hidden md:flex">
+                            <div className="w-6 h-6 rounded-full bg-[#d4b65a] items-center justify-center text-xs font-medium text-white hidden md:flex flex-shrink-0">
                               {task.assignee.name?.[0] || "?"}
                             </div>
                           )}
@@ -844,10 +859,30 @@ export function TimelineView({
                       section.tasks.map((task) => {
                         const position = getTaskPosition(task);
                         const isMilestone = isTaskMilestone(task);
-                        const isCritical = isTaskCritical(task);
+                        const isApproval = isTaskApproval(task);
+                        const dueSoon = isTaskDueSoon(task);
                         const progress = getTaskProgress(task);
-                        const taskColor =
-                          PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.NONE;
+                        const taskColor = task.completed
+                          ? COMPLETED_BAR_FILL
+                          : PRIORITY_COLORS[task.priority] ||
+                            PRIORITY_COLORS.NONE;
+
+                        // Apply the live drag delta when this is the
+                        // bar being resized. Left handle shifts `left`
+                        // and shrinks `width`; right handle just
+                        // extends `width`.
+                        const isResizing =
+                          dragState && dragState.taskId === task.id;
+                        const renderLeft =
+                          position && isResizing && dragState.handle === "left"
+                            ? position.left + dragState.deltaX
+                            : position?.left;
+                        const renderWidth =
+                          position && isResizing
+                            ? dragState.handle === "left"
+                              ? position.width - dragState.deltaX
+                              : position.width + dragState.deltaX
+                            : position?.width;
 
                         return (
                           <div
@@ -869,13 +904,29 @@ export function TimelineView({
                             {/* Task Bar */}
                             {position &&
                               (isMilestone ? (
-                                // Milestone Diamond
+                                // Milestone — gold Diamond (matches
+                                // List / Board / Calendar convention)
                                 <div
                                   className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
-                                  style={{ left: position.left }}
+                                  style={{ left: renderLeft }}
                                   onClick={() => onTaskClick(task.id)}
+                                  title={`${task.name} — milestone`}
                                 >
                                   <Diamond
+                                    className="w-6 h-6"
+                                    fill="#a8893a"
+                                    color="#a8893a"
+                                  />
+                                </div>
+                              ) : isApproval ? (
+                                // Approval gate — gold ThumbsUp
+                                <div
+                                  className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
+                                  style={{ left: renderLeft }}
+                                  onClick={() => onTaskClick(task.id)}
+                                  title={`${task.name} — approval gate`}
+                                >
+                                  <ThumbsUp
                                     className="w-6 h-6"
                                     fill="#a8893a"
                                     color="#a8893a"
@@ -886,28 +937,28 @@ export function TimelineView({
                                 <div
                                   className={cn(
                                     "absolute top-1.5 rounded cursor-pointer group/bar",
-                                    "hover:ring-2 hover:ring-blue-400 hover:ring-offset-1",
-                                    "transition-all",
+                                    "hover:ring-2 hover:ring-[#c9a84c] hover:ring-offset-1",
+                                    "transition-shadow",
                                     selectedTaskId === task.id &&
-                                      "ring-2 ring-blue-500 ring-offset-1",
-                                    isCritical &&
-                                      showCriticalPath &&
-                                      "ring-2 ring-red-400"
+                                      "ring-2 ring-[#c9a84c] ring-offset-1",
+                                    dueSoon &&
+                                      showDueSoon &&
+                                      "ring-2 ring-[#a8893a]/70",
+                                    isResizing && "shadow-lg ring-2 ring-[#c9a84c]"
                                   )}
                                   style={{
-                                    left: position.left,
-                                    width: position.width,
+                                    left: renderLeft,
+                                    width: Math.max(renderWidth ?? 24, 24),
                                     height: isMobile ? rowHeight - 8 : rowHeight - 12,
-                                    backgroundColor: task.completed
-                                      ? "#22C55E"
-                                      : taskColor,
+                                    backgroundColor: taskColor,
                                   }}
                                   onClick={() => onTaskClick(task.id)}
                                 >
-                                  {/* Progress Fill (darker overlay for remaining) */}
+                                  {/* Progress overlay — darker right
+                                      side shows remaining work. */}
                                   {progress > 0 && progress < 100 && (
                                     <div
-                                      className="absolute inset-0 rounded bg-black/20"
+                                      className="absolute inset-0 rounded bg-black/25"
                                       style={{
                                         width: `${100 - progress}%`,
                                         right: 0,
@@ -923,11 +974,25 @@ export function TimelineView({
                                         {task.assignee.name?.[0] || "?"}
                                       </div>
                                     )}
-                                    <span className="text-xs text-white font-medium truncate">
+                                    <span
+                                      className={cn(
+                                        "text-xs font-medium truncate",
+                                        task.priority === "HIGH" || task.completed
+                                          ? "text-white"
+                                          : "text-black"
+                                      )}
+                                    >
                                       {task.name}
                                     </span>
                                     {progress > 0 && progress < 100 && (
-                                      <span className="text-[10px] text-white/80 ml-auto flex-shrink-0">
+                                      <span
+                                        className={cn(
+                                          "text-[10px] ml-auto flex-shrink-0 tabular-nums",
+                                          task.priority === "HIGH" || task.completed
+                                            ? "text-white/80"
+                                            : "text-black/70"
+                                        )}
+                                      >
                                         {progress}%
                                       </span>
                                     )}
@@ -935,11 +1000,11 @@ export function TimelineView({
 
                                   {/* Resize Handles */}
                                   <div
-                                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-white/30 rounded-l z-10"
+                                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l z-10"
                                     onMouseDown={(e) => handleResizeStart(e, task.id, "left", task)}
                                   />
                                   <div
-                                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-white/30 rounded-r z-10"
+                                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r z-10"
                                     onMouseDown={(e) => handleResizeStart(e, task.id, "right", task)}
                                   />
                                 </div>
