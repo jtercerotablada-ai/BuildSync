@@ -176,19 +176,19 @@ export default function ProjectsPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
-      {/* All chrome above the data lives in a single centered
-          container so the page reads like Asana's project browser:
-          title, search, filters, table all share the same gutter
-          and don't bleed edge-to-edge on wide screens. */}
-      <div className="max-w-7xl w-full mx-auto px-4 md:px-6 pt-6 md:pt-8">
-        {/* Header — big title centered, Create button on the right. */}
-        <div className="flex items-center justify-between mb-5">
-          <h1 className="text-[22px] md:text-[28px] font-semibold text-black tracking-tight">
-            Browse projects
-            <span className="ml-2 text-sm font-normal text-gray-400 tabular-nums">
-              {filtered.length}
-            </span>
-          </h1>
+      {/* Header — title centered, Create button absolute-positioned
+          on the far right so the h1 itself sits on the page axis.
+          The rest of the layout stays edge-to-edge (the previous
+          attempt that wrapped everything in max-w-7xl made the
+          table feel cramped on wide screens). */}
+      <div className="relative px-4 md:px-8 pt-6 md:pt-8 pb-4">
+        <h1 className="text-[22px] md:text-[28px] font-semibold text-black tracking-tight text-center">
+          Browse projects
+          <span className="ml-2 text-sm font-normal text-gray-400 tabular-nums">
+            {filtered.length}
+          </span>
+        </h1>
+        <div className="absolute right-4 md:right-8 top-6 md:top-8">
           <Button
             onClick={() => router.push("/projects/new")}
             className="bg-black hover:bg-gray-900 text-white"
@@ -197,9 +197,11 @@ export default function ProjectsPage() {
             Create project
           </Button>
         </div>
+      </div>
 
-        {/* Search */}
-        <div className="relative mb-3">
+      {/* Search */}
+      <div className="px-4 md:px-8 pb-3">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             type="search"
@@ -209,9 +211,10 @@ export default function ProjectsPage() {
             className="pl-9 h-10 w-full bg-gray-50 border-gray-200 focus-visible:bg-white"
           />
         </div>
+      </div>
 
-        {/* Filter chips + view switcher */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
+      {/* Filter chips + view switcher */}
+      <div className="flex flex-wrap items-center gap-2 px-4 md:px-8 pb-4">
           <FilterChip
             label="Type"
             activeLabel={typeFilter === "ALL" ? null : TYPE_LABEL[typeFilter as ProjectType]}
@@ -271,12 +274,10 @@ export default function ProjectsPage() {
             })}
           </div>
         </div>
-      </div>
 
-      {/* Content — Grid and List share the same centered max-width
-          container as the header above. Gantt opts out: the
-          timeline is a horizontal scroll view and wants the full
-          page width to show as many weeks as possible. */}
+      {/* Content — edge-to-edge so the data-dense Grid/List/Gantt
+          views get the full page width. Title alone is centered
+          via text-center on the h1 above. */}
       <div className="flex-1 overflow-auto pb-8">
         {loading ? (
           <div className="flex items-center justify-center h-64">
@@ -309,17 +310,13 @@ export default function ProjectsPage() {
           </div>
         ) : view === "gantt" ? (
           <GanttTimeline projects={filtered} />
+        ) : view === "list" ? (
+          <ProjectsListView
+            projects={filtered}
+            onRowClick={(id) => router.push(`/projects/${id}`)}
+          />
         ) : (
-          <div className="max-w-7xl w-full mx-auto px-4 md:px-6">
-            {view === "list" ? (
-              <ProjectsListView
-                projects={filtered}
-                onRowClick={(id) => router.push(`/projects/${id}`)}
-              />
-            ) : (
-              <ProjectsGridView projects={filtered} />
-            )}
-          </div>
+          <ProjectsGridView projects={filtered} />
         )}
       </div>
     </div>
