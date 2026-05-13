@@ -166,12 +166,16 @@ export async function GET(
 
     const events: ActivityEvent[] = [];
 
+    // Titles are pre-lowercased so the UI can concatenate them after
+    // the actor name without doing presentation logic on the client:
+    // "Juan posted a status update", "Maria completed a task", etc.
+
     for (const u of statusUpdates) {
       const a = u.authorId ? authorMap.get(u.authorId) : null;
       events.push({
         id: `status:${u.id}`,
         type: "status_update",
-        title: "Posted a status update",
+        title: "posted a status update",
         detail: u.summary.slice(0, 240),
         status: u.status,
         createdAt: u.createdAt.toISOString(),
@@ -182,10 +186,11 @@ export async function GET(
     }
 
     for (const m of members) {
+      const niceRole = m.role.charAt(0) + m.role.slice(1).toLowerCase();
       events.push({
         id: `member:${m.id}`,
         type: "member_joined",
-        title: `Joined as ${m.role.charAt(0)}${m.role.slice(1).toLowerCase()}`,
+        title: `joined as ${niceRole}`,
         detail: null,
         createdAt: m.joinedAt.toISOString(),
         actor: m.user
@@ -204,7 +209,7 @@ export async function GET(
       events.push({
         id: `done:${t.id}`,
         type: "task_completed",
-        title: "Completed a task",
+        title: "completed a task",
         detail: t.name,
         createdAt: t.completedAt.toISOString(),
         actor: t.assignee ?? null,
@@ -215,7 +220,7 @@ export async function GET(
       events.push({
         id: `new:${t.id}`,
         type: "task_created",
-        title: "Created a task",
+        title: "created a task",
         detail: t.name,
         createdAt: t.createdAt.toISOString(),
         actor: t.creator ?? null,
@@ -226,14 +231,20 @@ export async function GET(
       events.push({
         id: `file:${f.id}`,
         type: "file_uploaded",
-        title: "Uploaded a file",
+        title: "uploaded a file",
         detail: f.name,
         createdAt: f.createdAt.toISOString(),
         actor: f.uploader ?? null,
       });
     }
 
-    events.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    // ISO 8601 + UTC ("Z") sorts lexicographically the same as
+    // chronologically, but using getTime() is more defensive in case
+    // a future change introduces non-UTC strings.
+    events.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
 
     return NextResponse.json(events.slice(0, 30));
   } catch (err) {

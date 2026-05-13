@@ -113,41 +113,49 @@ interface ConnectedGoal {
 }
 
 // Monochrome + gold palette — matches the rest of the cockpit.
+// `border` is the left-accent color used by status update history cards.
 const STATUS_VISUAL: Record<
   ProjectStatusKey,
-  { dot: string; bg: string; text: string; label: string }
+  { dot: string; bg: string; text: string; border: string; label: string }
 > = {
   ON_TRACK: {
     dot: "bg-[#c9a84c]",
     bg: "bg-[#fdf7e8]",
     text: "text-[#8a7028]",
+    border: "border-[#c9a84c]",
     label: "On track",
   },
   AT_RISK: {
     dot: "bg-[#a8893a]",
     bg: "bg-[#f8eed4]",
     text: "text-[#6e5a26]",
+    border: "border-[#a8893a]",
     label: "At risk",
   },
   OFF_TRACK: {
     dot: "bg-black",
     bg: "bg-slate-100",
     text: "text-black",
+    border: "border-black",
     label: "Off track",
   },
   ON_HOLD: {
     dot: "bg-slate-500",
     bg: "bg-slate-100",
     text: "text-slate-700",
+    border: "border-slate-400",
     label: "On hold",
   },
   COMPLETE: {
     dot: "bg-[#c9a84c]",
     bg: "bg-[#fdf7e8]",
     text: "text-[#8a7028]",
+    border: "border-[#c9a84c]",
     label: "Complete",
   },
 };
+
+const COMPOSER_MAX_LEN = 4000;
 
 function formatRelativeTime(iso: string): string {
   const now = Date.now();
@@ -197,6 +205,17 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
   const [composerText, setComposerText] = useState("");
   const [posting, setPosting] = useState(false);
 
+  // History pagination — start collapsed at 3, expand to full on demand.
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+
+  // Opens the composer pre-seeded with the current project status so
+  // the pill selector reflects reality every time, not the value from
+  // first mount. Fixes the stale-pill bug after using "Change".
+  const openComposer = useCallback(() => {
+    setComposerStatus((project.status as ProjectStatusKey) || "ON_TRACK");
+    setComposerOpen(true);
+  }, [project.status]);
+
   const saveDescription = useCallback(
     async (value: string) => {
       if (value === (project.description || "")) return;
@@ -214,7 +233,9 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
     [project.id, project.description]
   );
 
-  // Fetch the feed on mount.
+  // Fetch the feed on mount. All three endpoints are project-scoped
+  // and run in parallel — they finish in whatever order they finish
+  // and we only commit results if the component is still mounted.
   useEffect(() => {
     let canceled = false;
 
@@ -224,9 +245,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
         const [updRes, actRes, objRes] = await Promise.all([
           fetch(`/api/projects/${project.id}/status-updates`),
           fetch(`/api/projects/${project.id}/activity`),
-          // Connected goals — graceful fallback if endpoint doesn't
-          // exist yet so the Overview keeps rendering.
-          fetch(`/api/projects/${project.id}/objectives`).catch(() => null),
+          fetch(`/api/projects/${project.id}/objectives`),
         ]);
 
         if (!canceled && updRes.ok) {
@@ -237,7 +256,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           const data = (await actRes.json()) as ActivityEvent[];
           setActivities(Array.isArray(data) ? data : []);
         }
-        if (!canceled && objRes && objRes.ok) {
+        if (!canceled && objRes.ok) {
           const data = (await objRes.json()) as ConnectedGoal[];
           setGoals(Array.isArray(data) ? data : []);
         }
@@ -315,7 +334,16 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           0,
           Math.min(100, Math.round(((now - start) / (end - start)) * 100))
         );
-        daysRemaining = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+        // Future: floor so "you have 2.5 days left" → "2d" (full days).
+        // Past: ceil(|ms|/day) so any fraction over deadline reads as
+        // "1d over" not "0d", matching how PMs say "we missed it".
+        const ms = end - now;
+        const dayMs = 1000 * 60 * 60 * 24;
+        if (ms >= 0) {
+          daysRemaining = Math.floor(ms / dayMs);
+        } else {
+          daysRemaining = -Math.ceil(Math.abs(ms) / dayMs);
+        }
       }
     }
 
@@ -333,6 +361,10 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
     const summary = composerText.trim();
     if (!summary) {
       toast.error("Write a short summary first");
+      return;
+    }
+    if (summary.length > COMPOSER_MAX_LEN) {
+      toast.error(`Summary must be ${COMPOSER_MAX_LEN} characters or fewer`);
       return;
     }
     setPosting(true);
@@ -356,7 +388,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
         {
           id: `status:${created.id}`,
           type: "status_update",
-          title: "Posted a status update",
+          title: "posted a status update",
           detail: created.summary.slice(0, 240),
           status: created.status,
           createdAt: created.createdAt,
@@ -374,6 +406,41 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
       setPosting(false);
     }
   }, [project.id, composerStatus, composerText, router]);
+
+  // Cmd/Ctrl + Enter posts the update without leaving the textarea —
+  // matches Slack/Linear/Notion conventions for inline composers.
+  const handleComposerKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (!posting && composerText.trim()) {
+          handlePostUpdate();
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        if (composerText.trim()) {
+          const confirmed = window.confirm(
+            "Discard your status update? Your text will be lost."
+          );
+          if (!confirmed) return;
+        }
+        setComposerText("");
+        setComposerOpen(false);
+      }
+    },
+    [posting, composerText, handlePostUpdate]
+  );
+
+  const handleCancelComposer = useCallback(() => {
+    if (composerText.trim()) {
+      const confirmed = window.confirm(
+        "Discard your status update? Your text will be lost."
+      );
+      if (!confirmed) return;
+    }
+    setComposerText("");
+    setComposerOpen(false);
+  }, [composerText]);
 
   const handleQuickStatusChange = useCallback(
     async (newStatus: ProjectStatusKey) => {
@@ -464,7 +531,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
             <PulseCell
               label="Status updates"
               value={`${statusUpdates.length}`}
-              sub={statusUpdates.length === 1 ? "posted" : "posted"}
+              sub={statusUpdates.length === 1 ? "posted" : "in history"}
             />
           </div>
         </div>
@@ -483,10 +550,11 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
           </div>
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => setDescription(e.target.value.slice(0, 10000))}
             onBlur={(e) => saveDescription(e.target.value)}
             placeholder="What is this project about? Capture scope, deliverables, key stakeholders, and constraints."
             className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none h-28 focus:outline-none focus:ring-2 focus:ring-[#c9a84c] focus:border-transparent bg-white"
+            maxLength={10000}
           />
         </div>
 
@@ -646,7 +714,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
             {/* Composer */}
             {!composerOpen ? (
               <button
-                onClick={() => setComposerOpen(true)}
+                onClick={openComposer}
                 className="w-full text-left flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200 rounded-lg hover:border-[#c9a84c] transition-colors group"
               >
                 <Send className="w-4 h-4 text-slate-400 group-hover:text-[#a8893a]" />
@@ -664,6 +732,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                       return (
                         <button
                           key={key}
+                          type="button"
                           onClick={() => setComposerStatus(key)}
                           className={cn(
                             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
@@ -686,25 +755,38 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                 </div>
                 <textarea
                   value={composerText}
-                  onChange={(e) => setComposerText(e.target.value)}
+                  onChange={(e) =>
+                    setComposerText(e.target.value.slice(0, COMPOSER_MAX_LEN))
+                  }
+                  onKeyDown={handleComposerKeyDown}
                   placeholder="What's happening? Highlights, blockers, decisions, or next steps."
                   className="w-full p-2 text-sm border border-slate-200 rounded-md resize-none h-20 focus:outline-none focus:ring-2 focus:ring-[#c9a84c] focus:border-transparent"
                   autoFocus
+                  maxLength={COMPOSER_MAX_LEN}
                   disabled={posting}
                 />
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">
-                    Posts to project + syncs the badge
-                  </span>
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400 min-w-0">
+                    <span className="truncate">
+                      ⌘/Ctrl+Enter to post · Esc to cancel
+                    </span>
+                    <span
+                      className={cn(
+                        "tabular-nums whitespace-nowrap",
+                        composerText.length >= COMPOSER_MAX_LEN * 0.9
+                          ? "text-[#a8893a] font-medium"
+                          : "text-slate-400"
+                      )}
+                    >
+                      {composerText.length}/{COMPOSER_MAX_LEN}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-8 text-xs"
-                      onClick={() => {
-                        setComposerText("");
-                        setComposerOpen(false);
-                      }}
+                      onClick={handleCancelComposer}
                       disabled={posting}
                     >
                       Cancel
@@ -737,7 +819,10 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
               </p>
             ) : (
               <div className="space-y-2">
-                {statusUpdates.slice(0, 3).map((u) => {
+                {(historyExpanded
+                  ? statusUpdates
+                  : statusUpdates.slice(0, 3)
+                ).map((u) => {
                   const v =
                     STATUS_VISUAL[u.status] || STATUS_VISUAL.ON_TRACK;
                   return (
@@ -745,13 +830,7 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                       key={u.id}
                       className={cn(
                         "bg-white rounded-lg border-l-4 p-3 shadow-sm",
-                        u.status === "ON_TRACK" || u.status === "COMPLETE"
-                          ? "border-[#c9a84c]"
-                          : u.status === "AT_RISK"
-                            ? "border-[#a8893a]"
-                            : u.status === "OFF_TRACK"
-                              ? "border-black"
-                              : "border-slate-400"
+                        v.border
                       )}
                     >
                       <div className="flex items-center gap-2 mb-1.5">
@@ -768,7 +847,12 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                           {formatRelativeTime(u.createdAt)}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-700 line-clamp-3 mb-2">
+                      <p
+                        className={cn(
+                          "text-sm text-slate-700 mb-2",
+                          historyExpanded ? "whitespace-pre-wrap" : "line-clamp-3"
+                        )}
+                      >
                         {u.summary}
                       </p>
                       {u.author && (
@@ -785,9 +869,15 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                   );
                 })}
                 {statusUpdates.length > 3 && (
-                  <p className="text-[11px] text-slate-400 text-center pt-1">
-                    +{statusUpdates.length - 3} more in history
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryExpanded((v) => !v)}
+                    className="w-full text-[11px] text-[#a8893a] hover:text-[#8a7028] font-medium text-center pt-1 hover:underline"
+                  >
+                    {historyExpanded
+                      ? "Collapse history"
+                      : `Show all ${statusUpdates.length} updates`}
+                  </button>
                 )}
               </div>
             )}
@@ -818,10 +908,10 @@ export function ProjectOverview({ project }: ProjectOverviewProps) {
                     <ActivityIconCell type={a.type} />
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] text-slate-900 leading-tight">
-                        {a.actor?.name || a.actor?.email || "Someone"}{" "}
-                        <span className="text-slate-500">
-                          {a.title.toLowerCase()}
-                        </span>
+                        <span className="font-medium">
+                          {a.actor?.name || a.actor?.email || "Someone"}
+                        </span>{" "}
+                        <span className="text-slate-500">{a.title}</span>
                       </p>
                       {a.detail && (
                         <p className="text-[12px] text-slate-500 truncate mt-0.5">
