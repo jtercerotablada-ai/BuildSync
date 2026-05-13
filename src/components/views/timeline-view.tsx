@@ -126,10 +126,18 @@ export function TimelineView({
   const [showDueSoon, setShowDueSoon] = useState(true);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
   const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week" | "has_deps">("all");
+  // Look-ahead window — narrows the visible tasks to those due within
+  // the next N weeks. PMI/AEC convention: superintendents run weekly
+  // 3-week look-aheads, project controls run 6-week. "all" disables
+  // the filter and shows the full schedule.
+  const [lookAhead, setLookAhead] = useState<"all" | "3w" | "6w">("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [dragState, setDragState] = useState<{
     taskId: string;
-    handle: "left" | "right";
+    // "left"/"right" handles resize one edge. "move" drags the whole
+    // bar — shifts startDate AND dueDate by the same delta so the
+    // duration is preserved (MS Project / Primavera convention).
+    handle: "left" | "right" | "move";
     startX: number;
     originalStart: string | null;
     originalDue: string;
@@ -142,19 +150,35 @@ export function TimelineView({
 
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Apply task filter
+  // Apply task filter + look-ahead window. Both are stacked: e.g.
+  // "Incomplete tasks" + "3-week look-ahead" → incomplete tasks
+  // ending within the next 21 days.
   const filteredSections = useMemo(() => {
-    if (taskFilter === "all") return sections;
     const now = new Date();
-    // "Due this week" means within the Monday→Sunday window that
-    // contains today — NOT every task with dueDate <= Sunday (the
-    // previous implementation also matched every overdue task in
-    // history, which was the wrong half of the calendar).
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 6);
+
+    // Look-ahead end date — `null` means no look-ahead bound.
+    const lookAheadEnd =
+      lookAhead === "3w"
+        ? addDays(now, 21)
+        : lookAhead === "6w"
+          ? addDays(now, 42)
+          : null;
+
+    if (taskFilter === "all" && lookAheadEnd === null) return sections;
+
     return sections.map((section) => ({
       ...section,
       tasks: section.tasks.filter((task) => {
+        // Look-ahead first — narrows the schedule to a rolling
+        // window from today. Tasks without a dueDate are kept so
+        // the user can still see backlog rows.
+        if (lookAheadEnd && task.dueDate) {
+          const due = parseISO(task.dueDate);
+          if (due > lookAheadEnd) return false;
+        }
+        // Then the user-selected task filter.
         if (taskFilter === "incomplete") return !task.completed;
         if (taskFilter === "completed") return task.completed;
         if (taskFilter === "due_this_week") {
@@ -165,7 +189,7 @@ export function TimelineView({
         return true;
       }),
     }));
-  }, [sections, taskFilter]);
+  }, [sections, taskFilter, lookAhead]);
 
   // ============================================
   // ZOOM CONFIGURATION
@@ -363,7 +387,7 @@ export function TimelineView({
     return (px / totalWidth) * totalDays;
   }, [columns, config.columnWidth, zoomLevel, currentDate]);
 
-  const handleResizeStart = useCallback((e: React.MouseEvent, taskId: string, handle: "left" | "right", task: Task) => {
+  const handleResizeStart = useCallback((e: React.MouseEvent, taskId: string, handle: "left" | "right" | "move", task: Task) => {
     e.preventDefault();
     e.stopPropagation();
     if (!task.dueDate) return;
@@ -407,8 +431,18 @@ export function TimelineView({
           : addDays(parseISO(dragState.originalDue), -7);
         const newStart = addDays(origStart, deltaDays);
         body.startDate = format(newStart, "yyyy-MM-dd");
-      } else {
+      } else if (dragState.handle === "right") {
         const newDue = addDays(parseISO(dragState.originalDue), deltaDays);
+        body.dueDate = format(newDue, "yyyy-MM-dd");
+      } else {
+        // "move" — shift BOTH dates by the same delta so the
+        // duration is preserved.
+        const origStart = dragState.originalStart
+          ? parseISO(dragState.originalStart)
+          : addDays(parseISO(dragState.originalDue), -7);
+        const newStart = addDays(origStart, deltaDays);
+        const newDue = addDays(parseISO(dragState.originalDue), deltaDays);
+        body.startDate = format(newStart, "yyyy-MM-dd");
         body.dueDate = format(newDue, "yyyy-MM-dd");
       }
 
@@ -635,6 +669,30 @@ export function TimelineView({
           </Button>
 
           <div className="h-6 w-px bg-slate-200 mx-2" />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant={lookAhead !== "all" ? "secondary" : "ghost"} size="sm">
+                <AlertTriangle className="w-4 h-4 mr-1" />
+                {lookAhead === "3w"
+                  ? "3-week look-ahead"
+                  : lookAhead === "6w"
+                    ? "6-week look-ahead"
+                    : "Look-ahead"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setLookAhead("all")}>
+                Full schedule
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLookAhead("3w")}>
+                3-week look-ahead
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLookAhead("6w")}>
+                6-week look-ahead
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -868,21 +926,25 @@ export function TimelineView({
                             PRIORITY_COLORS.NONE;
 
                         // Apply the live drag delta when this is the
-                        // bar being resized. Left handle shifts `left`
-                        // and shrinks `width`; right handle just
-                        // extends `width`.
+                        // bar being acted on:
+                        //   - "left" handle: shift left edge, shrink width
+                        //   - "right" handle: keep left, grow width
+                        //   - "move": shift left edge, keep width
                         const isResizing =
                           dragState && dragState.taskId === task.id;
-                        const renderLeft =
-                          position && isResizing && dragState.handle === "left"
+                        const renderLeft = position && isResizing
+                          ? dragState.handle === "left" ||
+                            dragState.handle === "move"
                             ? position.left + dragState.deltaX
-                            : position?.left;
-                        const renderWidth =
-                          position && isResizing
-                            ? dragState.handle === "left"
-                              ? position.width - dragState.deltaX
-                              : position.width + dragState.deltaX
-                            : position?.width;
+                            : position.left
+                          : position?.left;
+                        const renderWidth = position && isResizing
+                          ? dragState.handle === "left"
+                            ? position.width - dragState.deltaX
+                            : dragState.handle === "right"
+                              ? position.width + dragState.deltaX
+                              : position.width
+                          : position?.width;
 
                         return (
                           <div
@@ -933,10 +995,12 @@ export function TimelineView({
                                   />
                                 </div>
                               ) : (
-                                // Task Bar
+                                // Task Bar — whole-bar drag moves both
+                                // dates; left/right edge handles resize
+                                // one boundary.
                                 <div
                                   className={cn(
-                                    "absolute top-1.5 rounded cursor-pointer group/bar",
+                                    "absolute top-1.5 rounded cursor-grab active:cursor-grabbing group/bar",
                                     "hover:ring-2 hover:ring-[#c9a84c] hover:ring-offset-1",
                                     "transition-shadow",
                                     selectedTaskId === task.id &&
@@ -952,7 +1016,24 @@ export function TimelineView({
                                     height: isMobile ? rowHeight - 8 : rowHeight - 12,
                                     backgroundColor: taskColor,
                                   }}
-                                  onClick={() => onTaskClick(task.id)}
+                                  onMouseDown={(e) => {
+                                    // Ignore mousedowns that come from
+                                    // a resize handle child — those
+                                    // call handleResizeStart with their
+                                    // own handle and stopPropagation.
+                                    handleResizeStart(e, task.id, "move", task);
+                                  }}
+                                  onClick={(e) => {
+                                    // Only open the task panel if it
+                                    // wasn't a drag (no movement past
+                                    // mouseup). dragState is cleared
+                                    // before click fires on a real
+                                    // drag, so this only triggers on
+                                    // genuine clicks.
+                                    if (!isResizing) {
+                                      onTaskClick(task.id);
+                                    }
+                                  }}
                                 >
                                   {/* Progress overlay — darker right
                                       side shows remaining work. */}
