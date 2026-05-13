@@ -137,27 +137,226 @@ export function MessagesView({
     index: number;
   } | null>(null);
 
-  // ── Fetch on mount ──────────────────────────────────────
-  const fetchMessages = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/projects/${projectId}/messages`);
-      if (!res.ok) throw new Error("Failed to load");
-      const data: MessageRow[] = await res.json();
-      // API returns newest-first; we display newest-last (chat style)
-      // so flip the array. Pinned messages always render at the top
-      // regardless of date.
-      const sorted = Array.isArray(data) ? [...data].reverse() : [];
-      setMessages(sorted);
-    } catch {
-      toast.error("Couldn't load messages");
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
+  // Real-time poll bookkeeping. The scroll container ref lets us
+  // detect "user is at the bottom" so background polls can auto-scroll
+  // without yanking the viewport when the user is reading history.
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [hasNewBelow, setHasNewBelow] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
 
+  // Refs that the poll loop reads — avoids stale closures from the
+  // setInterval capturing the first render's state.
+  const editingIdRef = useRef<string | null>(null);
+  const sendingRef = useRef(false);
+  useEffect(() => {
+    editingIdRef.current = editingId;
+  }, [editingId]);
+  useEffect(() => {
+    sendingRef.current = sending;
+  }, [sending]);
+
+  // ── Fetch / merge ───────────────────────────────────────
+  // `silent` keeps the loading spinner off so background polls don't
+  // flash UI. Merge logic preserves local-only state that the server
+  // doesn't know about yet (optimistic temp- rows + in-flight edits).
+  const fetchMessages = useCallback(
+    async (silent = false) => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/messages`);
+        if (!res.ok) throw new Error("Failed to load");
+        const data: MessageRow[] = await res.json();
+        // API returns newest-first; we display newest-last (chat
+        // style) so flip the array. Pinned messages always render
+        // at the top regardless of date.
+        const incoming = Array.isArray(data) ? [...data].reverse() : [];
+
+        if (!silent) {
+          setMessages(incoming);
+          return;
+        }
+
+        // Silent merge — preserve optimistic temp rows + don't stomp
+        // the message the user is editing right now.
+        setMessages((prev) => {
+          const serverById = new Map(incoming.map((m) => [m.id, m]));
+          const result: MessageRow[] = [];
+          const seenServer = new Set<string>();
+
+          // Walk the server list first to keep server order. Replace
+          // each server message with the local version if we're
+          // editing it (otherwise the editing text would get wiped).
+          for (const sm of incoming) {
+            const local = prev.find((p) => p.id === sm.id);
+            if (local && editingIdRef.current === sm.id) {
+              // Currently editing: preserve local content but accept
+              // the server's metadata (reactions, attachments, pin).
+              result.push({
+                ...sm,
+                content: local.content,
+              });
+            } else {
+              result.push(sm);
+            }
+            seenServer.add(sm.id);
+          }
+
+          // Re-append any local optimistic temp messages that haven't
+          // landed on the server yet.
+          for (const lm of prev) {
+            if (lm.id.startsWith("temp-") && !seenServer.has(lm.id)) {
+              result.push(lm);
+            }
+          }
+
+          // Detect if the user got new messages they haven't scrolled
+          // to yet. Compare last-message-id; if it changed and we're
+          // not at the bottom, surface the "new messages" pill.
+          const lastLocalId = prev[prev.length - 1]?.id;
+          const lastResultId = result[result.length - 1]?.id;
+          if (
+            lastLocalId !== lastResultId &&
+            lastResultId &&
+            !lastResultId.startsWith("temp-")
+          ) {
+            // Only flag new-below if the user is scrolled up — the
+            // auto-scroll effect handles the at-bottom case.
+            const c = scrollContainerRef.current;
+            if (c) {
+              const distanceFromBottom =
+                c.scrollHeight - c.scrollTop - c.clientHeight;
+              if (distanceFromBottom > 80) {
+                setHasNewBelow(true);
+              }
+            }
+          }
+
+          // No-op short-circuit: if nothing changed between polls,
+          // return the previous reference so React skips a re-render
+          // of the entire list. Cheap to compute against the small
+          // message volume (≤100).
+          const unchanged =
+            result.length === prev.length &&
+            result.every((m, i) => {
+              const p = prev[i];
+              return (
+                p &&
+                p.id === m.id &&
+                p.updatedAt === m.updatedAt &&
+                p.isPinned === m.isPinned &&
+                p.reactions.length === m.reactions.length &&
+                p.attachments.length === m.attachments.length &&
+                m.reactions.every((r, ri) => {
+                  const pr = p.reactions[ri];
+                  return (
+                    pr &&
+                    pr.emoji === r.emoji &&
+                    pr.count === r.count &&
+                    pr.mine === r.mine
+                  );
+                })
+              );
+            });
+
+          return unchanged ? prev : result;
+        });
+      } catch {
+        if (!silent) {
+          toast.error("Couldn't load messages");
+        }
+        // Silent failures are intentional — a transient network
+        // blip during background polling shouldn't bother the user.
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [projectId]
+  );
+
+  // Initial load.
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
+
+  // Real-time polling: every 10s when the tab is visible, plus an
+  // immediate refresh whenever the tab regains focus (so coming back
+  // to a stale tab feels instant). Pauses while sending to avoid
+  // racing against our own optimistic update.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const tick = () => {
+      if (document.hidden) return;
+      if (sendingRef.current) return;
+      void fetchMessages(true);
+    };
+
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(tick, 10000);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        // Immediate refresh on focus, then resume the cadence.
+        void fetchMessages(true);
+        start();
+      }
+    };
+
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [fetchMessages]);
+
+  // Track whether the user is at the bottom of the scroll container.
+  // Used by the auto-scroll-on-new-message + new-messages pill logic.
+  useEffect(() => {
+    const c = scrollContainerRef.current;
+    if (!c) return;
+    const onScroll = () => {
+      const distanceFromBottom =
+        c.scrollHeight - c.scrollTop - c.clientHeight;
+      const isAtBottom = distanceFromBottom < 80;
+      setAtBottom(isAtBottom);
+      if (isAtBottom) setHasNewBelow(false);
+    };
+    c.addEventListener("scroll", onScroll);
+    // Run once to initialize.
+    onScroll();
+    return () => c.removeEventListener("scroll", onScroll);
+  }, [loading]);
+
+  // Auto-scroll on new messages — but only if the user was already
+  // pinned to the bottom. Don't yank them mid-read.
+  const lastMessageId = messages[messages.length - 1]?.id;
+  useEffect(() => {
+    if (!atBottom) return;
+    const c = scrollContainerRef.current;
+    if (!c) return;
+    // requestAnimationFrame so the DOM has the new message before we
+    // measure heights.
+    requestAnimationFrame(() => {
+      c.scrollTop = c.scrollHeight;
+    });
+  }, [lastMessageId, atBottom]);
+
+  const scrollToBottom = useCallback(() => {
+    const c = scrollContainerRef.current;
+    if (!c) return;
+    c.scrollTop = c.scrollHeight;
+    setHasNewBelow(false);
+  }, []);
 
   // ── Upload one file to an existing message ─────────────
   // Used both during initial send (for pendingFiles) and from the
@@ -513,9 +712,9 @@ export function MessagesView({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-50">
+    <div className="flex-1 flex flex-col bg-slate-50 relative">
       {/* Messages list */}
-      <div className="flex-1 overflow-auto">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto">
         <div className="max-w-3xl mx-auto py-6 px-4 space-y-3">
           {sorted.length === 0 ? (
             <EmptyState />
@@ -551,6 +750,19 @@ export function MessagesView({
           )}
         </div>
       </div>
+
+      {/* "New messages ↓" pill — only when user scrolled up and new
+          ones landed below them via the poll. Click jumps them down. */}
+      {hasNewBelow && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className="absolute left-1/2 -translate-x-1/2 bottom-[88px] z-10 px-3 py-1.5 rounded-full bg-[#c9a84c] text-white text-xs font-medium shadow-lg hover:bg-[#a8893a] transition-colors flex items-center gap-1.5"
+        >
+          New messages
+          <span aria-hidden>↓</span>
+        </button>
+      )}
 
       {/* Composer fixed to the bottom of the panel */}
       <div className="border-t bg-white">
