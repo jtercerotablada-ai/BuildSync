@@ -29,9 +29,19 @@ export async function GET() {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
     }
 
+    // ── Privacy gate (Asana parity) ──────────────────────────
+    // A user sees a portfolio only when they own it, are an
+    // explicit member, or it's marked PUBLIC. PRIVATE and the
+    // default WORKSPACE visibility no longer auto-grant access —
+    // sharing requires explicit membership.
     const portfolios = await prisma.portfolio.findMany({
       where: {
         workspaceId: workspaceMember.workspaceId,
+        OR: [
+          { ownerId: userId },
+          { members: { some: { userId } } },
+          { privacy: "PUBLIC" },
+        ],
       },
       include: {
         owner: {

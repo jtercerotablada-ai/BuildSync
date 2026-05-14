@@ -87,6 +87,20 @@ export async function GET(
     // Verify user belongs to portfolio's workspace
     await verifyWorkspaceAccess(userId, portfolio.workspaceId);
 
+    // ── Privacy gate (Asana parity) ──────────────────────────
+    // Mask the portfolio as 404 unless the caller owns it, is an
+    // explicit member, or it's PUBLIC. Workspace membership alone
+    // doesn't auto-grant access.
+    const isOwner = portfolio.ownerId === userId;
+    const isMember = portfolio.members.some((m) => m.userId === userId);
+    const isPublic = portfolio.privacy === "PUBLIC";
+    if (!isOwner && !isMember && !isPublic) {
+      return NextResponse.json(
+        { error: "Portfolio not found" },
+        { status: 404 }
+      );
+    }
+
     // Calculate stats for each project
     const projectsWithStats = portfolio.projects.map((pp) => {
       const project = pp.project;
@@ -145,12 +159,38 @@ export async function PATCH(
     // Verify user belongs to portfolio's workspace
     const existingPortfolio = await prisma.portfolio.findUnique({
       where: { id: portfolioId },
-      select: { workspaceId: true, ownerId: true },
+      select: {
+        workspaceId: true,
+        ownerId: true,
+        members: {
+          where: { userId },
+          select: { role: true },
+        },
+      },
     });
     if (!existingPortfolio) {
       return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
     }
     await verifyWorkspaceAccess(userId, existingPortfolio.workspaceId);
+
+    // ── Edit gate ────────────────────────────────────────────
+    // Only the portfolio owner or a member with role OWNER/EDITOR
+    // can mutate. VIEWERs and non-members get 403.
+    const isPortfolioOwner = existingPortfolio.ownerId === userId;
+    const memberRole = existingPortfolio.members[0]?.role;
+    const canEdit =
+      isPortfolioOwner ||
+      memberRole === "OWNER" ||
+      memberRole === "EDITOR";
+    if (!canEdit) {
+      return NextResponse.json(
+        {
+          error:
+            "Only the portfolio owner or an Editor can update this portfolio",
+        },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json();
     const data = updatePortfolioSchema.parse(body);
@@ -226,12 +266,32 @@ export async function DELETE(
     // Verify user belongs to portfolio's workspace
     const portToDelete = await prisma.portfolio.findUnique({
       where: { id: portfolioId },
-      select: { workspaceId: true },
+      select: {
+        workspaceId: true,
+        ownerId: true,
+        members: {
+          where: { userId },
+          select: { role: true },
+        },
+      },
     });
     if (!portToDelete) {
       return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
     }
     await verifyWorkspaceAccess(userId, portToDelete.workspaceId);
+
+    // ── Delete gate ──────────────────────────────────────────
+    // Only the portfolio owner (Portfolio.ownerId) or a member
+    // with role OWNER can delete. EDITOR can mutate fields but
+    // not destroy the whole portfolio.
+    const isPortfolioOwner = portToDelete.ownerId === userId;
+    const isMemberOwner = portToDelete.members[0]?.role === "OWNER";
+    if (!isPortfolioOwner && !isMemberOwner) {
+      return NextResponse.json(
+        { error: "Only the portfolio owner can delete it" },
+        { status: 403 }
+      );
+    }
 
     await prisma.portfolio.delete({
       where: { id: portfolioId },

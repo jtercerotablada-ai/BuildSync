@@ -21,10 +21,32 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify workspace access
+    // Workspace + portfolio edit gate. Adding/removing projects on
+    // a portfolio is a mutation — only the portfolio owner or a
+    // member with role OWNER/EDITOR may do it. Workspace membership
+    // alone no longer auto-grants access.
     const workspaceId = await getUserWorkspaceId(userId);
-    const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId }, select: { workspaceId: true } });
+    const portfolio = await prisma.portfolio.findUnique({
+      where: { id: portfolioId },
+      select: {
+        workspaceId: true,
+        ownerId: true,
+        members: {
+          where: { userId },
+          select: { role: true },
+        },
+      },
+    });
     if (!portfolio || portfolio.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const isPortfolioOwner = portfolio.ownerId === userId;
+    const memberRole = portfolio.members[0]?.role;
+    const canEdit =
+      isPortfolioOwner ||
+      memberRole === "OWNER" ||
+      memberRole === "EDITOR";
+    if (!canEdit) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
@@ -106,10 +128,32 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify workspace access
+    // Workspace + portfolio edit gate. Adding/removing projects on
+    // a portfolio is a mutation — only the portfolio owner or a
+    // member with role OWNER/EDITOR may do it. Workspace membership
+    // alone no longer auto-grants access.
     const workspaceId = await getUserWorkspaceId(userId);
-    const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId }, select: { workspaceId: true } });
+    const portfolio = await prisma.portfolio.findUnique({
+      where: { id: portfolioId },
+      select: {
+        workspaceId: true,
+        ownerId: true,
+        members: {
+          where: { userId },
+          select: { role: true },
+        },
+      },
+    });
     if (!portfolio || portfolio.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const isPortfolioOwner = portfolio.ownerId === userId;
+    const memberRole = portfolio.members[0]?.role;
+    const canEdit =
+      isPortfolioOwner ||
+      memberRole === "OWNER" ||
+      memberRole === "EDITOR";
+    if (!canEdit) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
