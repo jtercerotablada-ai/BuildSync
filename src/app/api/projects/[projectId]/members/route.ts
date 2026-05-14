@@ -18,6 +18,47 @@ const addMemberSchema = z.object({
   companyId: z.string().min(1).optional().nullable(),
 });
 
+/**
+ * Only the project's OWNER or an ADMIN-level ProjectMember can
+ * mutate the project's membership. Workspace members at large CANNOT
+ * — that was a leak that let anyone in the workspace add/remove/
+ * re-role themselves and others on projects they had no business
+ * touching.
+ *
+ * Returns null on success. Returns an error NextResponse the caller
+ * should return directly when the user fails the gate.
+ */
+async function requireProjectAdmin(
+  userId: string,
+  projectId: string
+): Promise<NextResponse | null> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      ownerId: true,
+      members: {
+        where: { userId },
+        select: { role: true },
+      },
+    },
+  });
+  if (!project) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+  const isProjectOwner = project.ownerId === userId;
+  const isProjectAdmin = project.members[0]?.role === "ADMIN";
+  if (!isProjectOwner && !isProjectAdmin) {
+    return NextResponse.json(
+      {
+        error:
+          "Only the project owner or an ADMIN member can modify project members",
+      },
+      { status: 403 }
+    );
+  }
+  return null;
+}
+
 // GET /api/projects/:projectId/members - List members
 export async function GET(
   req: Request,
@@ -95,6 +136,10 @@ export async function POST(
     }
 
     await verifyWorkspaceAccess(userId, project.workspaceId);
+
+    // Gate: only project Owner or Admin may add members.
+    const forbidden = await requireProjectAdmin(userId, projectId);
+    if (forbidden) return forbidden;
 
     const body = await req.json();
     const data = addMemberSchema.parse(body);
@@ -225,6 +270,13 @@ export async function DELETE(
       );
     }
 
+    // Gate: only project Owner/Admin may remove members. EXCEPT
+    // members can always remove themselves (leave the project).
+    if (targetUserId !== userId) {
+      const forbidden = await requireProjectAdmin(userId, projectId);
+      if (forbidden) return forbidden;
+    }
+
     // Owner cannot be removed via this endpoint
     if (targetUserId === project.ownerId) {
       return NextResponse.json(
@@ -279,6 +331,11 @@ export async function PATCH(
     }
 
     await verifyWorkspaceAccess(userId, project.workspaceId);
+
+    // Gate: only project Owner/Admin may change other members'
+    // roles or company bindings.
+    const forbidden = await requireProjectAdmin(userId, projectId);
+    if (forbidden) return forbidden;
 
     const body = await req.json();
     const schema = z.object({
