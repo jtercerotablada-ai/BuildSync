@@ -43,7 +43,16 @@ import {
   AlertTriangle,
   Flag,
   Send,
+  UserPlus,
+  X,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { GoalProgressChart } from "@/components/goals/goal-progress-chart";
@@ -144,6 +153,26 @@ interface Objective {
   };
 }
 
+interface ObjectiveMember {
+  id: string;
+  userId: string;
+  role: "EDITOR" | "VIEWER";
+  joinedAt: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  };
+}
+
+interface WorkspaceMemberLite {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+}
+
 // Re-export the shared options under the local names so the rest of
 // the file (which already references `STATUS_OPTIONS`, `getInitials`,
 // `formatRelativeTime`, `getTimeRemaining`) keeps working without
@@ -174,6 +203,26 @@ export default function GoalDetailPage() {
   const [isStarred, setIsStarred] = useState(false);
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [parentPickerOpen, setParentPickerOpen] = useState(false);
+
+  // ── Members state ──────────────────────────────────────────
+  // Loaded after the objective itself so the UI can render a stack
+  // of avatars + an "Add member" button right under the owner field.
+  // The dialog is only shown when the caller is the creator (the
+  // POST endpoint enforces this server-side too).
+  const [members, setMembers] = useState<ObjectiveMember[]>([]);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [workspaceMembers, setWorkspaceMembers] = useState<
+    WorkspaceMemberLite[]
+  >([]);
+  const [pendingRole, setPendingRole] = useState<"EDITOR" | "VIEWER">(
+    "EDITOR"
+  );
+  const [addingMemberId, setAddingMemberId] = useState<string | null>(null);
+
+  const currentUserId = (session?.user as { id?: string } | undefined)?.id;
+  const isCreator =
+    !!currentUserId && objective?.owner?.id === currentUserId;
 
   async function handleConfidenceChange(next: number) {
     try {
@@ -206,7 +255,84 @@ export default function GoalDetailPage() {
 
   useEffect(() => {
     fetchObjective();
+    fetchMembers();
   }, [objectiveId]);
+
+  // Workspace directory feeds the "Add member" search. Load once on
+  // mount; ignore failures (the dialog falls back to empty list).
+  useEffect(() => {
+    fetch("/api/team/directory")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data || !Array.isArray(data.members)) return;
+        setWorkspaceMembers(
+          (data.members as { id: string; name: string | null; email: string | null; image: string | null }[]).map(
+            (m) => ({
+              id: m.id,
+              name: m.name,
+              email: m.email,
+              image: m.image,
+            })
+          )
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  async function fetchMembers() {
+    try {
+      const res = await fetch(
+        `/api/objectives/${objectiveId}/members`
+      );
+      if (res.ok) {
+        const data = (await res.json()) as ObjectiveMember[];
+        setMembers(data);
+      }
+    } catch {
+      // Silent — members section just renders empty.
+    }
+  }
+
+  async function handleAddMember(targetUserId: string) {
+    if (addingMemberId) return;
+    setAddingMemberId(targetUserId);
+    try {
+      const res = await fetch(
+        `/api/objectives/${objectiveId}/members`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: targetUserId, role: pendingRole }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed");
+      }
+      toast.success("Member added");
+      await fetchMembers();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add");
+    } finally {
+      setAddingMemberId(null);
+    }
+  }
+
+  async function handleRemoveMember(targetUserId: string) {
+    if (!confirm("Remove this member from the objective?")) return;
+    const snapshot = members;
+    setMembers((m) => m.filter((x) => x.userId !== targetUserId));
+    try {
+      const res = await fetch(
+        `/api/objectives/${objectiveId}/members?userId=${targetUserId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error("Failed");
+    } catch {
+      setMembers(snapshot);
+      toast.error("Couldn't remove member");
+    }
+  }
 
   // "Star" is a local follow indicator — surfaces this goal in the
   // user's bookmark list. We keep it in localStorage until a real
@@ -618,6 +744,60 @@ export default function GoalDetailPage() {
                   </AvatarFallback>
                 </Avatar>
                 <span className="text-sm truncate">{objective.owner.name}</span>
+              </div>
+            </div>
+
+            {/* Members — stack of avatars + add button. Mirrors the
+                Asana "Miembros" row in the objective dialog. Only
+                the creator sees the "Add member" affordance + remove
+                X's (server enforces this too, but UI matches). */}
+            <div className="flex items-start">
+              <span className="w-32 md:w-44 text-xs md:text-sm text-gray-500 flex-shrink-0 pt-1">
+                Members
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                {members.length === 0 && !isCreator && (
+                  <span className="text-sm text-gray-400">No members</span>
+                )}
+                {members.map((m) => (
+                  <div
+                    key={m.id}
+                    className="group relative inline-flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full border border-gray-200 bg-white"
+                    title={`${m.user.name ?? m.user.email ?? "Member"} · ${m.role}`}
+                  >
+                    <Avatar className="h-5 w-5">
+                      <AvatarImage src={m.user.image || ""} />
+                      <AvatarFallback className="text-[9px] bg-[#d4b65a] text-white">
+                        {getInitials(m.user.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs text-gray-700 max-w-[100px] truncate">
+                      {m.user.name?.split(" ")[0] ??
+                        m.user.email?.split("@")[0] ??
+                        "—"}
+                    </span>
+                    {isCreator && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveMember(m.userId)}
+                        className="ml-0.5 p-0.5 rounded-full opacity-0 group-hover:opacity-100 hover:bg-gray-100 text-gray-400 hover:text-rose-600 transition-opacity"
+                        title="Remove member"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {isCreator && (
+                  <button
+                    type="button"
+                    onClick={() => setAddMemberOpen(true)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-dashed border-gray-300 text-xs text-gray-500 hover:border-[#c9a84c] hover:text-[#a8893a] transition-colors"
+                  >
+                    <UserPlus className="w-3 h-3" />
+                    Add member
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1342,6 +1522,115 @@ export default function GoalDetailPage() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== ADD MEMBER DIALOG ========== */}
+      {/* Matches the Asana "Miembros" picker: workspace member search
+          on top, role selector, click a row to add. Already-members
+          and the creator are filtered out of the picker so you can't
+          double-add or invite yourself. */}
+      <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add member</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Search</Label>
+              <Input
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                placeholder="Name or email…"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Role</Label>
+              <Select
+                value={pendingRole}
+                onValueChange={(v) =>
+                  setPendingRole(v as "EDITOR" | "VIEWER")
+                }
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EDITOR">
+                    <span className="font-medium">Editor</span>
+                    <span className="text-[11px] text-gray-500 ml-2">
+                      Can edit + comment
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="VIEWER">
+                    <span className="font-medium">Viewer</span>
+                    <span className="text-[11px] text-gray-500 ml-2">
+                      Read-only
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="max-h-[280px] overflow-y-auto -mx-1">
+              {(() => {
+                const onAlready = new Set([
+                  ...members.map((m) => m.userId),
+                  objective.owner.id,
+                ]);
+                const q = memberSearch.trim().toLowerCase();
+                const candidates = workspaceMembers
+                  .filter((u) => !onAlready.has(u.id))
+                  .filter((u) => {
+                    if (!q) return true;
+                    const n = (u.name || "").toLowerCase();
+                    const e = (u.email || "").toLowerCase();
+                    return n.includes(q) || e.includes(q);
+                  })
+                  .slice(0, 8);
+
+                if (candidates.length === 0) {
+                  return (
+                    <p className="px-3 py-4 text-center text-xs text-gray-400">
+                      {workspaceMembers.length === 0
+                        ? "No workspace members loaded."
+                        : "No matches. Everyone may already be a member."}
+                    </p>
+                  );
+                }
+
+                return candidates.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => handleAddMember(u.id)}
+                    disabled={addingMemberId !== null}
+                    className="w-full flex items-center gap-2 px-2 py-2 rounded hover:bg-gray-50 text-left disabled:opacity-50"
+                  >
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={u.image || ""} />
+                      <AvatarFallback className="text-[10px] bg-[#d4b65a] text-white">
+                        {getInitials(u.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {u.name || "—"}
+                      </p>
+                      <p className="text-[11px] text-gray-500 truncate">
+                        {u.email}
+                      </p>
+                    </div>
+                    {addingMemberId === u.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-[#c9a84c]" />
+                    ) : (
+                      <UserPlus className="w-4 h-4 text-gray-400" />
+                    )}
+                  </button>
+                ));
+              })()}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
