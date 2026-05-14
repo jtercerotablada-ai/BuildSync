@@ -31,6 +31,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { SectionGuard } from "@/components/access/section-guard";
 
 interface Dashboard {
   id: string;
@@ -69,6 +70,14 @@ const DEFAULT_DASHBOARDS: Dashboard[] = [
 const COLORS = ["#000000", "#c9a84c", "#a8893a", "#c9a84c", "#0a0a0a", "#a8893a", "#a8893a"];
 
 export default function ReportingPage() {
+  return (
+    <SectionGuard section="reporting">
+      <ReportingPageInner />
+    </SectionGuard>
+  );
+}
+
+function ReportingPageInner() {
   const { data: session } = useSession();
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [dashboards, setDashboards] = useState<Dashboard[]>(DEFAULT_DASHBOARDS);

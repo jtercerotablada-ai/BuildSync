@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Folder, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { SectionGuard } from "@/components/access/section-guard";
 
 interface Portfolio {
   id: string;
@@ -34,6 +35,14 @@ interface Portfolio {
 }
 
 export default function PortfoliosPage() {
+  return (
+    <SectionGuard section="portfolios">
+      <PortfoliosPageInner />
+    </SectionGuard>
+  );
+}
+
+function PortfoliosPageInner() {
   const router = useRouter();
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);

@@ -62,103 +62,263 @@ export type ProjectRole = "ADMIN" | "EDITOR" | "COMMENTER" | "VIEWER";
 // Position metadata
 // ──────────────────────────────────────────────────────────────
 
+// Org-chart departments — silos that determine cross-functional
+// visibility. Engineering doesn't see Admin tasks by default; Admin
+// doesn't see Engineering's internal RFIs by default; etc. CEO and
+// EXECUTIVE-level positions bypass this rule and see everything.
+export type Department =
+  | "EXECUTIVE"        // CEO, COO, Principal — top of the org
+  | "ENGINEERING"      // PE/PM/Engineers/Drafters/Interns
+  | "ADMINISTRATION"   // Office Admin, Accountant, HR
+  | "MARKETING"        // Marketing
+  | "FIELD"            // Site supers
+  | "EXTERNAL";        // Consultants, contractors (rare for employees)
+
 interface PositionMeta {
   label: string;
   short: string;
   group: "Management" | "Engineering" | "Disciplines" | "Field" | "Other";
+  // Hierarchy level — drives "what can I see?" rules. Higher level
+  // sees everything at its level and below within the same dept (and
+  // CEO/Executives see across depts).
+  //   6 = CEO / Owner — sees everything, always
+  //   5 = Executive (COO, Principal, Director)
+  //   4 = Management (PM, PE, Office Admin)
+  //   3 = Senior (Sr. Engineer, Accountant, HR)
+  //   2 = Individual contributor (Engineer, Drafter, Marketing)
+  //   1 = Junior / Intern — most restricted access
+  level: 1 | 2 | 3 | 4 | 5 | 6;
+  // Which org silo this position belongs to.
+  department: Department;
   // Feature gates this position unlocks. Engineering features
   // (PE stamping in particular) read from this list.
   capabilities?: ("CAN_STAMP" | "CAN_APPROVE_SUBMITTAL")[];
 }
 
 export const POSITION_META: Record<Position, PositionMeta> = {
-  CEO: { label: "Chief Executive Officer", short: "CEO", group: "Management" },
-  COO: { label: "Chief Operating Officer", short: "COO", group: "Management" },
+  // ── L6 — CEO ───────────────────────────────────────────────
+  CEO: {
+    label: "Chief Executive Officer",
+    short: "CEO",
+    group: "Management",
+    level: 6,
+    department: "EXECUTIVE",
+  },
+
+  // ── L5 — Executive ─────────────────────────────────────────
+  COO: {
+    label: "Chief Operating Officer",
+    short: "COO",
+    group: "Management",
+    level: 5,
+    department: "EXECUTIVE",
+  },
   PRINCIPAL_ENGINEER: {
     label: "Principal Engineer",
     short: "Principal",
     group: "Management",
+    level: 5,
+    department: "EXECUTIVE",
     capabilities: ["CAN_STAMP", "CAN_APPROVE_SUBMITTAL"],
   },
   DIRECTOR_OF_ENGINEERING: {
     label: "Director of Engineering",
     short: "Director of Eng.",
     group: "Management",
+    level: 5,
+    department: "EXECUTIVE",
     capabilities: ["CAN_APPROVE_SUBMITTAL"],
   },
-  OFFICE_ADMIN: {
-    label: "Office Administrator",
-    short: "Office Admin",
-    group: "Management",
-  },
-  ACCOUNTANT: { label: "Accountant", short: "Accountant", group: "Management" },
-  HR: { label: "Human Resources", short: "HR", group: "Management" },
-  MARKETING: { label: "Marketing", short: "Marketing", group: "Management" },
 
+  // ── L4 — Management ────────────────────────────────────────
   PROJECT_MANAGER: {
     label: "Project Manager",
     short: "PM",
     group: "Engineering",
+    level: 4,
+    department: "ENGINEERING",
     capabilities: ["CAN_APPROVE_SUBMITTAL"],
   },
   PROJECT_ENGINEER: {
     label: "Project Engineer (PE)",
     short: "PE",
     group: "Engineering",
+    level: 4,
+    department: "ENGINEERING",
     capabilities: ["CAN_STAMP", "CAN_APPROVE_SUBMITTAL"],
   },
+  OFFICE_ADMIN: {
+    label: "Office Administrator",
+    short: "Office Admin",
+    group: "Management",
+    level: 4,
+    department: "ADMINISTRATION",
+  },
+
+  // ── L3 — Senior ────────────────────────────────────────────
   SENIOR_STRUCTURAL_ENGINEER: {
     label: "Senior Structural Engineer",
     short: "Sr. Structural",
     group: "Engineering",
+    level: 3,
+    department: "ENGINEERING",
   },
+  ACCOUNTANT: {
+    label: "Accountant",
+    short: "Accountant",
+    group: "Management",
+    level: 3,
+    department: "ADMINISTRATION",
+  },
+  HR: {
+    label: "Human Resources",
+    short: "HR",
+    group: "Management",
+    level: 3,
+    department: "ADMINISTRATION",
+  },
+
+  // ── L2 — Individual contributor ────────────────────────────
   STRUCTURAL_ENGINEER: {
     label: "Structural Engineer",
     short: "Structural Eng.",
     group: "Engineering",
-  },
-  JUNIOR_ENGINEER: {
-    label: "Junior Engineer",
-    short: "Jr. Engineer",
-    group: "Engineering",
+    level: 2,
+    department: "ENGINEERING",
   },
   DRAFTER: {
     label: "Drafter / CAD Technician",
     short: "Drafter",
     group: "Engineering",
+    level: 2,
+    department: "ENGINEERING",
+  },
+  MARKETING: {
+    label: "Marketing",
+    short: "Marketing",
+    group: "Management",
+    level: 2,
+    department: "MARKETING",
+  },
+
+  // ── L1 — Junior / Intern ───────────────────────────────────
+  JUNIOR_ENGINEER: {
+    label: "Junior Engineer",
+    short: "Jr. Engineer",
+    group: "Engineering",
+    level: 1,
+    department: "ENGINEERING",
   },
   ENGINEERING_INTERN: {
     label: "Engineering Intern",
     short: "Intern",
     group: "Engineering",
+    level: 1,
+    department: "ENGINEERING",
   },
 
-  ARCHITECT: { label: "Architect", short: "Architect", group: "Disciplines" },
+  // ── Disciplinas (employees who do other-discipline work) ───
+  // Defaulted to L3 ENGINEERING — these are usually mid-level engineers
+  // who happen to specialize in something other than structural.
+  ARCHITECT: {
+    label: "Architect",
+    short: "Architect",
+    group: "Disciplines",
+    level: 3,
+    department: "ENGINEERING",
+  },
   CIVIL_ENGINEER: {
     label: "Civil Engineer",
     short: "Civil Eng.",
     group: "Disciplines",
+    level: 3,
+    department: "ENGINEERING",
   },
   MEP_ENGINEER: {
     label: "MEP Engineer",
     short: "MEP Eng.",
     group: "Disciplines",
+    level: 3,
+    department: "ENGINEERING",
   },
   GEOTECH_ENGINEER: {
     label: "Geotechnical Engineer",
     short: "Geotech",
     group: "Disciplines",
+    level: 3,
+    department: "ENGINEERING",
   },
 
+  // ── Campo y externos ──────────────────────────────────────
   SITE_SUPERINTENDENT: {
     label: "Site Superintendent",
     short: "Site Super",
     group: "Field",
+    level: 4,
+    department: "FIELD",
   },
-  CONSULTANT: { label: "Consultant", short: "Consultant", group: "Field" },
-  CONTRACTOR: { label: "Contractor", short: "Contractor", group: "Field" },
+  CONSULTANT: {
+    label: "Consultant",
+    short: "Consultant",
+    group: "Field",
+    level: 3,
+    department: "EXTERNAL",
+  },
+  CONTRACTOR: {
+    label: "Contractor",
+    short: "Contractor",
+    group: "Field",
+    level: 3,
+    department: "EXTERNAL",
+  },
 
-  OTHER: { label: "Other", short: "Other", group: "Other" },
+  // ── Catch-all ─────────────────────────────────────────────
+  // Defaults to L2 ENGINEERING — the same default a customTitle
+  // employee gets. Edit their position to bump them.
+  OTHER: {
+    label: "Other",
+    short: "Other",
+    group: "Other",
+    level: 2,
+    department: "ENGINEERING",
+  },
+};
+
+// Departments + labels for filter UIs and badges.
+export const DEPARTMENT_META: Record<
+  Department,
+  { label: string; short: string; color: string }
+> = {
+  EXECUTIVE: {
+    label: "Executive",
+    short: "Exec",
+    color: "#c9a84c",
+  },
+  ENGINEERING: {
+    label: "Engineering",
+    short: "Eng",
+    color: "#0a0a0a",
+  },
+  ADMINISTRATION: {
+    label: "Administration",
+    short: "Admin",
+    color: "#a8893a",
+  },
+  MARKETING: {
+    label: "Marketing",
+    short: "Mkt",
+    color: "#6b5419",
+  },
+  FIELD: {
+    label: "Field",
+    short: "Field",
+    color: "#4a4a4a",
+  },
+  EXTERNAL: {
+    label: "External",
+    short: "Ext",
+    color: "#9ca3af",
+  },
 };
 
 export const POSITION_ORDER: Position[] = [
@@ -406,4 +566,52 @@ export function canApproveSubmittal(
     POSITION_META[position]?.capabilities?.includes("CAN_APPROVE_SUBMITTAL") ??
     false
   );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Org hierarchy helpers
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * The hierarchy level for a user, derived from their Position.
+ * Defaults to L2 (Individual contributor) when position is null —
+ * conservative middle-ground that gates Executive/Management
+ * surfaces without locking newcomers out of their basic tasks.
+ */
+export function getLevel(position: Position | null | undefined): 1 | 2 | 3 | 4 | 5 | 6 {
+  if (!position) return 2;
+  return POSITION_META[position]?.level ?? 2;
+}
+
+/**
+ * The department for a user. Defaults to ENGINEERING for nulls
+ * (the most common case in our firm). Used to enforce silo rules
+ * between Office Admin and Engineering content.
+ */
+export function getDepartment(
+  position: Position | null | undefined
+): Department {
+  if (!position) return "ENGINEERING";
+  return POSITION_META[position]?.department ?? "ENGINEERING";
+}
+
+/**
+ * Bypass — workspace OWNER role is the universal "sees everything"
+ * gate. CEO + Owner combine into one "you can do anything" check.
+ * Whether you're at level 6 or not, being workspace OWNER overrides.
+ */
+export function isWorkspaceOwner(
+  workspaceRole: WorkspaceRole | null | undefined
+): boolean {
+  return workspaceRole === "OWNER";
+}
+
+/**
+ * Workspace-level admin (Owner or Admin). Used for sidebar gating
+ * of /admin (workspace settings), Workflow editing, etc.
+ */
+export function isWorkspaceAdmin(
+  workspaceRole: WorkspaceRole | null | undefined
+): boolean {
+  return workspaceRole === "OWNER" || workspaceRole === "ADMIN";
 }

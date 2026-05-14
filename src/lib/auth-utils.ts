@@ -1,6 +1,8 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "./auth";
 import prisma from "./prisma";
+import { getLevel, getDepartment } from "./people-types";
+import type { EffectiveAccess } from "./access-control";
 
 export async function getCurrentUser() {
   const session = await getServerSession(authOptions);
@@ -25,6 +27,42 @@ export async function getCurrentUser() {
 export async function getCurrentUserId() {
   const user = await getCurrentUser();
   return user?.id;
+}
+
+/**
+ * Resolve the user's effective access — WorkspaceRole + Position
+ * level + Department — in ONE round trip. Use at the top of every
+ * server component / API route that gates content by hierarchy.
+ *
+ * Returns null when:
+ *   - the user has no session
+ *   - the user has no workspace membership (orphan account)
+ *
+ * The caller should treat null as 401 / redirect to /login.
+ */
+export async function getEffectiveAccess(
+  userId: string
+): Promise<EffectiveAccess | null> {
+  const row = await prisma.workspaceMember.findFirst({
+    where: { userId },
+    select: {
+      role: true,
+      workspaceId: true,
+      user: { select: { position: true } },
+    },
+    orderBy: { joinedAt: "asc" },
+  });
+  if (!row) return null;
+
+  const position = row.user.position;
+  return {
+    userId,
+    workspaceId: row.workspaceId,
+    workspaceRole: row.role,
+    position,
+    level: getLevel(position),
+    department: getDepartment(position),
+  };
 }
 
 export function validatePassword(password: string): { valid: boolean; message: string } {
