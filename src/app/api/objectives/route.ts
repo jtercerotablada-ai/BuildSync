@@ -52,8 +52,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
     }
 
+    // ── Privacy gate (Asana parity) ──────────────────────────
+    // A user sees an objective only when they own it OR they're a
+    // member of the team it's assigned to. Workspace membership
+    // alone no longer auto-grants access — this was leaking every
+    // user's goals to every workspace member.
+    //
+    // Future hook: when we add an ObjectiveMember model (mirror of
+    // PortfolioMember) we'll add a third OR clause for explicit
+    // per-user sharing.
     const where: Record<string, unknown> = {
       workspaceId: workspaceMember.workspaceId,
+      OR: [
+        { ownerId: userId },
+        { team: { members: { some: { userId } } } },
+      ],
     };
 
     if (period) where.period = period;

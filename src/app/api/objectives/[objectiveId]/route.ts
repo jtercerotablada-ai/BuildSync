@@ -121,6 +121,23 @@ export async function GET(
     // Verify user belongs to objective's workspace
     await verifyWorkspaceAccess(userId, objective.workspace.id);
 
+    // ── Privacy gate (Asana parity) ──────────────────────────
+    // Only the owner or team members of the objective's team can
+    // see it. Workspace membership alone doesn't auto-grant access.
+    // 404 (not 403) masks existence from id-pokers.
+    const isObjectiveOwner = objective.ownerId === userId;
+    let isTeamMember = false;
+    if (objective.teamId) {
+      const teamMembership = await prisma.teamMember.findUnique({
+        where: { userId_teamId: { userId, teamId: objective.teamId } },
+        select: { id: true },
+      });
+      isTeamMember = !!teamMembership;
+    }
+    if (!isObjectiveOwner && !isTeamMember) {
+      return NextResponse.json({ error: "Objective not found" }, { status: 404 });
+    }
+
     // Determine if current user liked this objective
     const myLike = await prisma.objectiveLike.findUnique({
       where: { objectiveId_userId: { objectiveId, userId } },
@@ -177,12 +194,31 @@ export async function PATCH(
     // Verify user has access to this objective's workspace
     const existingObj = await prisma.objective.findUnique({
       where: { id: objectiveId },
-      select: { workspaceId: true },
+      select: { workspaceId: true, ownerId: true, teamId: true },
     });
     if (!existingObj) {
       return NextResponse.json({ error: "Objective not found" }, { status: 404 });
     }
     await verifyWorkspaceAccess(userId, existingObj.workspaceId);
+
+    // ── Edit gate ────────────────────────────────────────────
+    // Only the objective owner or a member of its team can edit.
+    // Workspace-only members get 403.
+    const isOwner = existingObj.ownerId === userId;
+    let isTeamMember = false;
+    if (existingObj.teamId) {
+      const teamMembership = await prisma.teamMember.findUnique({
+        where: { userId_teamId: { userId, teamId: existingObj.teamId } },
+        select: { id: true },
+      });
+      isTeamMember = !!teamMembership;
+    }
+    if (!isOwner && !isTeamMember) {
+      return NextResponse.json(
+        { error: "Only the objective owner or a team member can edit" },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json();
     const data = updateObjectiveSchema.parse(body);
@@ -288,12 +324,21 @@ export async function DELETE(
     // Verify user has access to this objective's workspace
     const obj = await prisma.objective.findUnique({
       where: { id: objectiveId },
-      select: { workspaceId: true },
+      select: { workspaceId: true, ownerId: true },
     });
     if (!obj) {
       return NextResponse.json({ error: "Objective not found" }, { status: 404 });
     }
     await verifyWorkspaceAccess(userId, obj.workspaceId);
+
+    // Only the objective owner can delete it. Team members can
+    // edit but not destroy.
+    if (obj.ownerId !== userId) {
+      return NextResponse.json(
+        { error: "Only the objective owner can delete it" },
+        { status: 403 }
+      );
+    }
 
     await prisma.objective.delete({
       where: { id: objectiveId },
