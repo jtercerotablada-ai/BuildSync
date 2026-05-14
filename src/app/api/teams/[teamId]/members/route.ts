@@ -56,6 +56,11 @@ export async function GET(
                 email: true,
                 image: true,
                 jobTitle: true,
+                // Position + customTitle are needed by the shared
+                // MessagesView @-mention typeahead to render each
+                // candidate's role next to their name.
+                position: true,
+                customTitle: true,
               },
             },
           },

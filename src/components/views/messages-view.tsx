@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Send,
@@ -110,9 +110,67 @@ interface MessageRow {
   mentions?: MentionRef[];
 }
 
+/**
+ * Scope of this Messages surface. The same component handles both
+ * project-level messages (under /projects/[id]) and team-level
+ * messages (under /teams/[id]) — only the URL prefixes and the
+ * directory endpoint differ.
+ *
+ * For backwards compat the component still accepts a `projectId`
+ * prop directly; we synthesize a project scope from it. New
+ * callers should pass `scope` explicitly.
+ */
+export type MessageScope =
+  | { type: "project"; projectId: string }
+  | { type: "team"; teamId: string };
+
+interface ScopeEndpoints {
+  list: string;                   // GET roots, POST new root
+  members: string;                // GET directory for @-mention typeahead
+  message: (id: string) => string;            // PATCH / DELETE
+  pin: (id: string) => string;                // POST toggle
+  reactions: (id: string) => string;          // POST toggle
+  replies: (rootId: string) => string;        // GET + POST
+  attachments: (id: string) => string;        // POST upload
+  attachment: (mid: string, aid: string) => string; // DELETE
+}
+
+function buildEndpoints(scope: MessageScope): ScopeEndpoints {
+  if (scope.type === "project") {
+    const pid = scope.projectId;
+    return {
+      list: `/api/projects/${pid}/messages`,
+      members: `/api/projects/${pid}/members`,
+      message: (id) => `/api/messages/${id}`,
+      pin: (id) => `/api/messages/${id}/pin`,
+      reactions: (id) => `/api/messages/${id}/reactions`,
+      replies: (rid) => `/api/messages/${rid}/replies`,
+      attachments: (id) => `/api/messages/${id}/attachments`,
+      attachment: (mid, aid) => `/api/messages/${mid}/attachments/${aid}`,
+    };
+  }
+  // team
+  const tid = scope.teamId;
+  return {
+    list: `/api/teams/${tid}/messages`,
+    members: `/api/teams/${tid}/members`,
+    message: (id) => `/api/teams/${tid}/messages/${id}`,
+    pin: (id) => `/api/teams/${tid}/messages/${id}/pin`,
+    reactions: (id) => `/api/teams/${tid}/messages/${id}/reactions`,
+    replies: (rid) => `/api/teams/${tid}/messages/${rid}/replies`,
+    attachments: (id) => `/api/teams/${tid}/messages/${id}/attachments`,
+    attachment: (mid, aid) =>
+      `/api/teams/${tid}/messages/${mid}/attachments/${aid}`,
+  };
+}
+
 interface MessagesViewProps {
-  sections: { id: string; name: string; tasks: unknown[] }[];
-  projectId: string;
+  // New preferred API — explicit scope.
+  scope?: MessageScope;
+  // Legacy props (project scope is inferred when set). Kept so the
+  // existing /projects/[id] page works without changes.
+  sections?: { id: string; name: string; tasks: unknown[] }[];
+  projectId?: string;
   projectName?: string;
   projectColor?: string;
   projectStatus?: string;
@@ -130,9 +188,31 @@ const QUICK_EMOJIS = ["👍", "🎉", "✅", "🚀", "👀", "💡"];
 // ─── Component ─────────────────────────────────────────────────
 
 export function MessagesView({
+  scope: scopeProp,
   projectId,
   currentUser,
 }: MessagesViewProps) {
+  // Resolve effective scope: explicit prop wins; otherwise infer
+  // project scope from the legacy projectId.
+  const scope: MessageScope = useMemo(
+    () =>
+      scopeProp ??
+      (projectId
+        ? { type: "project" as const, projectId }
+        : ({ type: "project" as const, projectId: "" } as MessageScope)),
+    [scopeProp, projectId]
+  );
+  // Stable primitive scope key for downstream effect deps.
+  const scopeKey =
+    scope.type === "project" ? scope.projectId : scope.teamId;
+  // Memoized endpoint builder so handlers don't rebuild URLs on
+  // every render.
+  const endpoints = useMemo(
+    () => buildEndpoints(scope),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scope.type, scopeKey]
+  );
+
   // ── Deep-link params ────────────────────────────────────
   // The inbox routes mention notifications to /projects/[id]?view=
   // messages&message=ID(&thread=ROOTID). We read those once on
@@ -209,7 +289,7 @@ export function MessagesView({
   useEffect(() => {
     // Best-effort: a 403 or 500 here just disables @ typeahead, the
     // composer still works in plain mode.
-    fetch(`/api/projects/${projectId}/members`)
+    fetch(endpoints.members)
       .then((res) => (res.ok ? res.json() : []))
       .then((data: { user: ProjectMemberLite }[] | unknown) => {
         if (!Array.isArray(data)) return;
@@ -221,7 +301,7 @@ export function MessagesView({
       .catch(() => {
         // Silent failure — composer falls back to plain text mode.
       });
-  }, [projectId]);
+  }, [endpoints.members]);
 
   // Real-time poll bookkeeping. The scroll container ref lets us
   // detect "user is at the bottom" so background polls can auto-scroll
@@ -248,7 +328,7 @@ export function MessagesView({
   const fetchMessages = useCallback(
     async (silent = false) => {
       try {
-        const res = await fetch(`/api/projects/${projectId}/messages`);
+        const res = await fetch(endpoints.list);
         if (!res.ok) throw new Error("Failed to load");
         const data: MessageRow[] = await res.json();
         // API returns newest-first; we display newest-last (chat
@@ -523,7 +603,7 @@ export function MessagesView({
   // ── Thread fetch / expand ──────────────────────────────
   const fetchReplies = useCallback(async (rootId: string) => {
     try {
-      const res = await fetch(`/api/messages/${rootId}/replies`);
+      const res = await fetch(endpoints.replies(rootId));
       if (!res.ok) throw new Error("Failed");
       const data: MessageRow[] = await res.json();
       setRepliesByThread((prev) => ({ ...prev, [rootId]: data }));
@@ -701,7 +781,7 @@ export function MessagesView({
       });
 
       try {
-        const res = await fetch(`/api/messages/${rootId}/replies`, {
+        const res = await fetch(endpoints.replies(rootId), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -769,7 +849,7 @@ export function MessagesView({
       }));
       try {
         const res = await fetch(
-          `/api/messages/${messageId}/attachments`,
+          endpoints.attachments(messageId),
           {
             method: "POST",
             body: fd,
@@ -860,7 +940,7 @@ export function MessagesView({
     setSending(true);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/messages`, {
+      const res = await fetch(endpoints.list, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -942,7 +1022,7 @@ export function MessagesView({
     }));
     try {
       const res = await fetch(
-        `/api/messages/${messageId}/attachments/${attachmentId}`,
+        endpoints.attachment(messageId, attachmentId),
         { method: "DELETE" }
       );
       if (!res.ok) {
@@ -971,7 +1051,7 @@ export function MessagesView({
       updateAnyMessage(messageId, (m) => ({ ...m, content }));
       setEditingId(null);
       try {
-        const res = await fetch(`/api/messages/${messageId}`, {
+        const res = await fetch(endpoints.message(messageId), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content }),
@@ -1024,7 +1104,7 @@ export function MessagesView({
       });
     }
     try {
-      const res = await fetch(`/api/messages/${messageId}`, {
+      const res = await fetch(endpoints.message(messageId), {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -1047,7 +1127,7 @@ export function MessagesView({
       )
     );
     try {
-      const res = await fetch(`/api/messages/${messageId}/pin`, {
+      const res = await fetch(endpoints.pin(messageId), {
         method: "POST",
       });
       if (!res.ok) {
@@ -1111,7 +1191,7 @@ export function MessagesView({
     });
 
     try {
-      const res = await fetch(`/api/messages/${messageId}/reactions`, {
+      const res = await fetch(endpoints.reactions(messageId), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emoji }),

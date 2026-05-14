@@ -80,9 +80,10 @@ model User {
   ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
   ownedProjects     Project[]         @relation("ProjectOwner")
   ownedPortfolios   Portfolio[]       @relation("PortfolioOwner")
-  messages          Message[]         @relation("MessageAuthor")
-  messageMentions   MessageMention[]  @relation("UserMentions")
-  teamMessages      TeamMessage[]     @relation("TeamMessageAuthor")
+  messages              Message[]              @relation("MessageAuthor")
+  messageMentions       MessageMention[]       @relation("UserMentions")
+  teamMessages          TeamMessage[]          @relation("TeamMessageAuthor")
+  teamMessageMentions   TeamMessageMention[]   @relation("UserTeamMentions")
   workspaceNotes    WorkspaceNote[]   @relation("NoteAuthor")
   noteCollaborators NoteCollaborator[]
   preferences       UserPreferences?
@@ -999,12 +1000,36 @@ model TeamMessage {
   teamId   String
   authorId String?
 
-  team        Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  author      User?               @relation("TeamMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  // Threading — replies point at their root team-message. Roots have
+  // parentMessageId = null. Mirrors the threading pattern used by
+  // project Messages so the UI component can be scope-agnostic.
+  parentMessageId String?
+
+  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  author      User?                 @relation("TeamMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  parent      TeamMessage?          @relation("TeamMessageThread", fields: [parentMessageId], references: [id], onDelete: Cascade)
+  replies     TeamMessage[]         @relation("TeamMessageThread")
   attachments MessageAttachment[]
   reactions   MessageReaction[]
+  mentions    TeamMessageMention[]
 
   @@index([teamId])
+  @@index([parentMessageId])
+}
+
+model TeamMessageMention {
+  id            String   @id @default(cuid())
+  teamMessageId String
+  userId        String
+  createdAt     DateTime @default(now())
+
+  message TeamMessage @relation(fields: [teamMessageId], references: [id], onDelete: Cascade)
+  user    User        @relation("UserTeamMentions", fields: [userId], references: [id], onDelete: Cascade)
+
+  // One row per (teamMessage, user) — re-mentioning is idempotent.
+  @@unique([teamMessageId, userId])
+  @@index([userId])
+  @@index([teamMessageId])
 }
 
 model MessageAttachment {

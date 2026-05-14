@@ -11,45 +11,47 @@ import {
 import { persistTeamMentionsForNewMessage } from "@/lib/mentions";
 
 /**
- * GET  /api/teams/:teamId/messages — root messages (threads collapsed)
- * POST /api/teams/:teamId/messages — create a new team message
+ * GET  /api/teams/:teamId/messages/:messageId/replies — fetch thread
+ * POST /api/teams/:teamId/messages/:messageId/replies — post a reply
  *
- * Returns the SAME shape as /api/projects/:projectId/messages so the
- * shared messages-view UI component can render either source with
- * a single code path. Differences are scoped to the URL — the data
- * envelope is identical.
- *
- * Per-row fields:
- *   { id, content, isPinned, createdAt, updatedAt, author,
- *     reactions: [{ emoji, count, users, mine }],
- *     attachments: [{...}],
- *     mentions: [{ userId, name, image }],
- *     mine, replyCount, lastReplyAt }
+ * Threads on team messages mirror the project messages model:
+ * flat (1 level deep), bound to a root id. Replying to a reply
+ * resolves to the actual root for the parentMessageId binding.
  */
-
-const createSchema = z.object({
+const replyCreateSchema = z.object({
   content: z.string().min(1).max(10000),
   mentionUserIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
+async function loadParentOrRoot(messageId: string, teamId: string) {
+  const msg = await prisma.teamMessage.findUnique({
+    where: { id: messageId },
+    select: { id: true, teamId: true, parentMessageId: true },
+  });
+  if (!msg || msg.teamId !== teamId) return null;
+  return { parent: msg, rootId: msg.parentMessageId ?? msg.id };
+}
+
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ teamId: string }> }
+  { params }: { params: Promise<{ teamId: string; messageId: string }> }
 ) {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const { teamId } = await params;
+    const { teamId, messageId } = await params;
     await verifyTeamAccess(userId, teamId);
 
-    // Root messages only — replies are fetched on demand by the
-    // shared MessagesView when a thread is expanded.
-    const messages = await prisma.teamMessage.findMany({
-      where: { teamId, parentMessageId: null },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+    const ctx = await loadParentOrRoot(messageId, teamId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const replies = await prisma.teamMessage.findMany({
+      where: { parentMessageId: ctx.rootId },
+      orderBy: { createdAt: "asc" },
       include: {
         author: {
           select: { id: true, name: true, email: true, image: true },
@@ -73,12 +75,6 @@ export async function GET(
             createdAt: true,
           },
         },
-        replies: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { createdAt: true },
-        },
-        _count: { select: { replies: true } },
         mentions: {
           select: {
             userId: true,
@@ -88,7 +84,7 @@ export async function GET(
       },
     });
 
-    const shaped = messages.map((m) => {
+    const shaped = replies.map((m) => {
       const reactionsByEmoji: Record<
         string,
         {
@@ -116,7 +112,6 @@ export async function GET(
           reactionsByEmoji[r.emoji].mine = true;
         }
       }
-
       return {
         id: m.id,
         content: m.content,
@@ -132,8 +127,6 @@ export async function GET(
           createdAt: a.createdAt.toISOString(),
         })),
         mine: m.author?.id === userId,
-        replyCount: m._count.replies,
-        lastReplyAt: m.replies[0]?.createdAt.toISOString() ?? null,
         mentions: m.mentions.map((mn) => ({
           userId: mn.userId,
           name: mn.user.name,
@@ -151,9 +144,9 @@ export async function GET(
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }
-    console.error("Error fetching team messages:", error);
+    console.error("[team replies GET] error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch messages" },
+      { error: "Failed to load replies" },
       { status: 500 }
     );
   }
@@ -161,41 +154,47 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ teamId: string }> }
+  { params }: { params: Promise<{ teamId: string; messageId: string }> }
 ) {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const { teamId } = await params;
+    const { teamId, messageId } = await params;
+    await verifyTeamAccess(userId, teamId);
 
-    const body = await req.json();
-    const parsed = createSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Invalid payload" },
-        { status: 400 }
-      );
+    const ctx = await loadParentOrRoot(messageId, teamId);
+    if (!ctx) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    const { content, mentionUserIds } = parsed.data;
 
-    // Verify team membership (uses TeamMember, not WorkspaceMember).
+    // Posting requires team membership (same gate as parent POST).
     const teamMember = await prisma.teamMember.findUnique({
       where: { userId_teamId: { userId, teamId } },
     });
     if (!teamMember) {
       return NextResponse.json(
-        { error: "You must be a team member to post messages" },
+        { error: "You must be a team member to reply" },
         { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+    const parsed = replyCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid payload" },
+        { status: 400 }
       );
     }
 
     const created = await prisma.teamMessage.create({
       data: {
-        content: content.trim(),
         teamId,
         authorId: userId,
+        content: parsed.data.content.trim(),
+        parentMessageId: ctx.rootId,
       },
       include: {
         author: {
@@ -204,25 +203,24 @@ export async function POST(
       },
     });
 
-    // Persist mentions + fan out notifications. Errors are logged
-    // but the message itself stays created (the optimistic UI swap
-    // shouldn't be undone if a mention pipeline blip occurs).
     let resolvedMentions: {
       userId: string;
       name: string | null;
       image: string | null;
     }[] = [];
-    if (mentionUserIds && mentionUserIds.length > 0) {
+    const ids = parsed.data.mentionUserIds ?? [];
+    if (ids.length > 0) {
       try {
         await persistTeamMentionsForNewMessage({
           messageId: created.id,
           teamId,
           actorUserId: userId,
-          mentionUserIds,
+          mentionUserIds: ids,
           authorName:
             created.author?.name ?? created.author?.email ?? "Someone",
           authorImage: created.author?.image ?? null,
           contentPreview: created.content,
+          rootMessageId: ctx.rootId,
         });
         const rows = await prisma.teamMessageMention.findMany({
           where: { teamMessageId: created.id },
@@ -237,7 +235,7 @@ export async function POST(
           image: r.user.image,
         }));
       } catch (err) {
-        console.error("[team messages POST] mention fan-out failed:", err);
+        console.error("[team replies POST] mention fan-out failed:", err);
       }
     }
 
@@ -252,8 +250,6 @@ export async function POST(
         reactions: [],
         attachments: [],
         mine: true,
-        replyCount: 0,
-        lastReplyAt: null,
         mentions: resolvedMentions,
       },
       { status: 201 }
@@ -266,9 +262,9 @@ export async function POST(
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }
-    console.error("Error creating team message:", error);
+    console.error("[team replies POST] error:", error);
     return NextResponse.json(
-      { error: "Failed to create message" },
+      { error: "Failed to post reply" },
       { status: 500 }
     );
   }

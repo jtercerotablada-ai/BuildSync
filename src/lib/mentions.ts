@@ -197,3 +197,146 @@ export async function syncMentionsForEditedMessage(opts: SyncOptions) {
     })),
   });
 }
+
+// ──────────────────────────────────────────────────────────────────
+// Team scope — analogous helpers for TeamMessage mentions.
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * Validate candidate user ids against the team's membership. Only
+ * team members can be @-mentioned in a team message — pinging
+ * someone who can't read the team channel would link them to
+ * content they can't access.
+ */
+export async function resolveAllowedTeamMentionUserIds(
+  teamId: string,
+  candidateUserIds: string[]
+): Promise<string[]> {
+  if (candidateUserIds.length === 0) return [];
+  const unique = Array.from(new Set(candidateUserIds.filter(Boolean)));
+  if (unique.length === 0) return [];
+
+  const members = await prisma.teamMember.findMany({
+    where: { teamId, userId: { in: unique } },
+    select: { userId: true },
+  });
+  const allowed = new Set(members.map((m) => m.userId));
+  return unique.filter((uid) => allowed.has(uid));
+}
+
+interface TeamSyncOptions {
+  messageId: string;
+  teamId: string;
+  actorUserId: string;
+  mentionUserIds: string[];
+  authorName?: string;
+  authorImage?: string | null;
+  contentPreview: string;
+  rootMessageId?: string;
+}
+
+/**
+ * Team equivalent of persistMentionsForNewMessage — creates
+ * TeamMessageMention rows + Notification fan-out for every mention
+ * (skipping the author so people don't ping themselves).
+ */
+export async function persistTeamMentionsForNewMessage(
+  opts: TeamSyncOptions
+) {
+  const { messageId, teamId, actorUserId, mentionUserIds } = opts;
+  if (mentionUserIds.length === 0) return;
+
+  const allowed = await resolveAllowedTeamMentionUserIds(
+    teamId,
+    mentionUserIds
+  );
+  if (allowed.length === 0) return;
+
+  await prisma.teamMessageMention.createMany({
+    data: allowed.map((userId) => ({
+      teamMessageId: messageId,
+      userId,
+    })),
+    skipDuplicates: true,
+  });
+
+  const recipients = allowed.filter((uid) => uid !== actorUserId);
+  if (recipients.length === 0) return;
+
+  const title = `${opts.authorName || "Someone"} mentioned you`;
+  const preview = opts.contentPreview.slice(0, 140);
+  await prisma.notification.createMany({
+    data: recipients.map((userId) => ({
+      userId,
+      type: "MENTIONED" as const,
+      title,
+      message: preview,
+      data: {
+        teamMessageId: messageId,
+        teamId,
+        rootMessageId: opts.rootMessageId ?? messageId,
+        authorName: opts.authorName ?? null,
+        authorImage: opts.authorImage ?? null,
+      },
+    })),
+  });
+}
+
+/**
+ * Sync TeamMessageMention rows on an edit. Same diff strategy as
+ * the project equivalent: keep rows that should still exist,
+ * delete rows that shouldn't, insert new ones, and notify ONLY
+ * the freshly-added mentions (re-mentions stay quiet).
+ */
+export async function syncTeamMentionsForEditedMessage(
+  opts: TeamSyncOptions
+) {
+  const { messageId, teamId, actorUserId, mentionUserIds } = opts;
+
+  const allowed = new Set(
+    await resolveAllowedTeamMentionUserIds(teamId, mentionUserIds)
+  );
+
+  const existing = await prisma.teamMessageMention.findMany({
+    where: { teamMessageId: messageId },
+    select: { userId: true },
+  });
+  const existingSet = new Set(existing.map((m) => m.userId));
+
+  const toRemove = [...existingSet].filter((uid) => !allowed.has(uid));
+  const toAdd = [...allowed].filter((uid) => !existingSet.has(uid));
+
+  if (toRemove.length > 0) {
+    await prisma.teamMessageMention.deleteMany({
+      where: { teamMessageId: messageId, userId: { in: toRemove } },
+    });
+  }
+
+  if (toAdd.length === 0) return;
+
+  await prisma.teamMessageMention.createMany({
+    data: toAdd.map((userId) => ({ teamMessageId: messageId, userId })),
+    skipDuplicates: true,
+  });
+
+  const recipients = toAdd.filter((uid) => uid !== actorUserId);
+  if (recipients.length === 0) return;
+
+  const title = `${opts.authorName || "Someone"} mentioned you`;
+  const preview = opts.contentPreview.slice(0, 140);
+  await prisma.notification.createMany({
+    data: recipients.map((userId) => ({
+      userId,
+      type: "MENTIONED" as const,
+      title,
+      message: preview,
+      data: {
+        teamMessageId: messageId,
+        teamId,
+        rootMessageId: opts.rootMessageId ?? messageId,
+        authorName: opts.authorName ?? null,
+        authorImage: opts.authorImage ?? null,
+      },
+    })),
+  });
+}
