@@ -22,7 +22,6 @@ import {
   Users,
   Folder,
   FolderOpen,
-  ShieldCheck,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
@@ -92,17 +91,6 @@ function getInsightsNavItems(basePath: string): NavItemDef[] {
       label: "Goals",
       icon: Target,
       section: "goals",
-    },
-  ];
-}
-
-function getAdminNavItems(basePath: string): NavItemDef[] {
-  return [
-    {
-      href: `${basePath}/admin`,
-      label: "Workspace admin",
-      icon: ShieldCheck,
-      section: "admin",
     },
   ];
 }
@@ -183,7 +171,6 @@ export function Sidebar({
     getInsightsNavItems(basePath),
     access
   );
-  const adminNavItems = filterByAccess(getAdminNavItems(basePath), access);
   // Session no longer needed at this layer (was fetching teams for
   // the inline list which has been removed).
   // The "+ New project / New portfolio" menu still uses these.
@@ -251,33 +238,6 @@ export function Sidebar({
               ))}
             </nav>
 
-            {/* Workspace admin — only renders when user is OWNER/ADMIN.
-                Tucked at the bottom of the sidebar with a divider so
-                it reads as a different kind of nav from project work. */}
-            {adminNavItems.length > 0 && (
-              <>
-                {!collapsed && (
-                  <div className="mt-3 mb-1 px-3">
-                    <div className="h-px bg-gray-200/80" />
-                  </div>
-                )}
-                <nav className="space-y-0.5">
-                  {adminNavItems.map((item) => (
-                    <NavItem
-                      key={item.href}
-                      href={item.href}
-                      label={item.label}
-                      icon={item.icon}
-                      isActive={
-                        pathname === item.href ||
-                        pathname.startsWith(item.href + "/")
-                      }
-                      collapsed={collapsed}
-                    />
-                  ))}
-                </nav>
-              </>
-            )}
 
             {/* Collapsed mode: stop here (no Projects/Teams lists) */}
             {!collapsed && (

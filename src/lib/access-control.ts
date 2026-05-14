@@ -79,7 +79,6 @@ export type AppSection =
   | "reporting"         // L3+ filtered, L5+ full
   | "templates"         // Everyone use; create L4+
   | "workflow"          // Per-project; visible L3+, edit L4+
-  | "admin"             // Workspace admin (billing, members) — OWNER + ADMIN
   | "portal-admin";     // Client portal admin — L4+
 
 export function canAccessSection(
@@ -120,12 +119,6 @@ export function canAccessSection(
     case "workflow":
       // Workflow automation panel. Senior+ can view; managers edit.
       return level >= 3;
-
-    case "admin":
-      // Workspace admin (billing, all members, workspace settings).
-      // Owner-bypass already handled above; ADMIN of workspace can
-      // also enter.
-      return isWorkspaceAdmin(access.workspaceRole);
 
     case "portal-admin":
       // Client portal admin (manage external client accounts).
