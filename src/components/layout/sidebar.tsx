@@ -37,6 +37,7 @@ function getMainNavItems(basePath: string) {
     { href: `${basePath}/home`, label: "Home", icon: Home },
     { href: `${basePath}/my-tasks`, label: "My Tasks", icon: CheckSquare },
     { href: `${basePath}/inbox`, label: "Inbox", icon: Inbox },
+    { href: `${basePath}/people`, label: "People", icon: Users },
   ];
 }
 
