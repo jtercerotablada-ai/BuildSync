@@ -197,11 +197,35 @@ model WorkspaceInvitation {
   workspaceId String
   inviterId   String
 
+  // Pre-assigned profile fields — applied to the invitee when they
+  // accept so they land already labeled with their cargo/department
+  // instead of starting blank.
+  position       Position?
+  customTitle    String?
+  department     String?
+  // Optional personal note from the inviter shown in the email +
+  // landing page. Max 500 chars enforced server-side.
+  personalMessage String?
+
+  // Optional auto-bind to a project on accept. When set, the
+  // invitee is added to the project as a ProjectMember bound to
+  // the chosen ProjectCompany with the chosen ProjectRole.
+  projectId   String?
+  companyId   String?
+  projectRole ProjectRole?
+
+  // Bookkeeping — who actually accepted (might differ from the
+  // invitee's pre-existing User row if they signed up new) and
+  // when. Status flips to ACCEPTED at the same moment.
+  acceptedAt     DateTime?
+  acceptedUserId String?
+
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   inviter   User      @relation("UserWorkspaceInvitations", fields: [inviterId], references: [id], onDelete: Cascade)
 
   @@unique([email, workspaceId])
   @@index([email])
+  @@index([token])
 }
 
 enum InvitationStatus {

@@ -48,7 +48,13 @@ export type CompanyRole =
   | "BUILDING_DEPARTMENT_AHJ"
   | "OTHER";
 
-export type WorkspaceRole = "OWNER" | "ADMIN" | "MEMBER" | "WORKER" | "GUEST";
+export type WorkspaceRole =
+  | "OWNER"
+  | "ADMIN"
+  | "MEMBER"
+  | "WORKER"
+  | "GUEST"
+  | "CLIENT";
 
 export type ProjectRole = "ADMIN" | "EDITOR" | "COMMENTER" | "VIEWER";
 
@@ -349,6 +355,11 @@ export const WORKSPACE_ROLE_META: Record<
     label: "Guest",
     color: "#6b7280",
     description: "External collaborator — project-scoped access only.",
+  },
+  CLIENT: {
+    label: "Client",
+    color: "#d4b65a",
+    description: "External client — sees only what's shared with them.",
   },
 };
 

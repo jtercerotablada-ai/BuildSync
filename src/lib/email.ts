@@ -90,3 +90,139 @@ export async function sendPasswordResetEmail(email: string, token: string) {
     throw new Error("Failed to send email. Please try again later.");
   }
 }
+
+// ───────────────────────────────────────────────────────────────
+// Workspace invitation
+// ───────────────────────────────────────────────────────────────
+
+/**
+ * sendInvitationEmail — fires when a workspace admin invites a new
+ * person to join their firm on BuildSync. Carries the inviter's
+ * name, the workspace name, the assigned role, an optional personal
+ * note, and the magic accept link (which resolves to /invite/:token).
+ *
+ * Visual language matches the verify-email / reset-password
+ * templates above: black header, gold accents, white content card.
+ */
+interface InvitationEmailParams {
+  email: string;
+  token: string;
+  inviterName: string;
+  workspaceName: string;
+  roleLabel: string;
+  personalMessage?: string | null;
+  projectName?: string | null;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export async function sendInvitationEmail(params: InvitationEmailParams) {
+  const {
+    email,
+    token,
+    inviterName,
+    workspaceName,
+    roleLabel,
+    personalMessage,
+    projectName,
+  } = params;
+  const acceptUrl = `${APP_URL}/invite/${token}`;
+  const safeInviter = escapeHtml(inviterName);
+  const safeWorkspace = escapeHtml(workspaceName);
+  const safeRole = escapeHtml(roleLabel);
+  const safeProject = projectName ? escapeHtml(projectName) : null;
+  const safeNote = personalMessage ? escapeHtml(personalMessage) : null;
+
+  try {
+    await getResend().emails.send({
+      from: FROM,
+      to: email,
+      subject: `${inviterName} invited you to ${workspaceName} on BuildSync`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+    <div style="background:#000;padding:24px;text-align:center">
+      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
+    </div>
+    <div style="padding:32px 28px">
+      <p style="margin:0 0 6px;color:#a8893a;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600">Workspace invitation</p>
+      <h1 style="margin:0 0 12px;font-size:22px;color:#0f172a;line-height:1.3">
+        ${safeInviter} invited you to join<br/>
+        <span style="color:#a8893a">${safeWorkspace}</span>
+      </h1>
+      <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.55">
+        You're being invited to join the firm's workspace on BuildSync — the
+        engineering team's cockpit for projects, drawings, RFIs, schedules,
+        and collaboration.
+      </p>
+
+      <table cellpadding="0" cellspacing="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin:0 0 20px">
+        <tr><td style="padding:14px 16px">
+          <table cellpadding="0" cellspacing="0" style="width:100%">
+            <tr>
+              <td style="color:#64748b;font-size:12px;padding:2px 8px 2px 0">Workspace</td>
+              <td style="color:#0f172a;font-size:13px;font-weight:600;padding:2px 0;text-align:right">${safeWorkspace}</td>
+            </tr>
+            <tr>
+              <td style="color:#64748b;font-size:12px;padding:2px 8px 2px 0">Your role</td>
+              <td style="color:#0f172a;font-size:13px;font-weight:600;padding:2px 0;text-align:right">${safeRole}</td>
+            </tr>
+            ${
+              safeProject
+                ? `<tr>
+              <td style="color:#64748b;font-size:12px;padding:2px 8px 2px 0">Starting project</td>
+              <td style="color:#0f172a;font-size:13px;font-weight:600;padding:2px 0;text-align:right">${safeProject}</td>
+            </tr>`
+                : ""
+            }
+            <tr>
+              <td style="color:#64748b;font-size:12px;padding:2px 8px 2px 0">Invited by</td>
+              <td style="color:#0f172a;font-size:13px;font-weight:600;padding:2px 0;text-align:right">${safeInviter}</td>
+            </tr>
+          </table>
+        </td></tr>
+      </table>
+
+      ${
+        safeNote
+          ? `<div style="margin:0 0 24px;padding:14px 16px;background:#fffbea;border-left:3px solid #c9a84c;border-radius:6px">
+        <p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#a8893a;font-weight:600">A note from ${safeInviter}</p>
+        <p style="margin:0;color:#0f172a;font-size:14px;line-height:1.5;white-space:pre-wrap">${safeNote}</p>
+      </div>`
+          : ""
+      }
+
+      <a href="${acceptUrl}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">
+        Accept invitation
+      </a>
+
+      <p style="margin:20px 0 0;color:#94a3b8;font-size:12px;line-height:1.55">
+        If the button doesn't work, copy and paste this link:<br/>
+        <a href="${acceptUrl}" style="color:#a8893a;word-break:break-all">${acceptUrl}</a>
+      </p>
+
+      <p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.55">
+        This invitation expires in 7 days. If you didn't expect this email,
+        you can safely ignore it.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+    });
+  } catch (error) {
+    console.error("Failed to send invitation email:", error);
+    throw new Error("Failed to send invitation email.");
+  }
+}
