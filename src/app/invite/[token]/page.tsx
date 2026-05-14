@@ -213,6 +213,12 @@ export default function InvitePage() {
       }
       // If the server just created the user (Path C2), sign them in
       // now so the redirect lands them inside the app authenticated.
+      // We use window.location.href (hard reload) instead of
+      // router.push for the new-user path — the session cookie was
+      // JUST set by signIn, and a hard reload guarantees the new
+      // page render sees it on the server side. router.push uses
+      // client-side navigation which has been known to race the
+      // cookie write on some browsers.
       if (body.isNewUser && extra.password && body.email) {
         const result = await signIn("credentials", {
           email: body.email,
@@ -226,7 +232,15 @@ export default function InvitePage() {
           router.push("/login");
           return;
         }
+        toast.success("Welcome to the workspace");
+        if (typeof window !== "undefined") {
+          window.location.href = body.redirect || "/home";
+        }
+        return;
       }
+
+      // Path A — already signed in. Plain client navigation is
+      // fine because the session is unchanged.
       toast.success("Welcome to the workspace");
       router.push(body.redirect || "/home");
     } catch {

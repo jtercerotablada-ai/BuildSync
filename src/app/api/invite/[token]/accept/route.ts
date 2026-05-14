@@ -10,33 +10,28 @@ import { getCurrentUserId, validatePassword } from "@/lib/auth-utils";
  * Accept a workspace invitation. Three paths the caller might be on:
  *
  *  A) Already signed in with the SAME email as the invitation
- *     → just create the WorkspaceMember (idempotent), mark accepted,
- *       optionally auto-add to project + company.
+ *     → upsert WorkspaceMember (idempotent), optionally bind to
+ *       project + company, mark invitation accepted.
  *
  *  B) Already signed in with a DIFFERENT email
  *     → 409 — we don't move the invitation to another user silently.
- *       UI tells them to sign out and use the right account.
  *
- *  C) Not signed in
- *     C1) Email already has a user → return 401 with code "needs-login".
- *         UI redirects to /login with a return param.
- *     C2) Email has no user yet → require a password in this same
- *         POST; we create the user, hash the password, mark the
- *         email verified (the invitation IS the verification),
- *         create the workspace member, mark accepted, return ok.
- *         The UI completes by signing in on success.
+ *  C1) Not signed in + email already has a User
+ *     → 401 with code "needs-login". Page redirects to /login.
  *
- * Returns { ok: true, redirect: string } on success — the redirect
- * is where the page should send the user next (either the bound
- * project or the workspace root).
+ *  C2) Not signed in + email is brand new
+ *     → require password in body, create User + WorkspaceMember +
+ *       (optional) ProjectMember + flip status — all in a single
+ *       Prisma transaction so a partial failure leaves no orphans.
+ *       The page then signs them in via NextAuth Credentials and
+ *       hard-reloads to the redirect target so the session is
+ *       guaranteed to be picked up.
+ *
+ * Returns { ok: true, redirect, email, isNewUser } on success.
  */
 
 const bodySchema = z.object({
-  // Only required for path C2 (new user signup). Validated against
-  // validatePassword() so the same rules as registration apply.
   password: z.string().optional(),
-  // Optional human name for new accounts. Falls back to the email
-  // local part when missing.
   name: z.string().max(120).optional(),
 });
 
@@ -79,9 +74,11 @@ export async function POST(
     }
     const { password, name } = parsed.data;
 
-    // Resolve who's claiming the invitation.
+    // ── Resolve the user ────────────────────────────────────────
     const currentUserId = await getCurrentUserId();
+    let isNewUser = false;
     let acceptingUserId: string | null = null;
+    let hashedPassword: string | null = null;
 
     if (currentUserId) {
       const me = await prisma.user.findUnique({
@@ -106,18 +103,15 @@ export async function POST(
           { status: 409 }
         );
       }
-      // Path A — same email, same session.
+      // Path A — already authenticated as the right person.
       acceptingUserId = me.id;
     } else {
-      // Not signed in. Does the invitation email already have an
-      // account?
       const existing = await prisma.user.findUnique({
         where: { email: invitation.email },
         select: { id: true },
       });
-
       if (existing) {
-        // Path C1 — need to log in first.
+        // Path C1 — log in first.
         return NextResponse.json(
           {
             error: "Please sign in to accept this invitation",
@@ -126,11 +120,14 @@ export async function POST(
           { status: 401 }
         );
       }
-
-      // Path C2 — brand new user. Need a password from the body.
+      // Path C2 — brand new user. Validate password BEFORE the
+      // transaction starts.
       if (!password) {
         return NextResponse.json(
-          { error: "Password required to create your account", code: "needs-password" },
+          {
+            error: "Password required to create your account",
+            code: "needs-password",
+          },
           { status: 400 }
         );
       }
@@ -138,125 +135,162 @@ export async function POST(
       if (!pwCheck.valid) {
         return NextResponse.json({ error: pwCheck.message }, { status: 400 });
       }
-
-      const hashed = await hash(password, 10);
-      const created = await prisma.user.create({
-        data: {
-          email: invitation.email,
-          name: name || invitation.email.split("@")[0],
-          password: hashed,
-          // The invitation itself proves the address is real.
-          emailVerified: new Date(),
-          position: invitation.position,
-          customTitle: invitation.customTitle,
-          department: invitation.department,
-        },
-      });
-      acceptingUserId = created.id;
+      hashedPassword = await hash(password, 10);
+      isNewUser = true;
     }
 
-    if (!acceptingUserId) {
-      return NextResponse.json(
-        { error: "Could not resolve accepting user" },
-        { status: 500 }
-      );
-    }
-
-    // Create the workspace member. Idempotent against the
-    // (userId, workspaceId) unique constraint.
-    await prisma.workspaceMember.upsert({
-      where: {
-        userId_workspaceId: {
-          userId: acceptingUserId,
-          workspaceId: invitation.workspaceId,
-        },
-      },
-      update: {},
-      create: {
-        userId: acceptingUserId,
-        workspaceId: invitation.workspaceId,
-        role: invitation.role,
-      },
-    });
-
-    // For signed-in users on Path A, apply the pre-assigned profile
-    // fields if their User row doesn't already have them set.
-    if (currentUserId) {
-      const me = await prisma.user.findUnique({
-        where: { id: acceptingUserId },
-        select: {
-          position: true,
-          customTitle: true,
-          department: true,
-        },
-      });
-      const updates: {
-        position?: typeof invitation.position;
-        customTitle?: string | null;
-        department?: string | null;
-      } = {};
-      if (!me?.position && invitation.position) {
-        updates.position = invitation.position;
-      }
-      if (!me?.customTitle && invitation.customTitle) {
-        updates.customTitle = invitation.customTitle;
-      }
-      if (!me?.department && invitation.department) {
-        updates.department = invitation.department;
-      }
-      if (Object.keys(updates).length > 0) {
-        await prisma.user.update({
-          where: { id: acceptingUserId },
-          data: updates,
-        });
-      }
-    }
-
-    // Optional auto-bind to a project + company.
-    let redirect = "/home";
+    // ── Pre-validate the optional project + company ─────────────
+    // These checks live OUTSIDE the transaction so we don't keep a
+    // long-running tx open while doing lookups.
+    let projectIdToBind: string | null = null;
+    let companyIdToBind: string | null = null;
     if (invitation.projectId) {
       const project = await prisma.project.findUnique({
         where: { id: invitation.projectId },
         select: { id: true, workspaceId: true },
       });
-      if (
-        project &&
-        project.workspaceId === invitation.workspaceId
-      ) {
-        // Validate the company still exists if specified.
-        let companyId: string | null = invitation.companyId;
-        if (companyId) {
+      if (project && project.workspaceId === invitation.workspaceId) {
+        projectIdToBind = project.id;
+        if (invitation.companyId) {
           const company = await prisma.projectCompany.findFirst({
-            where: { id: companyId, projectId: project.id },
+            where: { id: invitation.companyId, projectId: project.id },
             select: { id: true },
           });
-          if (!company) companyId = null;
+          if (company) companyIdToBind = company.id;
         }
-        await prisma.projectMember.upsert({
+      }
+    }
+
+    // ── Atomic acceptance transaction ───────────────────────────
+    // Wraps:  user creation (Path C2 only)  +  workspace member  +
+    // optional project member  +  invitation status flip.
+    // If anything throws, Prisma rolls back the whole thing so we
+    // never end up with an orphan user / half-applied invite.
+    const txResult = await prisma.$transaction(async (tx) => {
+      // 1. Create the user (Path C2) or reuse the current one.
+      let userId = acceptingUserId;
+      if (!userId) {
+        if (!hashedPassword) {
+          throw new Error("Missing hashed password for new user");
+        }
+        const created = await tx.user.create({
+          data: {
+            email: invitation.email,
+            name: name || invitation.email.split("@")[0],
+            password: hashedPassword,
+            // The invitation itself proves ownership of the email,
+            // so we mark it verified immediately. Skips the extra
+            // verify-email roundtrip for invited users.
+            emailVerified: new Date(),
+            position: invitation.position,
+            customTitle: invitation.customTitle,
+            department: invitation.department,
+          },
+        });
+        userId = created.id;
+      } else {
+        // Path A — sync the pre-assigned profile fields only when
+        // the user hasn't set them yet (don't clobber existing data).
+        const me = await tx.user.findUnique({
+          where: { id: userId },
+          select: { position: true, customTitle: true, department: true },
+        });
+        const updates: {
+          position?: typeof invitation.position;
+          customTitle?: string | null;
+          department?: string | null;
+        } = {};
+        if (!me?.position && invitation.position) {
+          updates.position = invitation.position;
+        }
+        if (!me?.customTitle && invitation.customTitle) {
+          updates.customTitle = invitation.customTitle;
+        }
+        if (!me?.department && invitation.department) {
+          updates.department = invitation.department;
+        }
+        if (Object.keys(updates).length > 0) {
+          await tx.user.update({
+            where: { id: userId },
+            data: updates,
+          });
+        }
+      }
+
+      // 2. Workspace member — idempotent.
+      await tx.workspaceMember.upsert({
+        where: {
+          userId_workspaceId: {
+            userId,
+            workspaceId: invitation.workspaceId,
+          },
+        },
+        update: {},
+        create: {
+          userId,
+          workspaceId: invitation.workspaceId,
+          role: invitation.role,
+        },
+      });
+
+      // 3. Optional project membership — bound to the chosen
+      //    company with the chosen role.
+      let redirect = "/home";
+      if (projectIdToBind) {
+        await tx.projectMember.upsert({
           where: {
-            userId_projectId: {
-              userId: acceptingUserId,
-              projectId: project.id,
-            },
+            userId_projectId: { userId, projectId: projectIdToBind },
           },
           update: {
-            ...(companyId !== null && { companyId }),
+            ...(companyIdToBind !== null && { companyId: companyIdToBind }),
             ...(invitation.projectRole !== null && {
               role: invitation.projectRole,
             }),
           },
           create: {
-            userId: acceptingUserId,
-            projectId: project.id,
+            userId,
+            projectId: projectIdToBind,
             role: invitation.projectRole || "EDITOR",
-            companyId,
+            companyId: companyIdToBind,
           },
         });
-        redirect = `/projects/${project.id}`;
+        redirect = `/projects/${projectIdToBind}`;
       }
-    }
 
-    // Notify the inviter that the invitation was accepted.
+      // 4. Flip invitation status. Done inside the tx so a partial
+      //    failure also rolls the status back — Resend can retry
+      //    the same row later.
+      await tx.workspaceInvitation.update({
+        where: { id: invitation.id },
+        data: {
+          status: "ACCEPTED",
+          acceptedAt: new Date(),
+          acceptedUserId: userId,
+        },
+      });
+
+      // 5. Final sanity check — re-read the membership to confirm
+      //    it exists. If the tx commits with no member row, the
+      //    user wouldn't be "inside"; this throws to roll back.
+      const member = await tx.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: {
+            userId,
+            workspaceId: invitation.workspaceId,
+          },
+        },
+        select: { id: true },
+      });
+      if (!member) {
+        throw new Error("Workspace member row missing after upsert");
+      }
+
+      return { userId, redirect };
+    });
+
+    // ── Side effects (best-effort, outside the transaction) ─────
+    // Notification to the inviter. Failures here don't undo the
+    // acceptance because at this point the user is already in.
     try {
       await prisma.notification.create({
         data: {
@@ -269,7 +303,7 @@ export async function POST(
           data: {
             workspaceId: invitation.workspaceId,
             invitationId: invitation.id,
-            acceptedUserId: acceptingUserId,
+            acceptedUserId: txResult.userId,
           },
         },
       });
@@ -277,24 +311,14 @@ export async function POST(
       console.error("[invite accept] notify failed:", err);
     }
 
-    // Finalize the invitation row.
-    await prisma.workspaceInvitation.update({
-      where: { id: invitation.id },
-      data: {
-        status: "ACCEPTED",
-        acceptedAt: new Date(),
-        acceptedUserId: acceptingUserId,
-      },
-    });
-
     return NextResponse.json({
       ok: true,
-      redirect,
-      // For Path C2 (brand new user), the client signs them in next
-      // using NextAuth credentials. Hand back the email so the page
-      // can pre-fill the sign-in form.
+      redirect: txResult.redirect,
+      // For Path C2 the page will sign in via NextAuth Credentials
+      // and hard-reload to the redirect target. Hand back the email
+      // so it can populate the credentials body.
       email: invitation.email,
-      isNewUser: !currentUserId,
+      isNewUser,
     });
   } catch (err) {
     console.error("[invite accept] error:", err);
