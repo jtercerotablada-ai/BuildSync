@@ -36,7 +36,14 @@ export async function GET(
       },
     });
 
-    if (!dashboard || dashboard.workspaceId !== workspaceId) {
+    // Privacy gate: workspace match AND user owns it. We treat
+    // foreign dashboards as 404 (not 403) so we don't leak that a
+    // dashboard with this id exists at all.
+    if (
+      !dashboard ||
+      dashboard.workspaceId !== workspaceId ||
+      dashboard.ownerId !== userId
+    ) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
@@ -63,9 +70,15 @@ export async function PATCH(
 
     const existing = await prisma.report.findUnique({
       where: { id: dashboardId },
-      select: { workspaceId: true },
+      select: { workspaceId: true, ownerId: true },
     });
-    if (!existing || existing.workspaceId !== workspaceId) {
+    // Owner-only gate. Foreign dashboards return 404 to avoid
+    // leaking the id-exists fact.
+    if (
+      !existing ||
+      existing.workspaceId !== workspaceId ||
+      existing.ownerId !== userId
+    ) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
@@ -106,9 +119,14 @@ export async function DELETE(
 
     const existing = await prisma.report.findUnique({
       where: { id: dashboardId },
-      select: { workspaceId: true },
+      select: { workspaceId: true, ownerId: true },
     });
-    if (!existing || existing.workspaceId !== workspaceId) {
+    // Owner-only gate, same shape as PATCH.
+    if (
+      !existing ||
+      existing.workspaceId !== workspaceId ||
+      existing.ownerId !== userId
+    ) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 

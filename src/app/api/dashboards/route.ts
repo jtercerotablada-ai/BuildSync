@@ -10,7 +10,12 @@ const createSchema = z.object({
   iconColor: z.string().optional(),
 });
 
-// GET /api/dashboards - list user-created dashboards in current workspace
+// GET /api/dashboards - list the CURRENT USER's custom dashboards
+//
+// Privacy model (mirrors Asana): dashboards are personal — each user
+// sees only the ones THEY created. Other workspace members don't see
+// your custom dashboards, you don't see theirs. There's no sharing
+// surface yet; if we want one later, this is where it plugs in.
 export async function GET() {
   try {
     const userId = await getCurrentUserId();
@@ -24,6 +29,7 @@ export async function GET() {
       where: {
         workspaceId,
         type: "CUSTOM",
+        ownerId: userId, // ← privacy gate: scope to caller
       },
       include: {
         owner: {

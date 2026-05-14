@@ -28,9 +28,15 @@ export async function POST(
 
     const dashboard = await prisma.report.findUnique({
       where: { id: dashboardId },
-      select: { workspaceId: true },
+      select: { workspaceId: true, ownerId: true },
     });
-    if (!dashboard || dashboard.workspaceId !== workspaceId) {
+    // Owner-only gate. Foreign dashboards return 404 to mask
+    // existence — same pattern as the parent dashboard endpoint.
+    if (
+      !dashboard ||
+      dashboard.workspaceId !== workspaceId ||
+      dashboard.ownerId !== userId
+    ) {
       return NextResponse.json({ error: "Dashboard not found" }, { status: 404 });
     }
 
@@ -82,9 +88,15 @@ export async function DELETE(
 
     const dashboard = await prisma.report.findUnique({
       where: { id: dashboardId },
-      select: { workspaceId: true },
+      select: { workspaceId: true, ownerId: true },
     });
-    if (!dashboard || dashboard.workspaceId !== workspaceId) {
+    // Owner-only gate. Foreign dashboards return 404 to mask
+    // existence — same pattern as the parent dashboard endpoint.
+    if (
+      !dashboard ||
+      dashboard.workspaceId !== workspaceId ||
+      dashboard.ownerId !== userId
+    ) {
       return NextResponse.json({ error: "Dashboard not found" }, { status: 404 });
     }
 
