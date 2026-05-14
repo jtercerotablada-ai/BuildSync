@@ -84,6 +84,7 @@ model User {
   messageMentions       MessageMention[]       @relation("UserMentions")
   teamMessages          TeamMessage[]          @relation("TeamMessageAuthor")
   teamMessageMentions   TeamMessageMention[]   @relation("UserTeamMentions")
+  objectiveMembers      ObjectiveMember[]      @relation("UserObjectiveMembers")
   workspaceNotes    WorkspaceNote[]   @relation("NoteAuthor")
   noteCollaborators NoteCollaborator[]
   preferences       UserPreferences?
@@ -940,6 +941,7 @@ enum NotificationType {
   DUE_DATE_APPROACHING
   PROJECT_INVITATION
   STATUS_UPDATE
+  OBJECTIVE_SHARED
 }
 
 // ============ MENSAJES ============
@@ -1102,10 +1104,35 @@ model Objective {
   tasks         ObjectiveTask[]
   statusUpdates ObjectiveStatusUpdate[]
   likes         ObjectiveLike[]
+  members       ObjectiveMember[]
 
   @@index([workspaceId])
   @@index([ownerId])
   @@index([parentId])
+}
+
+/// Per-objective member list. Mirrors PortfolioMember — lets the
+/// owner share an objective with specific individuals (not just an
+/// entire team). When you add someone, they get an inbox notification
+/// and the objective shows up in their "Team objectives" view.
+model ObjectiveMember {
+  id          String              @id @default(cuid())
+  objectiveId String
+  userId      String
+  role        ObjectiveMemberRole @default(EDITOR)
+  joinedAt    DateTime            @default(now())
+
+  objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  user      User      @relation("UserObjectiveMembers", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([objectiveId, userId])
+  @@index([userId])
+  @@index([objectiveId])
+}
+
+enum ObjectiveMemberRole {
+  EDITOR // can read + edit (Asana "Autor del comentario" / collaborator)
+  VIEWER // read-only
 }
 
 enum ObjectiveStatus {

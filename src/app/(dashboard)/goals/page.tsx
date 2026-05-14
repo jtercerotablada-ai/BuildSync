@@ -187,9 +187,12 @@ export default function GoalsPage() {
     try {
       const params = new URLSearchParams();
       params.set("parentId", "null");
-      // "team" mode = list goals tied to a team (not just my own). The
-      // listing endpoint already scopes by workspace; "all" leaves the
-      // query unscoped beyond that.
+      // "my" = objectives I OWN (server-side filter via ownerId=me).
+      // "team" = objectives where I'm a member but NOT the owner
+      //          (the API already scopes by access — owner OR member
+      //          OR team-member — so client-side we just filter out
+      //          the ones I created).
+      // "all" = everything the API returns (anything I can access).
       if (filterMode === "my") params.set("ownerId", "me");
       if (selectedPeriod && selectedPeriod !== "All") {
         params.set("period", selectedPeriod);
@@ -198,11 +201,12 @@ export default function GoalsPage() {
       const res = await fetch(`/api/objectives?${params}`, { signal });
       if (res.ok) {
         const data = await res.json();
-        // Team-only filter is client-side because the API doesn't
-        // accept "any team" as a query param.
+        const myUserId = (session?.user as { id?: string } | undefined)?.id;
         const filtered =
           filterMode === "team"
-            ? (data as Objective[]).filter((o) => o.team)
+            ? (data as Objective[]).filter(
+                (o) => o.owner?.id !== myUserId
+              )
             : (data as Objective[]);
         setObjectives(filtered);
       }

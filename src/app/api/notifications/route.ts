@@ -135,6 +135,7 @@ function mapNotificationType(type: string): string {
     DUE_DATE_APPROACHING: "update",
     PROJECT_INVITATION: "system",
     STATUS_UPDATE: "update",
+    OBJECTIVE_SHARED: "update",
   };
 
   return typeMap[type] || "system";

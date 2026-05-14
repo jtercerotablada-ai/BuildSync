@@ -122,10 +122,14 @@ export async function GET(
     await verifyWorkspaceAccess(userId, objective.workspace.id);
 
     // ── Privacy gate (Asana parity) ──────────────────────────
-    // Only the owner or team members of the objective's team can
-    // see it. Workspace membership alone doesn't auto-grant access.
-    // 404 (not 403) masks existence from id-pokers.
+    // Visible to: owner, explicit ObjectiveMember, or team member of
+    // the objective's team. Workspace membership alone doesn't
+    // auto-grant access. 404 masks existence from id-pokers.
     const isObjectiveOwner = objective.ownerId === userId;
+    const isObjectiveMember = await prisma.objectiveMember.findUnique({
+      where: { objectiveId_userId: { objectiveId, userId } },
+      select: { id: true },
+    });
     let isTeamMember = false;
     if (objective.teamId) {
       const teamMembership = await prisma.teamMember.findUnique({
@@ -134,7 +138,7 @@ export async function GET(
       });
       isTeamMember = !!teamMembership;
     }
-    if (!isObjectiveOwner && !isTeamMember) {
+    if (!isObjectiveOwner && !isObjectiveMember && !isTeamMember) {
       return NextResponse.json({ error: "Objective not found" }, { status: 404 });
     }
 
@@ -202,9 +206,15 @@ export async function PATCH(
     await verifyWorkspaceAccess(userId, existingObj.workspaceId);
 
     // ── Edit gate ────────────────────────────────────────────
-    // Only the objective owner or a member of its team can edit.
-    // Workspace-only members get 403.
+    // Edit allowed for: owner, ObjectiveMember with role EDITOR,
+    // or team member of the objective's team. VIEWER role members
+    // and non-members get 403.
     const isOwner = existingObj.ownerId === userId;
+    const editorMembership = await prisma.objectiveMember.findUnique({
+      where: { objectiveId_userId: { objectiveId, userId } },
+      select: { role: true },
+    });
+    const isEditorMember = editorMembership?.role === "EDITOR";
     let isTeamMember = false;
     if (existingObj.teamId) {
       const teamMembership = await prisma.teamMember.findUnique({
@@ -213,9 +223,9 @@ export async function PATCH(
       });
       isTeamMember = !!teamMembership;
     }
-    if (!isOwner && !isTeamMember) {
+    if (!isOwner && !isEditorMember && !isTeamMember) {
       return NextResponse.json(
-        { error: "Only the objective owner or a team member can edit" },
+        { error: "Only the objective owner or an editor can edit" },
         { status: 403 }
       );
     }
