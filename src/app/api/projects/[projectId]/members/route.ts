@@ -12,6 +12,10 @@ import {
 const addMemberSchema = z.object({
   userId: z.string().min(1),
   role: z.enum(["ADMIN", "EDITOR", "COMMENTER", "VIEWER"]).optional(),
+  // Bind the new member to a firm participating in the project.
+  // Optional — null/missing means "unaffiliated", typically a holdover
+  // from pre-multi-firm projects.
+  companyId: z.string().min(1).optional().nullable(),
 });
 
 // GET /api/projects/:projectId/members - List members
@@ -128,11 +132,28 @@ export async function POST(
       );
     }
 
+    // If a companyId was supplied, validate it belongs to this
+    // project so callers can't bind members to a company on another
+    // project they don't have access to.
+    if (data.companyId) {
+      const company = await prisma.projectCompany.findFirst({
+        where: { id: data.companyId, projectId },
+        select: { id: true },
+      });
+      if (!company) {
+        return NextResponse.json(
+          { error: "Company not found on this project" },
+          { status: 400 }
+        );
+      }
+    }
+
     const member = await prisma.projectMember.create({
       data: {
         userId: data.userId,
         projectId,
         role: data.role || "EDITOR",
+        companyId: data.companyId ?? null,
       },
       include: {
         user: {
@@ -142,8 +163,11 @@ export async function POST(
             email: true,
             image: true,
             jobTitle: true,
+            position: true,
+            customTitle: true,
           },
         },
+        company: { select: { id: true, name: true, role: true } },
       },
     });
 
@@ -259,15 +283,31 @@ export async function PATCH(
     const body = await req.json();
     const schema = z.object({
       userId: z.string().min(1),
-      role: z.enum(["ADMIN", "EDITOR", "COMMENTER", "VIEWER"]),
+      role: z.enum(["ADMIN", "EDITOR", "COMMENTER", "VIEWER"]).optional(),
+      // Move this member between companies within the same project,
+      // or clear the binding by passing null.
+      companyId: z.string().min(1).nullable().optional(),
     });
     const data = schema.parse(body);
 
-    if (data.userId === project.ownerId) {
+    if (data.userId === project.ownerId && data.role !== undefined) {
       return NextResponse.json(
         { error: "Cannot change owner role here" },
         { status: 400 }
       );
+    }
+
+    if (data.companyId) {
+      const company = await prisma.projectCompany.findFirst({
+        where: { id: data.companyId, projectId },
+        select: { id: true },
+      });
+      if (!company) {
+        return NextResponse.json(
+          { error: "Company not found on this project" },
+          { status: 400 }
+        );
+      }
     }
 
     const updated = await prisma.projectMember.update({
@@ -277,7 +317,10 @@ export async function PATCH(
           projectId,
         },
       },
-      data: { role: data.role },
+      data: {
+        ...(data.role !== undefined && { role: data.role }),
+        ...(data.companyId !== undefined && { companyId: data.companyId }),
+      },
       include: {
         user: {
           select: {
@@ -286,8 +329,11 @@ export async function PATCH(
             email: true,
             image: true,
             jobTitle: true,
+            position: true,
+            customTitle: true,
           },
         },
+        company: { select: { id: true, name: true, role: true } },
       },
     });
 

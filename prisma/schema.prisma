@@ -54,7 +54,11 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
-  jobTitle      String?
+  jobTitle      String?   // Legacy free-form title — kept for backwards
+                          // compatibility. Prefer `position` going forward.
+  position      Position? // Structured role within their firm
+  customTitle   String?   // Used when position = OTHER for display
+  department    String?   // Free-form: "Structural", "MEP", "Office"
   bio           String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -381,6 +385,7 @@ model Project {
   sections      Section[]
   tasks         Task[]
   members       ProjectMember[]
+  companies     ProjectCompany[] @relation("ProjectCompanies")
   views         ProjectView[]
   customFields  ProjectCustomField[]
   portfolios    PortfolioProject[]
@@ -405,11 +410,109 @@ model ProjectMember {
 
   userId    String
   projectId String
+  // Which firm this member represents within this project. Null for
+  // legacy rows / pre-multi-firm projects (interpreted as "the project
+  // owner's firm").
+  companyId String?
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  company ProjectCompany? @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   @@unique([userId, projectId])
+  @@index([companyId])
+}
+
+/// A firm participating in a project. The structural firm, the
+/// architect, the GC, etc. Each company has its own ProjectMembers
+/// (people from that firm working on this project). Companies are
+/// scoped to a single project; a real-world firm can show up as a
+/// separate ProjectCompany row in every project it touches.
+model ProjectCompany {
+  id        String      @id @default(cuid())
+  projectId String
+  name      String
+  role      CompanyRole
+  logoUrl   String?
+  // Email domain used to auto-route invites: when someone with an
+  // @arqstudio.com address joins, we auto-assign them to this
+  // company if its domain matches.
+  domain    String?
+  // True when this company represents the workspace owner's firm
+  // (the "host" firm). Exactly one ProjectCompany per project may
+  // be marked isOwn = true, the rest are external collaborators.
+  isOwn     Boolean     @default(false)
+  // Optional link to that firm's BuildSync workspace if they also
+  // use the platform (federated multi-tenant collaboration).
+  linkedWorkspaceId String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  project Project         @relation("ProjectCompanies", fields: [projectId], references: [id], onDelete: Cascade)
+  members ProjectMember[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+/// Individual position within a firm. Drives display (avatar hover,
+/// people directory filter, members list) and feature gating (only
+/// PROJECT_ENGINEER can stamp drawings, etc.). Independent from
+/// WorkspaceRole (platform permissions) and ProjectRole (per-project
+/// RBAC).
+enum Position {
+  // ── Management / Office ────────────────────────────
+  CEO
+  COO
+  PRINCIPAL_ENGINEER
+  DIRECTOR_OF_ENGINEERING
+  OFFICE_ADMIN
+  ACCOUNTANT
+  HR
+  MARKETING
+
+  // ── Engineering / Production ───────────────────────
+  PROJECT_MANAGER
+  PROJECT_ENGINEER          // Can stamp drawings (PE)
+  SENIOR_STRUCTURAL_ENGINEER
+  STRUCTURAL_ENGINEER
+  JUNIOR_ENGINEER
+  DRAFTER
+  ENGINEERING_INTERN
+
+  // ── Other disciplines (for multi-discipline firms) ──
+  ARCHITECT
+  CIVIL_ENGINEER
+  MEP_ENGINEER
+  GEOTECH_ENGINEER
+
+  // ── Field / External ────────────────────────────────
+  SITE_SUPERINTENDENT
+  CONSULTANT
+  CONTRACTOR
+
+  OTHER
+}
+
+/// What role a firm plays in a specific project. Drives recipient
+/// pickers for RFIs (send to "the Architect of Record"), submittal
+/// reviewers, daily-log signatories, transmittal routing, etc.
+enum CompanyRole {
+  STRUCTURAL_ENGINEER
+  ARCHITECT
+  CIVIL_ENGINEER
+  MEP_ENGINEER
+  GEOTECH_ENGINEER
+  LANDSCAPE_ARCHITECT
+  GENERAL_CONTRACTOR
+  SUBCONTRACTOR
+  OWNER_DEVELOPER
+  CONSTRUCTION_MANAGER
+  COMMISSIONING_AGENT
+  INTERIOR_DESIGNER
+  SPECIALTY_CONSULTANT       // sísmico, fachada, BIM, fire, etc.
+  BUILDING_DEPARTMENT_AHJ    // inspectors / authorities having jurisdiction
+  OTHER
 }
 
 enum ProjectStatus {

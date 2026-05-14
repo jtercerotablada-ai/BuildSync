@@ -34,6 +34,7 @@ import {
   GitBranch,
   MessageSquare,
   FolderOpen,
+  Users,
   ChevronDown,
   Rows3,
   Search,
@@ -55,6 +56,7 @@ import { CalendarView } from "@/components/views/calendar-view";
 import { WorkflowView } from "@/components/views/workflow-view";
 import { MessagesView } from "@/components/views/messages-view";
 import { FilesView } from "@/components/views/files-view";
+import { ProjectTeamView } from "@/components/views/project-team-view";
 import { ProjectOverview } from "@/components/projects/project-overview";
 import { ProjectMembersDialog } from "@/components/projects/project-members-dialog";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
@@ -806,6 +808,17 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               <FolderOpen className="h-4 w-4" />
               <span className="hidden md:inline">Files</span>
             </button>
+            <button
+              onClick={() => handleViewChange("team")}
+              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+                currentView === "team"
+                  ? "border-[#c9a84c] text-[#a8893a]"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              <span className="hidden md:inline">Team</span>
+            </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="p-2 text-slate-400 hover:text-slate-600">
@@ -824,6 +837,10 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                 <DropdownMenuItem onClick={() => handleViewChange("files")}>
                   <FolderOpen className="h-4 w-4 mr-2" />
                   Files
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleViewChange("team")}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Team
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1043,6 +1060,13 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             <FilesView
               sections={project.sections}
               projectId={project.id}
+            />
+          )}
+          {currentView === "team" && (
+            <ProjectTeamView
+              projectId={project.id}
+              projectName={project.name}
+              projectOwner={project.owner}
             />
           )}
         </div>
