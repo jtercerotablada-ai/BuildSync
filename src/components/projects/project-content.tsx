@@ -422,7 +422,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'ARCHIVED' }),
                   }).then(res => {
-                    if (res.ok) { toast.success('Project archived'); router.push('/home'); }
+                    if (res.ok) { toast.success('Project archived'); router.push('/projects/all'); }
                   }).catch(() => toast.error("Operation failed"));
                 }}>
                   <Archive className="h-4 w-4 mr-2" />
@@ -431,7 +431,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                 <DropdownMenuItem className="text-black" onClick={() => {
                   if (confirm('Delete this project? This cannot be undone.')) {
                     fetch(`/api/projects/${project.id}`, { method: 'DELETE' }).then(res => {
-                      if (res.ok) { toast.success('Project deleted'); router.push('/home'); }
+                      if (res.ok) { toast.success('Project deleted'); router.push('/projects/all'); }
                     }).catch(() => toast.error("Operation failed"));
                   }
                 }}>
