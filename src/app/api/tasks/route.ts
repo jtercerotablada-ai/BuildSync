@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId, verifyProjectAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { notifyTaskAssigned } from "@/lib/task-notifications";
 
 const createTaskSchema = z.object({
   name: z.string().min(1, "Task name is required"),
@@ -250,6 +251,25 @@ export async function POST(req: Request) {
         data: { taskName: task.name },
       },
     });
+
+    // Fire inbox notification + email when the task was assigned to
+    // someone OTHER than the creator. Self-assignments stay silent.
+    // Best-effort: a failure here doesn't undo the task creation.
+    if (task.assigneeId && task.assigneeId !== userId) {
+      try {
+        await notifyTaskAssigned({
+          taskId: task.id,
+          assigneeId: task.assigneeId,
+          assignerUserId: userId,
+          taskName: task.name,
+          projectId: task.projectId ?? null,
+          projectName: task.project?.name ?? null,
+          dueDate: task.dueDate ?? null,
+        });
+      } catch (err) {
+        console.error("[tasks POST] notifyTaskAssigned failed:", err);
+      }
+    }
 
     return NextResponse.json(task, { status: 201 });
   } catch (error) {

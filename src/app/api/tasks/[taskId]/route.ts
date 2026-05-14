@@ -8,6 +8,7 @@ import {
   executeRulesOnSectionChange,
   executeRulesOnTaskCompleted,
 } from "@/lib/workflow-engine";
+import { notifyTaskAssigned } from "@/lib/task-notifications";
 
 const updateTaskSchema = z.object({
   name: z.string().min(1).optional(),
@@ -436,6 +437,30 @@ export async function PATCH(
         { taskId, actorUserId: userId },
         projectIdForRules
       );
+    }
+
+    // Inbox notification + email when the assignment changed to a
+    // NEW person (other than the actor). Unassignment and re-
+    // assignments back to the same user stay silent.
+    const assigneeDidChange =
+      data.assigneeId !== undefined &&
+      data.assigneeId !== existingTask.assigneeId &&
+      data.assigneeId !== null &&
+      data.assigneeId !== userId;
+    if (assigneeDidChange && data.assigneeId) {
+      try {
+        await notifyTaskAssigned({
+          taskId,
+          assigneeId: data.assigneeId,
+          assignerUserId: userId,
+          taskName: task.name,
+          projectId: task.projectId ?? null,
+          projectName: task.project?.name ?? null,
+          dueDate: task.dueDate ?? null,
+        });
+      } catch (err) {
+        console.error("[tasks PATCH] notifyTaskAssigned failed:", err);
+      }
     }
 
     return NextResponse.json(task);

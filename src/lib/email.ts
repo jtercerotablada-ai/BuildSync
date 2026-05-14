@@ -226,3 +226,121 @@ export async function sendInvitationEmail(params: InvitationEmailParams) {
     throw new Error("Failed to send invitation email.");
   }
 }
+
+// ───────────────────────────────────────────────────────────────
+// Task assignment email
+// ───────────────────────────────────────────────────────────────
+
+/**
+ * sendTaskAssignedEmail — fires when a user gets a new task
+ * assigned to them. Carries the assigner's name, the task name,
+ * optional project context + due date, and a direct link.
+ *
+ * Visual language matches verify-email / reset-password / invite:
+ * black header with BuildSync mark, gold accents, structured
+ * detail card, dark CTA button.
+ */
+interface TaskAssignedEmailParams {
+  toEmail: string;
+  toName: string | null;
+  assignerName: string;
+  taskName: string;
+  projectName: string | null;
+  projectId: string | null;
+  taskId: string;
+  dueDate: Date | null;
+}
+
+export async function sendTaskAssignedEmail(
+  params: TaskAssignedEmailParams
+) {
+  const {
+    toEmail,
+    toName,
+    assignerName,
+    taskName,
+    projectName,
+    projectId,
+    taskId,
+    dueDate,
+  } = params;
+
+  // Deep link: if there's a project, drop the user on the project
+  // page with the task pre-selected. Otherwise send them to /my-tasks
+  // where the assignment lives.
+  const url = projectId
+    ? `${APP_URL}/projects/${projectId}?task=${taskId}`
+    : `${APP_URL}/my-tasks?task=${taskId}`;
+
+  const safeTask = escapeHtml(taskName);
+  const safeAssigner = escapeHtml(assignerName);
+  const safeProject = projectName ? escapeHtml(projectName) : null;
+  const safeRecipient = toName ? escapeHtml(toName) : null;
+  const dueLine = dueDate
+    ? dueDate.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
+  try {
+    await getResend().emails.send({
+      from: FROM,
+      to: toEmail,
+      subject: `${assignerName} assigned you: ${taskName}`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+    <div style="background:#000;padding:24px;text-align:center">
+      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
+    </div>
+    <div style="padding:32px 28px">
+      <p style="margin:0 0 6px;color:#a8893a;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600">New task assigned</p>
+      <h1 style="margin:0 0 12px;font-size:20px;color:#0f172a;line-height:1.35">
+        ${safeRecipient ? `Hi ${safeRecipient}, ` : ""}<br/>
+        <span style="color:#a8893a">${safeAssigner}</span> assigned you a task.
+      </h1>
+
+      <div style="margin:18px 0 20px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        <p style="margin:0 0 6px;color:#0f172a;font-size:15px;font-weight:600;line-height:1.35">${safeTask}</p>
+        ${
+          safeProject
+            ? `<p style="margin:0;color:#64748b;font-size:12px">Project · <span style="color:#0f172a;font-weight:500">${safeProject}</span></p>`
+            : ""
+        }
+        ${
+          dueLine
+            ? `<p style="margin:4px 0 0;color:#64748b;font-size:12px">Due · <span style="color:#0f172a;font-weight:500">${dueLine}</span></p>`
+            : ""
+        }
+      </div>
+
+      <a href="${url}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">
+        Open task
+      </a>
+
+      <p style="margin:20px 0 0;color:#94a3b8;font-size:12px;line-height:1.55">
+        Or copy &amp; paste this link:<br/>
+        <a href="${url}" style="color:#a8893a;word-break:break-all">${url}</a>
+      </p>
+
+      <p style="margin:24px 0 0;color:#94a3b8;font-size:11px;line-height:1.55">
+        You're receiving this because you were assigned a task on
+        BuildSync. Manage notifications in your account settings.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+    });
+  } catch (error) {
+    console.error("Failed to send task-assigned email:", error);
+    throw new Error("Failed to send task assignment email.");
+  }
+}
