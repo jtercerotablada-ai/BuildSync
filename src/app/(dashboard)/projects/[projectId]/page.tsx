@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { ProjectContent } from "@/components/projects/project-content";
+import { getEffectiveAccess } from "@/lib/auth-utils";
+import { isWorkspaceOwner } from "@/lib/people-types";
 
 interface ProjectPageProps {
   params: Promise<{ projectId: string }>;
@@ -94,13 +96,25 @@ export default async function ProjectPage({
     notFound();
   }
 
-  // Check access
-  const hasAccess =
-    project.ownerId === user.id ||
-    project.members.some((m) => m.userId === user.id) ||
-    project.visibility === "PUBLIC";
+  // ── Hierarchical access check ────────────────────────────────
+  // Same rules as /api/projects/[id]: L1–L3 need explicit member-
+  // ship; L4+ + OWNER see anything in the workspace; PUBLIC
+  // bypasses for everyone.
+  const access = await getEffectiveAccess(user.id);
+  if (!access) {
+    notFound();
+  }
+  const isExecutive =
+    isWorkspaceOwner(access.workspaceRole) || access.level >= 5;
+  const isManagement = isExecutive || access.level >= 4;
 
-  if (!hasAccess && project.visibility === "WORKSPACE") {
+  const isProjectOwner = project.ownerId === user.id;
+  const isProjectMember = project.members.some((m) => m.userId === user.id);
+  const isPublic = project.visibility === "PUBLIC";
+
+  let hasAccess = isProjectOwner || isProjectMember || isPublic;
+
+  if (!hasAccess && isManagement) {
     const workspaceMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -109,11 +123,10 @@ export default async function ProjectPage({
         },
       },
     });
+    if (workspaceMember) hasAccess = true;
+  }
 
-    if (!workspaceMember) {
-      notFound();
-    }
-  } else if (!hasAccess) {
+  if (!hasAccess) {
     notFound();
   }
 

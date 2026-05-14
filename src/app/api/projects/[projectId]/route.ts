@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
+import { isWorkspaceOwner } from "@/lib/people-types";
 
 const updateProjectSchema = z.object({
   name: z.string().min(1).optional(),
@@ -74,36 +75,41 @@ export async function GET(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // Check access
-    const hasAccess =
-      project.ownerId === userId ||
-      project.members.some((m) => m.userId === userId) ||
-      project.visibility === "PUBLIC";
+    // ── Access control ────────────────────────────────────────
+    // Hierarchical: OWNER + L5+ + L4 see any workspace project.
+    // L1–L3 need explicit project membership or PUBLIC visibility —
+    // workspace membership alone no longer grants access (that was
+    // the bug that leaked all workspace projects to invited users).
+    const access = await getEffectiveAccess(userId);
+    if (!access) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
+    const isExecutive =
+      isWorkspaceOwner(access.workspaceRole) || access.level >= 5;
+    const isManagement = isExecutive || access.level >= 4;
+
+    const isProjectOwner = project.ownerId === userId;
+    const isProjectMember = project.members.some((m) => m.userId === userId);
+    const isPublic = project.visibility === "PUBLIC";
+
+    let hasAccess = isProjectOwner || isProjectMember || isPublic;
+
+    // L4+ also see any project in the same workspace.
+    if (!hasAccess && isManagement) {
+      const workspaceMember = await prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: {
+            userId,
+            workspaceId: project.workspaceId,
+          },
+        },
+      });
+      if (workspaceMember) hasAccess = true;
+    }
 
     if (!hasAccess) {
-      // Check workspace membership for WORKSPACE visibility
-      if (project.visibility === "WORKSPACE") {
-        const workspaceMember = await prisma.workspaceMember.findUnique({
-          where: {
-            userId_workspaceId: {
-              userId,
-              workspaceId: project.workspaceId,
-            },
-          },
-        });
-
-        if (!workspaceMember) {
-          return NextResponse.json(
-            { error: "Access denied" },
-            { status: 403 }
-          );
-        }
-      } else {
-        return NextResponse.json(
-          { error: "Access denied" },
-          { status: 403 }
-        );
-      }
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     return NextResponse.json(project);

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
+import { isWorkspaceOwner } from "@/lib/people-types";
 import { getTemplateById } from "@/lib/templates-data";
 
 const createProjectSchema = z.object({
@@ -25,6 +26,24 @@ const createProjectSchema = z.object({
 });
 
 // GET /api/projects - Get user's projects
+//
+// ── Access control ────────────────────────────────────────────
+// Visibility is hierarchical, not flat:
+//
+//   OWNER + L5+ Executive  → all workspace projects, period.
+//   L4 Management          → all workspace projects (PM/PE/Office
+//                            Admin need cross-project visibility
+//                            to coordinate).
+//   L1–L3                  → ONLY projects where they are the
+//                            owner or an explicit ProjectMember.
+//                            visibility=WORKSPACE no longer auto-
+//                            grants access — that was leaking
+//                            projects to invited users who were
+//                            only meant to see one specific
+//                            project.
+//
+// PUBLIC visibility still bypasses for everyone (intentionally
+// open content like demo / showcase projects).
 export async function GET(req: Request) {
   try {
     const userId = await getCurrentUserId();
@@ -33,27 +52,49 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const access = await getEffectiveAccess(userId);
+    if (!access) {
+      return NextResponse.json([]);
+    }
+
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get("workspaceId");
     const query = searchParams.get("q") || "";
+
+    // Compute the per-user visibility clause based on hierarchy.
+    const isExecutive =
+      isWorkspaceOwner(access.workspaceRole) || access.level >= 5;
+    const isManagement = isExecutive || access.level >= 4;
+
+    let visibilityClause;
+    if (isManagement) {
+      // L4+ see everything in their workspace. Workspace scope
+      // still applies — they can't peek into other workspaces.
+      visibilityClause = {
+        workspace: { members: { some: { userId } } },
+      };
+    } else {
+      // L1–L3 see only projects they own, are explicit members of,
+      // or that are explicitly PUBLIC. WORKSPACE-visibility no
+      // longer auto-grants access.
+      visibilityClause = {
+        OR: [
+          { ownerId: userId },
+          { members: { some: { userId } } },
+          {
+            workspace: { members: { some: { userId } } },
+            visibility: "PUBLIC" as const,
+          },
+        ],
+      };
+    }
 
     const projects = await prisma.project.findMany({
       where: {
         AND: [
           workspaceId ? { workspaceId } : {},
           query ? { name: { contains: query, mode: "insensitive" } } : {},
-          {
-            OR: [
-              { ownerId: userId },
-              { members: { some: { userId } } },
-              {
-                workspace: {
-                  members: { some: { userId } },
-                },
-                visibility: { in: ["WORKSPACE", "PUBLIC"] },
-              },
-            ],
-          },
+          visibilityClause,
         ],
       },
       include: {
