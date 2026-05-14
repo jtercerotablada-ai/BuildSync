@@ -8,7 +8,10 @@ import {
   executeRulesOnSectionChange,
   executeRulesOnTaskCompleted,
 } from "@/lib/workflow-engine";
-import { notifyTaskAssigned } from "@/lib/task-notifications";
+import {
+  notifyTaskAssigned,
+  notifyTaskCompleted,
+} from "@/lib/task-notifications";
 
 const updateTaskSchema = z.object({
   name: z.string().min(1).optional(),
@@ -460,6 +463,25 @@ export async function PATCH(
         });
       } catch (err) {
         console.error("[tasks PATCH] notifyTaskAssigned failed:", err);
+      }
+    }
+
+    // Inbox notification to the task creator when someone OTHER
+    // than them flips the task to completed. Re-opening (true →
+    // false) and self-completing stay silent. Mirror of the
+    // assignment notify in the opposite direction.
+    if (completionDidFlipTrue && task.creator?.id) {
+      try {
+        await notifyTaskCompleted({
+          taskId,
+          recipientUserId: task.creator.id,
+          completerUserId: userId,
+          taskName: task.name,
+          projectId: task.projectId ?? null,
+          projectName: task.project?.name ?? null,
+        });
+      } catch (err) {
+        console.error("[tasks PATCH] notifyTaskCompleted failed:", err);
       }
     }
 

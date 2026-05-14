@@ -101,3 +101,77 @@ export async function notifyTaskAssigned(opts: {
     }
   }
 }
+
+/**
+ * Drop a TASK_COMPLETED Notification when a teammate marks a task
+ * complete. Mirror of notifyTaskAssigned but in the other direction:
+ * when the assignee (or anyone) flips the task to completed, the
+ * person who created/owns the task gets pinged so they know their
+ * work is done.
+ *
+ * Inbox-only. No email — completions are informational, not action-
+ * requiring; the inbox row is enough signal.
+ *
+ * Skips when:
+ *   - The completer IS the recipient (self-complete is silent)
+ *   - There's no recipient (task has no creator on file)
+ */
+export async function notifyTaskCompleted(opts: {
+  taskId: string;
+  recipientUserId: string;
+  completerUserId: string;
+  taskName: string;
+  projectId: string | null;
+  projectName: string | null;
+}) {
+  const {
+    taskId,
+    recipientUserId,
+    completerUserId,
+    taskName,
+    projectId,
+    projectName,
+  } = opts;
+
+  // Self-complete: silent. (You finished your own task — you know.)
+  if (recipientUserId === completerUserId) return;
+
+  // Resolve completer's display so the inbox can render their avatar
+  // + name instead of the generic firm fallback.
+  let completerName: string | null = null;
+  let completerImage: string | null = null;
+  try {
+    const completer = await prisma.user.findUnique({
+      where: { id: completerUserId },
+      select: { name: true, email: true, image: true },
+    });
+    completerName = completer?.name ?? completer?.email ?? "A teammate";
+    completerImage = completer?.image ?? null;
+  } catch (err) {
+    console.error("[notifyTaskCompleted] profile lookup failed:", err);
+  }
+
+  try {
+    await prisma.notification.create({
+      data: {
+        userId: recipientUserId,
+        type: "TASK_COMPLETED",
+        title: `${completerName ?? "Someone"} completed your task`,
+        message: taskName,
+        data: {
+          taskId,
+          projectId: projectId ?? null,
+          taskName,
+          projectName: projectName ?? null,
+          // authorName/Image keys match the inbox shaping path —
+          // /api/notifications reads these to render the right
+          // sender avatar/name on the row.
+          authorName: completerName,
+          authorImage: completerImage,
+        },
+      },
+    });
+  } catch (err) {
+    console.error("[notifyTaskCompleted] inbox create failed:", err);
+  }
+}
