@@ -70,7 +70,7 @@ export function HomeHeader({
   });
 
   return (
-    <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b">
+    <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4">
       <p className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">
         {dateStr}
       </p>
