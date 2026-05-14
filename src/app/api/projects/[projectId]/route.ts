@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
-import { isWorkspaceOwner } from "@/lib/people-types";
+import { getCurrentUserId } from "@/lib/auth-utils";
+import { getLevel } from "@/lib/people-types";
 
 const updateProjectSchema = z.object({
   name: z.string().min(1).optional(),
@@ -75,37 +75,35 @@ export async function GET(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // ── Access control ────────────────────────────────────────
-    // Hierarchical: OWNER + L5+ + L4 see any workspace project.
-    // L1–L3 need explicit project membership or PUBLIC visibility —
-    // workspace membership alone no longer grants access (that was
-    // the bug that leaked all workspace projects to invited users).
-    const access = await getEffectiveAccess(userId);
-    if (!access) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    const isExecutive =
-      isWorkspaceOwner(access.workspaceRole) || access.level >= 5;
-    const isManagement = isExecutive || access.level >= 4;
-
+    // ── Per-workspace access control ─────────────────────────
+    // Resolve role + level for the workspace THIS PROJECT lives in
+    // — not the user's "primary" workspace, which could differ if
+    // they belong to multiple workspaces (own + invited firm).
     const isProjectOwner = project.ownerId === userId;
     const isProjectMember = project.members.some((m) => m.userId === userId);
     const isPublic = project.visibility === "PUBLIC";
 
     let hasAccess = isProjectOwner || isProjectMember || isPublic;
 
-    // L4+ also see any project in the same workspace.
-    if (!hasAccess && isManagement) {
-      const workspaceMember = await prisma.workspaceMember.findUnique({
+    if (!hasAccess) {
+      const membership = await prisma.workspaceMember.findUnique({
         where: {
           userId_workspaceId: {
             userId,
             workspaceId: project.workspaceId,
           },
         },
+        include: { user: { select: { position: true } } },
       });
-      if (workspaceMember) hasAccess = true;
+      if (membership) {
+        const role = membership.role;
+        const level = getLevel(membership.user.position);
+        // OWNER / ADMIN of THIS workspace, or Position L4+ inside
+        // it, see any project in the workspace.
+        const seesAll =
+          role === "OWNER" || role === "ADMIN" || level >= 4;
+        if (seesAll) hasAccess = true;
+      }
     }
 
     if (!hasAccess) {

@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { ProjectContent } from "@/components/projects/project-content";
-import { getEffectiveAccess } from "@/lib/auth-utils";
-import { isWorkspaceOwner } from "@/lib/people-types";
+import { getLevel } from "@/lib/people-types";
 
 interface ProjectPageProps {
   params: Promise<{ projectId: string }>;
@@ -96,34 +95,33 @@ export default async function ProjectPage({
     notFound();
   }
 
-  // ── Hierarchical access check ────────────────────────────────
-  // Same rules as /api/projects/[id]: L1–L3 need explicit member-
-  // ship; L4+ + OWNER see anything in the workspace; PUBLIC
-  // bypasses for everyone.
-  const access = await getEffectiveAccess(user.id);
-  if (!access) {
-    notFound();
-  }
-  const isExecutive =
-    isWorkspaceOwner(access.workspaceRole) || access.level >= 5;
-  const isManagement = isExecutive || access.level >= 4;
-
+  // ── Per-workspace access check ───────────────────────────────
+  // Read the user's role + position relative to THIS project's
+  // workspace (not the user's primary workspace) so multi-workspace
+  // users don't get leaked access via their OWNER status elsewhere.
   const isProjectOwner = project.ownerId === user.id;
   const isProjectMember = project.members.some((m) => m.userId === user.id);
   const isPublic = project.visibility === "PUBLIC";
 
   let hasAccess = isProjectOwner || isProjectMember || isPublic;
 
-  if (!hasAccess && isManagement) {
-    const workspaceMember = await prisma.workspaceMember.findUnique({
+  if (!hasAccess) {
+    const membership = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
           userId: user.id,
           workspaceId: project.workspaceId,
         },
       },
+      include: { user: { select: { position: true } } },
     });
-    if (workspaceMember) hasAccess = true;
+    if (membership) {
+      const role = membership.role;
+      const level = getLevel(membership.user.position);
+      if (role === "OWNER" || role === "ADMIN" || level >= 4) {
+        hasAccess = true;
+      }
+    }
   }
 
   if (!hasAccess) {

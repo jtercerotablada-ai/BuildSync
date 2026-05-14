@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
-import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
-import { isWorkspaceOwner } from "@/lib/people-types";
+import { getCurrentUserId } from "@/lib/auth-utils";
+import { getLevel } from "@/lib/people-types";
 import { getTemplateById } from "@/lib/templates-data";
 
 const createProjectSchema = z.object({
@@ -52,49 +52,60 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const access = await getEffectiveAccess(userId);
-    if (!access) {
-      return NextResponse.json([]);
-    }
-
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get("workspaceId");
     const query = searchParams.get("q") || "";
 
-    // Compute the per-user visibility clause based on hierarchy.
-    const isExecutive =
-      isWorkspaceOwner(access.workspaceRole) || access.level >= 5;
-    const isManagement = isExecutive || access.level >= 4;
+    // ── Per-workspace access resolution ────────────────────────
+    // Critical: a user may belong to MULTIPLE workspaces (e.g.
+    // their own personal workspace where they're OWNER, plus a
+    // firm workspace where they were invited as MEMBER). The role
+    // and effective level differ PER workspace. Resolving access
+    // globally is wrong — the OWNER status of their personal
+    // workspace would leak the firm workspace's projects too.
+    //
+    // We fetch each WorkspaceMember row and build a visibility
+    // clause specific to that workspace, then OR them.
+    const memberships = await prisma.workspaceMember.findMany({
+      where: { userId },
+      include: {
+        user: { select: { position: true } },
+      },
+    });
 
-    let visibilityClause;
-    if (isManagement) {
-      // L4+ see everything in their workspace. Workspace scope
-      // still applies — they can't peek into other workspaces.
-      visibilityClause = {
-        workspace: { members: { some: { userId } } },
-      };
-    } else {
-      // L1–L3 see only projects they own, are explicit members of,
-      // or that are explicitly PUBLIC. WORKSPACE-visibility no
-      // longer auto-grants access.
-      visibilityClause = {
+    if (memberships.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    const visibilityClauses = memberships.map((m) => {
+      const role = m.role;
+      const level = getLevel(m.user.position);
+      // L4+ rules vary by role: OWNER and ADMIN always see all
+      // workspace projects; MEMBER/WORKER/GUEST need Position
+      // level >= 4 OR explicit project membership.
+      const isWorkspaceLeadership = role === "OWNER" || role === "ADMIN";
+      const seesAllInWorkspace = isWorkspaceLeadership || level >= 4;
+
+      if (seesAllInWorkspace) {
+        return { workspaceId: m.workspaceId };
+      }
+
+      return {
+        workspaceId: m.workspaceId,
         OR: [
           { ownerId: userId },
           { members: { some: { userId } } },
-          {
-            workspace: { members: { some: { userId } } },
-            visibility: "PUBLIC" as const,
-          },
+          { visibility: "PUBLIC" as const },
         ],
       };
-    }
+    });
 
     const projects = await prisma.project.findMany({
       where: {
         AND: [
           workspaceId ? { workspaceId } : {},
           query ? { name: { contains: query, mode: "insensitive" } } : {},
-          visibilityClause,
+          { OR: visibilityClauses },
         ],
       },
       include: {
