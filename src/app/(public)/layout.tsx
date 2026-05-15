@@ -46,7 +46,7 @@ const organizationSchema = {
   name: 'Tercero Tablada Civil & Structural Engineering Inc.',
   alternateName: 'Tercero Tablada',
   url: 'https://ttcivilstructural.com',
-  logo: 'https://ttcivilstructural.com/ttc/img/logo-tt-v2.svg',
+  logo: 'https://ttcivilstructural.com/ttc/img/logo-horizontal-wide.png',
   email: 'info@tercerotablada.com',
   description:
     'International structural engineering firm. Registered P.E. Specializes in residential, vertical, commercial, industrial, and public works projects with BIM LOD 300 and post-tensioned concrete.',

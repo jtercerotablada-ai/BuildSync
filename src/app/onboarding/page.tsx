@@ -276,7 +276,8 @@ function OnboardingForm() {
         <div className="max-w-md w-full mx-auto">
           {/* Logo */}
           <div className="flex items-center mb-8">
-            <img src="/ttc/img/logo-icon-dark.svg" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-16 h-16" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ttc/img/logo-square.png" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-16 h-16 object-contain" />
           </div>
 
           {/* Welcome text */}

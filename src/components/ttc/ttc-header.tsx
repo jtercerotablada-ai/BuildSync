@@ -53,7 +53,7 @@ export function TTCHeader() {
           <Link href="/" className="header__logo">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/ttc/img/logo-tt-v2.svg"
+              src="/ttc/img/logo-horizontal-wide.png"
               alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC."
               className="header__logo-img"
             />
