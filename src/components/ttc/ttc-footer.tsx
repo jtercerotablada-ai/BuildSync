@@ -22,11 +22,11 @@ export function TTCFooter() {
         <div className="footer__top">
           <div className="footer__brand">
             <Image
-              src="/ttc/img/logo-horizontal-wide.png"
+              src="/ttc/img/logo-white.png"
               alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC."
               className="footer__logo-img"
-              width={300}
-              height={100}
+              width={200}
+              height={200}
               priority={false}
             />
             <p className="footer__tagline">{t('footer.tagline')}</p>
