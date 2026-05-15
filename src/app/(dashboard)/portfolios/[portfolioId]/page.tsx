@@ -48,6 +48,13 @@ import {
   Activity,
   Users,
   MessageSquare,
+  Star,
+  UserPlus,
+  SlidersHorizontal,
+  Filter,
+  ArrowUpDown,
+  Layers,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -217,6 +224,14 @@ const GATE_META: Record<ProjectGate, { label: string }> = {
 
 function statusMeta(s: PortfolioStatus) {
   return STATUS_OPTIONS.find((o) => o.value === s) || STATUS_OPTIONS[0];
+}
+
+function formatDate(date: string | null): string {
+  if (!date) return "—";
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function formatBudget(value: number, currency: string): string {
@@ -670,25 +685,56 @@ export default function PortfolioDetailPage() {
               </span>
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="flex-shrink-0">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setEditingName(true)}>
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-black"
-                onClick={handleDeletePortfolio}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete portfolio
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                /* favorite is portfolio-list scoped — placeholder hook here */
+              }}
+              aria-label="Favorite"
+              className="hidden sm:inline-flex"
+            >
+              <Star className="h-4 w-4 text-gray-400" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden md:inline-flex"
+              onClick={() => toast.message("Sharing coming soon")}
+            >
+              <UserPlus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Share</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden md:inline-flex"
+              onClick={() => toast.message("Customize coming soon")}
+            >
+              <SlidersHorizontal className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Customize</span>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditingName(true)}>
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-black"
+                  onClick={handleDeletePortfolio}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete portfolio
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <Textarea
@@ -812,21 +858,33 @@ export default function PortfolioDetailPage() {
 
             <TabsContent value="list" className="mt-4">
               <div className="bg-white rounded-lg border">
-                <div className="flex items-center gap-2 px-3 md:px-4 py-3 border-b">
+                {/* Toolbar (Asana-style: Add work + Filter/Sort/Group + Search) */}
+                <div className="flex flex-wrap items-center gap-2 px-3 md:px-4 py-2.5 border-b">
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={() => {
                       setAddProjectOpen(true);
                       fetchAvailableProjects();
                     }}
+                    className="bg-black hover:bg-gray-800"
                   >
-                    <Plus className="h-4 w-4 sm:mr-2" />
+                    <Plus className="h-4 w-4 sm:mr-1.5" />
                     <span className="hidden sm:inline">Add project</span>
                   </Button>
-                  <span className="text-xs text-gray-500 ml-auto hidden md:block">
-                    Drag rows to reorder.
-                  </span>
+                  <div className="hidden lg:block w-px h-5 bg-gray-200 mx-1" />
+                  <ToolbarChip icon={<Filter className="h-3.5 w-3.5" />} label="Filter" />
+                  <ToolbarChip icon={<ArrowUpDown className="h-3.5 w-3.5" />} label="Sort" />
+                  <ToolbarChip icon={<Layers className="h-3.5 w-3.5" />} label="Group" />
+                  <ToolbarChip icon={<SlidersHorizontal className="h-3.5 w-3.5" />} label="Options" />
+                  <div className="ml-auto flex items-center">
+                    <button
+                      className="p-1.5 hover:bg-gray-100 rounded-md"
+                      onClick={() => toast.message("Search coming soon")}
+                      aria-label="Search"
+                    >
+                      <Search className="h-4 w-4 text-gray-500" />
+                    </button>
+                  </div>
                 </div>
 
                 {portfolio.projects.length === 0 ? (
@@ -847,12 +905,13 @@ export default function PortfolioDetailPage() {
                       strategy={verticalListSortingStrategy}
                     >
                       <div>
-                        <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-2 border-b text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                        <div className="hidden md:grid grid-cols-[repeat(14,minmax(0,1fr))] gap-4 px-4 py-2 border-b text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                           <div className="col-span-4">Name</div>
                           <div className="col-span-1">Type</div>
                           <div className="col-span-1">Gate</div>
                           <div className="col-span-2">Status</div>
                           <div className="col-span-2">Progress</div>
+                          <div className="col-span-2">Due date</div>
                           <div className="col-span-1">Owner</div>
                           <div className="col-span-1"></div>
                         </div>
@@ -1066,6 +1125,27 @@ function BreakdownCard({
   );
 }
 
+function ToolbarChip({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick || (() => toast.message(`${label} coming soon`))}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+    >
+      {icon}
+      <span className="hidden sm:inline">{label}</span>
+    </button>
+  );
+}
+
 function EmptyProjects({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -1145,7 +1225,7 @@ function SortableProjectRow({
       )}
       onClick={onClick}
     >
-      <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 items-center">
+      <div className="hidden md:grid grid-cols-[repeat(14,minmax(0,1fr))] gap-4 px-4 py-3 items-center">
         <div className="col-span-4 flex items-center gap-2 min-w-0">
           <button
             {...attributes}
@@ -1184,6 +1264,18 @@ function SortableProjectRow({
               {p.stats.progress}%
             </span>
           </div>
+        </div>
+        <div className="col-span-2 text-xs text-gray-700 truncate flex items-center gap-1.5">
+          {p.startDate || p.endDate ? (
+            <>
+              <Calendar className="h-3 w-3 text-gray-400 flex-shrink-0" />
+              <span>
+                {formatDate(p.startDate)} – {formatDate(p.endDate)}
+              </span>
+            </>
+          ) : (
+            <span className="text-gray-300">—</span>
+          )}
         </div>
         <div className="col-span-1">
           <Avatar className="h-6 w-6">
