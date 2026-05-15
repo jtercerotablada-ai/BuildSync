@@ -60,6 +60,13 @@ export async function GET() {
                 name: true,
                 color: true,
                 status: true,
+                type: true,
+                gate: true,
+                budget: true,
+                currency: true,
+                tasks: {
+                  select: { id: true, completed: true, dueDate: true },
+                },
               },
             },
           },
@@ -73,7 +80,92 @@ export async function GET() {
       orderBy: { updatedAt: "desc" },
     });
 
-    return NextResponse.json(portfolios);
+    // Compute aggregate stats per portfolio so the list page can render
+    // budget totals, health distribution, and overall progress without
+    // making N follow-up requests.
+    const withStats = portfolios.map((p) => {
+      let totalBudget = 0;
+      let totalTasks = 0;
+      let completedTasks = 0;
+      let overdueTasks = 0;
+      let atRiskCount = 0;
+      let offTrackCount = 0;
+      let onTrackCount = 0;
+      let onHoldCount = 0;
+      let completeCount = 0;
+      const now = Date.now();
+      let currency: string | null = null;
+
+      for (const pp of p.projects) {
+        const proj = pp.project;
+        if (proj.budget) {
+          totalBudget += Number(proj.budget);
+          if (!currency && proj.currency) currency = proj.currency;
+        }
+        for (const t of proj.tasks) {
+          totalTasks += 1;
+          if (t.completed) completedTasks += 1;
+          else if (t.dueDate && new Date(t.dueDate).getTime() < now) {
+            overdueTasks += 1;
+          }
+        }
+        switch (proj.status) {
+          case "AT_RISK":
+            atRiskCount += 1;
+            break;
+          case "OFF_TRACK":
+            offTrackCount += 1;
+            break;
+          case "ON_HOLD":
+            onHoldCount += 1;
+            break;
+          case "COMPLETE":
+            completeCount += 1;
+            break;
+          default:
+            onTrackCount += 1;
+        }
+      }
+
+      const avgProgress =
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+      // Strip raw tasks from response — the list page only needs the rollup.
+      const projectsLight = p.projects.map((pp) => ({
+        id: pp.id,
+        position: pp.position,
+        project: {
+          id: pp.project.id,
+          name: pp.project.name,
+          color: pp.project.color,
+          status: pp.project.status,
+          type: pp.project.type,
+          gate: pp.project.gate,
+        },
+      }));
+
+      return {
+        ...p,
+        projects: projectsLight,
+        stats: {
+          totalBudget,
+          currency: currency || "USD",
+          totalTasks,
+          completedTasks,
+          overdueTasks,
+          avgProgress,
+          health: {
+            onTrack: onTrackCount,
+            atRisk: atRiskCount,
+            offTrack: offTrackCount,
+            onHold: onHoldCount,
+            complete: completeCount,
+          },
+        },
+      };
+    });
+
+    return NextResponse.json(withStats);
   } catch (error) {
     console.error("Error fetching portfolios:", error);
     return NextResponse.json(

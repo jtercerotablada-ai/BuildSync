@@ -306,6 +306,7 @@ model Portfolio {
   projects      PortfolioProject[]
   members       PortfolioMember[]
   statusUpdates PortfolioStatusUpdate[]
+  messages      Message[]
 
   @@index([workspaceId])
 }
@@ -955,6 +956,7 @@ model Message {
 
   workspaceId String?
   projectId   String?
+  portfolioId String?
   authorId    String?
 
   // Threading — replies point at the root they belong to. Roots
@@ -964,6 +966,7 @@ model Message {
 
   workspace   Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   project     Project?            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  portfolio   Portfolio?          @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   author      User?               @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   parent      Message?            @relation("MessageThread", fields: [parentMessageId], references: [id], onDelete: Cascade)
   replies     Message[]           @relation("MessageThread")
@@ -973,6 +976,7 @@ model Message {
 
   @@index([workspaceId])
   @@index([projectId])
+  @@index([portfolioId])
   @@index([parentMessageId])
 }
 

@@ -41,7 +41,17 @@ export async function GET(
         projects: {
           include: {
             project: {
-              include: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+                status: true,
+                type: true,
+                gate: true,
+                budget: true,
+                currency: true,
+                startDate: true,
+                endDate: true,
                 owner: {
                   select: {
                     id: true,
@@ -111,11 +121,14 @@ export async function GET(
       ).length;
       const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
+      // Strip raw tasks; serialize Decimal budget as number for JSON.
+      const { tasks: _tasks, budget, ...rest } = project;
+      void _tasks;
       return {
         ...pp,
         project: {
-          ...project,
-          tasks: undefined, // Remove raw tasks from response
+          ...rest,
+          budget: budget ? Number(budget) : null,
           stats: {
             total: totalTasks,
             completed: completedTasks,
