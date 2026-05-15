@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -509,14 +510,35 @@ function PortfoliosPageInner() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
           <Card
-            className="p-6 border-2 border-dashed border-gray-200 hover:border-gray-400 hover:bg-gray-50 cursor-pointer transition-colors flex flex-col items-center justify-center text-center min-h-[200px]"
+            className="p-4 md:p-5 pt-3 border-2 border-dashed border-gray-200 hover:border-gray-400 hover:bg-gray-50 cursor-pointer transition-colors flex flex-col items-center text-center min-h-[280px] group"
             onClick={() => setCreateOpen(true)}
           >
-            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-              <Plus className="h-5 w-5 text-gray-600" />
+            <div className="h-6 mb-1" aria-hidden="true" />
+            <div className="relative mb-3 mt-1">
+              <svg
+                viewBox="0 0 120 90"
+                className="w-[120px] h-[90px]"
+                aria-hidden="true"
+              >
+                <path
+                  d="M8 18 L8 78 Q8 84 14 84 L106 84 Q112 84 112 78 L112 28 Q112 22 106 22 L52 22 L46 14 Q44 12 41 12 L14 12 Q8 12 8 18 Z"
+                  fill="none"
+                  stroke="#d1d5db"
+                  strokeWidth="2"
+                  strokeDasharray="4 3"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center transition-colors">
+                  <Plus className="h-6 w-6 text-gray-500" />
+                </div>
+              </div>
             </div>
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-semibold text-black">
               Create portfolio
+            </span>
+            <span className="text-xs text-gray-500 mt-0.5">
+              Group projects together
             </span>
           </Card>
 
@@ -1437,40 +1459,17 @@ function PortfolioCard({
     health.complete;
   const riskCount = health.atRisk + health.offTrack;
 
+  const folderColor = portfolio.color || "#a8893a";
+  const ownerInitial =
+    portfolio.owner.name?.charAt(0).toUpperCase() || "?";
+
   return (
     <Card
-      className="relative p-4 md:p-5 hover:shadow-md cursor-pointer transition-shadow min-h-[200px] flex flex-col group"
+      className="relative p-4 md:p-5 pt-3 hover:shadow-lg cursor-pointer transition-all min-h-[280px] flex flex-col items-center text-center group bg-white border-gray-200"
       onClick={onClick}
     >
-      {/* Top row: icon + name + favorite */}
-      <div className="flex items-start gap-3">
-        <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: (portfolio.color || "#a8893a") + "20" }}
-        >
-          <Folder
-            className="h-5 w-5"
-            style={{ color: portfolio.color || "#a8893a" }}
-          />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <h3 className="font-medium text-black truncate min-w-0">
-              {portfolio.name}
-            </h3>
-            <span
-              className={cn(
-                "w-2 h-2 rounded-full flex-shrink-0",
-                meta.dot
-              )}
-              title={meta.label}
-            />
-          </div>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {_count.projects}{" "}
-            {_count.projects === 1 ? "project" : "projects"}
-          </p>
-        </div>
+      {/* Top row: favorite (visible on hover or when favorited) */}
+      <div className="w-full flex items-center justify-end mb-1 h-6">
         <button
           onClick={onToggleFavorite}
           className={cn(
@@ -1490,92 +1489,152 @@ function PortfolioCard({
         </button>
       </div>
 
-      {portfolio.description && (
-        <p className="text-xs text-gray-600 mt-2 line-clamp-2 break-words">
-          {portfolio.description}
-        </p>
-      )}
+      {/* Big folder with avatar overlay (Asana-style) */}
+      <div className="relative mb-3 mt-1">
+        <FolderIllustration color={folderColor} />
+        <div
+          className="absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center"
+          aria-hidden="true"
+        >
+          <Avatar className="h-10 w-10 ring-2 ring-white">
+            <AvatarImage src={portfolio.owner.image || ""} />
+            <AvatarFallback className="text-sm font-medium bg-gray-200 text-gray-700">
+              {ownerInitial}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+        {/* Status dot in corner */}
+        <span
+          className={cn(
+            "absolute -bottom-1 right-2 w-3 h-3 rounded-full ring-2 ring-white",
+            meta.dot
+          )}
+          title={meta.label}
+        />
+      </div>
 
-      {/* Health distribution bar (Asana doesn't have this) */}
+      {/* Name + count */}
+      <h3 className="font-semibold text-black text-sm md:text-base truncate w-full px-2">
+        {portfolio.name}
+      </h3>
+      <p className="text-xs text-gray-500 mt-0.5">
+        {_count.projects}{" "}
+        {_count.projects === 1 ? "project" : "projects"}
+      </p>
+
+      {/* Health bar */}
       {totalHealth > 0 && (
-        <div className="mt-3">
+        <div className="w-full mt-3">
           <div className="flex h-1.5 rounded-full overflow-hidden bg-gray-100">
             {health.onTrack > 0 && (
               <div
                 className="bg-[#c9a84c]"
-                style={{
-                  width: `${(health.onTrack / totalHealth) * 100}%`,
-                }}
+                style={{ width: `${(health.onTrack / totalHealth) * 100}%` }}
               />
             )}
             {health.complete > 0 && (
               <div
                 className="bg-[#a8893a]"
-                style={{
-                  width: `${(health.complete / totalHealth) * 100}%`,
-                }}
+                style={{ width: `${(health.complete / totalHealth) * 100}%` }}
               />
             )}
             {health.atRisk > 0 && (
               <div
                 className="bg-amber-500"
-                style={{
-                  width: `${(health.atRisk / totalHealth) * 100}%`,
-                }}
+                style={{ width: `${(health.atRisk / totalHealth) * 100}%` }}
               />
             )}
             {health.offTrack > 0 && (
               <div
                 className="bg-black"
-                style={{
-                  width: `${(health.offTrack / totalHealth) * 100}%`,
-                }}
+                style={{ width: `${(health.offTrack / totalHealth) * 100}%` }}
               />
             )}
             {health.onHold > 0 && (
               <div
                 className="bg-gray-400"
-                style={{
-                  width: `${(health.onHold / totalHealth) * 100}%`,
-                }}
+                style={{ width: `${(health.onHold / totalHealth) * 100}%` }}
               />
             )}
           </div>
         </div>
       )}
 
-      {/* Metric grid at bottom */}
-      <div className="mt-auto pt-3 grid grid-cols-3 gap-2 text-xs">
-        <div>
-          <div className="text-gray-500 flex items-center gap-1">
-            <TrendingUp className="h-3 w-3" /> Progress
-          </div>
-          <div className="font-semibold text-black tabular-nums">
-            {stats.avgProgress}%
-          </div>
-        </div>
-        <div>
-          <div className="text-gray-500 flex items-center gap-1">
-            <Wallet className="h-3 w-3" /> Budget
-          </div>
-          <div className="font-semibold text-black tabular-nums">
-            {formatBudget(stats.totalBudget, stats.currency)}
-          </div>
-        </div>
-        <div>
-          <div className="text-gray-500 flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" /> At risk
-          </div>
-          <div
-            className={cn(
-              "font-semibold tabular-nums",
-              riskCount > 0 ? "text-[#a8893a]" : "text-black"
-            )}
-          >
-            {riskCount}
-          </div>
-        </div>
+      {/* Metric strip at bottom */}
+      <div className="w-full mt-auto pt-3 grid grid-cols-3 gap-2 text-[11px] border-t border-gray-100">
+        <Metric
+          icon={<TrendingUp className="h-3 w-3" />}
+          label="Progress"
+          value={`${stats.avgProgress}%`}
+        />
+        <Metric
+          icon={<Wallet className="h-3 w-3" />}
+          label="Budget"
+          value={formatBudget(stats.totalBudget, stats.currency)}
+        />
+        <Metric
+          icon={<AlertTriangle className="h-3 w-3" />}
+          label="At risk"
+          value={riskCount.toString()}
+          accent={riskCount > 0}
+        />
       </div>
     </Card>
+  );
+}
+
+function Metric({
+  icon,
+  label,
+  value,
+  accent = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-0.5 pt-2">
+      <div className="text-gray-400 flex items-center gap-1 text-[10px] uppercase tracking-wide">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div
+        className={cn(
+          "font-semibold tabular-nums text-xs",
+          accent ? "text-[#a8893a]" : "text-black"
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function FolderIllustration({ color }: { color: string }) {
+  return (
+    <svg
+      viewBox="0 0 120 90"
+      className="w-[120px] h-[90px]"
+      aria-hidden="true"
+    >
+      {/* Back tab */}
+      <path
+        d="M8 18 L8 78 Q8 84 14 84 L106 84 Q112 84 112 78 L112 28 Q112 22 106 22 L52 22 L46 14 Q44 12 41 12 L14 12 Q8 12 8 18 Z"
+        fill={color}
+        opacity="0.9"
+      />
+      {/* Front panel slightly offset for depth */}
+      <path
+        d="M8 30 L112 30 L112 78 Q112 84 106 84 L14 84 Q8 84 8 78 Z"
+        fill={color}
+      />
+      {/* Top edge highlight */}
+      <path
+        d="M8 30 L112 30 L112 33 L8 33 Z"
+        fill="rgba(255,255,255,0.18)"
+      />
+    </svg>
   );
 }
