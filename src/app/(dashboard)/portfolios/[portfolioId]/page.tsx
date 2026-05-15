@@ -1187,9 +1187,9 @@ function SortableProjectRow({
         </div>
         <div className="col-span-1">
           <Avatar className="h-6 w-6">
-            <AvatarImage src={p.owner.image || ""} />
+            <AvatarImage src={p.owner?.image || ""} />
             <AvatarFallback className="text-xs bg-gray-200">
-              {p.owner.name?.charAt(0) || "?"}
+              {p.owner?.name?.charAt(0) || "?"}
             </AvatarFallback>
           </Avatar>
         </div>

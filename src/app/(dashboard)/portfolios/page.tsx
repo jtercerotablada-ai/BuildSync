@@ -284,34 +284,6 @@ function PortfoliosPageInner() {
     });
   }
 
-  // ── Derived data ─────────────────────────────────────────────
-  // Workspace KPI strip — sums across ALL visible portfolios so it's
-  // not affected by tab/filter (Juan needs the global picture).
-  const globalKpis = useMemo(() => {
-    let projects = 0;
-    let budget = 0;
-    let atRisk = 0;
-    let overdue = 0;
-    let currency = "USD";
-    for (const p of portfolios) {
-      projects += p._count.projects;
-      budget += p.stats.totalBudget;
-      atRisk += p.stats.health.atRisk + p.stats.health.offTrack;
-      overdue += p.stats.overdueTasks;
-      if (p.stats.currency && p.stats.totalBudget > 0) {
-        currency = p.stats.currency;
-      }
-    }
-    return {
-      portfolioCount: portfolios.length,
-      projects,
-      budget,
-      atRisk,
-      overdue,
-      currency,
-    };
-  }, [portfolios]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = portfolios;
@@ -395,33 +367,6 @@ function PortfoliosPageInner() {
           </DialogContent>
         </Dialog>
       </div>
-
-      {/* ── Global KPI Strip ──────────────────────────────────── */}
-      {portfolios.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <KpiTile
-            icon={<Folder className="h-4 w-4 text-[#a8893a]" />}
-            label="Portfolios"
-            value={globalKpis.portfolioCount.toString()}
-          />
-          <KpiTile
-            icon={<Briefcase className="h-4 w-4 text-[#a8893a]" />}
-            label="Projects"
-            value={globalKpis.projects.toString()}
-          />
-          <KpiTile
-            icon={<Wallet className="h-4 w-4 text-[#a8893a]" />}
-            label="Total budget"
-            value={formatBudget(globalKpis.budget, globalKpis.currency)}
-          />
-          <KpiTile
-            icon={<AlertTriangle className="h-4 w-4 text-[#a8893a]" />}
-            label="At-risk projects"
-            value={globalKpis.atRisk.toString()}
-            accent={globalKpis.atRisk > 0}
-          />
-        </div>
-      )}
 
       {/* ── Tabs ──────────────────────────────────────────────── */}
       {portfolios.length > 0 && (
@@ -510,29 +455,11 @@ function PortfoliosPageInner() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
           <Card
-            className="p-4 md:p-5 pt-3 border-2 border-dashed border-gray-200 hover:border-gray-400 hover:bg-gray-50 cursor-pointer transition-colors flex flex-col items-center text-center min-h-[280px] group"
+            className="p-4 md:p-5 pt-3 border-2 border-dashed border-gray-200 hover:border-gray-400 hover:bg-gray-50 cursor-pointer transition-colors flex flex-col items-center text-center justify-center min-h-[240px] group"
             onClick={() => setCreateOpen(true)}
           >
-            <div className="h-6 mb-1" aria-hidden="true" />
-            <div className="relative mb-3 mt-1">
-              <svg
-                viewBox="0 0 120 90"
-                className="w-[120px] h-[90px]"
-                aria-hidden="true"
-              >
-                <path
-                  d="M8 18 L8 78 Q8 84 14 84 L106 84 Q112 84 112 78 L112 28 Q112 22 106 22 L52 22 L46 14 Q44 12 41 12 L14 12 Q8 12 8 18 Z"
-                  fill="none"
-                  stroke="#d1d5db"
-                  strokeWidth="2"
-                  strokeDasharray="4 3"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center transition-colors">
-                  <Plus className="h-6 w-6 text-gray-500" />
-                </div>
-              </div>
+            <div className="w-16 h-16 rounded-full bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center mb-3 transition-colors">
+              <Plus className="h-6 w-6 text-gray-500" />
             </div>
             <span className="text-sm font-semibold text-black">
               Create portfolio
@@ -567,35 +494,6 @@ function PortfoliosPageInner() {
 }
 
 // ── Components ───────────────────────────────────────────────
-
-function KpiTile({
-  icon,
-  label,
-  value,
-  accent = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-white p-3 md:p-4",
-        accent && "border-[#a8893a]/50 bg-[#a8893a]/5"
-      )}
-    >
-      <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="text-xl md:text-2xl font-semibold text-black mt-1 tabular-nums">
-        {value}
-      </div>
-    </div>
-  );
-}
 
 function TabButton({
   active,
@@ -1459,17 +1357,22 @@ function PortfolioCard({
     health.complete;
   const riskCount = health.atRisk + health.offTrack;
 
-  const folderColor = portfolio.color || "#a8893a";
+  const accentColor = portfolio.color || "#a8893a";
   const ownerInitial =
-    portfolio.owner.name?.charAt(0).toUpperCase() || "?";
+    portfolio.owner?.name?.charAt(0).toUpperCase() || "?";
 
   return (
     <Card
-      className="relative p-4 md:p-5 pt-3 hover:shadow-lg cursor-pointer transition-all min-h-[280px] flex flex-col items-center text-center group bg-white border-gray-200"
+      className="relative p-4 md:p-5 pt-3 hover:shadow-md cursor-pointer transition-all min-h-[240px] flex flex-col group bg-white border-gray-200"
       onClick={onClick}
     >
-      {/* Top row: favorite (visible on hover or when favorited) */}
-      <div className="w-full flex items-center justify-end mb-1 h-6">
+      {/* Top row: small color swatch + favorite */}
+      <div className="w-full flex items-center justify-between mb-2 h-6">
+        <span
+          className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+          style={{ backgroundColor: accentColor }}
+          aria-hidden="true"
+        />
         <button
           onClick={onToggleFavorite}
           className={cn(
@@ -1489,38 +1392,42 @@ function PortfolioCard({
         </button>
       </div>
 
-      {/* Big folder with avatar overlay (Asana-style) */}
-      <div className="relative mb-3 mt-1">
-        <FolderIllustration color={folderColor} />
-        <div
-          className="absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center"
-          aria-hidden="true"
-        >
-          <Avatar className="h-10 w-10 ring-2 ring-white">
-            <AvatarImage src={portfolio.owner.image || ""} />
-            <AvatarFallback className="text-sm font-medium bg-gray-200 text-gray-700">
+      {/* Avatar as visual anchor with status dot adjacent */}
+      <div className="flex flex-col items-center text-center">
+        <div className="relative mb-3">
+          <Avatar className="h-16 w-16">
+            <AvatarImage src={portfolio.owner?.image || ""} />
+            <AvatarFallback
+              className="text-lg font-medium text-white"
+              style={{ backgroundColor: accentColor }}
+            >
               {ownerInitial}
             </AvatarFallback>
           </Avatar>
+          <span
+            className={cn(
+              "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ring-2 ring-white",
+              meta.dot
+            )}
+            title={meta.label}
+          />
         </div>
-        {/* Status dot in corner */}
-        <span
-          className={cn(
-            "absolute -bottom-1 right-2 w-3 h-3 rounded-full ring-2 ring-white",
-            meta.dot
-          )}
-          title={meta.label}
-        />
-      </div>
 
-      {/* Name + count */}
-      <h3 className="font-semibold text-black text-sm md:text-base truncate w-full px-2">
-        {portfolio.name}
-      </h3>
-      <p className="text-xs text-gray-500 mt-0.5">
-        {_count.projects}{" "}
-        {_count.projects === 1 ? "project" : "projects"}
-      </p>
+        {/* Subtle folder icon + name */}
+        <div className="flex items-center gap-1.5 min-w-0 w-full justify-center px-2">
+          <Folder
+            className="h-3.5 w-3.5 text-gray-400 flex-shrink-0"
+            strokeWidth={1.5}
+          />
+          <h3 className="font-semibold text-black text-sm md:text-base truncate">
+            {portfolio.name}
+          </h3>
+        </div>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {_count.projects}{" "}
+          {_count.projects === 1 ? "project" : "projects"}
+        </p>
+      </div>
 
       {/* Health bar */}
       {totalHealth > 0 && (
@@ -1560,20 +1467,16 @@ function PortfolioCard({
         </div>
       )}
 
-      {/* Metric strip at bottom */}
-      <div className="w-full mt-auto pt-3 grid grid-cols-3 gap-2 text-[11px] border-t border-gray-100">
-        <Metric
-          icon={<TrendingUp className="h-3 w-3" />}
-          label="Progress"
-          value={`${stats.avgProgress}%`}
-        />
-        <Metric
-          icon={<Wallet className="h-3 w-3" />}
+      {/* Compact metric strip */}
+      <div className="w-full mt-auto pt-3 flex items-center justify-between text-[11px] gap-2">
+        <MiniMetric label="Progress" value={`${stats.avgProgress}%`} />
+        <span className="text-gray-200">·</span>
+        <MiniMetric
           label="Budget"
           value={formatBudget(stats.totalBudget, stats.currency)}
         />
-        <Metric
-          icon={<AlertTriangle className="h-3 w-3" />}
+        <span className="text-gray-200">·</span>
+        <MiniMetric
           label="At risk"
           value={riskCount.toString()}
           accent={riskCount > 0}
@@ -1583,58 +1486,28 @@ function PortfolioCard({
   );
 }
 
-function Metric({
-  icon,
+function MiniMetric({
   label,
   value,
   accent = false,
 }: {
-  icon: React.ReactNode;
   label: string;
   value: string;
   accent?: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-0.5 pt-2">
-      <div className="text-gray-400 flex items-center gap-1 text-[10px] uppercase tracking-wide">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div
+    <div className="flex flex-col items-center min-w-0">
+      <span className="text-[10px] text-gray-400 uppercase tracking-wide truncate">
+        {label}
+      </span>
+      <span
         className={cn(
-          "font-semibold tabular-nums text-xs",
+          "font-semibold tabular-nums text-xs truncate",
           accent ? "text-[#a8893a]" : "text-black"
         )}
       >
         {value}
-      </div>
+      </span>
     </div>
-  );
-}
-
-function FolderIllustration({ color }: { color: string }) {
-  return (
-    <svg
-      viewBox="0 0 120 90"
-      className="w-[120px] h-[90px]"
-      aria-hidden="true"
-    >
-      {/* Back tab */}
-      <path
-        d="M8 18 L8 78 Q8 84 14 84 L106 84 Q112 84 112 78 L112 28 Q112 22 106 22 L52 22 L46 14 Q44 12 41 12 L14 12 Q8 12 8 18 Z"
-        fill={color}
-        opacity="0.9"
-      />
-      {/* Front panel slightly offset for depth */}
-      <path
-        d="M8 30 L112 30 L112 78 Q112 84 106 84 L14 84 Q8 84 8 78 Z"
-        fill={color}
-      />
-      {/* Top edge highlight */}
-      <path
-        d="M8 30 L112 30 L112 33 L8 33 Z"
-        fill="rgba(255,255,255,0.18)"
-      />
-    </svg>
   );
 }
