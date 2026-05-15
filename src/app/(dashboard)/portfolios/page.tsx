@@ -321,7 +321,7 @@ function PortfoliosPageInner() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-[1400px] mx-auto">
+    <div className="p-4 md:p-6 w-full">
       {/* ── Header ────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 md:mb-6">
         <div className="min-w-0">
@@ -453,7 +453,7 @@ function PortfoliosPageInner() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
           <Card
             className="p-4 md:p-5 pt-3 border-2 border-dashed border-gray-200 hover:border-gray-400 hover:bg-gray-50 cursor-pointer transition-colors flex flex-col items-center text-center justify-center min-h-[240px] group"
             onClick={() => setCreateOpen(true)}

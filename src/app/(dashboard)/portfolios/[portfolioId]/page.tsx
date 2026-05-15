@@ -725,7 +725,7 @@ export default function PortfolioDetailPage() {
 
       {/* ── Content ────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto bg-gray-50/50">
-        <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto">
+        <div className="p-4 md:p-6 space-y-4 w-full">
           {/* KPI Strip (always visible) */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <KpiTile
