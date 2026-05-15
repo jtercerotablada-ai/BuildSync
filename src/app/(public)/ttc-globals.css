@@ -315,7 +315,7 @@ img, svg {
 }
 
 .header__logo-img {
-  height: 32px;
+  height: 56px;
   width: auto;
 }
 
@@ -3595,11 +3595,11 @@ img, svg {
   }
 
   .header__logo-img {
-    height: 36px;
+    height: 64px;
   }
 
   .footer__logo-img {
-    height: 64px;
+    height: 80px;
   }
 }
 
@@ -3680,7 +3680,7 @@ img, svg {
   }
 
   .header__logo-img {
-    height: 40px;
+    height: 72px;
   }
 
   .footer__grid {
@@ -3719,7 +3719,7 @@ img, svg {
   }
 
   .header__logo-img {
-    height: 56px;
+    height: 88px;
   }
 
   .page-hero {
@@ -4249,7 +4249,7 @@ img, svg {
   }
 
   .header__logo-img {
-    height: 32px;
+    height: 48px;
   }
 
   .page-hero {
