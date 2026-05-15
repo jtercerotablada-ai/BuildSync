@@ -321,14 +321,14 @@ function PortfoliosPageInner() {
   }
 
   return (
-    <div className="p-4 md:p-6 w-full">
-      {/* ── Header ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 md:mb-6">
+    <div className="flex-1 flex flex-col h-full bg-background w-full">
+      {/* ── Full-bleed header (matches Goals / My-Tasks pattern) ─ */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 px-4 md:px-6 py-3 md:py-4 border-b">
         <div className="min-w-0">
-          <h1 className="text-xl md:text-2xl font-semibold text-black">
+          <h1 className="text-lg md:text-xl font-semibold text-black">
             Portfolios
           </h1>
-          <p className="text-xs md:text-sm text-gray-600 mt-1">
+          <p className="text-xs md:text-sm text-gray-600 mt-0.5">
             Group projects, watch health, and forecast budget across the firm.
           </p>
         </div>
@@ -367,6 +367,9 @@ function PortfoliosPageInner() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-auto px-4 md:px-6 py-4 md:py-6">
 
       {/* ── Tabs ──────────────────────────────────────────────── */}
       {portfolios.length > 0 && (
@@ -489,6 +492,7 @@ function PortfoliosPageInner() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
