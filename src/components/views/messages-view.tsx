@@ -122,7 +122,8 @@ interface MessageRow {
  */
 export type MessageScope =
   | { type: "project"; projectId: string }
-  | { type: "team"; teamId: string };
+  | { type: "team"; teamId: string }
+  | { type: "portfolio"; portfolioId: string };
 
 interface ScopeEndpoints {
   list: string;                   // GET roots, POST new root
@@ -141,6 +142,22 @@ function buildEndpoints(scope: MessageScope): ScopeEndpoints {
     return {
       list: `/api/projects/${pid}/messages`,
       members: `/api/projects/${pid}/members`,
+      message: (id) => `/api/messages/${id}`,
+      pin: (id) => `/api/messages/${id}/pin`,
+      reactions: (id) => `/api/messages/${id}/reactions`,
+      replies: (rid) => `/api/messages/${rid}/replies`,
+      attachments: (id) => `/api/messages/${id}/attachments`,
+      attachment: (mid, aid) => `/api/messages/${mid}/attachments/${aid}`,
+    };
+  }
+  if (scope.type === "portfolio") {
+    // Portfolio uses the same Message model as projects, so the
+    // generic /api/messages/[id]/* endpoints work — they gate on
+    // either project OR portfolio membership via loadMessageWithAccess.
+    const pid = scope.portfolioId;
+    return {
+      list: `/api/portfolios/${pid}/messages`,
+      members: `/api/portfolios/${pid}/members`,
       message: (id) => `/api/messages/${id}`,
       pin: (id) => `/api/messages/${id}/pin`,
       reactions: (id) => `/api/messages/${id}/reactions`,
@@ -204,7 +221,11 @@ export function MessagesView({
   );
   // Stable primitive scope key for downstream effect deps.
   const scopeKey =
-    scope.type === "project" ? scope.projectId : scope.teamId;
+    scope.type === "project"
+      ? scope.projectId
+      : scope.type === "portfolio"
+        ? scope.portfolioId
+        : scope.teamId;
   // Memoized endpoint builder so handlers don't rebuild URLs on
   // every render.
   const endpoints = useMemo(

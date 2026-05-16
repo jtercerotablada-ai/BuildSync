@@ -81,7 +81,7 @@ import { PortfolioTimelineView } from "@/components/portfolios/portfolio-timelin
 import { PortfolioPanelView } from "@/components/portfolios/portfolio-panel-view";
 import { PortfolioProgressView } from "@/components/portfolios/portfolio-progress-view";
 import { PortfolioWorkloadView } from "@/components/portfolios/portfolio-workload-view";
-import { PortfolioMessagesView } from "@/components/portfolios/portfolio-messages-view";
+import { MessagesView } from "@/components/views/messages-view";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -957,7 +957,9 @@ export default function PortfolioDetailPage() {
             </TabsContent>
 
             <TabsContent value="messages" className="mt-4">
-              <PortfolioMessagesView portfolioId={portfolioId} />
+              <MessagesView
+                scope={{ type: "portfolio", portfolioId }}
+              />
             </TabsContent>
           </Tabs>
         </div>

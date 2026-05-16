@@ -3,41 +3,21 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { syncMentionsForEditedMessage } from "@/lib/mentions";
+import { loadMessageWithAccess } from "@/lib/message-access";
 
 /**
  * PATCH /api/messages/:messageId — edit content (author only).
- * DELETE /api/messages/:messageId — delete (author OR project
- *   owner/ADMIN).
+ * DELETE /api/messages/:messageId — delete (author OR scope admin).
  *
- * Permissions are intentionally narrow:
- *   - Authors can edit their own messages.
- *   - Authors can delete their own messages.
- *   - Project owners and ADMIN members can delete ANY message
- *     (moderation), but they can NOT edit someone else's words
- *     (integrity over moderation).
+ * Works for both project and portfolio messages (Message is the
+ * shared model). Mentions are currently project-only — portfolio
+ * messages persist content + author but don't fan out @mentions yet.
  */
 
 const patchSchema = z.object({
   content: z.string().min(1).max(10000),
-  // Edits sync mentions too — clients pass the new resolved set
-  // and the server diffs against existing rows.
   mentionUserIds: z.array(z.string().min(1)).max(50).optional(),
 });
-
-async function loadMessageWithProject(messageId: string) {
-  return prisma.message.findUnique({
-    where: { id: messageId },
-    include: {
-      project: {
-        select: {
-          id: true,
-          ownerId: true,
-          members: { select: { userId: true, role: true } },
-        },
-      },
-    },
-  });
-}
 
 export async function PATCH(
   req: Request,
@@ -49,11 +29,16 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { messageId } = await params;
-    const msg = await loadMessageWithProject(messageId);
-    if (!msg) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const access = await loadMessageWithAccess(messageId, userId);
+    if (!access.ok) {
+      return NextResponse.json(
+        { error: access.error },
+        { status: access.status }
+      );
     }
-    if (msg.authorId !== userId) {
+
+    if (!access.isAuthor) {
       return NextResponse.json(
         { error: "Only the author can edit a message" },
         { status: 403 }
@@ -79,28 +64,26 @@ export async function PATCH(
       },
     });
 
-    // Sync mentions if the client included a new mention set.
-    // Missing field = leave existing mentions alone (used for the
-    // current text-only edit path; UI sends the array explicitly
-    // once it tracks them).
+    // Mentions sync — currently project-only. Portfolio messages
+    // persist text but don't run the @ fan-out yet.
     let resolvedMentions: {
       userId: string;
       name: string | null;
       image: string | null;
     }[] = [];
     const ids = parsed.data.mentionUserIds;
-    if (ids !== undefined && msg.project?.id) {
+    if (ids !== undefined && access.message.projectId) {
       try {
         await syncMentionsForEditedMessage({
           messageId,
-          projectId: msg.project.id,
+          projectId: access.message.projectId,
           actorUserId: userId,
           mentionUserIds: ids,
           authorName:
             updated.author?.name ?? updated.author?.email ?? "Someone",
           authorImage: updated.author?.image ?? null,
           contentPreview: updated.content,
-          rootMessageId: msg.parentMessageId ?? messageId,
+          rootMessageId: access.message.parentMessageId ?? messageId,
         });
       } catch (err) {
         console.error("[message PATCH] mention sync failed:", err);
@@ -147,27 +130,20 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const { messageId } = await params;
-    const msg = await loadMessageWithProject(messageId);
-    if (!msg) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const access = await loadMessageWithAccess(messageId, userId);
+    if (!access.ok) {
+      return NextResponse.json(
+        { error: access.error },
+        { status: access.status }
+      );
     }
-    if (!msg.project) {
-      // Workspace-scoped messages have no project; only authors can
-      // delete those.
-      if (msg.authorId !== userId) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-    } else {
-      const member = msg.project.members.find((m) => m.userId === userId);
-      const isAuthor = msg.authorId === userId;
-      const isOwner = msg.project.ownerId === userId;
-      const isAdmin = member?.role === "ADMIN";
-      if (!isAuthor && !isOwner && !isAdmin) {
-        return NextResponse.json(
-          { error: "Only the author or a project admin can delete" },
-          { status: 403 }
-        );
-      }
+
+    if (!access.isAuthor && !access.isAdmin) {
+      return NextResponse.json(
+        { error: "Only the author or a scope admin can delete" },
+        { status: 403 }
+      );
     }
 
     await prisma.message.delete({ where: { id: messageId } });

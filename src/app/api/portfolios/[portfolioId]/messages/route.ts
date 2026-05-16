@@ -7,14 +7,15 @@ import { getCurrentUserId } from "@/lib/auth-utils";
  * GET /api/portfolios/:portfolioId/messages
  * POST /api/portfolios/:portfolioId/messages
  *
- * Portfolio-scoped channel. Mirrors /api/projects/[id]/messages but
- * gated on portfolio ownership/membership/public privacy instead of
- * project access. Stores in the same Message table — Asana exposes
- * one "Mensajes" per scope and we keep parity.
+ * Portfolio-scoped channel. Mirrors the shape of project messages so
+ * the shared MessagesView component can render it without changes.
  */
 
 const createSchema = z.object({
   content: z.string().min(1).max(10000),
+  // Reserved for future @-mention fan-out (notifications). Portfolio
+  // mentions persist content but don't currently spawn notifications.
+  mentionUserIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
 async function assertPortfolioAccess(portfolioId: string, userId: string) {
@@ -62,7 +63,9 @@ export async function GET(
       );
     }
 
-    // Root messages only — replies surface inside each thread.
+    // Root messages only — replies live under their parent and are
+    // fetched on demand via /api/messages/:id/replies when a thread
+    // is expanded.
     const messages = await prisma.message.findMany({
       where: { portfolioId, parentMessageId: null },
       orderBy: { createdAt: "desc" },
@@ -71,29 +74,95 @@ export async function GET(
         author: {
           select: { id: true, name: true, email: true, image: true },
         },
-        attachments: true,
         reactions: {
-          include: {
+          select: {
+            id: true,
+            emoji: true,
+            userId: true,
+            createdAt: true,
             user: { select: { id: true, name: true, image: true } },
           },
         },
+        attachments: {
+          select: {
+            id: true,
+            name: true,
+            url: true,
+            size: true,
+            mimeType: true,
+            createdAt: true,
+          },
+        },
+        replies: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { createdAt: true },
+        },
         _count: { select: { replies: true } },
+        mentions: {
+          select: {
+            userId: true,
+            user: { select: { id: true, name: true, image: true } },
+          },
+        },
       },
     });
 
-    return NextResponse.json(
-      messages.map((m) => ({
+    const shaped = messages.map((m) => {
+      const reactionsByEmoji: Record<
+        string,
+        {
+          emoji: string;
+          count: number;
+          users: { id: string; name: string | null }[];
+          mine: boolean;
+        }
+      > = {};
+      for (const r of m.reactions) {
+        if (!reactionsByEmoji[r.emoji]) {
+          reactionsByEmoji[r.emoji] = {
+            emoji: r.emoji,
+            count: 0,
+            users: [],
+            mine: false,
+          };
+        }
+        reactionsByEmoji[r.emoji].count++;
+        reactionsByEmoji[r.emoji].users.push({
+          id: r.user.id,
+          name: r.user.name,
+        });
+        if (r.userId === userId) {
+          reactionsByEmoji[r.emoji].mine = true;
+        }
+      }
+
+      return {
         id: m.id,
         content: m.content,
         isPinned: m.isPinned,
         createdAt: m.createdAt.toISOString(),
         updatedAt: m.updatedAt.toISOString(),
         author: m.author,
-        attachments: m.attachments,
-        reactions: m.reactions,
+        reactions: Object.values(reactionsByEmoji).sort(
+          (a, b) => b.count - a.count
+        ),
+        attachments: m.attachments.map((a) => ({
+          ...a,
+          createdAt: a.createdAt.toISOString(),
+        })),
+        mine: m.author?.id === userId,
         replyCount: m._count.replies,
-      }))
-    );
+        lastReplyAt: m.replies[0]?.createdAt.toISOString() ?? null,
+        mentions: m.mentions.map((mn) => ({
+          userId: mn.userId,
+          name: mn.user.name,
+          image: mn.user.image,
+        })),
+      };
+    });
+
+    return NextResponse.json(shaped);
   } catch (err) {
     console.error("[portfolio messages GET] error:", err);
     return NextResponse.json(
@@ -142,11 +211,40 @@ export async function POST(
         author: {
           select: { id: true, name: true, email: true, image: true },
         },
-        attachments: true,
-        reactions: true,
-        _count: { select: { replies: true } },
       },
     });
+
+    // Mentions: we persist the rows so display works, but skip the
+    // notification fan-out for now (portfolio mentions don't generate
+    // inbox notifications yet).
+    let resolvedMentions: {
+      userId: string;
+      name: string | null;
+      image: string | null;
+    }[] = [];
+    const ids = parsed.data.mentionUserIds ?? [];
+    if (ids.length > 0) {
+      try {
+        await prisma.messageMention.createMany({
+          data: ids.map((mid) => ({ messageId: created.id, userId: mid })),
+          skipDuplicates: true,
+        });
+        const mentions = await prisma.messageMention.findMany({
+          where: { messageId: created.id },
+          select: {
+            userId: true,
+            user: { select: { id: true, name: true, image: true } },
+          },
+        });
+        resolvedMentions = mentions.map((mn) => ({
+          userId: mn.userId,
+          name: mn.user.name,
+          image: mn.user.image,
+        }));
+      } catch (err) {
+        console.error("[portfolio messages POST] mention persist failed:", err);
+      }
+    }
 
     return NextResponse.json(
       {
@@ -156,9 +254,12 @@ export async function POST(
         createdAt: created.createdAt.toISOString(),
         updatedAt: created.updatedAt.toISOString(),
         author: created.author,
-        attachments: created.attachments,
-        reactions: created.reactions,
-        replyCount: created._count.replies,
+        reactions: [],
+        attachments: [],
+        mine: true,
+        replyCount: 0,
+        lastReplyAt: null,
+        mentions: resolvedMentions,
       },
       { status: 201 }
     );

@@ -2,24 +2,18 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { uploadFile } from "@/lib/storage";
+import { loadMessageWithAccess } from "@/lib/message-access";
 
 /**
  * POST /api/messages/:messageId/attachments
  *
- * Upload a file and bind it to an existing project message. The
- * flow is "create the message first, then attach" — this keeps the
- * primary POST /api/projects/:id/messages endpoint simple and
- * tolerant to partial failures (a successful message + a failed
- * file upload still leaves a coherent state instead of orphaning
- * blobs).
+ * Upload a file and bind it to an existing message. Works for both
+ * project and portfolio messages (Message is the shared model).
  *
- * Access: the actor must be able to read the message's project
- * (owner, project member, workspace member when visibility is
- * WORKSPACE, or anyone if PUBLIC). For attachment writes specifically
- * we also require that the actor is the message author — attachments
- * are part of the message, not a global comment thread.
+ * Access: the actor must be able to read the message's scope AND
+ * must be the message author (attachments are part of the message,
+ * not a global comment thread).
  */
-
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ messageId: string }> }
@@ -31,51 +25,14 @@ export async function POST(
     }
     const { messageId } = await params;
 
-    const msg = await prisma.message.findUnique({
-      where: { id: messageId },
-      include: {
-        project: {
-          select: {
-            id: true,
-            ownerId: true,
-            visibility: true,
-            workspaceId: true,
-            members: { select: { userId: true } },
-          },
-        },
-      },
-    });
-    if (!msg) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const access = await loadMessageWithAccess(messageId, userId);
+    if (!access.ok) {
+      return NextResponse.json(
+        { error: access.error },
+        { status: access.status }
+      );
     }
-
-    // Access gate — must be able to read the project at minimum.
-    if (msg.project) {
-      const member = msg.project.members.find((m) => m.userId === userId);
-      const isOwner = msg.project.ownerId === userId;
-      const isMember = !!member;
-      let allowed =
-        isOwner || isMember || msg.project.visibility === "PUBLIC";
-      if (!allowed && msg.project.visibility === "WORKSPACE") {
-        const wsMember = await prisma.workspaceMember.findUnique({
-          where: {
-            userId_workspaceId: {
-              userId,
-              workspaceId: msg.project.workspaceId,
-            },
-          },
-        });
-        if (wsMember) allowed = true;
-      }
-      if (!allowed) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-    }
-
-    // Only the author may add files to their own message — keeps
-    // the message immutable for everyone else (matching the edit
-    // policy in PATCH /api/messages/:id).
-    if (msg.authorId !== userId) {
+    if (!access.isAuthor) {
       return NextResponse.json(
         { error: "Only the author can attach files to their message" },
         { status: 403 }

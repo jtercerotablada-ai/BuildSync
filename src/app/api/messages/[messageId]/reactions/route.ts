@@ -2,14 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { loadMessageWithAccess } from "@/lib/message-access";
 
 /**
  * POST /api/messages/:messageId/reactions
  *
- * Toggle a reaction on a message. If the (messageId, userId, emoji)
- * row already exists, this DELETES it (un-react). Otherwise it
- * INSERTS. Idempotent semantics: clients can fire and forget; the
- * result reflects the new state.
+ * Toggle a reaction on a message. Idempotent semantics.
  */
 
 const reactionSchema = z.object({
@@ -33,54 +31,17 @@ export async function POST(
     }
     const { emoji } = parsed.data;
 
-    // Access gate — must be able to read the message's project.
-    const msg = await prisma.message.findUnique({
-      where: { id: messageId },
-      include: {
-        project: {
-          select: {
-            ownerId: true,
-            visibility: true,
-            workspaceId: true,
-            members: { select: { userId: true } },
-          },
-        },
-      },
-    });
-    if (!msg) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    if (msg.project) {
-      const member = msg.project.members.find((m) => m.userId === userId);
-      const isOwner = msg.project.ownerId === userId;
-      const isMember = !!member;
-      let allowed =
-        isOwner || isMember || msg.project.visibility === "PUBLIC";
-      if (!allowed && msg.project.visibility === "WORKSPACE") {
-        const wsMember = await prisma.workspaceMember.findUnique({
-          where: {
-            userId_workspaceId: {
-              userId,
-              workspaceId: msg.project.workspaceId,
-            },
-          },
-        });
-        if (wsMember) allowed = true;
-      }
-      if (!allowed) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
+    const access = await loadMessageWithAccess(messageId, userId);
+    if (!access.ok) {
+      return NextResponse.json(
+        { error: access.error },
+        { status: access.status }
+      );
     }
 
-    // Toggle — schema has a @@unique([messageId, userId, emoji])
-    // constraint so we can find the existing row deterministically.
     const existing = await prisma.messageReaction.findUnique({
       where: {
-        messageId_userId_emoji: {
-          messageId,
-          userId,
-          emoji,
-        },
+        messageId_userId_emoji: { messageId, userId, emoji },
       },
     });
 
