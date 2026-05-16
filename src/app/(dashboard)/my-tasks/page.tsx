@@ -3444,6 +3444,93 @@ function CalendarView({
     }
   }, [addingForDate]);
 
+  // ── Drag-to-reschedule ────────────────────────────────────────
+  // HTML5 drag API (no extra deps). Source: each task bar in the
+  // foreground overlay. Targets: each day cell in the background.
+  // On drop we PATCH the task, preserving duration when both
+  // startDate and dueDate exist; otherwise just move the anchor
+  // we have. Refetch via onTaskCreated callback.
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+
+  function handleDragStart(e: React.DragEvent, task: Task) {
+    setDraggingTaskId(task.id);
+    e.dataTransfer.setData("application/x-task-id", task.id);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleDragEnd() {
+    setDraggingTaskId(null);
+    setDragOverDate(null);
+  }
+
+  function handleDayDragOver(e: React.DragEvent, dateStr: string) {
+    if (!draggingTaskId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverDate !== dateStr) setDragOverDate(dateStr);
+  }
+
+  async function handleDayDrop(e: React.DragEvent, dropDate: Date) {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData("application/x-task-id");
+    setDraggingTaskId(null);
+    setDragOverDate(null);
+    if (!taskId) return;
+
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    // Mid-day anchor avoids the date flipping under daylight-saving
+    // or near-midnight edits across timezones.
+    const noon = new Date(dropDate);
+    noon.setHours(12, 0, 0, 0);
+
+    const oldDue = task.dueDate ? new Date(task.dueDate) : null;
+    const oldStart = task.startDate ? new Date(task.startDate) : null;
+
+    const body: { dueDate?: string | null; startDate?: string | null } = {};
+    if (oldStart && oldDue) {
+      // Preserve duration: shift both dates by the same delta as
+      // the dueDate move. Otherwise dragging a 5-day task would
+      // collapse it to a 1-day task at the drop date.
+      const oldDueNoon = new Date(oldDue);
+      oldDueNoon.setHours(12, 0, 0, 0);
+      const deltaMs = noon.getTime() - oldDueNoon.getTime();
+      body.dueDate = noon.toISOString();
+      body.startDate = new Date(oldStart.getTime() + deltaMs).toISOString();
+    } else if (oldStart && !oldDue) {
+      // Only a start date — drop sets the new start.
+      body.startDate = noon.toISOString();
+    } else {
+      body.dueDate = noon.toISOString();
+    }
+
+    // Compare against existing to avoid a no-op PATCH that
+    // pessimistically refetches.
+    const sameDue =
+      (body.dueDate ?? null) ===
+      (task.dueDate ? new Date(task.dueDate).toISOString() : null);
+    const sameStart =
+      (body.startDate ?? null) ===
+      (task.startDate ? new Date(task.startDate).toISOString() : null);
+    if (sameDue && sameStart) return;
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onTaskCreated?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't reschedule task"
+      );
+    }
+  }
+
   async function commitInlineTask(forDate: Date) {
     const name = newTaskName.trim();
     if (!name) {
@@ -3913,6 +4000,7 @@ function CalendarView({
                   const isAdding = addingForDate === dateStr;
                   const hiddenCount = hiddenByDay[dayOfWeek] || 0;
 
+                  const isDropTarget = dragOverDate === dateStr;
                   return (
                     <div
                       key={dateStr}
@@ -3922,13 +4010,19 @@ function CalendarView({
                           setNewTaskName("");
                         }
                       }}
+                      onDragOver={(e) => handleDayDragOver(e, dateStr)}
+                      onDragLeave={() => {
+                        if (dragOverDate === dateStr) setDragOverDate(null);
+                      }}
+                      onDrop={(e) => handleDayDrop(e, date)}
                       className={cn(
                         "relative cursor-pointer h-full",
                         dayOfWeek > 0 && "border-l border-gray-200",
                         !isCurrentMonth && "bg-gray-50/40",
                         isWeekend && isCurrentMonth && "bg-gray-50/20",
                         isToday && "bg-[#c9a84c]/5",
-                        isAdding && "ring-2 ring-[#c9a84c]/60 ring-inset"
+                        isAdding && "ring-2 ring-[#c9a84c]/60 ring-inset",
+                        isDropTarget && "ring-2 ring-[#c9a84c] ring-inset bg-[#c9a84c]/10"
                       )}
                     >
                       {/* Day number — bumped padding so the digit
@@ -3966,7 +4060,9 @@ function CalendarView({
                 className="absolute inset-x-0 grid grid-cols-7 gap-y-0.5 pointer-events-none"
                 style={{ top: 28, paddingLeft: 2, paddingRight: 2 }}
               >
-                {visibleSegments.map((seg) => (
+                {visibleSegments.map((seg) => {
+                  const isBeingDragged = draggingTaskId === seg.task.id;
+                  return (
                   <div
                     key={`${seg.task.id}-${weekIdx}-${seg.colStart}`}
                     style={{
@@ -3976,6 +4072,9 @@ function CalendarView({
                     className="px-px min-w-0 pointer-events-none"
                   >
                     <button
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, seg.task)}
+                      onDragEnd={handleDragEnd}
                       onClick={(e) => {
                         e.stopPropagation();
                         onTaskClick?.(seg.task);
@@ -3984,20 +4083,24 @@ function CalendarView({
                       className={cn(
                         // Compact, slightly rounded — bar feel, not
                         // pill feel. Matches Asana density.
-                        "w-full block text-left text-[11px] leading-snug px-1.5 py-[3px] truncate cursor-pointer pointer-events-auto font-medium transition-colors",
+                        "w-full block text-left text-[11px] leading-snug px-1.5 py-[3px] truncate cursor-grab active:cursor-grabbing pointer-events-auto font-medium transition-colors",
                         // Rounded corners trim on the side that's
                         // clipped (visual continuation hint).
                         !seg.clipsLeft && "rounded-l-sm",
                         !seg.clipsRight && "rounded-r-sm",
                         seg.task.completed
                           ? "bg-gray-200 text-gray-500 line-through"
-                          : "bg-[#c9a84c] text-white hover:bg-[#a8893a]"
+                          : "bg-[#c9a84c] text-white hover:bg-[#a8893a]",
+                        // Fade the source while it's being dragged so
+                        // the user perceives a "lift".
+                        isBeingDragged && "opacity-40"
                       )}
                     >
                       {seg.task.name}
                     </button>
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* +N more pills — one per column with overflow,
                     sitting in the bar overlay grid right after that
