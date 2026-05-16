@@ -12,7 +12,13 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { TrendingUp, Wallet, AlertTriangle, Clock } from "lucide-react";
+import {
+  TrendingUp,
+  Wallet,
+  AlertTriangle,
+  Clock,
+  Briefcase,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ProjectStatus =
@@ -50,7 +56,26 @@ interface Props {
   overdueTasks: number;
   atRiskCount: number;
   avgProgress: number;
+  activeProjects: number;
+  projectCount: number;
+  byType: Record<ProjectType, number>;
+  byGate: Record<ProjectGate, number>;
 }
+
+const TYPE_LABEL: Record<ProjectType, string> = {
+  CONSTRUCTION: "Construction",
+  DESIGN: "Design",
+  RECERTIFICATION: "Recertification",
+  PERMIT: "Permit",
+};
+
+const GATE_LABEL: Record<ProjectGate, string> = {
+  PRE_DESIGN: "Pre-design",
+  DESIGN: "Design",
+  PERMITTING: "Permitting",
+  CONSTRUCTION: "Construction",
+  CLOSEOUT: "Closeout",
+};
 
 const STATUS_COLOR: Record<ProjectStatus, string> = {
   ON_TRACK: "#c9a84c",
@@ -91,6 +116,10 @@ export function PortfolioPanelView({
   overdueTasks,
   atRiskCount,
   avgProgress,
+  activeProjects,
+  projectCount,
+  byType,
+  byGate,
 }: Props) {
   if (projects.length === 0) {
     return (
@@ -141,22 +170,28 @@ export function PortfolioPanelView({
 
   return (
     <div className="space-y-4">
-      {/* KPI tiles */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* KPI strip — moved out of header per Asana parity */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Tile
-          icon={<TrendingUp className="h-4 w-4 text-[#a8893a]" />}
-          label="Total tasks"
-          value={totalTasks.toString()}
-          sub={`${completedTasks} done`}
+          icon={<Briefcase className="h-4 w-4 text-[#a8893a]" />}
+          label="Active projects"
+          value={activeProjects.toString()}
+          sub={`${projectCount} total`}
         />
         <Tile
           icon={<Wallet className="h-4 w-4 text-[#a8893a]" />}
+          label="Total budget"
+          value={formatBudget(totalBudget, currency)}
+        />
+        <Tile
+          icon={<TrendingUp className="h-4 w-4 text-[#a8893a]" />}
           label="Avg progress"
           value={`${avgProgress}%`}
+          sub={`${completedTasks}/${totalTasks} tasks`}
         />
         <Tile
           icon={<AlertTriangle className="h-4 w-4 text-[#a8893a]" />}
-          label="At-risk projects"
+          label="At risk"
           value={atRiskCount.toString()}
           accent={atRiskCount > 0}
         />
@@ -165,6 +200,26 @@ export function PortfolioPanelView({
           label="Overdue tasks"
           value={overdueTasks.toString()}
           accent={overdueTasks > 0}
+        />
+      </div>
+
+      {/* Type & Gate breakdowns — BuildSync-specific (no Asana equivalent) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <BreakdownCard
+          title="By project type"
+          items={(Object.keys(TYPE_LABEL) as ProjectType[]).map((t) => ({
+            label: TYPE_LABEL[t],
+            count: byType[t],
+          }))}
+          total={projectCount}
+        />
+        <BreakdownCard
+          title="By lifecycle gate"
+          items={(Object.keys(GATE_LABEL) as ProjectGate[]).map((g) => ({
+            label: GATE_LABEL[g],
+            count: byGate[g],
+          }))}
+          total={projectCount}
         />
       </div>
 
@@ -315,6 +370,43 @@ function ChartCard({
         )}
       </div>
       {children}
+    </div>
+  );
+}
+
+function BreakdownCard({
+  title,
+  items,
+  total,
+}: {
+  title: string;
+  items: { label: string; count: number }[];
+  total: number;
+}) {
+  return (
+    <div className="rounded-lg border bg-white p-4">
+      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
+        {title}
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => {
+          const pct = total > 0 ? (item.count / total) * 100 : 0;
+          return (
+            <div key={item.label} className="flex items-center gap-3 text-sm">
+              <span className="w-28 text-gray-700 truncate">{item.label}</span>
+              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#c9a84c] transition-all"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span className="w-8 text-right tabular-nums text-black font-medium">
+                {item.count}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

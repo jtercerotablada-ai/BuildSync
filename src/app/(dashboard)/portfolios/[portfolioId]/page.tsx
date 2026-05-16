@@ -55,6 +55,8 @@ import {
   ArrowUpDown,
   Layers,
   Search,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -266,6 +268,7 @@ export default function PortfolioDetailPage() {
   const [descriptionDraft, setDescriptionDraft] = useState("");
   const [updates, setUpdates] = useState<StatusUpdate[]>([]);
   const [updatesLoading, setUpdatesLoading] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     fetchPortfolio();
@@ -609,9 +612,9 @@ export default function PortfolioDetailPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div className="border-b bg-white px-4 md:px-6 py-3 md:py-4">
-        <div className="flex items-start gap-2 md:gap-4 mb-3">
+      {/* ── Compact header (Asana parity) ──────────────────── */}
+      <div className="border-b bg-white">
+        <div className="flex items-center gap-2 px-4 md:px-6 py-3">
           <Button
             variant="ghost"
             size="icon"
@@ -622,81 +625,87 @@ export default function PortfolioDetailPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+            className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
             style={{ backgroundColor: (portfolio.color || "#a8893a") + "20" }}
           >
             <Folder
-              className="h-5 w-5"
+              className="h-4 w-4"
               style={{ color: portfolio.color || "#a8893a" }}
             />
           </div>
-          <div className="min-w-0 flex-1">
-            {editingName ? (
-              <Input
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                onBlur={handleNameSave}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleNameSave();
-                  if (e.key === "Escape") {
-                    setEditingName(false);
-                    setNameDraft(portfolio.name);
-                  }
-                }}
-                autoFocus
-                className="h-8 text-lg md:text-xl font-semibold"
-              />
-            ) : (
-              <h1
-                className="text-lg md:text-xl font-semibold text-black truncate cursor-text hover:bg-gray-50 rounded px-1 -mx-1"
-                onClick={() => setEditingName(true)}
-                title="Click to edit"
-              >
-                {portfolio.name}
-              </h1>
-            )}
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="inline-flex">
-                    <Badge className={cn(meta.chip, "cursor-pointer")}>
-                      <span
-                        className={cn("w-2 h-2 rounded-full mr-1.5", meta.dot)}
-                      />
-                      {meta.label}
-                    </Badge>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {STATUS_OPTIONS.map((opt) => (
-                    <DropdownMenuItem
-                      key={opt.value}
-                      onClick={() => handleStatusChange(opt.value)}
-                    >
-                      <div className={cn("h-3 w-3 rounded-full mr-2", opt.dot)} />
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <span className="text-xs text-gray-500">
-                {portfolio._count.projects}{" "}
-                {portfolio._count.projects === 1 ? "project" : "projects"}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                /* favorite is portfolio-list scoped — placeholder hook here */
+          {editingName ? (
+            <Input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={handleNameSave}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleNameSave();
+                if (e.key === "Escape") {
+                  setEditingName(false);
+                  setNameDraft(portfolio.name);
+                }
               }}
-              aria-label="Favorite"
-              className="hidden sm:inline-flex"
+              autoFocus
+              className="h-8 text-lg md:text-xl font-semibold min-w-0 max-w-md"
+            />
+          ) : (
+            <h1
+              className="text-lg md:text-xl font-semibold text-black truncate cursor-text hover:bg-gray-50 rounded px-1 min-w-0"
+              onClick={() => setEditingName(true)}
+              title="Click to edit"
             >
-              <Star className="h-4 w-4 text-gray-400" />
-            </Button>
+              {portfolio.name}
+            </h1>
+          )}
+          <button
+            onClick={() => setDetailsOpen((v) => !v)}
+            className="p-1 hover:bg-gray-100 rounded flex-shrink-0"
+            aria-label={detailsOpen ? "Hide details" : "Show details"}
+          >
+            {detailsOpen ? (
+              <ChevronUp className="h-4 w-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-gray-500" />
+            )}
+          </button>
+          <button
+            onClick={() =>
+              /* placeholder favorite toggle — list-scoped favorites for now */
+              toast.message("Favorite portfolios from the Portfolios list")
+            }
+            className="p-1.5 hover:bg-gray-100 rounded flex-shrink-0"
+            aria-label="Favorite"
+          >
+            <Star className="h-4 w-4 text-gray-400" />
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex flex-shrink-0">
+                <Badge className={cn(meta.chip, "cursor-pointer")}>
+                  <span
+                    className={cn("w-2 h-2 rounded-full mr-1.5", meta.dot)}
+                  />
+                  {meta.label}
+                </Badge>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {STATUS_OPTIONS.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => handleStatusChange(opt.value)}
+                >
+                  <div className={cn("h-3 w-3 rounded-full mr-2", opt.dot)} />
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <span className="text-xs text-gray-500 hidden md:inline-block flex-shrink-0">
+            {portfolio._count.projects}{" "}
+            {portfolio._count.projects === 1 ? "project" : "projects"}
+          </span>
+          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -737,99 +746,52 @@ export default function PortfolioDetailPage() {
           </div>
         </div>
 
-        <Textarea
-          value={descriptionDraft}
-          onChange={(e) => setDescriptionDraft(e.target.value)}
-          onBlur={handleDescriptionSave}
-          placeholder="Add a description..."
-          rows={2}
-          className="mb-3 text-sm resize-none border-dashed"
-        />
-
-        <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs md:text-sm text-gray-600">
-          <label className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-gray-400" />
-            <span className="text-gray-500">Start:</span>
-            <input
-              type="date"
-              value={dateInputValue(portfolio.startDate)}
-              onChange={(e) => handleDateChange("startDate", e.target.value)}
-              className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
+        {/* Collapsible details (description + dates) */}
+        {detailsOpen && (
+          <div className="px-4 md:px-6 pb-3 space-y-3 border-t bg-gray-50/40 pt-3">
+            <Textarea
+              value={descriptionDraft}
+              onChange={(e) => setDescriptionDraft(e.target.value)}
+              onBlur={handleDescriptionSave}
+              placeholder="Add a description..."
+              rows={2}
+              className="text-sm resize-none border-dashed bg-white"
             />
-          </label>
-          <label className="flex items-center gap-2">
-            <span className="text-gray-500">End:</span>
-            <input
-              type="date"
-              value={dateInputValue(portfolio.endDate)}
-              onChange={(e) => handleDateChange("endDate", e.target.value)}
-              className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
-            />
-          </label>
-        </div>
+            <div className="flex flex-wrap items-center gap-3 md:gap-5 text-xs md:text-sm text-gray-600">
+              <label className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-gray-400" />
+                <span className="text-gray-500">Start:</span>
+                <input
+                  type="date"
+                  value={dateInputValue(portfolio.startDate)}
+                  onChange={(e) =>
+                    handleDateChange("startDate", e.target.value)
+                  }
+                  className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
+                />
+              </label>
+              <label className="flex items-center gap-2">
+                <span className="text-gray-500">End:</span>
+                <input
+                  type="date"
+                  value={dateInputValue(portfolio.endDate)}
+                  onChange={(e) =>
+                    handleDateChange("endDate", e.target.value)
+                  }
+                  className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
+                />
+              </label>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Content ────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto bg-gray-50/50">
-        <div className="p-4 md:p-6 space-y-4 w-full">
-          {/* KPI Strip (always visible) */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <KpiTile
-              icon={<Briefcase className="h-4 w-4 text-[#a8893a]" />}
-              label="Active projects"
-              value={aggregates.activeProjects.toString()}
-              sub={`${portfolio._count.projects} total`}
-            />
-            <KpiTile
-              icon={<Wallet className="h-4 w-4 text-[#a8893a]" />}
-              label="Total budget"
-              value={formatBudget(aggregates.totalBudget, aggregates.currency)}
-            />
-            <KpiTile
-              icon={<TrendingUp className="h-4 w-4 text-[#a8893a]" />}
-              label="Avg progress"
-              value={`${aggregates.avgProgress}%`}
-              sub={`${aggregates.completedTasks}/${aggregates.totalTasks} tasks`}
-            />
-            <KpiTile
-              icon={<AlertTriangle className="h-4 w-4 text-[#a8893a]" />}
-              label="At risk"
-              value={aggregates.atRiskCount.toString()}
-              accent={aggregates.atRiskCount > 0}
-            />
-            <KpiTile
-              icon={<Clock className="h-4 w-4 text-[#a8893a]" />}
-              label="Overdue tasks"
-              value={aggregates.overdueTasks.toString()}
-              accent={aggregates.overdueTasks > 0}
-            />
-          </div>
-
-          {/* Type & Gate breakdowns (always visible) */}
-          {portfolio._count.projects > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              <BreakdownCard
-                title="By project type"
-                items={(Object.keys(TYPE_META) as ProjectType[]).map((t) => ({
-                  label: TYPE_META[t].label,
-                  count: aggregates.byType[t],
-                }))}
-                total={portfolio._count.projects}
-              />
-              <BreakdownCard
-                title="By lifecycle gate"
-                items={(Object.keys(GATE_META) as ProjectGate[]).map((g) => ({
-                  label: GATE_META[g].label,
-                  count: aggregates.byGate[g],
-                }))}
-                total={portfolio._count.projects}
-              />
-            </div>
-          )}
-
-          {/* Tabs */}
+        <div className="px-4 md:px-6 pt-3 pb-4 md:pb-6 w-full">
+          {/* Tabs directly under header (Asana style) */}
           <Tabs defaultValue="list" className="w-full">
-            <TabsList className="flex-wrap h-auto">
+            <TabsList className="flex-wrap h-auto bg-transparent border-b rounded-none w-full justify-start p-0 gap-0">
               <TabsTrigger value="list">
                 <ListIcon className="h-3.5 w-3.5 sm:mr-1.5" />
                 <span className="hidden sm:inline">List</span>
@@ -957,6 +919,10 @@ export default function PortfolioDetailPage() {
                 overdueTasks={aggregates.overdueTasks}
                 atRiskCount={aggregates.atRiskCount}
                 avgProgress={aggregates.avgProgress}
+                activeProjects={aggregates.activeProjects}
+                projectCount={portfolio._count.projects}
+                byType={aggregates.byType}
+                byGate={aggregates.byGate}
               />
             </TabsContent>
 
