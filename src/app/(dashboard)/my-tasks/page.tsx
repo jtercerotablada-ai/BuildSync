@@ -235,10 +235,11 @@ export default function MyTasksPage() {
     viewIcon: "📋",
     viewName: "List",
   };
-  const { value: myTasksUi, setValue: setMyTasksUi } = useUiState<MyTasksUiState>(
-    "myTasks",
-    DEFAULT_MY_TASKS_UI
-  );
+  const {
+    value: myTasksUi,
+    setValue: setMyTasksUi,
+    isHydrated: myTasksUiHydrated,
+  } = useUiState<MyTasksUiState>("myTasks", DEFAULT_MY_TASKS_UI);
 
   // Adapter shims so the rest of the component reads/writes individual
   // pieces as it did before; under the hood they all hit one payload.
@@ -1071,7 +1072,12 @@ export default function MyTasksPage() {
                   : "text-gray-500 border-transparent hover:text-gray-700"
               )}
             >
-              {isListTab && viewIcon && (
+              {/* Gate the icon on `isHydrated` so we never paint the
+                  default 📋 while the server prefs are still loading.
+                  Without this gate, a user who cleared their icon sees
+                  the default flash on every page open before it
+                  disappears — the bug Juan reported repeatedly. */}
+              {isListTab && myTasksUiHydrated && viewIcon && (
                 <span className="text-[14px] leading-none">{viewIcon}</span>
               )}
               {label}

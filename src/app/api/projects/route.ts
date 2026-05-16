@@ -36,6 +36,7 @@ const createProjectSchema = z.object({
       z.object({
         section: z.string().min(1).max(80),
         name: z.string().min(1).max(200),
+        type: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional(),
         subtasks: z.array(z.string().min(1).max(200)).optional(),
       })
     )
@@ -410,6 +411,7 @@ export async function POST(req: Request) {
             sectionId: section.id,
             creatorId: userId,
             position: parentPosition * 1000,
+            taskType: t.type ?? "TASK",
           },
           select: { id: true },
         });

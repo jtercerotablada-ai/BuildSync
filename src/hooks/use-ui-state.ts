@@ -127,42 +127,43 @@ function schedulePatch(key: string, value: unknown) {
  * @param defaultValue value used while hydrating from the server
  */
 export function useUiState<T>(key: string, defaultValue: T) {
-  // Synchronous hydration from the localStorage cache eliminates the
-  // "default → real value" flash on first paint. If the localStorage
-  // cache has a value for this key, use it immediately. The DB fetch
-  // below will overwrite if the server disagrees (e.g. user signed in
-  // from another device that changed the value).
-  const [value, setValueState] = useState<T>(() => {
-    const cached = cachedUiState?.[key];
-    return cached !== undefined ? (cached as T) : defaultValue;
-  });
-  const [isHydrated, setIsHydrated] = useState(
-    () => cachedUiState !== null && cachedUiState[key] !== undefined
-  );
-  const hydratedRef = useRef(
-    cachedUiState !== null && cachedUiState[key] !== undefined
-  );
+  // CRITICAL: the initializer MUST return the default on both server
+  // and client so React hydration matches. Reading from the
+  // localStorage cache in the initializer would cause a hydration
+  // mismatch (server has no localStorage → default; client has cache
+  // → real value), which manifests as a "default → real value" flash
+  // on every page open. The cached value is applied inside the
+  // useEffect below — after hydration is safe.
+  const [value, setValueState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const hydratedRef = useRef(false);
 
-  // Subscribe to cache updates so when one consumer hydrates, every
-  // other consumer of the same key picks up the value.
+  // Post-hydration: read the cached value (synchronous, no flash since
+  // we haven't told React to render anything different yet) + kick off
+  // the DB fetch in parallel. Both update `value` via the same setter.
   useEffect(() => {
+    // Apply the localStorage cache immediately so consumers stop
+    // showing the default on the very next paint.
+    const cached = cachedUiState?.[key];
+    if (cached !== undefined) {
+      setValueState(cached as T);
+    }
+    // Whether the cache had a value or not, mark the hook hydrated.
+    // Consumers that gate "showing the prefs UI" on isHydrated will
+    // now render — and they'll render the cached value if present, or
+    // a stable "blank/default" without ever flashing the default.
+    hydratedRef.current = true;
+    setIsHydrated(true);
+
     const sync = () => {
       const v = cachedUiState?.[key];
       if (v !== undefined) {
         setValueState(v as T);
-        if (!hydratedRef.current) {
-          hydratedRef.current = true;
-          setIsHydrated(true);
-        }
-      } else if (!hydratedRef.current && cachedUiState !== null) {
-        // Server explicitly has no value for this key — mark hydrated
-        // so consumers know the default is intentional.
-        hydratedRef.current = true;
-        setIsHydrated(true);
       }
     };
     subscribers.add(sync);
-    // Kick off (or join) the fetch.
+    // Kick off (or join) the server fetch. When the server response
+    // lands, sync runs again with the authoritative DB value.
     fetchUiState().then(sync);
     return () => {
       subscribers.delete(sync);
