@@ -4993,6 +4993,9 @@ function TaskDetailPanel({
   const [newComment, setNewComment] = useState("");
   const [newSubtaskName, setNewSubtaskName] = useState("");
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  // Asana-style "Mostrar las dependencias finalizadas" — completed
+  // blockers hide by default; clicking the link reveals them inline.
+  const [showCompletedDeps, setShowCompletedDeps] = useState(false);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
   // File upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -5371,6 +5374,29 @@ function TaskDetailPanel({
             />
           </div>
 
+          {/* ── Blocked badge ───────────────────────────────────
+              Renders only when the task has at least one incomplete
+              blocker. Real PM tools (Asana, MS Project, ClickUp) flag
+              this as a hard signal so the assignee knows they cannot
+              actually start the work yet. */}
+          {(() => {
+            const blockerCount =
+              taskDetail?.dependencies?.filter(
+                (d: { blockingTask: { completed: boolean } }) =>
+                  !d.blockingTask.completed
+              ).length ?? 0;
+            if (blockerCount === 0 || taskDetail?.completed) return null;
+            return (
+              <div className="px-5 pb-1 -mt-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-[#fbeed3] text-[#7a5b1b]">
+                  <Flag className="w-3 h-3" />
+                  Blocked
+                  {blockerCount > 1 ? ` · ${blockerCount}` : ""}
+                </span>
+              </div>
+            );
+          })()}
+
           {/* ── Property rows (Asana-style compact) ──────────── */}
           <div className="px-5 pb-2">
             <PropertyRow label="Assignee">
@@ -5416,6 +5442,17 @@ function TaskDetailPanel({
                       }),
                     });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    // Surface cascade so the user knows we shifted
+                    // downstream tasks instead of silently moving them.
+                    const payload = (await res.json()) as {
+                      cascadeShifts?: { taskName: string }[];
+                    };
+                    const shifts = payload?.cascadeShifts ?? [];
+                    if (shifts.length === 1) {
+                      toast.success(`Shifted dependent "${shifts[0].taskName}"`);
+                    } else if (shifts.length > 1) {
+                      toast.success(`Shifted ${shifts.length} dependent tasks`);
+                    }
                     await fetchTaskDetail();
                     onUpdate();
                   } catch (err) {
@@ -5451,59 +5488,88 @@ function TaskDetailPanel({
               />
             </PropertyRow>
 
-            <PropertyRow
-              label="Dependencies"
-              accessory={
-                taskDetail?.dependencies?.length > 0 && (
-                  <span className="text-[11px] text-[#6f7782] tabular-nums">
-                    {taskDetail.dependencies.length}
-                  </span>
-                )
-              }
-            >
-              <div className="flex-1 min-w-0 flex flex-col gap-1 py-0.5">
-                {taskDetail?.dependencies?.map((dep: {
+            {(() => {
+              type DepRow = {
+                id: string;
+                type: DependencyTypeStr;
+                blockingTask: {
                   id: string;
-                  type: DependencyTypeStr;
-                  blockingTask: {
-                    id: string;
-                    name: string;
-                    completed: boolean;
-                    startDate: string | null;
-                    dueDate: string | null;
-                  };
-                }) => (
-                  <DependencyChip
-                    key={dep.id}
-                    dependency={dep}
-                    taskId={task.id}
-                    onChanged={() => {
-                      fetchTaskDetail();
-                      onUpdate();
-                    }}
-                    onRemove={() => handleDependencyRemove(dep.id)}
-                  />
-                ))}
-                <DependenciesPicker
-                  taskId={task.id}
-                  existingBlockingTaskIds={
-                    (taskDetail?.dependencies || []).map(
-                      (d: { blockingTask: { id: string } }) =>
-                        d.blockingTask.id
+                  name: string;
+                  completed: boolean;
+                  startDate: string | null;
+                  dueDate: string | null;
+                };
+              };
+              const allDeps: DepRow[] = taskDetail?.dependencies ?? [];
+              const activeDeps = allDeps.filter((d) => !d.blockingTask.completed);
+              const completedDeps = allDeps.filter((d) => d.blockingTask.completed);
+              return (
+                <PropertyRow
+                  label="Dependencies"
+                  accessory={
+                    activeDeps.length > 0 && (
+                      <span className="text-[11px] text-[#6f7782] tabular-nums">
+                        {activeDeps.length}
+                      </span>
                     )
                   }
-                  onAdded={() => {
-                    fetchTaskDetail();
-                    onUpdate();
-                  }}
-                  trigger={
-                    <button className="-ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#3b82f6] hover:bg-[#f3f4f6] hover:underline cursor-pointer text-left w-fit">
-                      Add dependencies
-                    </button>
-                  }
-                />
-              </div>
-            </PropertyRow>
+                >
+                  <div className="flex-1 min-w-0 flex flex-col gap-1 py-0.5">
+                    {activeDeps.map((dep) => (
+                      <DependencyChip
+                        key={dep.id}
+                        dependency={dep}
+                        taskId={task.id}
+                        onChanged={() => {
+                          fetchTaskDetail();
+                          onUpdate();
+                        }}
+                        onRemove={() => handleDependencyRemove(dep.id)}
+                      />
+                    ))}
+                    {showCompletedDeps &&
+                      completedDeps.map((dep) => (
+                        <DependencyChip
+                          key={dep.id}
+                          dependency={dep}
+                          taskId={task.id}
+                          onChanged={() => {
+                            fetchTaskDetail();
+                            onUpdate();
+                          }}
+                          onRemove={() => handleDependencyRemove(dep.id)}
+                        />
+                      ))}
+                    <DependenciesPicker
+                      taskId={task.id}
+                      existingBlockingTaskIds={allDeps.map(
+                        (d) => d.blockingTask.id
+                      )}
+                      onAdded={() => {
+                        fetchTaskDetail();
+                        onUpdate();
+                      }}
+                      trigger={
+                        <button className="-ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#3b82f6] hover:bg-[#f3f4f6] hover:underline cursor-pointer text-left w-fit">
+                          Add dependencies
+                        </button>
+                      }
+                    />
+                    {completedDeps.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCompletedDeps((v) => !v)}
+                        className="-ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#3b82f6] hover:bg-[#f3f4f6] hover:underline cursor-pointer text-left w-fit"
+                      >
+                        {showCompletedDeps
+                          ? `Hide completed dependencies (${completedDeps.length})`
+                          : `Show completed dependencies (${completedDeps.length})`}
+                      </button>
+                    )}
+                  </div>
+                </PropertyRow>
+              );
+            })()}
 
             <PropertyRow
               label="Projects"

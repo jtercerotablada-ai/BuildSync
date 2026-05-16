@@ -12,6 +12,10 @@ import {
   notifyTaskAssigned,
   notifyTaskCompleted,
 } from "@/lib/task-notifications";
+import {
+  cascadeDependentDates,
+  type CascadeShift,
+} from "@/lib/dependency-cascade";
 
 const updateTaskSchema = z.object({
   name: z.string().min(1).optional(),
@@ -231,6 +235,7 @@ export async function PATCH(
         projectId: true,
         sectionId: true,
         assigneeId: true,
+        startDate: true,
         dueDate: true,
       },
     });
@@ -310,10 +315,14 @@ export async function PATCH(
       });
     }
 
+    // Track whether either schedule date actually changed so we know
+    // whether to cascade to dependents.
+    let datesChanged = false;
     if (data.dueDate !== undefined) {
       const newDueDate = data.dueDate ? new Date(data.dueDate) : null;
       if (newDueDate?.getTime() !== existingTask.dueDate?.getTime()) {
         updateData.dueDate = newDueDate;
+        datesChanged = true;
         activities.push({
           type: "DUE_DATE_CHANGED",
           data: { dueDate: data.dueDate },
@@ -322,7 +331,11 @@ export async function PATCH(
     }
 
     if (data.startDate !== undefined) {
-      updateData.startDate = data.startDate ? new Date(data.startDate) : null;
+      const newStartDate = data.startDate ? new Date(data.startDate) : null;
+      if (newStartDate?.getTime() !== existingTask.startDate?.getTime()) {
+        updateData.startDate = newStartDate;
+        datesChanged = true;
+      }
     }
 
     if (data.priority !== undefined) {
@@ -341,57 +354,47 @@ export async function PATCH(
       updateData.position = data.position;
     }
 
-    const task = await prisma.task.update({
-      where: { id: taskId },
-      data: updateData,
-      include: {
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
+    // Wrap the task update + dependency cascade in a single transaction
+    // so we never leave the schedule half-shifted if cascade throws.
+    let cascadeShifts: CascadeShift[] = [];
+    const task = await prisma.$transaction(async (tx) => {
+      const updated = await tx.task.update({
+        where: { id: taskId },
+        data: updateData,
+        include: {
+          assignee: {
+            select: { id: true, name: true, email: true, image: true },
+          },
+          creator: {
+            select: { id: true, name: true, email: true, image: true },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+              type: true,
+              gate: true,
+            },
+          },
+          section: { select: { id: true, name: true } },
+          subtasks: {
+            select: { id: true, name: true, completed: true },
+          },
+          _count: {
+            select: {
+              subtasks: true,
+              comments: true,
+              attachments: true,
+              likes: true,
+            },
           },
         },
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        project: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-            type: true,
-            gate: true,
-          },
-        },
-        section: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        subtasks: {
-          select: {
-            id: true,
-            name: true,
-            completed: true,
-          },
-        },
-        _count: {
-          select: {
-            subtasks: true,
-            comments: true,
-            attachments: true,
-            likes: true,
-          },
-        },
-      },
+      });
+      if (datesChanged) {
+        cascadeShifts = await cascadeDependentDates(tx, taskId);
+      }
+      return updated;
     });
 
     // Create activity logs
@@ -489,7 +492,7 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json(task);
+    return NextResponse.json({ ...task, cascadeShifts });
   } catch (error) {
     if (error instanceof z.ZodError) {
       const zodError = error as z.ZodError;
