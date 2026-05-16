@@ -40,6 +40,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmojiPickerPopover } from "@/components/ui/emoji-picker-popover";
 import type {
   ActiveFilter,
   FilterField,
@@ -129,6 +130,11 @@ const GROUP_FIELDS: {
 interface OptionsDrawerProps {
   open: boolean;
   onClose: () => void;
+  // View identity (icon + name)
+  viewIcon: string;
+  onViewIconChange: (emoji: string) => void;
+  viewName: string;
+  onViewNameChange: (name: string) => void;
   // Columns
   hiddenColumns: Set<string>;
   onToggleColumn: (colId: string) => void;
@@ -148,6 +154,10 @@ interface OptionsDrawerProps {
 export function OptionsDrawer({
   open,
   onClose,
+  viewIcon,
+  onViewIconChange,
+  viewName,
+  onViewNameChange,
   hiddenColumns,
   onToggleColumn,
   activeFilters,
@@ -194,6 +204,10 @@ export function OptionsDrawer({
         <MainView
           onClose={onClose}
           onNavigate={setView}
+          viewIcon={viewIcon}
+          onViewIconChange={onViewIconChange}
+          viewName={viewName}
+          onViewNameChange={onViewNameChange}
           hiddenColumnsCount={hiddenColumns.size}
           activeFilterCount={activeFilters.length}
           hasSort={sort.field !== "none"}
@@ -237,6 +251,10 @@ export function OptionsDrawer({
 function MainView({
   onClose,
   onNavigate,
+  viewIcon,
+  onViewIconChange,
+  viewName,
+  onViewNameChange,
   hiddenColumnsCount,
   activeFilterCount,
   hasSort,
@@ -244,23 +262,39 @@ function MainView({
 }: {
   onClose: () => void;
   onNavigate: (view: DrawerView) => void;
+  viewIcon: string;
+  onViewIconChange: (emoji: string) => void;
+  viewName: string;
+  onViewNameChange: (name: string) => void;
   hiddenColumnsCount: number;
   activeFilterCount: number;
   hasSort: boolean;
   activeGroupsCount: number;
 }) {
+  const [localName, setLocalName] = useState(viewName);
+  // Keep the input synced if the parent updates the name from elsewhere
+  useEffect(() => {
+    setLocalName(viewName);
+  }, [viewName]);
+
   return (
     <>
-      <DrawerHeader title="List" onCloseAction={onClose} closeKind="close" />
+      <DrawerHeader title={viewName || "List"} onCloseAction={onClose} closeKind="close" />
 
       {/* Icon + View Name section */}
       <div className="px-5 pb-4">
         <div className="flex items-center gap-3">
           <div>
             <p className="text-[12px] font-medium text-gray-500 mb-1.5">Icon</p>
-            <button className="flex items-center justify-center h-9 w-9 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-[18px]">
-              📋
-            </button>
+            <EmojiPickerPopover onSelect={onViewIconChange} align="start">
+              <button
+                type="button"
+                className="flex items-center justify-center h-9 w-9 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-[18px]"
+                aria-label="Pick an emoji"
+              >
+                {viewIcon || "📋"}
+              </button>
+            </EmojiPickerPopover>
           </div>
           <div className="flex-1">
             <p className="text-[12px] font-medium text-gray-500 mb-1.5">
@@ -268,7 +302,23 @@ function MainView({
             </p>
             <input
               type="text"
-              defaultValue="List"
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              onBlur={() => {
+                if (localName.trim() && localName !== viewName) {
+                  onViewNameChange(localName.trim());
+                } else if (!localName.trim()) {
+                  setLocalName(viewName);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  setLocalName(viewName);
+                  e.currentTarget.blur();
+                }
+              }}
               className="w-full h-9 px-3 text-[14px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-black/10"
             />
           </div>

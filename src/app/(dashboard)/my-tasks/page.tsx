@@ -241,6 +241,24 @@ export default function MyTasksPage() {
       return next;
     });
   }, []);
+  // View identity — Asana lets you rename the List view and pick an
+  // emoji that shows up next to the tab. We persist both per-user.
+  const [viewIcon, setViewIcon] = useState<string>(() => {
+    if (typeof window === "undefined") return "📋";
+    return localStorage.getItem("my-tasks.viewIcon") || "📋";
+  });
+  const [viewName, setViewName] = useState<string>(() => {
+    if (typeof window === "undefined") return "List";
+    return localStorage.getItem("my-tasks.viewName") || "List";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("my-tasks.viewIcon", viewIcon);
+  }, [viewIcon]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("my-tasks.viewName", viewName);
+  }, [viewName]);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
 
@@ -1002,20 +1020,29 @@ export default function MyTasksPage() {
       </div>
       {/* Desktop tabs */}
       <div className="hidden md:flex items-center px-4 md:px-6 border-b border-gray-200 overflow-x-auto" style={{ height: "var(--tabs-h, 34px)" }}>
-        {viewTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setView(tab.id as ViewType)}
-            className={cn(
-              "px-3 h-full text-[13px] border-b-2 -mb-px transition-colors",
-              view === tab.id
-                ? "text-gray-900 border-gray-900 font-medium"
-                : "text-gray-500 border-transparent hover:text-gray-700"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {viewTabs.map((tab) => {
+          // The "list" tab adopts the user's customized icon + name from
+          // the Options drawer. Other tabs keep their built-in label.
+          const isListTab = tab.id === "list";
+          const label = isListTab ? viewName : tab.label;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setView(tab.id as ViewType)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 h-full text-[13px] border-b-2 -mb-px transition-colors",
+                view === tab.id
+                  ? "text-gray-900 border-gray-900 font-medium"
+                  : "text-gray-500 border-transparent hover:text-gray-700"
+              )}
+            >
+              {isListTab && (
+                <span className="text-[14px] leading-none">{viewIcon}</span>
+              )}
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* MOBILE TOOLBAR — compact filter + sort pills */}
@@ -1708,6 +1735,10 @@ export default function MyTasksPage() {
         <OptionsDrawer
           open={optionsDrawerOpen}
           onClose={() => setOptionsDrawerOpen(false)}
+          viewIcon={viewIcon}
+          onViewIconChange={setViewIcon}
+          viewName={viewName}
+          onViewNameChange={setViewName}
           hiddenColumns={hiddenColumns}
           onToggleColumn={toggleColumnVisibility}
           activeFilters={activeFilters}
