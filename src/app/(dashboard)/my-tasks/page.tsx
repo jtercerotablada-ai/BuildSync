@@ -212,12 +212,37 @@ export default function MyTasksPage() {
   const [calendarFeedUrl, setCalendarFeedUrl] = useState("");
   const [calendarFeedLoading, setCalendarFeedLoading] = useState(false);
   const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
-    dueDate: 110,
-    collaborators: 110,
-    projects: 160,
-    visibility: 110,
-  });
+  // Column widths persist per-user via localStorage so resizes survive
+  // reloads — matches Asana behavior and avoids the user re-tuning
+  // every session.
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+    () => {
+      const defaults = {
+        dueDate: 110,
+        collaborators: 110,
+        projects: 160,
+        visibility: 110,
+      };
+      if (typeof window === "undefined") return defaults;
+      try {
+        const stored = localStorage.getItem("my-tasks.columnWidths");
+        if (!stored) return defaults;
+        const parsed = JSON.parse(stored) as Record<string, number>;
+        // Merge so a missing key in storage falls back to the default
+        // (e.g. when we add a new column later).
+        return { ...defaults, ...parsed };
+      } catch {
+        return defaults;
+      }
+    }
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(
+      "my-tasks.columnWidths",
+      JSON.stringify(columnWidths)
+    );
+  }, [columnWidths]);
   // Asana "Show/hide columns" — set of optional column ids that are
   // currently hidden. Persisted to localStorage so it survives reloads.
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
@@ -4218,7 +4243,7 @@ function DashboardView({
         {/* Tasks by Completion Status — Donut */}
         <div className="bg-white rounded-lg border border-gray-200/80 flex flex-col">
           <div className="px-5 pt-5 pb-0">
-            <h3 className="text-[13px] font-medium text-gray-900">Tasks by completion status next month</h3>
+            <h3 className="text-[13px] font-medium text-gray-900">Tasks by completion status</h3>
           </div>
           <div className="flex-1 flex items-center justify-center px-5 py-4">
             <div className="relative">
