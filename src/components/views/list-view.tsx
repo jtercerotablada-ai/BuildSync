@@ -39,7 +39,34 @@ import { format, isToday, isTomorrow, isPast, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
+import { CustomFieldCell } from "@/components/tasks/custom-field-cell";
 import type { FieldTypeConfig } from "@/lib/field-types";
+
+// Per-project custom field metadata returned by
+// GET /api/projects/:id/custom-fields.
+interface CustomFieldOption {
+  id: string;
+  label: string;
+  color?: string;
+}
+interface CustomFieldDef {
+  id: string;
+  linkId: string;
+  position: number;
+  name: string;
+  type:
+    | "TEXT"
+    | "NUMBER"
+    | "DATE"
+    | "DROPDOWN"
+    | "MULTI_SELECT"
+    | "PEOPLE"
+    | "CHECKBOX"
+    | "CURRENCY"
+    | "PERCENTAGE";
+  options: CustomFieldOption[] | null;
+  isRequired: boolean;
+}
 import {
   DndContext,
   DragOverlay,
@@ -140,6 +167,61 @@ export function ListView({
   const [preselectedFieldType, setPreselectedFieldType] = useState<string | null>(null);
   const [preselectedFieldName, setPreselectedFieldName] = useState("");
   const [initialTab, setInitialTab] = useState<"create" | "library">("create");
+
+  // Custom field definitions linked to this project + a bulk map of
+  // every CustomFieldValue keyed by taskId → fieldId. Both refetch when
+  // the modal creates a new field and when a task edit elsewhere
+  // changes a value.
+  const [customFieldDefs, setCustomFieldDefs] = useState<CustomFieldDef[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
+
+  const reloadCustomFields = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/custom-fields`);
+      if (res.ok) {
+        const data: CustomFieldDef[] = await res.json();
+        setCustomFieldDefs(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      // Silent — fields are optional metadata; the list still renders.
+    }
+  }, [projectId]);
+
+  const reloadCustomFieldValues = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/custom-fields/values`
+      );
+      if (res.ok) {
+        const data: Record<string, Record<string, unknown>> = await res.json();
+        setCustomFieldValues(data ?? {});
+      }
+    } catch {
+      // Silent — empty values just render empty cells.
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    reloadCustomFields();
+    reloadCustomFieldValues();
+  }, [reloadCustomFields, reloadCustomFieldValues]);
+
+  // Refetch values whenever the task list changes (a task elsewhere
+  // may have edited a custom field via the detail panel).
+  useEffect(() => {
+    reloadCustomFieldValues();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections]);
+
+  // Grid template adapts to the number of custom-field columns.
+  // Order: checkbox · Name · Assignee · Due date · Priority · Status ·
+  // N × custom (140px each) · "+ add column" (40px).
+  const gridTemplate = useMemo(() => {
+    const customCols = customFieldDefs.map(() => "140px").join(" ");
+    return `32px 1fr 140px 130px 90px 90px${customCols ? ` ${customCols}` : ""} 40px`;
+  }, [customFieldDefs]);
 
   // Drag & drop state — same pattern as my-tasks ListDndProvider.
   // localSections is the optimistic source of truth during a drag so
@@ -517,7 +599,10 @@ export function ListView({
       {/* COLUMN HEADERS - ONLY ONCE AT THE TOP    */}
       {/* ========================================= */}
       <div className="sticky top-0 bg-white border-b z-10">
-        <div className="hidden md:grid grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-6 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        <div
+          className="hidden md:grid gap-2 px-6 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider"
+          style={{ gridTemplateColumns: gridTemplate }}
+        >
           <div onClick={(e) => e.stopPropagation()}>
             <Checkbox
               checked={allSelected}
@@ -545,6 +630,18 @@ export function ListView({
             Status
             <ChevronDown className="w-3 h-3" />
           </div>
+          {/* Custom field columns — one header per project-linked
+              CustomFieldDefinition. Header label only; clicking the
+              header could open a config dropdown in a future iteration. */}
+          {customFieldDefs.map((field) => (
+            <div
+              key={field.id}
+              className="flex items-center gap-1 truncate"
+              title={field.name}
+            >
+              <span className="truncate">{field.name}</span>
+            </div>
+          ))}
           {/* Add column button */}
           <AddColumnDropdown
             onSelectType={(ft: FieldTypeConfig, name: string) => {
@@ -671,11 +768,16 @@ export function ListView({
                     startEditing={startEditing}
                     cancelEditing={cancelEditing}
                     saveInlineEdit={saveInlineEdit}
+                    customFieldDefs={customFieldDefs}
+                    customFieldValuesForTask={customFieldValues[task.id] ?? {}}
+                    gridTemplate={gridTemplate}
                   />
                 ))}
 
                 {/* Add Task Input - Inline */}
-                <div className="grid grid-cols-[32px_1fr] md:grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-3 md:px-6 py-2 items-center border-t border-slate-100">
+                <div
+                  className="grid grid-cols-[32px_1fr] md:[grid-template-columns:var(--list-grid)] gap-2 px-3 md:px-6 py-2 items-center border-t border-slate-100"
+                  style={{ "--list-grid": gridTemplate } as React.CSSProperties}>
                   <div></div>
                   <div>
                     {addingTaskInSection === section.id ? (
@@ -716,6 +818,10 @@ export function ListView({
                   <div className="hidden md:block"></div>
                   <div className="hidden md:block"></div>
                   <div className="hidden md:block"></div>
+                  {/* Empty placeholders matching custom-field columns */}
+                  {customFieldDefs.map((f) => (
+                    <div key={f.id} className="hidden md:block"></div>
+                  ))}
                   <div className="hidden md:block"></div>
                 </div>
               </div>
@@ -818,7 +924,8 @@ export function ListView({
         </div>
       )}
 
-      {/* Custom Field Modal */}
+      {/* Custom Field Modal — on successful create we refetch the
+          project's field list so the new column appears immediately. */}
       <CustomFieldModal
         open={customFieldModalOpen}
         onOpenChange={setCustomFieldModalOpen}
@@ -826,6 +933,10 @@ export function ListView({
         initialFieldName={preselectedFieldName}
         initialTab={initialTab}
         projectId={projectId}
+        onFieldCreated={() => {
+          reloadCustomFields();
+          reloadCustomFieldValues();
+        }}
       />
     </div>
   );
@@ -950,6 +1061,14 @@ interface SortableTaskRowProps {
   startEditing: (taskId: string, field: string, currentValue: string) => void;
   cancelEditing: () => void;
   saveInlineEdit: (taskId: string, field: string, value: string) => Promise<void>;
+  /** Custom field columns to render to the right of Status, before
+   *  the "+" placeholder. */
+  customFieldDefs: CustomFieldDef[];
+  /** Map of fieldId → value for this task. */
+  customFieldValuesForTask: Record<string, unknown>;
+  /** CSS gridTemplateColumns string the row should use so the row
+   *  aligns with the header. */
+  gridTemplate: string;
 }
 
 function SortableTaskRow({
@@ -968,6 +1087,9 @@ function SortableTaskRow({
   startEditing,
   cancelEditing,
   saveInlineEdit,
+  customFieldDefs,
+  customFieldValuesForTask,
+  gridTemplate,
 }: SortableTaskRowProps) {
   const {
     attributes,
@@ -1076,7 +1198,8 @@ function SortableTaskRow({
 
       {/* ===== Desktop Grid Row ===== */}
       <div
-        className="hidden md:grid grid-cols-[32px_1fr_140px_130px_90px_90px_40px] gap-2 px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-100 group"
+        className="hidden md:grid gap-2 px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-100 group"
+        style={{ gridTemplateColumns: gridTemplate }}
         onClick={() => onTaskClick(task.id)}
       >
         {/* Checkbox - select or complete (icon swaps per task type) */}
@@ -1289,6 +1412,24 @@ function SortableTaskRow({
             </Badge>
           )}
         </div>
+
+        {/* Custom field value cells — one per project-linked field.
+            Read-only here; editing happens inside the task detail
+            panel (CustomFieldsSection) which has type-aware inputs. */}
+        {customFieldDefs.map((field) => (
+          <div
+            key={field.id}
+            className="overflow-hidden flex items-center"
+            onClick={(e) => e.stopPropagation()}
+            title={field.name}
+          >
+            <CustomFieldCell
+              type={field.type}
+              options={field.options}
+              value={customFieldValuesForTask[field.id] ?? null}
+            />
+          </div>
+        ))}
 
         {/* Empty column for "+" */}
         <div></div>
