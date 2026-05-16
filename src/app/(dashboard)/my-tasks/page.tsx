@@ -89,6 +89,7 @@ import { SortPanel, type SortState } from "@/components/tasks/sort-panel";
 import { GroupPanel, type GroupConfig } from "@/components/tasks/group-panel";
 import { CustomFieldModal, type CreatedFieldInfo } from "@/components/tasks/custom-field-modal";
 import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
+import { UploadToTaskDialog } from "@/components/tasks/upload-to-task-dialog";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
@@ -4560,6 +4561,10 @@ function FilesView({
   const [typeFilter, setTypeFilter] = useState<FileTypeFilter>("all");
   // In-app file viewer (clicking a card opens it instead of new tab)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  // Local refresh tick so the dialog can trigger a re-fetch without
+  // having to thread a callback up to the parent's refreshKey.
+  const [localRefreshTick, setLocalRefreshTick] = useState(0);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -4575,7 +4580,7 @@ function FilesView({
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [refreshKey, localRefreshTick]);
 
   const filtered = useMemo(() => {
     return files.filter((f) => {
@@ -4635,18 +4640,33 @@ function FilesView({
 
   if (files.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
-        <div className="w-16 h-16 rounded-2xl bg-gray-50 border flex items-center justify-center mb-4">
-          <Paperclip className="h-7 w-7 text-gray-300" />
+      <>
+        <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
+          <div className="w-16 h-16 rounded-2xl bg-gray-50 border flex items-center justify-center mb-4">
+            <Paperclip className="h-7 w-7 text-gray-300" />
+          </div>
+          <p className="text-[15px] font-medium text-gray-900 max-w-md leading-relaxed">
+            No files yet
+          </p>
+          <p className="text-sm text-gray-500 max-w-md leading-relaxed mt-1">
+            Attachments uploaded to any task assigned to you (or created
+            by you) will appear here.
+          </p>
+          <button
+            type="button"
+            onClick={() => setUploadDialogOpen(true)}
+            className="mt-5 inline-flex items-center gap-1.5 h-8 px-3 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md"
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+            Upload a file
+          </button>
         </div>
-        <p className="text-[15px] font-medium text-gray-900 max-w-md leading-relaxed">
-          No files yet
-        </p>
-        <p className="text-sm text-gray-500 max-w-md leading-relaxed mt-1">
-          Attachments uploaded to any task assigned to you (or created
-          by you) will appear here.
-        </p>
-      </div>
+        <UploadToTaskDialog
+          open={uploadDialogOpen}
+          onOpenChange={setUploadDialogOpen}
+          onUploaded={() => setLocalRefreshTick((t) => t + 1)}
+        />
+      </>
     );
   }
 
@@ -4686,15 +4706,25 @@ function FilesView({
             </button>
           ))}
         </div>
-        <div className="ml-auto relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-          <Input
-            type="search"
-            placeholder="Search files…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-8 w-full sm:w-56 text-xs"
-          />
+        <div className="ml-auto flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+            <Input
+              type="search"
+              placeholder="Search files…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 w-full sm:w-56 text-xs"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setUploadDialogOpen(true)}
+            className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-white bg-black hover:bg-gray-800 rounded-md flex-shrink-0"
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+            Upload
+          </button>
         </div>
       </div>
 
@@ -4726,6 +4756,12 @@ function FilesView({
           onOpenTask={onTaskClick}
         />
       )}
+
+      <UploadToTaskDialog
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        onUploaded={() => setLocalRefreshTick((t) => t + 1)}
+      />
     </div>
   );
 }
