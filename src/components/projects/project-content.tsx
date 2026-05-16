@@ -914,7 +914,11 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
 
       {/* View Content */}
       <div className="flex-1 overflow-hidden flex">
-        <div className={cn("flex-1 flex flex-col", currentView !== "calendar" && currentView !== "board" && "overflow-auto")}>
+        {/* min-w-0 is critical: without it the flex-1 grows to the
+            intrinsic width of its content (e.g. all the board columns),
+            blowing past the parent's `overflow-hidden` and killing the
+            board's own overflow-auto. Classic flex gotcha. */}
+        <div className={cn("flex-1 min-w-0 flex flex-col", currentView !== "calendar" && currentView !== "board" && "overflow-auto")}>
           {currentView === "overview" && (
             <ProjectOverview
               project={project}
