@@ -57,6 +57,7 @@ import {
   Pencil,
   Trash2,
   Download,
+  UserPlus2,
 } from "lucide-react";
 import {
   GoogleCalendarIcon,
@@ -4743,6 +4744,81 @@ function formatRangeLabel(
   return "";
 }
 
+// ─── TaskDetailPanel helpers ──────────────────────────────
+
+/**
+ * Small ghost-style icon button used in the panel's top action row.
+ * Matches Asana's quiet header chrome — no border, light hover.
+ */
+function ActionIconButton({
+  children,
+  onClick,
+  disabled,
+  title,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="flex items-center justify-center h-7 w-7 rounded-md text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Asana-style property row: fixed-width gray label on the left, value
+ * on the right, subtle bottom divider. Optional `accessory` slot sits
+ * between the label and the value (used by Projects for the count).
+ */
+function PropertyRow({
+  label,
+  accessory,
+  children,
+}: {
+  label: string;
+  accessory?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3 min-h-9 py-1.5 border-b border-[#eeeeee] last:border-b-0">
+      <div className="w-[120px] flex-shrink-0 flex items-center gap-1.5 pt-1">
+        <span className="text-[12px] text-[#6f7782]">{label}</span>
+        {accessory}
+      </div>
+      <div className="flex-1 min-w-0 flex items-center min-h-[28px]">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Small colored pill for the Priority value. Matches the "tag" look
+ * Asana uses for custom-field enumerations.
+ */
+function PriorityTag({ value }: { value: string }) {
+  const config: Record<string, { label: string; bg: string; text: string }> = {
+    HIGH: { label: "High", bg: "bg-[#fce4e4]", text: "text-[#a8323a]" },
+    MEDIUM: { label: "Medium", bg: "bg-[#fbeed3]", text: "text-[#7a5b1b]" },
+    LOW: { label: "Low", bg: "bg-[#e1eefc]", text: "text-[#274a73]" },
+  };
+  const conf = config[value] || { label: value, bg: "bg-[#f3f4f6]", text: "text-[#1e1f21]" };
+  return (
+    <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[12px] font-medium", conf.bg, conf.text)}>
+      {conf.label}
+    </span>
+  );
+}
+
 // Task Detail Panel
 function TaskDetailPanel({
   task,
@@ -4982,46 +5058,33 @@ function TaskDetailPanel({
        uses for its task detail. Slides in from the right with a
        subtle shadow. */
     <div
-      className="absolute top-0 right-0 bottom-0 w-[500px] border-l bg-white flex flex-col z-30 shadow-2xl animate-in slide-in-from-right-5 duration-200"
+      className="absolute top-0 right-0 bottom-0 w-[500px] border-l border-[#e8e8e8] bg-white flex flex-col z-30 shadow-[-12px_0_32px_-12px_rgba(0,0,0,0.06)] animate-in slide-in-from-right-5 duration-200 text-[#1e1f21]"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <button onClick={handleToggleComplete}>
-            <div className={cn(
-              "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-              taskDetail?.completed ? "bg-[#c9a84c] border-[#c9a84c]" : "border-slate-300"
-            )}>
-              {taskDetail?.completed && <Check className="w-3 h-3 text-white" />}
-            </div>
-          </button>
-          {/* Task-type glyph — milestone and approval get a small
-              monochrome+gold icon so the type is legible without
-              opening a dropdown. Regular tasks stay clean. */}
-          {taskDetail?.taskType === "MILESTONE" && (
-            <Diamond
-              className="h-4 w-4 text-[#c9a84c] flex-shrink-0"
-              fill="#c9a84c"
-              aria-label="Milestone"
-            />
+      {/* ── Top action row ─────────────────────────────────────
+          Left: Mark-complete pill (Asana style — turns green when
+          complete). Right: heart / paperclip / link / expand /
+          more / close. Title intentionally NOT in this row. */}
+      <div className="flex items-center justify-between px-4 py-2.5 flex-shrink-0">
+        <button
+          onClick={handleToggleComplete}
+          className={cn(
+            "flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[13px] font-medium border transition-colors",
+            taskDetail?.completed
+              ? "bg-[#e6f4ea] text-[#207544] border-transparent hover:bg-[#d6ecde]"
+              : "text-[#6f7782] border-[#e8e8e8] hover:bg-[#f3f4f6] hover:text-[#1e1f21]"
           )}
-          {taskDetail?.taskType === "APPROVAL" && (
-            <ThumbsUp
-              className="h-4 w-4 text-[#c9a84c] flex-shrink-0"
-              aria-label="Approval"
-            />
-          )}
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() => name !== taskDetail?.name && handleUpdate("name", name)}
-            className="text-lg font-medium flex-1 outline-none min-w-0"
+        >
+          <Check
+            className={cn(
+              "h-3.5 w-3.5",
+              taskDetail?.completed ? "text-[#207544]" : "text-[#9aa0a6]"
+            )}
           />
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={() => toast.success("Task liked")}><Heart className="h-4 w-4" /></Button>
+          {taskDetail?.completed ? "Completed" : "Mark complete"}
+        </button>
+        <div className="flex items-center gap-0.5 text-[#6f7782]">
           {/* Hidden file input — clicked programmatically by the
-              Paperclip button above. Accepts multiple files at once;
+              Paperclip button. Accepts multiple files at once;
               each upload hits /api/tasks/:id/attachments which
               persists to Vercel Blob and creates a DB row. */}
           <input
@@ -5032,22 +5095,44 @@ function TaskDetailPanel({
             onChange={handleAttachmentUpload}
             accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
           />
-          <Button
-            variant="ghost"
-            size="sm"
+          <ActionIconButton
+            onClick={() => toast.success("Task liked")}
+            title="Like"
+          >
+            <Heart className="h-[15px] w-[15px]" />
+          </ActionIconButton>
+          <ActionIconButton
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
             title="Attach file"
           >
             {uploading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-[15px] w-[15px] animate-spin" />
             ) : (
-              <Paperclip className="h-4 w-4" />
+              <Paperclip className="h-[15px] w-[15px]" />
             )}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/tasks/${task.id}`); toast.success("Link copied to clipboard"); }}><Link2 className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => { window.open(`/tasks/${task.id}`, "_blank"); }}><Maximize2 className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={onClose}><X className="h-4 w-4" /></Button>
+          </ActionIconButton>
+          <ActionIconButton
+            onClick={() => {
+              navigator.clipboard.writeText(`${window.location.origin}/tasks/${task.id}`);
+              toast.success("Link copied to clipboard");
+            }}
+            title="Copy link"
+          >
+            <Link2 className="h-[15px] w-[15px]" />
+          </ActionIconButton>
+          <ActionIconButton
+            onClick={() => window.open(`/tasks/${task.id}`, "_blank")}
+            title="Open full task"
+          >
+            <Maximize2 className="h-[15px] w-[15px]" />
+          </ActionIconButton>
+          <ActionIconButton title="More options">
+            <MoreHorizontal className="h-[15px] w-[15px]" />
+          </ActionIconButton>
+          <ActionIconButton onClick={onClose} title="Close">
+            <X className="h-[15px] w-[15px]" />
+          </ActionIconButton>
         </div>
       </div>
 
@@ -5079,49 +5164,76 @@ function TaskDetailPanel({
               </div>
             )}
 
-          {/* Visibility */}
-          <div className="px-4 py-2 bg-white text-xs text-black flex items-center gap-1">
+          {/* ── Visibility bar (full-width gray) ─────────────── */}
+          <div className="px-5 h-9 bg-[#f6f7f8] text-[12px] text-[#6f7782] flex items-center gap-1.5">
             <Globe className="h-3 w-3" />
             This task is visible to everyone in My workspace
           </div>
 
-          {/* Metadata */}
-          <div className="p-4 space-y-4 border-b">
-            <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Assignee</span>
-              <div className="flex items-center gap-2">
-                <AssigneeSelector
-                  value={taskDetail?.assignee || null}
-                  onChange={(user) => handleUpdate("assigneeId", user?.id || null)}
-                  trigger={
-                    taskDetail?.assignee ? (
-                      <button className="flex items-center gap-2 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs bg-white border border-black">
-                            {taskDetail.assignee.name?.charAt(0) || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm">{taskDetail.assignee.name}</span>
-                      </button>
-                    ) : (
-                      <button className="text-sm text-slate-500 hover:text-slate-700 hover:bg-gray-100 px-2 py-1 rounded cursor-pointer">
-                        No assignee
-                      </button>
-                    )
-                  }
-                />
-              </div>
-            </div>
+          {/* ── Task title (below visibility bar) ────────────── */}
+          <div className="px-5 pt-4 pb-3 flex items-start gap-2">
+            {/* Task-type glyph — milestone and approval get a small
+                gold icon so the type is legible without opening a
+                dropdown. Regular tasks stay clean. */}
+            {taskDetail?.taskType === "MILESTONE" && (
+              <Diamond
+                className="h-5 w-5 text-[#c9a84c] flex-shrink-0 mt-1"
+                fill="#c9a84c"
+                aria-label="Milestone"
+              />
+            )}
+            {taskDetail?.taskType === "APPROVAL" && (
+              <ThumbsUp
+                className="h-5 w-5 text-[#c9a84c] flex-shrink-0 mt-1"
+                aria-label="Approval"
+              />
+            )}
+            <textarea
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => name !== taskDetail?.name && handleUpdate("name", name)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+              rows={1}
+              className="flex-1 min-w-0 text-[22px] font-semibold leading-snug bg-transparent outline-none resize-none placeholder:text-[#9aa0a6] text-[#1e1f21]"
+              placeholder="Task name"
+            />
+          </div>
 
-            <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Due date</span>
+          {/* ── Property rows (Asana-style compact) ──────────── */}
+          <div className="px-5 pb-2">
+            <PropertyRow label="Assignee">
+              <AssigneeSelector
+                value={taskDetail?.assignee || null}
+                onChange={(user) => handleUpdate("assigneeId", user?.id || null)}
+                trigger={
+                  taskDetail?.assignee ? (
+                    <button className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer">
+                      <Avatar className="h-5 w-5">
+                        <AvatarFallback className="text-[10px] bg-[#1e1f21] text-white">
+                          {taskDetail.assignee.name?.charAt(0) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-[13px] text-[#1e1f21]">{taskDetail.assignee.name}</span>
+                    </button>
+                  ) : (
+                    <button className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] cursor-pointer">
+                      <UserPlus2 className="h-3.5 w-3.5" />
+                      No assignee
+                    </button>
+                  )
+                }
+              />
+            </PropertyRow>
+
+            <PropertyRow label="Due date">
               <DueDatePicker
-                startDate={
-                  taskDetail?.startDate ? new Date(taskDetail.startDate) : null
-                }
-                dueDate={
-                  taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null
-                }
+                startDate={taskDetail?.startDate ? new Date(taskDetail.startDate) : null}
+                dueDate={taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null}
                 onChange={async (start, due) => {
                   // ONE PATCH with both fields — not two parallel ones.
                   // Two PATCHes each trigger their own refetch and the
@@ -5147,42 +5259,57 @@ function TaskDetailPanel({
                 trigger={
                   // ONE button regardless of state. Conditional children
                   // would change the element's React identity on every
-                  // update and Radix would close the popover. We just
-                  // swap the text and class instead.
+                  // update and Radix would close the popover.
                   <button
                     type="button"
                     className={cn(
-                      "text-sm hover:bg-gray-100 px-2 py-1 rounded cursor-pointer",
+                      "flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] hover:bg-[#f3f4f6] cursor-pointer",
                       taskDetail?.dueDate || taskDetail?.startDate
-                        ? dueDateInfo.className
-                        : "text-slate-500 hover:text-slate-700"
+                        ? "text-[#1e1f21]"
+                        : "text-[#6f7782] hover:text-[#1e1f21]"
                     )}
                   >
+                    {!(taskDetail?.dueDate || taskDetail?.startDate) && (
+                      <Calendar className="h-3.5 w-3.5" />
+                    )}
                     {taskDetail?.dueDate || taskDetail?.startDate
                       ? formatRangeLabel(
-                          taskDetail?.startDate
-                            ? new Date(taskDetail.startDate)
-                            : null,
-                          taskDetail?.dueDate
-                            ? new Date(taskDetail.dueDate)
-                            : null,
+                          taskDetail?.startDate ? new Date(taskDetail.startDate) : null,
+                          taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null,
                           dueDateInfo.text
                         )
                       : "No due date"}
                   </button>
                 }
               />
-            </div>
+            </PropertyRow>
 
-            <div className="flex items-start gap-4">
-              <span className="w-24 text-sm text-black pt-1">Projects</span>
+            <PropertyRow label="Dependencies">
+              <button className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] cursor-pointer">
+                <Plus className="h-3.5 w-3.5" />
+                Add dependencies
+              </button>
+            </PropertyRow>
+
+            <PropertyRow
+              label="Projects"
+              accessory={
+                taskDetail?.project && (
+                  <span className="text-[11px] text-[#6f7782] tabular-nums">1</span>
+                )
+              }
+            >
               <div className="flex-1 min-w-0">
                 <ProjectSelector
-                  value={taskDetail?.project ? {
-                    id: taskDetail.project.id,
-                    name: taskDetail.project.name,
-                    color: taskDetail.project.color,
-                  } : null}
+                  value={
+                    taskDetail?.project
+                      ? {
+                          id: taskDetail.project.id,
+                          name: taskDetail.project.name,
+                          color: taskDetail.project.color,
+                        }
+                      : null
+                  }
                   onChange={(project) => handleUpdate("projectId", project?.id || null)}
                 />
                 {/* Engineering meta on the linked project — discipline
@@ -5191,10 +5318,10 @@ function TaskDetailPanel({
                     user doesn't have to navigate to the project page
                     to know which stage they're working in. */}
                 {taskDetail?.project && (taskDetail.project.type || taskDetail.project.gate) && (
-                  <div className="mt-1.5 flex items-center gap-1.5">
+                  <div className="mt-1 flex items-center gap-1.5">
                     {taskDetail.project.type && (
                       <span
-                        className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-100 text-gray-600"
+                        className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#f3f4f6] text-[#6f7782]"
                         title={`Project type: ${taskDetail.project.type}`}
                       >
                         {projectTypeShort(taskDetail.project.type)}
@@ -5211,87 +5338,74 @@ function TaskDetailPanel({
                   </div>
                 )}
               </div>
-            </div>
+            </PropertyRow>
 
-            <div className="flex items-center gap-4">
-              <span className="w-24 text-sm text-black">Priority</span>
+            <PropertyRow label="Priority">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-auto p-0">
-                    <span className={cn("text-sm",
-                      taskDetail?.priority === "HIGH" ? "text-black" :
-                      taskDetail?.priority === "MEDIUM" ? "text-[#a8893a]" :
-                      taskDetail?.priority === "LOW" ? "text-black" : "text-black"
-                    )}>
-                      {taskDetail?.priority || "None"}
-                    </span>
-                  </Button>
+                  <button
+                    type="button"
+                    className="-ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer"
+                  >
+                    {taskDetail?.priority && taskDetail.priority !== "NONE" ? (
+                      <PriorityTag value={taskDetail.priority} />
+                    ) : (
+                      <span className="text-[13px] text-[#6f7782]">No priority</span>
+                    )}
+                  </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent>
+                <DropdownMenuContent align="start">
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "HIGH")}>
-                    <span className="text-black">High</span>
+                    <PriorityTag value="HIGH" />
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "MEDIUM")}>
-                    <span className="text-[#a8893a]">Medium</span>
+                    <PriorityTag value="MEDIUM" />
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "LOW")}>
-                    <span className="text-black">Low</span>
+                    <PriorityTag value="LOW" />
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleUpdate("priority", "NONE")}>
-                    <span className="text-black">None</span>
+                    <span className="text-[13px] text-[#6f7782]">No priority</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            </PropertyRow>
           </div>
 
-          {/* Description */}
-          <div className="p-4 border-b">
-            <h4 className="text-sm font-medium text-slate-700 mb-2">Description</h4>
+          {/* ── Description (inline, no card) ────────────────── */}
+          <div className="px-5 pt-3 pb-4">
+            <h4 className="text-[12px] font-medium text-[#6f7782] mb-1.5">Description</h4>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={() => description !== taskDetail?.description && handleUpdate("description", description)}
               placeholder="What is this task about?"
-              className="w-full p-2 text-sm border rounded-md resize-none min-h-[80px] outline-none focus:ring-2 focus:ring-slate-200"
+              rows={2}
+              className="w-full text-[13px] leading-relaxed bg-transparent outline-none resize-none placeholder:text-[#9aa0a6] text-[#1e1f21] focus:bg-[#f9fafb] focus:rounded-md focus:px-2 focus:py-1 transition-[background-color] -mx-0"
             />
           </div>
 
-          {/* Attachments — uploaded files for this task. Persisted
-              to Vercel Blob via POST /api/tasks/:id/attachments and
-              also surface in the /my-tasks → Files tab via the
-              shared Attachment table. */}
-          <div className="p-4 border-b">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-slate-700">
-                Attachments ({taskDetail?.attachments?.length || 0})
+          {/* ── Attachments (Asana-style minimal rows) ───────── */}
+          <div className="px-5 pt-3 pb-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <h4 className="text-[12px] font-medium text-[#6f7782]">
+                Attachments {taskDetail?.attachments?.length > 0 && `(${taskDetail.attachments.length})`}
               </h4>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
+                className="flex items-center justify-center h-4 w-4 rounded text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] disabled:opacity-50"
+                title="Add attachment"
               >
                 {uploading ? (
-                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
-                  <Paperclip className="h-3.5 w-3.5 mr-1" />
+                  <Plus className="h-3.5 w-3.5" />
                 )}
-                {uploading ? "Uploading…" : "Upload"}
-              </Button>
-            </div>
-            {(!taskDetail?.attachments || taskDetail.attachments.length === 0) ? (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="w-full border border-dashed rounded-lg py-4 text-xs text-gray-500 hover:text-black hover:border-gray-400 hover:bg-gray-50 transition-colors"
-              >
-                Click to upload — images, PDFs, Office docs, up to 10 MB each
               </button>
-            ) : (
-              <ul className="space-y-1.5">
+            </div>
+            {!taskDetail?.attachments || taskDetail.attachments.length === 0 ? null : (
+              <ul className="space-y-0.5 -mx-2">
                 {taskDetail.attachments.map(
                   (
                     a: {
@@ -5308,40 +5422,36 @@ function TaskDetailPanel({
                     return (
                       <li
                         key={a.id}
-                        className="group flex items-center gap-2 px-2 py-1.5 border rounded-md hover:bg-gray-50"
+                        className="group flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-[#f3f4f6]"
                       >
                         <button
                           type="button"
                           onClick={() => setViewerIndex(i)}
-                          className="h-8 w-8 flex-shrink-0 rounded overflow-hidden border bg-gray-100 flex items-center justify-center cursor-zoom-in"
+                          className="h-6 w-6 flex-shrink-0 rounded overflow-hidden bg-[#f3f4f6] flex items-center justify-center cursor-zoom-in"
                           aria-label={`Open ${a.name}`}
                         >
                           {isImage ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={a.url}
-                              alt={a.name}
-                              className="h-full w-full object-cover"
-                            />
+                            <img src={a.url} alt={a.name} className="h-full w-full object-cover" />
                           ) : (
-                            <Paperclip className="h-3.5 w-3.5 text-gray-400" />
+                            <Paperclip className="h-3 w-3 text-[#6f7782]" />
                           )}
                         </button>
                         <button
                           type="button"
                           onClick={() => setViewerIndex(i)}
-                          className="flex-1 min-w-0 text-left cursor-zoom-in"
+                          className="flex-1 min-w-0 text-left cursor-zoom-in flex items-baseline gap-1.5"
                         >
-                          <p className="text-[12px] font-medium text-black truncate hover:underline">
+                          <span className="text-[13px] text-[#1e1f21] truncate group-hover:underline">
                             {a.name}
-                          </p>
-                          <p className="text-[10px] text-gray-500 font-mono tabular-nums">
+                          </span>
+                          <span className="text-[11px] text-[#9aa0a6] tabular-nums whitespace-nowrap">
                             {formatFileSize(a.size)} ·{" "}
                             {new Date(a.createdAt).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                             })}
-                          </p>
+                          </span>
                         </button>
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
@@ -5350,13 +5460,11 @@ function TaskDetailPanel({
                                 await downloadFile(a.url, a.name);
                               } catch (err) {
                                 toast.error(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "Couldn't download file"
+                                  err instanceof Error ? err.message : "Couldn't download file"
                                 );
                               }
                             }}
-                            className="p-1 text-gray-400 hover:text-black"
+                            className="p-1 text-[#9aa0a6] hover:text-[#1e1f21]"
                             aria-label={`Download ${a.name}`}
                             title="Download"
                           >
@@ -5364,7 +5472,7 @@ function TaskDetailPanel({
                           </button>
                           <button
                             onClick={() => handleAttachmentDelete(a.id)}
-                            className="p-1 text-gray-400 hover:text-black"
+                            className="p-1 text-[#9aa0a6] hover:text-[#1e1f21]"
                             aria-label="Remove attachment"
                             title="Remove"
                           >
@@ -5379,14 +5487,29 @@ function TaskDetailPanel({
             )}
           </div>
 
-          {/* Subtasks */}
-          <div className="p-4 border-b">
-            <h4 className="text-sm font-medium text-slate-700 mb-2">
-              Subtasks ({taskDetail?.subtasks?.length || 0})
-            </h4>
-            <div className="space-y-1">
+          {/* ── Subtasks (Asana-style minimal) ───────────────── */}
+          <div className="px-5 pt-3 pb-4">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <h4 className="text-[12px] font-medium text-[#6f7782]">
+                Subtasks {taskDetail?.subtasks?.length > 0 && `(${taskDetail.subtasks.length})`}
+              </h4>
+              <button
+                onClick={() => {
+                  setIsAddingSubtask(true);
+                  setTimeout(() => subtaskInputRef.current?.focus(), 0);
+                }}
+                className="flex items-center justify-center h-4 w-4 rounded text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21]"
+                title="Add subtask"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-0">
               {taskDetail?.subtasks?.map((subtask: any) => (
-                <div key={subtask.id} className="flex items-center gap-2 group hover:bg-gray-50 rounded px-1 py-0.5">
+                <div
+                  key={subtask.id}
+                  className="flex items-center gap-2 group py-1.5 border-b border-[#eeeeee] last:border-b-0"
+                >
                   <button
                     onClick={async () => {
                       try {
@@ -5405,21 +5528,30 @@ function TaskDetailPanel({
                     }}
                     className="flex-shrink-0"
                   >
-                    <div className={cn(
-                      "w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors",
-                      subtask.completed ? "bg-[#c9a84c] border-[#c9a84c]" : "border-slate-300 hover:border-slate-400"
-                    )}>
-                      {subtask.completed && <Check className="w-3 h-3 text-white" />}
+                    <div
+                      className={cn(
+                        "w-[15px] h-[15px] rounded-full border flex items-center justify-center transition-colors",
+                        subtask.completed
+                          ? "bg-[#c9a84c] border-[#c9a84c]"
+                          : "border-[#c4c7cf] hover:border-[#1e1f21]"
+                      )}
+                    >
+                      {subtask.completed && <Check className="w-2.5 h-2.5 text-white" />}
                     </div>
                   </button>
-                  <span className={cn("text-sm flex-1", subtask.completed && "line-through text-slate-400")}>
+                  <span
+                    className={cn(
+                      "text-[13px] flex-1",
+                      subtask.completed ? "line-through text-[#9aa0a6]" : "text-[#1e1f21]"
+                    )}
+                  >
                     {subtask.name}
                   </span>
                 </div>
               ))}
               {isAddingSubtask ? (
-                <div className="flex items-center gap-2 px-1">
-                  <div className="w-4 h-4 rounded-full border-2 border-slate-300 flex-shrink-0" />
+                <div className="flex items-center gap-2 py-1.5 border-b border-[#eeeeee]">
+                  <div className="w-[15px] h-[15px] rounded-full border border-[#c4c7cf] flex-shrink-0" />
                   <input
                     ref={subtaskInputRef}
                     type="text"
@@ -5431,7 +5563,10 @@ function TaskDetailPanel({
                           const res = await fetch(`/api/tasks`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ name: newSubtaskName.trim(), parentTaskId: task.id }),
+                            body: JSON.stringify({
+                              name: newSubtaskName.trim(),
+                              parentTaskId: task.id,
+                            }),
                           });
                           if (res.ok) {
                             setNewSubtaskName("");
@@ -5456,36 +5591,36 @@ function TaskDetailPanel({
                         setNewSubtaskName("");
                       }
                     }}
-                    placeholder="Subtask name..."
-                    className="flex-1 text-sm outline-none border-b border-slate-200 focus:border-slate-400 py-1"
+                    placeholder="Type a subtask name"
+                    className="flex-1 text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6]"
                     autoFocus
                   />
                 </div>
               ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-black w-full justify-start"
+                <button
+                  className="flex items-center gap-2 py-1.5 w-full text-left text-[13px] text-[#6f7782] hover:text-[#1e1f21]"
                   onClick={() => {
                     setIsAddingSubtask(true);
                     setTimeout(() => subtaskInputRef.current?.focus(), 0);
                   }}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-3.5 w-3.5" />
                   Add subtask
-                </Button>
+                </button>
               )}
             </div>
           </div>
 
-          {/* Activity Tabs */}
-          <div className="border-b">
-            <div className="flex gap-4 px-4">
+          {/* ── Activity tabs ────────────────────────────────── */}
+          <div className="border-t border-[#e8e8e8] mt-2">
+            <div className="flex gap-5 px-5">
               <button
                 onClick={() => setActiveTab("comments")}
                 className={cn(
-                  "py-2 text-sm font-medium border-b-2 -mb-px",
-                  activeTab === "comments" ? "text-black border-black" : "text-black border-transparent"
+                  "py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors",
+                  activeTab === "comments"
+                    ? "text-[#1e1f21] border-[#1e1f21]"
+                    : "text-[#6f7782] border-transparent hover:text-[#1e1f21]"
                 )}
               >
                 Comments
@@ -5493,8 +5628,10 @@ function TaskDetailPanel({
               <button
                 onClick={() => setActiveTab("activity")}
                 className={cn(
-                  "py-2 text-sm font-medium border-b-2 -mb-px",
-                  activeTab === "activity" ? "text-black border-black" : "text-black border-transparent"
+                  "py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors",
+                  activeTab === "activity"
+                    ? "text-[#1e1f21] border-[#1e1f21]"
+                    : "text-[#6f7782] border-transparent hover:text-[#1e1f21]"
                 )}
               >
                 All activity
@@ -5593,7 +5730,7 @@ function TaskDetailPanel({
                   );
                 })}
                 {(!taskDetail?.comments || taskDetail.comments.length === 0) && (
-                  <p className="text-sm text-black text-center py-4">No comments yet</p>
+                  <p className="text-[13px] text-[#9aa0a6] text-center py-6">No comments yet</p>
                 )}
               </>
             ) : (
@@ -5620,19 +5757,18 @@ function TaskDetailPanel({
         </div>
       )}
 
-      {/* Comment Input */}
-      <div className="p-4 border-t">
-        <div className="flex gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="text-xs bg-black text-white">U</AvatarFallback>
+      {/* ── Comment Input (anchored bottom) ──────────────── */}
+      <div className="px-5 py-3 border-t border-[#e8e8e8] bg-white">
+        <div className="flex gap-2.5 items-start">
+          <Avatar className="h-7 w-7 flex-shrink-0 mt-0.5">
+            <AvatarFallback className="text-[11px] bg-[#1e1f21] text-white">U</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <Input
+            <div className="flex items-center gap-1.5 rounded-md border border-[#e8e8e8] bg-white focus-within:border-[#c4c7cf] transition-colors px-2.5 py-1.5">
+              <input
+                type="text"
                 placeholder={
-                  pendingCommentFiles.length > 0
-                    ? "Caption (optional)…"
-                    : "Add a comment…"
+                  pendingCommentFiles.length > 0 ? "Caption (optional)…" : "Add a comment…"
                 }
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
@@ -5643,7 +5779,7 @@ function TaskDetailPanel({
                   }
                 }}
                 disabled={postingComment}
-                className="flex-1"
+                className="flex-1 text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] text-[#1e1f21]"
               />
               <input
                 ref={commentFileInputRef}
@@ -5653,54 +5789,43 @@ function TaskDetailPanel({
                 onChange={handleCommentFilesPicked}
                 accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
               />
-              <Button
+              <button
                 type="button"
-                variant="ghost"
-                size="sm"
                 onClick={() => commentFileInputRef.current?.click()}
                 disabled={postingComment}
-                title="Attach file to this comment"
-                className="h-9 w-9 p-0 flex-shrink-0"
+                className="flex items-center justify-center h-6 w-6 rounded text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] disabled:opacity-50"
+                title="Attach file"
               >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-              <Button
+                <Paperclip className="h-3.5 w-3.5" />
+              </button>
+              <button
                 type="button"
-                size="sm"
                 onClick={handleAddComment}
                 disabled={
                   postingComment ||
                   (!newComment.trim() && pendingCommentFiles.length === 0)
                 }
-                className="h-9 px-3 bg-black hover:bg-gray-800 text-white flex-shrink-0"
+                className="h-6 px-2.5 text-[12px] font-medium rounded bg-[#1e1f21] text-white hover:bg-[#000] disabled:opacity-40 disabled:cursor-not-allowed flex items-center"
               >
-                {postingComment ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  "Post"
-                )}
-              </Button>
+                {postingComment ? <Loader2 className="h-3 w-3 animate-spin" /> : "Post"}
+              </button>
             </div>
             {pendingCommentFiles.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {pendingCommentFiles.map((f, i) => (
                   <span
                     key={`${f.name}-${i}`}
-                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full border bg-gray-50 text-[11px] text-black"
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-[#e8e8e8] bg-[#f9fafb] text-[11px] text-[#1e1f21]"
                   >
-                    <Paperclip className="h-3 w-3 text-gray-500" />
+                    <Paperclip className="h-3 w-3 text-[#6f7782]" />
                     <span className="max-w-[140px] truncate">{f.name}</span>
-                    <span className="text-gray-400 font-mono tabular-nums">
-                      {formatFileSize(f.size)}
-                    </span>
+                    <span className="text-[#9aa0a6] tabular-nums">{formatFileSize(f.size)}</span>
                     <button
                       type="button"
                       onClick={() =>
-                        setPendingCommentFiles((prev) =>
-                          prev.filter((_, idx) => idx !== i)
-                        )
+                        setPendingCommentFiles((prev) => prev.filter((_, idx) => idx !== i))
                       }
-                      className="text-gray-400 hover:text-black ml-0.5"
+                      className="text-[#9aa0a6] hover:text-[#1e1f21] ml-0.5"
                       aria-label={`Remove ${f.name}`}
                     >
                       <X className="h-3 w-3" />
@@ -5713,55 +5838,55 @@ function TaskDetailPanel({
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="p-4 border-t flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-black">Collaborators:</span>
-          {taskDetail?.collaborators?.map((collab: any) => (
-            <Avatar key={collab.id} className="h-6 w-6" title={collab.name || "User"}>
-              <AvatarFallback className="text-[10px] bg-black text-white">
-                {(collab.name || "U").charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-          ))}
-          {(!taskDetail?.collaborators || taskDetail.collaborators.length === 0) && (
-            <Avatar className="h-6 w-6">
-              <AvatarFallback className="text-[10px] bg-black text-white">U</AvatarFallback>
-            </Avatar>
-          )}
-          <AssigneeSelector
-            value={null}
-            onChange={async (user) => {
-              if (!user) return;
-              try {
-                const res = await fetch(`/api/tasks/${task.id}/collaborators`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ userId: user.id }),
-                });
-                if (res.ok) {
-                  toast.success(`${user.name} added as collaborator`);
-                  fetchTaskDetail();
-                } else if (res.status === 409) {
-                  toast.info("Already a collaborator");
-                } else {
+      {/* ── Collaborators footer ─────────────────────────── */}
+      <div className="px-5 py-2.5 border-t border-[#e8e8e8] flex items-center justify-between text-[12px] bg-white">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[#6f7782]">Collaborators</span>
+          <div className="flex items-center gap-1">
+            {taskDetail?.collaborators?.map((collab: any) => (
+              <Avatar key={collab.id} className="h-5 w-5" title={collab.name || "User"}>
+                <AvatarFallback className="text-[9px] bg-[#1e1f21] text-white">
+                  {(collab.name || "U").charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+            ))}
+            {(!taskDetail?.collaborators || taskDetail.collaborators.length === 0) && (
+              <Avatar className="h-5 w-5">
+                <AvatarFallback className="text-[9px] bg-[#1e1f21] text-white">U</AvatarFallback>
+              </Avatar>
+            )}
+            <AssigneeSelector
+              value={null}
+              onChange={async (user) => {
+                if (!user) return;
+                try {
+                  const res = await fetch(`/api/tasks/${task.id}/collaborators`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ userId: user.id }),
+                  });
+                  if (res.ok) {
+                    toast.success(`${user.name} added as collaborator`);
+                    fetchTaskDetail();
+                  } else if (res.status === 409) {
+                    toast.info("Already a collaborator");
+                  } else {
+                    toast.error("Failed to add collaborator");
+                  }
+                } catch {
                   toast.error("Failed to add collaborator");
                 }
-              } catch {
-                toast.error("Failed to add collaborator");
+              }}
+              trigger={
+                <button className="h-5 w-5 rounded-full border border-dashed border-[#c4c7cf] flex items-center justify-center hover:border-[#1e1f21] hover:bg-[#f3f4f6] cursor-pointer">
+                  <Plus className="h-2.5 w-2.5 text-[#9aa0a6]" />
+                </button>
               }
-            }}
-            trigger={
-              <button className="h-6 w-6 rounded-full border border-dashed border-slate-300 flex items-center justify-center hover:border-slate-400 hover:bg-gray-50 cursor-pointer">
-                <Plus className="h-3 w-3 text-slate-400" />
-              </button>
-            }
-          />
+            />
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-black"
+        <button
+          className="text-[12px] text-[#6f7782] hover:text-[#1e1f21]"
           onClick={async () => {
             try {
               const res = await fetch(`/api/tasks/${task.id}/collaborators`, {
@@ -5779,7 +5904,7 @@ function TaskDetailPanel({
           }}
         >
           Leave task
-        </Button>
+        </button>
       </div>
 
       {viewerIndex !== null && taskDetail?.attachments?.[viewerIndex] && (
