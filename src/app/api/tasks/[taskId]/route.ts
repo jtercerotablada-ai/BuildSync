@@ -156,6 +156,12 @@ export async function GET(
             userId: true,
           },
         },
+        customFieldValues: {
+          select: {
+            fieldId: true,
+            value: true,
+          },
+        },
         likes: {
           where: {
             userId,

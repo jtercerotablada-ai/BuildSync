@@ -47,6 +47,10 @@ interface AIFieldCard {
 }
 
 export interface CreatedFieldInfo {
+  /** Persisted definition id when projectId was provided. */
+  id?: string;
+  /** Persisted ProjectCustomField link id when projectId was provided. */
+  linkId?: string;
   name: string;
   type: string;
   color: string;
@@ -58,8 +62,27 @@ interface CustomFieldModalProps {
   initialFieldType?: string;
   initialFieldName?: string;
   initialTab?: TabId;
+  /** When provided, the modal POSTs the new field to the project's
+   *  custom-fields endpoint and onFieldCreated receives the persisted
+   *  ids. When absent (e.g. /my-tasks which spans projects) the modal
+   *  falls back to its cosmetic-callback behavior. */
+  projectId?: string;
   onFieldCreated?: (field: CreatedFieldInfo) => void;
 }
+
+// Map the UI's field-type ids to the Prisma CustomFieldType enum the
+// API expects. Returns null for cosmetic-only types so we skip POST.
+const UI_TO_PRISMA_TYPE: Record<string, string> = {
+  text: "TEXT",
+  number: "NUMBER",
+  date: "DATE",
+  single_select: "DROPDOWN",
+  multi_select: "MULTI_SELECT",
+  checkbox: "CHECKBOX",
+  people: "PEOPLE",
+  currency: "CURRENCY",
+  percentage: "PERCENTAGE",
+};
 
 // ─── Field type options ──────────────────────────────────
 
@@ -149,6 +172,7 @@ export function CustomFieldModal({
   initialFieldType,
   initialFieldName,
   initialTab,
+  projectId,
   onFieldCreated,
 }: CustomFieldModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>("create");
@@ -159,6 +183,7 @@ export function CustomFieldModal({
   const [onlyForThisProject, setOnlyForThisProject] = useState(false);
   const [addToAllNewTasks, setAddToAllNewTasks] = useState(true);
   const [librarySearch, setLibrarySearch] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   // Pre-fill from props when the modal opens
   useEffect(() => {
@@ -172,14 +197,79 @@ export function CustomFieldModal({
     if (initialFieldName) setFieldTitle(initialFieldName);
   }, [open, initialTab, initialFieldType, initialFieldName]);
 
-  function handleCreate() {
-    if (!fieldTitle.trim()) {
+  async function handleCreate() {
+    const name = fieldTitle.trim();
+    if (!name) {
       toast.error("Field name is required");
       return;
     }
-    onFieldCreated?.({ name: fieldTitle.trim(), type: fieldType, color: fieldColor });
-    toast.success(`Field "${fieldTitle}" created`);
-    resetAndClose();
+    if (submitting) return;
+
+    // No projectId in context (e.g. /my-tasks toolbar across projects)
+    // → preserve old cosmetic-only behavior so we don't lose the existing
+    // callback hooks downstream.
+    if (!projectId) {
+      onFieldCreated?.({ name, type: fieldType, color: fieldColor });
+      toast.success(`Field "${name}" created`);
+      resetAndClose();
+      return;
+    }
+
+    const prismaType = UI_TO_PRISMA_TYPE[fieldType];
+    if (!prismaType) {
+      toast.error("This field type isn't supported yet");
+      return;
+    }
+
+    // DROPDOWN / MULTI_SELECT need at least one option. The current
+    // modal doesn't have an option editor (Phase 2), so seed a few
+    // placeholder options the user can rename via the column header
+    // dropdown later.
+    const options =
+      prismaType === "DROPDOWN" || prismaType === "MULTI_SELECT"
+        ? [
+            { id: "opt-1", label: "Option 1", color: fieldColor },
+            { id: "opt-2", label: "Option 2", color: fieldColor },
+            { id: "opt-3", label: "Option 3", color: fieldColor },
+          ]
+        : undefined;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/custom-fields`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            type: prismaType,
+            options,
+            isRequired: false,
+          }),
+        }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `HTTP ${res.status}`);
+      }
+      const created = await res.json();
+      onFieldCreated?.({
+        id: created.id,
+        linkId: created.linkId,
+        name: created.name,
+        type: fieldType,
+        color: fieldColor,
+      });
+      toast.success(`Field "${name}" created`);
+      resetAndClose();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create field"
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function handleAddFromLibrary(fieldName: string) {
@@ -283,9 +373,10 @@ export function CustomFieldModal({
             </button>
             <button
               onClick={handleCreate}
-              className="px-4 h-8 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md transition-colors"
+              disabled={submitting || !fieldTitle.trim()}
+              className="px-4 h-8 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
             >
-              Create field
+              {submitting ? "Creating…" : "Create field"}
             </button>
           </div>
         )}

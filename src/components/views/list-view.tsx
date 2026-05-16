@@ -825,6 +825,7 @@ export function ListView({
         initialFieldType={preselectedFieldType ?? undefined}
         initialFieldName={preselectedFieldName}
         initialTab={initialTab}
+        projectId={projectId}
       />
     </div>
   );

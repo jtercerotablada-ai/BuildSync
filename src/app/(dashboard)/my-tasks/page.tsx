@@ -88,6 +88,7 @@ import { FilterPanel, type QuickFilterKey, type ActiveFilter } from "@/component
 import { SortPanel, type SortState } from "@/components/tasks/sort-panel";
 import { GroupPanel, type GroupConfig } from "@/components/tasks/group-panel";
 import { CustomFieldModal, type CreatedFieldInfo } from "@/components/tasks/custom-field-modal";
+import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
@@ -5650,6 +5651,19 @@ function TaskDetailPanel({
                 </DropdownMenuContent>
               </DropdownMenu>
             </PropertyRow>
+
+            {/* Project's custom fields — schema-defined + per-task
+                values rendered with type-appropriate editors. Hidden
+                automatically when the project has no custom fields. */}
+            <CustomFieldsSection
+              taskId={task.id}
+              projectId={taskDetail?.project?.id ?? null}
+              values={taskDetail?.customFieldValues ?? []}
+              onChanged={() => {
+                fetchTaskDetail();
+                onUpdate();
+              }}
+            />
           </div>
 
           {/* ── Description (inline, no card) ────────────────── */}
