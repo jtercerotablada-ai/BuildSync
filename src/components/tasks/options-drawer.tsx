@@ -78,9 +78,11 @@ export function OptionsDrawer({
     <div
       ref={panelRef}
       className={cn(
-        "h-full bg-white border-l border-gray-200 flex flex-col flex-shrink-0 transition-[width,opacity] duration-200 ease-out overflow-hidden",
-        open ? "w-[380px] opacity-100" : "w-0 opacity-0"
+        "absolute top-0 right-0 bottom-0 w-[380px] bg-white border-l border-gray-200 flex flex-col overflow-hidden z-30 shadow-[-8px_0_24px_-12px_rgba(0,0,0,0.08)]",
+        "transition-transform duration-200 ease-out",
+        open ? "translate-x-0" : "translate-x-full pointer-events-none"
       )}
+      aria-hidden={!open}
     >
       {open && (
         <>

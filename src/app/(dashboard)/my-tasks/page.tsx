@@ -1175,13 +1175,14 @@ export default function MyTasksPage() {
               });
             }}
             className={cn(
-              "flex items-center justify-center h-7 w-7 rounded transition-colors",
+              "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
               optionsDrawerOpen
                 ? "text-gray-900 bg-gray-200"
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
             )}
           >
             <MoreHorizontal className="w-4 h-4" />
+            Options
           </button>
 
           {/* Search: magnifier icon → expands to input on click (like Asana) */}
