@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   CheckCircle,
@@ -41,6 +42,7 @@ import {
 } from "@/components/views/workflow-action-dialog";
 import { FormBuilderDialog } from "@/components/views/form-builder-dialog";
 import { FormSubmissionsDialog } from "@/components/views/form-submissions-dialog";
+import { WorkflowTemplatesDialog } from "@/components/views/workflow-templates-dialog";
 import type { FormRow } from "@/lib/form-types";
 
 // ============================================
@@ -123,6 +125,7 @@ function makeDefaultAction(type: WorkflowActionType): WorkflowAction {
 // ============================================
 
 export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
+  const router = useRouter();
   const [workflow, setWorkflow] = useState<WorkflowRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -148,6 +151,27 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   const [editingForm, setEditingForm] = useState<FormRow | null>(null);
   const [submissionsForm, setSubmissionsForm] = useState<FormRow | null>(null);
+
+  // Engineering rule templates — one-click bundles that create rules
+  // and any missing sections. Modal is reachable from the heading
+  // and the empty-state CTA.
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+
+  // ── Refetch helpers ─────────────────────────────────────────
+  // Pulled out so the templates dialog can refresh after applying.
+  const reloadWorkflow = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/workflow`);
+      if (!res.ok) throw new Error("Failed to load workflow");
+      const data: WorkflowRow = await res.json();
+      setWorkflow(data);
+      setShowOnboarding(data.rules.length === 0);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to load workflow"
+      );
+    }
+  }, [projectId]);
 
   // ── Initial fetch ───────────────────────────────────────────
   useEffect(() => {
@@ -374,6 +398,18 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
               ⓘ Rules fire automatically when a task is moved into
               the matching section, from any view.
             </p>
+            {/* Engineering templates — one-click bundles for common
+                AEC handoffs (calc review, permitting, RFI cycle…). */}
+            <button
+              type="button"
+              onClick={() => setTemplatesOpen(true)}
+              className="mt-3 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium text-[#1e1f21] bg-[#fbeed3] hover:bg-[#f4dfa8] border border-[#e9d287] transition-colors"
+            >
+              <Zap className="w-3.5 h-3.5 text-[#7a5b1b]" />
+              {workflow?.rules.length === 0
+                ? "Start with a template"
+                : "Add from template"}
+            </button>
           </div>
 
           {/* Sources panel — Forms section (Phase 3). Always visible
@@ -581,6 +617,21 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
           // Navigate to the project's task — opens via /tasks/[id]
           // which redirects to the right project view + slide-over.
           window.open(`/tasks/${taskId}`, "_blank");
+        }}
+      />
+
+      {/* Engineering workflow templates — one-click rule bundles.
+          After apply we reload the local workflow (rules show
+          immediately) and call router.refresh() so the parent
+          re-fetches `project.sections` and the new section cards
+          render in the rail without a full page reload. */}
+      <WorkflowTemplatesDialog
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        projectId={projectId}
+        onApplied={() => {
+          reloadWorkflow();
+          router.refresh();
         }}
       />
     </div>
