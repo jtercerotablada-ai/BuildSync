@@ -52,7 +52,6 @@ import {
 import { CustomizeWidgetsModal } from "@/components/dashboard/customize-widgets-modal";
 import type { WidgetType } from "@/types/dashboard";
 import type { CockpitData } from "@/components/cockpit/types";
-import { computePmiSnapshot } from "@/lib/pmi-metrics";
 
 import {
   HomeHeader,
@@ -170,33 +169,15 @@ export default function HomePage() {
     }
   }
 
-  // ── Header KPI strip stats ──────────────────────────────────────
-  const stats = useMemo(() => {
-    if (!data) return { closed: 0, overdue: 0, avgSpi: 0, velocity: 0 };
+  // ── Header summary chips (Asana-style) ──────────────────────────
+  const summary = useMemo(() => {
+    if (!data) return { tasksCompleted: 0, collaborators: 0 };
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const closed = data.activity.filter(
+    const tasksCompleted = data.activity.filter(
       (a) => a.completedAt && new Date(a.completedAt) >= weekAgo
     ).length;
-    const overdue = data.criticalPath.filter(
-      (t) => new Date(t.dueDate) < now
-    ).length;
-    const spis = data.projects
-      .map(
-        (p) =>
-          computePmiSnapshot({
-            startDate: p.startDate,
-            endDate: p.endDate,
-            budget: p.budget,
-            status: p.status,
-            taskCount: p._count.tasks,
-            completedTaskCount: 0,
-          }).spi
-      )
-      .filter((s) => s > 0);
-    const avgSpi =
-      spis.length > 0 ? spis.reduce((a, b) => a + b, 0) / spis.length : 0;
-    return { closed, overdue, avgSpi, velocity: closed };
+    return { tasksCompleted, collaborators: data.team.length };
   }, [data]);
 
   // ── Render a single widget by id ────────────────────────────────
@@ -333,10 +314,8 @@ export default function HomePage() {
         userName={session?.user?.name}
         period={period}
         onPeriodChange={setPeriod}
-        closedThisWeek={stats.closed}
-        overdueCount={stats.overdue}
-        avgSpi={stats.avgSpi}
-        velocityWeekly={stats.velocity}
+        tasksCompleted={summary.tasksCompleted}
+        collaboratorsCount={summary.collaborators}
       />
 
       {/* Signature visual — every project as a vertical bar in a

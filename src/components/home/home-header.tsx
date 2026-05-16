@@ -1,20 +1,15 @@
 "use client";
 
 /**
- * Home header — greeting + date + personal stat strip + period selector.
+ * Home header — greeting + date + Asana-style summary chips.
  *
- * Mirrors Asana's pattern (greeting / My week / 0 tasks completed /
- * 0 collaborators / Personalize) but enriched for an engineering firm:
- *   - Time-aware greeting (Good morning / afternoon / evening)
- *   - Personal PMI stats: avg SPI across my projects, weekly velocity
- *   - Period selector: Today / This week / Next 14 days /
- *     Look-ahead 3 weeks (PMI vocab) / Quarter
- *
- * No "Personalize" button yet — we'll add it once there are widgets
- * the user can actually rearrange.
+ * Mirrors Asana's minimalist pattern: greeting, period selector,
+ * "X tasks completed", "X collaborators". No emphasis pills for
+ * SPI / Velocity / Overdue — those signals live in the AI Brief
+ * tile and the dedicated PMI widgets below.
  */
 
-import { Calendar, ChevronDown } from "lucide-react";
+import { Calendar, ChevronDown, CheckCircle2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
 
 export type HomePeriod =
   | "today"
@@ -50,18 +44,14 @@ export function HomeHeader({
   userName,
   period,
   onPeriodChange,
-  closedThisWeek,
-  overdueCount,
-  avgSpi,
-  velocityWeekly,
+  tasksCompleted,
+  collaboratorsCount,
 }: {
   userName?: string | null;
   period: HomePeriod;
   onPeriodChange: (p: HomePeriod) => void;
-  closedThisWeek: number;
-  overdueCount: number;
-  avgSpi: number;
-  velocityWeekly: number;
+  tasksCompleted: number;
+  collaboratorsCount: number;
 }) {
   const dateStr = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -79,7 +69,7 @@ export function HomeHeader({
           {greeting(userName)}
         </h1>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-8 text-xs">
@@ -99,46 +89,40 @@ export function HomeHeader({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Stat label="Closed" value={closedThisWeek.toString()} />
-          <Stat
-            label="Overdue"
-            value={overdueCount.toString()}
-            emphasize={overdueCount > 0}
+          <SummaryChip
+            icon={<CheckCircle2 className="h-3.5 w-3.5 text-gray-500" />}
+            count={tasksCompleted}
+            singular="task completed"
+            plural="tasks completed"
           />
-          <Stat
-            label="Avg SPI"
-            value={avgSpi > 0 ? avgSpi.toFixed(2) : "—"}
-            emphasize={avgSpi > 0 && avgSpi < 0.95}
+          <SummaryChip
+            icon={<Users className="h-3.5 w-3.5 text-gray-500" />}
+            count={collaboratorsCount}
+            singular="collaborator"
+            plural="collaborators"
           />
-          <Stat label="Velocity/wk" value={velocityWeekly.toString()} />
         </div>
       </div>
     </div>
   );
 }
 
-function Stat({
-  label,
-  value,
-  emphasize = false,
+function SummaryChip({
+  icon,
+  count,
+  singular,
+  plural,
 }: {
-  label: string;
-  value: string;
-  emphasize?: boolean;
+  icon: React.ReactNode;
+  count: number;
+  singular: string;
+  plural: string;
 }) {
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 border rounded-md bg-white">
-      <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
-        {label}
-      </span>
-      <span
-        className={cn(
-          "text-sm font-mono tabular-nums",
-          emphasize ? "font-bold text-black" : "font-semibold text-gray-700"
-        )}
-      >
-        {value}
-      </span>
+    <div className="flex items-center gap-1.5 text-xs text-gray-700">
+      {icon}
+      <span className="font-semibold tabular-nums">{count}</span>
+      <span className="text-gray-600">{count === 1 ? singular : plural}</span>
     </div>
   );
 }
