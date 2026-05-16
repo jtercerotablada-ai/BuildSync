@@ -857,7 +857,7 @@ export default function MyTasksPage() {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background relative">
       {/* TITLE ROW — no bottom border (Asana pattern) */}
       <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-0" style={{ height: "var(--page-header-h, 44px)" }}>
         <DropdownMenu>
@@ -1698,17 +1698,6 @@ export default function MyTasksPage() {
           </div>
         </div>
 
-        {/* Task Detail Panel */}
-        {taskPanelOpen && selectedTask && (
-          <TaskDetailPanel
-            task={selectedTask}
-            onClose={() => setTaskPanelOpen(false)}
-            onUpdate={() => fetchTasks(true)}
-            onAttachmentsChange={() => setAttachmentsVersion((v) => v + 1)}
-            formatDueDate={formatDueDate}
-          />
-        )}
-
         {/* Workflow Panel */}
         <WorkflowPanel
           open={workflowPanelOpen}
@@ -1729,6 +1718,20 @@ export default function MyTasksPage() {
           onGroupsChange={handleGroupConfigsChange}
         />
       </div>
+
+      {/* Task Detail Panel — lifted out of the list container so it
+          extends full-page-height (covers the right side of the title
+          row + tabs + toolbar) like Asana, instead of starting below
+          the toolbar. Positions against the outer wrapper's `relative`. */}
+      {taskPanelOpen && selectedTask && (
+        <TaskDetailPanel
+          task={selectedTask}
+          onClose={() => setTaskPanelOpen(false)}
+          onUpdate={() => fetchTasks(true)}
+          onAttachmentsChange={() => setAttachmentsVersion((v) => v + 1)}
+          formatDueDate={formatDueDate}
+        />
+      )}
 
       {/* Add Tasks with AI Modal */}
       <AddTasksAIModal
