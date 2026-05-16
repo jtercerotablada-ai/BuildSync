@@ -26,6 +26,17 @@ export type ProjectTemplateCategory =
   | "operations"
   | "productivity";
 
+/**
+ * Pre-baked task within a project template.
+ *  - `section` must match one of the template's section names exactly
+ *  - `subtasks` create child tasks via Task.parentTaskId
+ */
+export interface ProjectTemplateTask {
+  section: string;
+  name: string;
+  subtasks?: string[];
+}
+
 export interface ProjectTemplate {
   id: string;
   name: string;
@@ -43,6 +54,9 @@ export interface ProjectTemplate {
   };
   /** Initial sections (kanban columns) created when the project is made */
   sections: string[];
+  /** Pre-baked tasks (with optional subtasks). Created after the
+   *  sections in the order declared here. */
+  tasks?: ProjectTemplateTask[];
   /** Optional workflow template id from workflow-templates.ts to apply
    *  immediately after creation. */
   workflowTemplateId?: string;
@@ -54,17 +68,324 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: "structural-design",
     name: "Structural design project",
     description:
-      "Full structural design lifecycle — schematic, design development, construction documents, construction admin. Pre-loaded with the calc package review workflow.",
+      "Full structural design playbook in five modules — sizing & loads, analysis & design, detailing, foundations, documentation. Pre-loaded with 41 parent tasks and ~150 subtasks so the work plan exists from day one. Comes with the calc package review workflow.",
     icon: "Building2",
     accent: "amber",
     category: "engineering",
     defaults: { type: "DESIGN", gate: "PRE_DESIGN", color: "#c9a84c" },
     sections: [
-      "Schematic Design",
-      "Design Development",
-      "Construction Docs",
-      "Construction Admin",
-      "Closeout",
+      "M1. Estructuración y cargas",
+      "M2. Análisis y dimensionado",
+      "M3. Detallado",
+      "M4. Cimentaciones",
+      "M5. Documentación",
+    ],
+    tasks: [
+      // ── M1. Estructuración y cargas ────────────────────────────
+      {
+        section: "M1. Estructuración y cargas",
+        name: "Introducción",
+        subtasks: [
+          "¿Qué es estructurar?",
+          "Arquitectura",
+          "Estudio de suelos",
+          "Cargas",
+          "Predimensionado",
+        ],
+      },
+      {
+        section: "M1. Estructuración y cargas",
+        name: "Cargas",
+        subtasks: [
+          "Introducción y normativas",
+          "Carga muerta o permanente",
+          "Carga viva o variable",
+          "Carga o acción de viento",
+          "Carga o acción sísmica",
+          "Empujes",
+          "Otras",
+        ],
+      },
+      {
+        section: "M1. Estructuración y cargas",
+        name: "Predimensionado de losas",
+        subtasks: [
+          "Introducción",
+          "Tipos y selección",
+          "Clasificación",
+          "Comportamiento en 1D y 2D",
+          "Secciones",
+          "Predimensionado de losas en 1D",
+          "Losas macizas en 1D",
+          "Losas aligeradas en 1D",
+          "Predimensionado de losas en 2D",
+          "Losas macizas en 2D",
+          "Losas aligeradas en 2D",
+        ],
+      },
+      {
+        section: "M1. Estructuración y cargas",
+        name: "Predimensionado de vigas",
+        subtasks: [
+          "Introducción",
+          "Vinculaciones",
+          "Cuantías",
+          "Vigas para losas 1D",
+          "Vigas para losas 2D",
+        ],
+      },
+      {
+        section: "M1. Estructuración y cargas",
+        name: "Predimensionado de columnas",
+        subtasks: [
+          "Introducción y tipologías",
+          "Dimensiones",
+          "Armaduras",
+          "Cuantía mínima",
+          "Cuantía máxima",
+          "Columnas en proyecto",
+          "Ejemplo de predimensionado",
+        ],
+      },
+      {
+        section: "M1. Estructuración y cargas",
+        name: "Predimensionado de cimentaciones",
+      },
+      {
+        section: "M1. Estructuración y cargas",
+        name: "Estructuración",
+        subtasks: [
+          "Configuración estructural",
+          "Criterios de estructuración",
+          "Irregularidad estructural",
+        ],
+      },
+      {
+        section: "M1. Estructuración y cargas",
+        name: "Estructuración en la práctica",
+        subtasks: [
+          "Ejemplo: Edificio E1 y E2",
+          "Estructuración y predimensionado E1",
+          "Estructuración y predimensionado E2",
+          "Ejemplo: Casa C1",
+          "Estructuración casa C1",
+        ],
+      },
+      // ── M2. Análisis y dimensionado ────────────────────────────
+      {
+        section: "M2. Análisis y dimensionado",
+        name: "Introducción",
+        subtasks: ["Objetivo de la etapa", "¿Qué debemos verificar?"],
+      },
+      {
+        section: "M2. Análisis y dimensionado",
+        name: "Deformaciones verticales",
+        subtasks: [
+          "Deformaciones verticales",
+          "Combinaciones de carga y secciones",
+          "Valores admisibles",
+          "Flechas dentro de CYPECAD",
+        ],
+      },
+      {
+        section: "M2. Análisis y dimensionado",
+        name: "Deformaciones horizontales",
+        subtasks: ["Deformaciones laterales y derivas", "Derivas por viento"],
+      },
+      {
+        section: "M2. Análisis y dimensionado",
+        name: "Verificaciones al análisis sísmico",
+        subtasks: ["Verificaciones de resultados", "Derivas debido al sismo"],
+      },
+      {
+        section: "M2. Análisis y dimensionado",
+        name: "Verificaciones E.L.U.",
+        subtasks: [
+          "Verificaciones superficiales",
+          "Verificaciones en columnas",
+          "Verificaciones en vigas",
+        ],
+      },
+      // ── M3. Detallado ─────────────────────────────────────────
+      {
+        section: "M3. Detallado",
+        name: "Conceptos previos",
+        subtasks: [
+          "Introducción",
+          "Adherencia y anclaje",
+          "Anclaje con gancho",
+          "Anclaje a compresión",
+          "Empalmes, solapes y/o traslapes",
+          "Longitud de desarrollo s/ACI",
+          "Desarrollo con gancho s/ACI",
+          "Desarrollo a compresión s/ACI",
+          "Empalmes a tracción s/ACI",
+          "Empalmes a compresión s/ACI",
+        ],
+      },
+      {
+        section: "M3. Detallado",
+        name: "Columnas",
+        subtasks: [
+          "Introducción",
+          "Armadura longitudinal",
+          "Empalmes",
+          "Refuerzo transversal",
+          "Configuraciones CYPECAD",
+          "Editor CYPECAD",
+          "Ejemplo (Anclaje y Ld)",
+          "Ejemplo (Longitudinal)",
+          "Ejemplo (Transversal)",
+        ],
+      },
+      {
+        section: "M3. Detallado",
+        name: "Vigas",
+        subtasks: [
+          "Armado longitudinal",
+          "Longitud de desarrollo",
+          "Refuerzo transversal",
+          "Configuraciones CYPECAD",
+          "Editor de vigas",
+          "Ejemplo (Armadura longitudinal)",
+          "Ejemplo (Armadura transversal)",
+        ],
+      },
+      {
+        section: "M3. Detallado",
+        name: "Losas alivianadas 1D",
+        subtasks: [
+          "Introducción",
+          "Armadura longitudinal",
+          "Corte y armadura transversal",
+          "Configuración CYPE",
+          "Editor de resultados",
+          "Ejemplo",
+        ],
+      },
+      {
+        section: "M3. Detallado",
+        name: "Losas alivianadas 2D",
+        subtasks: [
+          "Introducción",
+          "Configuraciones CYPE",
+          "Detallado de losas con vigas",
+          "Detallado de losas sin vigas",
+        ],
+      },
+      {
+        section: "M3. Detallado",
+        name: "Muros de contención",
+        subtasks: ["Introducción", "Configuraciones en CYPECAD", "Detallado"],
+      },
+      {
+        section: "M3. Detallado",
+        name: "Escaleras",
+        subtasks: ["Introducción", "Configuración y detallado"],
+      },
+      // ── M4. Cimentaciones ─────────────────────────────────────
+      {
+        section: "M4. Cimentaciones",
+        name: "Introducción",
+        subtasks: [
+          "Introducción",
+          "Tipos de cimentaciones",
+          "Conociendo el terreno",
+          "Idealización",
+          "Verificaciones",
+          "Predimensionado",
+          "Predimensionado de zapatas",
+          "Predimensionado de losas",
+          "Predimensionado de profundas",
+        ],
+      },
+      {
+        section: "M4. Cimentaciones",
+        name: "Zapatas",
+        subtasks: [
+          "Conceptos previos",
+          "Tipos según su forma",
+          "Tipos según su posición",
+          "Vigas de atado y equilibrio",
+          "Verificaciones geotécnicas",
+          "Presión de hundimiento",
+          "Ejemplo de presión de hundimiento",
+          "Asentamiento",
+          "Esfuerzo medio y máximo",
+          "Verificaciones estructurales",
+          "Punzonamiento",
+          "Corte tipo viga",
+          "Diseño a flexión",
+          "Vigas de equilibrio",
+          "Configuraciones en CYPECAD",
+          "Ejemplo de zapata céntrica",
+          "Ejemplo de zapata excéntrica",
+          "Ejemplo de zapata combinada",
+        ],
+      },
+      {
+        section: "M4. Cimentaciones",
+        name: "Losas de cimentación",
+        subtasks: [
+          "Introducción y comportamiento",
+          "Coeficiente de balasto",
+          "Cálculo del coeficiente de balasto",
+          "Tipos de losas",
+          "Predimensionado",
+          "Verificaciones geotécnicas",
+          "Verificaciones estructurales",
+          "Configuraciones CYPECAD",
+          "Ejemplo",
+        ],
+      },
+      {
+        section: "M4. Cimentaciones",
+        name: "Cimentaciones profundas",
+        subtasks: [
+          "Introducción y comportamiento",
+          "Tipologías",
+          "Geometría",
+          "Diseño geotécnico",
+          "Resistencia por punta — M. Analítico",
+          "Resistencia por fuste — M. Analítico",
+          "Métodos semi empíricos",
+          "Capacidad estructural",
+          "Comportamiento de encepados (parte 1)",
+          "Comportamiento de encepados (parte 2)",
+          "Configuraciones CYPECAD",
+          "Ejemplos (parte 1)",
+          "Ejemplos (parte 2)",
+        ],
+      },
+      // ── M5. Documentación ─────────────────────────────────────
+      {
+        section: "M5. Documentación",
+        name: "Introducción",
+      },
+      {
+        section: "M5. Documentación",
+        name: "Planos",
+        subtasks: [
+          "Planos",
+          "Planos mínimos necesarios",
+          "Cimentaciones",
+          "Cimentaciones CYPECAD",
+          "Columnas",
+          "Columnas CYPECAD",
+          "Losas",
+          "Losas CYPECAD",
+          "Vigas",
+          "Vigas CYPECAD",
+          "Muros de contención",
+          "Muros de contención CYPECAD",
+          "Elementos singulares",
+        ],
+      },
+      {
+        section: "M5. Documentación",
+        name: "Memorias e informes",
+        subtasks: ["Memoria de cálculo", "Informes", "Cuantificaciones"],
+      },
     ],
     workflowTemplateId: "calc-package-review",
   },

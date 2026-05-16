@@ -28,6 +28,18 @@ const createProjectSchema = z.object({
   // "To do / In progress / Done" so the kanban columns reflect the
   // template's intent.
   sections: z.array(z.string().min(1).max(80)).optional(),
+  // Pre-baked tasks (with optional subtasks) created after sections.
+  // Each task's `section` must match one of the section names exactly
+  // — unmatched tasks are silently skipped (defensive).
+  tasks: z
+    .array(
+      z.object({
+        section: z.string().min(1).max(80),
+        name: z.string().min(1).max(200),
+        subtasks: z.array(z.string().min(1).max(200)).optional(),
+      })
+    )
+    .optional(),
 });
 
 // GET /api/projects - Get user's projects
@@ -196,6 +208,7 @@ export async function POST(req: Request) {
       currency,
       clientName,
       sections: explicitSections,
+      tasks: explicitTasks,
     } = createProjectSchema.parse(body);
 
     // Get template if provided
@@ -371,6 +384,49 @@ export async function POST(req: Request) {
         views: true,
       },
     });
+
+    // ── Pre-baked tasks from a project-template gallery pick ────
+    // (explicitTasks) — matches tasks to the freshly-created sections
+    // by name, then creates each parent task + any subtasks via
+    // parentTaskId. We do this BEFORE the legacy template-tasks branch
+    // so the two paths are independent: a gallery pick uses
+    // explicitTasks, a legacy templateId uses template.tasks.
+    if (explicitTasks && explicitTasks.length > 0) {
+      const sectionByName = new Map(
+        project.sections.map((s) => [s.name, s])
+      );
+      // Track position per section so tasks within the same column
+      // render in the order they appear in the template.
+      const positionBySection = new Map<string, number>();
+      for (const t of explicitTasks) {
+        const section = sectionByName.get(t.section);
+        if (!section) continue;
+        const parentPosition = positionBySection.get(section.id) ?? 0;
+        positionBySection.set(section.id, parentPosition + 1);
+        const parent = await prisma.task.create({
+          data: {
+            name: t.name,
+            projectId: project.id,
+            sectionId: section.id,
+            creatorId: userId,
+            position: parentPosition * 1000,
+          },
+          select: { id: true },
+        });
+        if (t.subtasks && t.subtasks.length > 0) {
+          await prisma.task.createMany({
+            data: t.subtasks.map((subName, i) => ({
+              name: subName,
+              projectId: project.id,
+              sectionId: section.id,
+              creatorId: userId,
+              parentTaskId: parent.id,
+              position: i * 1000,
+            })),
+          });
+        }
+      }
+    }
 
     // If template has tasks, create them
     if (template && template.tasks.length > 0) {

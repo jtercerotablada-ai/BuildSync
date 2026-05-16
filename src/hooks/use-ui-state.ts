@@ -23,15 +23,48 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const FETCH_DEBOUNCE_MS = 600;
 
+// localStorage cache key. The DB remains the source of truth; this
+// cache exists ONLY to eliminate the first-paint flash when the user
+// reloads. On every server fetch we mirror the result here, and on
+// every write we mirror the new value here, so the next mount can
+// render the right value synchronously without waiting on the network.
+const CACHE_STORAGE_KEY = "ui-state-cache";
+
+function readCachedFromStorage(): Record<string, unknown> | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(CACHE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedToStorage(state: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Storage full / private mode — silently fall through; the in-
+    // memory cache still works for the rest of the session.
+  }
+}
+
 // Module-level cache so multiple components reading uiState don't
 // each hit the network. The fetch promise is shared so all callers
-// resolve from the same in-flight request.
-let cachedUiState: Record<string, unknown> | null = null;
+// resolve from the same in-flight request. Seeded from localStorage
+// on first import so SSR + first render can read synchronously.
+let cachedUiState: Record<string, unknown> | null = readCachedFromStorage();
 let inflightFetch: Promise<Record<string, unknown>> | null = null;
 const subscribers = new Set<() => void>();
 
+// Tracks whether we've reconciled with the server at least once this
+// session. The localStorage cache may be stale (the user could have
+// switched devices), so the first DB fetch is authoritative.
+let serverConfirmed = false;
+
 async function fetchUiState(): Promise<Record<string, unknown>> {
-  if (cachedUiState) return cachedUiState;
+  if (serverConfirmed && cachedUiState) return cachedUiState;
   if (inflightFetch) return inflightFetch;
   inflightFetch = (async () => {
     try {
@@ -40,9 +73,13 @@ async function fetchUiState(): Promise<Record<string, unknown>> {
       const data = await res.json();
       const state = (data?.uiState as Record<string, unknown> | null) || {};
       cachedUiState = state;
+      serverConfirmed = true;
+      writeCachedToStorage(state);
       return state;
     } catch {
-      cachedUiState = {};
+      // Server unreachable — keep whatever was in the localStorage
+      // cache so the user isn't suddenly thrown back to defaults.
+      cachedUiState = cachedUiState ?? {};
       return cachedUiState;
     } finally {
       inflightFetch = null;
@@ -56,6 +93,7 @@ async function fetchUiState(): Promise<Record<string, unknown>> {
 function setCachedKey(key: string, value: unknown) {
   if (!cachedUiState) cachedUiState = {};
   cachedUiState[key] = value;
+  writeCachedToStorage(cachedUiState);
   subscribers.forEach((cb) => cb());
 }
 
@@ -89,9 +127,21 @@ function schedulePatch(key: string, value: unknown) {
  * @param defaultValue value used while hydrating from the server
  */
 export function useUiState<T>(key: string, defaultValue: T) {
-  const [value, setValueState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-  const hydratedRef = useRef(false);
+  // Synchronous hydration from the localStorage cache eliminates the
+  // "default → real value" flash on first paint. If the localStorage
+  // cache has a value for this key, use it immediately. The DB fetch
+  // below will overwrite if the server disagrees (e.g. user signed in
+  // from another device that changed the value).
+  const [value, setValueState] = useState<T>(() => {
+    const cached = cachedUiState?.[key];
+    return cached !== undefined ? (cached as T) : defaultValue;
+  });
+  const [isHydrated, setIsHydrated] = useState(
+    () => cachedUiState !== null && cachedUiState[key] !== undefined
+  );
+  const hydratedRef = useRef(
+    cachedUiState !== null && cachedUiState[key] !== undefined
+  );
 
   // Subscribe to cache updates so when one consumer hydrates, every
   // other consumer of the same key picks up the value.

@@ -235,13 +235,32 @@ export function CreateProjectGallery({
                       <p className="text-[12px] text-gray-500 leading-relaxed line-clamp-3">
                         {tpl.description}
                       </p>
-                      <div className="mt-3 flex items-center gap-3 text-[11px] text-gray-500">
+                      <div className="mt-3 flex items-center gap-3 text-[11px] text-gray-500 flex-wrap">
                         <span>
                           <span className="font-medium tabular-nums text-gray-700">
                             {tpl.sections.length}
                           </span>{" "}
                           section{tpl.sections.length === 1 ? "" : "s"}
                         </span>
+                        {tpl.tasks && tpl.tasks.length > 0 && (
+                          <>
+                            <span className="text-gray-300">·</span>
+                            <span>
+                              <span className="font-medium tabular-nums text-gray-700">
+                                {tpl.tasks.length}
+                              </span>{" "}
+                              task{tpl.tasks.length === 1 ? "" : "s"}
+                              {(() => {
+                                const subCount = tpl.tasks.reduce(
+                                  (acc, t) => acc + (t.subtasks?.length ?? 0),
+                                  0
+                                );
+                                if (subCount === 0) return null;
+                                return ` + ${subCount} subtasks`;
+                              })()}
+                            </span>
+                          </>
+                        )}
                         {tpl.workflowTemplateId && (
                           <>
                             <span className="text-gray-300">·</span>
@@ -317,6 +336,7 @@ function ConfirmTemplateDialog({
           type: template.defaults.type,
           gate: template.defaults.gate,
           sections: template.sections,
+          tasks: template.tasks,
           description: template.description,
         }),
       });
