@@ -2238,8 +2238,8 @@ function EmptyState() {
         Start the conversation
       </h3>
       <p className="text-sm text-slate-500 max-w-md mx-auto">
-        Project messages live here. Share updates, decisions, and
-        questions — they persist for the whole team to see.
+        Messages live here. Share updates, decisions, and questions —
+        they persist for the whole team to see.
       </p>
     </div>
   );
