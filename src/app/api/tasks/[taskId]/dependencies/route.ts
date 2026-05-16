@@ -143,6 +143,83 @@ export async function POST(
   }
 }
 
+// PATCH /api/tasks/:taskId/dependencies?id=… - Change dependency type
+const patchDependencySchema = z.object({
+  type: z.enum([
+    "FINISH_TO_START",
+    "START_TO_START",
+    "FINISH_TO_FINISH",
+    "START_TO_FINISH",
+  ]),
+});
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ taskId: string }> }
+) {
+  try {
+    const userId = await getCurrentUserId();
+    const { taskId } = await params;
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    await verifyTaskAccess(userId, taskId);
+
+    const { searchParams } = new URL(req.url);
+    const dependencyId = searchParams.get("id");
+
+    if (!dependencyId) {
+      return NextResponse.json(
+        { error: "Dependency ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const body = await req.json();
+    const data = patchDependencySchema.parse(body);
+
+    const existing = await prisma.taskDependency.findUnique({
+      where: { id: dependencyId },
+    });
+    if (!existing || existing.dependentTaskId !== taskId) {
+      return NextResponse.json(
+        { error: "Dependency not found" },
+        { status: 404 }
+      );
+    }
+
+    const updated = await prisma.taskDependency.update({
+      where: { id: dependencyId },
+      data: { type: data.type },
+      include: {
+        blockingTask: {
+          select: { id: true, name: true, completed: true },
+        },
+      },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.issues[0]?.message || "Validation error" },
+        { status: 400 }
+      );
+    }
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
+    console.error("Error updating dependency:", error);
+    return NextResponse.json(
+      { error: "Failed to update dependency" },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE /api/tasks/:taskId/dependencies - Remove a dependency
 export async function DELETE(
   req: Request,

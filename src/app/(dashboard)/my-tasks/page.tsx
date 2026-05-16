@@ -1038,7 +1038,7 @@ export default function MyTasksPage() {
                   : "text-gray-500 border-transparent hover:text-gray-700"
               )}
             >
-              {isListTab && (
+              {isListTab && viewIcon && (
                 <span className="text-[14px] leading-none">{viewIcon}</span>
               )}
               {label}
@@ -4820,6 +4820,155 @@ function PriorityTag({ value }: { value: string }) {
   );
 }
 
+// Dependency type values are constrained by the Prisma enum.
+type DependencyTypeStr =
+  | "FINISH_TO_START"
+  | "START_TO_START"
+  | "FINISH_TO_FINISH"
+  | "START_TO_FINISH";
+
+const DEPENDENCY_TYPE_META: Record<
+  DependencyTypeStr,
+  { short: string; label: string }
+> = {
+  FINISH_TO_START: { short: "FS", label: "Finish-to-Start" },
+  START_TO_START: { short: "SS", label: "Start-to-Start" },
+  FINISH_TO_FINISH: { short: "FF", label: "Finish-to-Finish" },
+  START_TO_FINISH: { short: "SF", label: "Start-to-Finish" },
+};
+
+/**
+ * One row in the Dependencies list — matches Asana's layout:
+ *
+ *   ⊗ Blocked by · FS ▾   ◉ Task name…   May 28 – Jun 5   ✕
+ *
+ * The "Blocked by · TYPE" pill opens a dropdown to change the
+ * dependency type. The whole chip wraps gracefully on narrow widths.
+ */
+function DependencyChip({
+  dependency,
+  taskId,
+  onChanged,
+  onRemove,
+}: {
+  dependency: {
+    id: string;
+    type: DependencyTypeStr;
+    blockingTask: {
+      id: string;
+      name: string;
+      completed: boolean;
+      startDate: string | null;
+      dueDate: string | null;
+    };
+  };
+  taskId: string;
+  onChanged: () => void;
+  onRemove: () => void;
+}) {
+  const { id, type, blockingTask: bt } = dependency;
+  const meta = DEPENDENCY_TYPE_META[type] ?? DEPENDENCY_TYPE_META.FINISH_TO_START;
+  const start = bt.startDate ? new Date(bt.startDate) : null;
+  const due = bt.dueDate ? new Date(bt.dueDate) : null;
+  const dateLabel = formatRangeLabel(
+    start,
+    due,
+    due ? due.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""
+  );
+
+  async function changeType(next: DependencyTypeStr) {
+    if (next === type) return;
+    try {
+      const res = await fetch(
+        `/api/tasks/${taskId}/dependencies?id=${id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: next }),
+        }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Dependency type updated");
+      onChanged();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't update dependency"
+      );
+    }
+  }
+
+  return (
+    <div className="group flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] -ml-1.5 px-1.5 py-1 rounded hover:bg-[#f9fafb]">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="inline-flex items-center gap-1 text-[#6f7782] hover:text-[#1e1f21] cursor-pointer">
+            <ArrowLeftRight className="h-3 w-3 -rotate-90" />
+            <span>Blocked by</span>
+            <span className="text-[#9aa0a6]">·</span>
+            <span className="font-medium tabular-nums">{meta.short}</span>
+            <ChevronDown className="h-3 w-3" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-[180px]">
+          {(Object.keys(DEPENDENCY_TYPE_META) as DependencyTypeStr[]).map(
+            (k) => (
+              <DropdownMenuItem
+                key={k}
+                onClick={() => changeType(k)}
+                className="flex items-center justify-between gap-3"
+              >
+                <span className="text-[13px]">
+                  {DEPENDENCY_TYPE_META[k].label}
+                </span>
+                <span className="text-[11px] text-[#6f7782] font-medium tabular-nums">
+                  {DEPENDENCY_TYPE_META[k].short}
+                </span>
+              </DropdownMenuItem>
+            )
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <div className="inline-flex items-center gap-1.5 min-w-0">
+        <div
+          className={cn(
+            "w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0",
+            bt.completed
+              ? "bg-[#c9a84c] border-[#c9a84c]"
+              : "border-[#c4c7cf]"
+          )}
+        >
+          {bt.completed && <Check className="w-2.5 h-2.5 text-white" />}
+        </div>
+        <span
+          className={cn(
+            "truncate max-w-[180px]",
+            bt.completed ? "text-[#9aa0a6] line-through" : "text-[#1e1f21]"
+          )}
+          title={bt.name}
+        >
+          {bt.name}
+        </span>
+      </div>
+
+      {dateLabel && (
+        <>
+          <span className="text-[#9aa0a6]">·</span>
+          <span className="text-[#6f7782] whitespace-nowrap">{dateLabel}</span>
+        </>
+      )}
+
+      <button
+        onClick={onRemove}
+        className="ml-auto opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
+        aria-label={`Remove dependency on ${bt.name}`}
+      >
+        <X className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
 // Task Detail Panel
 function TaskDetailPanel({
   task,
@@ -5312,46 +5461,28 @@ function TaskDetailPanel({
                 )
               }
             >
-              <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1">
+              <div className="flex-1 min-w-0 flex flex-col gap-1 py-0.5">
                 {taskDetail?.dependencies?.map((dep: {
                   id: string;
-                  blockingTask: { id: string; name: string; completed: boolean };
+                  type: DependencyTypeStr;
+                  blockingTask: {
+                    id: string;
+                    name: string;
+                    completed: boolean;
+                    startDate: string | null;
+                    dueDate: string | null;
+                  };
                 }) => (
-                  <span
+                  <DependencyChip
                     key={dep.id}
-                    className="group inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-[#f3f4f6] text-[12px] max-w-full"
-                    title={dep.blockingTask.name}
-                  >
-                    <div
-                      className={cn(
-                        "w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0",
-                        dep.blockingTask.completed
-                          ? "bg-[#c9a84c] border-[#c9a84c]"
-                          : "border-[#c4c7cf]"
-                      )}
-                    >
-                      {dep.blockingTask.completed && (
-                        <Check className="w-2 h-2 text-white" />
-                      )}
-                    </div>
-                    <span
-                      className={cn(
-                        "truncate max-w-[180px]",
-                        dep.blockingTask.completed
-                          ? "text-[#9aa0a6] line-through"
-                          : "text-[#1e1f21]"
-                      )}
-                    >
-                      {dep.blockingTask.name}
-                    </span>
-                    <button
-                      onClick={() => handleDependencyRemove(dep.id)}
-                      className="opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
-                      aria-label={`Remove dependency on ${dep.blockingTask.name}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
+                    dependency={dep}
+                    taskId={task.id}
+                    onChanged={() => {
+                      fetchTaskDetail();
+                      onUpdate();
+                    }}
+                    onRemove={() => handleDependencyRemove(dep.id)}
+                  />
                 ))}
                 <DependenciesPicker
                   taskId={task.id}
@@ -5366,17 +5497,8 @@ function TaskDetailPanel({
                     onUpdate();
                   }}
                   trigger={
-                    <button
-                      className={cn(
-                        "flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] cursor-pointer",
-                        taskDetail?.dependencies?.length > 0 &&
-                          "ml-0 px-1 text-[12px]"
-                      )}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      {taskDetail?.dependencies?.length > 0
-                        ? "Add more"
-                        : "Add dependencies"}
+                    <button className="-ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#3b82f6] hover:bg-[#f3f4f6] hover:underline cursor-pointer text-left w-fit">
+                      Add dependencies
                     </button>
                   }
                 />

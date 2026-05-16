@@ -29,6 +29,8 @@ interface PickableTask {
   id: string;
   name: string;
   completed: boolean;
+  startDate?: string | null;
+  dueDate?: string | null;
   project?: { id: string; name: string; color: string } | null;
 }
 

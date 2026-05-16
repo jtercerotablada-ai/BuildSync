@@ -286,13 +286,19 @@ function MainView({
         <div className="flex items-center gap-3">
           <div>
             <p className="text-[12px] font-medium text-gray-500 mb-1.5">Icon</p>
-            <EmojiPickerPopover onSelect={onViewIconChange} align="start">
+            <EmojiPickerPopover
+              onSelect={onViewIconChange}
+              onClear={() => onViewIconChange("")}
+              align="start"
+            >
               <button
                 type="button"
                 className="flex items-center justify-center h-9 w-9 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-[18px]"
                 aria-label="Pick an emoji"
               >
-                {viewIcon || "📋"}
+                {viewIcon || (
+                  <span className="text-[10px] text-gray-400">None</span>
+                )}
               </button>
             </EmojiPickerPopover>
           </div>

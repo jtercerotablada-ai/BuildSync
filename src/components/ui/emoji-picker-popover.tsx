@@ -9,6 +9,7 @@
 
 import { type ReactNode, useState } from "react";
 import { EmojiPicker } from "frimousse";
+import { Ban } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -21,6 +22,8 @@ interface EmojiPickerPopoverProps {
   children: ReactNode;
   /** Called with the new emoji string when the user picks one */
   onSelect: (emoji: string) => void;
+  /** Optional: when provided, a "No icon" row clears the icon. */
+  onClear?: () => void;
   /** Popover alignment relative to trigger */
   align?: "start" | "center" | "end";
 }
@@ -28,6 +31,7 @@ interface EmojiPickerPopoverProps {
 export function EmojiPickerPopover({
   children,
   onSelect,
+  onClear,
   align = "start",
 }: EmojiPickerPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -41,7 +45,7 @@ export function EmojiPickerPopover({
         className="w-[320px] p-0 rounded-xl border border-gray-200 shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden"
       >
         <EmojiPicker.Root
-          className="isolate flex h-[360px] w-full flex-col bg-white"
+          className="isolate flex h-[400px] w-full flex-col bg-white"
           onEmojiSelect={({ emoji }) => {
             onSelect(emoji);
             setOpen(false);
@@ -88,6 +92,19 @@ export function EmojiPickerPopover({
               }}
             />
           </EmojiPicker.Viewport>
+          {onClear && (
+            <button
+              type="button"
+              onClick={() => {
+                onClear();
+                setOpen(false);
+              }}
+              className="flex items-center gap-2 border-t border-gray-100 px-3 py-2 text-[13px] text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors text-left"
+            >
+              <Ban className="h-3.5 w-3.5" />
+              No icon
+            </button>
+          )}
         </EmojiPicker.Root>
       </PopoverContent>
     </Popover>
