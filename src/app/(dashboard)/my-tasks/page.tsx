@@ -272,13 +272,21 @@ export default function MyTasksPage() {
   }, []);
   // View identity — Asana lets you rename the List view and pick an
   // emoji that shows up next to the tab. We persist both per-user.
+  // viewIcon uses null-vs-string distinction (not falsy fallback) so
+  // an intentional clear ("") survives reloads. getItem returns null
+  // when the key was never set vs "" when the user cleared it.
   const [viewIcon, setViewIcon] = useState<string>(() => {
     if (typeof window === "undefined") return "📋";
-    return localStorage.getItem("my-tasks.viewIcon") || "📋";
+    const stored = localStorage.getItem("my-tasks.viewIcon");
+    return stored !== null ? stored : "📋";
   });
   const [viewName, setViewName] = useState<string>(() => {
     if (typeof window === "undefined") return "List";
-    return localStorage.getItem("my-tasks.viewName") || "List";
+    const stored = localStorage.getItem("my-tasks.viewName");
+    // viewName falls back to "List" on empty too because the picker
+    // prevents committing empty names; an empty value here would only
+    // appear from manual storage tampering.
+    return stored && stored.trim() ? stored : "List";
   });
   useEffect(() => {
     if (typeof window === "undefined") return;
