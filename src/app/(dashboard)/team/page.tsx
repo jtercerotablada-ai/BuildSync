@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { openCreateProjectGallery } from "@/lib/open-create-project";
 import {
   ChevronDown,
   ChevronLeft,
@@ -582,7 +583,7 @@ function OverviewContent({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuItem onClick={() => router.push("/projects/new")}>
+                <DropdownMenuItem onClick={() => openCreateProjectGallery()}>
                   <FolderKanban className="h-4 w-4 mr-2" />
                   Project
                 </DropdownMenuItem>
@@ -1526,7 +1527,7 @@ function WorkContent({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push("/projects/new")}
+              onClick={() => openCreateProjectGallery()}
             >
               <Plus className="h-4 w-4 mr-1" />
               New project
@@ -1557,7 +1558,7 @@ function WorkContent({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => router.push("/projects/new")}
+                        onClick={() => openCreateProjectGallery()}
                       >
                         <Plus className="h-4 w-4 mr-1" />
                         Create project

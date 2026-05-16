@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { openCreateProjectGallery } from "@/lib/open-create-project";
 import { useQuery } from "@tanstack/react-query";
 import {
   Search,
@@ -127,7 +128,7 @@ export default function TeamAllWorkPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => router.push(`/projects/new?teamId=${teamId}`)}
+                  onClick={() => openCreateProjectGallery({ teamId })}
                 >
                   New project
                 </Button>
@@ -179,7 +180,7 @@ export default function TeamAllWorkPage() {
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        router.push(`/projects/new?teamId=${teamId}`)
+                        openCreateProjectGallery({ teamId })
                       }
                     >
                       <Plus className="h-4 w-4 mr-1" />

@@ -6,6 +6,7 @@ import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { CreateProjectGallery } from "@/components/projects/create-project-gallery";
+import { OPEN_CREATE_PROJECT_EVENT } from "@/lib/open-create-project";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
 import { CreateObjectiveDialog } from "@/components/goals/create-objective-dialog";
@@ -140,6 +141,18 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
+
+  // Global "open create-project gallery" event — fired by any
+  // descendant via openCreateProjectGallery() in lib/open-create-project.
+  // Lets buttons on /projects/all, /team, /teams/[id]/work, etc. open
+  // the gallery without prop-drilling state through every layer.
+  useEffect(() => {
+    function handler() {
+      setShowCreateGallery(true);
+    }
+    window.addEventListener(OPEN_CREATE_PROJECT_EVENT, handler);
+    return () => window.removeEventListener(OPEN_CREATE_PROJECT_EVENT, handler);
+  }, []);
 
   async function handleCreatePortfolio() {
     if (!newPortfolio.name.trim()) return;

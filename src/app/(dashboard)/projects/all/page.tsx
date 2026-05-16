@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { openCreateProjectGallery } from "@/lib/open-create-project";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -187,7 +188,7 @@ export default function ProjectsPage() {
           </span>
         </h1>
         <Button
-          onClick={() => router.push("/projects/new")}
+          onClick={() => openCreateProjectGallery()}
           className="bg-black hover:bg-gray-900 text-white"
         >
           <Plus className="w-4 h-4 mr-1.5" />
@@ -296,7 +297,7 @@ export default function ProjectsPage() {
             </p>
             {projects.length === 0 && (
               <Button
-                onClick={() => router.push("/projects/new")}
+                onClick={() => openCreateProjectGallery()}
                 className="bg-black hover:bg-gray-900 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
