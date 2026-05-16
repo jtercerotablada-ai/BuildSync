@@ -215,6 +215,32 @@ export default function MyTasksPage() {
     projects: 160,
     visibility: 110,
   });
+  // Asana "Show/hide columns" — set of optional column ids that are
+  // currently hidden. Persisted to localStorage so it survives reloads.
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const stored = localStorage.getItem("my-tasks.hiddenColumns");
+      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(
+      "my-tasks.hiddenColumns",
+      JSON.stringify(Array.from(hiddenColumns))
+    );
+  }, [hiddenColumns]);
+  const toggleColumnVisibility = useCallback((colId: string) => {
+    setHiddenColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(colId)) next.delete(colId);
+      else next.add(colId);
+      return next;
+    });
+  }, []);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
 
@@ -1278,6 +1304,7 @@ export default function MyTasksPage() {
           />
 
           {/* Due date — left handle: border with Task name, right handle: border with Collaborators */}
+          {!hiddenColumns.has("dueDate") && (
           <div className="relative flex-shrink-0" style={{ width: "var(--col-dueDate)", minWidth: 60 }}>
             {/* Left border handle: drag to resize Due date (Task name auto-adjusts via flex) */}
             <div
@@ -1304,8 +1331,10 @@ export default function MyTasksPage() {
               }}
             />
           </div>
+          )}
 
           {/* Collaborators — left handle: border with Due date */}
+          {!hiddenColumns.has("collaborators") && (
           <div className="relative flex-shrink-0" style={{ width: "var(--col-collaborators)", minWidth: 60 }}>
             <div
               onMouseDown={(e) => handleResizeStart(e, "dueDate", "collaborators")}
@@ -1324,8 +1353,10 @@ export default function MyTasksPage() {
               }}
             />
           </div>
+          )}
 
           {/* Projects — left handle: border with Collaborators */}
+          {!hiddenColumns.has("projects") && (
           <div className="relative flex-shrink-0" style={{ width: "var(--col-projects)", minWidth: 60 }}>
             <div
               onMouseDown={(e) => handleResizeStart(e, "collaborators", "projects")}
@@ -1350,8 +1381,10 @@ export default function MyTasksPage() {
               }}
             />
           </div>
+          )}
 
           {/* Visibility — left handle: border with Projects, right handle: right edge */}
+          {!hiddenColumns.has("visibility") && (
           <div className="relative flex-shrink-0" style={{ width: "var(--col-visibility)", minWidth: 60 }}>
             {/* Left border: Projects ↔ Visibility */}
             <div
@@ -1377,6 +1410,7 @@ export default function MyTasksPage() {
               className="absolute right-0 top-0 bottom-0 w-[6px] -mr-[3px] cursor-col-resize z-30"
             />
           </div>
+          )}
 
           {/* Dynamic custom columns */}
           {customColumns.map((col) => (
@@ -1425,6 +1459,7 @@ export default function MyTasksPage() {
               onAddTask={handleAddTask}
               formatDueDate={formatDueDate}
               customColumnCount={customColumns.length}
+              hiddenColumns={hiddenColumns}
               onReorderTasks={async (sectionId, orderedTaskIds) => {
                 // Optimistic: re-number positions on the in-memory
                 // tasks so the next re-render keeps the dragged order.
@@ -1684,18 +1719,14 @@ export default function MyTasksPage() {
         <OptionsDrawer
           open={optionsDrawerOpen}
           onClose={() => setOptionsDrawerOpen(false)}
-          onOpenFilters={() => {
-            setOptionsDrawerOpen(false);
-            setFilterPanelOpen(true);
-          }}
-          onOpenSort={() => {
-            setOptionsDrawerOpen(false);
-            setSortPanelOpen(true);
-          }}
-          onOpenGroups={() => {
-            setOptionsDrawerOpen(false);
-            setGroupPanelOpen(true);
-          }}
+          hiddenColumns={hiddenColumns}
+          onToggleColumn={toggleColumnVisibility}
+          activeFilters={activeFilters}
+          onActiveFiltersChange={setActiveFilters}
+          sort={sortState}
+          onSortChange={setSortState}
+          groups={groupConfigs}
+          onGroupsChange={handleGroupConfigsChange}
         />
       </div>
 
@@ -1952,6 +1983,7 @@ function TaskSection({
   onAddTask,
   formatDueDate,
   customColumnCount = 0,
+  hiddenColumns = new Set(),
 }: {
   section: SmartSection;
   onToggleSection: () => void;
@@ -1960,6 +1992,7 @@ function TaskSection({
   onAddTask: (name: string, sectionId: string, taskType?: "TASK" | "MILESTONE" | "APPROVAL") => Promise<boolean>;
   formatDueDate: (date: string | null) => { text: string; className: string };
   customColumnCount?: number;
+  hiddenColumns?: Set<string>;
 }) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
@@ -2094,20 +2127,28 @@ function TaskSection({
                 />
               </div>
               {/* Due date placeholder */}
+              {!hiddenColumns.has("dueDate") && (
               <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-dueDate)" }}>
                 <Calendar className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
+              )}
               {/* Collaborators placeholder */}
-              <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-collaborators)" }} />
+              {!hiddenColumns.has("collaborators") && (
+                <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-collaborators)" }} />
+              )}
               {/* Projects placeholder */}
-              <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-projects)" }} />
+              {!hiddenColumns.has("projects") && (
+                <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-projects)" }} />
+              )}
               {/* Visibility placeholder */}
+              {!hiddenColumns.has("visibility") && (
               <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-visibility)" }}>
                 <span className="text-[13px] text-gray-300 flex items-center gap-1">
                   <Lock className="w-3 h-3" />
                   Only me
                 </span>
               </div>
+              )}
               {/* Custom column placeholders */}
               {Array.from({ length: customColumnCount }).map((_, i) => (
                 <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 pl-2.5" />
@@ -2127,6 +2168,7 @@ function TaskSection({
               onClick={() => onTaskClick(task)}
               formatDueDate={formatDueDate}
               customColumnCount={customColumnCount}
+              hiddenColumns={hiddenColumns}
             />
           ))}
 
@@ -2141,10 +2183,10 @@ function TaskSection({
                 <Plus className="w-3.5 h-3.5 text-gray-300" />
               </div>
               <span className="flex-1 text-[13px] text-gray-400">Add task</span>
-              <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-dueDate)" }} />
-              <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-collaborators)" }} />
-              <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-projects)" }} />
-              <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-visibility)" }} />
+              {!hiddenColumns.has("dueDate") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-dueDate)" }} />}
+              {!hiddenColumns.has("collaborators") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-collaborators)" }} />}
+              {!hiddenColumns.has("projects") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-projects)" }} />}
+              {!hiddenColumns.has("visibility") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-visibility)" }} />}
               {Array.from({ length: customColumnCount }).map((_, i) => (
                 <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0" />
               ))}
@@ -2182,6 +2224,7 @@ function ListDndProvider({
   onAddTask,
   formatDueDate,
   customColumnCount,
+  hiddenColumns,
 }: {
   sections: SmartSection[];
   onMoveTask: (taskId: string, destSectionId: string) => Promise<void> | void;
@@ -2201,6 +2244,7 @@ function ListDndProvider({
   ) => Promise<boolean>;
   formatDueDate: (date: string | null) => { text: string; className: string };
   customColumnCount: number;
+  hiddenColumns?: Set<string>;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -2372,6 +2416,7 @@ function ListDndProvider({
           onAddTask={onAddTask}
           formatDueDate={formatDueDate}
           customColumnCount={customColumnCount}
+          hiddenColumns={hiddenColumns}
         />
       ))}
       {/* DragOverlay — rendered via portal to document.body. The
@@ -2469,12 +2514,14 @@ function TaskRow({
   onClick,
   formatDueDate,
   customColumnCount = 0,
+  hiddenColumns = new Set(),
 }: {
   task: Task;
   onToggleComplete: () => void;
   onClick: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
   customColumnCount?: number;
+  hiddenColumns?: Set<string>;
 }) {
   const dueDateInfo = formatDueDate(task.dueDate);
 
@@ -2660,13 +2707,16 @@ function TaskRow({
       {/* Due date — pl-2.5 pr-1 matches the ColumnHeader's internal padding
        * (border-l border-gray-200 pl-2.5 pr-1) so the header label and
        * the data text line up at the exact same x position. */}
+      {!hiddenColumns.has("dueDate") && (
       <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-dueDate)" }}>
         <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
       </div>
+      )}
 
       {/* Collaborators */}
+      {!hiddenColumns.has("collaborators") && (
       <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-collaborators)" }}>
         {task.assignee && (
           <Avatar className="w-5 h-5">
@@ -2677,8 +2727,10 @@ function TaskRow({
           </Avatar>
         )}
       </div>
+      )}
 
       {/* Projects */}
+      {!hiddenColumns.has("projects") && (
       <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-projects)" }}>
         {task.project && (
           <div className="flex items-center gap-1.5 min-w-0">
@@ -2700,14 +2752,17 @@ function TaskRow({
           </div>
         )}
       </div>
+      )}
 
       {/* Visibility */}
+      {!hiddenColumns.has("visibility") && (
       <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-gray-200" style={{ width: "var(--col-visibility)" }}>
         <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
           <Globe className="w-3 h-3 flex-shrink-0" />
           My workspace
         </span>
       </div>
+      )}
 
       {/* Custom column cells */}
       {Array.from({ length: customColumnCount }).map((_, i) => (
