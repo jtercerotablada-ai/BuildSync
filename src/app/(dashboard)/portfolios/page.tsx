@@ -22,7 +22,6 @@ import {
   Search,
   AlertTriangle,
   TrendingUp,
-  Briefcase,
   Wallet,
   Star,
   List as ListIcon,
@@ -69,7 +68,7 @@ interface Portfolio {
   id: string;
   name: string;
   description: string | null;
-  color: string;
+  color: string | null;
   status: PortfolioStatus;
   updatedAt: string;
   owner: {

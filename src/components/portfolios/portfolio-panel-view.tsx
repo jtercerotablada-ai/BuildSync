@@ -411,7 +411,10 @@ function Donut({
   centerLabel: number;
 }) {
   return (
-    <div className="flex items-center justify-center" style={{ height: 240 }}>
+    <div
+      className="relative flex items-center justify-center"
+      style={{ height: 240 }}
+    >
       <ResponsiveContainer width="60%" height="100%">
         <PieChart>
           <Pie

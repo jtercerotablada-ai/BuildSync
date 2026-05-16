@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { persistMentionsForNewMessage } from "@/lib/mentions";
+import {
+  persistMentionsForNewMessage,
+  resolveAllowedPortfolioMentionUserIds,
+} from "@/lib/mentions";
 import { loadMessageWithAccess } from "@/lib/message-access";
 
 /**
@@ -181,26 +184,44 @@ export async function POST(
       },
     });
 
-    // Mentions: project-only for now.
+    // Mentions: project scope runs the full notification fan-out;
+    // portfolio scope persists the mention rows (filtered against
+    // the portfolio's audience) but skips the inbox notification.
     let resolvedMentions: {
       userId: string;
       name: string | null;
       image: string | null;
     }[] = [];
     const ids = parsed.data.mentionUserIds ?? [];
-    if (ids.length > 0 && projectId) {
+    if (ids.length > 0) {
       try {
-        await persistMentionsForNewMessage({
-          messageId: created.id,
-          projectId,
-          actorUserId: userId,
-          mentionUserIds: ids,
-          authorName:
-            created.author?.name ?? created.author?.email ?? "Someone",
-          authorImage: created.author?.image ?? null,
-          contentPreview: created.content,
-          rootMessageId: rootId,
-        });
+        if (projectId) {
+          await persistMentionsForNewMessage({
+            messageId: created.id,
+            projectId,
+            actorUserId: userId,
+            mentionUserIds: ids,
+            authorName:
+              created.author?.name ?? created.author?.email ?? "Someone",
+            authorImage: created.author?.image ?? null,
+            contentPreview: created.content,
+            rootMessageId: rootId,
+          });
+        } else if (portfolioId) {
+          const allowed = await resolveAllowedPortfolioMentionUserIds(
+            portfolioId,
+            ids
+          );
+          if (allowed.length > 0) {
+            await prisma.messageMention.createMany({
+              data: allowed.map((mid) => ({
+                messageId: created.id,
+                userId: mid,
+              })),
+              skipDuplicates: true,
+            });
+          }
+        }
         const mentions = await prisma.messageMention.findMany({
           where: { messageId: created.id },
           select: {

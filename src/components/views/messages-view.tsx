@@ -456,7 +456,8 @@ export function MessagesView({
         if (!silent) setLoading(false);
       }
     },
-    [projectId]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scopeKey, endpoints]
   );
 
   // Initial load.
@@ -622,16 +623,19 @@ export function MessagesView({
   }, []);
 
   // ── Thread fetch / expand ──────────────────────────────
-  const fetchReplies = useCallback(async (rootId: string) => {
-    try {
-      const res = await fetch(endpoints.replies(rootId));
-      if (!res.ok) throw new Error("Failed");
-      const data: MessageRow[] = await res.json();
-      setRepliesByThread((prev) => ({ ...prev, [rootId]: data }));
-    } catch {
-      toast.error("Couldn't load replies");
-    }
-  }, []);
+  const fetchReplies = useCallback(
+    async (rootId: string) => {
+      try {
+        const res = await fetch(endpoints.replies(rootId));
+        if (!res.ok) throw new Error("Failed");
+        const data: MessageRow[] = await res.json();
+        setRepliesByThread((prev) => ({ ...prev, [rootId]: data }));
+      } catch {
+        toast.error("Couldn't load replies");
+      }
+    },
+    [endpoints]
+  );
 
   // Deep-link scroll + highlight. Runs once messages land. If the
   // target lives inside a thread (targetThreadId set), we expand
@@ -999,11 +1003,13 @@ export function MessagesView({
     } finally {
       setSending(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     newContent,
     pendingFiles,
     sending,
-    projectId,
+    scopeKey,
+    endpoints,
     currentUser,
     uploadFileToMessage,
     mentionUserIds,

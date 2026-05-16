@@ -36,11 +36,6 @@ import {
   Folder,
   Calendar,
   Trash2,
-  Wallet,
-  Briefcase,
-  AlertTriangle,
-  TrendingUp,
-  Clock,
   GripVertical,
   List as ListIcon,
   CalendarRange,
@@ -116,7 +111,7 @@ interface Project {
     id: string;
     name: string | null;
     image: string | null;
-  };
+  } | null;
   stats: {
     total: number;
     completed: number;
@@ -135,7 +130,7 @@ interface Portfolio {
   id: string;
   name: string;
   description: string | null;
-  color: string;
+  color: string | null;
   status: PortfolioStatus;
   startDate: string | null;
   endDate: string | null;
@@ -143,7 +138,7 @@ interface Portfolio {
     id: string;
     name: string | null;
     image: string | null;
-  };
+  } | null;
   projects: PortfolioProject[];
   _count: {
     projects: number;
@@ -234,20 +229,6 @@ function formatDate(date: string | null): string {
     month: "short",
     day: "numeric",
   });
-}
-
-function formatBudget(value: number, currency: string): string {
-  if (value <= 0) return "—";
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  } catch {
-    return `${currency} ${value.toLocaleString("en-US")}`;
-  }
 }
 
 // ── Page ────────────────────────────────────────────────────
@@ -1027,77 +1008,6 @@ export default function PortfolioDetailPage() {
 
 // ── Subcomponents ───────────────────────────────────────────
 
-function KpiTile({
-  icon,
-  label,
-  value,
-  sub,
-  accent = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-lg border bg-white p-3 md:p-4",
-        accent && "border-[#a8893a]/50 bg-[#a8893a]/5"
-      )}
-    >
-      <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="text-xl md:text-2xl font-semibold text-black mt-1 tabular-nums">
-        {value}
-      </div>
-      {sub && (
-        <div className="text-xs text-gray-500 mt-0.5 tabular-nums">{sub}</div>
-      )}
-    </div>
-  );
-}
-
-function BreakdownCard({
-  title,
-  items,
-  total,
-}: {
-  title: string;
-  items: { label: string; count: number }[];
-  total: number;
-}) {
-  return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
-        {title}
-      </div>
-      <div className="space-y-2">
-        {items.map((item) => {
-          const pct = total > 0 ? (item.count / total) * 100 : 0;
-          return (
-            <div key={item.label} className="flex items-center gap-3 text-sm">
-              <span className="w-28 text-gray-700 truncate">{item.label}</span>
-              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#c9a84c] transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <span className="w-8 text-right tabular-nums text-black font-medium">
-                {item.count}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function ToolbarChip({
   icon,
   label,
@@ -1313,9 +1223,9 @@ function SortableProjectRow({
           </div>
         </div>
         <Avatar className="h-6 w-6 flex-shrink-0">
-          <AvatarImage src={p.owner.image || ""} />
+          <AvatarImage src={p.owner?.image || ""} />
           <AvatarFallback className="text-xs bg-gray-200">
-            {p.owner.name?.charAt(0) || "?"}
+            {p.owner?.name?.charAt(0) || "?"}
           </AvatarFallback>
         </Avatar>
         <DropdownMenu>

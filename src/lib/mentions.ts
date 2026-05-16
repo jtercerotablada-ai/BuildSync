@@ -199,6 +199,56 @@ export async function syncMentionsForEditedMessage(opts: SyncOptions) {
 }
 
 // ──────────────────────────────────────────────────────────────────
+// Portfolio scope — Message rows tied to portfolioId share the same
+// MessageMention table as project messages, so we only need an
+// audience resolver. Notification fan-out is intentionally skipped
+// for portfolio mentions today (inbox notifs stay project-only).
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * Validate candidate user ids against the portfolio's audience.
+ * Allowed = explicit members + the portfolio owner + (for PUBLIC
+ * portfolios) anyone in the workspace.
+ */
+export async function resolveAllowedPortfolioMentionUserIds(
+  portfolioId: string,
+  candidateUserIds: string[]
+): Promise<string[]> {
+  if (candidateUserIds.length === 0) return [];
+  const unique = Array.from(new Set(candidateUserIds.filter(Boolean)));
+  if (unique.length === 0) return [];
+
+  const portfolio = await prisma.portfolio.findUnique({
+    where: { id: portfolioId },
+    select: {
+      ownerId: true,
+      privacy: true,
+      workspaceId: true,
+      members: { select: { userId: true } },
+    },
+  });
+  if (!portfolio) return [];
+
+  const allowed = new Set<string>();
+  if (portfolio.ownerId) allowed.add(portfolio.ownerId);
+  for (const m of portfolio.members) allowed.add(m.userId);
+
+  // PUBLIC portfolios open the @-mention pool to the whole workspace.
+  if (portfolio.privacy === "PUBLIC") {
+    const wsMembers = await prisma.workspaceMember.findMany({
+      where: {
+        workspaceId: portfolio.workspaceId,
+        userId: { in: unique },
+      },
+      select: { userId: true },
+    });
+    for (const wm of wsMembers) allowed.add(wm.userId);
+  }
+
+  return unique.filter((uid) => allowed.has(uid));
+}
+
+// ──────────────────────────────────────────────────────────────────
 // Team scope — analogous helpers for TeamMessage mentions.
 // ──────────────────────────────────────────────────────────────────
 

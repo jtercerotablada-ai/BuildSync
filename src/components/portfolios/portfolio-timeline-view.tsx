@@ -39,7 +39,7 @@ interface TimelineProject {
     id: string;
     name: string | null;
     image: string | null;
-  };
+  } | null;
   stats: { progress: number };
 }
 
@@ -244,7 +244,7 @@ export function PortfolioTimelineView({ projects }: Props) {
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
         <span className="hidden lg:inline text-[12px] text-gray-500 ml-2">
-          Drag a bar to reschedule.
+          Project schedule across the portfolio.
         </span>
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">

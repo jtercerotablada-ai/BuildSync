@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveAllowedPortfolioMentionUserIds } from "@/lib/mentions";
 
 /**
  * GET /api/portfolios/:portfolioId/messages
@@ -225,22 +226,33 @@ export async function POST(
     const ids = parsed.data.mentionUserIds ?? [];
     if (ids.length > 0) {
       try {
-        await prisma.messageMention.createMany({
-          data: ids.map((mid) => ({ messageId: created.id, userId: mid })),
-          skipDuplicates: true,
-        });
-        const mentions = await prisma.messageMention.findMany({
-          where: { messageId: created.id },
-          select: {
-            userId: true,
-            user: { select: { id: true, name: true, image: true } },
-          },
-        });
-        resolvedMentions = mentions.map((mn) => ({
-          userId: mn.userId,
-          name: mn.user.name,
-          image: mn.user.image,
-        }));
+        // Audience gate: only allow mentioning users who can read the
+        // portfolio. Bogus or cross-workspace ids are silently dropped.
+        const allowed = await resolveAllowedPortfolioMentionUserIds(
+          portfolioId,
+          ids
+        );
+        if (allowed.length > 0) {
+          await prisma.messageMention.createMany({
+            data: allowed.map((mid) => ({
+              messageId: created.id,
+              userId: mid,
+            })),
+            skipDuplicates: true,
+          });
+          const mentions = await prisma.messageMention.findMany({
+            where: { messageId: created.id },
+            select: {
+              userId: true,
+              user: { select: { id: true, name: true, image: true } },
+            },
+          });
+          resolvedMentions = mentions.map((mn) => ({
+            userId: mn.userId,
+            name: mn.user.name,
+            image: mn.user.image,
+          }));
+        }
       } catch (err) {
         console.error("[portfolio messages POST] mention persist failed:", err);
       }
