@@ -27,18 +27,45 @@ export type ProjectTemplateCategory =
   | "productivity";
 
 /**
+ * Custom field definition a template wants the new project to have.
+ * Created via prisma.customFieldDefinition + linked via
+ * ProjectCustomField when the project is provisioned.
+ */
+export interface ProjectTemplateCustomField {
+  name: string;
+  type:
+    | "TEXT"
+    | "NUMBER"
+    | "DATE"
+    | "DROPDOWN"
+    | "MULTI_SELECT"
+    | "PEOPLE"
+    | "CHECKBOX"
+    | "CURRENCY"
+    | "PERCENTAGE";
+  /** Required for DROPDOWN / MULTI_SELECT. The `id` is the value
+   *  template tasks reference; `label` is what the user sees. */
+  options?: { id: string; label: string; color?: string }[];
+}
+
+/**
  * Pre-baked task within a project template.
  *  - `section` must match one of the template's section names exactly
  *  - `subtasks` create child tasks via Task.parentTaskId
  *  - `type` lets templates flag major deliverables as Milestones or
  *    sign-offs as Approvals so the kanban + timeline render the right
  *    glyph from day one (defaults to a regular TASK)
+ *  - `customFieldValues` pre-fills custom-field values for the task,
+ *    keyed by field NAME (must match template.customFields[].name).
+ *    For DROPDOWN values pass the option `id`; for MULTI_SELECT pass
+ *    an array of ids.
  */
 export interface ProjectTemplateTask {
   section: string;
   name: string;
   type?: "TASK" | "MILESTONE" | "APPROVAL";
   subtasks?: string[];
+  customFieldValues?: Record<string, unknown>;
 }
 
 export interface ProjectTemplate {
@@ -56,8 +83,13 @@ export interface ProjectTemplate {
     gate?: "PRE_DESIGN" | "DESIGN" | "PERMITTING" | "CONSTRUCTION" | "CLOSEOUT";
     color?: string;
   };
-  /** Initial sections (kanban columns) created when the project is made */
+  /** Initial sections (kanban columns) created when the project is made.
+   *  Asana paradigm: sections are workflow STATUS, not project phases.
+   *  Phases (when relevant) live in a custom field. */
   sections: string[];
+  /** Custom fields the template wants on the project, e.g. "Phase".
+   *  Created + linked to the project at provisioning time. */
+  customFields?: ProjectTemplateCustomField[];
   /** Pre-baked tasks (with optional subtasks). Created after the
    *  sections in the order declared here. */
   tasks?: ProjectTemplateTask[];
@@ -72,23 +104,35 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: "structural-design",
     name: "Structural design project",
     description:
-      "Production-grade structural design playbook — kickoff through stamped & sealed deliverables. Five modules cover framing & loads, analysis & member design, detailing per ACI 318, foundations, and documentation. Ships with 35+ parent tasks, key project milestones, and ~150 subtasks so the work plan exists day one. Pre-wires the calc package review workflow.",
+      "Production-grade structural design playbook — kickoff through stamped & sealed deliverables. Asana-style kanban: 5 status columns (To Do → In Progress → Under Review → Approved → Done) with a 'Phase' custom field tagging every task as M1 (Framing & Loads), M2 (Analysis & Member Design), M3 (Detailing per ACI 318), M4 (Foundations), or M5 (Documentation & Issuance). 35+ parent tasks, 170+ subtasks, key milestones, calc-package-review workflow pre-wired.",
     icon: "Building2",
     accent: "amber",
     category: "engineering",
     defaults: { type: "DESIGN", gate: "PRE_DESIGN", color: "#c9a84c" },
-    sections: [
-      "M1. Framing & Loads",
-      "M2. Analysis & Member Design",
-      "M3. Detailing per ACI 318",
-      "M4. Foundations",
-      "M5. Documentation & Issuance",
+    // Asana paradigm: sections are workflow STATUS, not phases. Tasks
+    // move left-to-right as they progress. Phase is tracked via the
+    // custom field below so the user can filter / group the board by
+    // phase without losing kanban flow.
+    sections: ["To Do", "In Progress", "Under Review", "Approved", "Done"],
+    customFields: [
+      {
+        name: "Phase",
+        type: "DROPDOWN",
+        options: [
+          { id: "m1", label: "M1. Framing & Loads", color: "#c9a84c" },
+          { id: "m2", label: "M2. Analysis & Member Design", color: "#d4b65a" },
+          { id: "m3", label: "M3. Detailing per ACI 318", color: "#a8893a" },
+          { id: "m4", label: "M4. Foundations", color: "#888888" },
+          { id: "m5", label: "M5. Documentation & Issuance", color: "#4a4a4a" },
+        ],
+      },
     ],
     tasks: [
-      // ── M1. Framing & Loads ────────────────────────────────────
+      // ── Phase M1: Framing & Loads ──────────────────────────────
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Project kickoff",
+        customFieldValues: { Phase: "m1" },
         subtasks: [
           "Contract executed & PO received",
           "Project number assigned",
@@ -98,8 +142,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Code research & criteria memo",
+        customFieldValues: { Phase: "m1" },
         subtasks: [
           "Governing building code (IBC / local amendments)",
           "Material standards (ACI 318, AISC 360, ASCE 7)",
@@ -111,8 +156,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Existing conditions & geotech intake",
+        customFieldValues: { Phase: "m1" },
         subtasks: [
           "Architectural drawings received",
           "Survey received (boundary + topo)",
@@ -122,13 +168,15 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Architectural drawings received",
         type: "MILESTONE",
+        customFieldValues: { Phase: "m1" },
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Framing strategy",
+        customFieldValues: { Phase: "m1" },
         subtasks: [
           "Conceptual structural framing options",
           "Material selection (RC / steel / wood / masonry)",
@@ -139,8 +187,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Load take-off",
+        customFieldValues: { Phase: "m1" },
         subtasks: [
           "Code references & combinations",
           "Dead load (self-weight + superimposed)",
@@ -153,8 +202,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Slab preliminary sizing",
+        customFieldValues: { Phase: "m1" },
         subtasks: [
           "Slab system selection (flat / pan-joist / one-way / two-way)",
           "Span-to-depth ratio check (ACI 318 §7.3.1)",
@@ -167,8 +217,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Beam preliminary sizing",
+        customFieldValues: { Phase: "m1" },
         subtasks: [
           "Support conditions (simple / continuous / cantilever)",
           "Span-to-depth ratio (deflection control)",
@@ -179,8 +230,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Column preliminary sizing",
+        customFieldValues: { Phase: "m1" },
         subtasks: [
           "Column typology & shape",
           "Tributary area & axial load take-off",
@@ -192,8 +244,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "Foundation preliminary sizing",
+        customFieldValues: { Phase: "m1" },
         subtasks: [
           "Foundation system selection",
           "Allowable bearing pressure verified",
@@ -201,14 +254,16 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M1. Framing & Loads",
+        section: "To Do",
         name: "SD package issued",
         type: "MILESTONE",
+        customFieldValues: { Phase: "m1" },
       },
-      // ── M2. Analysis & Member Design ───────────────────────────
+      // ── Phase M2: Analysis & Member Design ─────────────────────
       {
-        section: "M2. Analysis & Member Design",
+        section: "To Do",
         name: "Analysis model setup",
+        customFieldValues: { Phase: "m2" },
         subtasks: [
           "Geometry from architectural model",
           "Material properties (f'c, fy, E)",
@@ -221,8 +276,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M2. Analysis & Member Design",
+        section: "To Do",
         name: "Vertical deflection checks",
+        customFieldValues: { Phase: "m2" },
         subtasks: [
           "Immediate deflections",
           "Long-term deflections (creep + shrinkage)",
@@ -232,8 +288,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M2. Analysis & Member Design",
+        section: "To Do",
         name: "Lateral drift checks",
+        customFieldValues: { Phase: "m2" },
         subtasks: [
           "Wind story drifts (ASCE 7 §C.1.2)",
           "Inter-story drift limits",
@@ -241,8 +298,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M2. Analysis & Member Design",
+        section: "To Do",
         name: "Seismic analysis checks",
+        customFieldValues: { Phase: "m2" },
         subtasks: [
           "Modal participation mass ≥ 90%",
           "Period verification",
@@ -252,8 +310,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M2. Analysis & Member Design",
+        section: "To Do",
         name: "Member design (ULS)",
+        customFieldValues: { Phase: "m2" },
         subtasks: [
           "Slab design check",
           "Beam design check",
@@ -263,19 +322,22 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M2. Analysis & Member Design",
+        section: "To Do",
         name: "Internal QC — analysis review",
         type: "APPROVAL",
+        customFieldValues: { Phase: "m2" },
       },
       {
-        section: "M2. Analysis & Member Design",
+        section: "To Do",
         name: "DD package issued",
         type: "MILESTONE",
+        customFieldValues: { Phase: "m2" },
       },
-      // ── M3. Detailing per ACI 318 ──────────────────────────────
+      // ── Phase M3: Detailing per ACI 318 ────────────────────────
       {
-        section: "M3. Detailing per ACI 318",
+        section: "To Do",
         name: "Detailing fundamentals",
+        customFieldValues: { Phase: "m3" },
         subtasks: [
           "Cover & spacing requirements",
           "Bond, anchorage & development",
@@ -290,8 +352,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M3. Detailing per ACI 318",
+        section: "To Do",
         name: "Column detailing",
+        customFieldValues: { Phase: "m3" },
         subtasks: [
           "Longitudinal bar layout",
           "Splice location & class",
@@ -303,8 +366,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M3. Detailing per ACI 318",
+        section: "To Do",
         name: "Beam detailing",
+        customFieldValues: { Phase: "m3" },
         subtasks: [
           "Longitudinal top + bottom reinforcement",
           "Anchorage & development at supports",
@@ -315,8 +379,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M3. Detailing per ACI 318",
+        section: "To Do",
         name: "One-way slab / joist detailing",
+        customFieldValues: { Phase: "m3" },
         subtasks: [
           "Bottom & top bar layout",
           "Shear & transverse reinforcement",
@@ -325,8 +390,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M3. Detailing per ACI 318",
+        section: "To Do",
         name: "Two-way slab detailing",
+        customFieldValues: { Phase: "m3" },
         subtasks: [
           "Column-strip vs middle-strip moments",
           "Slab-with-beams detailing",
@@ -335,8 +401,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M3. Detailing per ACI 318",
+        section: "To Do",
         name: "Retaining wall detailing",
+        customFieldValues: { Phase: "m3" },
         subtasks: [
           "Stem reinforcement",
           "Heel & toe reinforcement",
@@ -344,14 +411,16 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M3. Detailing per ACI 318",
+        section: "To Do",
         name: "Stair detailing",
+        customFieldValues: { Phase: "m3" },
         subtasks: ["Stair flight & landing reinforcement"],
       },
-      // ── M4. Foundations ────────────────────────────────────────
+      // ── Phase M4: Foundations ──────────────────────────────────
       {
-        section: "M4. Foundations",
+        section: "To Do",
         name: "Geotechnical intake & system selection",
+        customFieldValues: { Phase: "m4" },
         subtasks: [
           "Geotech report reviewed",
           "Allowable bearing pressure confirmed",
@@ -361,8 +430,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M4. Foundations",
+        section: "To Do",
         name: "Spread footings",
+        customFieldValues: { Phase: "m4" },
         subtasks: [
           "Types by shape (square / rectangular / strip)",
           "Types by position (concentric / eccentric / combined)",
@@ -382,8 +452,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M4. Foundations",
+        section: "To Do",
         name: "Mat foundations",
+        customFieldValues: { Phase: "m4" },
         subtasks: [
           "Mat behavior under loading",
           "Subgrade modulus (k) selection",
@@ -397,8 +468,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M4. Foundations",
+        section: "To Do",
         name: "Deep foundations",
+        customFieldValues: { Phase: "m4" },
         subtasks: [
           "Deep foundation behavior",
           "Pile typology (driven / drilled / micropile)",
@@ -415,14 +487,16 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M4. Foundations",
+        section: "To Do",
         name: "Foundation design complete",
         type: "MILESTONE",
+        customFieldValues: { Phase: "m4" },
       },
-      // ── M5. Documentation & Issuance ───────────────────────────
+      // ── Phase M5: Documentation & Issuance ─────────────────────
       {
-        section: "M5. Documentation & Issuance",
+        section: "To Do",
         name: "Drawing package",
+        customFieldValues: { Phase: "m5" },
         subtasks: [
           "Sheet list & numbering",
           "General notes & abbreviations",
@@ -437,8 +511,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M5. Documentation & Issuance",
+        section: "To Do",
         name: "Calculation package",
+        customFieldValues: { Phase: "m5" },
         subtasks: [
           "Cover sheet & seal block",
           "Design criteria summary",
@@ -450,8 +525,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M5. Documentation & Issuance",
+        section: "To Do",
         name: "Specifications & quantity take-off",
+        customFieldValues: { Phase: "m5" },
         subtasks: [
           "Concrete specifications",
           "Reinforcement specifications",
@@ -460,23 +536,27 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
       {
-        section: "M5. Documentation & Issuance",
+        section: "To Do",
         name: "Internal QC — final review",
         type: "APPROVAL",
+        customFieldValues: { Phase: "m5" },
       },
       {
-        section: "M5. Documentation & Issuance",
+        section: "To Do",
         name: "PE stamp & seal",
         type: "MILESTONE",
+        customFieldValues: { Phase: "m5" },
       },
       {
-        section: "M5. Documentation & Issuance",
+        section: "To Do",
         name: "Issued for permit",
         type: "MILESTONE",
+        customFieldValues: { Phase: "m5" },
       },
       {
-        section: "M5. Documentation & Issuance",
+        section: "To Do",
         name: "Project closeout",
+        customFieldValues: { Phase: "m5" },
         subtasks: [
           "Archive stamped set (PDF + native files)",
           "Submittals log handover",

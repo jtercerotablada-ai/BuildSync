@@ -336,6 +336,7 @@ function ConfirmTemplateDialog({
           type: template.defaults.type,
           gate: template.defaults.gate,
           sections: template.sections,
+          customFields: template.customFields,
           tasks: template.tasks,
           description: template.description,
         }),

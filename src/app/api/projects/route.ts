@@ -38,6 +38,39 @@ const createProjectSchema = z.object({
         name: z.string().min(1).max(200),
         type: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional(),
         subtasks: z.array(z.string().min(1).max(200)).optional(),
+        // Custom-field values keyed by field NAME (not id). Resolved
+        // server-side after the customFields below are created.
+        customFieldValues: z.record(z.string(), z.unknown()).optional(),
+      })
+    )
+    .optional(),
+  // Custom field definitions a project-template wants applied. Created
+  // + linked to the new project before task creation so tasks can
+  // reference them by name via `customFieldValues`.
+  customFields: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(80),
+        type: z.enum([
+          "TEXT",
+          "NUMBER",
+          "DATE",
+          "DROPDOWN",
+          "MULTI_SELECT",
+          "PEOPLE",
+          "CHECKBOX",
+          "CURRENCY",
+          "PERCENTAGE",
+        ]),
+        options: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              label: z.string().min(1).max(80),
+              color: z.string().optional(),
+            })
+          )
+          .optional(),
       })
     )
     .optional(),
@@ -210,6 +243,7 @@ export async function POST(req: Request) {
       clientName,
       sections: explicitSections,
       tasks: explicitTasks,
+      customFields: explicitCustomFields,
     } = createProjectSchema.parse(body);
 
     // Get template if provided
@@ -386,6 +420,41 @@ export async function POST(req: Request) {
       },
     });
 
+    // ── Project-template custom fields ──────────────────────────
+    // Created BEFORE tasks so task creation can resolve their
+    // customFieldValues by field name. Each definition is created in
+    // the project's workspace and linked via ProjectCustomField.
+    const customFieldDefByName = new Map<
+      string,
+      { id: string; type: string }
+    >();
+    if (explicitCustomFields && explicitCustomFields.length > 0) {
+      for (let i = 0; i < explicitCustomFields.length; i++) {
+        const cf = explicitCustomFields[i];
+        // Dropdown / multi-select need options; skip silently if
+        // they're missing rather than blow up the whole create.
+        const needsOptions =
+          cf.type === "DROPDOWN" || cf.type === "MULTI_SELECT";
+        if (needsOptions && (!cf.options || cf.options.length === 0)) {
+          continue;
+        }
+        const def = await prisma.customFieldDefinition.create({
+          data: {
+            name: cf.name,
+            type: cf.type,
+            options: needsOptions && cf.options
+              ? JSON.parse(JSON.stringify(cf.options))
+              : null,
+            workspaceId: targetWorkspaceId,
+          },
+        });
+        await prisma.projectCustomField.create({
+          data: { projectId: project.id, fieldId: def.id, position: i },
+        });
+        customFieldDefByName.set(cf.name, { id: def.id, type: def.type });
+      }
+    }
+
     // ── Pre-baked tasks from a project-template gallery pick ────
     // (explicitTasks) — matches tasks to the freshly-created sections
     // by name, then creates each parent task + any subtasks via
@@ -426,6 +495,24 @@ export async function POST(req: Request) {
               position: i * 1000,
             })),
           });
+        }
+        // Apply template-defined custom field values. Keys reference
+        // the field NAME from explicitCustomFields above; unknown
+        // names are silently skipped (defensive against drift).
+        if (t.customFieldValues) {
+          for (const [fieldName, rawValue] of Object.entries(
+            t.customFieldValues
+          )) {
+            const def = customFieldDefByName.get(fieldName);
+            if (!def) continue;
+            await prisma.customFieldValue.create({
+              data: {
+                taskId: parent.id,
+                fieldId: def.id,
+                value: JSON.parse(JSON.stringify(rawValue)),
+              },
+            });
+          }
         }
       }
     }
