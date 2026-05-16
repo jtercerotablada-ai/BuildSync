@@ -23,6 +23,11 @@ const createProjectSchema = z.object({
   budget: z.number().optional(),
   currency: z.string().optional(),
   clientName: z.string().optional(),
+  // Explicit initial sections — when provided (e.g. from a project
+  // template gallery pick) we use these instead of the default
+  // "To do / In progress / Done" so the kanban columns reflect the
+  // template's intent.
+  sections: z.array(z.string().min(1).max(80)).optional(),
 });
 
 // GET /api/projects - Get user's projects
@@ -190,6 +195,7 @@ export async function POST(req: Request) {
       budget,
       currency,
       clientName,
+      sections: explicitSections,
     } = createProjectSchema.parse(body);
 
     // Get template if provided
@@ -278,17 +284,25 @@ export async function POST(req: Request) {
     }
     const projectNumber = `${prefix}${String(nextSeq).padStart(3, "0")}`;
 
-    // Determine sections based on template or default
-    const sectionsToCreate = template
-      ? template.sections.map((section, index) => ({
-          name: section.name,
-          position: index,
-        }))
-      : [
-          { name: "To do", position: 0 },
-          { name: "In progress", position: 1 },
-          { name: "Done", position: 2 },
-        ];
+    // Determine sections — priority: explicit `sections` from a
+    // project-template gallery pick → legacy `template.sections` →
+    // default "To do / In progress / Done".
+    const sectionsToCreate =
+      explicitSections && explicitSections.length > 0
+        ? explicitSections.map((name, index) => ({
+            name: name.trim(),
+            position: index,
+          }))
+        : template
+          ? template.sections.map((section, index) => ({
+              name: section.name,
+              position: index,
+            }))
+          : [
+              { name: "To do", position: 0 },
+              { name: "In progress", position: 1 },
+              { name: "Done", position: 2 },
+            ];
 
     // Determine views based on template or default
     const viewsToCreate = template

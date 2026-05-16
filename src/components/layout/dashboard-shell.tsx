@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
+import { CreateProjectGallery } from "@/components/projects/create-project-gallery";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
 import { CreateObjectiveDialog } from "@/components/goals/create-objective-dialog";
@@ -41,6 +42,10 @@ interface DashboardShellProps {
 function DashboardShellContent({ children, variant = "default", basePath = "" }: DashboardShellProps) {
   const router = useRouter();
   const { isOpen: isAIPanelOpen, closePanel: closeAIPanel } = useAIPanel();
+  // Project creation: gallery is the primary entry (Asana parity).
+  // The blank-form dialog is reached from the gallery's "Blank project"
+  // CTA — covers the case where a user wants to set every field upfront.
+  const [showCreateGallery, setShowCreateGallery] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
@@ -165,7 +170,7 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
       {/* Full-width topbar strip */}
       <Header
         onCreateTask={() => setShowQuickCreateTask(true)}
-        onCreateProject={() => setShowCreateProject(true)}
+        onCreateProject={() => setShowCreateGallery(true)}
         onCreatePortfolio={() => setShowCreatePortfolio(true)}
         onCreateGoal={() => setShowCreateGoal(true)}
         onSearchOpen={() => setShowSearch(true)}
@@ -182,7 +187,7 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
         )}
         <Sidebar
           collapsed={sidebarCollapsed}
-          onCreateProject={() => setShowCreateProject(true)}
+          onCreateProject={() => setShowCreateGallery(true)}
           basePath={basePath}
         />
         <main className="flex-1 overflow-auto bg-background transition-[margin] duration-200 ease-out w-full pb-16 md:pb-0">
@@ -190,6 +195,17 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
         </main>
       </div>
 
+      <CreateProjectGallery
+        open={showCreateGallery}
+        onOpenChange={setShowCreateGallery}
+        onOpenBlankForm={() => {
+          // Bridge from gallery → legacy full-form dialog. Close the
+          // gallery first so we don't stack two modals.
+          setShowCreateGallery(false);
+          setShowCreateProject(true);
+        }}
+        onProjectCreated={fetchProjects}
+      />
       <CreateProjectDialog
         open={showCreateProject}
         onOpenChange={setShowCreateProject}
