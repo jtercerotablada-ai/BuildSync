@@ -5,9 +5,21 @@
  * popover so the trigger and surface match the rest of the product.
  * The trigger is the children passed in — typically a button rendering
  * the current emoji.
+ *
+ * Perf notes — frimousse fetches ~700 KB of emoji metadata from jsdelivr
+ * on the very first open (subsequent opens read from localStorage and
+ * feel instant). We mitigate the first-open lag two ways:
+ *
+ *   1. `prewarmEmojiData()` fires a background request to the CDN as
+ *      soon as the trigger mounts, so the data is already in the
+ *      browser's HTTP cache (and frimousse's localStorage) by the time
+ *      the user actually clicks. It only runs once per session.
+ *   2. We override the default shadcn popover animation (zoom + slide)
+ *      with a 100 ms fade — the heavy spring felt "stuck" against the
+ *      picker content settling. Matches Asana's snappier vibe.
  */
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { EmojiPicker } from "frimousse";
 import { Ban } from "lucide-react";
 import {
@@ -16,6 +28,20 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+
+const CDN = "https://cdn.jsdelivr.net/npm/emojibase-data";
+
+let prewarmed = false;
+function prewarmEmojiData(locale = "en") {
+  if (typeof window === "undefined" || prewarmed) return;
+  prewarmed = true;
+  // No-await — fire and forget. Two parallel fetches because frimousse
+  // pulls both data.json and messages.json on first open.
+  Promise.all([
+    fetch(`${CDN}/${locale}/data.json`, { cache: "force-cache" }).catch(() => {}),
+    fetch(`${CDN}/${locale}/messages.json`, { cache: "force-cache" }).catch(() => {}),
+  ]);
+}
 
 interface EmojiPickerPopoverProps {
   /** Trigger element — typically a button showing the current emoji */
@@ -36,13 +62,28 @@ export function EmojiPickerPopover({
 }: EmojiPickerPopoverProps) {
   const [open, setOpen] = useState(false);
 
+  // Prewarm the emoji dataset as soon as the trigger is in the DOM, so
+  // by the time the user clicks the icon button the data is cached.
+  useEffect(() => {
+    prewarmEmojiData();
+  }, []);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent
         align={align}
         sideOffset={6}
-        className="w-[320px] p-0 rounded-xl border border-gray-200 shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden"
+        // Override the default zoom+slide animation with a tight fade.
+        // The picker content settling (rows, search input) on top of a
+        // spring animation is what felt sluggish.
+        className={cn(
+          "w-[320px] p-0 rounded-xl border border-gray-200 shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden",
+          "duration-100 data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+          "data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100",
+          "data-[side=bottom]:slide-in-from-top-0 data-[side=top]:slide-in-from-bottom-0",
+          "data-[side=left]:slide-in-from-right-0 data-[side=right]:slide-in-from-left-0"
+        )}
       >
         <EmojiPicker.Root
           className="isolate flex h-[400px] w-full flex-col bg-white"
