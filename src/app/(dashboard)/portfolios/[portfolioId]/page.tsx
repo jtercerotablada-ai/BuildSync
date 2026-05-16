@@ -928,6 +928,11 @@ export default function PortfolioDetailPage() {
 
             <TabsContent value="progress" className="mt-4">
               <PortfolioProgressView
+                status={portfolio.status}
+                portfolioName={portfolio.name}
+                description={portfolio.description}
+                owner={portfolio.owner}
+                endDate={portfolio.endDate}
                 inProgress={aggregates.activeProjects}
                 atRisk={aggregates.atRiskCount}
                 offTrack={aggregates.offTrackCount}

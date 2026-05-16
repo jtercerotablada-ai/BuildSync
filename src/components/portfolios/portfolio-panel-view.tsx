@@ -10,15 +10,10 @@ import {
   YAxis,
   ResponsiveContainer,
   Tooltip,
-  Legend,
+  CartesianGrid,
 } from "recharts";
-import {
-  TrendingUp,
-  Wallet,
-  AlertTriangle,
-  Clock,
-  Briefcase,
-} from "lucide-react";
+import { Plus, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ProjectStatus =
@@ -62,21 +57,6 @@ interface Props {
   byGate: Record<ProjectGate, number>;
 }
 
-const TYPE_LABEL: Record<ProjectType, string> = {
-  CONSTRUCTION: "Construction",
-  DESIGN: "Design",
-  RECERTIFICATION: "Recertification",
-  PERMIT: "Permit",
-};
-
-const GATE_LABEL: Record<ProjectGate, string> = {
-  PRE_DESIGN: "Pre-design",
-  DESIGN: "Design",
-  PERMITTING: "Permitting",
-  CONSTRUCTION: "Construction",
-  CLOSEOUT: "Closeout",
-};
-
 const STATUS_COLOR: Record<ProjectStatus, string> = {
   ON_TRACK: "#c9a84c",
   AT_RISK: "#f59e0b",
@@ -93,43 +73,32 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
   COMPLETE: "Complete",
 };
 
-function formatBudget(value: number, currency: string): string {
-  if (value <= 0) return "—";
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  } catch {
-    return `${currency} ${value.toLocaleString("en-US")}`;
-  }
-}
-
 export function PortfolioPanelView({
   projects,
-  totalBudget,
-  currency,
   totalTasks,
   completedTasks,
   overdueTasks,
-  atRiskCount,
-  avgProgress,
-  activeProjects,
-  projectCount,
-  byType,
-  byGate,
 }: Props) {
+  const incompleteTasks = Math.max(totalTasks - completedTasks, 0);
+
   if (projects.length === 0) {
     return (
-      <div className="bg-white rounded-lg border p-12 text-center text-sm text-gray-500">
-        Add projects to this portfolio to see the panel dashboard.
+      <div className="space-y-4">
+        <Toolbar />
+        <SummaryStrip
+          totalTasks={0}
+          completedTasks={0}
+          incompleteTasks={0}
+          overdueTasks={0}
+        />
+        <div className="bg-white rounded-lg border p-12 text-center text-sm text-gray-500">
+          Add projects to this portfolio to see the panel dashboard.
+        </div>
       </div>
     );
   }
 
-  // Donut: projects by status
+  // ── Widget 1: Projects by status (donut) ─────────────────
   const statusCounts: Record<ProjectStatus, number> = {
     ON_TRACK: 0,
     AT_RISK: 0,
@@ -138,7 +107,7 @@ export function PortfolioPanelView({
     COMPLETE: 0,
   };
   for (const pp of projects) statusCounts[pp.project.status] += 1;
-  const donutData = (Object.keys(statusCounts) as ProjectStatus[])
+  const projectsByStatusData = (Object.keys(statusCounts) as ProjectStatus[])
     .filter((k) => statusCounts[k] > 0)
     .map((k) => ({
       name: STATUS_LABEL[k],
@@ -146,267 +115,367 @@ export function PortfolioPanelView({
       color: STATUS_COLOR[k],
     }));
 
-  // Bar: tasks completed vs open per project (top 8)
-  const barData = projects
+  // ── Widget 2: Tasks by status (donut) ────────────────────
+  const tasksData = [
+    { name: "Completed", value: completedTasks, color: "#c9a84c" },
+    {
+      name: "Open",
+      value: Math.max(incompleteTasks - overdueTasks, 0),
+      color: "#e5e7eb",
+    },
+    { name: "Overdue", value: overdueTasks, color: "#000000" },
+  ].filter((d) => d.value > 0);
+
+  // ── Widget 3: Incomplete tasks by project (bar) ──────────
+  const incompleteByProject = projects
+    .map((pp) => ({
+      name:
+        pp.project.name.length > 14
+          ? pp.project.name.slice(0, 13) + "…"
+          : pp.project.name,
+      value: Math.max(pp.project.stats.total - pp.project.stats.completed, 0),
+      color: STATUS_COLOR[pp.project.status],
+    }))
+    .filter((d) => d.value > 0)
+    .slice(0, 8);
+
+  // ── Widget 4: Progress per project (horizontal bar) ──────
+  const progressData = projects
     .slice(0, 8)
     .map((pp) => ({
-      name: pp.project.name.length > 14
-        ? pp.project.name.slice(0, 13) + "…"
-        : pp.project.name,
-      Completed: pp.project.stats.completed,
-      Open: pp.project.stats.total - pp.project.stats.completed,
-      Overdue: pp.project.stats.overdue,
-    }));
-
-  // Bar: progress per project
-  const progressData = projects
-    .slice(0, 10)
-    .map((pp) => ({
-      name: pp.project.name.length > 12
-        ? pp.project.name.slice(0, 11) + "…"
-        : pp.project.name,
-      Progress: pp.project.stats.progress,
+      name:
+        pp.project.name.length > 16
+          ? pp.project.name.slice(0, 15) + "…"
+          : pp.project.name,
+      progress: pp.project.stats.progress,
+      color: STATUS_COLOR[pp.project.status],
     }));
 
   return (
     <div className="space-y-4">
-      {/* KPI strip — moved out of header per Asana parity */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Tile
-          icon={<Briefcase className="h-4 w-4 text-[#a8893a]" />}
-          label="Active projects"
-          value={activeProjects.toString()}
-          sub={`${projectCount} total`}
-        />
-        <Tile
-          icon={<Wallet className="h-4 w-4 text-[#a8893a]" />}
-          label="Total budget"
-          value={formatBudget(totalBudget, currency)}
-        />
-        <Tile
-          icon={<TrendingUp className="h-4 w-4 text-[#a8893a]" />}
-          label="Avg progress"
-          value={`${avgProgress}%`}
-          sub={`${completedTasks}/${totalTasks} tasks`}
-        />
-        <Tile
-          icon={<AlertTriangle className="h-4 w-4 text-[#a8893a]" />}
-          label="At risk"
-          value={atRiskCount.toString()}
-          accent={atRiskCount > 0}
-        />
-        <Tile
-          icon={<Clock className="h-4 w-4 text-[#a8893a]" />}
-          label="Overdue tasks"
-          value={overdueTasks.toString()}
-          accent={overdueTasks > 0}
-        />
-      </div>
+      <Toolbar />
+      <SummaryStrip
+        totalTasks={totalTasks}
+        completedTasks={completedTasks}
+        incompleteTasks={incompleteTasks}
+        overdueTasks={overdueTasks}
+      />
 
-      {/* Type & Gate breakdowns — BuildSync-specific (no Asana equivalent) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <BreakdownCard
-          title="By project type"
-          items={(Object.keys(TYPE_LABEL) as ProjectType[]).map((t) => ({
-            label: TYPE_LABEL[t],
-            count: byType[t],
-          }))}
-          total={projectCount}
-        />
-        <BreakdownCard
-          title="By lifecycle gate"
-          items={(Object.keys(GATE_LABEL) as ProjectGate[]).map((g) => ({
-            label: GATE_LABEL[g],
-            count: byGate[g],
-          }))}
-          total={projectCount}
-        />
-      </div>
-
-      {/* Charts row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <ChartCard
-          title="Projects by status"
-          subtitle={`${projects.length} total`}
+        <WidgetCard
+          title="Total projects by project status"
+          filterLabel={`${projects.length} ${
+            projects.length === 1 ? "project" : "projects"
+          }`}
         >
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie
-                data={donutData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={2}
+          {projectsByStatusData.length === 0 ? (
+            <Empty label="Not enough data yet" />
+          ) : (
+            <Donut data={projectsByStatusData} centerLabel={projects.length} />
+          )}
+        </WidgetCard>
+
+        <WidgetCard
+          title="Total tasks by status"
+          filterLabel={`${totalTasks} total`}
+        >
+          {totalTasks === 0 ? (
+            <Empty label="No tasks yet" />
+          ) : (
+            <Donut data={tasksData} centerLabel={totalTasks} />
+          )}
+        </WidgetCard>
+
+        <WidgetCard
+          title="Incomplete tasks by project"
+          filterLabel="Top 8"
+        >
+          {incompleteByProject.length === 0 ? (
+            <Empty label="No incomplete tasks 🎉" />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={incompleteByProject} barCategoryGap={12}>
+                <CartesianGrid
+                  vertical={false}
+                  stroke="#f3f4f6"
+                  strokeDasharray="3 3"
+                />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: "#6b7280" }}
+                  axisLine={false}
+                  tickLine={false}
+                  angle={-25}
+                  textAnchor="end"
+                  height={50}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "#6b7280" }}
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  contentStyle={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                  cursor={{ fill: "rgba(201, 168, 76, 0.08)" }}
+                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {incompleteByProject.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </WidgetCard>
+
+        <WidgetCard
+          title="Progress per project"
+          filterLabel="% complete"
+        >
+          {progressData.length === 0 ? (
+            <Empty label="Not enough data yet" />
+          ) : (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart
+                data={progressData}
+                layout="vertical"
+                barCategoryGap={10}
               >
-                {donutData.map((entry, idx) => (
-                  <Cell key={idx} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard
-          title="Total budget"
-          subtitle={formatBudget(totalBudget, currency)}
-        >
-          <div className="flex items-center justify-center h-[260px]">
-            <div className="text-center">
-              <div className="text-5xl font-bold text-black tabular-nums">
-                {formatBudget(totalBudget, currency)}
-              </div>
-              <div className="text-sm text-gray-500 mt-2">
-                across {projects.length} projects
-              </div>
-              {projects.filter((p) => p.project.budget).length <
-                projects.length && (
-                <div className="text-xs text-gray-400 mt-1">
-                  {projects.length -
-                    projects.filter((p) => p.project.budget).length}{" "}
-                  project(s) without budget
-                </div>
-              )}
-            </div>
-          </div>
-        </ChartCard>
-      </div>
-
-      {/* Charts row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <ChartCard title="Tasks per project" subtitle="Completed vs open">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={barData}>
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 11 }}
-                angle={-30}
-                textAnchor="end"
-                height={60}
-              />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="Completed" stackId="a" fill="#c9a84c" />
-              <Bar dataKey="Open" stackId="a" fill="#e5e7eb" />
-              <Bar dataKey="Overdue" stackId="a" fill="#000000" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Progress per project" subtitle="% complete">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={progressData} layout="vertical">
-              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
-              <YAxis
-                type="category"
-                dataKey="name"
-                tick={{ fontSize: 11 }}
-                width={100}
-              />
-              <Tooltip />
-              <Bar dataKey="Progress" fill="#a8893a" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+                <CartesianGrid
+                  horizontal={false}
+                  stroke="#f3f4f6"
+                  strokeDasharray="3 3"
+                />
+                <XAxis
+                  type="number"
+                  domain={[0, 100]}
+                  tick={{ fontSize: 10, fill: "#6b7280" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: "#6b7280" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={100}
+                />
+                <Tooltip
+                  contentStyle={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                  cursor={{ fill: "rgba(201, 168, 76, 0.08)" }}
+                  formatter={(v) => [`${v}%`, "Progress"]}
+                />
+                <Bar dataKey="progress" radius={[0, 4, 4, 0]}>
+                  {progressData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </WidgetCard>
       </div>
     </div>
   );
 }
 
-function Tile({
-  icon,
+// ── Subcomponents ───────────────────────────────────────────
+
+function Toolbar() {
+  return (
+    <div className="flex items-center justify-between">
+      <Button variant="outline" size="sm">
+        <Plus className="h-4 w-4 mr-1.5" />
+        Add widget
+      </Button>
+      <a
+        href="mailto:feedback@ttcivilstructural.com?subject=Panel%20Feedback"
+        className="text-xs text-[#a8893a] hover:underline inline-flex items-center gap-1"
+      >
+        <MessageSquare className="h-3 w-3" />
+        Send feedback
+      </a>
+    </div>
+  );
+}
+
+function SummaryStrip({
+  totalTasks,
+  completedTasks,
+  incompleteTasks,
+  overdueTasks,
+}: {
+  totalTasks: number;
+  completedTasks: number;
+  incompleteTasks: number;
+  overdueTasks: number;
+}) {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <MetricTile label="Total tasks" value={totalTasks} hint="No filters" />
+      <MetricTile
+        label="Completed tasks"
+        value={completedTasks}
+        hint="1 filter"
+      />
+      <MetricTile
+        label="Incomplete tasks"
+        value={incompleteTasks}
+        hint="1 filter"
+      />
+      <MetricTile
+        label="Overdue tasks"
+        value={overdueTasks}
+        hint="1 filter"
+        accent={overdueTasks > 0}
+      />
+    </div>
+  );
+}
+
+function MetricTile({
   label,
   value,
-  sub,
+  hint,
   accent = false,
 }: {
-  icon: React.ReactNode;
   label: string;
-  value: string;
-  sub?: string;
+  value: number;
+  hint: string;
   accent?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "rounded-lg border bg-white p-3 md:p-4",
-        accent && "border-[#a8893a]/50 bg-[#a8893a]/5"
+        "bg-white rounded-lg border p-4 md:p-5",
+        accent && "border-[#a8893a]/40 bg-[#a8893a]/5"
       )}
     >
-      <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="text-xl md:text-2xl font-semibold text-black mt-1 tabular-nums">
+      <div className="text-sm text-gray-700">{label}</div>
+      <div className="text-3xl md:text-4xl font-semibold text-black mt-2 tabular-nums">
         {value}
       </div>
-      {sub && (
-        <div className="text-xs text-gray-500 mt-0.5 tabular-nums">{sub}</div>
-      )}
+      <div className="text-[11px] text-gray-400 mt-3 flex items-center gap-1">
+        <span className="inline-block w-2 h-2 rounded-sm bg-gray-200" />
+        {hint}
+      </div>
     </div>
   );
 }
 
-function ChartCard({
+function WidgetCard({
   title,
-  subtitle,
+  filterLabel,
   children,
 }: {
   title: string;
-  subtitle?: string;
+  filterLabel?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="flex items-baseline justify-between mb-3">
+    <div className="bg-white rounded-lg border flex flex-col">
+      <div className="px-4 pt-4 pb-2">
         <h3 className="text-sm font-medium text-black">{title}</h3>
-        {subtitle && (
-          <span className="text-xs text-gray-500 tabular-nums">{subtitle}</span>
-        )}
       </div>
-      {children}
+      <div className="px-4 flex-1 min-h-0">{children}</div>
+      <div className="px-4 py-2.5 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+        {filterLabel ? (
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-2 h-2 rounded-sm bg-gray-200" />
+            {filterLabel}
+          </span>
+        ) : (
+          <span />
+        )}
+        <button className="text-[#a8893a] hover:underline">View all</button>
+      </div>
     </div>
   );
 }
 
-function BreakdownCard({
-  title,
-  items,
-  total,
+function Donut({
+  data,
+  centerLabel,
 }: {
-  title: string;
-  items: { label: string; count: number }[];
-  total: number;
+  data: { name: string; value: number; color: string }[];
+  centerLabel: number;
 }) {
   return (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">
-        {title}
+    <div className="flex items-center justify-center" style={{ height: 240 }}>
+      <ResponsiveContainer width="60%" height="100%">
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            cx="50%"
+            cy="50%"
+            innerRadius={48}
+            outerRadius={80}
+            paddingAngle={2}
+            stroke="white"
+            strokeWidth={2}
+          >
+            {data.map((entry, idx) => (
+              <Cell key={idx} fill={entry.color} />
+            ))}
+          </Pie>
+          <Tooltip
+            contentStyle={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 6,
+              fontSize: 12,
+            }}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex flex-col gap-1.5 text-xs">
+        {data.map((d) => (
+          <div key={d.name} className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+              style={{ background: d.color }}
+            />
+            <span className="text-gray-700">{d.name}</span>
+            <span className="tabular-nums text-gray-500 ml-1">
+              {d.value}
+            </span>
+          </div>
+        ))}
       </div>
-      <div className="space-y-2">
-        {items.map((item) => {
-          const pct = total > 0 ? (item.count / total) * 100 : 0;
-          return (
-            <div key={item.label} className="flex items-center gap-3 text-sm">
-              <span className="w-28 text-gray-700 truncate">{item.label}</span>
-              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#c9a84c] transition-all"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <span className="w-8 text-right tabular-nums text-black font-medium">
-                {item.count}
-              </span>
-            </div>
-          );
-        })}
+      <div
+        className="absolute pointer-events-none text-xl font-semibold tabular-nums text-black"
+        style={{
+          // Center over the donut. Recharts doesn't expose center
+          // measurements so we eyeball: 30% of container width from
+          // left aligned to vertical center.
+          marginLeft: "-23%",
+        }}
+      >
+        {centerLabel}
       </div>
+    </div>
+  );
+}
+
+function Empty({ label }: { label: string }) {
+  return (
+    <div className="h-[240px] flex flex-col items-center justify-center text-center">
+      <div className="w-10 h-10 rounded-full bg-gray-100 mb-2" />
+      <p className="text-sm font-medium text-black">{label}</p>
+      <p className="text-xs text-gray-500 mt-1">
+        Add more projects or tasks to populate this chart.
+      </p>
     </div>
   );
 }
