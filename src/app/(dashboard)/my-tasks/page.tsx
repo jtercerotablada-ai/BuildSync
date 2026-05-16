@@ -91,6 +91,7 @@ import { CustomFieldModal, type CreatedFieldInfo } from "@/components/tasks/cust
 import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
 import { UploadToTaskDialog } from "@/components/tasks/upload-to-task-dialog";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
+import { useUiState } from "@/hooks/use-ui-state";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
 import { FileViewerModal } from "@/components/files/file-viewer-modal";
@@ -213,89 +214,86 @@ export default function MyTasksPage() {
   const [calendarFeedUrl, setCalendarFeedUrl] = useState("");
   const [calendarFeedLoading, setCalendarFeedLoading] = useState(false);
   const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
-  // Column widths persist per-user via localStorage so resizes survive
-  // reloads — matches Asana behavior and avoids the user re-tuning
-  // every session.
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
-    () => {
-      const defaults = {
-        dueDate: 110,
-        collaborators: 110,
-        projects: 160,
-        visibility: 110,
-      };
-      if (typeof window === "undefined") return defaults;
-      try {
-        const stored = localStorage.getItem("my-tasks.columnWidths");
-        if (!stored) return defaults;
-        const parsed = JSON.parse(stored) as Record<string, number>;
-        // Merge so a missing key in storage falls back to the default
-        // (e.g. when we add a new column later).
-        return { ...defaults, ...parsed };
-      } catch {
-        return defaults;
-      }
-    }
+
+  // Per-user UI preferences — server-backed via useUiState so they
+  // follow the user across devices/browsers. We bundle the 4 my-tasks
+  // prefs into one uiState sub-key ("myTasks") for atomic reads/writes.
+  interface MyTasksUiState {
+    columnWidths: Record<string, number>;
+    hiddenColumns: string[];
+    viewIcon: string;
+    viewName: string;
+  }
+  const DEFAULT_MY_TASKS_UI: MyTasksUiState = {
+    columnWidths: {
+      dueDate: 110,
+      collaborators: 110,
+      projects: 160,
+      visibility: 110,
+    },
+    hiddenColumns: [],
+    viewIcon: "📋",
+    viewName: "List",
+  };
+  const { value: myTasksUi, setValue: setMyTasksUi } = useUiState<MyTasksUiState>(
+    "myTasks",
+    DEFAULT_MY_TASKS_UI
   );
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(
-      "my-tasks.columnWidths",
-      JSON.stringify(columnWidths)
-    );
-  }, [columnWidths]);
-  // Asana "Show/hide columns" — set of optional column ids that are
-  // currently hidden. Persisted to localStorage so it survives reloads.
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      const stored = localStorage.getItem("my-tasks.hiddenColumns");
-      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(
-      "my-tasks.hiddenColumns",
-      JSON.stringify(Array.from(hiddenColumns))
-    );
-  }, [hiddenColumns]);
-  const toggleColumnVisibility = useCallback((colId: string) => {
-    setHiddenColumns((prev) => {
-      const next = new Set(prev);
-      if (next.has(colId)) next.delete(colId);
-      else next.add(colId);
-      return next;
-    });
-  }, []);
-  // View identity — Asana lets you rename the List view and pick an
-  // emoji that shows up next to the tab. We persist both per-user.
-  // viewIcon uses null-vs-string distinction (not falsy fallback) so
-  // an intentional clear ("") survives reloads. getItem returns null
-  // when the key was never set vs "" when the user cleared it.
-  const [viewIcon, setViewIcon] = useState<string>(() => {
-    if (typeof window === "undefined") return "📋";
-    const stored = localStorage.getItem("my-tasks.viewIcon");
-    return stored !== null ? stored : "📋";
-  });
-  const [viewName, setViewName] = useState<string>(() => {
-    if (typeof window === "undefined") return "List";
-    const stored = localStorage.getItem("my-tasks.viewName");
-    // viewName falls back to "List" on empty too because the picker
-    // prevents committing empty names; an empty value here would only
-    // appear from manual storage tampering.
-    return stored && stored.trim() ? stored : "List";
-  });
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem("my-tasks.viewIcon", viewIcon);
-  }, [viewIcon]);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem("my-tasks.viewName", viewName);
-  }, [viewName]);
+
+  // Adapter shims so the rest of the component reads/writes individual
+  // pieces as it did before; under the hood they all hit one payload.
+  const columnWidths = useMemo(
+    () => ({ ...DEFAULT_MY_TASKS_UI.columnWidths, ...(myTasksUi.columnWidths ?? {}) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [myTasksUi.columnWidths]
+  );
+  const setColumnWidths = useCallback(
+    (next: Record<string, number> | ((prev: Record<string, number>) => Record<string, number>)) => {
+      setMyTasksUi((prev) => {
+        const merged = { ...DEFAULT_MY_TASKS_UI.columnWidths, ...(prev.columnWidths ?? {}) };
+        const resolved =
+          typeof next === "function"
+            ? (next as (p: Record<string, number>) => Record<string, number>)(merged)
+            : next;
+        return { ...prev, columnWidths: resolved };
+      });
+    },
+    [setMyTasksUi]
+  );
+
+  const hiddenColumns = useMemo(
+    () => new Set<string>(myTasksUi.hiddenColumns ?? []),
+    [myTasksUi.hiddenColumns]
+  );
+  const toggleColumnVisibility = useCallback(
+    (colId: string) => {
+      setMyTasksUi((prev) => {
+        const cur = new Set(prev.hiddenColumns ?? []);
+        if (cur.has(colId)) cur.delete(colId);
+        else cur.add(colId);
+        return { ...prev, hiddenColumns: Array.from(cur) };
+      });
+    },
+    [setMyTasksUi]
+  );
+
+  // viewIcon uses null-vs-undefined distinction (not falsy fallback)
+  // so an intentional clear ("") survives reloads. The server may store
+  // "" or omit the key entirely; only the latter falls back to default.
+  const viewIcon =
+    myTasksUi.viewIcon === undefined ? DEFAULT_MY_TASKS_UI.viewIcon : myTasksUi.viewIcon;
+  const setViewIcon = useCallback(
+    (next: string) => setMyTasksUi((prev) => ({ ...prev, viewIcon: next })),
+    [setMyTasksUi]
+  );
+  const viewName =
+    myTasksUi.viewName && myTasksUi.viewName.trim()
+      ? myTasksUi.viewName
+      : DEFAULT_MY_TASKS_UI.viewName;
+  const setViewName = useCallback(
+    (next: string) => setMyTasksUi((prev) => ({ ...prev, viewName: next })),
+    [setMyTasksUi]
+  );
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
 
