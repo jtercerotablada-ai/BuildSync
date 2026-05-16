@@ -1257,6 +1257,15 @@ function SortableTaskRow({
                   "truncate text-sm",
                   task.completed && "line-through text-slate-400"
                 )}
+                onDoubleClick={(e) => {
+                  // Asana parity — double-click jumps straight into
+                  // inline rename. Single click stays as "open panel"
+                  // (the row's onClick) so single-click users aren't
+                  // surprised. stopPropagation prevents the row click
+                  // from racing the edit-mode swap.
+                  e.stopPropagation();
+                  startEditing(task.id, "name", task.name);
+                }}
               >
                 {task.name}
               </span>

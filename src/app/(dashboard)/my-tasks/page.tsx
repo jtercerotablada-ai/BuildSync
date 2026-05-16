@@ -2587,6 +2587,35 @@ function TaskRow({
 }) {
   const dueDateInfo = formatDueDate(task.dueDate);
 
+  // Inline rename — double-click the name to swap in an input, Enter
+  // or blur commits via PATCH, Escape reverts. We use a local draft
+  // state so the new name is visible immediately while the parent
+  // refetches on its own cadence.
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(task.name);
+  useEffect(() => {
+    setNameDraft(task.name);
+  }, [task.name]);
+  async function commitRename() {
+    const next = nameDraft.trim();
+    setIsEditingName(false);
+    if (!next || next === task.name) {
+      setNameDraft(task.name);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      toast.error("Couldn't rename task");
+      setNameDraft(task.name);
+    }
+  }
+
   // Sortable wiring — drag handle lives on the row itself; pointer
   // events on the checkbox / name still work because dnd-kit only
   // activates a drag past the activation distance (6px in the
@@ -2743,12 +2772,44 @@ function TaskRow({
 
         {/* Task name + indicators */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
-          <span className={cn(
-            "text-[13px] truncate",
-            task.completed ? "line-through text-gray-400" : "text-gray-900"
-          )}>
-            {task.name}
-          </span>
+          {isEditingName ? (
+            <input
+              type="text"
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitRename();
+                } else if (e.key === "Escape") {
+                  setNameDraft(task.name);
+                  setIsEditingName(false);
+                }
+              }}
+              onBlur={commitRename}
+              autoFocus
+              className="flex-1 min-w-0 text-[13px] bg-transparent outline-none border-b-2 border-[#c9a84c] px-0.5 -my-0.5 text-gray-900"
+            />
+          ) : (
+            <span
+              className={cn(
+                "text-[13px] truncate",
+                task.completed ? "line-through text-gray-400" : "text-gray-900"
+              )}
+              onDoubleClick={(e) => {
+                // Asana parity: double-click jumps into rename. Single
+                // click stays as "open panel" via the row onClick.
+                // stopPropagation prevents the row click + the dnd-kit
+                // drag from firing on this gesture.
+                e.stopPropagation();
+                setIsEditingName(true);
+              }}
+            >
+              {nameDraft}
+            </span>
+          )}
           {task._count.subtasks > 0 && (
             <span className="text-[11px] text-gray-400 flex items-center flex-shrink-0">
               <Layers className="w-3 h-3 mr-0.5" />
