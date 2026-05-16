@@ -99,6 +99,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { AssigneeSelector } from "@/components/tasks/assignee-selector";
 import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import { ProjectSelector } from "@/components/tasks/project-selector";
+import { DependenciesPicker } from "@/components/tasks/dependencies-picker";
 import {
   DndContext,
   DragEndEvent,
@@ -4922,6 +4923,23 @@ function TaskDetailPanel({
     }
   }
 
+  async function handleDependencyRemove(dependencyId: string) {
+    try {
+      const res = await fetch(
+        `/api/tasks/${task.id}/dependencies?id=${dependencyId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Dependency removed");
+      await fetchTaskDetail();
+      onUpdate();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't remove dependency"
+      );
+    }
+  }
+
   useEffect(() => {
     fetchTaskDetail();
   }, [task.id]);
@@ -5284,11 +5302,85 @@ function TaskDetailPanel({
               />
             </PropertyRow>
 
-            <PropertyRow label="Dependencies">
-              <button className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] cursor-pointer">
-                <Plus className="h-3.5 w-3.5" />
-                Add dependencies
-              </button>
+            <PropertyRow
+              label="Dependencies"
+              accessory={
+                taskDetail?.dependencies?.length > 0 && (
+                  <span className="text-[11px] text-[#6f7782] tabular-nums">
+                    {taskDetail.dependencies.length}
+                  </span>
+                )
+              }
+            >
+              <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1">
+                {taskDetail?.dependencies?.map((dep: {
+                  id: string;
+                  blockingTask: { id: string; name: string; completed: boolean };
+                }) => (
+                  <span
+                    key={dep.id}
+                    className="group inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-[#f3f4f6] text-[12px] max-w-full"
+                    title={dep.blockingTask.name}
+                  >
+                    <div
+                      className={cn(
+                        "w-3 h-3 rounded-full border flex items-center justify-center flex-shrink-0",
+                        dep.blockingTask.completed
+                          ? "bg-[#c9a84c] border-[#c9a84c]"
+                          : "border-[#c4c7cf]"
+                      )}
+                    >
+                      {dep.blockingTask.completed && (
+                        <Check className="w-2 h-2 text-white" />
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        "truncate max-w-[180px]",
+                        dep.blockingTask.completed
+                          ? "text-[#9aa0a6] line-through"
+                          : "text-[#1e1f21]"
+                      )}
+                    >
+                      {dep.blockingTask.name}
+                    </span>
+                    <button
+                      onClick={() => handleDependencyRemove(dep.id)}
+                      className="opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
+                      aria-label={`Remove dependency on ${dep.blockingTask.name}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                <DependenciesPicker
+                  taskId={task.id}
+                  existingBlockingTaskIds={
+                    (taskDetail?.dependencies || []).map(
+                      (d: { blockingTask: { id: string } }) =>
+                        d.blockingTask.id
+                    )
+                  }
+                  onAdded={() => {
+                    fetchTaskDetail();
+                    onUpdate();
+                  }}
+                  trigger={
+                    <button
+                      className={cn(
+                        "flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] cursor-pointer",
+                        taskDetail?.dependencies?.length > 0 &&
+                          "ml-0 px-1 text-[12px]"
+                      )}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {taskDetail?.dependencies?.length > 0
+                        ? "Add more"
+                        : "Add dependencies"}
+                    </button>
+                  }
+                />
+              </div>
             </PropertyRow>
 
             <PropertyRow
