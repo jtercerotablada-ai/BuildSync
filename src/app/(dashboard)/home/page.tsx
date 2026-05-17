@@ -168,13 +168,7 @@ export default function HomePage() {
   function renderWidgetBody(id: WidgetType) {
     switch (id) {
       case "my-tasks":
-        return (
-          <MyTasksWidget
-            size={getWidgetSize("my-tasks")}
-            onSizeChange={(s) => setWidgetSize("my-tasks", s)}
-            onRemove={() => toggleWidget("my-tasks")}
-          />
-        );
+        return <MyTasksWidget />;
       case "projects":
         // Opens the template gallery (Asana-style) via a custom-event
         // so the modal lives at the layout root, not inside this widget.
@@ -194,53 +188,23 @@ export default function HomePage() {
           />
         );
       case "people":
-        return (
-          <PeopleWidget
-            size={getWidgetSize("people")}
-            onSizeChange={(s) => setWidgetSize("people", s)}
-            onRemove={() => toggleWidget("people")}
-          />
-        );
+        return <PeopleWidget />;
       case "status-updates":
         return <StatusUpdatesWidget />;
       case "portfolios":
         return <PortfoliosWidget />;
       case "private-notepad":
-        return (
-          <PrivateNotepadWidget
-            size={getWidgetSize("private-notepad")}
-            onSizeChange={(s) => setWidgetSize("private-notepad", s)}
-            onRemove={() => toggleWidget("private-notepad")}
-          />
-        );
+        return <PrivateNotepadWidget />;
       case "draft-comments":
         return <DraftCommentsWidget />;
       case "forms":
-        return (
-          <FormsWidget
-            size={getWidgetSize("forms")}
-            onSizeChange={(s) => setWidgetSize("forms", s)}
-            onRemove={() => toggleWidget("forms")}
-          />
-        );
+        return <FormsWidget />;
       case "mentions":
-        return (
-          <MentionsWidget
-            size={getWidgetSize("mentions")}
-            onSizeChange={(s) => setWidgetSize("mentions", s)}
-            onRemove={() => toggleWidget("mentions")}
-          />
-        );
+        return <MentionsWidget />;
       case "learning":
         return <LearningWidget />;
       case "ai-assistant":
-        return (
-          <AIAssistantWidget
-            size={getWidgetSize("ai-assistant")}
-            onSizeChange={(s) => setWidgetSize("ai-assistant", s)}
-            onRemove={() => toggleWidget("ai-assistant")}
-          />
-        );
+        return <AIAssistantWidget />;
       default:
         return null;
     }
@@ -312,13 +276,6 @@ export default function HomePage() {
                   size={getWidgetSize(id)}
                   onSizeChange={(s) => setWidgetSize(id, s)}
                   onHide={() => toggleWidget(id)}
-                  // Six classic widgets render their own header / chrome
-                  // (title, badges, tabs, etc.). Without hideHeader the
-                  // user sees a "double header" — WidgetContainer's title
-                  // stacked on top of the widget's internal title. Pass
-                  // hideHeader for these so the container just provides
-                  // the frame + ⋯ menu floating at the top-right.
-                  hideHeader={widgetOwnsHeader(id)}
                 >
                   {renderWidgetBody(id)}
                 </WidgetContainer>
@@ -336,21 +293,10 @@ export default function HomePage() {
   );
 }
 
-/**
- * Widgets that render their own internal title + chrome (and would
- * therefore produce a "double header" if WidgetContainer also drew
- * one above them). Keep this list in sync with whichever widgets
- * use a `<h3>`/`<span className="font-semibold">` of their own at
- * the top of the body — typically the ones with custom tabs (tabs
- * + title) or built-in toolbars.
- */
-function widgetOwnsHeader(id: WidgetType): boolean {
-  return [
-    "my-tasks",
-    "people",
-    "private-notepad",
-    "forms",
-    "mentions",
-    "ai-assistant",
-  ].includes(id);
-}
+// `widgetOwnsHeader` was removed — none of the widgets in the home
+// grid actually own complete self-chrome (border + background +
+// header). Passing hideHeader=true to widgets that only had a bare
+// <h3>Title</h3> left them floating without a card frame (Juan
+// caught People + Mentions looking broken). The container now
+// provides the chrome uniformly; each widget removed its duplicate
+// internal title row in this same commit.

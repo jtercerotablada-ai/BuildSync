@@ -2,28 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  MoreHorizontal,
-  Check,
-  Trash2,
-  Sparkles,
   Search,
   FileText,
   AtSign,
   ArrowUp,
   Loader2,
   ChevronRight,
-  ExternalLink,
-  Clock,
 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { WidgetSize } from '@/types/dashboard';
 import { useAIPanel } from '@/contexts/ai-panel-context';
 
 const STORAGE_KEY = 'buildsync-ai-past-topics';
@@ -45,12 +31,6 @@ interface MentionItem {
   id: string;
   name: string;
   type: 'person' | 'project';
-}
-
-interface AIAssistantWidgetProps {
-  size?: WidgetSize;
-  onSizeChange?: (size: WidgetSize) => void;
-  onRemove?: () => void;
 }
 
 const defaultSuggestions: Suggestion[] = [
@@ -88,12 +68,12 @@ function formatRelativeDate(timestamp: number): string {
   return date.toLocaleDateString();
 }
 
-export function AIAssistantWidget({
-  size = 'half',
-  onSizeChange,
-  onRemove,
-}: AIAssistantWidgetProps) {
-  const { openPanel } = useAIPanel();
+// Size / Remove handled by WidgetContainer — no props needed.
+export function AIAssistantWidget() {
+  // openPanel was used by the widget's own ⋯ menu (now removed; the
+  // container provides ⋯). Kept the import in case future menuActions
+  // re-introduce an "Open full panel" entry.
+  useAIPanel();
   const [activeTab, setActiveTab] = useState<'ask' | 'past'>('ask');
   const [question, setQuestion] = useState('');
   const [pastTopics, setPastTopics] = useState<PastTopic[]>([]);
@@ -258,74 +238,10 @@ export function AIAssistantWidget({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5" style={{ color: '#D97757' }} />
-          <h3 className="font-semibold text-gray-900">TT AI Assistant</h3>
-        </div>
-
-        {/* Dropdown 3 puntos */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
-              <MoreHorizontal className="h-5 w-5 text-gray-500" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            {/* Open TT AI Assistant */}
-            <DropdownMenuItem
-              onClick={openPanel}
-              className="cursor-pointer"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Open TT AI Assistant
-            </DropdownMenuItem>
-
-            {/* View past topics */}
-            <DropdownMenuItem
-              onClick={() => { setActiveTab('past'); setResponse(null); }}
-              className="cursor-pointer"
-            >
-              <Clock className="h-4 w-4 mr-2" />
-              View past topics
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            {/* Half size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('half')}
-              className="cursor-pointer"
-            >
-              {size === 'half' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'half' && <span className="w-4 mr-2" />}
-              Half size
-            </DropdownMenuItem>
-
-            {/* Full size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('full')}
-              className="cursor-pointer"
-            >
-              {size === 'full' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'full' && <span className="w-4 mr-2" />}
-              Full size
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            {/* Remove widget */}
-            <DropdownMenuItem
-              onClick={onRemove}
-              className="cursor-pointer text-black focus:text-black"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove widget
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {/* Title + sparkles + ⋯ menu are provided by WidgetContainer
+          above. AVAILABLE_WIDGETS pairs this widget with
+          titleIcon='sparkles' so the gold sparkles renders next to
+          the container's "AI Assistant" title. */}
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-200 mb-3">

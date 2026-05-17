@@ -134,13 +134,7 @@ export default function PortalDashboardPage() {
   const renderWidget = (widgetId: WidgetType) => {
     switch (widgetId) {
       case "my-tasks":
-        return (
-          <MyTasksWidget
-            size={getWidgetSize("my-tasks")}
-            onSizeChange={(size) => setWidgetSize("my-tasks", size)}
-            onRemove={() => toggleWidget("my-tasks")}
-          />
-        );
+        return <MyTasksWidget />;
       case "projects":
         return (
           <ProjectsWidget
@@ -160,51 +154,21 @@ export default function PortalDashboardPage() {
           />
         );
       case "people":
-        return (
-          <PeopleWidget
-            size={getWidgetSize("people")}
-            onSizeChange={(size) => setWidgetSize("people", size)}
-            onRemove={() => toggleWidget("people")}
-          />
-        );
+        return <PeopleWidget />;
       case "status-updates":
         return <StatusUpdatesWidget />;
       case "portfolios":
         return <PortfoliosWidget />;
       case "private-notepad":
-        return (
-          <PrivateNotepadWidget
-            size={getWidgetSize("private-notepad")}
-            onSizeChange={(size) => setWidgetSize("private-notepad", size)}
-            onRemove={() => toggleWidget("private-notepad")}
-          />
-        );
+        return <PrivateNotepadWidget />;
       case "draft-comments":
         return <DraftCommentsWidget />;
       case "forms":
-        return (
-          <FormsWidget
-            size={getWidgetSize("forms")}
-            onSizeChange={(size) => setWidgetSize("forms", size)}
-            onRemove={() => toggleWidget("forms")}
-          />
-        );
+        return <FormsWidget />;
       case "mentions":
-        return (
-          <MentionsWidget
-            size={getWidgetSize("mentions")}
-            onSizeChange={(size) => setWidgetSize("mentions", size)}
-            onRemove={() => toggleWidget("mentions")}
-          />
-        );
+        return <MentionsWidget />;
       case "ai-assistant":
-        return (
-          <AIAssistantWidget
-            size={getWidgetSize("ai-assistant")}
-            onSizeChange={(size) => setWidgetSize("ai-assistant", size)}
-            onRemove={() => toggleWidget("ai-assistant")}
-          />
-        );
+        return <AIAssistantWidget />;
       default:
         return null;
     }

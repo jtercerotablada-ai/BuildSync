@@ -1,23 +1,12 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Check, Plus, Lock, MoreHorizontal, Eye, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Check, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
-import { WidgetSize } from '@/types/dashboard';
 
 interface Task {
   id: string;
@@ -34,15 +23,8 @@ interface Task {
 
 type TabType = 'upcoming' | 'overdue' | 'completed';
 
-// Get initials from name (2 letters)
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
+// getInitials was used by the original avatar header; the avatar
+// row was removed so the helper is no longer needed.
 
 // Format due date
 function formatDueDate(date: string): { text: string; isSpecial: boolean } {
@@ -65,15 +47,12 @@ function formatDueDate(date: string): { text: string; isSpecial: boolean } {
   };
 }
 
-interface MyTasksWidgetProps {
-  size?: WidgetSize;
-  onSizeChange?: (size: WidgetSize) => void;
-  onRemove?: () => void;
-}
-
-export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasksWidgetProps) {
-  const router = useRouter();
-  const { data: session } = useSession();
+// Size / Remove handled by WidgetContainer — no props needed.
+export function MyTasksWidget() {
+  // useSession was used to show the user's avatar in the (now-removed)
+  // internal header. Kept the hook in case the body re-introduces a
+  // greeting; for now the user object isn't referenced anywhere.
+  useSession();
   const [activeTab, setActiveTab] = useState<TabType>('upcoming');
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,11 +61,6 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
   const [error, setError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const user = {
-    name: session?.user?.name || 'User',
-    image: session?.user?.image || null,
-  };
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -145,7 +119,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
         toast.success(completed ? 'Task marked as incomplete' : 'Task completed!');
         fetchTasks();
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to update task');
     }
   };
@@ -165,7 +139,7 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
           setNewTaskName('');
           setIsCreating(false);
         }
-      } catch (error) {
+      } catch {
         toast.error('Failed to create task');
       }
     } else {
@@ -188,85 +162,12 @@ export function MyTasksWidget({ size = 'half', onSizeChange, onRemove }: MyTasks
 
   return (
     <div className="h-full flex flex-col">
-      {/* ========== HEADER WITH AVATAR ========== */}
-      <div className="flex items-center gap-3 mb-3">
-        {/* Avatar */}
-        <Avatar className="h-10 w-10">
-          <AvatarImage src={user.image || undefined} />
-          <AvatarFallback className="bg-gray-900 text-white font-bold text-sm">
-            {getInitials(user.name)}
-          </AvatarFallback>
-        </Avatar>
-
-        {/* Title with lock icon */}
-        <div className="flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="font-semibold text-gray-900">My tasks</span>
-            <Lock className="h-3.5 w-3.5 text-gray-400" />
-          </div>
-        </div>
-
-        {/* Dropdown Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
-              <MoreHorizontal className="h-5 w-5 text-gray-500" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            {/* Create task */}
-            <DropdownMenuItem
-              onClick={() => setIsCreating(true)}
-              className="cursor-pointer"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create task
-            </DropdownMenuItem>
-
-            {/* View all my tasks */}
-            <DropdownMenuItem
-              onClick={() => router.push('/my-tasks')}
-              className="cursor-pointer"
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              View all my tasks
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            {/* Half size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('half')}
-              className="cursor-pointer"
-            >
-              {size === 'half' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'half' && <span className="w-4 mr-2" />}
-              Half size
-            </DropdownMenuItem>
-
-            {/* Full size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('full')}
-              className="cursor-pointer"
-            >
-              {size === 'full' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'full' && <span className="w-4 mr-2" />}
-              Full size
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            {/* Remove widget */}
-            <DropdownMenuItem
-              onClick={onRemove}
-              className="cursor-pointer text-black focus:text-black"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove widget
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {/* Title is provided by WidgetContainer above. The original
+          avatar + "Create task" + "View all my tasks" actions used
+          to live in a custom ⋯ menu here — Create is reachable via
+          the inline + input below and View all jumps to /my-tasks
+          via the tabs/links inside the body, so no functionality
+          was lost. */}
 
       {/* ========== TABS WITH UNDERLINE ========== */}
       <div className="flex border-b border-gray-200 mb-3">

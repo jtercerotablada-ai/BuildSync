@@ -2,10 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  MoreHorizontal,
-  Check,
-  Trash2,
-  Lock,
   Plus,
   Bold,
   Italic,
@@ -44,7 +40,6 @@ import {
 } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { WidgetSize } from '@/types/dashboard';
 
 const STORAGE_KEY = 'buildsync-private-notepad';
 const NOTEPAD_TITLE = '__home_private_notepad__';
@@ -69,17 +64,8 @@ const emojiCategories = [
   },
 ];
 
-interface PrivateNotepadWidgetProps {
-  size?: WidgetSize;
-  onSizeChange?: (size: WidgetSize) => void;
-  onRemove?: () => void;
-}
-
-export function PrivateNotepadWidget({
-  size = 'half',
-  onSizeChange,
-  onRemove
-}: PrivateNotepadWidgetProps) {
+// Size / Remove handled by WidgetContainer — no props needed.
+export function PrivateNotepadWidget() {
   const [content, setContent] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
@@ -751,50 +737,11 @@ export function PrivateNotepadWidget({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-900">Private notepad</h3>
-          <Lock className="h-4 w-4 text-gray-400" />
-        </div>
-
-        {/* THREE DOTS DROPDOWN */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
-              <MoreHorizontal className="h-5 w-5 text-gray-500" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('half')}
-              className="cursor-pointer"
-            >
-              {size === 'half' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'half' && <span className="w-4 mr-2" />}
-              Half size
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('full')}
-              className="cursor-pointer"
-            >
-              {size === 'full' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'full' && <span className="w-4 mr-2" />}
-              Full size
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={onRemove}
-              className="cursor-pointer text-black focus:text-black"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove widget
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
+      {/* Title + lock icon + ⋯ menu are provided by WidgetContainer
+          above. AVAILABLE_WIDGETS already pairs this widget with
+          titleIcon='lock' so the lock badge renders next to the
+          container's "Private notepad" title. */}
+      {error && <p className="text-sm text-black mb-2">{error}</p>}
 
       {/* Editor area */}
       <div className="flex-1 overflow-y-auto relative min-h-[120px] mb-2">

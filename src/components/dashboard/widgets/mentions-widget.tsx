@@ -2,28 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  MessageCircle,
-  MoreHorizontal,
-  Check,
-  Trash2,
-  Info,
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { MessageCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { WidgetSize } from '@/types/dashboard';
 
 interface Mention {
   id: string;
@@ -38,13 +18,8 @@ interface Mention {
   };
 }
 
-interface MentionsWidgetProps {
-  size?: WidgetSize;
-  onSizeChange?: (size: WidgetSize) => void;
-  onRemove?: () => void;
-}
-
-export function MentionsWidget({ size = 'half', onSizeChange, onRemove }: MentionsWidgetProps) {
+// Size / Remove are handled by WidgetContainer now — no props needed.
+export function MentionsWidget() {
   const router = useRouter();
   const [mentions, setMentions] = useState<Mention[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,65 +55,11 @@ export function MentionsWidget({ size = 'half', onSizeChange, onRemove }: Mentio
 
   return (
     <div className="h-full flex flex-col">
-      {/* ========== HEADER ========== */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-900">Comments mentioning me</h3>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                <Info className="h-4 w-4 text-gray-400" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Comments where you are @-mentioned</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        {/* ===== THREE DOTS DROPDOWN ===== */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
-              <MoreHorizontal className="h-5 w-5 text-gray-500" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            {/* Half size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('half')}
-              className="cursor-pointer"
-            >
-              {size === 'half' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'half' && <span className="w-4 mr-2" />}
-              Half size
-            </DropdownMenuItem>
-
-            {/* Full size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('full')}
-              className="cursor-pointer"
-            >
-              {size === 'full' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'full' && <span className="w-4 mr-2" />}
-              Full size
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            {/* Remove widget */}
-            <DropdownMenuItem
-              onClick={onRemove}
-              className="cursor-pointer text-black focus:text-black"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove widget
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
+      {/* Title + info tooltip + ⋯ menu are provided by the
+          WidgetContainer above. AVAILABLE_WIDGETS already pairs
+          this widget with titleIcon='info' so the info badge renders
+          next to the container's "Comments with mentions" title. */}
+      {error && <p className="text-sm text-black mb-2">{error}</p>}
 
       {/* ========== CONTENT ========== */}
       <div className="flex-1 overflow-y-auto">

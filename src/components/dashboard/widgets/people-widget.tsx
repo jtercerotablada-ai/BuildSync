@@ -2,25 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  Users,
-  ChevronDown,
-  MoreHorizontal,
-  Check,
-  Trash2,
-  Plus,
-} from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { WidgetSize } from '@/types/dashboard';
-
 interface Person {
   id: string;
   name: string;
@@ -30,13 +20,12 @@ interface Person {
 }
 
 interface PeopleWidgetProps {
-  size?: WidgetSize;
-  onSizeChange?: (size: WidgetSize) => void;
-  onRemove?: () => void;
   onInvite?: () => void;
 }
 
-export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }: PeopleWidgetProps) {
+// Size + Remove are handled entirely by WidgetContainer now — this
+// widget only needs to know about its own optional onInvite callback.
+export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
   const router = useRouter();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,84 +62,33 @@ export function PeopleWidget({ size = 'half', onSizeChange, onRemove, onInvite }
 
   return (
     <div className="h-full flex flex-col">
-      {/* ========== HEADER ========== */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h3 className="font-semibold text-gray-900">People</h3>
-
-          {/* Filter dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-                {filter === 'frequent' ? 'Frequent collaborators' : 'All'}
-                <ChevronDown className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setFilter('frequent')}>
-                Frequent collaborators
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setFilter('all')}>
-                All
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* ===== THREE DOTS DROPDOWN ===== */}
+      {/* Title + ⋯ menu are provided by WidgetContainer above. Only
+          the filter sub-bar (Frequent collaborators / All) stays
+          inside the widget body. Size / Invite / Remove actions used
+          to live in this widget's own ⋯ menu — those moved to the
+          container's menu (the parent passes them via menuActions
+          in a future iteration; for now they're available through the
+          standard widget menu Size/Remove items). */}
+      <div className="flex items-center mb-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
-              <MoreHorizontal className="h-5 w-5 text-gray-500" />
+            <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+              {filter === 'frequent' ? 'Frequent collaborators' : 'All'}
+              <ChevronDown className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            {/* Invite */}
-            <DropdownMenuItem
-              onClick={handleInvite}
-              className="cursor-pointer"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Invite
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => setFilter('frequent')}>
+              Frequent collaborators
             </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            {/* Half size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('half')}
-              className="cursor-pointer"
-            >
-              {size === 'half' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'half' && <span className="w-4 mr-2" />}
-              Half size
-            </DropdownMenuItem>
-
-            {/* Full size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('full')}
-              className="cursor-pointer"
-            >
-              {size === 'full' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'full' && <span className="w-4 mr-2" />}
-              Full size
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            {/* Remove widget */}
-            <DropdownMenuItem
-              onClick={onRemove}
-              className="cursor-pointer text-black focus:text-black"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove widget
+            <DropdownMenuItem onClick={() => setFilter('all')}>
+              All
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
+      {error && <p className="text-sm text-black mb-2">{error}</p>}
 
       {/* ========== CONTENT ========== */}
       <div className="flex-1 overflow-y-auto">

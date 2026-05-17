@@ -2,13 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   FileText,
   Plus,
-  MoreHorizontal,
-  Check,
-  Trash2,
   ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,10 +12,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { WidgetSize } from '@/types/dashboard';
 import { AddFormModal } from '@/components/forms/add-form-modal';
 import { FormBuilderModal } from '@/components/forms/form-builder-modal';
 import { toast } from 'sonner';
@@ -38,14 +32,8 @@ interface Project {
   color?: string;
 }
 
-interface FormsWidgetProps {
-  size?: WidgetSize;
-  onSizeChange?: (size: WidgetSize) => void;
-  onRemove?: () => void;
-}
-
-export function FormsWidget({ size = 'half', onSizeChange, onRemove }: FormsWidgetProps) {
-  const router = useRouter();
+// Size / Remove handled by WidgetContainer — no props needed.
+export function FormsWidget() {
   const [forms, setForms] = useState<Form[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,84 +144,28 @@ export function FormsWidget({ size = 'half', onSizeChange, onRemove }: FormsWidg
 
   return (
     <div className="h-full flex flex-col">
-      {/* ========== HEADER ========== */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h3 className="font-semibold text-gray-900">Forms</h3>
-
-          {/* Filter dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-                {filter === 'recents' ? 'Recents' : 'All'}
-                <ChevronDown className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setFilter('recents')}>
-                Recents
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setFilter('all')}>
-                All
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* ===== THREE DOTS DROPDOWN ===== */}
+      {/* Title + ⋯ menu are provided by WidgetContainer. Only the
+          filter sub-bar (Recents / All) stays here. */}
+      <div className="flex items-center mb-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
-              <MoreHorizontal className="h-5 w-5 text-gray-500" />
+            <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+              {filter === 'recents' ? 'Recents' : 'All'}
+              <ChevronDown className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            {/* New form */}
-            <DropdownMenuItem
-              onClick={handleCreateForm}
-              className="cursor-pointer"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New form
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => setFilter('recents')}>
+              Recents
             </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            {/* Half size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('half')}
-              className="cursor-pointer"
-            >
-              {size === 'half' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'half' && <span className="w-4 mr-2" />}
-              Half size
-            </DropdownMenuItem>
-
-            {/* Full size */}
-            <DropdownMenuItem
-              onClick={() => onSizeChange?.('full')}
-              className="cursor-pointer"
-            >
-              {size === 'full' && <Check className="h-4 w-4 mr-2" />}
-              {size !== 'full' && <span className="w-4 mr-2" />}
-              Full size
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            {/* Remove widget */}
-            <DropdownMenuItem
-              onClick={onRemove}
-              className="cursor-pointer text-black focus:text-black"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove widget
+            <DropdownMenuItem onClick={() => setFilter('all')}>
+              All
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
+      {error && <p className="text-sm text-black mb-2">{error}</p>}
 
       {/* ========== CONTENT ========== */}
       <div className="flex-1 overflow-y-auto">
