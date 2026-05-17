@@ -100,6 +100,10 @@ interface Task {
   // serializes the enum verbatim when present and the UI swaps the
   // round checkbox for a Diamond (milestone) or ThumbsUp (approval).
   taskType?: TaskType | null;
+  // Workflow status set by the user — independent of completed.
+  // Drives the Status pill color (on track / at risk / off track).
+  // Falsy → derived state (To do / Overdue / Done) is shown instead.
+  taskStatus?: "ON_TRACK" | "AT_RISK" | "OFF_TRACK" | null;
   assignee: {
     id: string;
     name: string | null;
@@ -557,16 +561,26 @@ export function ListView({
     setEditingValue("");
   };
 
-  const saveInlineEdit = async (taskId: string, field: string, value: string) => {
+  const saveInlineEdit = async (
+    taskId: string,
+    field: string,
+    value: string | boolean | null
+  ) => {
     cancelEditing();
     const body: Record<string, unknown> = {};
     if (field === "name") {
-      if (!value.trim()) return;
+      if (typeof value !== "string" || !value.trim()) return;
       body.name = value.trim();
     } else if (field === "dueDate") {
       body.dueDate = value || null;
     } else if (field === "priority") {
       body.priority = value;
+    } else if (field === "taskStatus") {
+      // Pass-through: null clears the status pill back to derived
+      // (To do / Overdue), otherwise sets ON_TRACK / AT_RISK / OFF_TRACK.
+      body.taskStatus = value;
+    } else if (field === "completed") {
+      body.completed = value;
     }
     try {
       const response = await fetch(`/api/tasks/${taskId}`, {
@@ -598,9 +612,13 @@ export function ListView({
       {/* ========================================= */}
       {/* COLUMN HEADERS - ONLY ONCE AT THE TOP    */}
       {/* ========================================= */}
-      <div className="sticky top-0 bg-white border-b z-10">
+      <div className="sticky top-0 bg-white border-b border-slate-200 z-10">
         <div
-          className="hidden md:grid gap-2 px-6 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider"
+          // Excel/Asana-style grid: vertical dividers between every
+          // column via `[&>*+*]:border-l`, internal cell padding via
+          // `[&>*]:px-2` so the borders sit flush against cell content
+          // instead of floating in a gap-2 whitespace strip.
+          className="hidden md:grid px-6 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-slate-200 [&>*]:flex [&>*]:items-center"
           style={{ gridTemplateColumns: gridTemplate }}
         >
           <div onClick={(e) => e.stopPropagation()}>
@@ -1060,7 +1078,14 @@ interface SortableTaskRowProps {
   setEditingValue: (v: string) => void;
   startEditing: (taskId: string, field: string, currentValue: string) => void;
   cancelEditing: () => void;
-  saveInlineEdit: (taskId: string, field: string, value: string) => Promise<void>;
+  // Widened to string | boolean | null so the Status dropdown can
+  // pass a boolean (completed toggle) or null (clear taskStatus)
+  // through the same plumbing as name/dueDate/priority text edits.
+  saveInlineEdit: (
+    taskId: string,
+    field: string,
+    value: string | boolean | null
+  ) => Promise<void>;
   /** Custom field columns to render to the right of Status, before
    *  the "+" placeholder. */
   customFieldDefs: CustomFieldDef[];
@@ -1196,9 +1221,13 @@ function SortableTaskRow({
         </div>
       </div>
 
-      {/* ===== Desktop Grid Row ===== */}
+      {/* ===== Desktop Grid Row =====
+          Vertical dividers between cells via `[&>*+*]:border-l` and
+          internal `[&>*]:px-2` padding to match Excel/Asana grid
+          styling. Horizontal divider via `border-t border-slate-200`
+          (bumped from slate-100 for parity with the vertical lines). */}
       <div
-        className="hidden md:grid gap-2 px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-100 group"
+        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-200 group [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-slate-100 [&>*]:min-w-0"
         style={{ gridTemplateColumns: gridTemplate }}
         onClick={() => onTaskClick(task.id)}
       >
@@ -1394,32 +1423,126 @@ function SortableTaskRow({
           </DropdownMenu>
         </div>
 
-        {/* Status */}
-        <div>
-          {task.completed ? (
-            <Badge
-              variant="secondary"
-              className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30"
-            >
-              Done
-            </Badge>
-          ) : task.dueDate &&
-            isPast(parseISO(task.dueDate)) &&
-            !isToday(parseISO(task.dueDate)) ? (
-            <Badge
-              variant="secondary"
-              className="text-xs bg-gray-100 text-black border-gray-300"
-            >
-              Overdue
-            </Badge>
-          ) : (
-            <Badge
-              variant="secondary"
-              className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30"
-            >
-              To do
-            </Badge>
-          )}
+        {/* Status — clickable pill that opens a dropdown to set
+            workflow status (On track / At risk / Off track), toggle
+            completion, or clear back to the derived state. Mirrors
+            the Priority cell's inline-edit pattern. */}
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="hover:bg-slate-100 rounded px-1 py-0.5 -mx-1 w-full text-left">
+                {(() => {
+                  // Display priority:
+                  //   1. completed → "Done" (gold)
+                  //   2. explicit taskStatus → that label + color
+                  //   3. dueDate in the past → "Overdue" (black)
+                  //   4. otherwise → "To do" (gold soft)
+                  if (task.completed) {
+                    return (
+                      <Badge
+                        variant="secondary"
+                        className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30"
+                      >
+                        Done
+                      </Badge>
+                    );
+                  }
+                  if (task.taskStatus === "ON_TRACK") {
+                    return (
+                      <Badge
+                        variant="secondary"
+                        className="text-xs bg-[#dff1e6] text-[#1d6b3e] border-[#1d6b3e]/30"
+                      >
+                        On track
+                      </Badge>
+                    );
+                  }
+                  if (task.taskStatus === "AT_RISK") {
+                    return (
+                      <Badge
+                        variant="secondary"
+                        className="text-xs bg-[#fbeed3] text-[#7a5b1b] border-[#a8893a]/40"
+                      >
+                        At risk
+                      </Badge>
+                    );
+                  }
+                  if (task.taskStatus === "OFF_TRACK") {
+                    return (
+                      <Badge
+                        variant="secondary"
+                        className="text-xs bg-black text-white border-black"
+                      >
+                        Off track
+                      </Badge>
+                    );
+                  }
+                  if (
+                    task.dueDate &&
+                    isPast(parseISO(task.dueDate)) &&
+                    !isToday(parseISO(task.dueDate))
+                  ) {
+                    return (
+                      <Badge
+                        variant="secondary"
+                        className="text-xs bg-gray-100 text-black border-gray-300"
+                      >
+                        Overdue
+                      </Badge>
+                    );
+                  }
+                  return (
+                    <Badge
+                      variant="secondary"
+                      className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30"
+                    >
+                      To do
+                    </Badge>
+                  );
+                })()}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem
+                onClick={() => saveInlineEdit(task.id, "taskStatus", "ON_TRACK")}
+                className={cn(task.taskStatus === "ON_TRACK" && "bg-slate-100")}
+              >
+                <span className="inline-block w-2 h-2 rounded-full bg-[#1d6b3e] mr-2" />
+                On track
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => saveInlineEdit(task.id, "taskStatus", "AT_RISK")}
+                className={cn(task.taskStatus === "AT_RISK" && "bg-slate-100")}
+              >
+                <span className="inline-block w-2 h-2 rounded-full bg-[#a8893a] mr-2" />
+                At risk
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => saveInlineEdit(task.id, "taskStatus", "OFF_TRACK")}
+                className={cn(task.taskStatus === "OFF_TRACK" && "bg-slate-100")}
+              >
+                <span className="inline-block w-2 h-2 rounded-full bg-black mr-2" />
+                Off track
+              </DropdownMenuItem>
+              {task.taskStatus && (
+                <DropdownMenuItem
+                  onClick={() => saveInlineEdit(task.id, "taskStatus", null)}
+                >
+                  <span className="inline-block w-2 h-2 rounded-full bg-slate-300 mr-2" />
+                  Clear status
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() =>
+                  saveInlineEdit(task.id, "completed", !task.completed)
+                }
+              >
+                <Check className="mr-2 h-4 w-4 text-[#a8893a]" />
+                {task.completed ? "Mark incomplete" : "Mark complete"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Custom field value cells — one per project-linked field.
