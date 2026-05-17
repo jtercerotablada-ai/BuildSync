@@ -37,7 +37,7 @@ export function PortfoliosWidget() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between -mt-1">
-        <span className="text-sm text-slate-500">Your portfolios</span>
+        <span className="text-sm text-gray-500">Your portfolios</span>
         <Button
           variant="link"
           size="sm"
@@ -51,14 +51,14 @@ export function PortfoliosWidget() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-14 bg-slate-100 animate-pulse rounded-lg" />
+            <div key={i} className="h-14 bg-gray-100 animate-pulse rounded-lg" />
           ))}
         </div>
       ) : portfolios.length === 0 ? (
         <div className="text-center py-8">
-          <Briefcase className="h-12 w-12 mx-auto mb-2 text-slate-300" />
-          <p className="font-medium text-slate-900 mb-1">No portfolios yet</p>
-          <p className="text-sm text-slate-500 mb-4">
+          <Briefcase className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+          <p className="font-medium text-black mb-1">No portfolios yet</p>
+          <p className="text-sm text-gray-500 mb-4">
             Create portfolios to organize related projects
           </p>
           <Button variant="outline" className="gap-2" onClick={() => router.push('/portfolios/new')}>
@@ -71,17 +71,21 @@ export function PortfoliosWidget() {
           {portfolios.map((portfolio) => (
             <button
               key={portfolio.id}
-              className="w-full p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left flex items-center gap-3"
+              className="w-full p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors text-left flex items-center gap-3"
               onClick={() => router.push(`/portfolios/${portfolio.id}`)}
             >
               <div
                 className="w-3 h-3 rounded-sm flex-shrink-0"
-                style={{ backgroundColor: portfolio.color || '#6366f1' }}
+                // Fallback was indigo (#6366f1) — that was the only
+                // off-palette color in the whole tile. Switched to
+                // the brand gold so unlabeled portfolios match the
+                // rest of the cockpit.
+                style={{ backgroundColor: portfolio.color || '#c9a84c' }}
               />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-slate-900 truncate">{portfolio.name}</p>
+                <p className="text-sm font-medium text-black truncate">{portfolio.name}</p>
               </div>
-              <span className="text-xs text-slate-500">{portfolio.projectCount} projects</span>
+              <span className="text-xs text-gray-500">{portfolio.projectCount} projects</span>
             </button>
           ))}
         </div>

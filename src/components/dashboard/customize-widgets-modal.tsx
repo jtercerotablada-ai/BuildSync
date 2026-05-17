@@ -91,7 +91,7 @@ export function CustomizeWidgetsModal({
         <DialogHeader>
           <DialogTitle>Customize your Home</DialogTitle>
           <DialogDescription>
-            Choose which widgets to display on your dashboard. Drag widgets to reorder them.
+            Choose which widgets to display on your dashboard. Reorder them by dragging directly on the Home grid.
           </DialogDescription>
         </DialogHeader>
 

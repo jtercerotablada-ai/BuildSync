@@ -66,6 +66,17 @@ export interface RevenueMonth {
   revenue: number;
 }
 
+// Capabilities flag returned alongside the data so the UI can
+// gracefully degrade for lower-hierarchy viewers (L1–L3) without
+// hard-coding role logic on the client. Mirrors what the API
+// already computes from getEffectiveAccess() and isWorkspaceOwner().
+export interface CockpitViewerCapabilities {
+  canSeeFinancials: boolean;
+  canSeeAllProjects: boolean;
+  /** Hierarchy level 1-7; 5+ is "executive". */
+  level: number;
+}
+
 export interface CockpitData {
   projects: CockpitProject[];
   countsByType: Record<ProjectType, number>;
@@ -82,6 +93,10 @@ export interface CockpitData {
   compliance: CockpitProject[];
   revenuePipeline: RevenueMonth[];
   activity: ActivityItem[];
+  // Always present in the API response (route.ts line ~340). Made
+  // optional here so older cached payloads parsed before this field
+  // was typed don't crash the UI on first paint after a deploy.
+  viewerCapabilities?: CockpitViewerCapabilities;
 }
 
 // ────────────────────────────────────────────────────────────

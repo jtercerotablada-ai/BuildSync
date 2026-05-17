@@ -22,8 +22,7 @@
  *   3. End with a concrete deadline if one falls inside 7 days.
  */
 
-import { Sparkles, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Sparkles } from "lucide-react";
 import { computePmiSnapshot } from "@/lib/pmi-metrics";
 import type { CockpitData } from "@/components/cockpit/types";
 
@@ -32,24 +31,16 @@ export function HomeAIBrief({ data }: { data: CockpitData }) {
 
   return (
     <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
-      <div className="px-4 py-3 border-b bg-gradient-to-r from-[#c9a84c]/5 via-white to-white flex items-center justify-between gap-3 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[#c9a84c]" />
-          <h3 className="text-sm font-semibold text-black">Brief</h3>
-          <span className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
-            heuristic · today
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-[11px] text-gray-500 mr-9"
-          disabled
-          title="AI refresh available after Day 4 ships — currently deterministic"
-        >
-          <RefreshCw className="h-3 w-3 mr-1.5" />
-          Refresh
-        </Button>
+      <div className="px-4 py-3 border-b bg-gradient-to-r from-[#c9a84c]/5 via-white to-white flex items-center gap-2 flex-shrink-0 pr-12">
+        <Sparkles className="h-4 w-4 text-[#c9a84c]" />
+        <h3 className="text-sm font-semibold text-black">Brief</h3>
+        <span className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
+          heuristic · today
+        </span>
+        {/* The Refresh button used to live here but was permanently
+            disabled with a "available after Day 4" tooltip. Removed
+            until a real /api/ai/coach call is wired — the brief
+            refreshes naturally on every Home page load anyway. */}
       </div>
       <ul className="px-4 py-3 space-y-1.5 flex-1 overflow-y-auto">
         {lines.map((line, i) => (

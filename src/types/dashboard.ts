@@ -113,14 +113,20 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     defaultOrder: 7,
   },
 
-  // ── Classic Asana-style widgets (opt-in via Customize) ──
+  // ── Classic / Optional widgets (opt-in via Customize) ──
+  // Defaults reserve 0-9 for the PMI tiles above; opt-in widgets
+  // start at 100 so PMI tiles always render first even after the
+  // user enables one of these. Each id has a UNIQUE order so the
+  // sort is deterministic (the old layout had collisions where
+  // e.g. recert-radar and status-updates both used order=5, which
+  // made the grid shuffle on every load).
   {
     id: 'my-tasks',
     title: 'My tasks',
     description: 'Tasks assigned to you',
     icon: 'CheckSquare',
     defaultEnabled: false,
-    defaultOrder: 10,
+    defaultOrder: 100,
   },
   {
     id: 'projects',
@@ -128,7 +134,7 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     description: 'Simple list of recently updated projects',
     icon: 'FolderKanban',
     defaultEnabled: false,
-    defaultOrder: 11,
+    defaultOrder: 101,
   },
   {
     id: 'goals',
@@ -136,24 +142,7 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     description: 'Original goals widget',
     icon: 'Target',
     defaultEnabled: false,
-    defaultOrder: 12,
-  },
-  // === OPTIONAL WIDGETS ===
-  {
-    id: 'status-updates',
-    title: 'Status updates',
-    description: 'Recent project status updates',
-    icon: 'TrendingUp',
-    defaultEnabled: false,
-    defaultOrder: 5,
-  },
-  {
-    id: 'portfolios',
-    title: 'Portfolios',
-    description: 'Your portfolios',
-    icon: 'Briefcase',
-    defaultEnabled: false,
-    defaultOrder: 6,
+    defaultOrder: 102,
   },
   {
     id: 'assigned-tasks',
@@ -161,7 +150,7 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     description: "Tasks you've assigned to others",
     icon: 'UserCheck',
     defaultEnabled: false,
-    defaultOrder: 7,
+    defaultOrder: 103,
   },
   {
     id: 'people',
@@ -169,7 +158,23 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     description: 'Frequent collaborators',
     icon: 'Users',
     defaultEnabled: false,
-    defaultOrder: 8,
+    defaultOrder: 104,
+  },
+  {
+    id: 'status-updates',
+    title: 'Status updates',
+    description: 'Recent project status updates',
+    icon: 'TrendingUp',
+    defaultEnabled: false,
+    defaultOrder: 105,
+  },
+  {
+    id: 'portfolios',
+    title: 'Portfolios',
+    description: 'Your portfolios',
+    icon: 'Briefcase',
+    defaultEnabled: false,
+    defaultOrder: 106,
   },
   {
     id: 'private-notepad',
@@ -178,15 +183,19 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     description: 'Add a quick note or link to an important resource',
     icon: 'StickyNote',
     defaultEnabled: false,
-    defaultOrder: 9,
+    defaultOrder: 107,
   },
   {
     id: 'draft-comments',
     title: 'Draft comments',
-    description: "Comments you haven't sent yet",
+    // The list reads from uiState.draftComments but nothing in the
+    // app writes to that key yet (no producer). The widget is kept
+    // visible in Customize so the slot is reserved, but the
+    // description is honest about the current state.
+    description: 'Coming soon · saves unsent comments as drafts',
     icon: 'MessageCircle',
     defaultEnabled: false,
-    defaultOrder: 10,
+    defaultOrder: 108,
   },
   {
     id: 'forms',
@@ -194,7 +203,7 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     description: 'Manage work request submissions',
     icon: 'FileText',
     defaultEnabled: false,
-    defaultOrder: 11,
+    defaultOrder: 109,
   },
   {
     id: 'mentions',
@@ -203,7 +212,7 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     description: 'Comments where you were @mentioned',
     icon: 'AtSign',
     defaultEnabled: false,
-    defaultOrder: 12,
+    defaultOrder: 110,
   },
   {
     id: 'learning',
@@ -211,7 +220,7 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     description: 'Tips and tutorials to get started',
     icon: 'GraduationCap',
     defaultEnabled: false,
-    defaultOrder: 13,
+    defaultOrder: 111,
   },
   {
     id: 'ai-assistant',
@@ -220,6 +229,6 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
     description: 'Ask questions and get help',
     icon: 'Sparkles',
     defaultEnabled: false,
-    defaultOrder: 14,
+    defaultOrder: 112,
   },
 ];
