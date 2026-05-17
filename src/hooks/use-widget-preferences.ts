@@ -1,9 +1,57 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { WidgetType, WidgetSize, UserWidgetPreferences, AVAILABLE_WIDGETS } from '@/types/dashboard';
+import {
+  WidgetType,
+  WidgetSize,
+  UserWidgetPreferences,
+  AVAILABLE_WIDGETS,
+  REMOVED_WIDGET_IDS,
+} from '@/types/dashboard';
 
 const STORAGE_KEY = 'buildsync-widget-preferences';
+
+// Set of valid widget IDs known at runtime — used to scrub deleted
+// IDs (e.g. the old PMI tiles) out of any pref payload before we
+// hand it to React. Without this, a saved layout that references a
+// removed widget would render nothing in that slot and confuse the
+// reorder math.
+const VALID_WIDGET_IDS: ReadonlySet<string> = new Set(
+  AVAILABLE_WIDGETS.map((w) => w.id)
+);
+const REMOVED_WIDGET_ID_SET: ReadonlySet<string> = new Set(REMOVED_WIDGET_IDS);
+
+/**
+ * Strip any widget IDs that no longer exist in AVAILABLE_WIDGETS
+ * (typically widgets we've sunset, like the May 2026 PMI tiles).
+ * Falls back to the default preferences if filtering leaves the
+ * user with nothing visible — better than an empty home page.
+ */
+function migratePreferences(
+  raw: Partial<UserWidgetPreferences>
+): UserWidgetPreferences {
+  const visible = (raw.visibleWidgets ?? []).filter(
+    (id): id is WidgetType => VALID_WIDGET_IDS.has(id)
+  );
+  const order = (raw.widgetOrder ?? []).filter(
+    (id): id is WidgetType => VALID_WIDGET_IDS.has(id)
+  );
+  // Sizes for removed widgets are harmless but waste storage — drop
+  // them too so the JSON payload stays clean.
+  const sizes: Partial<Record<WidgetType, WidgetSize>> = {};
+  if (raw.widgetSizes) {
+    for (const [id, size] of Object.entries(raw.widgetSizes)) {
+      if (VALID_WIDGET_IDS.has(id) && !REMOVED_WIDGET_ID_SET.has(id)) {
+        sizes[id as WidgetType] = size as WidgetSize;
+      }
+    }
+  }
+  // If migration would leave the page empty (e.g. user only had
+  // PMI tiles enabled), restore the defaults so they're not stuck
+  // staring at a blank grid.
+  if (visible.length === 0) return getDefaultPreferences();
+  return { visibleWidgets: visible, widgetOrder: order, widgetSizes: sizes };
+}
 
 /**
  * Auto-calculate widget sizes based on grid position.
@@ -77,13 +125,21 @@ export function useWidgetPreferences() {
         if (res.ok && !cancelled) {
           const data = await res.json();
           if (data.widgetPreferences) {
-            // Use server data
-            const migrated: UserWidgetPreferences = {
-              visibleWidgets: data.widgetPreferences.visibleWidgets || [],
-              widgetOrder: data.widgetPreferences.widgetOrder || [],
-              widgetSizes: data.widgetPreferences.widgetSizes || {},
-            };
+            // Run migration — drops PMI/removed widget IDs.
+            const migrated = migratePreferences(data.widgetPreferences);
             setPreferences(migrated);
+            // If migration changed the payload, write the cleaned
+            // version back so we don't re-migrate on every load.
+            if (
+              JSON.stringify(migrated) !==
+              JSON.stringify(data.widgetPreferences)
+            ) {
+              fetch('/api/users/preferences', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ widgetPreferences: migrated }),
+              }).catch(() => {});
+            }
             setIsLoaded(true);
             return;
           }
@@ -93,11 +149,7 @@ export function useWidgetPreferences() {
           if (stored) {
             try {
               const parsed = JSON.parse(stored);
-              const migrated: UserWidgetPreferences = {
-                visibleWidgets: parsed.visibleWidgets || [],
-                widgetOrder: parsed.widgetOrder || [],
-                widgetSizes: parsed.widgetSizes || {},
-              };
+              const migrated = migratePreferences(parsed);
               setPreferences(migrated);
               // Push migrated data to server
               await fetch('/api/users/preferences', {
@@ -116,11 +168,7 @@ export function useWidgetPreferences() {
             if (stored) {
               try {
                 const parsed = JSON.parse(stored);
-                setPreferences({
-                  visibleWidgets: parsed.visibleWidgets || [],
-                  widgetOrder: parsed.widgetOrder || [],
-                  widgetSizes: parsed.widgetSizes || {},
-                });
+                setPreferences(migratePreferences(parsed));
               } catch {
                 // ignore
               }

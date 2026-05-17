@@ -1,27 +1,25 @@
 "use client";
 
 /**
- * /home — Asana-style drag-drop widget grid with PMI-grade tiles.
+ * /home — Asana-style drag-drop widget grid.
  *
- * Combines two things Juan asked for explicitly:
+ * Behaviors kept from the original Asana paradigm:
+ *   - Cards can be reordered by drag, resized to half/full row, hidden
+ *     via the per-tile menu, and added/removed from the Customize modal.
+ *   - Layout persists per user via `useWidgetPreferences` (DB-backed).
  *
- *   1. The classic Asana behavior — cards that he can drag to reorder,
- *      resize (half / full row), hide via a per-tile menu, and
- *      pick from a Customize modal. Layout persists per user
- *      via `useWidgetPreferences` (DB-backed).
+ * The earlier PMI/EVM "10x upgrade" tiles (AI Brief, Priority Queue,
+ * Active Projects, Team Capacity, Upcoming Milestones, Recertification
+ * Radar, Goals Snapshot, Recent Activity) were removed at the product
+ * owner's request — too much duplicated info versus the classic
+ * widgets and not enough signal vs noise. The Portfolio Skyline
+ * visualization went with them.
  *
- *   2. PMI-grade content inside each tile — AI Brief, Priority queue
- *      (overdue + due-today), Active projects with SPI/health/gate,
- *      Team capacity bars, Upcoming milestones (14d), Recertification
- *      radar (120d), Goals snapshot, Recent activity. No generic
- *      productivity tool surfaces this content; it's why a PMP /
- *      structural firm CEO opens this dashboard daily.
- *
- * The header (greeting + period selector + personal KPI strip) sits
- * fixed above the grid so it doesn't shuffle when the user reorders
- * tiles. The Customize button opens the existing CustomizeWidgetsModal
- * (showing classic Asana widgets like My Tasks / Mentions / Notepad
- * as opt-in additions).
+ * The header (greeting + period selector + two summary chips) stays.
+ * The chips ("X tasks completed", "Y collaborators") still consume
+ * /api/dashboard/ceo because that's the cheapest way to compute them
+ * portfolio-wide; everything else on this page is per-widget self-
+ * fetching.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -60,18 +58,7 @@ import {
   HomeHeader,
   type HomePeriod,
 } from "@/components/home/home-header";
-import { HomeAIBrief } from "@/components/home/home-ai-brief";
-import { HomePriorityQueue } from "@/components/home/home-priority-queue";
-import { HomeActiveProjects } from "@/components/home/home-active-projects";
-import { HomeTeamCapacity } from "@/components/home/home-team-capacity";
-import { HomeRecertRadar } from "@/components/home/home-recert-radar";
-import { HomeUpcomingMilestones } from "@/components/home/home-upcoming-milestones";
-import { HomeGoalsSnapshot } from "@/components/home/home-goals-snapshot";
-import { HomeRecentActivity } from "@/components/home/home-recent-activity";
-import { HomePortfolioSkyline } from "@/components/home/home-portfolio-skyline";
 
-// Classic widget fallbacks (rendered when the user has opted into
-// one of the legacy Asana-style widgets via Customize).
 import {
   MyTasksWidget,
   ProjectsWidget,
@@ -96,6 +83,9 @@ const PERIOD_UI_STATE_KEY = "home.period";
 export default function HomePage() {
   const { data: session } = useSession();
   const router = useRouter();
+  // We keep this fetch only for the two summary chips in HomeHeader
+  // ("X tasks completed" + "Y collaborators"). All widgets below
+  // self-fetch.
   const [data, setData] = useState<CockpitData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { value: period, setValue: setPeriod } = useUiState<HomePeriod>(
@@ -125,11 +115,7 @@ export default function HomePage() {
     })
   );
 
-  // Period persistence is handled by useUiState above — no
-  // localStorage effects needed. The hook restores the value from
-  // the DB on mount and writes back debounced on change.
-
-  // ── Single fetch of CockpitData (shared across all PMI tiles) ───
+  // ── Single fetch for the HomeHeader summary chips ────────────────
   useEffect(() => {
     let cancelled = false;
     setError(null);
@@ -180,40 +166,7 @@ export default function HomePage() {
 
   // ── Render a single widget by id ────────────────────────────────
   function renderWidgetBody(id: WidgetType) {
-    if (!data && isPmiWidget(id)) {
-      return (
-        <div className="flex items-center justify-center h-full">
-          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-        </div>
-      );
-    }
     switch (id) {
-      // ── PMI tiles — render directly. WidgetContainer in "naked"
-      //    mode (hideHeader=true) has no inner padding, so the tile's
-      //    own card frame fills the grid cell cleanly. The floating
-      //    ⋯ menu sits absolute at top-right via WidgetContainer.
-      case "ai-brief":
-        return data ? <HomeAIBrief data={data} /> : null;
-      case "priority-queue":
-        return data ? (
-          <HomePriorityQueue criticalTasks={data.criticalPath} />
-        ) : null;
-      case "active-projects-pmi":
-        return data ? <HomeActiveProjects projects={data.projects} /> : null;
-      case "team-capacity":
-        return data ? <HomeTeamCapacity members={data.team} /> : null;
-      case "upcoming-milestones":
-        return data ? (
-          <HomeUpcomingMilestones tasks={data.criticalPath} />
-        ) : null;
-      case "recert-radar":
-        return data ? <HomeRecertRadar projects={data.projects} /> : null;
-      case "goals-snapshot-pmi":
-        return <HomeGoalsSnapshot />;
-      case "recent-activity":
-        return data ? <HomeRecentActivity items={data.activity} /> : null;
-
-      // ── Classic widgets (opt-in) ──
       case "my-tasks":
         return (
           <MyTasksWidget
@@ -231,16 +184,10 @@ export default function HomePage() {
           />
         );
       case "goals":
-        // /goals already exposes a "New goal" CTA in its own UI.
-        // Until we ship a global create-goal modal, routing there
-        // is the right action.
         return (
           <GoalsWidget onCreateGoal={() => router.push("/goals?new=1")} />
         );
       case "assigned-tasks":
-        // Assignments live in /my-tasks (it's literally the
-        // "tasks I assigned to others" inbox). Route the CTA there
-        // instead of a no-op.
         return (
           <AssignedTasksWidget
             onAssignTask={() => router.push("/my-tasks")}
@@ -334,11 +281,6 @@ export default function HomePage() {
         collaboratorsCount={summary.collaborators}
       />
 
-      {/* Signature visual — every project as a vertical bar in a
-          city skyline. Height = % complete, color = health. On-brand
-          for a structural firm; no other PM tool ships this view. */}
-      {data && <HomePortfolioSkyline projects={data.projects} />}
-
       {/* Customize bar — the modal renders its own trigger button */}
       <div className="px-4 md:px-6 pt-4 flex items-center justify-end">
         <CustomizeWidgetsModal
@@ -370,7 +312,6 @@ export default function HomePage() {
                   size={getWidgetSize(id)}
                   onSizeChange={(s) => setWidgetSize(id, s)}
                   onHide={() => toggleWidget(id)}
-                  hideHeader={isPmiWidget(id)}
                 >
                   {renderWidgetBody(id)}
                 </WidgetContainer>
@@ -386,23 +327,4 @@ export default function HomePage() {
 
     </div>
   );
-}
-
-/**
- * The PMI widgets bring their own internal header + border, so the
- * WidgetContainer should be rendered with `hideHeader={true}` for
- * them. The classic Asana widgets expect WidgetContainer to render
- * their header (title from AVAILABLE_WIDGETS config + 3-dot menu).
- */
-function isPmiWidget(id: WidgetType): boolean {
-  return [
-    "ai-brief",
-    "priority-queue",
-    "active-projects-pmi",
-    "team-capacity",
-    "upcoming-milestones",
-    "recert-radar",
-    "goals-snapshot-pmi",
-    "recent-activity",
-  ].includes(id);
 }
