@@ -46,6 +46,8 @@ import {
   PackageCheck,
   Target,
   Users,
+  FileCheck2,
+  ClipboardCheck,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -83,6 +85,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   PackageCheck,
   Target,
   Users,
+  FileCheck2,
+  ClipboardCheck,
 };
 
 const ACCENT_BG: Record<ProjectTemplate["accent"], string> = {

@@ -582,20 +582,1028 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
   {
     id: "recertification-40yr",
-    name: "40-year recertification",
+    name: "Building recertification",
     description:
-      "Florida 40-year recertification flow: structural + electrical inspection, report, AHJ submittal, and closeout.",
-    icon: "BadgeCheck",
+      "Production-grade multi-discipline recertification playbook — Florida 40-year (Miami-Dade / Broward) and the post-Surfside Milestone Inspection cadence. Covers structural, electrical, thermography (IR), illumination survey, and parking lot + guardrail inspection. 5 status sections (Asana paradigm) with a 'Discipline' custom field tagging every task plus a 'Severity' field for findings. 38 parent tasks, 200+ subtasks, milestones at each discipline closeout, internal QC approval, and AHJ submittal. Inspection-cycle workflow rules pre-wired.",
+    icon: "FileCheck2",
     accent: "violet",
     category: "engineering",
     defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#a8893a" },
-    sections: [
-      "Site Visit Scheduled",
-      "Inspection",
-      "Report Drafting",
-      "Submitted to AHJ",
-      "Approved",
+    // Asana paradigm: sections are workflow STATUS, not discipline. A
+    // finding flows To Do → In Progress → Under Review → Approved → Done.
+    // The discipline (which trade is doing the work) lives in the
+    // custom field below so the board can be grouped/filtered by trade
+    // without breaking the kanban flow.
+    sections: ["To Do", "In Progress", "Under Review", "Approved", "Done"],
+    customFields: [
+      {
+        name: "Discipline",
+        type: "DROPDOWN",
+        options: [
+          { id: "engagement", label: "Engagement & Prep", color: "#888888" },
+          { id: "structural", label: "Structural", color: "#c9a84c" },
+          { id: "electrical", label: "Electrical", color: "#d4b65a" },
+          { id: "thermography", label: "Thermography (IR)", color: "#a8893a" },
+          { id: "illumination", label: "Illumination", color: "#4a4a4a" },
+          { id: "parking_guardrail", label: "Parking & Guardrail", color: "#0a0a0a" },
+          { id: "report", label: "Report & Submittal", color: "#94a3b8" },
+        ],
+      },
+      {
+        name: "Severity",
+        type: "DROPDOWN",
+        options: [
+          { id: "critical", label: "Critical — immediate", color: "#dc2626" },
+          { id: "major", label: "Major — within 6 mo", color: "#f59e0b" },
+          { id: "minor", label: "Minor — within 12 mo", color: "#eab308" },
+          { id: "monitor", label: "Monitoring only", color: "#94a3b8" },
+          { id: "ok", label: "OK / Not applicable", color: "#10b981" },
+        ],
+      },
     ],
+    tasks: [
+      // ── Engagement & Preparation ───────────────────────────────
+      {
+        section: "To Do",
+        name: "Project intake & contract",
+        customFieldValues: { Discipline: "engagement" },
+        subtasks: [
+          "Scope of work agreed with owner / property mgmt",
+          "Fee proposal issued & signed",
+          "Certificate of Insurance delivered",
+          "Retainer received",
+          "Project number assigned & folder set up",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Building documentation request",
+        customFieldValues: { Discipline: "engagement" },
+        subtasks: [
+          "As-built / original construction drawings",
+          "Prior recertification or milestone report",
+          "Prior repair permits & closeout docs",
+          "Deferred maintenance log",
+          "Building age & Certificate of Occupancy date",
+          "Property management & on-site contact",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "AHJ research & form selection",
+        customFieldValues: { Discipline: "engagement" },
+        subtasks: [
+          "Confirm jurisdiction (Miami-Dade / Broward / other)",
+          "Confirm inspection cycle (40-yr initial, 10-yr recurring)",
+          "Pull AHJ recertification form & checklist",
+          "Confirm due date & late-filing penalty",
+          "Confirm milestone-inspection trigger (FL SB 4-D, condos 3+ stories)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Field team mobilization",
+        customFieldValues: { Discipline: "engagement" },
+        subtasks: [
+          "Schedule access windows with property mgmt",
+          "Tenant / resident notification letter",
+          "Lift / scaffold / ladder reservations",
+          "PPE check (hard hat, harness, IR-safe PPE)",
+          "Equipment kit (camera, IR camera, lux meter, moisture meter, crack gauge)",
+          "Safety briefing & site-specific hazard review",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Pre-inspection package complete",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "engagement" },
+      },
+
+      // ── Structural Inspection ──────────────────────────────────
+      {
+        section: "To Do",
+        name: "Exterior structural walkthrough",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Façades & cladding visual",
+          "Parapet walls & coping",
+          "Columns, beams & expansion joints",
+          "Foundation wall above grade & weep system",
+          "Photo log with elevation tags & compass bearing",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Interior structural walkthrough",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Garage levels (slabs, columns, beams)",
+          "Mechanical rooms & equipment supports",
+          "Common corridors & ceilings",
+          "Stairwells & landings",
+          "Roof structure from inside (deck, joists, sheathing)",
+          "Water intrusion mapping (staining, efflorescence, mold)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Balcony & terrace inspection",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Railing anchorage & corrosion at base plates",
+          "Slab edge & soffit condition",
+          "Waterproofing membrane integrity",
+          "Drain inlets & overflow scuppers",
+          "Traffic coating condition",
+          "Load-test sample railings per local AHJ requirement",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Roof inspection",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Deck & structural condition",
+          "Parapet caps & flashings",
+          "Drainage & overflow scuppers",
+          "Mechanical equipment supports & curbs",
+          "Penetrations & roof-mounted attachments",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Parking garage post-tensioning check",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Tendon tail condition & corrosion",
+          "Anchor wedge inspection",
+          "End cap presence & grout pocket",
+          "Slab cracking pattern (PT vs RC interpretation)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Distress documentation",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Crack mapping (width, length, orientation)",
+          "Spalling & rebar exposure log",
+          "Corrosion zone tagging",
+          "Moisture-meter readings indexed",
+          "Photo log keyed to finding IDs",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Structural field inspection complete",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "structural" },
+      },
+
+      // ── Electrical Inspection ──────────────────────────────────
+      {
+        section: "To Do",
+        name: "Main switchgear inspection",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "Enclosure integrity & corrosion",
+          "Working clearance per NEC 110.26",
+          "Labels & arc-flash warnings",
+          "Door closures & padlocks",
+          "Phase identification & legend accuracy",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Service equipment & metering",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "Meter bank condition & seals",
+          "CT cabinets",
+          "Grounding electrode system (GES) inspection",
+          "Bonding jumpers continuity",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Distribution panels & subpanels",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "Panel covers & dead-fronts in place",
+          "Breaker condition & circuit directory",
+          "Double-tapped breakers flagged",
+          "AIC ratings vs available fault current",
+          "Open knockouts & unused openings",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Branch circuits & receptacles",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "GFCI protection in wet locations",
+          "Receptacle covers in wet / outdoor zones",
+          "Polarity test sample",
+          "Common-area circuits operational",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Emergency power & life safety",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "Generator load test (per NFPA 110)",
+          "Fuel tank level & integrity",
+          "Automatic transfer switch test",
+          "Exit signs illumination & battery backup",
+          "Emergency egress lighting 90-min battery test",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Grounding & bonding survey",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "GES resistance test (≤ 25 Ω target)",
+          "Bonding continuity at major equipment",
+          "Equipment grounding conductor verification",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Electrical field inspection complete",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "electrical" },
+      },
+
+      // ── Thermography (IR) Survey ───────────────────────────────
+      {
+        section: "To Do",
+        name: "IR camera calibration & setup",
+        customFieldValues: { Discipline: "thermography" },
+        subtasks: [
+          "Camera calibration cert in date",
+          "Ambient temperature & humidity recorded",
+          "Emissivity & reflected-T settings per surface",
+          "Load condition documented (≥ 40% nameplate load target)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Service entrance & main switchgear scan",
+        customFieldValues: { Discipline: "thermography" },
+        subtasks: [
+          "Each phase under load — line side",
+          "Each phase under load — load side",
+          "MCCB termination scan",
+          "Busbar joint scan",
+          "Neutral & ground connection scan",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Distribution panel scan",
+        customFieldValues: { Discipline: "thermography" },
+        subtasks: [
+          "Every panel under representative load",
+          "Breaker poles ΔT logged",
+          "Lug & conductor termination scan",
+          "Bus stab connections",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Motor, HVAC & elevator equipment scan",
+        customFieldValues: { Discipline: "thermography" },
+        subtasks: [
+          "HVAC compressors & contactors",
+          "Elevator motors & resistors",
+          "Pump & pool equipment motors",
+          "Lighting contactors & relays",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Thermography findings log",
+        customFieldValues: { Discipline: "thermography" },
+        subtasks: [
+          "Hot spots ≥ 10°C above baseline flagged",
+          "Severity classified by ΔT (NETA / IR convention)",
+          "Repair priority assigned",
+          "IR + visible photo pairs indexed",
+          "Re-scan plan after repairs",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "IR survey complete",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "thermography" },
+      },
+
+      // ── Illumination Survey ────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Code & criteria establishment",
+        customFieldValues: { Discipline: "illumination" },
+        subtasks: [
+          "Code reference (IES RP-20 parking / local amendment)",
+          "Required foot-candles by zone (entry, drive aisle, stalls, egress)",
+          "Uniformity ratio targets (avg/min, max/min)",
+          "Egress illumination per IBC 1008 / NFPA 101",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Light meter calibration",
+        customFieldValues: { Discipline: "illumination" },
+        subtasks: [
+          "Photometer calibration cert (NIST traceable)",
+          "Cosine-corrected meter selected",
+          "Dusk + full-dark reading protocol agreed",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Parking lot illumination grid",
+        customFieldValues: { Discipline: "illumination" },
+        subtasks: [
+          "Grid layout sketched (typically 10' x 10' or 20' x 20')",
+          "Measurements at each grid point logged",
+          "Light pole bases inspected for corrosion",
+          "Fixture aim & lens condition",
+          "Burned-out or missing lamps inventoried",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Stairwell & egress illumination",
+        customFieldValues: { Discipline: "illumination" },
+        subtasks: [
+          "FC at egress path floor",
+          "Transfer time on simulated power loss",
+          "Battery backup duration sample test",
+          "Photoluminescent path-marking condition (if installed)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Common area illumination",
+        customFieldValues: { Discipline: "illumination" },
+        subtasks: [
+          "Lobby & elevator landing FC readings",
+          "Corridor FC readings",
+          "Lamp burnout inventory by area",
+          "Color-temperature consistency check",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Illumination findings log",
+        customFieldValues: { Discipline: "illumination" },
+        subtasks: [
+          "Deficient zones mapped on as-built plan",
+          "Recommended fixture, relamp, or aim adjustment",
+          "IES criteria vs measured comparison table",
+          "Photometric mock-up attached for major deficiencies",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Illumination survey complete",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "illumination" },
+      },
+
+      // ── Parking Lot & Guardrail Inspection ─────────────────────
+      {
+        section: "To Do",
+        name: "Pavement & surface condition",
+        customFieldValues: { Discipline: "parking_guardrail" },
+        subtasks: [
+          "Cracking, potholes, rutting",
+          "ADA accessible route slope & cross-slope",
+          "Striping & wayfinding paint",
+          "ADA stall count & van-accessible per IBC 1106",
+          "Drainage swales & catch basins",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Curbs, wheel stops & bumpers",
+        customFieldValues: { Discipline: "parking_guardrail" },
+        subtasks: [
+          "Curb height & damage",
+          "Wheel-stop attachment & displacement",
+          "Missing or broken units inventoried",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Vehicle guardrails & bollards",
+        customFieldValues: { Discipline: "parking_guardrail" },
+        subtasks: [
+          "Anchorage to slab inspected",
+          "Deflection on lateral push test",
+          "Height per IBC 1015.3 (≥ 42\")",
+          "Vehicle impact rating verified for ramp & garage applications",
+          "Corrosion at base plates & welds",
+          "Bollard at fuel / utility / glazing locations",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Pedestrian guardrails & handrails",
+        customFieldValues: { Discipline: "parking_guardrail" },
+        subtasks: [
+          "Top rail height (≥ 42\" guard, 34-38\" handrail)",
+          "Baluster spacing ≤ 4\" sphere",
+          "Anchorage condition at base",
+          "Load-test sample per local AHJ requirement",
+          "Continuous handrail at stairs both sides per IBC 1011",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Signage, pole bases & drainage",
+        customFieldValues: { Discipline: "parking_guardrail" },
+        subtasks: [
+          "ADA, fire-lane, & directional signage readability",
+          "Light pole bases for corrosion / impact damage",
+          "Catch basin grates secured",
+          "Swale / drainage flow verified",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Site & guardrail inspection complete",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "parking_guardrail" },
+      },
+
+      // ── Findings Compilation & Report ──────────────────────────
+      {
+        section: "To Do",
+        name: "Findings consolidation",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "All discipline logs merged into master findings list",
+          "Severity normalized across trades",
+          "Photo logs cross-referenced to finding IDs",
+          "Prior-cycle comparison (delta vs last recertification)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Repair priority matrix & ROM cost",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Critical items priced (life-safety, immediate)",
+          "Major items priced (within 6 months)",
+          "Minor items priced (within 12 months)",
+          "Monitoring items listed (no immediate action)",
+          "Owner cost summary (ROM ±20%)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Recommendations memo",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Structural recommendations",
+          "Electrical + IR recommendations",
+          "Illumination & egress recommendations",
+          "Site / parking / guardrail recommendations",
+          "Recommended maintenance schedule going forward",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Draft narrative report",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Executive summary",
+          "Scope & methodology by discipline",
+          "Building description & history",
+          "Code & standard references",
+          "Findings by discipline with severity table",
+          "Appendices index",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Photo log & appendices assembly",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Indexed photo log by finding ID with captions",
+          "IR + visible photo pairs",
+          "Illumination grid map full size",
+          "As-built plan markups with finding locations",
+          "Test reports (load, IR, illumination)",
+          "Prior recertification report (reference)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Internal QC — PE seal review",
+        type: "APPROVAL",
+        customFieldValues: { Discipline: "report" },
+      },
+      {
+        section: "To Do",
+        name: "Client preview & comment cycle",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Deliver draft to owner / property mgmt",
+          "Comment log received",
+          "Comments resolved or rejected with rationale",
+          "Version control of draft revisions",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "AHJ submittal package",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Sealed report PDF + native files",
+          "AHJ recertification form filled & signed",
+          "Cover letter",
+          "Supporting drawings, test reports & photos",
+          "Submission fee paid",
+          "Submission receipt archived",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Report submitted to AHJ",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "report" },
+      },
+      {
+        section: "To Do",
+        name: "AHJ review & response cycle",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "AHJ comment letter received",
+          "Comment-by-comment responses drafted",
+          "Re-submission package issued",
+          "Follow-up site visit scheduled (if requested)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Recertification approved",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "report" },
+      },
+      {
+        section: "To Do",
+        name: "Owner repair tracking & closeout",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Critical items repair tracked to closure",
+          "Major items repair tracked to closure",
+          "Follow-up permits issued where required",
+          "Final invoice issued",
+          "Lessons learned debrief",
+          "Calendar reminder for next 10-year cycle",
+        ],
+      },
+    ],
+    workflowTemplateId: "inspection-cycle",
+  },
+  {
+    id: "building-safety-inspection",
+    name: "Building safety inspection",
+    description:
+      "General-purpose building safety survey — pre-purchase due diligence, annual walkthrough, insurance-required inspection, or code-compliance review. Covers life safety, means of egress, visible structural / envelope / MEP, ADA, roof, and hazard ID. 5 status sections with a 'Category' custom field tagging every task by trade plus a 'Severity' field for findings. 28 parent tasks, 140+ subtasks, internal QC approval, and a delivery milestone.",
+    icon: "ClipboardCheck",
+    accent: "rose",
+    category: "engineering",
+    defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#94a3b8" },
+    // Same Asana paradigm B as the other engineering templates:
+    // status sections + category custom field. A finding doesn't change
+    // category as it progresses; it changes status.
+    sections: ["To Do", "In Progress", "Under Review", "Approved", "Done"],
+    customFields: [
+      {
+        name: "Category",
+        type: "DROPDOWN",
+        options: [
+          { id: "engagement", label: "Engagement & Prep", color: "#888888" },
+          { id: "life_safety", label: "Life Safety", color: "#dc2626" },
+          { id: "egress", label: "Means of Egress", color: "#f59e0b" },
+          { id: "structural", label: "Structural (visible)", color: "#c9a84c" },
+          { id: "envelope", label: "Envelope", color: "#a8893a" },
+          { id: "mep", label: "MEP (visible)", color: "#d4b65a" },
+          { id: "ada", label: "ADA Accessibility", color: "#4a4a4a" },
+          { id: "roof", label: "Roof", color: "#0a0a0a" },
+          { id: "hazards", label: "Hazards", color: "#dc2626" },
+          { id: "report", label: "Report & Delivery", color: "#94a3b8" },
+        ],
+      },
+      {
+        name: "Severity",
+        type: "DROPDOWN",
+        options: [
+          { id: "critical", label: "Critical — immediate", color: "#dc2626" },
+          { id: "major", label: "Major — within 6 mo", color: "#f59e0b" },
+          { id: "minor", label: "Minor — within 12 mo", color: "#eab308" },
+          { id: "monitor", label: "Monitoring only", color: "#94a3b8" },
+          { id: "ok", label: "OK / Not applicable", color: "#10b981" },
+        ],
+      },
+    ],
+    tasks: [
+      // ── Engagement & Preparation ───────────────────────────────
+      {
+        section: "To Do",
+        name: "Project intake & scope agreement",
+        customFieldValues: { Category: "engagement" },
+        subtasks: [
+          "Inspection purpose confirmed (due diligence / annual / insurance / code)",
+          "Scope of work agreed & signed",
+          "Fee proposal & retainer received",
+          "Certificate of Insurance delivered",
+          "Project number assigned",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Pre-inspection document review",
+        customFieldValues: { Category: "engagement" },
+        subtasks: [
+          "As-built / construction drawings",
+          "Prior inspection reports",
+          "Open / closed permits review",
+          "Code occupancy classification & occupant load",
+          "Prior insurance claims (if available)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Site access coordination",
+        customFieldValues: { Category: "engagement" },
+        subtasks: [
+          "Access scheduled with owner / building rep",
+          "On-site escort confirmed",
+          "PPE & ladder / lift requirements briefed",
+          "Equipment kit (camera, flashlight, moisture meter, lux meter, gauge)",
+        ],
+      },
+
+      // ── Life Safety ────────────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Fire alarm & sprinkler system",
+        customFieldValues: { Category: "life_safety" },
+        subtasks: [
+          "Fire alarm panel status & trouble lights",
+          "Sprinkler riser room access",
+          "Last 5-year sprinkler cert tag (NFPA 25)",
+          "FDC connection accessible & capped",
+          "Sprinkler heads unobstructed (18\" clearance)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Fire extinguishers & suppression",
+        customFieldValues: { Category: "life_safety" },
+        subtasks: [
+          "Extinguisher count vs occupancy",
+          "Travel distance ≤ 75 ft per NFPA 10",
+          "Last inspection tag in date",
+          "Mounting height & access clear",
+          "Kitchen hood suppression last service (if applicable)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Smoke compartmentation & fire-rated assemblies",
+        customFieldValues: { Category: "life_safety" },
+        subtasks: [
+          "Fire-rated doors operate & latch",
+          "Door closers functional",
+          "Fire-stops at penetrations (cables, pipes, ducts)",
+          "Fire dampers accessible & labeled",
+          "Smoke barriers continuous",
+        ],
+      },
+
+      // ── Means of Egress ────────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Exit door inspection",
+        customFieldValues: { Category: "egress" },
+        subtasks: [
+          "Hardware operates with single motion (IBC 1010.1.9)",
+          "Panic hardware where required by occupancy",
+          "Locks per IBC 1010.2 (no key required to exit)",
+          "Exit signage illuminated & battery backup operational",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Egress path width & obstructions",
+        customFieldValues: { Category: "egress" },
+        subtasks: [
+          "Corridor width clearance",
+          "No obstructions in path",
+          "Slip-resistant surface check",
+          "Contrasting handrails & visibility",
+          "Common path of travel within code limit",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Stairwell inspection",
+        customFieldValues: { Category: "egress" },
+        subtasks: [
+          "Handrails both sides, continuous (IBC 1011)",
+          "Riser & tread consistency",
+          "Adequate lighting + emergency lighting",
+          "Smoke-tight enclosure & self-closing doors",
+          "Path markings (where required by high-rise codes)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Exit discharge",
+        customFieldValues: { Category: "egress" },
+        subtasks: [
+          "Clear path from exit to public way",
+          "Exterior egress lighting",
+          "Accessible route from exit discharge",
+          "No accumulating snow / debris zones",
+        ],
+      },
+
+      // ── Structural (Visible) ───────────────────────────────────
+      {
+        section: "To Do",
+        name: "Visible structural walkthrough",
+        customFieldValues: { Category: "structural" },
+        subtasks: [
+          "Cracks, deflections, settlement evidence",
+          "Water intrusion staining",
+          "Spalling or rebar exposure",
+          "Movement at expansion / control joints",
+          "No destructive testing — visual only",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Foundation visible inspection",
+        customFieldValues: { Category: "structural" },
+        subtasks: [
+          "Cracks at foundation wall",
+          "Differential settlement evidence",
+          "Moisture at base of walls",
+          "Sub-slab voids or movement indicators",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Roof structure (interior view)",
+        customFieldValues: { Category: "structural" },
+        subtasks: [
+          "Deck visible from below",
+          "Water staining at ceiling",
+          "Deflection or sag in members",
+          "Truss / joist connection condition",
+        ],
+      },
+
+      // ── Envelope ───────────────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Exterior walls & cladding",
+        customFieldValues: { Category: "envelope" },
+        subtasks: [
+          "Cladding condition (brick, EIFS, stucco, panel)",
+          "Sealant joints continuous & flexible",
+          "Visible cracking pattern",
+          "Efflorescence or staining",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Windows & exterior doors",
+        customFieldValues: { Category: "envelope" },
+        subtasks: [
+          "Glazing intact, no spider cracks",
+          "Perimeter seals continuous",
+          "Operability sample (open / close / lock)",
+          "Water intrusion evidence at sills & jambs",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Roof envelope",
+        customFieldValues: { Category: "envelope" },
+        subtasks: [
+          "Membrane / shingle condition",
+          "Flashing at penetrations",
+          "Drains & scuppers clear",
+          "Parapet caps & edge metal",
+        ],
+      },
+
+      // ── MEP (Visible) ──────────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Electrical visible inspection",
+        customFieldValues: { Category: "mep" },
+        subtasks: [
+          "Panels labeled & dead-fronts in place",
+          "Working clearance per NEC 110.26",
+          "No exposed conductors or open knockouts",
+          "GFCI in wet locations",
+          "Common-area lighting operational",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Plumbing visible inspection",
+        customFieldValues: { Category: "mep" },
+        subtasks: [
+          "Active leaks at visible piping",
+          "Pipe supports & hangers",
+          "Water heater TPR valve & discharge piping",
+          "Backflow preventer present where required",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "HVAC visible inspection",
+        customFieldValues: { Category: "mep" },
+        subtasks: [
+          "Equipment labels & service tags",
+          "Air filters condition (sample)",
+          "Condensate drainage operational",
+          "Return-air paths unobstructed",
+        ],
+      },
+
+      // ── ADA Accessibility ──────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Accessible route",
+        customFieldValues: { Category: "ada" },
+        subtasks: [
+          "Slope ≤ 1:20 along route (5%)",
+          "Cross-slope ≤ 1:48 (2%)",
+          "Width ≥ 36\" continuous",
+          "Level landings at door swings",
+          "Transitions ≤ 1/2\" beveled",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Accessible restroom",
+        customFieldValues: { Category: "ada" },
+        subtasks: [
+          "Door clearance & maneuvering space",
+          "Grab bars per ICC A117.1",
+          "Mirror height ≤ 40\" AFF to bottom",
+          "Lavatory clearance & insulated supply lines",
+          "Accessible stall dimensions",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Accessible parking",
+        customFieldValues: { Category: "ada" },
+        subtasks: [
+          "Count per IBC Table 1106.1",
+          "Van-accessible stall present (1 per 6 accessible)",
+          "Signage compliant (min height & symbol)",
+          "Route from accessible stall to entrance",
+        ],
+      },
+
+      // ── Roof ───────────────────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Roof walk inspection",
+        customFieldValues: { Category: "roof" },
+        subtasks: [
+          "Surface condition (membrane / shingle / metal)",
+          "Ponding water evidence",
+          "Penetrations sealed & in good repair",
+          "Equipment supports & curbs",
+          "Edge metal & coping condition",
+          "Roof drain & overflow scupper check",
+        ],
+      },
+
+      // ── Hazards ────────────────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Trip & fall hazards",
+        customFieldValues: { Category: "hazards" },
+        subtasks: [
+          "Uneven flooring or transitions",
+          "Loose mats & rugs",
+          "Cord & cable management",
+          "Lighting in stairs & dark corners",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Hazardous materials (visible signs)",
+        customFieldValues: { Category: "hazards" },
+        subtasks: [
+          "Lead paint suspect surfaces (pre-1978 buildings)",
+          "Asbestos suspect materials (pre-1980 buildings)",
+          "Visible mold growth",
+          "Chemical storage & SDS posted",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Security & emergency readiness",
+        customFieldValues: { Category: "hazards" },
+        subtasks: [
+          "Security cameras operational (visual)",
+          "AED location & inspection tag",
+          "First aid station stocked & accessible",
+          "Emergency plan posted",
+        ],
+      },
+
+      // ── Report & Delivery ──────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Findings compilation",
+        customFieldValues: { Category: "report" },
+        subtasks: [
+          "Severity-ranked master findings list",
+          "Photos indexed to finding IDs",
+          "Prior-report delta comparison (if applicable)",
+          "Categorized by trade / responsibility",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "ROM cost estimate by priority",
+        customFieldValues: { Category: "report" },
+        subtasks: [
+          "Critical (immediate) repairs priced",
+          "Major (within 6 mo) repairs priced",
+          "Minor (within 12 mo) repairs priced",
+          "Life-safety items called out separately",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Draft report",
+        customFieldValues: { Category: "report" },
+        subtasks: [
+          "Executive summary",
+          "Scope, methodology & limitations",
+          "Findings table with severity",
+          "Recommendations by category",
+          "Photo appendix indexed",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Internal QC — sign-off review",
+        type: "APPROVAL",
+        customFieldValues: { Category: "report" },
+      },
+      {
+        section: "To Do",
+        name: "Client review & revisions",
+        customFieldValues: { Category: "report" },
+        subtasks: [
+          "Deliver draft to client",
+          "Comment log received",
+          "Revisions incorporated",
+          "Final version control",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Final report delivered",
+        type: "MILESTONE",
+        customFieldValues: { Category: "report" },
+      },
+      {
+        section: "To Do",
+        name: "Repair follow-up tracking",
+        customFieldValues: { Category: "report" },
+        subtasks: [
+          "Critical items resolved & re-inspected",
+          "Major items resolved",
+          "Closeout report or letter issued (if scoped)",
+          "Lessons learned + next-cycle reminder",
+        ],
+      },
+    ],
+    workflowTemplateId: "inspection-cycle",
   },
   {
     id: "civil-site",
