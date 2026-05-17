@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  forwardRef,
+  type ButtonHTMLAttributes,
+} from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -4993,29 +5001,28 @@ function formatRangeLabel(
  * Small ghost-style icon button used in the panel's top action row.
  * Matches Asana's quiet header chrome — no border, light hover.
  */
-function ActionIconButton({
-  children,
-  onClick,
-  disabled,
-  title,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  title?: string;
-}) {
+// forwardRef + props-spread is REQUIRED so this button works as a
+// `DropdownMenuTrigger asChild` child. Radix injects onClick + ref +
+// aria-* attrs onto the child element; without forwardRef the menu
+// silently never opens.
+const ActionIconButton = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement>
+>(function ActionIconButton({ children, className, ...props }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className="flex items-center justify-center h-7 w-7 rounded-md text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] disabled:opacity-50 disabled:cursor-not-allowed"
+      {...props}
+      className={cn(
+        "flex items-center justify-center h-7 w-7 rounded-md text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] disabled:opacity-50 disabled:cursor-not-allowed",
+        className
+      )}
     >
       {children}
     </button>
   );
-}
+});
 
 /**
  * Asana-style property row: fixed-width gray label on the left, value

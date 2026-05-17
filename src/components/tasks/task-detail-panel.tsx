@@ -14,7 +14,13 @@
  * to pass the id and an onClose handler.
  */
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  forwardRef,
+  type ButtonHTMLAttributes,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -1642,29 +1648,29 @@ export function TaskDetailPanel({
 
 // ─── Helpers (same look as /my-tasks panel) ──────────────────────
 
-function ActionIconButton({
-  children,
-  onClick,
-  disabled,
-  title,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  title?: string;
-}) {
+// forwardRef + props-spread is REQUIRED so this button works as a
+// `DropdownMenuTrigger asChild` child. Radix injects onClick + ref +
+// aria-* attrs onto the child element; without forwardRef the menu
+// silently never opens. Same reason any Popover/Tooltip trigger
+// reaches for forwardRef.
+const ActionIconButton = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement>
+>(function ActionIconButton({ children, className, ...props }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className="flex items-center justify-center h-7 w-7 rounded-md text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] disabled:opacity-50 disabled:cursor-not-allowed"
+      {...props}
+      className={cn(
+        "flex items-center justify-center h-7 w-7 rounded-md text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] disabled:opacity-50 disabled:cursor-not-allowed",
+        className
+      )}
     >
       {children}
     </button>
   );
-}
+});
 
 function PropertyRow({
   label,
