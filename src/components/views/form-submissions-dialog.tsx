@@ -14,6 +14,7 @@ import {
   Inbox,
   Download,
   Paperclip,
+  Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -163,19 +164,37 @@ export function FormSubmissionsDialog({
                         minute: "2-digit",
                       })}
                     </p>
-                    {s.taskId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenTask(s.taskId!);
-                          onOpenChange(false);
-                        }}
-                        className="text-[11px] text-[#a8893a] hover:text-[#8a7028] font-medium flex items-center gap-0.5"
-                      >
-                        Open task
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {form && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            window.open(
+                              `/forms/${form.id}/submissions/${s.id}/print`,
+                              "_blank"
+                            )
+                          }
+                          className="text-[11px] text-slate-500 hover:text-slate-800 font-medium flex items-center gap-0.5"
+                          title="Open a printable view — Save as PDF in the print dialog"
+                        >
+                          <Printer className="w-3 h-3" />
+                          Print / PDF
+                        </button>
+                      )}
+                      {s.taskId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onOpenTask(s.taskId!);
+                            onOpenChange(false);
+                          }}
+                          className="text-[11px] text-[#a8893a] hover:text-[#8a7028] font-medium flex items-center gap-0.5"
+                        >
+                          Open task
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-1">
                     {Object.entries(s.data).map(([fieldId, value]) => {

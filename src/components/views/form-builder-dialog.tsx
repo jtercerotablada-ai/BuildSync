@@ -38,6 +38,7 @@ import {
   Trash2,
   Globe,
   Lock,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -477,6 +478,29 @@ export function FormBuilderDialog({
                 {validation.msg}
               </span>
             )}
+            {/* Preview opens the public form in a new tab so the editor
+                can see exactly what a submitter will fill out (including
+                the ATTACHMENT upload UI). Only meaningful for saved
+                forms — show a hint instead when unsaved. */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                if (!initial) {
+                  toast.info("Save the form first to preview it.");
+                  return;
+                }
+                window.open(`/forms/${initial.id}`, "_blank");
+              }}
+              title={
+                initial
+                  ? "Open the public form in a new tab"
+                  : "Save first, then preview"
+              }
+            >
+              <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+              Preview
+            </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>

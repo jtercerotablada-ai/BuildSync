@@ -20,6 +20,7 @@ import {
   Flag,
   Zap,
   Inbox,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -542,8 +543,19 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                         <div className="flex items-center flex-wrap gap-1">
                           <button
                             type="button"
+                            onClick={() =>
+                              window.open(`/forms/${f.id}`, "_blank")
+                            }
+                            title="Open the public form in a new tab — see exactly what a submitter sees"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-[#a8893a] hover:bg-[#fbeed3] rounded font-medium border border-[#e9d287] bg-[#fbeed3]/40"
+                          >
+                            <Eye className="w-3 h-3" />
+                            Preview
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => copyFormLink(f.id)}
-                            title="Copy the public link"
+                            title="Copy the public link to share with clients / contractors"
                             className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-[#1d6b3e] bg-[#dff1e6]/60 hover:bg-[#dff1e6] rounded font-medium border border-[#bce0c9]"
                           >
                             <LinkIcon className="w-3 h-3" />
