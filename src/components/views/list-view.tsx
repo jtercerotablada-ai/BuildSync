@@ -40,6 +40,8 @@ import { toast } from "sonner";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
 import { CustomFieldCell } from "@/components/tasks/custom-field-cell";
+import { DueDatePicker } from "@/components/tasks/due-date-picker";
+import { formatRangeLabel } from "@/lib/task-helpers";
 import type { FieldTypeConfig } from "@/lib/field-types";
 
 // Per-project custom field metadata returned by
@@ -95,6 +97,10 @@ interface Task {
   description: string | null;
   completed: boolean;
   dueDate: string | null;
+  // Optional start date for the Asana-style range picker. When both
+  // startDate and dueDate are set the row shows "May 14 – 27"; when
+  // only dueDate is set it falls back to the legacy single-date pill.
+  startDate?: string | null;
   priority: string;
   // Optional so legacy rows / cached pages keep rendering; the API
   // serializes the enum verbatim when present and the UI swaps the
@@ -578,6 +584,11 @@ export function ListView({
       body.name = value.trim();
     } else if (field === "dueDate") {
       body.dueDate = value || null;
+    } else if (field === "startDate") {
+      // Asana-style range: the picker calls this alongside dueDate
+      // so we accept null to clear the start when the user removes
+      // the left edge of the range.
+      body.startDate = value || null;
     } else if (field === "priority") {
       body.priority = value;
     } else if (field === "taskStatus") {
@@ -1355,43 +1366,69 @@ function SortableTaskRow({
           )}
         </div>
 
-        {/* Due Date - Inline Editable */}
+        {/* Due Date — Asana-style range picker. Opens a popover with
+            two date fields (start + due) instead of a single native
+            date input. Persists both edges through saveInlineEdit so
+            the row instantly reflects "May 14 – 27" when set. */}
         <div onClick={(e) => e.stopPropagation()}>
-          {editingTaskId === task.id && editingField === "dueDate" ? (
-            <input
-              type="date"
-              value={editingValue}
-              onChange={(e) => {
-                saveInlineEdit(task.id, "dueDate", e.target.value);
-              }}
-              onBlur={() => cancelEditing()}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") cancelEditing();
-              }}
-              className="text-sm border rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 w-full"
-              autoFocus
-            />
-          ) : (
-            <div
-              className="cursor-pointer hover:bg-slate-100 rounded px-1 py-0.5 -mx-1"
-              onClick={() =>
-                startEditing(
-                  task.id,
-                  "dueDate",
-                  task.dueDate ? task.dueDate.split("T")[0] : ""
-                )
-              }
-            >
-              {task.dueDate ? (
-                <DueDateBadge
-                  dueDate={task.dueDate}
-                  completed={task.completed}
-                />
-              ) : (
-                <span className="text-slate-400 text-sm">---</span>
-              )}
-            </div>
-          )}
+          <DueDatePicker
+            startDate={task.startDate ? parseISO(task.startDate) : null}
+            dueDate={task.dueDate ? parseISO(task.dueDate) : null}
+            onChange={(start, due) => {
+              const startStr = start ? format(start, "yyyy-MM-dd") : null;
+              const dueStr = due ? format(due, "yyyy-MM-dd") : null;
+              saveInlineEdit(task.id, "startDate", startStr);
+              saveInlineEdit(task.id, "dueDate", dueStr);
+            }}
+            trigger={
+              <div className="cursor-pointer hover:bg-slate-100 rounded px-1 py-0.5 -mx-1">
+                {task.startDate || task.dueDate ? (
+                  task.startDate && task.dueDate ? (
+                    // Range present → "May 14 – 27" pill matching
+                    // task-helpers.formatRangeLabel output.
+                    <div
+                      className={cn(
+                        "flex items-center gap-1 text-sm",
+                        !task.completed &&
+                          task.dueDate &&
+                          isPast(parseISO(task.dueDate)) &&
+                          !isToday(parseISO(task.dueDate))
+                          ? "text-black"
+                          : "text-slate-600",
+                        task.completed && "text-slate-400"
+                      )}
+                    >
+                      <Calendar className="h-3 w-3" />
+                      {formatRangeLabel(
+                        parseISO(task.startDate),
+                        parseISO(task.dueDate),
+                        format(parseISO(task.dueDate), "MMM d")
+                      )}
+                    </div>
+                  ) : task.dueDate ? (
+                    // Due only → existing badge keeps "Today"/"Tomorrow"
+                    // relative phrasing.
+                    <DueDateBadge
+                      dueDate={task.dueDate}
+                      completed={task.completed}
+                    />
+                  ) : (
+                    // Start only → "From May 14"
+                    <div className="flex items-center gap-1 text-sm text-slate-600">
+                      <Calendar className="h-3 w-3" />
+                      {formatRangeLabel(
+                        parseISO(task.startDate!),
+                        null,
+                        ""
+                      )}
+                    </div>
+                  )
+                ) : (
+                  <span className="text-slate-400 text-sm">---</span>
+                )}
+              </div>
+            }
+          />
         </div>
 
         {/* Priority - Inline Editable */}
