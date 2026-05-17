@@ -60,47 +60,54 @@ export function HomeTeamCapacity({ members }: { members: TeamMember[] }) {
         {top.map((m) => {
           const pct = Math.round((m.load / peak) * 100);
           return (
-            <li
-              key={m.id}
-              className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
-            >
-              <Avatar className="h-7 w-7 flex-shrink-0">
-                <AvatarImage src={m.image || undefined} />
-                <AvatarFallback className="bg-[#c9a84c] text-white text-[10px]">
-                  {(m.name || "?")
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()
-                    .slice(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-medium text-black truncate">
-                  {m.name || m.email}
-                </p>
-                <p className="text-[10px] uppercase tracking-wider text-gray-500">
-                  {m.role.toLowerCase()}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full",
-                      pct >= 85
-                        ? "bg-black"
-                        : pct >= 60
-                          ? "bg-[#a8893a]"
-                          : "bg-[#c9a84c]"
-                    )}
-                    style={{ width: `${pct}%` }}
-                  />
+            <li key={m.id}>
+              {/* Whole row is a link to the Teams page — the hover
+                  state implied it was clickable and the docblock
+                  promised it. Until /people/[id] exists, /teams is
+                  the right landing because it's where the Capacity
+                  Matrix lives. */}
+              <Link
+                href="/teams"
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors"
+              >
+                <Avatar className="h-7 w-7 flex-shrink-0">
+                  <AvatarImage src={m.image || undefined} />
+                  <AvatarFallback className="bg-[#c9a84c] text-white text-[10px]">
+                    {(m.name || "?")
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium text-black truncate">
+                    {m.name || m.email}
+                  </p>
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500">
+                    {m.role.toLowerCase()}
+                  </p>
                 </div>
-                <span className="text-[11px] font-mono tabular-nums text-gray-700 w-12 text-right">
-                  {m.load} tasks
-                </span>
-              </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full",
+                        pct >= 85
+                          ? "bg-black"
+                          : pct >= 60
+                            ? "bg-[#a8893a]"
+                            : "bg-[#c9a84c]"
+                      )}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-mono tabular-nums text-gray-700 w-12 text-right">
+                    {m.load} tasks
+                  </span>
+                </div>
+              </Link>
             </li>
           );
         })}

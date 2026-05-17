@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   FileText,
@@ -270,10 +271,13 @@ export function FormsWidget({ size = 'half', onSizeChange, onRemove }: FormsWidg
           /* Forms list */
           <div className="space-y-2">
             {forms.map((form) => (
-              <button
+              // Click the row → /forms/[formId] (the existing form
+              // detail / responses route). Replaces the previous
+              // "coming soon" toast that left the user stuck.
+              <Link
                 key={form.id}
+                href={`/forms/${form.id}`}
                 className="w-full p-3 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center justify-between"
-                onClick={() => toast.info("Form details coming soon")}
               >
                 <div className="flex items-center gap-3">
                   <FileText className="h-5 w-5 text-gray-400" />
@@ -285,7 +289,7 @@ export function FormsWidget({ size = 'half', onSizeChange, onRemove }: FormsWidg
                 <span className="text-xs text-gray-500">
                   {form.responsesCount} responses
                 </span>
-              </button>
+              </Link>
             ))}
           </div>
         )}

@@ -99,7 +99,7 @@ export function HomeUpcomingMilestones({
                   {items.slice(0, 4).map((t) => (
                     <li key={t.id}>
                       <Link
-                        href={`/projects/${t.project.id}`}
+                        href={`/tasks/${t.id}`}
                         className="flex items-center gap-2 text-[12px] hover:underline"
                       >
                         <Diamond

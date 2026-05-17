@@ -25,7 +25,9 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { openCreateProjectGallery } from "@/lib/open-create-project";
 import {
   DndContext,
   closestCenter,
@@ -93,6 +95,7 @@ const PERIOD_UI_STATE_KEY = "home.period";
 
 export default function HomePage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [data, setData] = useState<CockpitData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { value: period, setValue: setPeriod } = useUiState<HomePeriod>(
@@ -220,11 +223,29 @@ export default function HomePage() {
           />
         );
       case "projects":
-        return <ProjectsWidget onCreateProject={() => {}} />;
+        // Opens the template gallery (Asana-style) via a custom-event
+        // so the modal lives at the layout root, not inside this widget.
+        return (
+          <ProjectsWidget
+            onCreateProject={() => openCreateProjectGallery()}
+          />
+        );
       case "goals":
-        return <GoalsWidget onCreateGoal={() => {}} />;
+        // /goals already exposes a "New goal" CTA in its own UI.
+        // Until we ship a global create-goal modal, routing there
+        // is the right action.
+        return (
+          <GoalsWidget onCreateGoal={() => router.push("/goals?new=1")} />
+        );
       case "assigned-tasks":
-        return <AssignedTasksWidget onAssignTask={() => {}} />;
+        // Assignments live in /my-tasks (it's literally the
+        // "tasks I assigned to others" inbox). Route the CTA there
+        // instead of a no-op.
+        return (
+          <AssignedTasksWidget
+            onAssignTask={() => router.push("/my-tasks")}
+          />
+        );
       case "people":
         return (
           <PeopleWidget

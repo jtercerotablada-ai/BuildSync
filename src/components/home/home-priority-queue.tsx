@@ -46,7 +46,10 @@ export function HomePriorityQueue({
     assignee: t.assignee
       ? { name: t.assignee.name, image: t.assignee.image }
       : null,
-    href: `/projects/${t.project.id}`,
+    // Open the task itself (full-page view at /tasks/[id]) so the
+    // user can edit it directly, instead of landing on the project
+    // page and having to hunt for the row.
+    href: `/tasks/${t.id}`,
   }));
 
   // Sort by urgency: most-overdue first, then due-soonest.

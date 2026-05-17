@@ -68,7 +68,7 @@ export function HomeRecentActivity({ items }: { items: ActivityItem[] }) {
                     </span>{" "}
                     <span className="text-gray-500">{verb}</span>{" "}
                     <Link
-                      href={`/projects/${a.project.id}`}
+                      href={`/tasks/${a.id}`}
                       className="text-black hover:underline"
                     >
                       {a.name}
