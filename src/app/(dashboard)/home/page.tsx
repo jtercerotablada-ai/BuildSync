@@ -51,6 +51,7 @@ import {
   WidgetOverlay,
 } from "@/components/dashboard/widget-container";
 import { CustomizeWidgetsModal } from "@/components/dashboard/customize-widgets-modal";
+import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
 import type { WidgetType } from "@/types/dashboard";
 import type { CockpitData } from "@/components/cockpit/types";
 
@@ -88,6 +89,9 @@ export default function HomePage() {
   // self-fetch.
   const [data, setData] = useState<CockpitData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Gmail-compose-style task composer triggered by the Assigned
+  // Tasks widget's "Assign task" CTA (and any future caller).
+  const [showQuickComposer, setShowQuickComposer] = useState(false);
   const { value: period, setValue: setPeriod } = useUiState<HomePeriod>(
     PERIOD_UI_STATE_KEY,
     "week"
@@ -182,9 +186,12 @@ export default function HomePage() {
           <GoalsWidget onCreateGoal={() => router.push("/goals?new=1")} />
         );
       case "assigned-tasks":
+        // Opens the Gmail-compose-style task composer pinned to the
+        // bottom-right. Replaces the previous router.push("/my-tasks")
+        // bounce — users wanted to actually assign here, not navigate.
         return (
           <AssignedTasksWidget
-            onAssignTask={() => router.push("/my-tasks")}
+            onAssignTask={() => setShowQuickComposer(true)}
           />
         );
       case "people":
@@ -289,6 +296,13 @@ export default function HomePage() {
         </DragOverlay>
       </DndContext>
 
+      {/* Floating Gmail-compose-style task composer. Mounted at the
+          page root so it stays pinned to bottom-right even when the
+          user scrolls the widget grid. */}
+      <QuickCreateTaskModal
+        open={showQuickComposer}
+        onOpenChange={setShowQuickComposer}
+      />
     </div>
   );
 }
