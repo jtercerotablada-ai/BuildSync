@@ -1349,7 +1349,51 @@ export default function MyTasksPage() {
             "--col-visibility": `${columnWidths.visibility}px`,
           } as React.CSSProperties}
         >
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto relative">
+          {/* Ghost-column overlay — Excel/Asana parity. Renders 5
+              full-height divs with left borders at every column
+              boundary so the vertical dividers stay continuous from
+              the header all the way to the bottom of the scroll
+              area, even past the last task row where individual
+              rows can't paint a border. pointer-events:none lets
+              clicks pass through to the rows underneath; z-0 keeps
+              it below the sticky header (z-20) and row content. */}
+          {view === "list" && (
+            <div className="absolute inset-0 pointer-events-none hidden md:flex justify-end z-0">
+              {!hiddenColumns.has("dueDate") && (
+                <div
+                  className="border-l border-gray-200"
+                  style={{ width: "var(--col-dueDate)" }}
+                />
+              )}
+              {!hiddenColumns.has("collaborators") && (
+                <div
+                  className="border-l border-gray-200"
+                  style={{ width: "var(--col-collaborators)" }}
+                />
+              )}
+              {!hiddenColumns.has("projects") && (
+                <div
+                  className="border-l border-gray-200"
+                  style={{ width: "var(--col-projects)" }}
+                />
+              )}
+              {!hiddenColumns.has("visibility") && (
+                <div
+                  className="border-l border-gray-200"
+                  style={{ width: "var(--col-visibility)" }}
+                />
+              )}
+              {Array.from({ length: customColumns.length }).map((_, i) => (
+                <div
+                  key={i}
+                  className="border-l border-gray-200"
+                  style={{ width: "110px" }}
+                />
+              ))}
+              <div className="w-8 border-l border-gray-200" />
+            </div>
+          )}
           {/* COLUMN HEADERS - sticky inside the scroll container so it shares
               the same effective width as the task rows below. Living outside
               the scroll container made the header ~15px wider than each row
