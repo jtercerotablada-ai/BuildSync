@@ -40,7 +40,9 @@ import {
  * for iframe embedding on external sites).
  */
 
-/** Local attachment state — File kept in memory until submit. */
+/** Local attachment state — Files kept in memory until submit.
+ *  Array because each ATTACHMENT field can carry multiple files
+ *  (typical RFI: marked-up drawing + 2-3 site photos). */
 type LocalAttachment = { file: File; previewUrl: string };
 
 export default function PublicFormPage() {
@@ -55,7 +57,7 @@ export default function PublicFormPage() {
 
   const [answers, setAnswers] = useState<FormSubmissionPayload>({});
   const [attachments, setAttachments] = useState<
-    Record<string, LocalAttachment>
+    Record<string, LocalAttachment[]>
   >({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -141,28 +143,37 @@ export default function PublicFormPage() {
           .filter((f) => isFieldVisible(f, nextAnswers, fieldsById))
           .map((f) => f.id)
       );
-      const out: Record<string, LocalAttachment> = {};
-      for (const [k, v] of Object.entries(prev)) {
-        if (visible.has(k)) out[k] = v;
-        else URL.revokeObjectURL(v.previewUrl);
+      const out: Record<string, LocalAttachment[]> = {};
+      for (const [k, list] of Object.entries(prev)) {
+        if (visible.has(k)) out[k] = list;
+        else list.forEach((a) => URL.revokeObjectURL(a.previewUrl));
       }
       return out;
     });
   }
 
-  function setAttachment(fieldId: string, file: File | null) {
+  function addAttachments(fieldId: string, files: FileList | null) {
+    if (!files || files.length === 0) return;
     setAttachments((prev) => {
-      const next = { ...prev };
-      if (prev[fieldId]) URL.revokeObjectURL(prev[fieldId].previewUrl);
-      if (file) {
-        next[fieldId] = {
-          file,
-          previewUrl: URL.createObjectURL(file),
-        };
-      } else {
-        delete next[fieldId];
-      }
-      return next;
+      const existing = prev[fieldId] || [];
+      const incoming: LocalAttachment[] = Array.from(files).map((file) => ({
+        file,
+        previewUrl: URL.createObjectURL(file),
+      }));
+      return { ...prev, [fieldId]: [...existing, ...incoming] };
+    });
+  }
+
+  function removeAttachmentAt(fieldId: string, index: number) {
+    setAttachments((prev) => {
+      const list = prev[fieldId] || [];
+      const target = list[index];
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      const next = list.filter((_, i) => i !== index);
+      const out = { ...prev };
+      if (next.length === 0) delete out[fieldId];
+      else out[fieldId] = next;
+      return out;
     });
   }
 
@@ -176,7 +187,8 @@ export default function PublicFormPage() {
       if (!f.required) continue;
       if (f.type === "HEADING") continue;
       if (f.type === "ATTACHMENT") {
-        if (!attachments[f.id]) {
+        const list = attachments[f.id] || [];
+        if (list.length === 0) {
           toast.error(`"${f.label}" is required`);
           return;
         }
@@ -202,8 +214,12 @@ export default function PublicFormPage() {
       if (hasAttachments) {
         const fd = new FormData();
         fd.append("answers", JSON.stringify(answers));
-        for (const [fieldId, att] of Object.entries(attachments)) {
-          fd.append(`attachment:${fieldId}`, att.file, att.file.name);
+        // Each file goes under the same key `attachment:<fieldId>`
+        // — the server uses formData.getAll() to collect them all.
+        for (const [fieldId, list] of Object.entries(attachments)) {
+          for (const att of list) {
+            fd.append(`attachment:${fieldId}`, att.file, att.file.name);
+          }
         }
         res = await fetch(`/api/forms/${form.id}/submit`, {
           method: "POST",
@@ -377,10 +393,13 @@ export default function PublicFormPage() {
                 <FieldInput
                   field={field}
                   value={answers[field.id] ?? null}
-                  attachment={attachments[field.id]}
+                  attachmentList={attachments[field.id] || []}
                   onChange={(v) => setAnswer(field.id, v)}
-                  onAttachmentChange={(file) =>
-                    setAttachment(field.id, file)
+                  onAddAttachments={(files) =>
+                    addAttachments(field.id, files)
+                  }
+                  onRemoveAttachmentAt={(idx) =>
+                    removeAttachmentAt(field.id, idx)
                   }
                 />
               </div>
@@ -420,15 +439,17 @@ export default function PublicFormPage() {
 function FieldInput({
   field,
   value,
-  attachment,
+  attachmentList,
   onChange,
-  onAttachmentChange,
+  onAddAttachments,
+  onRemoveAttachmentAt,
 }: {
   field: FormField;
   value: FormAnswerValue;
-  attachment?: LocalAttachment;
+  attachmentList: LocalAttachment[];
   onChange: (v: FormAnswerValue) => void;
-  onAttachmentChange: (file: File | null) => void;
+  onAddAttachments: (files: FileList | null) => void;
+  onRemoveAttachmentAt: (index: number) => void;
 }) {
   switch (field.type) {
     case "TEXT":
@@ -525,7 +546,11 @@ function FieldInput({
       );
 
     case "MULTI_SELECT": {
-      const selected: string[] = Array.isArray(value) ? value : [];
+      // MULTI_SELECT only stores string[]; the wider FormAnswerValue
+      // union includes attachment[] for ATTACHMENT, narrow here.
+      const selected: string[] = Array.isArray(value)
+        ? (value as string[])
+        : [];
       return (
         <div className="space-y-2 border rounded-md p-2.5 bg-slate-50/40">
           {(field.options || []).map((opt) => {
@@ -555,47 +580,65 @@ function FieldInput({
       );
     }
 
-    case "ATTACHMENT":
+    case "ATTACHMENT": {
+      // Multiple-file support: the user can pick several at once
+      // (Ctrl/Cmd-click in the picker) or drop another batch — they
+      // append to the list. Each row has its own remove ✕.
       return (
-        <div>
-          {attachment ? (
-            <div className="flex items-center gap-2 text-sm border rounded-md px-3 py-2 bg-slate-50">
-              <span className="flex-1 truncate text-slate-700">
-                {attachment.file.name}
-              </span>
-              <span className="text-[11px] text-slate-400 tabular-nums whitespace-nowrap">
-                {Math.round(attachment.file.size / 1024)} KB
-              </span>
-              <button
-                type="button"
-                onClick={() => onAttachmentChange(null)}
-                className="p-1 text-slate-400 hover:text-slate-700"
-                aria-label="Remove attachment"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          ) : (
-            <label
-              htmlFor={field.id}
-              className="flex items-center gap-2 text-sm border border-dashed rounded-md px-3 py-2 cursor-pointer hover:bg-slate-50 text-slate-600"
-            >
-              <Upload className="h-4 w-4 text-slate-400" />
-              <span>Choose a file…</span>
-              <input
-                id={field.id}
-                type="file"
-                className="sr-only"
-                accept={field.accept?.join(",")}
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  onAttachmentChange(f);
-                }}
-              />
-            </label>
+        <div className="space-y-2">
+          {attachmentList.length > 0 && (
+            <ul className="space-y-1.5">
+              {attachmentList.map((att, idx) => (
+                <li
+                  key={`${att.file.name}-${idx}`}
+                  className="flex items-center gap-2 text-sm border rounded-md px-3 py-2 bg-slate-50"
+                >
+                  <Upload className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                  <span className="flex-1 truncate text-slate-700">
+                    {att.file.name}
+                  </span>
+                  <span className="text-[11px] text-slate-400 tabular-nums whitespace-nowrap">
+                    {Math.round(att.file.size / 1024)} KB
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveAttachmentAt(idx)}
+                    className="p-1 text-slate-400 hover:text-rose-600"
+                    aria-label="Remove file"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
+          <label
+            htmlFor={field.id}
+            className="flex items-center gap-2 text-sm border border-dashed rounded-md px-3 py-2 cursor-pointer hover:bg-slate-50 text-slate-600"
+          >
+            <Upload className="h-4 w-4 text-slate-400" />
+            <span>
+              {attachmentList.length === 0
+                ? "Choose files…"
+                : "Add more files"}
+            </span>
+            <input
+              id={field.id}
+              type="file"
+              multiple
+              className="sr-only"
+              accept={field.accept?.join(",")}
+              onChange={(e) => {
+                onAddAttachments(e.target.files);
+                // Reset value so the same file can be re-added if
+                // the user deleted it.
+                e.target.value = "";
+              }}
+            />
+          </label>
         </div>
       );
+    }
 
     case "HEADING":
       // Heading is rendered at the parent level — never as an input.

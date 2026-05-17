@@ -99,30 +99,49 @@ export async function POST(
           );
         }
       }
-      // Upload each attachment to Vercel Blob, then attach URL +
-      // metadata to the corresponding answer.
-      for (const [key, value] of formData.entries()) {
-        if (!key.startsWith("attachment:")) continue;
-        if (!(value instanceof File) || value.size === 0) continue;
-        const fieldId = key.slice("attachment:".length);
-        try {
-          const { url } = await uploadFile(value, `forms/${form.id}`);
-          answers[fieldId] = {
-            name: value.name,
-            url,
-            size: value.size,
-            mimeType: value.type,
-          };
-        } catch (err) {
-          return NextResponse.json(
-            {
-              error:
-                err instanceof Error
-                  ? err.message
-                  : "Attachment upload failed",
-            },
-            { status: 400 }
-          );
+      // Upload every attachment file to Vercel Blob. Each ATTACHMENT
+      // field can carry multiple files (typical RFI: marked-up
+      // drawing + 2-3 site photos), all under the same multipart
+      // key `attachment:<fieldId>`. formData.getAll() collects all
+      // values for that key.
+      const attachmentFieldIds = new Set<string>();
+      for (const key of formData.keys()) {
+        if (key.startsWith("attachment:")) {
+          attachmentFieldIds.add(key.slice("attachment:".length));
+        }
+      }
+      for (const fieldId of attachmentFieldIds) {
+        const files = formData.getAll(`attachment:${fieldId}`);
+        const uploaded: Array<{
+          name: string;
+          url: string;
+          size: number;
+          mimeType: string;
+        }> = [];
+        for (const v of files) {
+          if (!(v instanceof File) || v.size === 0) continue;
+          try {
+            const { url } = await uploadFile(v, `forms/${form.id}`);
+            uploaded.push({
+              name: v.name,
+              url,
+              size: v.size,
+              mimeType: v.type,
+            });
+          } catch (err) {
+            return NextResponse.json(
+              {
+                error:
+                  err instanceof Error
+                    ? err.message
+                    : "Attachment upload failed",
+              },
+              { status: 400 }
+            );
+          }
+        }
+        if (uploaded.length > 0) {
+          answers[fieldId] = uploaded;
         }
       }
     } else {

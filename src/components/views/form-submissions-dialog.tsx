@@ -179,25 +179,40 @@ export function FormSubmissionsDialog({
                   </div>
                   <div className="space-y-1">
                     {Object.entries(s.data).map(([fieldId, value]) => {
-                      // ATTACHMENT — render link to blob URL
-                      if (isAttachment(value)) {
+                      // ATTACHMENT — could be a single attachment
+                      // (legacy submissions) or an array of them
+                      // (current multi-file shape). Normalize to
+                      // array and render each as a paperclip link.
+                      const attachmentList: AttachmentValue[] =
+                        Array.isArray(value)
+                          ? value.filter(isAttachment)
+                          : isAttachment(value)
+                            ? [value]
+                            : [];
+                      if (attachmentList.length > 0) {
                         return (
                           <div key={fieldId} className="text-sm">
                             <span className="text-slate-500 font-medium">
                               {fieldLabelById[fieldId] || fieldId}:
-                            </span>{" "}
-                            <a
-                              href={value.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[#a8893a] hover:underline inline-flex items-center gap-1"
-                            >
-                              <Paperclip className="w-3 h-3" />
-                              {value.name}
-                              <span className="text-[10px] text-slate-400 ml-1">
-                                ({Math.round(value.size / 1024)} KB)
-                              </span>
-                            </a>
+                            </span>
+                            <ul className="mt-1 ml-2 space-y-0.5">
+                              {attachmentList.map((att, i) => (
+                                <li key={i}>
+                                  <a
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[#a8893a] hover:underline inline-flex items-center gap-1"
+                                  >
+                                    <Paperclip className="w-3 h-3" />
+                                    {att.name}
+                                    <span className="text-[10px] text-slate-400 ml-1">
+                                      ({Math.round(att.size / 1024)} KB)
+                                    </span>
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         );
                       }

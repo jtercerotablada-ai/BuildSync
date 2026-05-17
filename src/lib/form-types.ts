@@ -109,13 +109,30 @@ export interface PublicFormRow {
 }
 
 /**
- * Submission answer values. ATTACHMENT fields carry a URL +
- * metadata; everything else is a string (or array for MULTI_SELECT).
+ * Submission answer values:
+ *   - string          for TEXT / EMAIL / DATE / NUMBER / SELECT / PEOPLE / TEXTAREA
+ *   - string[]        for MULTI_SELECT
+ *   - attachment[]    for ATTACHMENT (always an array; one file = [obj])
+ *   - null            when cleared / never answered
+ *
+ * The single-object attachment shape is kept in the union as a
+ * "legacy" branch so submissions made before multi-file support
+ * (when ATTACHMENT was one file per field) still parse cleanly.
+ * Reader helpers (formatAnswerForText) flatten both shapes into a
+ * comma list.
  */
+export interface FormAttachment {
+  name: string;
+  url: string;
+  size: number;
+  mimeType: string;
+}
+
 export type FormAnswerValue =
   | string
   | string[]
-  | { name: string; url: string; size: number; mimeType: string }
+  | FormAttachment
+  | FormAttachment[]
   | null;
 
 export type FormSubmissionPayload = Record<string, FormAnswerValue>;
@@ -151,7 +168,11 @@ export function isFieldVisible(
 
   if (dep.type === "MULTI_SELECT") {
     if (!Array.isArray(currentValue)) return false;
-    return equalsList.some((v) => currentValue.includes(v));
+    // MULTI_SELECT only ever holds string[]; the union with
+    // FormAttachment[] is for ATTACHMENT, which never controls
+    // branching. Cast to narrow for `.includes`.
+    const stringValues = currentValue as string[];
+    return equalsList.some((v) => stringValues.includes(v));
   }
   // SELECT
   if (typeof currentValue !== "string") return false;
@@ -182,15 +203,33 @@ export function pruneHiddenAnswers(
 
 /**
  * Render a single answer value as a string for display / description
- * concatenation. ATTACHMENT becomes "filename (url)". MULTI_SELECT
- * becomes "a, b, c". null/undefined → empty string.
+ * concatenation. ATTACHMENT becomes "filename1 (url1), filename2 (url2)".
+ * MULTI_SELECT becomes "a, b, c". null/undefined → empty string.
  */
+function isAttachment(v: unknown): v is FormAttachment {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    "url" in v &&
+    "name" in v &&
+    "size" in v
+  );
+}
+
 export function formatAnswerForText(value: FormAnswerValue): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.join(", ");
-  // Attachment shape
-  return `${value.name} (${value.url})`;
+  if (Array.isArray(value)) {
+    // Array could be MULTI_SELECT strings OR attachment[].
+    return value
+      .map((v) =>
+        isAttachment(v) ? `${v.name} (${v.url})` : String(v)
+      )
+      .join(", ");
+  }
+  // Single attachment (legacy single-file shape).
+  if (isAttachment(value)) return `${value.name} (${value.url})`;
+  return String(value);
 }
 
 /**

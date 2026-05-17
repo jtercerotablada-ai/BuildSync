@@ -48,9 +48,9 @@ export const FORM_TEMPLATES: FormTemplate[] = [
     id: "rfi",
     name: "RFI · Request for Information",
     description:
-      "Use this form to submit a Request for Information. Be specific about the drawing / detail in question — the design team responds within the SLA documented in the project's contract.",
+      "Use this form to submit a Request for Information. Attach the drawing(s) in question and mark up the area of conflict — the design team responds within the SLA documented in the project's contract.",
     blurb:
-      "Architect / contractor questions about drawings, specs, or site conditions.",
+      "Contractor / architect questions about drawings, specs, or site conditions. Attach marked-up drawings + photos.",
     icon: "HelpCircle",
     accent: "amber",
     confirmationMessage:
@@ -97,6 +97,7 @@ export const FORM_TEMPLATES: FormTemplate[] = [
           type: "TEXT",
           required: true,
           placeholder: "e.g. S-201",
+          helpText: "Sheet number from the drawing set this RFI references.",
         },
         {
           id: detailId,
@@ -113,6 +114,15 @@ export const FORM_TEMPLATES: FormTemplate[] = [
           mapTo: "description",
           placeholder:
             "What's unclear, what's the impact, what's needed to proceed?",
+        },
+        {
+          id: id("attachment"),
+          label: "Marked-up drawing + site photos",
+          type: "ATTACHMENT",
+          required: true,
+          accept: ["image/*", "application/pdf"],
+          helpText:
+            "Upload the drawing in question (highlight or circle the area) plus any site photos that show the conflict. You can attach multiple files.",
         },
         {
           id: urgencyId,
@@ -142,13 +152,6 @@ export const FORM_TEMPLATES: FormTemplate[] = [
           type: "DATE",
           required: false,
           mapTo: "dueDate",
-        },
-        {
-          id: id("attachment"),
-          label: "Markup / photo (optional)",
-          type: "ATTACHMENT",
-          required: false,
-          accept: ["image/*", "application/pdf"],
         },
       ];
     })(),
