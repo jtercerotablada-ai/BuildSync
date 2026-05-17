@@ -344,24 +344,35 @@ export default function MyTasksPage() {
   // listeners, and the ColumnHeader dropdowns — they already used
   // these same widths via --col-* CSS vars so converting them too
   // would be churn without behavior change.
+  // CRITICAL: composed from CSS var() references, NOT from the
+  // `columnWidths` state. During a column drag, handleResizeStart
+  // updates the --col-* CSS variables on every mousemove for instant
+  // visual feedback, but it only commits to React state at mouseup.
+  // If this template stringified the pixel values from state, the
+  // overlay's grid would freeze during the drag while the header /
+  // row cells (which read var(--col-*) directly) flowed underneath,
+  // breaking the divider alignment until the user released the mouse.
+  // Using var() here means the browser re-evaluates the grid on
+  // every CSS var change → dividers move with the column in real
+  // time, zero React re-renders during the drag.
   const taskGridTemplate = useMemo(() => {
     const cols: string[] = ["1fr"]; // Name (matches flex-1)
     if (!hiddenColumns.has("dueDate")) {
-      cols.push(`${columnWidths.dueDate}px`);
+      cols.push("var(--col-dueDate)");
     }
     if (!hiddenColumns.has("collaborators")) {
-      cols.push(`${columnWidths.collaborators}px`);
+      cols.push("var(--col-collaborators)");
     }
     if (!hiddenColumns.has("projects")) {
-      cols.push(`${columnWidths.projects}px`);
+      cols.push("var(--col-projects)");
     }
     if (!hiddenColumns.has("visibility")) {
-      cols.push(`${columnWidths.visibility}px`);
+      cols.push("var(--col-visibility)");
     }
     for (let i = 0; i < customColumns.length; i++) cols.push("110px");
     cols.push("32px"); // "+" column (matches w-8)
     return cols.join(" ");
-  }, [hiddenColumns, columnWidths, customColumns.length]);
+  }, [hiddenColumns, customColumns.length]);
 
 
   // Double-click on any resize handle → reset all columns to defaults
