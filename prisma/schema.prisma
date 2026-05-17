@@ -54,11 +54,11 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
-  jobTitle      String?   // Legacy free-form title — kept for backwards
-                          // compatibility. Prefer `position` going forward.
+  jobTitle      String? // Legacy free-form title — kept for backwards
+  // compatibility. Prefer `position` going forward.
   position      Position? // Structured role within their firm
-  customTitle   String?   // Used when position = OTHER for display
-  department    String?   // Free-form: "Structural", "MEP", "Office"
+  customTitle   String? // Used when position = OTHER for display
+  department    String? // Free-form: "Structural", "MEP", "Office"
   bio           String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -68,48 +68,52 @@ model User {
   sessions Session[]
 
   // App relations
-  workspaceMembers  WorkspaceMember[]
-  projectMembers    ProjectMember[]
-  teamMembers       TeamMember[]
-  assignedTasks     Task[]            @relation("AssignedTasks")
-  createdTasks      Task[]            @relation("CreatedTasks")
-  comments          Comment[]
-  activities        Activity[]
-  notifications     Notification[]
-  objectives        Objective[]       @relation("ObjectiveOwner")
-  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
-  ownedProjects     Project[]         @relation("ProjectOwner")
-  ownedPortfolios   Portfolio[]       @relation("PortfolioOwner")
-  messages              Message[]              @relation("MessageAuthor")
-  messageMentions       MessageMention[]       @relation("UserMentions")
-  teamMessages          TeamMessage[]          @relation("TeamMessageAuthor")
-  teamMessageMentions   TeamMessageMention[]   @relation("UserTeamMentions")
-  objectiveMembers      ObjectiveMember[]      @relation("UserObjectiveMembers")
-  workspaceNotes    WorkspaceNote[]   @relation("NoteAuthor")
-  noteCollaborators NoteCollaborator[]
-  preferences       UserPreferences?
+  workspaceMembers    WorkspaceMember[]
+  projectMembers      ProjectMember[]
+  teamMembers         TeamMember[]
+  assignedTasks       Task[]               @relation("AssignedTasks")
+  createdTasks        Task[]               @relation("CreatedTasks")
+  comments            Comment[]
+  activities          Activity[]
+  notifications       Notification[]
+  objectives          Objective[]          @relation("ObjectiveOwner")
+  ownedWorkspaces     Workspace[]          @relation("WorkspaceOwner")
+  ownedProjects       Project[]            @relation("ProjectOwner")
+  ownedPortfolios     Portfolio[]          @relation("PortfolioOwner")
+  messages            Message[]            @relation("MessageAuthor")
+  messageMentions     MessageMention[]     @relation("UserMentions")
+  teamMessages        TeamMessage[]        @relation("TeamMessageAuthor")
+  teamMessageMentions TeamMessageMention[] @relation("UserTeamMentions")
+  objectiveMembers    ObjectiveMember[]    @relation("UserObjectiveMembers")
+  workspaceNotes      WorkspaceNote[]      @relation("NoteAuthor")
+  noteCollaborators   NoteCollaborator[]
+  preferences         UserPreferences?
 
   // New relations (2.2)
-  portfolioMembers         PortfolioMember[]         @relation("UserPortfolioMembers")
-  portfolioStatusUpdates   PortfolioStatusUpdate[]   @relation("UserPortfolioStatusUpdates")
-  objectiveStatusUpdates   ObjectiveStatusUpdate[]   @relation("UserObjectiveStatusUpdates")
-  keyResultUpdates         KeyResultUpdate[]         @relation("UserKeyResultUpdates")
-  uploadedFiles            File[]                    @relation("UserFiles")
-  uploadedAttachments      Attachment[]              @relation("UserAttachments")
-  ownedReports             Report[]                  @relation("UserReports")
-  createdTemplates         ProjectTemplate[]         @relation("UserProjectTemplates")
-  workspaceInvitations     WorkspaceInvitation[]     @relation("UserWorkspaceInvitations")
-  messageReactions         MessageReaction[]         @relation("UserMessageReactions")
-  commentLikes             CommentLike[]             @relation("UserCommentLikes")
-  taskCollaborators        TaskCollaborator[]        @relation("UserTaskCollaborators")
-  taskLikes                TaskLike[]                @relation("UserTaskLikes")
-  objectiveLikes           ObjectiveLike[]           @relation("UserObjectiveLikes")
+  portfolioMembers       PortfolioMember[]       @relation("UserPortfolioMembers")
+  portfolioStatusUpdates PortfolioStatusUpdate[] @relation("UserPortfolioStatusUpdates")
+  objectiveStatusUpdates ObjectiveStatusUpdate[] @relation("UserObjectiveStatusUpdates")
+  keyResultUpdates       KeyResultUpdate[]       @relation("UserKeyResultUpdates")
+  uploadedFiles          File[]                  @relation("UserFiles")
+  uploadedAttachments    Attachment[]            @relation("UserAttachments")
+  ownedReports           Report[]                @relation("UserReports")
+  createdTemplates       ProjectTemplate[]       @relation("UserProjectTemplates")
+  workspaceInvitations   WorkspaceInvitation[]   @relation("UserWorkspaceInvitations")
+  messageReactions       MessageReaction[]       @relation("UserMessageReactions")
+  commentLikes           CommentLike[]           @relation("UserCommentLikes")
+  taskCollaborators      TaskCollaborator[]      @relation("UserTaskCollaborators")
+  taskLikes              TaskLike[]              @relation("UserTaskLikes")
+  objectiveLikes         ObjectiveLike[]         @relation("UserObjectiveLikes")
 
   // TTC Civil Structural - Client/Worker relations
-  clientProjectAccesses    ClientProjectAccess[]     @relation("ClientProjectAccesses")
-  clientApprovals          ClientApproval[]          @relation("ClientApprovals")
-  sentDirectMessages       DirectMessage[]           @relation("SentDirectMessages")
-  receivedDirectMessages   DirectMessage[]           @relation("ReceivedDirectMessages")
+  clientProjectAccesses  ClientProjectAccess[] @relation("ClientProjectAccesses")
+  clientApprovals        ClientApproval[]      @relation("ClientApprovals")
+  sentDirectMessages     DirectMessage[]       @relation("SentDirectMessages")
+  receivedDirectMessages DirectMessage[]       @relation("ReceivedDirectMessages")
+
+  // Forms — default assignee + submission attribution
+  formsAsDefaultAssignee Form[]           @relation("FormDefaultAssignee")
+  formSubmissions        FormSubmission[] @relation("FormSubmitter")
 }
 
 // ============ PREFERENCIAS DE USUARIO ============
@@ -131,7 +135,7 @@ model UserPreferences {
   // UI customization (home widgets, etc.)
   widgetPreferences Json?
   // Misc per-user UI state (sidebar collapsed, language, dismissed flags, AI history, etc.)
-  uiState Json?
+  uiState           Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -202,9 +206,9 @@ model WorkspaceInvitation {
   // Pre-assigned profile fields — applied to the invitee when they
   // accept so they land already labeled with their cargo/department
   // instead of starting blank.
-  position       Position?
-  customTitle    String?
-  department     String?
+  position        Position?
+  customTitle     String?
+  department      String?
   // Optional personal note from the inviter shown in the email +
   // landing page. Max 500 chars enforced server-side.
   personalMessage String?
@@ -286,23 +290,23 @@ enum TeamPrivacy {
 // ============ PORTAFOLIOS ============
 
 model Portfolio {
-  id          String            @id @default(cuid())
+  id          String           @id @default(cuid())
   name        String
   description String?
-  color       String?           @default("#7C3AED")
-  icon        String?           @default("folder")
-  status      PortfolioStatus   @default(ON_TRACK)
-  privacy     PortfolioPrivacy  @default(WORKSPACE)
+  color       String?          @default("#7C3AED")
+  icon        String?          @default("folder")
+  status      PortfolioStatus  @default(ON_TRACK)
+  privacy     PortfolioPrivacy @default(WORKSPACE)
   startDate   DateTime?
   endDate     DateTime?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   workspaceId String
   ownerId     String?
 
-  workspace     Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner         User?                    @relation("PortfolioOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  workspace     Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner         User?                   @relation("PortfolioOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   projects      PortfolioProject[]
   members       PortfolioMember[]
   statusUpdates PortfolioStatusUpdate[]
@@ -389,12 +393,12 @@ model Project {
 
   // Engineering firm extensions (nullable to preserve existing rows)
   type          ProjectType?
-  gate          ProjectGate?      @default(PRE_DESIGN)
+  gate          ProjectGate? @default(PRE_DESIGN)
   location      String?
   latitude      Float?
   longitude     Float?
-  budget        Decimal?          @db.Decimal(15, 2)
-  currency      String?           @default("USD")
+  budget        Decimal?     @db.Decimal(15, 2)
+  currency      String?      @default("USD")
   clientName    String?
   // Human-readable project number, auto-generated per workspace
   // (format: TT-YYYY-NNN). Nullable so historic rows don't break.
@@ -412,7 +416,7 @@ model Project {
   sections      Section[]
   tasks         Task[]
   members       ProjectMember[]
-  companies     ProjectCompany[] @relation("ProjectCompanies")
+  companies     ProjectCompany[]     @relation("ProjectCompanies")
   views         ProjectView[]
   customFields  ProjectCustomField[]
   portfolios    PortfolioProject[]
@@ -425,9 +429,9 @@ model Project {
   statusUpdates StatusUpdate[]
 
   // TTC Civil Structural - Client relations
-  clientAccesses   ClientProjectAccess[] @relation("ClientAccesses")
-  clientApprovals  ClientApproval[]      @relation("ProjectApprovals")
-  directMessages   DirectMessage[]       @relation("ProjectDirectMessages")
+  clientAccesses  ClientProjectAccess[] @relation("ClientAccesses")
+  clientApprovals ClientApproval[]      @relation("ProjectApprovals")
+  directMessages  DirectMessage[]       @relation("ProjectDirectMessages")
 }
 
 model ProjectMember {
@@ -456,24 +460,24 @@ model ProjectMember {
 /// scoped to a single project; a real-world firm can show up as a
 /// separate ProjectCompany row in every project it touches.
 model ProjectCompany {
-  id        String      @id @default(cuid())
-  projectId String
-  name      String
-  role      CompanyRole
-  logoUrl   String?
+  id                String      @id @default(cuid())
+  projectId         String
+  name              String
+  role              CompanyRole
+  logoUrl           String?
   // Email domain used to auto-route invites: when someone with an
   // @arqstudio.com address joins, we auto-assign them to this
   // company if its domain matches.
-  domain    String?
+  domain            String?
   // True when this company represents the workspace owner's firm
   // (the "host" firm). Exactly one ProjectCompany per project may
   // be marked isOwn = true, the rest are external collaborators.
-  isOwn     Boolean     @default(false)
+  isOwn             Boolean     @default(false)
   // Optional link to that firm's BuildSync workspace if they also
   // use the platform (federated multi-tenant collaboration).
   linkedWorkspaceId String?
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   project Project         @relation("ProjectCompanies", fields: [projectId], references: [id], onDelete: Cascade)
   members ProjectMember[]
@@ -500,7 +504,7 @@ enum Position {
 
   // ── Engineering / Production ───────────────────────
   PROJECT_MANAGER
-  PROJECT_ENGINEER          // Can stamp drawings (PE)
+  PROJECT_ENGINEER // Can stamp drawings (PE)
   SENIOR_STRUCTURAL_ENGINEER
   STRUCTURAL_ENGINEER
   JUNIOR_ENGINEER
@@ -537,8 +541,8 @@ enum CompanyRole {
   CONSTRUCTION_MANAGER
   COMMISSIONING_AGENT
   INTERIOR_DESIGNER
-  SPECIALTY_CONSULTANT       // sísmico, fachada, BIM, fire, etc.
-  BUILDING_DEPARTMENT_AHJ    // inspectors / authorities having jurisdiction
+  SPECIALTY_CONSULTANT // sísmico, fachada, BIM, fire, etc.
+  BUILDING_DEPARTMENT_AHJ // inspectors / authorities having jurisdiction
   OTHER
 }
 
@@ -617,7 +621,11 @@ model Section {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  tasks Task[]
+  tasks                 Task[]
+  // Back-relation for Form.defaultSection — when a section gets
+  // deleted, the linked form's defaultSection is set to NULL and
+  // the submit endpoint falls back to the project's first section.
+  formsAsDefaultSection Form[]
 
   @@index([projectId])
 }
@@ -625,17 +633,17 @@ model Section {
 // ============ TAREAS ============
 
 model Task {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-  completed   Boolean   @default(false)
-  completedAt DateTime?
-  startDate   DateTime?
-  dueDate     DateTime?
-  position    Int       @default(0)
-  isPrivate   Boolean   @default(false)
-  taskType    TaskType    @default(TASK)
-  priority    Priority    @default(NONE)
+  id            String         @id @default(cuid())
+  name          String
+  description   String?
+  completed     Boolean        @default(false)
+  completedAt   DateTime?
+  startDate     DateTime?
+  dueDate       DateTime?
+  position      Int            @default(0)
+  isPrivate     Boolean        @default(false)
+  taskType      TaskType       @default(TASK)
+  priority      Priority       @default(NONE)
   taskStatus    TaskStatus?
   myTaskSection MyTaskSection?
 
@@ -650,11 +658,11 @@ model Task {
   parentTaskId String? // For subtasks
 
   // Relations
-  project    Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  section    Section?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-  assignee   User?     @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
-  creator    User?     @relation("CreatedTasks", fields: [creatorId], references: [id], onDelete: SetNull)
-  parentTask Task?     @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  section    Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  assignee   User?    @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator    User?    @relation("CreatedTasks", fields: [creatorId], references: [id], onDelete: SetNull)
+  parentTask Task?    @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
 
   subtasks          Task[]             @relation("Subtasks")
   comments          Comment[]
@@ -667,7 +675,7 @@ model Task {
   likes             TaskLike[]
   objectives        ObjectiveTask[]
   keyResults        KeyResultTask[]
-  clientApprovals   ClientApproval[] @relation("TaskApprovals")
+  clientApprovals   ClientApproval[]   @relation("TaskApprovals")
 
   @@index([projectId])
   @@index([sectionId])
@@ -1011,10 +1019,10 @@ model TeamMessage {
   // project Messages so the UI component can be scope-agnostic.
   parentMessageId String?
 
-  team        Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  author      User?                 @relation("TeamMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
-  parent      TeamMessage?          @relation("TeamMessageThread", fields: [parentMessageId], references: [id], onDelete: Cascade)
-  replies     TeamMessage[]         @relation("TeamMessageThread")
+  team        Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  author      User?                @relation("TeamMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  parent      TeamMessage?         @relation("TeamMessageThread", fields: [parentMessageId], references: [id], onDelete: Cascade)
+  replies     TeamMessage[]        @relation("TeamMessageThread")
   attachments MessageAttachment[]
   reactions   MessageReaction[]
   mentions    TeamMessageMention[]
@@ -1073,24 +1081,24 @@ model MessageReaction {
 // ============ OBJETIVOS (OKRs) ============
 
 model Objective {
-  id             String          @id @default(cuid())
-  name           String
-  description    String?
-  status         ObjectiveStatus @default(ON_TRACK)
-  progress       Int             @default(0) // 0-100
-  progressSource ProgressSource  @default(MANUAL)
-  startDate      DateTime?
-  endDate        DateTime?
-  period         String? // "Q1 2024", "2024", etc.
-  isPrivate      Boolean         @default(false)
+  id              String          @id @default(cuid())
+  name            String
+  description     String?
+  status          ObjectiveStatus @default(ON_TRACK)
+  progress        Int             @default(0) // 0-100
+  progressSource  ProgressSource  @default(MANUAL)
+  startDate       DateTime?
+  endDate         DateTime?
+  period          String? // "Q1 2024", "2024", etc.
+  isPrivate       Boolean         @default(false)
   // Owner self-rated confidence the goal will land, 1-10. Trended via
   // ObjectiveStatusUpdate history to detect drift early.
   confidenceScore Int?
   // Last time the owner did a check-in (status + confidence + note).
   // Powers the "due for check-in" indicator on the list.
   lastCheckInAt   DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   workspaceId String
   ownerId     String?
@@ -1171,7 +1179,7 @@ model KeyResult {
   objectiveId String
   ownerId     String?
 
-  objective Objective         @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  objective Objective          @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
   updates   KeyResultUpdate[]
   projects  KeyResultProject[]
   tasks     KeyResultTask[]
@@ -1301,11 +1309,16 @@ model WorkflowRule {
 
 // ============ FORMULARIOS ============
 
+enum FormVisibility {
+  PUBLIC // Anyone with the link can submit (no auth)
+  ORGANIZATION // Only signed-in members of the workspace can submit
+}
+
 model Form {
   id          String   @id @default(cuid())
   name        String
   description String?
-  fields      Json // Form field configuration
+  fields      Json // FormField[] — see lib/form-types.ts
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1313,18 +1326,58 @@ model Form {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  // ── Settings ───────────────────────────────────────────────
+  // Where in the project new submission-tasks land. NULL falls
+  // back to the project's first section at submit time so an
+  // unset form keeps working even if the chosen section is later
+  // deleted.
+  defaultSectionId String?
+  defaultSection   Section? @relation(fields: [defaultSectionId], references: [id], onDelete: SetNull)
+
+  // Default assignee for the new task. NULL = leaves the task
+  // unassigned (the team picks it up from My Tasks).
+  defaultAssigneeId String?
+  defaultAssignee   User?   @relation("FormDefaultAssignee", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
+
+  // Optional custom thank-you message shown after submit. Falls
+  // back to a generic confirmation when unset.
+  confirmationMessage String?
+
+  // Whether to email the form creator + default assignee every
+  // time a submission arrives. Default ON — most intake forms
+  // want immediate awareness.
+  notifyOnSubmission Boolean @default(true)
+
+  // Anyone-with-link vs organization-only. PUBLIC is the default
+  // because intake forms are commonly shared with external
+  // clients / contractors.
+  visibility FormVisibility @default(PUBLIC)
+
+  // Open-ended settings bag for future extensions (themes,
+  // success-redirect URL, etc.) without another migration.
+  settings Json?
+
   submissions FormSubmission[]
+
+  @@index([projectId])
 }
 
 model FormSubmission {
   id        String   @id @default(cuid())
-  data      Json
+  data      Json // Record<fieldId, value> + _attachments?: Record<fieldId, [{name, url, size}]>
   createdAt DateTime @default(now())
 
   formId String
   taskId String? // Task created from form submission
 
+  // Captured when an authenticated user submits (ORGANIZATION
+  // visibility). PUBLIC submissions leave this null.
+  submitterUserId String?
+  submitterUser   User?   @relation("FormSubmitter", fields: [submitterUserId], references: [id], onDelete: SetNull)
+
   form Form @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
 }
 
 // ============ ACTUALIZACIONES DE ESTADO ============
@@ -1346,16 +1399,16 @@ model StatusUpdate {
 // ============ BASE DE CONOCIMIENTO ============
 
 model KnowledgeEntry {
-  id          String            @id @default(cuid())
+  id          String              @id @default(cuid())
   term        String
   definition  String
   category    String?
   tags        String[]
   attachments Json?
   visibility  KnowledgeVisibility @default(WORKSPACE)
-  viewCount   Int               @default(0)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  viewCount   Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   workspaceId String
   authorId    String
@@ -1478,7 +1531,7 @@ model ProjectTemplate {
   icon        String?
   color       String?
   isPublic    Boolean  @default(false)
-  structure   Json     // Template structure (sections, default tasks, etc.)
+  structure   Json // Template structure (sections, default tasks, etc.)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

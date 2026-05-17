@@ -5,21 +5,44 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
 /**
- * GET /api/forms/:formId — fetch a single form (public, used by the
- *   public form page; only returns fields, no submissions).
- * PATCH /api/forms/:formId — update form (auth, project edit role).
- * DELETE /api/forms/:formId — delete (auth, project edit role).
+ * GET /api/forms/:formId
+ *   PUBLIC — only the public-safe view (fields, name, description,
+ *   visibility, confirmationMessage). Used by the form-render page.
+ *   The settings panel uses ?settings=1 + auth to get the full row.
+ *
+ * PATCH /api/forms/:formId — full update (auth, project edit role).
+ *
+ * DELETE /api/forms/:formId — auth, project edit role.
  */
 
 const fieldSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1).max(200),
-  type: z.enum(["TEXT", "TEXTAREA", "EMAIL", "DATE", "SELECT"]),
+  type: z.enum([
+    "TEXT",
+    "TEXTAREA",
+    "EMAIL",
+    "DATE",
+    "NUMBER",
+    "SELECT",
+    "MULTI_SELECT",
+    "PEOPLE",
+    "ATTACHMENT",
+    "HEADING",
+  ]),
   required: z.boolean().default(false),
   placeholder: z.string().max(200).optional(),
   helpText: z.string().max(500).optional(),
   options: z.array(z.string().min(1)).optional(),
+  unit: z.string().max(40).optional(),
+  accept: z.array(z.string()).optional(),
   mapTo: z.enum(["name", "description", "dueDate"]).optional(),
+  showWhen: z
+    .object({
+      fieldId: z.string().min(1),
+      equals: z.union([z.string(), z.array(z.string())]),
+    })
+    .optional(),
 });
 
 const patchSchema = z.object({
@@ -27,6 +50,11 @@ const patchSchema = z.object({
   description: z.string().max(2000).optional().nullable(),
   fields: z.array(fieldSchema).min(1).max(50).optional(),
   isActive: z.boolean().optional(),
+  defaultSectionId: z.string().nullable().optional(),
+  defaultAssigneeId: z.string().nullable().optional(),
+  confirmationMessage: z.string().max(2000).nullable().optional(),
+  notifyOnSubmission: z.boolean().optional(),
+  visibility: z.enum(["PUBLIC", "ORGANIZATION"]).optional(),
 });
 
 async function assertFormEditAccess(formId: string, userId: string) {
@@ -54,14 +82,49 @@ async function assertFormEditAccess(formId: string, userId: string) {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ formId: string }> }
 ) {
-  // Intentionally PUBLIC — the form is meant to be linked to people
-  // outside the workspace. We only expose the schema, never the
-  // submissions or the project's private metadata.
+  // ?settings=1 → auth-gated full settings view (for the editor)
+  // otherwise   → public-safe view (for the submitter render page)
   try {
     const { formId } = await params;
+    const url = new URL(req.url);
+    const wantsSettings = url.searchParams.get("settings") === "1";
+
+    if (wantsSettings) {
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        return NextResponse.json(
+          { error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+      const access = await assertFormEditAccess(formId, userId);
+      if (!access.ok) {
+        return NextResponse.json(
+          { error: access.status === 404 ? "Not found" : "Forbidden" },
+          { status: access.status }
+        );
+      }
+      const f = access.form;
+      return NextResponse.json({
+        id: f.id,
+        name: f.name,
+        description: f.description,
+        fields: f.fields,
+        isActive: f.isActive,
+        projectId: f.projectId,
+        defaultSectionId: f.defaultSectionId,
+        defaultAssigneeId: f.defaultAssigneeId,
+        confirmationMessage: f.confirmationMessage,
+        notifyOnSubmission: f.notifyOnSubmission,
+        visibility: f.visibility,
+        createdAt: f.createdAt.toISOString(),
+        updatedAt: f.updatedAt.toISOString(),
+      });
+    }
+
     const form = await prisma.form.findUnique({
       where: { id: formId },
       select: {
@@ -71,6 +134,8 @@ export async function GET(
         fields: true,
         isActive: true,
         projectId: true,
+        confirmationMessage: true,
+        visibility: true,
       },
     });
     if (!form) {
@@ -119,18 +184,48 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    const p = parsed.data;
+
+    // Validate defaultSectionId belongs to this form's project.
+    if (p.defaultSectionId !== undefined && p.defaultSectionId !== null) {
+      const sec = await prisma.section.findFirst({
+        where: { id: p.defaultSectionId, projectId: access.form.projectId },
+        select: { id: true },
+      });
+      if (!sec) {
+        return NextResponse.json(
+          { error: "defaultSection doesn't belong to this project" },
+          { status: 400 }
+        );
+      }
+    }
 
     const data: Prisma.FormUpdateInput = {};
-    if (parsed.data.name !== undefined) data.name = parsed.data.name;
-    if (parsed.data.description !== undefined)
-      data.description = parsed.data.description;
-    if (parsed.data.isActive !== undefined)
-      data.isActive = parsed.data.isActive;
-    if (parsed.data.fields !== undefined) {
+    if (p.name !== undefined) data.name = p.name;
+    if (p.description !== undefined) data.description = p.description;
+    if (p.isActive !== undefined) data.isActive = p.isActive;
+    if (p.fields !== undefined) {
       data.fields = JSON.parse(
-        JSON.stringify(parsed.data.fields)
+        JSON.stringify(p.fields)
       ) as Prisma.InputJsonValue;
     }
+    if (p.defaultSectionId !== undefined) {
+      data.defaultSection = p.defaultSectionId
+        ? { connect: { id: p.defaultSectionId } }
+        : { disconnect: true };
+    }
+    if (p.defaultAssigneeId !== undefined) {
+      data.defaultAssignee = p.defaultAssigneeId
+        ? { connect: { id: p.defaultAssigneeId } }
+        : { disconnect: true };
+    }
+    if (p.confirmationMessage !== undefined) {
+      data.confirmationMessage = p.confirmationMessage;
+    }
+    if (p.notifyOnSubmission !== undefined) {
+      data.notifyOnSubmission = p.notifyOnSubmission;
+    }
+    if (p.visibility !== undefined) data.visibility = p.visibility;
 
     const form = await prisma.form.update({
       where: { id: formId },
@@ -145,6 +240,11 @@ export async function PATCH(
       fields: form.fields,
       isActive: form.isActive,
       projectId: form.projectId,
+      defaultSectionId: form.defaultSectionId,
+      defaultAssigneeId: form.defaultAssigneeId,
+      confirmationMessage: form.confirmationMessage,
+      notifyOnSubmission: form.notifyOnSubmission,
+      visibility: form.visibility,
       createdAt: form.createdAt.toISOString(),
       updatedAt: form.updatedAt.toISOString(),
       submissionCount: form._count.submissions,

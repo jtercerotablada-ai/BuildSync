@@ -4,19 +4,42 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
 /**
- * GET /api/projects/:projectId/forms — list forms in the project.
- * POST /api/projects/:projectId/forms — create a new form.
+ * GET  /api/projects/:projectId/forms — list every form in the
+ *   project. Returns the full FormRow shape (incl. settings)
+ *   because the Workflow tab needs it to populate the editor.
+ *
+ * POST /api/projects/:projectId/forms — create a new form scoped
+ *   to this project (project edit role required).
  */
 
 const fieldSchema = z.object({
   id: z.string().min(1),
   label: z.string().min(1).max(200),
-  type: z.enum(["TEXT", "TEXTAREA", "EMAIL", "DATE", "SELECT"]),
+  type: z.enum([
+    "TEXT",
+    "TEXTAREA",
+    "EMAIL",
+    "DATE",
+    "NUMBER",
+    "SELECT",
+    "MULTI_SELECT",
+    "PEOPLE",
+    "ATTACHMENT",
+    "HEADING",
+  ]),
   required: z.boolean().default(false),
   placeholder: z.string().max(200).optional(),
   helpText: z.string().max(500).optional(),
   options: z.array(z.string().min(1)).optional(),
+  unit: z.string().max(40).optional(),
+  accept: z.array(z.string()).optional(),
   mapTo: z.enum(["name", "description", "dueDate"]).optional(),
+  showWhen: z
+    .object({
+      fieldId: z.string().min(1),
+      equals: z.union([z.string(), z.array(z.string())]),
+    })
+    .optional(),
 });
 
 const createFormSchema = z.object({
@@ -24,6 +47,11 @@ const createFormSchema = z.object({
   description: z.string().max(2000).optional(),
   fields: z.array(fieldSchema).min(1).max(50),
   isActive: z.boolean().default(true),
+  defaultSectionId: z.string().nullable().optional(),
+  defaultAssigneeId: z.string().nullable().optional(),
+  confirmationMessage: z.string().max(2000).nullable().optional(),
+  notifyOnSubmission: z.boolean().optional(),
+  visibility: z.enum(["PUBLIC", "ORGANIZATION"]).optional(),
 });
 
 async function assertProjectAccess(projectId: string, userId: string) {
@@ -104,6 +132,11 @@ export async function GET(
         fields: f.fields,
         isActive: f.isActive,
         projectId: f.projectId,
+        defaultSectionId: f.defaultSectionId,
+        defaultAssigneeId: f.defaultAssigneeId,
+        confirmationMessage: f.confirmationMessage,
+        notifyOnSubmission: f.notifyOnSubmission,
+        visibility: f.visibility,
         createdAt: f.createdAt.toISOString(),
         updatedAt: f.updatedAt.toISOString(),
         submissionCount: f._count.submissions,
@@ -154,14 +187,34 @@ export async function POST(
         { status: 400 }
       );
     }
+    const p = parsed.data;
+
+    // Validate defaultSectionId belongs to this project.
+    if (p.defaultSectionId) {
+      const sec = await prisma.section.findFirst({
+        where: { id: p.defaultSectionId, projectId },
+        select: { id: true },
+      });
+      if (!sec) {
+        return NextResponse.json(
+          { error: "defaultSection doesn't belong to this project" },
+          { status: 400 }
+        );
+      }
+    }
 
     const form = await prisma.form.create({
       data: {
-        name: parsed.data.name,
-        description: parsed.data.description ?? null,
-        fields: JSON.parse(JSON.stringify(parsed.data.fields)),
-        isActive: parsed.data.isActive,
+        name: p.name,
+        description: p.description ?? null,
+        fields: JSON.parse(JSON.stringify(p.fields)),
+        isActive: p.isActive,
         projectId,
+        defaultSectionId: p.defaultSectionId ?? null,
+        defaultAssigneeId: p.defaultAssigneeId ?? null,
+        confirmationMessage: p.confirmationMessage ?? null,
+        notifyOnSubmission: p.notifyOnSubmission ?? true,
+        visibility: p.visibility ?? "PUBLIC",
       },
     });
 
@@ -173,6 +226,11 @@ export async function POST(
         fields: form.fields,
         isActive: form.isActive,
         projectId: form.projectId,
+        defaultSectionId: form.defaultSectionId,
+        defaultAssigneeId: form.defaultAssigneeId,
+        confirmationMessage: form.confirmationMessage,
+        notifyOnSubmission: form.notifyOnSubmission,
+        visibility: form.visibility,
         createdAt: form.createdAt.toISOString(),
         updatedAt: form.updatedAt.toISOString(),
         submissionCount: 0,

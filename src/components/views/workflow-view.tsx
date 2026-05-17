@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
   CheckCircle,
@@ -126,6 +126,7 @@ function makeDefaultAction(type: WorkflowActionType): WorkflowAction {
 
 export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [workflow, setWorkflow] = useState<WorkflowRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -207,6 +208,35 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
       canceled = true;
     };
   }, [projectId]);
+
+  // ── Deep-link support: ?form=new or ?form=<formId> ─────────
+  // Lets the Home FormsWidget (and anywhere else) jump into the
+  // form builder for a specific project / form directly. Runs after
+  // the initial forms fetch resolves so `forms` is populated when
+  // we try to look up an existing form by id.
+  useEffect(() => {
+    const formParam = searchParams?.get("form");
+    if (!formParam) return;
+    if (formParam === "new") {
+      setEditingForm(null);
+      setFormDialogOpen(true);
+    } else if (forms.length > 0) {
+      const match = forms.find((f) => f.id === formParam);
+      if (match) {
+        setEditingForm(match);
+        setFormDialogOpen(true);
+      }
+    }
+    // Strip ?form so a subsequent close doesn't re-open the dialog.
+    if (typeof window !== "undefined") {
+      const u = new URL(window.location.href);
+      if (u.searchParams.has("form")) {
+        u.searchParams.delete("form");
+        window.history.replaceState({}, "", u.toString());
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, forms.length]);
 
   // ── Group rules by section (for per-section cards) AND collect
   //    project-wide TASK_COMPLETED rules into their own bucket so
@@ -438,7 +468,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                 <div className="flex items-start gap-2 p-2.5 bg-slate-50 rounded-lg text-xs mb-3">
                   <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
                   <p className="text-slate-600">
-                    Anyone with the form's link can submit a task.
+                    Anyone with the form&apos;s link can submit a task.
                     Submissions land in the first section, then your
                     workflow rules take over.
                   </p>

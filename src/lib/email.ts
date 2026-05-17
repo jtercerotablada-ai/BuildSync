@@ -344,3 +344,198 @@ export async function sendTaskAssignedEmail(
     throw new Error("Failed to send task assignment email.");
   }
 }
+
+// ───────────────────────────────────────────────────────────────
+// Form submissions
+// ───────────────────────────────────────────────────────────────
+
+/**
+ * sendFormSubmissionEmail — fires when a form receives a new
+ * submission. Sent to the form creator + the default assignee (if
+ * set) so the team is aware the moment intake arrives.
+ *
+ * Carries the form name, the project name, the auto-created task
+ * link, and a short preview of the first few answers so the
+ * recipient can triage without opening the link if it's obvious.
+ */
+interface FormSubmissionEmailParams {
+  toEmail: string;
+  toName: string | null;
+  formName: string;
+  projectName: string;
+  projectId: string;
+  taskId: string;
+  taskName: string;
+  /** Up to ~5 short Q/A pairs to preview inline. */
+  previewAnswers: { label: string; value: string }[];
+}
+
+export async function sendFormSubmissionEmail(
+  params: FormSubmissionEmailParams
+) {
+  const {
+    toEmail,
+    toName,
+    formName,
+    projectName,
+    projectId,
+    taskId,
+    taskName,
+    previewAnswers,
+  } = params;
+
+  const url = `${APP_URL}/projects/${projectId}?task=${taskId}`;
+  const safeForm = escapeHtml(formName);
+  const safeProject = escapeHtml(projectName);
+  const safeTask = escapeHtml(taskName);
+  const safeRecipient = toName ? escapeHtml(toName) : null;
+
+  const previewRows = previewAnswers
+    .slice(0, 5)
+    .map(
+      (a) =>
+        `<tr>
+          <td style="color:#64748b;font-size:12px;padding:4px 8px 4px 0;vertical-align:top">${escapeHtml(
+            a.label
+          )}</td>
+          <td style="color:#0f172a;font-size:13px;padding:4px 0;text-align:right;word-break:break-word">${escapeHtml(
+            a.value.slice(0, 200)
+          )}</td>
+        </tr>`
+    )
+    .join("");
+
+  try {
+    await getResend().emails.send({
+      from: FROM,
+      to: toEmail,
+      subject: `New submission · ${formName}`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+    <div style="background:#000;padding:24px;text-align:center">
+      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
+    </div>
+    <div style="padding:32px 28px">
+      <p style="margin:0 0 6px;color:#a8893a;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600">New form submission</p>
+      <h1 style="margin:0 0 12px;font-size:20px;color:#0f172a;line-height:1.35">
+        ${safeRecipient ? `Hi ${safeRecipient}, ` : ""}<br/>
+        <span style="color:#a8893a">${safeForm}</span> just received a new response.
+      </h1>
+
+      <div style="margin:18px 0 20px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        <p style="margin:0 0 6px;color:#0f172a;font-size:14px;font-weight:600;line-height:1.35">${safeTask}</p>
+        <p style="margin:0 0 10px;color:#64748b;font-size:12px">Project · <span style="color:#0f172a;font-weight:500">${safeProject}</span></p>
+        ${
+          previewRows
+            ? `<table cellpadding="0" cellspacing="0" style="width:100%;margin-top:8px;border-top:1px solid #e2e8f0;padding-top:8px">${previewRows}</table>`
+            : ""
+        }
+      </div>
+
+      <a href="${url}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600">
+        Open task
+      </a>
+
+      <p style="margin:20px 0 0;color:#94a3b8;font-size:12px;line-height:1.55">
+        Or copy &amp; paste this link:<br/>
+        <a href="${url}" style="color:#a8893a;word-break:break-all">${url}</a>
+      </p>
+
+      <p style="margin:24px 0 0;color:#94a3b8;font-size:11px;line-height:1.55">
+        You're receiving this because you own this form or are its default assignee.
+        Turn off notifications from the form settings.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+    });
+  } catch (error) {
+    console.error("Failed to send form-submission email:", error);
+    // Soft-fail: never let an email outage block a submission. The
+    // submission itself is already persisted by the time we get here.
+  }
+}
+
+/**
+ * sendFormSubmitterReceiptEmail — fires when a submitter provided
+ * their email (via an EMAIL field) so they get a copy of what they
+ * sent. Optional courtesy; no-op if Resend or address missing.
+ */
+interface FormSubmitterReceiptParams {
+  toEmail: string;
+  formName: string;
+  confirmationMessage: string | null;
+  answers: { label: string; value: string }[];
+}
+
+export async function sendFormSubmitterReceiptEmail(
+  params: FormSubmitterReceiptParams
+) {
+  const { toEmail, formName, confirmationMessage, answers } = params;
+  const safeForm = escapeHtml(formName);
+  const safeMessage = confirmationMessage
+    ? escapeHtml(confirmationMessage)
+    : "Thanks — your submission has been received and the team will follow up shortly.";
+
+  const rows = answers
+    .map(
+      (a) =>
+        `<tr>
+          <td style="color:#64748b;font-size:12px;padding:4px 8px 4px 0;vertical-align:top;width:40%">${escapeHtml(
+            a.label
+          )}</td>
+          <td style="color:#0f172a;font-size:13px;padding:4px 0;word-break:break-word">${escapeHtml(
+            a.value
+          )}</td>
+        </tr>`
+    )
+    .join("");
+
+  try {
+    await getResend().emails.send({
+      from: FROM,
+      to: toEmail,
+      subject: `Receipt · ${formName}`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+    <div style="background:#000;padding:24px;text-align:center">
+      <img src="https://ttcivilstructural.com/ttc/img/logo-icon.svg" width="32" height="32" alt="TT" style="vertical-align:middle" />
+      <span style="color:#fff;font-size:18px;font-weight:600;margin-left:8px">BuildSync</span>
+    </div>
+    <div style="padding:32px 28px">
+      <p style="margin:0 0 6px;color:#a8893a;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600">Submission received</p>
+      <h1 style="margin:0 0 16px;font-size:20px;color:#0f172a;line-height:1.35">${safeForm}</h1>
+      <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.55">${safeMessage}</p>
+      ${
+        rows
+          ? `<table cellpadding="0" cellspacing="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin:0 0 20px">
+        <tr><td>
+          <p style="margin:0 0 8px;color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Your answers</p>
+          <table cellpadding="0" cellspacing="0" style="width:100%">${rows}</table>
+        </td></tr>
+      </table>`
+          : ""
+      }
+      <p style="margin:24px 0 0;color:#94a3b8;font-size:11px;line-height:1.55">
+        This is an automated receipt. Keep it for your records.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+    });
+  } catch (error) {
+    console.error("Failed to send form-submitter receipt email:", error);
+    // Soft-fail — receipt is courtesy.
+  }
+}

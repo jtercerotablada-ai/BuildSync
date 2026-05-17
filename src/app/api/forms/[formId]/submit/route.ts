@@ -1,32 +1,45 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import prisma from "@/lib/prisma";
+import { getCurrentUserId } from "@/lib/auth-utils";
+import { uploadFile } from "@/lib/storage";
 import {
   type FormField,
+  type FormSubmissionPayload,
+  type FormAnswerValue,
   buildTaskFromSubmission,
+  formatAnswerForText,
+  pruneHiddenAnswers,
+  isFieldVisible,
 } from "@/lib/form-types";
+import {
+  sendFormSubmissionEmail,
+  sendFormSubmitterReceiptEmail,
+} from "@/lib/email";
 
 /**
  * POST /api/forms/:formId/submit
  *
- * Public endpoint — anyone with the form's URL can submit. Validates
- * required fields, creates the FormSubmission row, and ALSO creates
- * a Task in the form's project (mapped via each field's `mapTo`).
+ * Accepts EITHER:
+ *   - application/json  →  { answers: Record<fieldId, value> }
+ *   - multipart/form-data → answers + files (for ATTACHMENT fields)
  *
- * The created task lands in the project's first section so the team
- * sees it in their default views immediately. A workflow rule on
- * that first section can then auto-assign / comment / etc.
- *
- * Returns the new submission id; the task is intentionally internal
- * (we don't expose its id to the public submitter).
+ * Behavior:
+ *   1. Reject if form is inactive (410).
+ *   2. Reject anonymous submission if visibility === ORGANIZATION (401).
+ *   3. Validate required visible fields (branching honored).
+ *   4. Upload attachment files to Vercel Blob, replace File objects
+ *      with their URL + metadata in the answers payload.
+ *   5. Create FormSubmission + Task in a transaction, in the form's
+ *      defaultSection (or fall back to project's first section).
+ *   6. Apply defaultAssignee to the new task.
+ *   7. Email admin (notifyOnSubmission) + submitter (if EMAIL field).
+ *   8. Return success + custom confirmation message.
  */
 
-const submitSchema = z.object({
-  // Free-form answers keyed by field id. Validation against the
-  // field schema happens after we load the form so we know the
-  // shape we expect.
-  answers: z.record(z.string(), z.string()),
-});
+interface AdminNotifyRecipient {
+  email: string;
+  name: string | null;
+}
 
 export async function POST(
   req: Request,
@@ -37,12 +50,11 @@ export async function POST(
 
     const form = await prisma.form.findUnique({
       where: { id: formId },
-      select: {
-        id: true,
-        name: true,
-        fields: true,
-        isActive: true,
-        projectId: true,
+      include: {
+        project: { select: { id: true, name: true, ownerId: true } },
+        defaultAssignee: {
+          select: { id: true, email: true, name: true },
+        },
       },
     });
     if (!form) {
@@ -55,39 +67,127 @@ export async function POST(
       );
     }
 
-    const body = await req.json();
-    const parsed = submitSchema.safeParse(body);
-    if (!parsed.success) {
+    // ── Visibility enforcement ────────────────────────────────
+    const submitterUserId = await getCurrentUserId();
+    if (form.visibility === "ORGANIZATION" && !submitterUserId) {
       return NextResponse.json(
-        { error: "Invalid payload" },
-        { status: 400 }
+        {
+          error:
+            "This form is restricted to signed-in members of the workspace.",
+        },
+        { status: 401 }
       );
     }
-    const answers = parsed.data.answers;
 
-    // Validate required fields are present.
+    // ── Parse body — JSON or multipart ────────────────────────
+    let answers: FormSubmissionPayload = {};
     const fields = (form.fields as unknown as FormField[]) || [];
-    for (const f of fields) {
-      if (f.required) {
-        const v = answers[f.id];
-        if (v == null || String(v).trim() === "") {
+    const contentType = req.headers.get("content-type") || "";
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      // JSON-encoded answers come in the `answers` field; files in
+      // `attachment:<fieldId>` fields, one File each.
+      const answersRaw = formData.get("answers");
+      if (typeof answersRaw === "string") {
+        try {
+          answers = JSON.parse(answersRaw) as FormSubmissionPayload;
+        } catch {
           return NextResponse.json(
-            { error: `Field "${f.label}" is required` },
+            { error: "Invalid answers payload" },
             { status: 400 }
           );
         }
       }
+      // Upload each attachment to Vercel Blob, then attach URL +
+      // metadata to the corresponding answer.
+      for (const [key, value] of formData.entries()) {
+        if (!key.startsWith("attachment:")) continue;
+        if (!(value instanceof File) || value.size === 0) continue;
+        const fieldId = key.slice("attachment:".length);
+        try {
+          const { url } = await uploadFile(value, `forms/${form.id}`);
+          answers[fieldId] = {
+            name: value.name,
+            url,
+            size: value.size,
+            mimeType: value.type,
+          };
+        } catch (err) {
+          return NextResponse.json(
+            {
+              error:
+                err instanceof Error
+                  ? err.message
+                  : "Attachment upload failed",
+            },
+            { status: 400 }
+          );
+        }
+      }
+    } else {
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body !== "object") {
+        return NextResponse.json(
+          { error: "Invalid payload" },
+          { status: 400 }
+        );
+      }
+      const raw = (body as { answers?: unknown }).answers;
+      if (raw && typeof raw === "object") {
+        answers = raw as FormSubmissionPayload;
+      }
     }
 
-    // Find the first section of the project so the auto-created
-    // task has somewhere to land. Without a section it would be
-    // invisible in all the standard views.
-    const firstSection = await prisma.section.findFirst({
-      where: { projectId: form.projectId },
-      orderBy: { position: "asc" },
-      select: { id: true },
-    });
-    if (!firstSection) {
+    // ── Branching-aware required validation ───────────────────
+    const fieldsById = new Map(fields.map((f) => [f.id, f] as const));
+    for (const f of fields) {
+      if (!f.required) continue;
+      if (f.type === "HEADING") continue;
+      if (!isFieldVisible(f, answers, fieldsById)) continue;
+      const v = answers[f.id];
+      const empty =
+        v == null ||
+        (typeof v === "string" && v.trim() === "") ||
+        (Array.isArray(v) && v.length === 0);
+      if (empty) {
+        return NextResponse.json(
+          { error: `Field "${f.label}" is required` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // ── Prune answers from hidden fields ──────────────────────
+    answers = pruneHiddenAnswers(fields, answers);
+
+    // ── Resolve target section ────────────────────────────────
+    let targetSectionId = form.defaultSectionId;
+    if (!targetSectionId) {
+      const firstSection = await prisma.section.findFirst({
+        where: { projectId: form.projectId },
+        orderBy: { position: "asc" },
+        select: { id: true },
+      });
+      targetSectionId = firstSection?.id ?? null;
+    } else {
+      // Sanity-check the default section still exists in the project
+      // (might have been deleted but the onDelete:SetNull hasn't
+      // run yet, or the form predates the delete).
+      const sec = await prisma.section.findFirst({
+        where: { id: targetSectionId, projectId: form.projectId },
+        select: { id: true },
+      });
+      if (!sec) {
+        const firstSection = await prisma.section.findFirst({
+          where: { projectId: form.projectId },
+          orderBy: { position: "asc" },
+          select: { id: true },
+        });
+        targetSectionId = firstSection?.id ?? null;
+      }
+    }
+    if (!targetSectionId) {
       return NextResponse.json(
         {
           error:
@@ -97,34 +197,34 @@ export async function POST(
       );
     }
 
-    const task = buildTaskFromSubmission(
+    // ── Build the task payload ────────────────────────────────
+    const taskBuild = buildTaskFromSubmission(
       { fields, name: form.name },
       answers
     );
 
-    // Create the FormSubmission first, then the Task with its id
-    // back-pointer, in a transaction so a failure leaves nothing
-    // half-persisted.
+    // ── Persist in a transaction ──────────────────────────────
     const result = await prisma.$transaction(async (tx) => {
       const submission = await tx.formSubmission.create({
         data: {
           formId: form.id,
+          submitterUserId: submitterUserId || null,
           data: JSON.parse(JSON.stringify(answers)),
         },
       });
 
       const createdTask = await tx.task.create({
         data: {
-          name: task.name,
-          description: task.description || null,
-          dueDate: task.dueDate ? new Date(task.dueDate) : null,
+          name: taskBuild.name,
+          description: taskBuild.description || null,
+          dueDate: taskBuild.dueDate ? new Date(taskBuild.dueDate) : null,
           projectId: form.projectId,
-          sectionId: firstSection.id,
+          sectionId: targetSectionId,
+          assigneeId: form.defaultAssigneeId,
+          creatorId: submitterUserId || form.project.ownerId || null,
         },
       });
 
-      // Back-fill the submission's taskId so the team can trace
-      // submissions to the tasks they created.
       await tx.formSubmission.update({
         where: { id: submission.id },
         data: { taskId: createdTask.id },
@@ -133,10 +233,78 @@ export async function POST(
       return { submissionId: submission.id, taskId: createdTask.id };
     });
 
+    // ── Notifications (best-effort, soft-fail) ────────────────
+    // Build a Q/A preview for the admin email.
+    const previewAnswers: { label: string; value: string }[] = [];
+    let submitterEmail: string | null = null;
+    for (const f of fields) {
+      if (f.type === "HEADING") continue;
+      const v = answers[f.id];
+      const text = formatAnswerForText(v);
+      if (text) {
+        previewAnswers.push({ label: f.label, value: text });
+        if (f.type === "EMAIL" && typeof v === "string" && !submitterEmail) {
+          submitterEmail = v.trim();
+        }
+      }
+    }
+
+    if (form.notifyOnSubmission) {
+      // Collect admin recipients: form's default assignee + project owner.
+      const recipients: AdminNotifyRecipient[] = [];
+      if (form.defaultAssignee?.email) {
+        recipients.push({
+          email: form.defaultAssignee.email,
+          name: form.defaultAssignee.name,
+        });
+      }
+      if (
+        form.project.ownerId &&
+        form.project.ownerId !== form.defaultAssignee?.id
+      ) {
+        const owner = await prisma.user.findUnique({
+          where: { id: form.project.ownerId },
+          select: { email: true, name: true },
+        });
+        if (owner?.email) {
+          recipients.push({ email: owner.email, name: owner.name });
+        }
+      }
+      // Dedupe by email
+      const seen = new Set<string>();
+      for (const r of recipients) {
+        if (seen.has(r.email)) continue;
+        seen.add(r.email);
+        await sendFormSubmissionEmail({
+          toEmail: r.email,
+          toName: r.name,
+          formName: form.name,
+          projectName: form.project.name,
+          projectId: form.projectId,
+          taskId: result.taskId,
+          taskName: taskBuild.name,
+          previewAnswers,
+        });
+      }
+    }
+
+    // Receipt to submitter if they gave an email.
+    if (submitterEmail) {
+      await sendFormSubmitterReceiptEmail({
+        toEmail: submitterEmail,
+        formName: form.name,
+        confirmationMessage: form.confirmationMessage,
+        answers: previewAnswers,
+      });
+    }
+
     return NextResponse.json(
       {
         success: true,
         submissionId: result.submissionId,
+        confirmationMessage:
+          form.confirmationMessage ||
+          "Thanks — the project team has been notified and your submission has been added to their backlog.",
       },
       { status: 201 }
     );
@@ -148,3 +316,7 @@ export async function POST(
     );
   }
 }
+
+/** unused: keeps the FormAnswerValue type pinned by the implementation
+ *  for callers who narrow on this shape. */
+export type _PinFormAnswerValue = FormAnswerValue;

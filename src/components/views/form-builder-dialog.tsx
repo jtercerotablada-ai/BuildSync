@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -28,24 +29,52 @@ import {
   Mail,
   Calendar,
   ChevronDown,
+  Hash,
+  ListChecks,
+  User,
+  Paperclip,
+  Heading2,
+  Copy,
+  Trash2,
+  Globe,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type {
   FormField,
   FormFieldMapTo,
+  FormFieldShowWhen,
   FormFieldType,
   FormRow,
 } from "@/lib/form-types";
 
 /**
- * Form Builder dialog — used in the project's Workflow tab to create
- * or edit a Form (the public-submission source for tasks).
+ * Form Builder dialog — single unified source for creating / editing
+ * forms. Three tabs:
  *
- * The user defines a list of fields (label, type, required, mapTo)
- * and saves. Saving POSTs to the API and the parent shows the new
- * form in its list with a "Copy public link" affordance.
+ *   Build    — drag-and-drop field list with per-field config
+ *              (label / required / mapTo / options / unit /
+ *              accept / branching show-when)
+ *   Settings — default section, default assignee, visibility,
+ *              confirmation message, email notification toggle
+ *   Share    — public form URL + copy button + iframe embed snippet
+ *
+ * Saves to /api/forms (create) or /api/forms/:id (edit). The Workflow
+ * tab in a project hosts this dialog; the home page's FormsWidget
+ * routes to /projects/:id?tab=workflow&form=new to open it.
  */
+
+interface ProjectSection {
+  id: string;
+  name: string;
+}
+
+interface ProjectMember {
+  id: string; // user id
+  name: string | null;
+  email: string | null;
+}
 
 interface Props {
   open: boolean;
@@ -56,20 +85,28 @@ interface Props {
   onSaved: (form: FormRow) => void;
 }
 
-const FIELD_TYPE_OPTIONS: { value: FormFieldType; label: string; icon: React.ReactNode }[] =
-  [
-    { value: "TEXT", label: "Short text", icon: <Type className="w-3.5 h-3.5" /> },
-    { value: "TEXTAREA", label: "Long text", icon: <AlignLeft className="w-3.5 h-3.5" /> },
-    { value: "EMAIL", label: "Email", icon: <Mail className="w-3.5 h-3.5" /> },
-    { value: "DATE", label: "Date", icon: <Calendar className="w-3.5 h-3.5" /> },
-    { value: "SELECT", label: "Dropdown", icon: <ChevronDown className="w-3.5 h-3.5" /> },
-  ];
+const FIELD_TYPE_OPTIONS: {
+  value: FormFieldType;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
+  { value: "TEXT", label: "Short text", icon: <Type className="w-3.5 h-3.5" /> },
+  { value: "TEXTAREA", label: "Long text", icon: <AlignLeft className="w-3.5 h-3.5" /> },
+  { value: "EMAIL", label: "Email", icon: <Mail className="w-3.5 h-3.5" /> },
+  { value: "DATE", label: "Date", icon: <Calendar className="w-3.5 h-3.5" /> },
+  { value: "NUMBER", label: "Number", icon: <Hash className="w-3.5 h-3.5" /> },
+  { value: "SELECT", label: "Dropdown", icon: <ChevronDown className="w-3.5 h-3.5" /> },
+  { value: "MULTI_SELECT", label: "Multi-select", icon: <ListChecks className="w-3.5 h-3.5" /> },
+  { value: "PEOPLE", label: "Person (name)", icon: <User className="w-3.5 h-3.5" /> },
+  { value: "ATTACHMENT", label: "Attachment", icon: <Paperclip className="w-3.5 h-3.5" /> },
+  { value: "HEADING", label: "Section heading", icon: <Heading2 className="w-3.5 h-3.5" /> },
+];
 
-const MAP_TO_OPTIONS: { value: FormFieldMapTo | ""; label: string }[] = [
-  { value: "", label: "(none — append to description)" },
+const MAP_TO_OPTIONS: { value: FormFieldMapTo | "__none__"; label: string }[] = [
+  { value: "__none__", label: "(none — append to description)" },
   { value: "name", label: "Task name" },
   { value: "description", label: "Task description" },
-  { value: "dueDate", label: "Task due date (DATE field only)" },
+  { value: "dueDate", label: "Task due date (DATE only)" },
 ];
 
 let _idCounter = 0;
@@ -78,12 +115,13 @@ function nextFieldId() {
   return `f${Date.now()}_${_idCounter}`;
 }
 
-function defaultField(): FormField {
+function emptyField(type: FormFieldType = "TEXT"): FormField {
   return {
     id: nextFieldId(),
-    label: "Untitled field",
-    type: "TEXT",
+    label: type === "HEADING" ? "Section" : "New field",
+    type,
     required: false,
+    options: type === "SELECT" || type === "MULTI_SELECT" ? ["Option 1"] : undefined,
   };
 }
 
@@ -94,222 +132,318 @@ export function FormBuilderDialog({
   initial,
   onSaved,
 }: Props) {
+  const [tab, setTab] = useState<"build" | "settings" | "share">("build");
+  const [saving, setSaving] = useState(false);
+  const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+
+  // ── Core form state ────────────────────────────────────────────
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [fields, setFields] = useState<FormField[]>([]);
-  const [isActive, setIsActive] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [fields, setFields] = useState<FormField[]>(() => [
+    emptyField("TEXT"),
+  ]);
 
+  // ── Settings state ─────────────────────────────────────────────
+  const [defaultSectionId, setDefaultSectionId] = useState<string | null>(null);
+  const [defaultAssigneeId, setDefaultAssigneeId] = useState<string | null>(null);
+  const [confirmationMessage, setConfirmationMessage] = useState("");
+  const [notifyOnSubmission, setNotifyOnSubmission] = useState(true);
+  const [visibility, setVisibility] = useState<"PUBLIC" | "ORGANIZATION">(
+    "PUBLIC"
+  );
+
+  // ── Picker options (lazy-loaded when needed) ───────────────────
+  const [sections, setSections] = useState<ProjectSection[]>([]);
+  const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [pickersLoaded, setPickersLoaded] = useState(false);
+
+  // ── Hydrate from `initial` on open ─────────────────────────────
   useEffect(() => {
     if (!open) return;
     if (initial) {
       setName(initial.name);
       setDescription(initial.description || "");
-      setFields(initial.fields);
-      setIsActive(initial.isActive);
+      setFields(
+        Array.isArray(initial.fields) && initial.fields.length > 0
+          ? initial.fields
+          : [emptyField("TEXT")]
+      );
+      setDefaultSectionId(initial.defaultSectionId);
+      setDefaultAssigneeId(initial.defaultAssigneeId);
+      setConfirmationMessage(initial.confirmationMessage || "");
+      setNotifyOnSubmission(initial.notifyOnSubmission);
+      setVisibility(initial.visibility);
     } else {
-      // Sensible default: 1 short-text field mapped to task name.
-      setName("New form");
+      setName("");
       setDescription("");
       setFields([
-        {
-          id: nextFieldId(),
-          label: "What's the request?",
-          type: "TEXT",
-          required: true,
-          mapTo: "name",
-        },
+        { ...emptyField("TEXT"), label: "Brief description", mapTo: "name" },
       ]);
-      setIsActive(true);
+      setDefaultSectionId(null);
+      setDefaultAssigneeId(null);
+      setConfirmationMessage("");
+      setNotifyOnSubmission(true);
+      setVisibility("PUBLIC");
     }
+    setTab("build");
+    setActiveFieldId(null);
   }, [open, initial]);
 
-  function updateField(idx: number, patch: Partial<FormField>) {
-    setFields((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
-  }
+  // ── Load sections + members once the dialog opens ──────────────
+  // GET /api/projects/:id returns both sections[] and members[] nested
+  // — one round-trip instead of two.
+  useEffect(() => {
+    if (!open || pickersLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}`);
+        if (!cancelled && res.ok) {
+          const data = (await res.json()) as {
+            sections?: { id: string; name: string }[];
+            members?: {
+              user: { id: string; name: string | null; email: string | null };
+            }[];
+          };
+          if (Array.isArray(data.sections)) {
+            setSections(
+              data.sections.map((s) => ({ id: s.id, name: s.name }))
+            );
+          }
+          if (Array.isArray(data.members)) {
+            setMembers(
+              data.members
+                .map((m) => ({
+                  id: m.user?.id,
+                  name: m.user?.name ?? null,
+                  email: m.user?.email ?? null,
+                }))
+                .filter((m): m is ProjectMember => Boolean(m.id))
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load form-builder pickers:", err);
+      } finally {
+        if (!cancelled) setPickersLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId, pickersLoaded]);
 
-  function moveField(idx: number, dir: -1 | 1) {
+  // ── Field operations ───────────────────────────────────────────
+  const addField = useCallback((type: FormFieldType = "TEXT") => {
+    setFields((prev) => [...prev, emptyField(type)]);
+  }, []);
+
+  const updateField = useCallback(
+    (id: string, patch: Partial<FormField>) => {
+      setFields((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, ...patch } : f))
+      );
+    },
+    []
+  );
+
+  const removeField = useCallback((id: string) => {
+    setFields((prev) => prev.filter((f) => f.id !== id));
+    // Clear any showWhen rules pointing at the deleted field.
+    setFields((prev) =>
+      prev.map((f) =>
+        f.showWhen?.fieldId === id ? { ...f, showWhen: undefined } : f
+      )
+    );
+  }, []);
+
+  const duplicateField = useCallback((id: string) => {
     setFields((prev) => {
+      const idx = prev.findIndex((f) => f.id === id);
+      if (idx === -1) return prev;
+      const clone: FormField = {
+        ...prev[idx],
+        id: nextFieldId(),
+        label: `${prev[idx].label} (copy)`,
+        showWhen: prev[idx].showWhen ? { ...prev[idx].showWhen } : undefined,
+      };
+      return [...prev.slice(0, idx + 1), clone, ...prev.slice(idx + 1)];
+    });
+  }, []);
+
+  const moveField = useCallback((id: string, dir: "up" | "down") => {
+    setFields((prev) => {
+      const idx = prev.findIndex((f) => f.id === id);
+      if (idx === -1) return prev;
+      const target = dir === "up" ? idx - 1 : idx + 1;
+      if (target < 0 || target >= prev.length) return prev;
       const next = [...prev];
-      const target = idx + dir;
-      if (target < 0 || target >= next.length) return prev;
       [next[idx], next[target]] = [next[target], next[idx]];
       return next;
     });
-  }
+  }, []);
 
-  function removeField(idx: number) {
-    setFields((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  async function handleSave() {
-    if (!name.trim()) {
-      toast.error("Give the form a name");
-      return;
+  // ── Validation ─────────────────────────────────────────────────
+  const validation = useMemo(() => {
+    if (!name.trim()) return { ok: false, msg: "Form name is required" };
+    const dataFields = fields.filter((f) => f.type !== "HEADING");
+    if (dataFields.length === 0) {
+      return { ok: false, msg: "Add at least one field" };
     }
-    if (fields.length === 0) {
-      toast.error("Add at least one field");
-      return;
-    }
-    // Validate SELECT fields have options.
     for (const f of fields) {
-      if (f.type === "SELECT" && (!f.options || f.options.length === 0)) {
-        toast.error(`Field "${f.label}" needs at least one option`);
-        return;
+      if (!f.label.trim()) return { ok: false, msg: "Every field needs a label" };
+      if ((f.type === "SELECT" || f.type === "MULTI_SELECT") && (!f.options || f.options.length === 0)) {
+        return { ok: false, msg: `"${f.label}" needs at least one option` };
       }
     }
-    // Ensure at most one field maps to "name" — pick the first if many.
-    const seenName = new Set<string>();
-    for (const f of fields) {
-      if (f.mapTo === "name") seenName.add(f.id);
+    // Exactly one mapTo:"name" or zero (auto-fallback "New submission to …")
+    const nameMappings = dataFields.filter((f) => f.mapTo === "name").length;
+    if (nameMappings > 1) {
+      return {
+        ok: false,
+        msg: "Only one field can map to the task name",
+      };
     }
-    if (seenName.size > 1) {
-      toast.error("Only one field can map to Task name. The first wins; clear the others.");
+    return { ok: true as const, msg: "" };
+  }, [name, fields]);
+
+  // ── Save ───────────────────────────────────────────────────────
+  async function handleSave() {
+    if (!validation.ok) {
+      toast.error(validation.msg);
       return;
     }
-
     setSaving(true);
     try {
-      const url = initial
-        ? `/api/forms/${initial.id}`
-        : `/api/projects/${projectId}/forms`;
+      const payload = {
+        name: name.trim(),
+        description: description.trim() || null,
+        fields,
+        projectId,
+        defaultSectionId,
+        defaultAssigneeId,
+        confirmationMessage: confirmationMessage.trim() || null,
+        notifyOnSubmission,
+        visibility,
+      };
+      const url = initial ? `/api/forms/${initial.id}` : "/api/forms";
       const method = initial ? "PATCH" : "POST";
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim() || null,
-          fields,
-          isActive,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error || "Failed to save form");
+        throw new Error(body?.error || "Save failed");
       }
-      const saved: FormRow = await res.json();
-      onSaved(saved);
+      const saved = (await res.json()) as FormRow;
       toast.success(initial ? "Form updated" : "Form created");
+      onSaved(saved);
       onOpenChange(false);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to save form"
-      );
+      toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
     }
   }
 
+  // ── Share helpers ──────────────────────────────────────────────
+  const publicUrl = useMemo(() => {
+    if (!initial?.id) return "";
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin}/forms/${initial.id}`;
+  }, [initial?.id]);
+
+  const embedSnippet = useMemo(() => {
+    if (!publicUrl) return "";
+    return `<iframe src="${publicUrl}?embed=1" style="border:0;width:100%;min-height:680px" loading="lazy"></iframe>`;
+  }, [publicUrl]);
+
+  // ── Render ─────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>
-            {initial ? "Edit form" : "Create form"}
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-5 pb-3 border-b">
+          <DialogTitle className="text-base font-semibold">
+            {initial ? "Edit form" : "New form"}
           </DialogTitle>
+          <div className="flex gap-4 border-b -mb-3 -mx-6 px-6 pt-3">
+            {(["build", "settings", "share"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                disabled={t === "share" && !initial}
+                className={cn(
+                  "pb-2 text-[13px] font-medium border-b-2 -mb-px transition-colors capitalize",
+                  tab === t
+                    ? "border-black text-black"
+                    : "border-transparent text-gray-500 hover:text-gray-800",
+                  t === "share" && !initial && "opacity-40 cursor-not-allowed"
+                )}
+              >
+                {t === "share" ? "Share" : t === "build" ? "Build" : "Settings"}
+              </button>
+            ))}
+          </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto space-y-4 py-2">
-          {/* Top: form metadata */}
-          <div className="space-y-2">
-            <Label>Form name</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Submit an RFI"
-              maxLength={120}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {tab === "build" && (
+            <BuildTab
+              name={name}
+              setName={setName}
+              description={description}
+              setDescription={setDescription}
+              fields={fields}
+              activeFieldId={activeFieldId}
+              setActiveFieldId={setActiveFieldId}
+              updateField={updateField}
+              removeField={removeField}
+              duplicateField={duplicateField}
+              moveField={moveField}
+              addField={addField}
             />
-          </div>
-          <div className="space-y-2">
-            <Label>Description (optional)</Label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Tell submitters what this form is for"
-              rows={2}
-              maxLength={2000}
-              className="resize-none"
+          )}
+
+          {tab === "settings" && (
+            <SettingsTab
+              sections={sections}
+              members={members}
+              defaultSectionId={defaultSectionId}
+              setDefaultSectionId={setDefaultSectionId}
+              defaultAssigneeId={defaultAssigneeId}
+              setDefaultAssigneeId={setDefaultAssigneeId}
+              confirmationMessage={confirmationMessage}
+              setConfirmationMessage={setConfirmationMessage}
+              notifyOnSubmission={notifyOnSubmission}
+              setNotifyOnSubmission={setNotifyOnSubmission}
+              visibility={visibility}
+              setVisibility={setVisibility}
             />
-          </div>
+          )}
 
-          {/* Fields list */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Fields</Label>
-              <span className="text-[11px] text-slate-400">
-                {fields.length} / 50
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              {fields.map((f, idx) => (
-                <FieldRow
-                  key={f.id}
-                  field={f}
-                  index={idx}
-                  count={fields.length}
-                  onChange={(patch) => updateField(idx, patch)}
-                  onMoveUp={() => moveField(idx, -1)}
-                  onMoveDown={() => moveField(idx, 1)}
-                  onRemove={() => removeField(idx)}
-                />
-              ))}
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setFields((prev) =>
-                  prev.length < 50 ? [...prev, defaultField()] : prev
-                )
-              }
-              disabled={fields.length >= 50}
-              className="w-full"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add field
-            </Button>
-          </div>
-
-          {/* Active toggle */}
-          <div className="flex items-center justify-between pt-2 border-t">
-            <div>
-              <Label>Accept submissions</Label>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Inactive forms reject new submissions but keep their
-                history.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isActive}
-              onClick={() => setIsActive((v) => !v)}
-              className={cn(
-                "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                isActive ? "bg-[#c9a84c]" : "bg-slate-300"
-              )}
-            >
-              <span
-                className={cn(
-                  "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                  isActive ? "translate-x-4" : "translate-x-0.5"
-                )}
-              />
-            </button>
-          </div>
+          {tab === "share" && initial && (
+            <ShareTab
+              publicUrl={publicUrl}
+              embedSnippet={embedSnippet}
+              visibility={visibility}
+            />
+          )}
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="px-6 py-3 border-t bg-slate-50">
+          {!validation.ok && (
+            <span className="text-[12px] text-rose-600 mr-auto">
+              {validation.msg}
+            </span>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !validation.ok}
             className="bg-black hover:bg-gray-900 text-white"
           >
             {saving ? "Saving…" : initial ? "Save changes" : "Create form"}
@@ -321,73 +455,247 @@ export function FormBuilderDialog({
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Single field row in the builder
+// BUILD TAB
 // ─────────────────────────────────────────────────────────────────
 
-interface FieldRowProps {
-  field: FormField;
-  index: number;
-  count: number;
-  onChange: (patch: Partial<FormField>) => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onRemove: () => void;
+function BuildTab(props: {
+  name: string;
+  setName: (v: string) => void;
+  description: string;
+  setDescription: (v: string) => void;
+  fields: FormField[];
+  activeFieldId: string | null;
+  setActiveFieldId: (id: string | null) => void;
+  updateField: (id: string, patch: Partial<FormField>) => void;
+  removeField: (id: string) => void;
+  duplicateField: (id: string) => void;
+  moveField: (id: string, dir: "up" | "down") => void;
+  addField: (type?: FormFieldType) => void;
+}) {
+  const {
+    name,
+    setName,
+    description,
+    setDescription,
+    fields,
+    activeFieldId,
+    setActiveFieldId,
+    updateField,
+    removeField,
+    duplicateField,
+    moveField,
+    addField,
+  } = props;
+
+  return (
+    <div className="space-y-5">
+      {/* Form-level name + description */}
+      <div className="space-y-1.5">
+        <Label htmlFor="form-name">Form name *</Label>
+        <Input
+          id="form-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. RFI Request"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="form-desc">Description</Label>
+        <Textarea
+          id="form-desc"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          placeholder="Shown at the top of the public form"
+          className="resize-none"
+        />
+      </div>
+
+      {/* Fields list */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-sm">Fields</Label>
+          <span className="text-[11px] text-slate-400">
+            {fields.length} field{fields.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="space-y-2">
+          {fields.map((field, idx) => (
+            <FieldRow
+              key={field.id}
+              field={field}
+              index={idx}
+              total={fields.length}
+              previousFields={fields.slice(0, idx)}
+              isActive={activeFieldId === field.id}
+              onToggleActive={() =>
+                setActiveFieldId(activeFieldId === field.id ? null : field.id)
+              }
+              onUpdate={(patch) => updateField(field.id, patch)}
+              onRemove={() => removeField(field.id)}
+              onDuplicate={() => duplicateField(field.id)}
+              onMove={(dir) => moveField(field.id, dir)}
+            />
+          ))}
+        </div>
+
+        {/* Add-field menu */}
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {FIELD_TYPE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => addField(opt.value)}
+              className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] border rounded-md hover:bg-slate-50 hover:border-slate-400 text-slate-700"
+            >
+              {opt.icon}
+              <span className="truncate">{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function FieldRow({
   field,
   index,
-  count,
-  onChange,
-  onMoveUp,
-  onMoveDown,
+  total,
+  previousFields,
+  isActive,
+  onToggleActive,
+  onUpdate,
   onRemove,
-}: FieldRowProps) {
+  onDuplicate,
+  onMove,
+}: {
+  field: FormField;
+  index: number;
+  total: number;
+  previousFields: FormField[];
+  isActive: boolean;
+  onToggleActive: () => void;
+  onUpdate: (patch: Partial<FormField>) => void;
+  onRemove: () => void;
+  onDuplicate: () => void;
+  onMove: (dir: "up" | "down") => void;
+}) {
+  const typeLabel =
+    FIELD_TYPE_OPTIONS.find((o) => o.value === field.type)?.label ?? field.type;
+
   return (
-    <div className="border rounded-lg p-3 bg-white space-y-2">
-      <div className="flex items-start gap-2">
-        <div className="flex flex-col items-center pt-1">
+    <div
+      className={cn(
+        "border rounded-md bg-white",
+        isActive ? "border-slate-400 shadow-sm" : "border-slate-200"
+      )}
+    >
+      {/* Summary row */}
+      <div className="flex items-center gap-2 px-3 py-2">
+        <div className="flex flex-col -gap-0.5">
           <button
             type="button"
-            onClick={onMoveUp}
+            onClick={() => onMove("up")}
             disabled={index === 0}
-            className="text-slate-300 hover:text-slate-600 disabled:opacity-30"
-            title="Move up"
+            className="text-slate-300 hover:text-slate-700 disabled:opacity-40 leading-none"
+            aria-label="Move up"
           >
-            <GripVertical className="w-4 h-4 rotate-90" />
+            ▲
           </button>
           <button
             type="button"
-            onClick={onMoveDown}
-            disabled={index === count - 1}
-            className="text-slate-300 hover:text-slate-600 disabled:opacity-30 -mt-1"
-            title="Move down"
+            onClick={() => onMove("down")}
+            disabled={index === total - 1}
+            className="text-slate-300 hover:text-slate-700 disabled:opacity-40 leading-none"
+            aria-label="Move down"
           >
-            <GripVertical className="w-4 h-4 -rotate-90" />
+            ▼
           </button>
         </div>
+        <GripVertical className="w-3.5 h-3.5 text-slate-300" />
+        <button
+          type="button"
+          onClick={onToggleActive}
+          className="flex-1 flex items-center gap-2 text-left text-[13px] text-slate-800"
+        >
+          <span className="font-medium truncate">{field.label || "Untitled"}</span>
+          <span className="text-[11px] text-slate-400">· {typeLabel}</span>
+          {field.required && (
+            <span className="text-[10px] uppercase tracking-wider text-rose-600">
+              required
+            </span>
+          )}
+          {field.mapTo && (
+            <span className="text-[10px] uppercase tracking-wider text-[#a8893a]">
+              → {field.mapTo}
+            </span>
+          )}
+          {field.showWhen && (
+            <span className="text-[10px] uppercase tracking-wider text-blue-600">
+              conditional
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onDuplicate}
+          className="p-1 text-slate-400 hover:text-slate-700"
+          title="Duplicate field"
+        >
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="p-1 text-slate-400 hover:text-rose-600"
+          title="Delete field"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
-        <div className="flex-1 space-y-2">
-          <Input
-            value={field.label}
-            onChange={(e) => onChange({ label: e.target.value })}
-            placeholder="Field label"
-            maxLength={200}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-[11px] text-slate-500">Type</Label>
+      {/* Editor (expanded when active) */}
+      {isActive && (
+        <div className="px-4 pb-4 border-t pt-3 space-y-3 bg-slate-50/40">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[11px] uppercase tracking-wider text-slate-500">
+                Label
+              </Label>
+              <Input
+                value={field.label}
+                onChange={(e) => onUpdate({ label: e.target.value })}
+                placeholder="What's the prompt?"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] uppercase tracking-wider text-slate-500">
+                Type
+              </Label>
               <Select
                 value={field.type}
-                onValueChange={(v) => onChange({ type: v as FormFieldType })}
+                onValueChange={(v) =>
+                  onUpdate({
+                    type: v as FormFieldType,
+                    // When switching to SELECT/MULTI_SELECT, seed
+                    // options. Otherwise clear them.
+                    options:
+                      v === "SELECT" || v === "MULTI_SELECT"
+                        ? field.options && field.options.length > 0
+                          ? field.options
+                          : ["Option 1"]
+                        : undefined,
+                  })
+                }
               >
-                <SelectTrigger className="h-8">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {FIELD_TYPE_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
-                      <span className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5">
                         {o.icon}
                         {o.label}
                       </span>
@@ -396,83 +704,501 @@ function FieldRow({
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-[11px] text-slate-500">Maps to</Label>
-              <Select
-                value={field.mapTo ?? ""}
-                onValueChange={(v) =>
+          </div>
+
+          {field.type !== "HEADING" && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px] uppercase tracking-wider text-slate-500">
+                    Placeholder
+                  </Label>
+                  <Input
+                    value={field.placeholder || ""}
+                    onChange={(e) => onUpdate({ placeholder: e.target.value })}
+                    placeholder="Hint text"
+                  />
+                </div>
+                {field.type === "NUMBER" && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] uppercase tracking-wider text-slate-500">
+                      Unit (optional)
+                    </Label>
+                    <Input
+                      value={field.unit || ""}
+                      onChange={(e) => onUpdate({ unit: e.target.value })}
+                      placeholder="kg, m², $, hours…"
+                    />
+                  </div>
+                )}
+                {field.type === "ATTACHMENT" && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] uppercase tracking-wider text-slate-500">
+                      Accept types
+                    </Label>
+                    <Input
+                      value={(field.accept || []).join(", ")}
+                      onChange={(e) =>
+                        onUpdate({
+                          accept: e.target.value
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder="image/*, application/pdf"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[11px] uppercase tracking-wider text-slate-500">
+                  Help text
+                </Label>
+                <Input
+                  value={field.helpText || ""}
+                  onChange={(e) => onUpdate({ helpText: e.target.value })}
+                  placeholder="Short explanation shown under the field"
+                />
+              </div>
+
+              {(field.type === "SELECT" || field.type === "MULTI_SELECT") && (
+                <OptionsEditor
+                  options={field.options || []}
+                  onChange={(opts) => onUpdate({ options: opts })}
+                />
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id={`req-${field.id}`}
+                    checked={field.required}
+                    onCheckedChange={(c) => onUpdate({ required: c })}
+                  />
+                  <Label htmlFor={`req-${field.id}`} className="text-[12px]">
+                    Required
+                  </Label>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px] uppercase tracking-wider text-slate-500">
+                    Maps to Task field
+                  </Label>
+                  <Select
+                    value={field.mapTo || "__none__"}
+                    onValueChange={(v) =>
+                      onUpdate({
+                        mapTo: v === "__none__" ? undefined : (v as FormFieldMapTo),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MAP_TO_OPTIONS.map((o) => (
+                        <SelectItem
+                          key={o.value}
+                          value={o.value}
+                          disabled={
+                            o.value === "dueDate" && field.type !== "DATE"
+                          }
+                        >
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Branching — only available when there's a SELECT or
+                  MULTI_SELECT field BEFORE this one to depend on. */}
+              <BranchingEditor
+                previousFields={previousFields.filter(
+                  (f) => f.type === "SELECT" || f.type === "MULTI_SELECT"
+                )}
+                showWhen={field.showWhen}
+                onChange={(rule) => onUpdate({ showWhen: rule })}
+              />
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OptionsEditor({
+  options,
+  onChange,
+}: {
+  options: string[];
+  onChange: (next: string[]) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-[11px] uppercase tracking-wider text-slate-500">
+        Options
+      </Label>
+      <div className="space-y-1.5">
+        {options.map((opt, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <Input
+              value={opt}
+              onChange={(e) => {
+                const next = [...options];
+                next[i] = e.target.value;
+                onChange(next);
+              }}
+              placeholder={`Option ${i + 1}`}
+            />
+            <button
+              type="button"
+              onClick={() => onChange(options.filter((_, k) => k !== i))}
+              className="p-1 text-slate-400 hover:text-rose-600"
+              disabled={options.length <= 1}
+              aria-label="Remove option"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        type="button"
+        onClick={() => onChange([...options, `Option ${options.length + 1}`])}
+      >
+        <Plus className="w-3.5 h-3.5 mr-1" />
+        Add option
+      </Button>
+    </div>
+  );
+}
+
+function BranchingEditor({
+  previousFields,
+  showWhen,
+  onChange,
+}: {
+  previousFields: FormField[];
+  showWhen?: FormFieldShowWhen;
+  onChange: (rule: FormFieldShowWhen | undefined) => void;
+}) {
+  const hasCandidates = previousFields.length > 0;
+  return (
+    <div className="border border-dashed border-slate-300 rounded-md p-3 bg-white">
+      <Label className="text-[11px] uppercase tracking-wider text-slate-500 mb-1.5 block">
+        Conditional visibility
+      </Label>
+      {!hasCandidates ? (
+        <p className="text-[12px] text-slate-400 italic">
+          Add a Dropdown or Multi-select field above to enable branching for
+          this field.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Switch
+              id={`branch-toggle-${previousFields[0].id}`}
+              checked={!!showWhen}
+              onCheckedChange={(c) => {
+                if (!c) onChange(undefined);
+                else {
+                  const first = previousFields[0];
                   onChange({
-                    mapTo: (v || undefined) as FormFieldMapTo | undefined,
-                  })
+                    fieldId: first.id,
+                    equals: first.options?.[0] ?? "",
+                  });
                 }
+              }}
+            />
+            <span className="text-[12px] text-slate-700">
+              Only show this field when…
+            </span>
+          </div>
+          {showWhen && (
+            <div className="flex flex-wrap items-center gap-2 pl-8 text-[12px]">
+              <Select
+                value={showWhen.fieldId}
+                onValueChange={(v) => {
+                  const f = previousFields.find((x) => x.id === v);
+                  onChange({
+                    fieldId: v,
+                    equals: f?.options?.[0] ?? "",
+                  });
+                }}
               >
-                <SelectTrigger className="h-8">
+                <SelectTrigger className="w-[180px] h-8 text-[12px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MAP_TO_OPTIONS.map((o) => (
-                    <SelectItem
-                      key={o.value || "none"}
-                      value={o.value || "none"}
-                      disabled={
-                        o.value === "dueDate" && field.type !== "DATE"
-                      }
-                    >
-                      {o.label}
+                  {previousFields.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-slate-500">equals</span>
+              <Select
+                value={
+                  Array.isArray(showWhen.equals)
+                    ? showWhen.equals[0] || ""
+                    : showWhen.equals
+                }
+                onValueChange={(v) =>
+                  onChange({ fieldId: showWhen.fieldId, equals: v })
+                }
+              >
+                <SelectTrigger className="w-[180px] h-8 text-[12px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(
+                    previousFields.find((f) => f.id === showWhen.fieldId)
+                      ?.options || []
+                  ).map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          {field.type === "SELECT" && (
-            <div className="space-y-1">
-              <Label className="text-[11px] text-slate-500">
-                Options (one per line)
-              </Label>
-              <Textarea
-                value={(field.options || []).join("\n")}
-                onChange={(e) =>
-                  onChange({
-                    options: e.target.value
-                      .split("\n")
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  })
-                }
-                rows={3}
-                placeholder="Option 1&#10;Option 2&#10;Option 3"
-                className="resize-none text-sm"
-              />
-            </div>
           )}
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={field.required}
-              onChange={(e) => onChange({ required: e.target.checked })}
-              id={`req-${field.id}`}
-              className="rounded"
-            />
-            <Label
-              htmlFor={`req-${field.id}`}
-              className="text-[12px] cursor-pointer"
-            >
-              Required
-            </Label>
-          </div>
         </div>
+      )}
+    </div>
+  );
+}
 
-        <button
-          type="button"
-          onClick={onRemove}
-          className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
-          title="Remove field"
+// ─────────────────────────────────────────────────────────────────
+// SETTINGS TAB
+// ─────────────────────────────────────────────────────────────────
+
+function SettingsTab(props: {
+  sections: ProjectSection[];
+  members: ProjectMember[];
+  defaultSectionId: string | null;
+  setDefaultSectionId: (v: string | null) => void;
+  defaultAssigneeId: string | null;
+  setDefaultAssigneeId: (v: string | null) => void;
+  confirmationMessage: string;
+  setConfirmationMessage: (v: string) => void;
+  notifyOnSubmission: boolean;
+  setNotifyOnSubmission: (v: boolean) => void;
+  visibility: "PUBLIC" | "ORGANIZATION";
+  setVisibility: (v: "PUBLIC" | "ORGANIZATION") => void;
+}) {
+  const {
+    sections,
+    members,
+    defaultSectionId,
+    setDefaultSectionId,
+    defaultAssigneeId,
+    setDefaultAssigneeId,
+    confirmationMessage,
+    setConfirmationMessage,
+    notifyOnSubmission,
+    setNotifyOnSubmission,
+    visibility,
+    setVisibility,
+  } = props;
+  return (
+    <div className="space-y-5">
+      <div className="space-y-1.5">
+        <Label className="text-sm">Default section</Label>
+        <Select
+          value={defaultSectionId ?? "__first__"}
+          onValueChange={(v) =>
+            setDefaultSectionId(v === "__first__" ? null : v)
+          }
         >
-          <X className="w-4 h-4" />
-        </button>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__first__">
+              First section of the project
+            </SelectItem>
+            {sections.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-slate-500">
+          Where new submission-tasks land. Falls back to the first section
+          if the chosen one is later deleted.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-sm">Default assignee</Label>
+        <Select
+          value={defaultAssigneeId ?? "__unassigned__"}
+          onValueChange={(v) =>
+            setDefaultAssigneeId(v === "__unassigned__" ? null : v)
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__unassigned__">Unassigned</SelectItem>
+            {members.map((m) => (
+              <SelectItem key={m.id} value={m.id}>
+                {m.name || m.email || "Member"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-slate-500">
+          Auto-assigned on every new submission-task. The assignee also
+          gets the submission email when notifications are on.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-sm">Visibility</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setVisibility("PUBLIC")}
+            className={cn(
+              "border rounded-md px-3 py-2.5 text-left text-[12px] flex items-start gap-2",
+              visibility === "PUBLIC"
+                ? "border-black bg-slate-50"
+                : "border-slate-200 hover:border-slate-300"
+            )}
+          >
+            <Globe className="w-4 h-4 text-slate-500 mt-px flex-shrink-0" />
+            <span>
+              <div className="font-medium text-slate-900">Public link</div>
+              <div className="text-slate-500">
+                Anyone with the URL can submit (clients, contractors).
+              </div>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisibility("ORGANIZATION")}
+            className={cn(
+              "border rounded-md px-3 py-2.5 text-left text-[12px] flex items-start gap-2",
+              visibility === "ORGANIZATION"
+                ? "border-black bg-slate-50"
+                : "border-slate-200 hover:border-slate-300"
+            )}
+          >
+            <Lock className="w-4 h-4 text-slate-500 mt-px flex-shrink-0" />
+            <span>
+              <div className="font-medium text-slate-900">Organization only</div>
+              <div className="text-slate-500">
+                Sign-in required — only workspace members can submit.
+              </div>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-sm">Confirmation message</Label>
+        <Textarea
+          value={confirmationMessage}
+          onChange={(e) => setConfirmationMessage(e.target.value)}
+          rows={3}
+          placeholder="Shown to the submitter after they hit Submit. Leave empty for the default."
+          className="resize-none"
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border rounded-md p-3 bg-slate-50/40">
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium text-slate-900">
+            Email me on new submissions
+          </p>
+          <p className="text-[12px] text-slate-500">
+            Sends the form owner + default assignee an email each time the
+            form is submitted, with a preview of the answers.
+          </p>
+        </div>
+        <Switch
+          checked={notifyOnSubmission}
+          onCheckedChange={setNotifyOnSubmission}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SHARE TAB
+// ─────────────────────────────────────────────────────────────────
+
+function ShareTab({
+  publicUrl,
+  embedSnippet,
+  visibility,
+}: {
+  publicUrl: string;
+  embedSnippet: string;
+  visibility: "PUBLIC" | "ORGANIZATION";
+}) {
+  return (
+    <div className="space-y-5">
+      <div className="space-y-1.5">
+        <Label className="text-sm">Public link</Label>
+        <div className="flex gap-2">
+          <Input value={publicUrl} readOnly className="font-mono text-xs" />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              navigator.clipboard.writeText(publicUrl);
+              toast.success("Link copied");
+            }}
+          >
+            <Copy className="w-3.5 h-3.5 mr-1" />
+            Copy
+          </Button>
+        </div>
+        {visibility === "ORGANIZATION" && (
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+            Visibility is set to Organization. People who follow this link
+            must sign in with a workspace account before they can submit.
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-sm">Embed on your site</Label>
+        <Textarea
+          value={embedSnippet}
+          readOnly
+          rows={3}
+          className="font-mono text-[11px] resize-none"
+        />
+        <p className="text-[11px] text-slate-500">
+          Drop this iframe snippet into any website. The form will render
+          in embed mode without the BuildSync chrome.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            navigator.clipboard.writeText(embedSnippet);
+            toast.success("Embed snippet copied");
+          }}
+        >
+          <Copy className="w-3.5 h-3.5 mr-1" />
+          Copy embed
+        </Button>
       </div>
     </div>
   );
