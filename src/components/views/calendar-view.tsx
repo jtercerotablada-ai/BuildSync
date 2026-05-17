@@ -1,49 +1,37 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+/**
+ * Project Calendar view — visually identical to the /my-tasks
+ * calendar (Juan's reference). Continuous-scroll month grid with:
+ *   - Centered "Today" + live month label (no prev/next chrome)
+ *   - Sticky weekday header
+ *   - Per-week dynamic height (lanes pack into the available rows,
+ *     with a +N more popover when a column overflows)
+ *   - Click empty cell space → inline quick-add input as the next bar
+ *   - Drag a task bar onto another day → PATCH reschedules (preserves
+ *     duration when both startDate and dueDate exist)
+ *   - IntersectionObserver appends 8 more weeks when the user nears
+ *     the bottom — effectively infinite downward scroll
+ *
+ * Accepts `sections` (the project's section[] with tasks). Internally
+ * flattens to a tasks[] list because the calendar is task-centric.
+ */
+
 import {
-  ChevronRight,
-  Plus,
-  Filter,
-  Settings,
-  Diamond,
-  ThumbsUp,
-} from "lucide-react";
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from "react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  eachDayOfInterval,
-  format,
-  isSameMonth,
-  isSameDay,
-  addMonths,
-  subMonths,
-  addWeeks,
-  subWeeks,
-  isToday,
-  parseISO,
-} from "date-fns";
 import { toast } from "sonner";
-
-// ============================================
-// TYPES
-// ============================================
 
 type TaskType = "TASK" | "MILESTONE" | "APPROVAL";
 
@@ -56,7 +44,7 @@ interface Task {
   startDate?: string | null;
   priority: string;
   taskType?: TaskType | null;
-  assignee: {
+  assignee?: {
     id: string;
     name: string | null;
     email: string | null;
@@ -75,175 +63,223 @@ interface CalendarViewProps {
   sections: Section[];
   onTaskClick: (taskId: string) => void;
   projectId: string;
+  /** Optional — fires after a task is created or rescheduled so the
+   *  parent can refresh the underlying task list. Defaults to a
+   *  router.refresh() in the parent. */
+  onTaskMutated?: () => void;
 }
 
-type ViewMode = "month" | "week";
-
-// Layout constants for the per-week renderer. Hoisted out of the
-// week.map callback so they're declared once per file load instead
-// of once per week per render.
-const DAY_HEADER_PX = 26;
+// Pixel constants — must stay in sync with the dynamic height calc.
+// LANE_PX = bar height (text 11px + py-[3px] ≈ 21) + 1px gap rounded
+// to 22. DAY_HEADER_PX is the day-number row at top of each cell.
+// ROW_MIN_PX is the minimum week height when the week is empty.
+const DAY_HEADER_PX = 28;
 const LANE_PX = 22;
 const ROW_BOTTOM_PX = 10;
-const ROW_MIN_MONTH_PX = 90;
-const ROW_MIN_WEEK_PX = 400;
-
-// ============================================
-// MAIN COMPONENT
-// ============================================
+const ROW_MIN_PX = 92;
+const MAX_LANES = 6;
 
 export function CalendarView({
   sections,
   onTaskClick,
   projectId,
+  onTaskMutated,
 }: CalendarViewProps) {
-  const router = useRouter();
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    typeof window !== 'undefined' && window.innerWidth < 768 ? "week" : "month"
+  // Flatten sections → tasks once per render. The calendar doesn't
+  // care which section a task belongs to.
+  const tasks = useMemo<Task[]>(
+    () => sections.flatMap((s) => s.tasks),
+    [sections]
   );
-  const [isCreatingTask, setIsCreatingTask] = useState<string | null>(null);
-  // When the user drags across multiple cells before releasing, the
-  // end date is captured here. handleCreateTask then sends both
-  // startDate (isCreatingTask) and dueDate (rangeEnd) to the API so
-  // the task renders as a multi-day bar from the start.
-  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+
+  // ── State driving the "infinite" calendar ─────────────────────
+  // `windowStart` is the very first Monday rendered. Seeded at 4
+  // weeks before this week's Monday so the user can scroll up a
+  // month from today AND forward indefinitely. `weekCount` grows as
+  // the bottom sentinel enters the viewport.
+  const [windowStart] = useState<Date>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOffset = today.getDay() === 0 ? 6 : today.getDay() - 1;
+    const thisMonday = new Date(today);
+    thisMonday.setDate(today.getDate() - dayOffset);
+    const start = new Date(thisMonday);
+    start.setDate(thisMonday.getDate() - 4 * 7); // 4 weeks back
+    return start;
+  });
+  const [weekCount, setWeekCount] = useState(16); // ~4 months on mount
+  const [visibleMonth, setVisibleMonth] = useState<{
+    year: number;
+    month: number;
+  }>(() => {
+    const t = new Date();
+    return { year: t.getFullYear(), month: t.getMonth() };
+  });
+
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
+  const todayWeekRef = useRef<HTMLDivElement | null>(null);
+
+  // ── Inline quick-add (click empty cell area) ──────────────────
+  const [addingForDate, setAddingForDate] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState("");
-  const [calFilter, setCalFilter] = useState<"all" | "incomplete" | "completed">("all");
-  const [showWeekends, setShowWeekends] = useState(true);
+  const [creatingInline, setCreatingInline] = useState(false);
+  const newTaskInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Drag-to-create state. Mousedown on a cell starts it; mousemove
-  // updates currentDateStr as the cursor crosses other cells; mouseup
-  // commits — click (start === current) opens single-day quick-add,
-  // drag (start !== current) opens range quick-add with the start
-  // and end already pinned. Mirrors MS Project / Asana drag-to-create.
-  const [dragCreate, setDragCreate] = useState<{
-    startDateStr: string;
-    currentDateStr: string;
-  } | null>(null);
-
-  // Ref-based focus management — the bare `autoFocus` attribute only
-  // fires on initial mount, so when the user clicks from one cell's
-  // active input to another the input stayed unfocused. The effect
-  // below also resets the in-progress name so the new cell doesn't
-  // inherit a half-typed task from the previous one (B4).
-  const inputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
-    if (isCreatingTask) {
-      setNewTaskName("");
-      // requestAnimationFrame so React has actually mounted the
-      // input before we try to focus.
-      requestAnimationFrame(() => inputRef.current?.focus());
+    if (addingForDate && newTaskInputRef.current) {
+      newTaskInputRef.current.focus();
     }
-  }, [isCreatingTask]);
+  }, [addingForDate]);
 
-  // Global drag tracker — only mounted while a drag is in progress.
-  // Listens at window level so the user can drag from one cell, exit
-  // the calendar momentarily, re-enter, and still have the gesture
-  // tracked. data-cell-date on each cell is the bread-crumb the
-  // pointer reads off the DOM hit-test.
-  useEffect(() => {
-    if (!dragCreate) return;
+  // ── Drag-to-reschedule (HTML5 drag, no extra deps) ────────────
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
-    const handleMouseMove = (e: MouseEvent) => {
-      // Walk up from the pointer target to find a cell with a date
-      // attached. Anything outside the calendar grid is ignored.
-      const target = e.target as HTMLElement | null;
-      if (!target) return;
-      const cellEl = target.closest<HTMLElement>("[data-cell-date]");
-      if (!cellEl) return;
-      const dateStr = cellEl.getAttribute("data-cell-date");
-      if (!dateStr) return;
-      setDragCreate((prev) =>
-        prev && prev.currentDateStr !== dateStr
-          ? { ...prev, currentDateStr: dateStr }
-          : prev
-      );
-    };
+  function handleDragStart(e: DragEvent<HTMLButtonElement>, task: Task) {
+    setDraggingTaskId(task.id);
+    e.dataTransfer.setData("application/x-task-id", task.id);
+    e.dataTransfer.effectAllowed = "move";
+  }
 
-    const handleMouseUp = () => {
-      setDragCreate((prev) => {
-        if (!prev) return null;
-        // Order the two endpoints chronologically — the user can
-        // drag right-to-left or up-and-around without breaking
-        // anything.
-        const a = prev.startDateStr;
-        const b = prev.currentDateStr;
-        const [startStr, endStr] = a <= b ? [a, b] : [b, a];
-        setIsCreatingTask(startStr);
-        // Only mark a range when the two endpoints differ; a plain
-        // click resolves to single-day quick-add.
-        setRangeEnd(startStr !== endStr ? endStr : null);
-        return null;
-      });
-    };
+  function handleDragEnd() {
+    setDraggingTaskId(null);
+    setDragOverDate(null);
+  }
 
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [dragCreate]);
+  function handleDayDragOver(e: DragEvent<HTMLDivElement>, dateStr: string) {
+    if (!draggingTaskId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverDate !== dateStr) setDragOverDate(dateStr);
+  }
 
-  // Flatten all tasks and apply filter
-  const allTasks = useMemo(() => {
-    const flat = sections.flatMap((section) =>
-      section.tasks.map((task) => ({
-        ...task,
-        sectionId: section.id,
-        sectionName: section.name,
-      }))
-    );
-    if (calFilter === "incomplete") return flat.filter((t) => !t.completed);
-    if (calFilter === "completed") return flat.filter((t) => t.completed);
-    return flat;
-  }, [sections, calFilter]);
+  async function handleDayDrop(
+    e: DragEvent<HTMLDivElement>,
+    dropDate: Date
+  ) {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData("application/x-task-id");
+    setDraggingTaskId(null);
+    setDragOverDate(null);
+    if (!taskId) return;
 
-  // ============================================
-  // GENERATE CALENDAR DAYS
-  // ============================================
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
 
-  const calendarDays = useMemo(() => {
-    let days: Date[];
-    if (viewMode === "week") {
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
-      days = eachDayOfInterval({ start: weekStart, end: weekEnd });
+    // Mid-day anchor avoids the date flipping under DST or near-
+    // midnight edits across timezones.
+    const noon = new Date(dropDate);
+    noon.setHours(12, 0, 0, 0);
+
+    const oldDue = task.dueDate ? new Date(task.dueDate) : null;
+    const oldStart = task.startDate ? new Date(task.startDate) : null;
+
+    const body: { dueDate?: string | null; startDate?: string | null } = {};
+    if (oldStart && oldDue) {
+      // Preserve duration: shift both dates by the same delta.
+      const oldDueNoon = new Date(oldDue);
+      oldDueNoon.setHours(12, 0, 0, 0);
+      const deltaMs = noon.getTime() - oldDueNoon.getTime();
+      body.dueDate = noon.toISOString();
+      body.startDate = new Date(oldStart.getTime() + deltaMs).toISOString();
+    } else if (oldStart && !oldDue) {
+      body.startDate = noon.toISOString();
     } else {
-      const monthStart = startOfMonth(currentDate);
-      const monthEnd = endOfMonth(currentDate);
-      const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-      const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-      days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+      body.dueDate = noon.toISOString();
     }
-    if (!showWeekends) {
-      days = days.filter((d) => d.getDay() !== 0 && d.getDay() !== 6);
+
+    const sameDue =
+      (body.dueDate ?? null) ===
+      (task.dueDate ? new Date(task.dueDate).toISOString() : null);
+    const sameStart =
+      (body.startDate ?? null) ===
+      (task.startDate ? new Date(task.startDate).toISOString() : null);
+    if (sameDue && sameStart) return;
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onTaskMutated?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't reschedule task"
+      );
     }
-    return days;
-  }, [currentDate, viewMode, showWeekends]);
+  }
 
-  // ============================================
-  // WEEK GROUPING + BAR SEGMENT LANE ASSIGNMENT
-  // ============================================
-  // Build the per-week structure once. Days inside each week become
-  // background cells; tasks become bar segments stacked into lanes
-  // so multi-day ranges never overlap horizontally — same Asana /
-  // my-tasks pattern but kept local to projects' month/week paging.
+  async function commitInlineTask(forDate: Date) {
+    const name = newTaskName.trim();
+    if (!name) {
+      setAddingForDate(null);
+      setNewTaskName("");
+      return;
+    }
+    setCreatingInline(true);
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          dueDate: forDate.toISOString(),
+          projectId,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      toast.success(
+        `Created "${name}" for ${forDate.toLocaleDateString("en-US")}`
+      );
+      onTaskMutated?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't create task");
+    } finally {
+      setCreatingInline(false);
+      setAddingForDate(null);
+      setNewTaskName("");
+    }
+  }
 
-  const daysPerRow = showWeekends ? 7 : 5;
+  // ── Generate all days from windowStart ────────────────────────
+  const allDays = useMemo(() => {
+    const out: Date[] = [];
+    for (let i = 0; i < weekCount * 7; i++) {
+      const d = new Date(windowStart);
+      d.setDate(windowStart.getDate() + i);
+      out.push(d);
+    }
+    return out;
+  }, [windowStart, weekCount]);
 
   const weeks = useMemo(() => {
     const out: Date[][] = [];
-    for (let i = 0; i < calendarDays.length; i += daysPerRow) {
-      out.push(calendarDays.slice(i, i + daysPerRow));
+    for (let w = 0; w < weekCount; w++) {
+      out.push(allDays.slice(w * 7, (w + 1) * 7));
     }
     return out;
-  }, [calendarDays, daysPerRow]);
+  }, [allDays, weekCount]);
 
+  const todayStr = new Date().toDateString();
+  const todayWeekIndex = useMemo(
+    () =>
+      weeks.findIndex((wk) =>
+        wk.some((d) => d.toDateString() === todayStr)
+      ),
+    [weeks, todayStr]
+  );
+
+  // ── Lane assignment per week (greedy interval scheduling) ─────
   type BarSegment = {
-    task: (typeof allTasks)[number];
-    colStart: number; // 0-indexed column within the visible week
+    task: Task;
+    weekIdx: number;
+    colStart: number;
     colSpan: number;
     lane: number;
     clipsLeft: boolean;
@@ -251,58 +287,63 @@ export function CalendarView({
   };
 
   const segmentsByWeek = useMemo(() => {
-    if (weeks.length === 0) return [] as BarSegment[][];
     const out: BarSegment[][] = weeks.map(() => []);
+    const dayMs = 86400000;
 
-    for (const task of allTasks) {
+    for (const task of tasks) {
       if (!task.dueDate && !task.startDate) continue;
-      const dueRaw = task.dueDate ? parseISO(task.dueDate) : null;
-      const startRaw = task.startDate ? parseISO(task.startDate) : null;
-      const start = startRaw ?? dueRaw!;
-      const end = dueRaw ?? startRaw!;
-      // Normalize to local midnight so day arithmetic stays correct.
-      const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-      const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      const dueRaw = task.dueDate
+        ? new Date(task.dueDate)
+        : new Date(task.startDate!);
+      const startRaw = task.startDate ? new Date(task.startDate) : dueRaw;
+      const start = new Date(
+        startRaw.getFullYear(),
+        startRaw.getMonth(),
+        startRaw.getDate()
+      );
+      const due = new Date(
+        dueRaw.getFullYear(),
+        dueRaw.getMonth(),
+        dueRaw.getDate()
+      );
+
+      if (allDays.length === 0) continue;
+      if (
+        due.getTime() < allDays[0].getTime() ||
+        start.getTime() > allDays[allDays.length - 1].getTime()
+      ) {
+        continue;
+      }
 
       for (let w = 0; w < weeks.length; w++) {
-        const week = weeks[w];
-        if (week.length === 0) continue;
-        const weekStart = week[0];
-        const weekEnd = week[week.length - 1];
+        const weekStart = weeks[w][0];
+        const weekEnd = new Date(weeks[w][6]);
+        weekEnd.setHours(23, 59, 59, 999);
+        if (due.getTime() < weekStart.getTime()) continue;
+        if (start.getTime() > weekEnd.getTime()) continue;
 
-        // Skip task entirely outside the visible week.
-        if (endDay.getTime() < weekStart.getTime()) continue;
-        if (startDay.getTime() > weekEnd.getTime()) continue;
-
-        // Find first matching day index inside the visible week
-        // (handles showWeekends=false where Sat/Sun are dropped).
-        let colStart = -1;
-        let colEnd = -1;
-        for (let i = 0; i < week.length; i++) {
-          if (isSameDay(week[i], startDay) || week[i].getTime() > startDay.getTime()) {
-            if (colStart === -1) colStart = i;
-          }
-          if (week[i].getTime() <= endDay.getTime()) {
-            colEnd = i;
-          }
-        }
-        if (colStart === -1) colStart = 0;
-        if (colEnd === -1) continue;
-        if (colEnd < colStart) continue;
-
+        const segStart =
+          start.getTime() < weekStart.getTime() ? weekStart : start;
+        const segEndDate =
+          due.getTime() > weekEnd.getTime() ? weeks[w][6] : due;
+        const colStart = Math.round(
+          (segStart.getTime() - weekStart.getTime()) / dayMs
+        );
+        const colEnd = Math.round(
+          (segEndDate.getTime() - weekStart.getTime()) / dayMs
+        );
         out[w].push({
           task,
-          colStart,
-          colSpan: colEnd - colStart + 1,
+          weekIdx: w,
+          colStart: Math.max(0, Math.min(6, colStart)),
+          colSpan: Math.max(1, Math.min(7 - colStart, colEnd - colStart + 1)),
           lane: 0,
-          clipsLeft: startDay.getTime() < weekStart.getTime(),
-          clipsRight: endDay.getTime() > weekEnd.getTime(),
+          clipsLeft: start.getTime() < weekStart.getTime(),
+          clipsRight: due.getTime() > weekEnd.getTime(),
         });
       }
     }
 
-    // Greedy interval lane assignment per week: multi-day bars
-    // (colSpan>1) go to lower lanes first, then single-day pills.
     for (const list of out) {
       list.sort((a, b) => {
         const aMulti = a.colSpan > 1 ? 0 : 1;
@@ -316,14 +357,14 @@ export function CalendarView({
       for (const seg of list) {
         let placed = false;
         for (let i = 0; i < lanes.length; i++) {
-          const overlaps = lanes[i].some(
+          const overlapsAny = lanes[i].some(
             (existing) =>
               !(
                 seg.colStart + seg.colSpan <= existing.colStart ||
                 seg.colStart >= existing.colStart + existing.colSpan
               )
           );
-          if (!overlaps) {
+          if (!overlapsAny) {
             lanes[i].push(seg);
             seg.lane = i;
             placed = true;
@@ -338,449 +379,255 @@ export function CalendarView({
     }
 
     return out;
-  }, [allTasks, weeks]);
+  }, [tasks, weeks, allDays]);
 
-  // ============================================
-  // NAVIGATION
-  // ============================================
+  // ── Per-week dynamic height ──────────────────────────────────
+  const weekHeights = useMemo(() => {
+    return weeks.map((_, idx) => {
+      const segs = segmentsByWeek[idx] || [];
+      const visibleSegs = segs.filter((s) => s.lane < MAX_LANES);
+      const hasOverflowByDay: Record<number, boolean> = {};
+      for (const s of segs) {
+        if (s.lane >= MAX_LANES) {
+          for (let d = s.colStart; d < s.colStart + s.colSpan; d++) {
+            hasOverflowByDay[d] = true;
+          }
+        }
+      }
+      let maxRow = -1;
+      for (let day = 0; day < 7; day++) {
+        let columnMaxLane = -1;
+        for (const s of visibleSegs) {
+          if (
+            s.colStart <= day &&
+            s.colStart + s.colSpan > day &&
+            s.lane > columnMaxLane
+          ) {
+            columnMaxLane = s.lane;
+          }
+        }
+        const columnRow = hasOverflowByDay[day]
+          ? columnMaxLane + 1
+          : columnMaxLane;
+        if (columnRow > maxRow) maxRow = columnRow;
+      }
+      if (maxRow < 0) return ROW_MIN_PX;
+      const content = DAY_HEADER_PX + (maxRow + 1) * LANE_PX + ROW_BOTTOM_PX;
+      return Math.max(ROW_MIN_PX, content);
+    });
+  }, [weeks, segmentsByWeek]);
 
-  const goToPrev = () =>
-    setCurrentDate(viewMode === "week" ? subWeeks(currentDate, 1) : subMonths(currentDate, 1));
-  const goToNext = () =>
-    setCurrentDate(viewMode === "week" ? addWeeks(currentDate, 1) : addMonths(currentDate, 1));
-  const goToToday = () => setCurrentDate(new Date());
-
-  // ============================================
-  // CREATE TASK
-  // ============================================
-
-  // Local-noon Date from a yyyy-MM-dd string. Using `new Date(str)`
-  // would parse as UTC midnight which then shifts the day in
-  // negative-UTC timezones (Miami / America/New_York). Noon is safe
-  // across every IANA zone — task pins to the picked calendar day.
-  const toLocalNoon = (dateStr: string): Date => {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    return new Date(y, (m ?? 1) - 1, d ?? 1, 12, 0, 0);
-  };
-
-  const handleCreateTask = async (
-    dateStr: string,
-    endDateStr?: string | null
-  ) => {
-    if (!newTaskName.trim()) {
-      setIsCreatingTask(null);
-      setRangeEnd(null);
-      setNewTaskName("");
-      return;
+  const weekOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let acc = 0;
+    for (let i = 0; i < weekHeights.length; i++) {
+      offsets.push(acc);
+      acc += weekHeights[i];
     }
+    return offsets;
+  }, [weekHeights]);
 
-    try {
-      const firstSection = sections[0];
-      if (!firstSection) {
-        toast.error("No section available to add task");
-        return;
+  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  // ── Bottom-sentinel observer ──────────────────────────────────
+  useEffect(() => {
+    const sentinel = bottomSentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel || !root) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setWeekCount((c) => c + 8);
+      },
+      { root, rootMargin: "400px" }
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [weekCount]);
+
+  // ── Visible-month label tracker ───────────────────────────────
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const HEADER_PX = 32;
+      const target = el.scrollTop - HEADER_PX;
+      let idx = 0;
+      for (let i = 0; i < weekOffsets.length; i++) {
+        if (weekOffsets[i] <= target) idx = i;
+        else break;
       }
-
-      const startNoon = toLocalNoon(dateStr);
-      const dueNoon =
-        endDateStr && endDateStr !== dateStr
-          ? toLocalNoon(endDateStr)
-          : startNoon;
-
-      // Body always has dueDate; startDate only when the user
-      // actually dragged across multiple cells (range create).
-      const body: Record<string, unknown> = {
-        name: newTaskName.trim(),
-        projectId,
-        sectionId: firstSection.id,
-        dueDate: dueNoon.toISOString(),
-      };
-      if (endDateStr && endDateStr !== dateStr) {
-        body.startDate = startNoon.toISOString();
+      const midDate = allDays[idx * 7 + 3];
+      if (midDate) {
+        const next = {
+          year: midDate.getFullYear(),
+          month: midDate.getMonth(),
+        };
+        setVisibleMonth((prev) =>
+          prev.year === next.year && prev.month === next.month ? prev : next
+        );
       }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [allDays, weekOffsets]);
 
-      const response = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+  // ── Initial scroll to today ───────────────────────────────────
+  useEffect(() => {
+    if (todayWeekRef.current && scrollRef.current) {
+      const HEADER_PX = 32;
+      const idx = todayWeekIndex >= 0 ? todayWeekIndex : 0;
+      scrollRef.current.scrollTop = (weekOffsets[idx] ?? 0) - HEADER_PX;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const goToToday = () => {
+    if (!scrollRef.current) return;
+    if (todayWeekIndex >= 0) {
+      const HEADER_PX = 32;
+      scrollRef.current.scrollTo({
+        top: (weekOffsets[todayWeekIndex] ?? 0) - HEADER_PX,
+        behavior: "smooth",
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to create task");
-      }
-
-      toast.success("Task created");
-      router.refresh();
-      // Functional update — if the user has already opened quick-add
-      // on ANOTHER cell during the in-flight POST, don't clobber that
-      // new active cell when we clear the previous one. Only reset
-      // when the active cell is still the one we just persisted.
-      setIsCreatingTask((prev) => (prev === dateStr ? null : prev));
-      setRangeEnd((prev) => (prev === endDateStr ? null : prev));
-      setNewTaskName((prev) => (prev === "" ? prev : ""));
-    } catch {
-      toast.error("Failed to create task");
     }
   };
 
-  // ============================================
-  // RENDER
-  // ============================================
-
-  const weekDays = showWeekends
-    ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    : ["Mon", "Tue", "Wed", "Thu", "Fri"];
-
-  const gridCols = showWeekends
-    ? "grid-cols-[1fr_1fr_1fr_1fr_1fr_0.7fr_0.7fr]"
-    : "grid-cols-5";
+  const formatMonthYear = (year: number, month: number) =>
+    new Date(year, month, 1).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    });
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Navigation toolbar - centered like My Tasks */}
-      <div className="flex flex-col md:flex-row items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-3 border-b">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={goToPrev}
-          className="h-10 w-10 md:h-8 md:w-8"
-          aria-label={viewMode === "week" ? "Previous week" : "Previous month"}
-          title={viewMode === "week" ? "Previous week" : "Previous month"}
-        >
-          <ChevronRight className="h-4 w-4 rotate-180" />
-        </Button>
+    <div className="flex flex-col h-full">
+      {/* Navigation toolbar — Today button + live month label.
+          No prev/next buttons: the user drives navigation by scrolling,
+          the label tracks what they're looking at. */}
+      <div className="flex items-center justify-center gap-3 px-4 py-3 border-b">
         <Button
           variant="outline"
           size="sm"
           onClick={goToToday}
           className="px-3"
-          aria-label="Jump to today"
         >
           Today
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={goToNext}
-          className="h-10 w-10 md:h-8 md:w-8"
-          aria-label={viewMode === "week" ? "Next week" : "Next month"}
-          title={viewMode === "week" ? "Next week" : "Next month"}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <span className="font-medium text-black ml-2 text-base md:text-lg">
-          {viewMode === "week"
-            ? `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d")} – ${format(endOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d, yyyy")}`
-            : format(currentDate, "MMMM yyyy")}
+        <span className="font-medium text-black ml-2 tabular-nums">
+          {formatMonthYear(visibleMonth.year, visibleMonth.month)}
         </span>
-
-        {/* Extra controls - subtle, right-aligned */}
-        <div className="ml-auto flex items-center gap-1">
-          <div
-            className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5"
-            role="group"
-            aria-label="Calendar view mode"
-          >
-            <button
-              onClick={() => setViewMode("week")}
-              aria-pressed={viewMode === "week"}
-              className={cn(
-                "px-2 py-0.5 text-xs font-medium rounded transition-colors",
-                viewMode === "week"
-                  ? "bg-white shadow-sm text-slate-900"
-                  : "text-slate-500 hover:text-slate-700"
-              )}
-            >
-              Week
-            </button>
-            <button
-              onClick={() => setViewMode("month")}
-              aria-pressed={viewMode === "month"}
-              className={cn(
-                "px-2 py-0.5 text-xs font-medium rounded transition-colors",
-                viewMode === "month"
-                  ? "bg-white shadow-sm text-slate-900"
-                  : "text-slate-500 hover:text-slate-700"
-              )}
-            >
-              Month
-            </button>
-          </div>
-
-          {/* Filter dropdown — variant switches to "secondary" when
-              any filter is active so the toolbar visually announces
-              "you're not seeing every task" without forcing the user
-              to read the label. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant={calFilter !== "all" ? "secondary" : "ghost"}
-                size="sm"
-                className={cn(
-                  "h-7 px-2 text-xs",
-                  calFilter !== "all" ? "text-[#a8893a]" : "text-slate-500"
-                )}
-                aria-label={
-                  calFilter === "all"
-                    ? "Filter tasks"
-                    : `Filter: ${calFilter === "incomplete" ? "Incomplete" : "Completed"} tasks`
-                }
-              >
-                <Filter className="w-3.5 h-3.5 mr-1" />
-                {calFilter !== "all"
-                  ? calFilter === "incomplete"
-                    ? "Incomplete"
-                    : "Completed"
-                  : "Filter"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setCalFilter("all")}>All tasks</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setCalFilter("incomplete")}>Incomplete tasks</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setCalFilter("completed")}>Completed tasks</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Settings dropdown — gold dot indicator when weekends are
-              hidden, so the cockpit-wide language "gold = something
-              non-default is active" stays consistent. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-slate-500 relative"
-                aria-label={
-                  showWeekends
-                    ? "Calendar settings"
-                    : "Calendar settings (weekends hidden)"
-                }
-              >
-                <Settings className="w-3.5 h-3.5" />
-                {!showWeekends && (
-                  <span
-                    aria-hidden
-                    className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#c9a84c]"
-                  />
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowWeekends(!showWeekends)}>
-                {showWeekends ? "Hide weekends" : "Show weekends"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
       </div>
 
-      {/* Calendar — single scroll container that holds BOTH the
-          weekday header AND the per-week rows. Critical: when a
-          scrollbar appears for tall content, putting the weekday
-          header here keeps it the same width as the day cells below;
-          if the header lived outside the scroll container, the
-          scrollbar would shrink the cells but not the header, and
-          the columns would drift out of alignment. Same trick
-          my-tasks uses. */}
-      <div className="flex-1 overflow-auto">
-        {/* Week Day Headers — sticky inside the scroll container so
-            they stay visible AND maintain alignment with the day
-            grid below. */}
-        <div
-          className={cn(
-            "grid border-b sticky top-0 z-20 bg-white",
-            gridCols
-          )}
-        >
+      {/* Single scroll container with sticky weekday header.
+          Continuous downward scroll appends 8 weeks at a time via
+          an IntersectionObserver on the bottom sentinel. */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div className="grid grid-cols-7 border-b border-gray-200 bg-white sticky top-0 z-10">
           {weekDays.map((day, index) => (
             <div
               key={day}
               className={cn(
-                "py-1 md:py-2 text-center text-[10px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider border-r last:border-r-0",
-                showWeekends && index >= 5 && "bg-white"
+                "py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-white",
+                index > 0 && "border-l border-gray-200"
               )}
             >
-              <span className="hidden md:inline">{day}</span>
-              <span className="md:hidden">{day.charAt(0)}</span>
+              {day}
             </div>
           ))}
         </div>
 
         {weeks.map((week, weekIdx) => {
-          const segments = segmentsByWeek[weekIdx] || [];
-          const isWeek = viewMode === "week";
-
-          // Per-week lane cap. Anything over this collapses into the
-          // "+N more" popover. Week view gets a generous 30 lanes
-          // because the user opted in to see everything in detail;
-          // month view caps at 6 so a busy week doesn't blow up the
-          // row height.
-          const MAX_LANES = isWeek ? 30 : 6;
-
-          // Visible segments are the ones that fit in MAX_LANES;
-          // anything past goes into +N more for the columns it
-          // would have covered.
-          const visibleSegments = segments.filter(
+          const weekSegments = segmentsByWeek[weekIdx] || [];
+          const visibleSegments = weekSegments.filter(
             (s) => s.lane < MAX_LANES
           );
-          const hiddenByCol: Record<number, number> = {};
-          const hiddenTasksByCol: Record<number, Task[]> = {};
-          for (const s of segments) {
+          const hiddenByDay: Record<number, number> = {};
+          const hiddenTasksByDay: Record<number, Task[]> = {};
+          for (const s of weekSegments) {
             if (s.lane >= MAX_LANES) {
-              for (let c = s.colStart; c < s.colStart + s.colSpan; c++) {
-                hiddenByCol[c] = (hiddenByCol[c] || 0) + 1;
-                if (!hiddenTasksByCol[c]) hiddenTasksByCol[c] = [];
-                if (
-                  !hiddenTasksByCol[c].some((t) => t.id === s.task.id)
-                ) {
-                  hiddenTasksByCol[c].push(s.task);
+              for (let d = s.colStart; d < s.colStart + s.colSpan; d++) {
+                hiddenByDay[d] = (hiddenByDay[d] || 0) + 1;
+                if (!hiddenTasksByDay[d]) hiddenTasksByDay[d] = [];
+                if (!hiddenTasksByDay[d].some((t) => t.id === s.task.id)) {
+                  hiddenTasksByDay[d].push(s.task);
                 }
               }
             }
           }
 
-          // Per-column deepest lane (used both for the variable
-          // week-height calc AND for placing the +N more pill /
-          // inline-add input at "the next free lane" in that column.
-          const columnMaxLane: number[] = Array(week.length).fill(-1);
-          for (const s of visibleSegments) {
-            for (let c = s.colStart; c < s.colStart + s.colSpan; c++) {
-              if (s.lane > columnMaxLane[c]) columnMaxLane[c] = s.lane;
+          const addingDayIndex = addingForDate
+            ? week.findIndex((d) => d.toDateString() === addingForDate)
+            : -1;
+          let addingLane = 0;
+          if (addingDayIndex >= 0) {
+            let maxLane = -1;
+            for (const seg of visibleSegments) {
+              if (
+                seg.colStart <= addingDayIndex &&
+                seg.colStart + seg.colSpan > addingDayIndex
+              ) {
+                if (seg.lane > maxLane) maxLane = seg.lane;
+              }
             }
+            addingLane = maxLane + 1;
           }
-
-          // Which column is currently in add-mode in this week?
-          const addingColIndex =
-            isCreatingTask &&
-            week.some((d) => format(d, "yyyy-MM-dd") === isCreatingTask)
-              ? week.findIndex(
-                  (d) => format(d, "yyyy-MM-dd") === isCreatingTask
-                )
-              : -1;
-
-          // Place the +N more pill and the inline-add input on the
-          // SAME column's next free lane. If both would land at the
-          // same row, the input goes one row LOWER so they don't
-          // collide. We compute both lane values up front so the
-          // weekHeight calc below knows the true deepest row.
-          const moreLaneByCol: Record<number, number> = {};
-          for (let c = 0; c < week.length; c++) {
-            if (hiddenByCol[c] && hiddenByCol[c] > 0) {
-              moreLaneByCol[c] = (columnMaxLane[c] ?? -1) + 1;
-            }
-          }
-          const addingLane =
-            addingColIndex >= 0
-              ? moreLaneByCol[addingColIndex] !== undefined
-                ? // Another row past the +N more pill so they stack
-                  // cleanly instead of overlapping (B2 fix).
-                  moreLaneByCol[addingColIndex] + 1
-                : (columnMaxLane[addingColIndex] ?? -1) + 1
-              : 0;
-
-          // Walk every column: its bottom row is its deepest lane,
-          // bumped one more if a +N more pill needs to sit there,
-          // and bumped AGAIN if the inline-add input lives in this
-          // column (so the row never overflows the weekHeight — B3
-          // fix). Then derive total content height.
-          let maxRow = -1;
-          for (let c = 0; c < week.length; c++) {
-            let bottom = columnMaxLane[c];
-            if (moreLaneByCol[c] !== undefined) {
-              bottom = moreLaneByCol[c];
-            }
-            if (c === addingColIndex && addingLane > bottom) {
-              bottom = addingLane;
-            }
-            if (bottom > maxRow) maxRow = bottom;
-          }
-
-          // Compose total content height:
-          //   DAY_HEADER_PX (day number row above the bars)
-          // + (maxRow + 1) × LANE_PX (visible bar lanes)
-          // + ROW_BOTTOM_PX (breathing room beneath the last lane)
-          // Then clamp to the per-view minimum (taller for week view
-          // because the user opted in to see detail).
-          const ROW_MIN_PX = isWeek ? ROW_MIN_WEEK_PX : ROW_MIN_MONTH_PX;
-          const contentPx =
-            maxRow >= 0
-              ? DAY_HEADER_PX + (maxRow + 1) * LANE_PX + ROW_BOTTOM_PX
-              : ROW_MIN_PX;
-          const weekHeight = Math.max(ROW_MIN_PX, contentPx);
 
           return (
             <div
               key={weekIdx}
-              className="relative border-b border-slate-200"
-              style={{ height: weekHeight }}
+              ref={weekIdx === todayWeekIndex ? todayWeekRef : null}
+              className="relative border-b border-gray-200"
+              style={{ height: weekHeights[weekIdx] ?? ROW_MIN_PX }}
+              data-week-index={weekIdx}
             >
-              {/* Background day grid */}
-              <div className={cn("grid h-full", gridCols)}>
-                {week.map((day) => {
-                  const dateStr = format(day, "yyyy-MM-dd");
-                  const isCurrentMonth = isSameMonth(day, currentDate);
-                  const isCurrentDay = isToday(day);
-                  const dayOfWeek = day.getDay();
-                  const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
-                  const dayNum = day.getDate();
+              {/* Background cells */}
+              <div className="grid grid-cols-7 h-full">
+                {week.map((date, dayOfWeek) => {
+                  const dateStr = date.toDateString();
+                  const isToday = dateStr === todayStr;
+                  const isWeekend = dayOfWeek >= 5;
+                  const dayNum = date.getDate();
+                  const isCurrentMonth =
+                    date.getMonth() === visibleMonth.month;
                   const isFirstOfMonth = dayNum === 1;
-                  const isAdding = isCreatingTask === dateStr;
-
-                  // Whether this cell is between drag-create start and
-                  // current — used to paint the gold ghost-band so the
-                  // user sees what range they're about to create.
-                  const inDragRange = (() => {
-                    if (!dragCreate) return false;
-                    const a = dragCreate.startDateStr;
-                    const b = dragCreate.currentDateStr;
-                    const [lo, hi] = a <= b ? [a, b] : [b, a];
-                    return dateStr >= lo && dateStr <= hi;
-                  })();
-
+                  const isAdding = addingForDate === dateStr;
+                  const isDropTarget = dragOverDate === dateStr;
                   return (
                     <div
                       key={dateStr}
-                      data-cell-date={dateStr}
-                      className={cn(
-                        "border-r last:border-r-0 relative h-full select-none",
-                        !isCurrentMonth && !isWeek && "bg-slate-50/40",
-                        isWeekendDay && showWeekends && isCurrentMonth && "bg-slate-50/20",
-                        isCurrentDay && "bg-[#c9a84c]/5",
-                        inDragRange && "bg-[#c9a84c]/15",
-                        isAdding &&
-                          "ring-2 ring-[#c9a84c]/60 ring-inset",
-                        !isAdding && !dragCreate &&
-                          "cursor-pointer hover:bg-[#c9a84c]/[0.04]",
-                        dragCreate && "cursor-crosshair"
-                      )}
-                      onMouseDown={(e) => {
-                        // Only seed a drag from the cell's empty
-                        // background — clicking a bar / popover /
-                        // input should NOT start a drag-to-create.
-                        if (e.target !== e.currentTarget) return;
-                        if (e.button !== 0) return; // left-click only
-                        e.preventDefault();
-                        setDragCreate({
-                          startDateStr: dateStr,
-                          currentDateStr: dateStr,
-                        });
+                      onClick={(e) => {
+                        if (e.currentTarget === e.target && !isAdding) {
+                          setAddingForDate(dateStr);
+                          setNewTaskName("");
+                        }
                       }}
+                      onDragOver={(e) => handleDayDragOver(e, dateStr)}
+                      onDragLeave={() => {
+                        if (dragOverDate === dateStr) setDragOverDate(null);
+                      }}
+                      onDrop={(e) => handleDayDrop(e, date)}
+                      className={cn(
+                        "relative cursor-pointer h-full",
+                        dayOfWeek > 0 && "border-l border-gray-200",
+                        !isCurrentMonth && "bg-gray-50/40",
+                        isWeekend && isCurrentMonth && "bg-gray-50/20",
+                        isToday && "bg-[#c9a84c]/5",
+                        isAdding && "ring-2 ring-[#c9a84c]/60 ring-inset",
+                        isDropTarget &&
+                          "ring-2 ring-[#c9a84c] ring-inset bg-[#c9a84c]/10"
+                      )}
                     >
-                      {/* Day number — pinned to top-left, above the bar
-                          area, pointer-events:none so the bar overlay
-                          catches the click cleanly. */}
                       <div className="px-2 pt-1.5 pointer-events-none">
                         <span
                           className={cn(
                             "text-[12px] font-mono tabular-nums inline-block",
-                            !isCurrentMonth && !isWeek && "text-slate-300",
-                            isCurrentMonth && !isCurrentDay && "text-slate-700",
-                            isCurrentDay &&
+                            !isCurrentMonth && "text-gray-300",
+                            isCurrentMonth && !isToday && "text-gray-700",
+                            isToday &&
                               "bg-black text-white rounded-full w-5 h-5 flex items-center justify-center font-semibold text-[11px]"
                           )}
                         >
-                          {isFirstOfMonth && isCurrentMonth && !isWeek
-                            ? day.toLocaleDateString("en-US", {
+                          {isFirstOfMonth
+                            ? date.toLocaleDateString("en-US", {
                                 month: "short",
                                 day: "numeric",
                               })
@@ -792,87 +639,67 @@ export function CalendarView({
                 })}
               </div>
 
-              {/* Foreground bar overlay — CSS grid that mirrors the
-                  day grid. pointer-events:none on the wrapper so
-                  click-through to the empty cell still works; bars
-                  re-enable pointer-events to be clickable. */}
+              {/* Bars overlay */}
               <div
-                className={cn(
-                  "absolute left-0 right-0 grid gap-y-0.5 px-px pointer-events-none",
-                  gridCols
-                )}
-                style={{
-                  top: DAY_HEADER_PX,
-                  gridAutoRows: `${LANE_PX - 2}px`,
-                }}
+                className="absolute inset-x-0 grid grid-cols-7 gap-y-0.5 pointer-events-none"
+                style={{ top: 28, paddingLeft: 2, paddingRight: 2 }}
               >
-                {/* Solid-gold task bars (Asana style) */}
                 {visibleSegments.map((seg) => {
-                  const TypeIcon =
-                    seg.task.taskType === "MILESTONE"
-                      ? Diamond
-                      : seg.task.taskType === "APPROVAL"
-                        ? ThumbsUp
-                        : null;
+                  const isBeingDragged = draggingTaskId === seg.task.id;
                   return (
                     <div
-                      key={`${weekIdx}-${seg.task.id}-${seg.colStart}`}
+                      key={`${seg.task.id}-${weekIdx}-${seg.colStart}`}
                       style={{
                         gridColumn: `${seg.colStart + 1} / span ${seg.colSpan}`,
                         gridRow: seg.lane + 1,
                       }}
-                      className="px-px min-w-0"
+                      className="px-px min-w-0 pointer-events-none"
                     >
                       <button
-                        type="button"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, seg.task)}
+                        onDragEnd={handleDragEnd}
                         onClick={(e) => {
                           e.stopPropagation();
                           onTaskClick(seg.task.id);
                         }}
-                        title={
-                          seg.task.startDate && seg.task.dueDate
-                            ? `${seg.task.name}  •  ${format(
-                                parseISO(seg.task.startDate),
-                                "MMM d"
-                              )} → ${format(parseISO(seg.task.dueDate), "MMM d")}`
-                            : seg.task.name
-                        }
+                        title={seg.task.name}
                         className={cn(
-                          "w-full block text-left text-[11px] leading-snug px-1.5 py-[3px] truncate cursor-pointer pointer-events-auto font-medium transition-colors flex items-center gap-1",
+                          "w-full block text-left text-[11px] leading-snug px-1.5 py-[3px] truncate cursor-grab active:cursor-grabbing pointer-events-auto font-medium transition-colors",
                           !seg.clipsLeft && "rounded-l-sm",
                           !seg.clipsRight && "rounded-r-sm",
                           seg.task.completed
-                            ? "bg-slate-200 text-slate-500 line-through"
-                            : "bg-[#c9a84c] text-white hover:bg-[#a8893a]"
+                            ? "bg-gray-200 text-gray-500 line-through"
+                            : "bg-[#c9a84c] text-white hover:bg-[#a8893a]",
+                          isBeingDragged && "opacity-40"
                         )}
                       >
-                        {TypeIcon && (
-                          <TypeIcon className="h-3 w-3 flex-shrink-0" />
-                        )}
-                        <span className="truncate">
-                          {seg.task.name}
-                        </span>
+                        {seg.task.name}
                       </button>
                     </div>
                   );
                 })}
 
-                {/* "+N more" — real Popover per overflowing column,
-                    listing the hidden tasks. Sits at the lane right
-                    after that column's deepest visible bar. */}
-                {week.map((_, dayOfWeek) => {
-                  const count = hiddenByCol[dayOfWeek];
+                {/* +N more pills */}
+                {week.map((date, dayOfWeek) => {
+                  const count = hiddenByDay[dayOfWeek];
                   if (!count) return null;
-                  const dayDate = week[dayOfWeek];
-                  // moreLaneByCol is 0-indexed; CSS grid rows are
-                  // 1-indexed, hence +1.
-                  const gridRow = (moreLaneByCol[dayOfWeek] ?? 0) + 1;
+                  let columnMaxLane = -1;
+                  for (const seg of visibleSegments) {
+                    if (
+                      seg.colStart <= dayOfWeek &&
+                      seg.colStart + seg.colSpan > dayOfWeek &&
+                      seg.lane > columnMaxLane
+                    ) {
+                      columnMaxLane = seg.lane;
+                    }
+                  }
                   return (
                     <div
                       key={`more-${weekIdx}-${dayOfWeek}`}
                       style={{
                         gridColumn: `${dayOfWeek + 1} / span 1`,
-                        gridRow,
+                        gridRow: columnMaxLane + 2,
                       }}
                       className="px-px min-w-0 pointer-events-auto"
                     >
@@ -880,7 +707,7 @@ export function CalendarView({
                         <PopoverTrigger asChild>
                           <button
                             onClick={(e) => e.stopPropagation()}
-                            className="px-1.5 py-[2px] text-[10px] font-medium text-slate-500 hover:text-black hover:bg-slate-100 rounded-sm"
+                            className="px-1.5 py-[2px] text-[10px] font-medium text-gray-500 hover:text-black hover:bg-gray-100 rounded-sm"
                           >
                             +{count} more
                           </button>
@@ -892,28 +719,28 @@ export function CalendarView({
                         >
                           <div className="px-3 py-2 border-b">
                             <p className="text-xs font-semibold text-black">
-                              {dayDate.toLocaleDateString("en-US", {
+                              {date.toLocaleDateString("en-US", {
                                 weekday: "long",
                                 month: "short",
                                 day: "numeric",
                               })}
                             </p>
-                            <p className="text-[10px] text-slate-500">
+                            <p className="text-[10px] text-gray-500">
                               {count} hidden {count === 1 ? "task" : "tasks"}
                             </p>
                           </div>
                           <ul className="max-h-64 overflow-y-auto py-1">
-                            {(hiddenTasksByCol[dayOfWeek] || []).map((t) => (
+                            {(hiddenTasksByDay[dayOfWeek] || []).map((t) => (
                               <li key={t.id}>
                                 <button
                                   onClick={() => onTaskClick(t.id)}
-                                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2"
+                                  className="w-full text-left px-3 py-1.5 hover:bg-gray-50 flex items-center gap-2"
                                 >
                                   <span
                                     className={cn(
                                       "w-1.5 h-1.5 rounded-sm flex-shrink-0",
                                       t.completed
-                                        ? "bg-slate-300"
+                                        ? "bg-gray-300"
                                         : "bg-[#c9a84c]"
                                     )}
                                   />
@@ -921,7 +748,7 @@ export function CalendarView({
                                     className={cn(
                                       "text-[12px] truncate flex-1",
                                       t.completed
-                                        ? "text-slate-400 line-through"
+                                        ? "text-gray-400 line-through"
                                         : "text-black"
                                     )}
                                   >
@@ -937,34 +764,11 @@ export function CalendarView({
                   );
                 })}
 
-                {/* Inline add input — appears as the next bar in the
-                    target column's lane stack. Same dimensions as a
-                    task bar so the rhythm doesn't break. When the
-                    user dragged across multiple days, the input
-                    spans those columns inside this week so the
-                    visual matches the bar that will land. */}
-                {(() => {
-                  if (addingColIndex < 0) return null;
-                  // How many columns does the input span inside THIS
-                  // week? rangeEnd may live in a future week, in
-                  // which case the input spans to the right edge of
-                  // this week and the bar will continue next week.
-                  let inputColSpan = 1;
-                  if (rangeEnd) {
-                    const rangeEndInWeek = week.findIndex(
-                      (d) => format(d, "yyyy-MM-dd") === rangeEnd
-                    );
-                    if (rangeEndInWeek >= 0 && rangeEndInWeek >= addingColIndex) {
-                      inputColSpan = rangeEndInWeek - addingColIndex + 1;
-                    } else if (rangeEndInWeek < 0) {
-                      // End is in a later week — span to end of this week
-                      inputColSpan = week.length - addingColIndex;
-                    }
-                  }
-                  return (
+                {/* Inline Add input */}
+                {addingDayIndex >= 0 && (
                   <div
                     style={{
-                      gridColumn: `${addingColIndex + 1} / span ${inputColSpan}`,
+                      gridColumn: `${addingDayIndex + 1} / span 1`,
                       gridRow: addingLane + 1,
                     }}
                     className="px-px min-w-0 pointer-events-auto"
@@ -974,56 +778,36 @@ export function CalendarView({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <input
-                        ref={inputRef}
+                        ref={newTaskInputRef}
                         type="text"
                         value={newTaskName}
                         onChange={(e) => setNewTaskName(e.target.value)}
                         onKeyDown={(e) => {
-                          const dateStr = isCreatingTask;
-                          if (!dateStr) return;
                           if (e.key === "Enter") {
                             e.preventDefault();
-                            handleCreateTask(dateStr, rangeEnd);
+                            commitInlineTask(week[addingDayIndex]);
                           } else if (e.key === "Escape") {
                             e.preventDefault();
-                            setIsCreatingTask(null);
-                            setRangeEnd(null);
+                            setAddingForDate(null);
                             setNewTaskName("");
                           }
                         }}
-                        onBlur={() => {
-                          const dateStr = isCreatingTask;
-                          if (!dateStr) return;
-                          if (newTaskName.trim()) {
-                            handleCreateTask(dateStr, rangeEnd);
-                          } else {
-                            setIsCreatingTask(null);
-                            setRangeEnd(null);
-                          }
-                        }}
-                        placeholder={
-                          rangeEnd
-                            ? `Task name… (${
-                                Math.round(
-                                  (toLocalNoon(rangeEnd).getTime() -
-                                    toLocalNoon(
-                                      isCreatingTask ?? rangeEnd
-                                    ).getTime()) /
-                                    (1000 * 60 * 60 * 24)
-                                ) + 1
-                              }-day task)`
-                            : "Task name…"
-                        }
-                        className="w-full px-1.5 py-[3px] text-[11px] leading-snug bg-transparent border-none outline-none placeholder:text-slate-400"
+                        onBlur={() => commitInlineTask(week[addingDayIndex])}
+                        disabled={creatingInline}
+                        placeholder="Task name…"
+                        className="w-full px-1.5 py-[3px] text-[11px] leading-snug bg-transparent border-none outline-none placeholder:text-gray-400"
                       />
                     </div>
                   </div>
-                  );
-                })()}
+                )}
               </div>
             </div>
           );
         })}
+
+        {/* Bottom sentinel — when it enters the viewport, the
+            IntersectionObserver appends 8 more weeks. */}
+        <div ref={bottomSentinelRef} className="h-1" />
       </div>
     </div>
   );
