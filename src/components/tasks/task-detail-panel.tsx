@@ -21,6 +21,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -43,6 +47,11 @@ import {
   ArrowLeftRight,
   ChevronDown,
   UserPlus2,
+  ListPlus,
+  Copy,
+  Printer,
+  CornerUpRight,
+  CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -338,6 +347,77 @@ export function TaskDetailPanel({
   }
 
   // ─────────────────────────────────────────────────────────────
+  // MORE OPTIONS — actions wired from the "..." dropdown in the
+  // panel header. Same surface as Asana's task menu:
+  //   Add subtask · Attach files · Copy link · Convert to ▸
+  //   Duplicate · Print · Delete
+  // ─────────────────────────────────────────────────────────────
+
+  function handleAddSubtaskFromMenu() {
+    setIsAddingSubtask(true);
+    // Wait one tick so the input is in the DOM, then focus + scroll.
+    setTimeout(() => {
+      subtaskInputRef.current?.focus();
+      subtaskInputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 50);
+  }
+
+  async function handleConvertTo(
+    newType: "TASK" | "MILESTONE" | "APPROVAL"
+  ) {
+    await handleUpdate("taskType", newType);
+    toast.success(
+      newType === "MILESTONE"
+        ? "Converted to milestone"
+        : newType === "APPROVAL"
+          ? "Converted to approval gate"
+          : "Converted to task"
+    );
+  }
+
+  async function handleDuplicateTask() {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/duplicate`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Task duplicated");
+      onUpdate?.();
+      router.refresh();
+    } catch {
+      toast.error("Failed to duplicate task");
+    }
+  }
+
+  function handlePrintTask() {
+    // Browser's native print dialog — uses the print stylesheet
+    // applied at the app shell so headers/sidebars hide cleanly.
+    window.print();
+  }
+
+  async function handleDeleteTask() {
+    if (
+      !confirm(
+        "Delete this task? This will permanently remove the task, its subtasks, comments, and attachments. This cannot be undone."
+      )
+    )
+      return;
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Task deleted");
+      onUpdate?.();
+      onClose();
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete task");
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // DEPENDENCY REMOVE
   // ─────────────────────────────────────────────────────────────
 
@@ -513,9 +593,93 @@ export function TaskDetailPanel({
           >
             <Maximize2 className="h-[15px] w-[15px]" />
           </ActionIconButton>
-          <ActionIconButton title="More options">
-            <MoreHorizontal className="h-[15px] w-[15px]" />
-          </ActionIconButton>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <ActionIconButton title="More options">
+                <MoreHorizontal className="h-[15px] w-[15px]" />
+              </ActionIconButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[240px]">
+              <DropdownMenuItem onClick={handleAddSubtaskFromMenu}>
+                <ListPlus className="mr-2 h-4 w-4 text-[#6f7782]" />
+                <span className="flex-1">Add subtask</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Paperclip className="mr-2 h-4 w-4 text-[#6f7782]" />
+                <span className="flex-1">Attach files</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `${window.location.origin}/tasks/${taskId}`
+                  );
+                  toast.success("Link copied to clipboard");
+                }}
+              >
+                <Link2 className="mr-2 h-4 w-4 text-[#6f7782]" />
+                <span className="flex-1">Copy task link</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <CornerUpRight className="mr-2 h-4 w-4 text-[#6f7782]" />
+                  <span>Convert to</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    onClick={() => handleConvertTo("TASK")}
+                    disabled={
+                      !taskDetail?.taskType ||
+                      taskDetail.taskType === "TASK"
+                    }
+                  >
+                    <CheckSquare className="mr-2 h-4 w-4 text-[#6f7782]" />
+                    Task
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleConvertTo("MILESTONE")}
+                    disabled={taskDetail?.taskType === "MILESTONE"}
+                  >
+                    <Diamond
+                      className="mr-2 h-4 w-4"
+                      fill="#c9a84c"
+                      color="#c9a84c"
+                    />
+                    Milestone
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleConvertTo("APPROVAL")}
+                    disabled={taskDetail?.taskType === "APPROVAL"}
+                  >
+                    <ThumbsUp
+                      className="mr-2 h-4 w-4"
+                      fill="#c9a84c"
+                      color="#c9a84c"
+                    />
+                    Approval gate
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem onClick={handleDuplicateTask}>
+                <Copy className="mr-2 h-4 w-4 text-[#6f7782]" />
+                <span>Duplicate task</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handlePrintTask}>
+                <Printer className="mr-2 h-4 w-4 text-[#6f7782]" />
+                <span>Print</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleDeleteTask}
+                className="text-[#c91111] focus:text-[#c91111] focus:bg-[#fbe9e9]"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                <span>Delete task</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ActionIconButton onClick={onClose} title="Close">
             <X className="h-[15px] w-[15px]" />
           </ActionIconButton>

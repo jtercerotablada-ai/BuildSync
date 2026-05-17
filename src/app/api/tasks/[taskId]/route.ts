@@ -29,6 +29,12 @@ const updateTaskSchema = z.object({
   priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional().nullable(),
   taskStatus: z.enum(["ON_TRACK", "AT_RISK", "OFF_TRACK"]).optional().nullable(),
   myTaskSection: z.enum(["RECENTLY_ASSIGNED", "DO_TODAY", "DO_NEXT_WEEK", "DO_LATER"]).optional().nullable(),
+  // Convert-to action from the task panel "More options" menu —
+  // lets a regular task become a MILESTONE (gold diamond) or an
+  // APPROVAL (gold thumbs-up), or back to a plain task. The
+  // create-task and project-template paths already accept this
+  // field; the patch path was the missing piece.
+  taskType: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional().nullable(),
   position: z.number().optional(),
 });
 
