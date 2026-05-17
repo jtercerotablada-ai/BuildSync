@@ -312,6 +312,13 @@ export default function HomePage() {
                   size={getWidgetSize(id)}
                   onSizeChange={(s) => setWidgetSize(id, s)}
                   onHide={() => toggleWidget(id)}
+                  // Six classic widgets render their own header / chrome
+                  // (title, badges, tabs, etc.). Without hideHeader the
+                  // user sees a "double header" — WidgetContainer's title
+                  // stacked on top of the widget's internal title. Pass
+                  // hideHeader for these so the container just provides
+                  // the frame + ⋯ menu floating at the top-right.
+                  hideHeader={widgetOwnsHeader(id)}
                 >
                   {renderWidgetBody(id)}
                 </WidgetContainer>
@@ -327,4 +334,23 @@ export default function HomePage() {
 
     </div>
   );
+}
+
+/**
+ * Widgets that render their own internal title + chrome (and would
+ * therefore produce a "double header" if WidgetContainer also drew
+ * one above them). Keep this list in sync with whichever widgets
+ * use a `<h3>`/`<span className="font-semibold">` of their own at
+ * the top of the body — typically the ones with custom tabs (tabs
+ * + title) or built-in toolbars.
+ */
+function widgetOwnsHeader(id: WidgetType): boolean {
+  return [
+    "my-tasks",
+    "people",
+    "private-notepad",
+    "forms",
+    "mentions",
+    "ai-assistant",
+  ].includes(id);
 }
