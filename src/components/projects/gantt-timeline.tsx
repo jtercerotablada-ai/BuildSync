@@ -32,7 +32,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MapPin, Diamond } from "lucide-react";
-import { computePmiSnapshot, formatIndex } from "@/lib/pmi-metrics";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -450,19 +449,13 @@ export function GanttTimeline({
 }
 
 function LaneLabel({ project }: { project: GanttProject }) {
-  const taskList = project.tasks || [];
-  const totalTasks = project._count.tasks ?? taskList.length;
-  const completedTasks = taskList.filter((t) => t.completed).length;
-  const pmi = computePmiSnapshot({
-    startDate: project.startDate,
-    endDate: project.endDate,
-    budget: project.budget ?? null,
-    status: project.status,
-    taskCount: totalTasks,
-    completedTaskCount: completedTasks,
-  });
+  // Simple overdue flag — endDate in the past on a non-complete
+  // project. Was previously derived from pmi.floatDays but EVM
+  // metrics were dropped from the project surface per product call.
   const isOverdue =
-    pmi.floatDays !== null && pmi.floatDays < 0 && project.status !== "COMPLETED";
+    project.endDate !== null &&
+    new Date(project.endDate) < new Date() &&
+    project.status !== "COMPLETED";
 
   return (
     <Link
@@ -480,25 +473,11 @@ function LaneLabel({ project }: { project: GanttProject }) {
         <p className="text-sm font-medium text-black truncate group-hover:underline">
           {project.name}
         </p>
-        <div className="flex items-center gap-1.5 text-[10px] text-gray-500 truncate font-mono">
-          {project.projectNumber && (
-            <span className="font-medium tabular-nums">
-              {project.projectNumber}
-            </span>
-          )}
-          {/* SPI / CPI inline badges — give the lane label PMI weight */}
-          {pmi.spi > 0 && (
-            <span
-              className={cn(
-                "tabular-nums",
-                pmi.spi < 0.85 ? "text-black font-semibold" : "text-gray-500"
-              )}
-              title={`Schedule Performance Index: ${pmi.spi.toFixed(2)}`}
-            >
-              SPI {formatIndex(pmi.spi)}
-            </span>
-          )}
-        </div>
+        {project.projectNumber && (
+          <p className="text-[10px] text-gray-500 truncate font-mono font-medium tabular-nums">
+            {project.projectNumber}
+          </p>
+        )}
       </div>
       {project.owner && (
         <Avatar className="h-5 w-5 flex-shrink-0">

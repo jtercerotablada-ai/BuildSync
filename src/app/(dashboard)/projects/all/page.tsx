@@ -49,12 +49,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { GanttTimeline } from "@/components/projects/gantt-timeline";
-import {
-  computePmiSnapshot,
-  formatCompactCurrency,
-  formatIndex,
-  healthVisual,
-} from "@/lib/pmi-metrics";
+import { computePmiSnapshot, healthVisual } from "@/lib/pmi-metrics";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -452,25 +447,20 @@ function ProjectsGridView({ projects }: { projects: Project[] }) {
 }
 
 /**
- * PMI / EVM dense list view — what a PMP would expect to open.
+ * Compact projects list view.
  *
- * Column anatomy (left to right, all left-aligned except numerics):
+ * Column anatomy (left to right):
  *   #         Project number (TT-YYYY-NNN, monospaced)
- *   PROJECT   Color bar + name (and gate sub-label) — fills.
+ *   PROJECT   Color bar + name + type/client subline
  *   GATE      Phase chip
- *   %COMP     Earned-value-based progress, with planned dashed bar
- *   BAC       Budget at Completion ($ compact)
- *   EV        Earned Value ($ compact)
- *   PV        Planned Value ($ compact)
- *   SPI       Schedule Performance Index (color-coded)
- *   CPI       Cost Performance Index (color-coded)
- *   EAC       Estimate At Completion ($ compact, red when EAC > BAC)
- *   FLOAT     Days until planned end; "Slip Xd" when overdue
- *   HEALTH    Color chip: On track / Watch / At risk / Off track
+ *   %COMP     Progress (actual vs planned mini bar)
+ *   HEALTH    On track / Watch / At risk / Off track pill
  *   OWNER     Avatar
  *
- * Every number is `tabular-nums font-mono` so columns align vertically
- * the way PMs expect from MS Project / Primavera.
+ * The EVM/PMI columns (BAC, EV, PV, SPI, CPI, EAC, Float) that
+ * used to live here were removed at the product owner's request —
+ * they belong on a per-project "Finance" tab, not on the top-level
+ * projects index where they overwhelmed the page.
  */
 function ProjectsListView({
   projects,
@@ -481,21 +471,16 @@ function ProjectsListView({
 }) {
   return (
     <div className="font-sans">
-      {/* PMBOK-style header. Numeric columns get a right-aligned
-          tabular-nums treatment; categorical columns stay left. */}
+      {/* Compact header — six columns. Numeric % column still uses
+          right-aligned tabular-nums; the EVM money/index columns
+          (BAC/EV/PV/SPI/CPI/EAC/Float) were removed per product
+          decision. gridTemplateColumns updated to 6 entries. */}
       <div className="hidden md:grid items-stretch border-b border-gray-200 text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/60 sticky top-0 z-10"
-           style={{ gridTemplateColumns: "100px minmax(220px, 1fr) 110px 130px 80px 80px 80px 60px 60px 80px 80px 100px 56px" }}>
+           style={{ gridTemplateColumns: "100px minmax(220px, 1fr) 110px 130px 100px 56px" }}>
         <div className="px-3 py-2 border-l border-gray-200 first:border-l-0">#</div>
         <div className="px-3 py-2 border-l border-gray-200">Project</div>
         <div className="px-3 py-2 border-l border-gray-200">Gate</div>
         <div className="px-3 py-2 border-l border-gray-200">% Comp</div>
-        <div className="px-3 py-2 border-l border-gray-200 text-right">BAC</div>
-        <div className="px-3 py-2 border-l border-gray-200 text-right">EV</div>
-        <div className="px-3 py-2 border-l border-gray-200 text-right">PV</div>
-        <div className="px-2 py-2 border-l border-gray-200 text-right">SPI</div>
-        <div className="px-2 py-2 border-l border-gray-200 text-right">CPI</div>
-        <div className="px-3 py-2 border-l border-gray-200 text-right">EAC</div>
-        <div className="px-3 py-2 border-l border-gray-200 text-right">Float</div>
         <div className="px-3 py-2 border-l border-gray-200">Health</div>
         <div className="px-2 py-2 border-l border-gray-200 text-center">Owner</div>
       </div>
@@ -515,8 +500,8 @@ function ProjectsListView({
         });
         const hv = healthVisual(pmi.health);
         const isOverdue =
-          pmi.floatDays !== null &&
-          pmi.floatDays < 0 &&
+          p.endDate !== null &&
+          new Date(p.endDate) < new Date() &&
           p.status !== "COMPLETED";
 
         return (
@@ -524,7 +509,7 @@ function ProjectsListView({
             key={p.id}
             onClick={() => onRowClick(p.id)}
             className="hidden md:grid items-stretch hover:bg-gray-50 cursor-pointer border-b border-gray-100 text-[12px] group"
-            style={{ gridTemplateColumns: "100px minmax(220px, 1fr) 110px 130px 80px 80px 80px 60px 60px 80px 80px 100px 56px" }}
+            style={{ gridTemplateColumns: "100px minmax(220px, 1fr) 110px 130px 100px 56px" }}
           >
             {/* # */}
             <div className="px-3 py-2.5 flex items-center font-mono tabular-nums text-[11px] text-gray-600">
@@ -579,43 +564,6 @@ function ProjectsListView({
                   />
                 )}
               </div>
-            </div>
-
-            {/* BAC */}
-            <NumCell value={formatCompactCurrency(pmi.bac, p.currency || "USD")} />
-            {/* EV */}
-            <NumCell value={formatCompactCurrency(pmi.ev, p.currency || "USD")} />
-            {/* PV */}
-            <NumCell value={formatCompactCurrency(pmi.pv, p.currency || "USD")} />
-            {/* SPI */}
-            <IndexCell value={pmi.spi} />
-            {/* CPI */}
-            <IndexCell value={pmi.cpi} />
-            {/* EAC */}
-            <div className="px-3 py-2.5 border-l border-gray-100 flex items-center justify-end font-mono tabular-nums text-[11px]">
-              <span
-                className={cn(
-                  pmi.eac > pmi.bac * 1.05 && "text-black font-semibold",
-                  pmi.eac <= pmi.bac && pmi.eac > 0 && "text-gray-700"
-                )}
-              >
-                {formatCompactCurrency(pmi.eac, p.currency || "USD")}
-              </span>
-            </div>
-
-            {/* Float / Slip */}
-            <div className="px-3 py-2.5 border-l border-gray-100 flex items-center justify-end">
-              {pmi.floatDays === null ? (
-                <span className="text-[11px] text-gray-300">—</span>
-              ) : pmi.floatDays < 0 ? (
-                <span className="text-[11px] font-mono tabular-nums font-semibold text-black">
-                  -{Math.abs(pmi.floatDays)}d
-                </span>
-              ) : (
-                <span className="text-[11px] font-mono tabular-nums text-gray-700">
-                  {pmi.floatDays}d
-                </span>
-              )}
             </div>
 
             {/* Health pill */}
@@ -684,8 +632,7 @@ function ProjectsListView({
                   </span>
                 </div>
                 <p className="text-[10px] text-gray-500 truncate font-mono">
-                  {p.projectNumber || "—"} · {pmi.percentComplete}% · SPI{" "}
-                  {formatIndex(pmi.spi)} · CPI {formatIndex(pmi.cpi)}
+                  {p.projectNumber || "—"} · {pmi.percentComplete}% complete
                 </p>
               </div>
             </Link>
@@ -696,47 +643,7 @@ function ProjectsListView({
   );
 }
 
-function NumCell({ value }: { value: string }) {
-  return (
-    <div className="px-3 py-2.5 border-l border-gray-100 flex items-center justify-end font-mono tabular-nums text-[11px] text-gray-700">
-      {value}
-    </div>
-  );
-}
-
-function IndexCell({ value }: { value: number }) {
-  const formatted = formatIndex(value);
-  // Color-code by PMBOK conventions:
-  //   ≥ 1.00 → gold (over-performing or on plan)
-  //   0.95-0.99 → muted gold
-  //   0.85-0.94 → bold black (watch)
-  //   < 0.85 → black on gold ring (at-risk)
-  let color = "text-gray-400";
-  let weight = "font-mono";
-  if (value > 0) {
-    if (value >= 1) {
-      color = "text-[#a8893a]";
-      weight = "font-mono font-semibold";
-    } else if (value >= 0.95) {
-      color = "text-gray-700";
-      weight = "font-mono";
-    } else if (value >= 0.85) {
-      color = "text-black";
-      weight = "font-mono font-semibold";
-    } else {
-      color = "text-black";
-      weight = "font-mono font-bold";
-    }
-  }
-  return (
-    <div
-      className={cn(
-        "px-2 py-2.5 border-l border-gray-100 flex items-center justify-end text-[11px] tabular-nums",
-        color,
-        weight
-      )}
-    >
-      {formatted}
-    </div>
-  );
-}
+// NumCell + IndexCell were removed when the EVM/PMI columns
+// (BAC/EV/PV/SPI/CPI/EAC) were stripped from the projects table.
+// If a per-project Finance tab needs them later, lift them from
+// the git history at commit ab60cd6's parent.
