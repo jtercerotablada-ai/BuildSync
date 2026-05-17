@@ -625,6 +625,30 @@ export function ListView({
 
   return (
     <div className="flex flex-col h-full">
+      {/* Sections and Tasks — wrapped in DndContext so rows can be
+          dragged within a section (reorder) and across sections
+          (move). The pattern matches my-tasks ListDndProvider: source
+          row is hidden via opacity:0 during drag, a portal-mounted
+          DragOverlay renders the ghost, no bounce-back. */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={kanbanCollisionDetection}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      >
+      {/* Shared overflow-auto container so the header AND the rows
+          share the same scrollbar-deducted width. Before this fix the
+          header sat OUTSIDE the scroll container and resolved its
+          `1fr` Name column against the full viewport, while the rows
+          resolved theirs against (viewport - scrollbar) — about 17px
+          narrower. Every subsequent column in the rows shifted left
+          and the vertical dividers looked misaligned vs the header.
+          With both inside the same overflow context and the header
+          `sticky top-0`, 1fr resolves to the same pixel value
+          everywhere and the grid lines stack perfectly. */}
+      <div className="flex-1 overflow-auto">
       {/* ========================================= */}
       {/* COLUMN HEADERS - ONLY ONCE AT THE TOP    */}
       {/* ========================================= */}
@@ -694,20 +718,6 @@ export function ListView({
         </div>
       </div>
 
-      {/* Sections and Tasks — wrapped in DndContext so rows can be
-          dragged within a section (reorder) and across sections
-          (move). The pattern matches my-tasks ListDndProvider: source
-          row is hidden via opacity:0 during drag, a portal-mounted
-          DragOverlay renders the ghost, no bounce-back. */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={kanbanCollisionDetection}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-      >
-      <div className="flex-1 overflow-auto">
         {localSections.map((section) => (
           <div key={section.id} className="border-b border-slate-200">
             {/* Section Header */}
