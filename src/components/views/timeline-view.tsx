@@ -1007,16 +1007,15 @@ export function TimelineView({
                 </div>
               )}
 
-              {/* DEPENDENCY ARROWS — SVG overlay drawn above the
-                  grid but below the task bars (z-index 5). Each
-                  FINISH_TO_START dep renders as an "elbow"
-                  connector: right edge of the blocker → small
-                  horizontal stub → vertical leg → small horizontal
-                  stub ending in an arrowhead at the dependent's
-                  left edge. START_TO_START / FINISH_TO_FINISH /
-                  START_TO_FINISH use the equivalent endpoint pair.
-                  Skipped silently if either task is outside the
-                  visible timeline window. */}
+              {/* DEPENDENCY ARROWS — Asana-style Bezier connectors.
+                  Drawn as smooth cubic curves so the schedule reads
+                  like a Gantt and not a circuit board. Default state
+                  is a soft slate dashed line; when the user hovers
+                  or selects a task, every arrow touching that task
+                  flips to a salmon-red dashed line with a bolder
+                  stroke (mirrors what Asana does on bar select).
+                  Skipped silently if either endpoint is outside the
+                  visible timeline window or in a collapsed section. */}
               {showDependencies && dependencies.length > 0 && (
                 <svg
                   className="absolute inset-0 pointer-events-none z-[5]"
@@ -1028,14 +1027,24 @@ export function TimelineView({
                 >
                   <defs>
                     <marker
-                      id="dep-arrowhead"
-                      markerWidth="6"
-                      markerHeight="6"
-                      refX="5"
-                      refY="3"
+                      id="dep-arrow-default"
+                      markerWidth="7"
+                      markerHeight="7"
+                      refX="6"
+                      refY="3.5"
                       orient="auto"
                     >
-                      <polygon points="0 0, 6 3, 0 6" fill="#a8893a" />
+                      <polygon points="0 0, 6 3.5, 0 7" fill="#94a3b8" />
+                    </marker>
+                    <marker
+                      id="dep-arrow-active"
+                      markerWidth="7"
+                      markerHeight="7"
+                      refX="6"
+                      refY="3.5"
+                      orient="auto"
+                    >
+                      <polygon points="0 0, 6 3.5, 0 7" fill="#f87171" />
                     </marker>
                   </defs>
                   {dependencies.map((dep) => {
@@ -1043,52 +1052,89 @@ export function TimelineView({
                     const dependent = getTaskScreenPos(dep.dependentTaskId);
                     if (!blocking || !dependent) return null;
 
+                    // Pick the right endpoint side per dependency type.
+                    // FS  = blocker right  → dependent left
+                    // SS  = blocker left   → dependent left
+                    // FF  = blocker right  → dependent right
+                    // SF  = blocker left   → dependent right
                     let sx = 0;
                     let sy = 0;
                     let ex = 0;
                     let ey = 0;
+                    let sxOutDir = 1; // +1 = leave to the right, -1 = leave to the left
+                    let exInDir = -1; // -1 = enter from the right, +1 = enter from the left
                     if (dep.type === "FINISH_TO_START") {
                       sx = blocking.xRight;
                       sy = blocking.yCenter;
                       ex = dependent.xLeft;
                       ey = dependent.yCenter;
+                      sxOutDir = 1;
+                      exInDir = -1;
                     } else if (dep.type === "START_TO_START") {
                       sx = blocking.xLeft;
                       sy = blocking.yCenter;
                       ex = dependent.xLeft;
                       ey = dependent.yCenter;
+                      sxOutDir = -1;
+                      exInDir = -1;
                     } else if (dep.type === "FINISH_TO_FINISH") {
                       sx = blocking.xRight;
                       sy = blocking.yCenter;
                       ex = dependent.xRight;
                       ey = dependent.yCenter;
+                      sxOutDir = 1;
+                      exInDir = 1;
                     } else {
                       // START_TO_FINISH (rare)
                       sx = blocking.xLeft;
                       sy = blocking.yCenter;
                       ex = dependent.xRight;
                       ey = dependent.yCenter;
+                      sxOutDir = -1;
+                      exInDir = 1;
                     }
 
-                    // Elbow path: short horizontal stub out of the
-                    // blocker, vertical run, short horizontal stub
-                    // into the dependent. 10px clearance from the bar
-                    // edge keeps the line off the bar's rounded corner.
-                    const stub = 10;
-                    const midX =
-                      ex >= sx + 2 * stub
-                        ? sx + stub
-                        : ex - stub;
-                    const path = `M ${sx} ${sy} L ${midX} ${sy} L ${midX} ${ey} L ${ex} ${ey}`;
+                    // Cubic Bezier with horizontal control handles —
+                    // the curve leaves and enters its endpoints with
+                    // the same direction the bar extends in, which
+                    // gives the smooth S-shape Asana uses. Handle
+                    // length scales with the horizontal gap so close
+                    // bars get gentle curves and distant bars don't
+                    // explode into wild loops.
+                    const dx = ex - sx;
+                    const handle = Math.max(
+                      24,
+                      Math.min(Math.abs(dx) * 0.4, 120)
+                    );
+                    const c1x = sx + sxOutDir * handle;
+                    const c2x = ex + exInDir * handle;
+                    const path = `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ey}, ${ex} ${ey}`;
+
+                    // Highlight any arrow whose blocker OR dependent
+                    // is the task the user is currently hovering or
+                    // has selected. Matches Asana's "select a bar to
+                    // see its chain" affordance.
+                    const isActive =
+                      hoveredTask === dep.blockingTaskId ||
+                      hoveredTask === dep.dependentTaskId ||
+                      selectedTaskId === dep.blockingTaskId ||
+                      selectedTaskId === dep.dependentTaskId;
 
                     return (
                       <path
                         key={dep.id}
                         d={path}
-                        stroke="#a8893a"
-                        strokeWidth="1.5"
+                        stroke={isActive ? "#f87171" : "#94a3b8"}
+                        strokeWidth={isActive ? 2 : 1.5}
+                        strokeDasharray={isActive ? "5 3" : "4 4"}
+                        strokeLinecap="round"
                         fill="none"
-                        markerEnd="url(#dep-arrowhead)"
+                        markerEnd={
+                          isActive
+                            ? "url(#dep-arrow-active)"
+                            : "url(#dep-arrow-default)"
+                        }
+                        opacity={isActive ? 1 : 0.75}
                       />
                     );
                   })}
