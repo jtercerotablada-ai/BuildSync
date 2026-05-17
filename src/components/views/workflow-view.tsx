@@ -442,50 +442,89 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
             </button>
           </div>
 
-          {/* Sources panel — Forms section (Phase 3). Always visible
-              since forms are an ongoing config, not just onboarding.
-              Empty state matches the old "How will tasks be added"
-              card when there are no forms yet. */}
+          {/* Sources panel — Forms section.
+              Forms are external intake (RFI, change order, inspection
+              requests) — anyone with the link fills the form, the
+              answers become a task in this project. Workflow rules
+              defined above then run on that task. */}
           <div className="flex-shrink-0">
-            <div className="w-72 bg-white rounded-lg border shadow-sm">
+            <div className="w-80 bg-white rounded-lg border shadow-sm">
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold text-slate-900">
-                    Sources
-                  </h2>
-                  <button
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-900">
+                      Intake forms
+                    </h2>
+                    <p className="text-[11px] text-slate-500">
+                      External requests → project tasks
+                    </p>
+                  </div>
+                  <Button
                     type="button"
+                    size="sm"
                     onClick={() => {
                       setEditingForm(null);
                       setFormDialogOpen(true);
                     }}
-                    className="text-[11px] text-[#a8893a] hover:text-[#8a7028] font-medium"
+                    className="h-7 px-2.5 text-[12px] bg-black hover:bg-slate-800 text-white"
                   >
-                    + New form
-                  </button>
-                </div>
-
-                <div className="flex items-start gap-2 p-2.5 bg-slate-50 rounded-lg text-xs mb-3">
-                  <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-slate-600">
-                    Anyone with the form&apos;s link can submit a task.
-                    Submissions land in the first section, then your
-                    workflow rules take over.
-                  </p>
+                    <Plus className="w-3.5 h-3.5 mr-0.5" />
+                    New form
+                  </Button>
                 </div>
 
                 {forms.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 text-center py-3">
-                    No forms yet. Create one and share its public link.
-                  </p>
+                  // Educational empty state — Asana parity. The user
+                  // is here for the first time and has no idea what
+                  // a "form" does. Concrete examples beat abstract.
+                  <div className="border border-dashed border-slate-300 rounded-lg p-4 text-center">
+                    <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="text-[12px] font-medium text-slate-700 mb-1">
+                      No forms yet
+                    </p>
+                    <p className="text-[11px] text-slate-500 leading-snug mb-3">
+                      Create a form to collect intake from outside the
+                      app — examples:
+                    </p>
+                    <ul className="text-[11px] text-slate-600 space-y-1 mb-3 inline-block text-left">
+                      <li className="flex items-start gap-1">
+                        <span className="text-[#a8893a]">•</span>
+                        RFI Request (contractor asks a question)
+                      </li>
+                      <li className="flex items-start gap-1">
+                        <span className="text-[#a8893a]">•</span>
+                        Change Order Request
+                      </li>
+                      <li className="flex items-start gap-1">
+                        <span className="text-[#a8893a]">•</span>
+                        Inspection Request
+                      </li>
+                      <li className="flex items-start gap-1">
+                        <span className="text-[#a8893a]">•</span>
+                        Recertification Intake
+                      </li>
+                    </ul>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingForm(null);
+                        setFormDialogOpen(true);
+                      }}
+                      className="text-[12px]"
+                    >
+                      Browse templates
+                    </Button>
+                  </div>
                 ) : (
-                  <ul className="space-y-1.5">
+                  <ul className="space-y-2">
                     {forms.map((f) => (
                       <li
                         key={f.id}
-                        className="border rounded-md p-2 text-xs"
+                        className="border rounded-md p-2.5 text-xs bg-white"
                       >
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="flex items-start gap-1.5 min-w-0">
                             <FileText className="w-3.5 h-3.5 text-[#a8893a] flex-shrink-0 mt-0.5" />
                             <div className="min-w-0">
@@ -493,49 +532,52 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                                 {f.name}
                               </p>
                               <p className="text-[10px] text-slate-500">
-                                {f.submissionCount ?? 0} submission
+                                {f.submissionCount ?? 0} response
                                 {f.submissionCount === 1 ? "" : "s"}
                                 {!f.isActive && " · inactive"}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-0.5 flex-shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setSubmissionsForm(f)}
-                              title="View submissions"
-                              className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
-                            >
-                              <Inbox className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => copyFormLink(f.id)}
-                              title="Copy public link"
-                              className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
-                            >
-                              <LinkIcon className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingForm(f);
-                                setFormDialogOpen(true);
-                              }}
-                              title="Edit form"
-                              className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleFormDelete(f.id)}
-                              title="Delete form"
-                              className="p-1 text-slate-400 hover:text-black hover:bg-slate-100 rounded"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
+                        </div>
+                        <div className="flex items-center flex-wrap gap-1">
+                          <button
+                            type="button"
+                            onClick={() => copyFormLink(f.id)}
+                            title="Copy the public link"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-[#1d6b3e] bg-[#dff1e6]/60 hover:bg-[#dff1e6] rounded font-medium border border-[#bce0c9]"
+                          >
+                            <LinkIcon className="w-3 h-3" />
+                            Copy link
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSubmissionsForm(f)}
+                            title="View submissions inbox"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100 rounded font-medium border border-slate-200"
+                          >
+                            <Inbox className="w-3 h-3" />
+                            Inbox
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingForm(f);
+                              setFormDialogOpen(true);
+                            }}
+                            title="Edit fields and settings"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100 rounded font-medium border border-slate-200"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleFormDelete(f.id)}
+                            title="Delete this form"
+                            className="ml-auto p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
                       </li>
                     ))}

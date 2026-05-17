@@ -110,17 +110,28 @@ export function FormsWidget() {
           <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
         </div>
       ) : forms.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center py-6">
+        // Educational empty state — most users have never used a Forms
+        // feature before. Concrete examples teach what it's for.
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-4 px-2">
           <div className="relative mb-3">
             <div className="w-12 h-14 border-2 border-gray-200 rounded-lg flex items-end justify-center pb-1.5">
               <div className="w-6 h-1.5 bg-gray-200 rounded" />
             </div>
           </div>
-          <p className="text-sm font-medium text-gray-900 mb-1">No forms yet</p>
-          <p className="text-xs text-gray-500 mb-3 max-w-[260px]">
-            Create an intake form to turn requests into project tasks
-            automatically.
+          <p className="text-sm font-medium text-gray-900 mb-1">
+            Turn requests into tasks
           </p>
+          <p className="text-xs text-gray-500 mb-3 max-w-[280px] leading-snug">
+            Build an intake form, share its public link with clients or
+            contractors. Each submission auto-creates a task in the
+            project — assigned, scheduled, ready.
+          </p>
+          <ul className="text-[11px] text-gray-600 space-y-0.5 mb-3 inline-block text-left">
+            <li>· RFI Request</li>
+            <li>· Change Order</li>
+            <li>· Inspection Request</li>
+            <li>· Recertification Intake</li>
+          </ul>
           <DropdownMenu
             open={showProjectPicker}
             onOpenChange={setShowProjectPicker}
@@ -128,28 +139,33 @@ export function FormsWidget() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
                 <Plus className="w-4 h-4 mr-1" />
-                New form
+                Create your first form
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
               {projects.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
-                  No projects yet
+                  Create a project first — forms belong to a project.
                 </div>
               ) : (
-                projects.map((p) => (
-                  <DropdownMenuItem
-                    key={p.id}
-                    onClick={() => startNewForm(p.id)}
-                    className="cursor-pointer"
-                  >
-                    <span
-                      className="h-3 w-3 rounded-full mr-2 flex-shrink-0"
-                      style={{ backgroundColor: p.color || '#c9a84c' }}
-                    />
-                    <span className="truncate">{p.name}</span>
-                  </DropdownMenuItem>
-                ))
+                <>
+                  <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold border-b">
+                    Pick a project for the form
+                  </div>
+                  {projects.map((p) => (
+                    <DropdownMenuItem
+                      key={p.id}
+                      onClick={() => startNewForm(p.id)}
+                      className="cursor-pointer"
+                    >
+                      <span
+                        className="h-3 w-3 rounded-full mr-2 flex-shrink-0"
+                        style={{ backgroundColor: p.color || '#c9a84c' }}
+                      />
+                      <span className="truncate">{p.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>

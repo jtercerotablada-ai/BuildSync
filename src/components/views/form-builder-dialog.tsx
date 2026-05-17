@@ -48,6 +48,18 @@ import type {
   FormFieldType,
   FormRow,
 } from "@/lib/form-types";
+import {
+  FORM_TEMPLATES,
+  findFormTemplate,
+  type FormTemplate,
+} from "@/lib/form-templates";
+import {
+  HelpCircle,
+  FilePenLine,
+  ShieldCheck,
+  BadgeCheck,
+  FileText,
+} from "lucide-react";
 
 /**
  * Form Builder dialog — single unified source for creating / editing
@@ -135,6 +147,10 @@ export function FormBuilderDialog({
   const [tab, setTab] = useState<"build" | "settings" | "share">("build");
   const [saving, setSaving] = useState(false);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+  // Show the template-picker overlay before the build form on a
+  // brand-new form (so the user doesn't stare at a blank canvas).
+  // Skipped automatically when editing an existing form.
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
 
   // ── Core form state ────────────────────────────────────────────
   const [name, setName] = useState("");
@@ -184,10 +200,23 @@ export function FormBuilderDialog({
       setConfirmationMessage("");
       setNotifyOnSubmission(true);
       setVisibility("PUBLIC");
+      // New-form mode: open with the template picker so the user
+      // starts from one of the engineering quick-starts instead of
+      // a blank canvas.
+      setShowTemplatePicker(true);
     }
     setTab("build");
     setActiveFieldId(null);
   }, [open, initial]);
+
+  const pickTemplate = useCallback((template: FormTemplate) => {
+    setName(template.name);
+    setDescription(template.description);
+    setFields(template.fields.map((f) => ({ ...f })));
+    setConfirmationMessage(template.confirmationMessage);
+    setShowTemplatePicker(false);
+    setActiveFieldId(null);
+  }, []);
 
   // ── Load sections + members once the dialog opens ──────────────
   // GET /api/projects/:id returns both sections[] and members[] nested
@@ -366,30 +395,39 @@ export function FormBuilderDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-5 pb-3 border-b">
           <DialogTitle className="text-base font-semibold">
-            {initial ? "Edit form" : "New form"}
+            {initial ? "Edit form" : showTemplatePicker ? "Start a new form" : "New form"}
           </DialogTitle>
-          <div className="flex gap-4 border-b -mb-3 -mx-6 px-6 pt-3">
-            {(["build", "settings", "share"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                disabled={t === "share" && !initial}
-                className={cn(
-                  "pb-2 text-[13px] font-medium border-b-2 -mb-px transition-colors capitalize",
-                  tab === t
-                    ? "border-black text-black"
-                    : "border-transparent text-gray-500 hover:text-gray-800",
-                  t === "share" && !initial && "opacity-40 cursor-not-allowed"
-                )}
-              >
-                {t === "share" ? "Share" : t === "build" ? "Build" : "Settings"}
-              </button>
-            ))}
-          </div>
+          {!showTemplatePicker && (
+            <div className="flex gap-4 border-b -mb-3 -mx-6 px-6 pt-3">
+              {(["build", "settings", "share"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  disabled={t === "share" && !initial}
+                  className={cn(
+                    "pb-2 text-[13px] font-medium border-b-2 -mb-px transition-colors capitalize",
+                    tab === t
+                      ? "border-black text-black"
+                      : "border-transparent text-gray-500 hover:text-gray-800",
+                    t === "share" && !initial && "opacity-40 cursor-not-allowed"
+                  )}
+                >
+                  {t === "share" ? "Share" : t === "build" ? "Build" : "Settings"}
+                </button>
+              ))}
+            </div>
+          )}
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          {tab === "build" && (
+          {showTemplatePicker && (
+            <TemplatePicker
+              onPick={pickTemplate}
+              onSkip={() => setShowTemplatePicker(false)}
+            />
+          )}
+
+          {!showTemplatePicker && tab === "build" && (
             <BuildTab
               name={name}
               setName={setName}
@@ -406,7 +444,7 @@ export function FormBuilderDialog({
             />
           )}
 
-          {tab === "settings" && (
+          {!showTemplatePicker && tab === "settings" && (
             <SettingsTab
               sections={sections}
               members={members}
@@ -423,7 +461,7 @@ export function FormBuilderDialog({
             />
           )}
 
-          {tab === "share" && initial && (
+          {!showTemplatePicker && tab === "share" && initial && (
             <ShareTab
               publicUrl={publicUrl}
               embedSnippet={embedSnippet}
@@ -432,23 +470,25 @@ export function FormBuilderDialog({
           )}
         </div>
 
-        <DialogFooter className="px-6 py-3 border-t bg-slate-50">
-          {!validation.ok && (
-            <span className="text-[12px] text-rose-600 mr-auto">
-              {validation.msg}
-            </span>
-          )}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving || !validation.ok}
-            className="bg-black hover:bg-gray-900 text-white"
-          >
-            {saving ? "Saving…" : initial ? "Save changes" : "Create form"}
-          </Button>
-        </DialogFooter>
+        {!showTemplatePicker && (
+          <DialogFooter className="px-6 py-3 border-t bg-slate-50">
+            {!validation.ok && (
+              <span className="text-[12px] text-rose-600 mr-auto">
+                {validation.msg}
+              </span>
+            )}
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving || !validation.ok}
+              className="bg-black hover:bg-gray-900 text-white"
+            >
+              {saving ? "Saving…" : initial ? "Save changes" : "Create form"}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -1198,6 +1238,92 @@ function ShareTab({
         >
           <Copy className="w-3.5 h-3.5 mr-1" />
           Copy embed
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// TEMPLATE PICKER  (new-form onboarding)
+// ─────────────────────────────────────────────────────────────────
+
+const TEMPLATE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  HelpCircle,
+  FilePenLine,
+  ShieldCheck,
+  BadgeCheck,
+  FileText,
+  Inbox: FileText, // fallback
+};
+
+const TEMPLATE_ACCENT: Record<string, string> = {
+  amber: "bg-[#fbeed3]/60 border-[#e9d287] text-[#7a5b1b]",
+  blue: "bg-[#e1eefc]/60 border-[#bcd6f3] text-[#274a73]",
+  violet: "bg-[#ece4f7]/60 border-[#d3c1ee] text-[#4f3a7a]",
+  rose: "bg-[#fce4e4]/60 border-[#f1b8b8] text-[#a8323a]",
+  emerald: "bg-[#dff1e6]/60 border-[#bce0c9] text-[#1d6b3e]",
+  slate: "bg-slate-100 border-slate-300 text-slate-700",
+};
+
+function TemplatePicker({
+  onPick,
+  onSkip,
+}: {
+  onPick: (template: FormTemplate) => void;
+  onSkip: () => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="text-sm text-slate-600 max-w-prose">
+          A form turns an external request (RFI, change order, inspection,
+          etc.) into a task inside this project — automatically assigned and
+          logged. Pick a template to jumpstart, or start from scratch.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {FORM_TEMPLATES.filter((t) => t.id !== "blank").map((template) => {
+          const Icon = TEMPLATE_ICON[template.icon] || FileText;
+          return (
+            <button
+              key={template.id}
+              type="button"
+              onClick={() => onPick(template)}
+              className="text-left border rounded-lg p-3 hover:border-slate-400 hover:shadow-sm transition-all bg-white"
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={cn(
+                    "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 border",
+                    TEMPLATE_ACCENT[template.accent] || TEMPLATE_ACCENT.slate
+                  )}
+                >
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-slate-900 leading-tight">
+                    {template.name}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                    {template.blurb}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1.5">
+                    {template.fields.length} field
+                    {template.fields.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="pt-2 border-t flex items-center justify-between">
+        <p className="text-[12px] text-slate-500">
+          You can change anything after picking a template.
+        </p>
+        <Button variant="outline" size="sm" onClick={onSkip}>
+          Start from scratch
         </Button>
       </div>
     </div>
