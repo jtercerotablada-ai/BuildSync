@@ -631,8 +631,11 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           </div>
         )}
 
-        {/* View Tabs */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-1">
+        {/* View Tabs — Asana layout: tabs on their own top row,
+            Filter/Sort/Options on a separate row below. Keeps the
+            view picker visually distinct from the toolbar so the
+            primary navigation never feels crowded by toggles. */}
+        <div className="flex flex-col gap-0">
           <div className="flex items-center gap-0 md:gap-1 overflow-x-auto flex-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button
               onClick={() => handleViewChange("overview")}
@@ -771,9 +774,11 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </DropdownMenu>
           </div>
 
-          {/* Toolbar - only show for task views */}
+          {/* Toolbar - only show for task views. Sits on its own
+              row below the view tabs (Asana parity). border-t adds
+              the thin separator Asana uses between the two strips. */}
           {showToolbar && (
-            <div className="flex items-center gap-1 overflow-x-auto flex-nowrap">
+            <div className="flex items-center justify-end gap-1 overflow-x-auto flex-nowrap border-t border-slate-100 py-1.5">
               {/* Filter */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
