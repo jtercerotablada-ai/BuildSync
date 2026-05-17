@@ -73,7 +73,7 @@ export function HomePortfolioSkyline({
           budget: p.budget,
           status: p.status,
           taskCount: p._count.tasks,
-          completedTaskCount: 0,
+          completedTaskCount: p._count.completedTasks,
         });
         const color =
           p.status === "OFF_TRACK"

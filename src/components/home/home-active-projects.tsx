@@ -44,7 +44,9 @@ export function HomeActiveProjects({
       budget: p.budget,
       status: p.status,
       taskCount: p._count.tasks,
-      completedTaskCount: 0, // CockpitData doesn't return completed count
+      // Real per-project completed count is now returned by
+      // /api/dashboard/ceo so SPI / % complete are accurate.
+      completedTaskCount: p._count.completedTasks,
     }),
   }));
 

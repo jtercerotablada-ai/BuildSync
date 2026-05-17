@@ -23,7 +23,10 @@ export interface CockpitProject {
   endDate: string | null;
   updatedAt: string;
   owner: { id: string; name: string | null; image: string | null } | null;
-  _count: { tasks: number };
+  // `completedTasks` is populated by /api/dashboard/ceo so PMI tiles
+  // can compute real EV → SPI → % complete instead of always-zero.
+  // Defaults to 0 for projects with no tasks completed yet.
+  _count: { tasks: number; completedTasks: number };
 }
 
 export interface TeamMember {
@@ -40,6 +43,10 @@ export interface CriticalTask {
   name: string;
   dueDate: string;
   priority: string;
+  // `taskType` lets the Upcoming Milestones tile narrow to actual
+  // milestones (taskType === "MILESTONE") instead of any task. Other
+  // tiles (Priority Queue) ignore the field.
+  taskType: "TASK" | "MILESTONE" | "APPROVAL" | null;
   project: { id: string; name: string; color: string; type: ProjectType | null };
   assignee: { id: string; name: string | null; image: string | null } | null;
 }

@@ -1,18 +1,19 @@
 "use client";
 
 /**
- * Upcoming milestones — the next 14 days of priority tasks across
- * the portfolio rendered as a date-grouped strip.
+ * Upcoming milestones — actual MILESTONE tasks (gold diamond per
+ * PMBOK convention) due within the next 14 days. Pulled from the
+ * shared CriticalTask[] payload from /api/dashboard/ceo and filtered
+ * client-side to taskType === "MILESTONE" so the API stays generic
+ * for both this tile and the Priority Queue.
  *
- * V1 uses CriticalTask[] from /api/dashboard/ceo (the same data the
- * Priority Queue uses) but filtered to a forward window and grouped
- * by day. Once Day 3 ships milestones-as-task-type, this tile will
- * filter to taskType=MILESTONE and the visuals upgrade to diamond
- * markers per PMBOK convention.
+ * Approvals (taskType === "APPROVAL") are gates not milestones in
+ * PMI vocabulary so they're excluded here — they belong on a future
+ * "Pending approvals" tile.
  */
 
 import Link from "next/link";
-import { Flag } from "lucide-react";
+import { Diamond } from "lucide-react";
 import type { CriticalTask } from "@/components/cockpit/types";
 
 export function HomeUpcomingMilestones({
@@ -24,10 +25,11 @@ export function HomeUpcomingMilestones({
   const horizonDays = 14;
   const horizonEnd = new Date(now.getTime() + horizonDays * 24 * 60 * 60 * 1000);
 
-  // Filter to tasks due within the window (not overdue — overdue
-  // lives in Priority Queue) and group by date string.
+  // Filter to MILESTONE tasks due within the window (forward only —
+  // overdue milestones lead in the Priority Queue tile).
   const upcoming = tasks
     .filter((t) => {
+      if (t.taskType !== "MILESTONE") return false;
       const d = new Date(t.dueDate);
       return d >= now && d <= horizonEnd;
     })
@@ -59,7 +61,11 @@ export function HomeUpcomingMilestones({
       </div>
       {days.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 text-center">
-          <Flag className="h-6 w-6 text-gray-300 mb-2" />
+          <Diamond
+            className="h-6 w-6 mb-2"
+            fill="#d4d4d4"
+            color="#d4d4d4"
+          />
           <p className="text-sm text-gray-500 max-w-[260px]">
             No milestones in the next {horizonDays} days.
           </p>
@@ -96,9 +102,10 @@ export function HomeUpcomingMilestones({
                         href={`/projects/${t.project.id}`}
                         className="flex items-center gap-2 text-[12px] hover:underline"
                       >
-                        <span
-                          className="w-1.5 h-1.5 rounded-sm flex-shrink-0"
-                          style={{ backgroundColor: t.project.color }}
+                        <Diamond
+                          className="h-3 w-3 flex-shrink-0"
+                          fill="#c9a84c"
+                          color="#c9a84c"
                         />
                         <span className="text-black truncate">{t.name}</span>
                         <span className="text-gray-400 truncate">

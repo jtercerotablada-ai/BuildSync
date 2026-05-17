@@ -92,16 +92,16 @@ function buildBrief(data: CockpitData): string[] {
   const watchProjects = data.projects
     .map((p) => {
       const totalTasks = p._count.tasks;
-      // We don't have completed count in CockpitProject — use status
-      // proxy. SPI heuristic: if status AT_RISK or OFF_TRACK, treat as
-      // SPI < 0.9 without computing.
+      // Real EV → SPI computation using the per-project completed
+      // count now returned by /api/dashboard/ceo. Replaces the
+      // earlier zero-stub that collapsed SPI for every project.
       const pmi = computePmiSnapshot({
         startDate: p.startDate,
         endDate: p.endDate,
         budget: p.budget,
         status: p.status,
         taskCount: totalTasks,
-        completedTaskCount: 0,
+        completedTaskCount: p._count.completedTasks,
       });
       return { p, pmi };
     })

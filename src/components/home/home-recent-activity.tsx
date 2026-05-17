@@ -12,15 +12,28 @@ import type { ActivityItem } from "@/components/cockpit/types";
 import { formatCompactRelative } from "@/lib/date-utils";
 
 export function HomeRecentActivity({ items }: { items: ActivityItem[] }) {
+  // The API returns the most recent 12 tasks by updatedAt regardless
+  // of age, so labeling this "last 7 days" was a UX lie when the
+  // workspace was quiet. Show the actual freshness of the newest
+  // item instead (e.g. "12 events · most recent 2h ago").
+  const newest = items[0];
+  const subline =
+    items.length === 0
+      ? "No activity"
+      : `${items.length} event${items.length === 1 ? "" : "s"} · most recent ${
+          newest
+            ? formatCompactRelative(
+                newest.completedAt || newest.updatedAt
+              )
+            : ""
+        }`;
   return (
     <div className="h-full flex flex-col border rounded-xl bg-white overflow-hidden">
       <div className="px-4 py-3 border-b flex-shrink-0 pr-12">
         <h3 className="text-sm font-semibold text-black leading-tight">
           Recent activity
         </h3>
-        <p className="text-[11px] text-gray-500">
-          {items.length} events · last 7 days
-        </p>
+        <p className="text-[11px] text-gray-500">{subline}</p>
       </div>
       {items.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 text-center">

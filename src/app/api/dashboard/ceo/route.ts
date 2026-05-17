@@ -85,7 +85,7 @@ export async function GET() {
         ? { project: { workspaceId } }
         : { projectId: { in: scopedProjectIds } };
 
-    const [projects, workspaceMembers, recentTasks, recentActivities] =
+    const [projects, completedTaskCounts, workspaceMembers, recentTasks, recentActivities] =
       await Promise.all([
         prisma.project.findMany({
           where: projectWhere,
@@ -109,6 +109,17 @@ export async function GET() {
             _count: { select: { tasks: true } },
           },
           orderBy: { updatedAt: "desc" },
+        }),
+
+        // Completed-task counts per project — needed so the Skyline,
+        // AI Brief, and Active Projects can compute real EV → SPI →
+        // % complete. Before this query was added every consumer was
+        // passing completedTaskCount: 0 which collapsed every PMI
+        // metric to zero / "—" on the home page.
+        prisma.task.groupBy({
+          by: ["projectId"],
+          where: { ...taskWhere, completedAt: { not: null } },
+          _count: { _all: true },
         }),
 
         // Workspace team — everyone L4+ sees the full firm; lower
@@ -155,13 +166,17 @@ export async function GET() {
               },
             }),
 
-        // Critical path — tasks due in next 14 days, scoped.
+        // Critical path — overdue + everything due in the next 14
+        // days. The lower bound used to be `gte: new Date()` which
+        // silently dropped every overdue task; the Priority Queue
+        // widget on /home is supposed to lead with overdue, so the
+        // floor is now removed and we just cap at +14 days.
         prisma.task.findMany({
           where: {
             ...taskWhere,
             completedAt: null,
             dueDate: {
-              gte: new Date(),
+              not: null,
               lte: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
             },
           },
@@ -170,11 +185,14 @@ export async function GET() {
             name: true,
             dueDate: true,
             priority: true,
+            taskType: true,
             project: { select: { id: true, name: true, color: true, type: true } },
             assignee: { select: { id: true, name: true, image: true } },
           },
           orderBy: { dueDate: "asc" },
-          take: 8,
+          // Bump take so the queue + milestones tiles both have enough
+          // to filter from. They each slice down to the visible count.
+          take: 24,
         }),
 
         // Activity stream — scoped to allowed projects.
@@ -307,10 +325,26 @@ export async function GET() {
       .sort((a, b) => b.load - a.load)
       .slice(0, 8);
 
+    // Build a map of completedCount per project so we can attach it
+    // to each project payload in O(N). Prisma types projectId as
+    // nullable on the groupBy result; filter those out — orphan
+    // tasks with no project don't belong on any project's count.
+    const completedByProject = new Map<string, number>(
+      completedTaskCounts
+        .filter((row): row is typeof row & { projectId: string } =>
+          row.projectId !== null
+        )
+        .map((row) => [row.projectId, row._count._all])
+    );
+
     return NextResponse.json({
       projects: projects.map((p) => ({
         ...p,
         budget: isFinanceAllowed && p.budget ? Number(p.budget) : null,
+        _count: {
+          tasks: p._count.tasks,
+          completedTasks: completedByProject.get(p.id) ?? 0,
+        },
       })),
       countsByType,
       countsByGate,

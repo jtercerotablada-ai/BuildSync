@@ -45,6 +45,7 @@ import {
 } from "@dnd-kit/sortable";
 import { Loader2 } from "lucide-react";
 import { useWidgetPreferences } from "@/hooks/use-widget-preferences";
+import { useUiState } from "@/hooks/use-ui-state";
 import {
   WidgetContainer,
   WidgetOverlay,
@@ -85,13 +86,19 @@ import {
   AIAssistantWidget,
 } from "@/components/dashboard/widgets";
 
-const PERIOD_STORAGE_KEY = "home.period";
+// Per-user period preference, stored on UserPreferences.uiState in
+// the DB so it follows the user across devices instead of dying in
+// localStorage. Default "week" matches the original behavior.
+const PERIOD_UI_STATE_KEY = "home.period";
 
 export default function HomePage() {
   const { data: session } = useSession();
   const [data, setData] = useState<CockpitData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [period, setPeriod] = useState<HomePeriod>("week");
+  const { value: period, setValue: setPeriod } = useUiState<HomePeriod>(
+    PERIOD_UI_STATE_KEY,
+    "week"
+  );
   const [activeId, setActiveId] = useState<WidgetType | null>(null);
 
   // ── Widget layout persistence (DB-backed) ────────────────────────
@@ -115,21 +122,9 @@ export default function HomePage() {
     })
   );
 
-  // ── Period selector persistence ─────────────────────────────────
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(PERIOD_STORAGE_KEY) as HomePeriod | null;
-    if (
-      stored &&
-      ["today", "week", "next14", "lookahead3w", "quarter"].includes(stored)
-    ) {
-      setPeriod(stored);
-    }
-  }, []);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(PERIOD_STORAGE_KEY, period);
-  }, [period]);
+  // Period persistence is handled by useUiState above — no
+  // localStorage effects needed. The hook restores the value from
+  // the DB on mount and writes back debounced on change.
 
   // ── Single fetch of CockpitData (shared across all PMI tiles) ───
   useEffect(() => {
