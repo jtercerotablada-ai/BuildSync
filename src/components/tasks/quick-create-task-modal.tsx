@@ -48,6 +48,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DueDatePicker } from "@/components/tasks/due-date-picker";
+import { formatRangeLabel } from "@/lib/task-helpers";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
@@ -72,8 +74,8 @@ interface QuickCreateTaskModalProps {
   projects?: Project[];
 }
 
-/** Format a Date as the Asana-style "Tomorrow / Today / Mon, Jun 3" label. */
-function formatDueLabel(date: Date | null): string {
+/** Format a single due Date as the Asana-style relative label. */
+function formatSingleDueLabel(date: Date | null): string {
   if (!date) return "Set due date";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -84,10 +86,26 @@ function formatDueLabel(date: Date | null): string {
   if (d.getTime() === today.getTime()) return "Today";
   if (d.getTime() === tomorrow.getTime()) return "Tomorrow";
   return d.toLocaleDateString("en-US", {
-    weekday: "short",
     month: "short",
     day: "numeric",
   });
+}
+
+/** Asana-style header label for the date pill:
+ *   - Range present (start + due): "May 18 – 30"
+ *   - Only due: "Tomorrow" / "Today" / "May 18"
+ *   - Only start: "From May 18"
+ *   - Neither: "Set due date"
+ */
+function formatComposerDateLabel(
+  start: Date | null,
+  due: Date | null
+): string {
+  if (!start && !due) return "Set due date";
+  if (!start && due) return formatSingleDueLabel(due);
+  // formatRangeLabel handles both "start only" and "start + due" cases
+  // with the correct phrasing.
+  return formatRangeLabel(start, due, formatSingleDueLabel(due));
 }
 
 export function QuickCreateTaskModal({
@@ -105,10 +123,12 @@ export function QuickCreateTaskModal({
   const [description, setDescription] = useState("");
   const [selectedAssignee, setSelectedAssignee] = useState<User | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  // Asana-style range: start AND due date. Both optional. Default
+  // due to Tomorrow as the gentle nudge ("most quick-assigns are
+  // short-turnaround"); user can extend left (set a start) via the
+  // popover. Set both to null to clear.
+  const [startDate, setStartDate] = useState<Date | null>(null);
   const [dueDate, setDueDate] = useState<Date | null>(() => {
-    // Asana's quick-create defaults to Tomorrow as the gentle nudge —
-    // most "assign me a task" interactions imply something with a
-    // short turnaround, not a long-running plan.
     const t = new Date();
     t.setDate(t.getDate() + 1);
     t.setHours(9, 0, 0, 0);
@@ -161,12 +181,19 @@ export function QuickCreateTaskModal({
     setDescription("");
     setSelectedAssignee(null);
     setSelectedProject(null);
+    setStartDate(null);
     // Reset due date to Tomorrow for the next time the composer opens.
     const t = new Date();
     t.setDate(t.getDate() + 1);
     t.setHours(9, 0, 0, 0);
     setDueDate(t);
   };
+
+  /** Pure helper: format a Date as YYYY-MM-DD without timezone drift. */
+  const fmtIso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
 
   const handleCreateTask = async () => {
     if (!title.trim() || !selectedProject) return;
@@ -180,15 +207,8 @@ export function QuickCreateTaskModal({
           description: description.trim() || null,
           assigneeId: selectedAssignee?.id ?? null,
           projectId: selectedProject.id,
-          dueDate: dueDate
-            ? new Date(
-                dueDate.getFullYear(),
-                dueDate.getMonth(),
-                dueDate.getDate()
-              )
-                .toISOString()
-                .slice(0, 10)
-            : null,
+          startDate: startDate ? fmtIso(startDate) : null,
+          dueDate: dueDate ? fmtIso(dueDate) : null,
         }),
       });
       if (res.ok) {
@@ -239,7 +259,10 @@ export function QuickCreateTaskModal({
 
   return (
     <div
-      className="fixed bottom-0 right-6 bg-white rounded-t-lg shadow-2xl border border-b-0 border-slate-200 z-50 w-[420px] flex flex-col"
+      // Bumped to 480px to match Asana's quick-create composer width
+      // — the previous 420px felt cramped once the assignee + project
+      // pills had real content in them.
+      className="fixed bottom-0 right-6 bg-white rounded-t-lg shadow-2xl border border-b-0 border-slate-200 z-50 w-[480px] flex flex-col"
       style={{ maxHeight: "calc(100vh - 80px)" }}
     >
       {/* ── Header (light, Asana style) ──────────────────────────── */}
@@ -267,14 +290,15 @@ export function QuickCreateTaskModal({
 
       {/* ── Body ─────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        {/* Task title — large, borderless, autofocus */}
+        {/* Task title — bumped to 22px / semibold (Asana parity).
+            Borderless, autofocus on open. */}
         <input
           autoFocus
           type="text"
           placeholder="Task name"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full text-[17px] font-semibold text-slate-900 placeholder:text-slate-400 border-0 outline-none bg-transparent"
+          className="w-full text-[22px] font-semibold text-slate-900 placeholder:text-slate-400 border-0 outline-none bg-transparent leading-tight"
         />
 
         {/* "To [Assignee] in [Project]" inline row */}
@@ -425,54 +449,30 @@ export function QuickCreateTaskModal({
             <Sparkles className="h-4 w-4" />
           </button>
 
-          {/* Due date pill — text in green when set, like Asana */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          {/* Due date pill — Asana-style range picker (start + due).
+              When both are set the label collapses to "May 18 – 30";
+              just due → "Tomorrow" / "Today" / "May 18"; just start
+              → "From May 18". Text turns green once any date is set
+              (matches Asana's quick-create + the project list cell). */}
+          <DueDatePicker
+            startDate={startDate}
+            dueDate={dueDate}
+            onChange={(s, d) => {
+              setStartDate(s);
+              setDueDate(d);
+            }}
+            trigger={
               <button
                 className={`inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-100 text-[12px] font-medium ${
-                  dueDate ? "text-[#1d6b3e]" : "text-slate-500"
+                  startDate || dueDate ? "text-[#1d6b3e]" : "text-slate-500"
                 }`}
-                title="Due date"
+                title="Start / due date"
               >
                 <Calendar className="h-3.5 w-3.5" />
-                {formatDueLabel(dueDate)}
+                {formatComposerDateLabel(startDate, dueDate)}
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem
-                onClick={() => {
-                  const t = new Date();
-                  t.setHours(9, 0, 0, 0);
-                  setDueDate(t);
-                }}
-              >
-                Today
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  const t = new Date();
-                  t.setDate(t.getDate() + 1);
-                  t.setHours(9, 0, 0, 0);
-                  setDueDate(t);
-                }}
-              >
-                Tomorrow
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  const t = new Date();
-                  t.setDate(t.getDate() + 7);
-                  t.setHours(9, 0, 0, 0);
-                  setDueDate(t);
-                }}
-              >
-                Next week
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDueDate(null)}>
-                No due date
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }
+          />
         </div>
 
         <div className="flex items-center gap-2">
