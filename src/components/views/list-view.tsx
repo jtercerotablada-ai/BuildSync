@@ -222,9 +222,14 @@ export function ListView({
   // Grid template adapts to the number of custom-field columns.
   // Order: checkbox · Name · Assignee · Due date · Priority · Status ·
   // N × custom (140px each) · "+ add column" (40px).
+  //
+  // Checkbox column widened from 32px → 48px so the GripVertical
+  // drag handle (14px) + gap (4px) + completion icon (16px) fit
+  // inside the column. With the old 32px, content overflowed into
+  // the Name column and the task title visually touched the circle.
   const gridTemplate = useMemo(() => {
     const customCols = customFieldDefs.map(() => "140px").join(" ");
-    return `32px 1fr 140px 130px 90px 90px${customCols ? ` ${customCols}` : ""} 40px`;
+    return `48px 1fr 140px 130px 90px 90px${customCols ? ` ${customCols}` : ""} 40px`;
   }, [customFieldDefs]);
 
   // Drag & drop state — same pattern as my-tasks ListDndProvider.
@@ -1222,12 +1227,12 @@ function SortableTaskRow({
       </div>
 
       {/* ===== Desktop Grid Row =====
-          Vertical dividers between cells via `[&>*+*]:border-l` and
-          internal `[&>*]:px-2` padding to match Excel/Asana grid
-          styling. Horizontal divider via `border-t border-slate-200`
-          (bumped from slate-100 for parity with the vertical lines). */}
+          Vertical + horizontal dividers ALL use slate-200 so the
+          column lines align visually with the header (header was
+          slate-200 but rows used slate-100 which was nearly invisible
+          on white — looked like the columns were misaligned). */}
       <div
-        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-200 group [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-slate-100 [&>*]:min-w-0"
+        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-200 group [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-slate-200 [&>*]:min-w-0"
         style={{ gridTemplateColumns: gridTemplate }}
         onClick={() => onTaskClick(task.id)}
       >
