@@ -116,7 +116,7 @@ export function FormSubmissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <div className="flex items-center justify-between gap-3">
             <DialogTitle className="flex items-center gap-2">

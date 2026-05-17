@@ -156,7 +156,7 @@ export function WorkflowTemplatesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[860px] p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[860px] p-0 overflow-hidden">
         <div className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="text-[18px] font-semibold text-gray-900">
             Engineering workflow templates

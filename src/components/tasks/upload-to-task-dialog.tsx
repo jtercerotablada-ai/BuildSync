@@ -182,7 +182,7 @@ export function UploadToTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[520px] p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[520px] p-0 overflow-hidden">
         <DialogTitle className="sr-only">Upload a file to a task</DialogTitle>
 
         <div className="px-6 pt-5 pb-3 border-b">

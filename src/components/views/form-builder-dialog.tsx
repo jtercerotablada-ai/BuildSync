@@ -392,7 +392,7 @@ export function FormBuilderDialog({
   // ── Render ─────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-5 pb-3 border-b">
           <DialogTitle className="text-base font-semibold">
             {initial ? "Edit form" : showTemplatePicker ? "Start a new form" : "New form"}
