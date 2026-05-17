@@ -320,6 +320,50 @@ export default function MyTasksPage() {
     el.style.setProperty("--col-visibility", `${columnWidths.visibility}px`);
   }, [columnWidths]);
 
+  // ─────────────────────────────────────────────────────────────
+  // SHARED TASK GRID DEFINITION
+  // ─────────────────────────────────────────────────────────────
+  // One single grid-template-columns string that the header (still
+  // flex, with its resize handles + ColumnHeader dropdowns), every
+  // TaskRow (also flex), and the background-divider overlay all
+  // resolve to the same column boundaries.
+  //
+  // The string is composed from the SAME column widths the flex
+  // layouts use (`columnWidths` state, user-resizable) so:
+  //   - Resizing a column updates both the flex cells AND the
+  //     overlay's grid in the same render cycle.
+  //   - Hidden columns are skipped IDENTICALLY in both the flex
+  //     header / row markup and this template, so the cell counts
+  //     stay matched.
+  //   - Custom columns and the "+" spacer at the end are included
+  //     so the overlay's rightmost line aligns with the "+" header.
+  //
+  // The overlay is the only consumer that genuinely needs CSS Grid
+  // (the lines come from grid-cell border-l). The header/rows keep
+  // their flex structure to preserve resize handles, dnd-kit
+  // listeners, and the ColumnHeader dropdowns — they already used
+  // these same widths via --col-* CSS vars so converting them too
+  // would be churn without behavior change.
+  const taskGridTemplate = useMemo(() => {
+    const cols: string[] = ["1fr"]; // Name (matches flex-1)
+    if (!hiddenColumns.has("dueDate")) {
+      cols.push(`${columnWidths.dueDate}px`);
+    }
+    if (!hiddenColumns.has("collaborators")) {
+      cols.push(`${columnWidths.collaborators}px`);
+    }
+    if (!hiddenColumns.has("projects")) {
+      cols.push(`${columnWidths.projects}px`);
+    }
+    if (!hiddenColumns.has("visibility")) {
+      cols.push(`${columnWidths.visibility}px`);
+    }
+    for (let i = 0; i < customColumns.length; i++) cols.push("110px");
+    cols.push("32px"); // "+" column (matches w-8)
+    return cols.join(" ");
+  }, [hiddenColumns, columnWidths, customColumns.length]);
+
+
   // Double-click on any resize handle → reset all columns to defaults
   const handleResizeReset = useCallback(() => {
     const defaults = { dueDate: 110, collaborators: 110, projects: 160, visibility: 110 };
@@ -1351,17 +1395,23 @@ export default function MyTasksPage() {
         >
           <div className="flex-1 overflow-auto relative">
           {/* Ghost-column overlay — single source of truth for the
-              vertical dividers in the LIST BODY. The sticky header
-              has its own matching border-l on every column so the
-              lines empalman perfectly at the header/body seam.
+              vertical dividers in the LIST BODY.
               Implementation:
                 · absolute inset-0 → covers the whole scroll area
-                  including past the last task row (where individual
-                  row borders would stop)
-                · justify-end + identical column widths → each line
-                  sits at the same X as the header column's border
-                · pointer-events:none → clicks pass through to rows
-                · z-0 → below the sticky header (z-20) and the row
+                  including past the last task row.
+                · `px-6` matches the header (`px-6`) and TaskRow
+                  (`px-4 md:px-6`) so the overlay's content area is
+                  exactly the same width as the header/row content
+                  area. Without this the overlay was 48px wider
+                  (no padding), and `justify-end` pushed the lines
+                  ~24px past the header's column edges.
+                · `grid` with `gridTemplateColumns: taskGridTemplate`
+                  uses the IDENTICAL widths the header/rows use via
+                  --col-* CSS vars. Each grid cell's left border
+                  lands at the exact column boundary the header
+                  ColumnHeader cell starts at.
+                · pointer-events:none → clicks pass through to rows.
+                · z-0 → below the sticky header (z-20) and row
                   content (default z-auto). Lines only show in the
                   body area; the header's own per-cell borders draw
                   on top of the header's opaque bg there.
@@ -1369,39 +1419,29 @@ export default function MyTasksPage() {
               to Tailwind's gray-200 but slightly cooler / more
               neutral). */}
           {view === "list" && (
-            <div className="absolute inset-0 pointer-events-none hidden md:flex justify-end z-0">
+            <div
+              className="absolute inset-0 pointer-events-none hidden md:grid px-6 z-0"
+              style={{ gridTemplateColumns: taskGridTemplate }}
+            >
+              {/* Cell 1: Name — no border (leftmost column) */}
+              <div />
               {!hiddenColumns.has("dueDate") && (
-                <div
-                  className="border-l border-[#e6e9ef]"
-                  style={{ width: "var(--col-dueDate)" }}
-                />
+                <div className="border-l border-[#e6e9ef]" />
               )}
               {!hiddenColumns.has("collaborators") && (
-                <div
-                  className="border-l border-[#e6e9ef]"
-                  style={{ width: "var(--col-collaborators)" }}
-                />
+                <div className="border-l border-[#e6e9ef]" />
               )}
               {!hiddenColumns.has("projects") && (
-                <div
-                  className="border-l border-[#e6e9ef]"
-                  style={{ width: "var(--col-projects)" }}
-                />
+                <div className="border-l border-[#e6e9ef]" />
               )}
               {!hiddenColumns.has("visibility") && (
-                <div
-                  className="border-l border-[#e6e9ef]"
-                  style={{ width: "var(--col-visibility)" }}
-                />
+                <div className="border-l border-[#e6e9ef]" />
               )}
-              {Array.from({ length: customColumns.length }).map((_, i) => (
-                <div
-                  key={i}
-                  className="border-l border-[#e6e9ef]"
-                  style={{ width: "110px" }}
-                />
+              {customColumns.map((col) => (
+                <div key={col.id} className="border-l border-[#e6e9ef]" />
               ))}
-              <div className="w-8 border-l border-[#e6e9ef]" />
+              {/* Last cell: "+" column boundary */}
+              <div className="border-l border-[#e6e9ef]" />
             </div>
           )}
           {/* COLUMN HEADERS - sticky inside the scroll container so it shares
