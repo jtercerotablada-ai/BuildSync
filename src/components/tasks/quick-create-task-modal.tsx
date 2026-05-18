@@ -31,14 +31,9 @@ import {
   X,
   Minus,
   Plus,
-  Smile,
-  AtSign,
-  Paperclip,
-  Sparkles,
   Calendar,
   Loader2,
   ChevronDown,
-  Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -404,50 +399,11 @@ export function QuickCreateTaskModal({
       </div>
 
       {/* ── Footer toolbar ───────────────────────────────────────── */}
+      {/* Quick-create stays compact on purpose: fields, mentions,
+          attachments and rich-text editing live on the full Task
+          Detail panel, which opens right after Create. */}
       <div className="flex items-center justify-between px-4 h-12 border-t border-slate-200 flex-shrink-0">
         <div className="flex items-center gap-0.5 text-slate-500">
-          <button
-            onClick={() => toast.info("Add field coming soon")}
-            className="p-1.5 hover:bg-slate-100 rounded transition-colors"
-            title="Add custom field"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => toast.info("Text formatting coming soon")}
-            className="p-1.5 hover:bg-slate-100 rounded transition-colors"
-            title="Format text"
-          >
-            <Type className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => toast.info("Emoji coming soon")}
-            className="p-1.5 hover:bg-slate-100 rounded transition-colors"
-            title="Emoji"
-          >
-            <Smile className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => toast.info("Mention coming soon")}
-            className="p-1.5 hover:bg-slate-100 rounded transition-colors"
-            title="Mention someone"
-          >
-            <AtSign className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => toast.info("Attachments coming soon")}
-            className="p-1.5 hover:bg-slate-100 rounded transition-colors"
-            title="Attach file"
-          >
-            <Paperclip className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => toast.info("AI assist coming soon")}
-            className="p-1.5 hover:bg-slate-100 rounded transition-colors"
-            title="AI assist"
-          >
-            <Sparkles className="h-4 w-4" />
-          </button>
 
           {/* Due date pill — Asana-style range picker (start + due).
               When both are set the label collapses to "May 18 – 30";

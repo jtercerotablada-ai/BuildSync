@@ -2,20 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { User, Shield, Bell, Monitor, AlertTriangle, Loader2 } from "lucide-react";
+import { User, Shield, Bell, Monitor, AlertTriangle, Loader2, Users } from "lucide-react";
 import { ProfileSection } from "@/components/settings/profile-section";
 import { SecuritySection } from "@/components/settings/security-section";
 import { NotificationsSection } from "@/components/settings/notifications-section";
 import { DisplaySection } from "@/components/settings/display-section";
 import { AccountSection } from "@/components/settings/account-section";
+import { WorkspaceSection } from "@/components/settings/workspace-section";
 
-type SettingsTab = "profile" | "security" | "notifications" | "display" | "account";
+type SettingsTab = "profile" | "security" | "notifications" | "display" | "workspace" | "account";
 
 const tabs: { id: SettingsTab; label: string; icon: typeof User }[] = [
   { id: "profile", label: "Profile", icon: User },
   { id: "security", label: "Security", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "display", label: "Display", icon: Monitor },
+  { id: "workspace", label: "Workspace", icon: Users },
   { id: "account", label: "Account", icon: AlertTriangle },
 ];
 
@@ -134,6 +136,7 @@ export default function SettingsPage() {
             )}
             {activeTab === "notifications" && <NotificationsSection />}
             {activeTab === "display" && <DisplaySection />}
+            {activeTab === "workspace" && <WorkspaceSection />}
             {activeTab === "account" && (
               <AccountSection
                 name={profile?.name ?? null}

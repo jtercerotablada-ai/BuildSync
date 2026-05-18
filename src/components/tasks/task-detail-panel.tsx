@@ -247,6 +247,10 @@ export function TaskDetailPanel({
     index: number;
   } | null>(null);
 
+  // ── Like state ─────────────────────────────────────────────────
+  const [liked, setLiked] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+
   // ─────────────────────────────────────────────────────────────
   // FETCH TASK DETAIL
   // ─────────────────────────────────────────────────────────────
@@ -254,12 +258,19 @@ export function TaskDetailPanel({
   const fetchTaskDetail = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/tasks/${taskId}`);
-      if (!res.ok) throw new Error("Failed to fetch task");
-      const data: TaskDetail = await res.json();
+      const [detailRes, likeRes] = await Promise.all([
+        fetch(`/api/tasks/${taskId}`),
+        fetch(`/api/tasks/${taskId}/like`),
+      ]);
+      if (!detailRes.ok) throw new Error("Failed to fetch task");
+      const data: TaskDetail = await detailRes.json();
       setTaskDetail(data);
       setName(data.name);
       setDescription(data.description || "");
+      if (likeRes.ok) {
+        const likeData = await likeRes.json();
+        setLiked(Boolean(likeData.liked));
+      }
     } catch {
       toast.error("Failed to load task");
     } finally {
@@ -271,6 +282,24 @@ export function TaskDetailPanel({
     fetchTaskDetail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
+
+  async function handleToggleLike() {
+    if (likeBusy) return;
+    setLikeBusy(true);
+    const prev = liked;
+    setLiked(!prev);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/like`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setLiked(Boolean(data.liked));
+    } catch {
+      setLiked(prev);
+      toast.error("Failed to update like");
+    } finally {
+      setLikeBusy(false);
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────
   // FIELD UPDATES (generic PATCH)
@@ -571,10 +600,17 @@ export function TaskDetailPanel({
             accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
           />
           <ActionIconButton
-            onClick={() => toast.success("Task liked")}
-            title="Like"
+            onClick={handleToggleLike}
+            disabled={likeBusy}
+            title={liked ? "Unlike" : "Like"}
+            className={cn(liked && "text-[#c9a84c]")}
           >
-            <Heart className="h-[15px] w-[15px]" />
+            <Heart
+              className={cn(
+                "h-[15px] w-[15px]",
+                liked && "fill-current"
+              )}
+            />
           </ActionIconButton>
           <ActionIconButton
             onClick={() => fileInputRef.current?.click()}

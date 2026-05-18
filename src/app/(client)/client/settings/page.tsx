@@ -33,21 +33,20 @@ export default function ClientSettingsPage() {
 
   useEffect(() => {
     fetchProfile();
+    fetchPreferences();
   }, []);
 
   async function fetchProfile() {
     try {
-      const res = await fetch("/api/auth/session");
+      const res = await fetch("/api/users/profile");
       if (res.ok) {
-        const session = await res.json();
-        if (session?.user) {
-          setProfile({
-            name: session.user.name || "",
-            email: session.user.email || "",
-            jobTitle: "",
-            bio: "",
-          });
-        }
+        const data = await res.json();
+        setProfile({
+          name: data.name || "",
+          email: data.email || "",
+          jobTitle: data.jobTitle || "",
+          bio: data.bio || "",
+        });
       }
     } catch (error) {
       console.error("Failed to fetch profile:", error);
@@ -56,11 +55,28 @@ export default function ClientSettingsPage() {
     }
   }
 
+  async function fetchPreferences() {
+    try {
+      const res = await fetch("/api/users/preferences");
+      if (res.ok) {
+        const prefs = await res.json();
+        setNotifications({
+          notifyTaskCompleted: prefs.notifyTaskCompleted ?? true,
+          notifyCommentAdded: prefs.notifyCommentAdded ?? true,
+          notifyProjectUpdates: prefs.notifyProjectUpdates ?? true,
+          notifyWeeklyDigest: prefs.notifyWeeklyDigest ?? false,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch preferences:", error);
+    }
+  }
+
   async function handleSaveProfile() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/user/profile", {
+      const res = await fetch("/api/users/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -82,6 +98,27 @@ export default function ClientSettingsPage() {
     }
   }
 
+  async function handleSaveNotifications() {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/users/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(notifications),
+      });
+      if (res.ok) {
+        setMessage({ type: "success", text: "Notification preferences saved." });
+      } else {
+        setMessage({ type: "error", text: "Failed to save preferences." });
+      }
+    } catch {
+      setMessage({ type: "error", text: "An error occurred." });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleChangePassword() {
     if (passwords.newPassword !== passwords.confirm) {
       setMessage({ type: "error", text: "New passwords do not match." });
@@ -91,8 +128,8 @@ export default function ClientSettingsPage() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/user/password", {
-        method: "PATCH",
+      const res = await fetch("/api/users/password", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           currentPassword: passwords.current,
@@ -220,6 +257,14 @@ export default function ClientSettingsPage() {
               />
             </div>
           ))}
+          <Button
+            onClick={handleSaveNotifications}
+            disabled={saving}
+            className="bg-[#c9a84c] text-black hover:bg-[#b8973f]"
+          >
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Save Preferences
+          </Button>
         </CardContent>
       </Card>
 

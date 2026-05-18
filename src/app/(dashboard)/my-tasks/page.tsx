@@ -5296,6 +5296,8 @@ function TaskDetailPanel({
 }) {
   const [taskDetail, setTaskDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [liked, setLiked] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
   const [name, setName] = useState(task.name);
   const [description, setDescription] = useState(task.description || "");
   const [activeTab, setActiveTab] = useState<"comments" | "activity">("comments");
@@ -5473,17 +5475,42 @@ function TaskDetailPanel({
   async function fetchTaskDetail() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/tasks/${task.id}`);
+      const [res, likeRes] = await Promise.all([
+        fetch(`/api/tasks/${task.id}`),
+        fetch(`/api/tasks/${task.id}/like`),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setTaskDetail(data);
         setName(data.name);
         setDescription(data.description || "");
       }
+      if (likeRes.ok) {
+        const likeData = await likeRes.json();
+        setLiked(Boolean(likeData.liked));
+      }
     } catch (error) {
       console.error("Error fetching task detail:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleToggleLike() {
+    if (likeBusy) return;
+    setLikeBusy(true);
+    const prev = liked;
+    setLiked(!prev);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/like`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setLiked(Boolean(data.liked));
+    } catch {
+      setLiked(prev);
+      toast.error("Failed to update like");
+    } finally {
+      setLikeBusy(false);
     }
   }
 
@@ -5640,10 +5667,17 @@ function TaskDetailPanel({
             accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
           />
           <ActionIconButton
-            onClick={() => toast.success("Task liked")}
-            title="Like"
+            onClick={handleToggleLike}
+            disabled={likeBusy}
+            title={liked ? "Unlike" : "Like"}
+            className={cn(liked && "text-[#c9a84c]")}
           >
-            <Heart className="h-[15px] w-[15px]" />
+            <Heart
+              className={cn(
+                "h-[15px] w-[15px]",
+                liked && "fill-current"
+              )}
+            />
           </ActionIconButton>
           <ActionIconButton
             onClick={() => fileInputRef.current?.click()}

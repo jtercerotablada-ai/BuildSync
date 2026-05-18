@@ -22,6 +22,7 @@ import {
   Users,
   Folder,
   FolderOpen,
+  Book,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
@@ -91,6 +92,12 @@ function getInsightsNavItems(basePath: string): NavItemDef[] {
       label: "Goals",
       icon: Target,
       section: "goals",
+    },
+    {
+      href: `${basePath}/knowledge`,
+      label: "Knowledge",
+      icon: Book,
+      section: "knowledge",
     },
   ];
 }

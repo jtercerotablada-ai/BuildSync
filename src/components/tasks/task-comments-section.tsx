@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Paperclip, AtSign, Smile, Send, ArrowUpDown, MoreHorizontal, Pencil, Trash2, X, Check } from 'lucide-react';
+import { Send, ArrowUpDown, MoreHorizontal, Pencil, Trash2, X, Check } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -368,19 +368,12 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
               placeholder="Add a comment..."
               className="min-h-[80px] resize-none border border-gray-200 rounded-lg"
             />
-            {/* Toolbar always visible */}
+            {/* Toolbar — Send only. Attachments + mentions live on the
+                slide-over panel composer (TaskDetailPanel) where they're
+                fully wired. Kept compact here to avoid promising features
+                this surface doesn't deliver. */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Attachments coming soon")}>
-                  <Paperclip className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Mentions coming soon")}>
-                  <AtSign className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600" onClick={() => toast.info("Emoji reactions coming soon")}>
-                  <Smile className="h-4 w-4" />
-                </Button>
-              </div>
+              <div />
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-400">Press Ctrl + Enter to send</span>
                 <Button

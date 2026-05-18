@@ -78,6 +78,7 @@ export type AppSection =
   | "goals"             // Everyone sees their own goals; full view L4+
   | "reporting"         // L3+ filtered, L5+ full
   | "templates"         // Everyone use; create L4+
+  | "knowledge"         // Engineering knowledge base — everyone
   | "workflow"          // Per-project; visible L3+, edit L4+
   | "portal-admin";     // Client portal admin — L4+
 
@@ -101,6 +102,7 @@ export function canAccessSection(
     case "projects":
     case "teams":
     case "templates":
+    case "knowledge":
       return true;
 
     case "goals":

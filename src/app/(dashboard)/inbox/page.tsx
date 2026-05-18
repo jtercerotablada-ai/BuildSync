@@ -17,9 +17,6 @@ import {
   Settings,
   List,
   Rows3,
-  Pencil,
-  Copy,
-  Trash2,
   AtSign,
   MessageCircle,
   CheckSquare,
@@ -429,17 +426,8 @@ export default function InboxPage() {
           x={ctxMenu.x}
           y={ctxMenu.y}
           onClose={() => setCtxMenu(null)}
-          onRename={() => {
-            setCtxMenu(null);
-          }}
           onSetDefault={() => {
             setDefaultTab(ctxMenu.tabId);
-            setCtxMenu(null);
-          }}
-          onDuplicate={() => {
-            setCtxMenu(null);
-          }}
-          onDelete={() => {
             setCtxMenu(null);
           }}
         />
@@ -612,16 +600,11 @@ const DENSITY_OPTIONS: { value: "detailed" | "compact"; label: string }[] = [
 
 /* ─── Tab Context Menu ─── */
 function TabContextMenu({
-  tabId,
-  tabName,
   isDefault,
   x,
   y,
   onClose,
-  onRename,
   onSetDefault,
-  onDuplicate,
-  onDelete,
 }: {
   tabId: string;
   tabName: string;
@@ -629,10 +612,7 @@ function TabContextMenu({
   x: number;
   y: number;
   onClose: () => void;
-  onRename: () => void;
   onSetDefault: () => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -663,14 +643,6 @@ function TabContextMenu({
       style={{ top: y, left: x }}
     >
       <button
-        onClick={onRename}
-        className={cn(itemBase, "text-gray-700 hover:bg-gray-100")}
-      >
-        <Pencil className="w-3.5 h-3.5 text-gray-400" />
-        Rename
-      </button>
-
-      <button
         onClick={isDefault ? undefined : onSetDefault}
         disabled={isDefault}
         className={cn(
@@ -682,28 +654,6 @@ function TabContextMenu({
       >
         <Check className="w-3.5 h-3.5 text-gray-400" />
         Set as default
-      </button>
-
-      <button
-        onClick={onDuplicate}
-        className={cn(itemBase, "text-gray-700 hover:bg-gray-100")}
-      >
-        <Copy className="w-3.5 h-3.5 text-gray-400" />
-        Duplicate
-      </button>
-
-      {/* Divider */}
-      <div className="my-1 h-px bg-gray-100" />
-
-      <button
-        onClick={onDelete}
-        className={cn(
-          itemBase,
-          "text-black hover:bg-gray-100"
-        )}
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-        Delete
       </button>
     </div>
   );
