@@ -535,10 +535,12 @@ function ProjectsListView({
             key={p.id}
             onClick={() => onRowClick(p.id)}
             // Per-cell `border-l` REMOVED — the ghost-column overlay
-            // above handles every vertical divider in the body, so
-            // empty space below the last row still shows continuous
-            // gridlines. `relative` so this row sits above z-0 overlay.
-            className="hidden md:grid items-stretch hover:bg-gray-50 cursor-pointer border-b border-[#e6e9ef] text-[12px] group relative"
+            // above handles every vertical divider in the body. NO
+            // `position: relative` on the row: it would promote
+            // the row to the same paint group as the overlay
+            // (positioned z:auto) and, being later in tree order,
+            // paint OVER the overlay's lines and hide them.
+            className="hidden md:grid items-stretch hover:bg-gray-50 cursor-pointer border-b border-[#e6e9ef] text-[12px] group"
             style={{ gridTemplateColumns: gridTemplate }}
           >
             {/* # */}

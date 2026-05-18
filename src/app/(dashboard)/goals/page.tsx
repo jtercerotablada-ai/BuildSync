@@ -818,9 +818,12 @@ function GoalsListView({
       <div className="relative">
         {objectives.map((objective) => (
           <div key={objective.id}>
-            {/* Desktop row — per-cell `border-l` REMOVED; overlay handles. */}
+            {/* Desktop row — per-cell `border-l` REMOVED; overlay
+                handles vertical dividers. NO `position: relative` —
+                see list-view.tsx for the rationale (same paint-group
+                bug). */}
             <div
-              className="hidden md:flex items-stretch hover:bg-gray-50 cursor-pointer group border-b border-[#e6e9ef] relative"
+              className="hidden md:flex items-stretch hover:bg-gray-50 cursor-pointer group border-b border-[#e6e9ef]"
               onClick={() => onRowClick(objective.id)}
             >
               {/* Name */}
@@ -974,12 +977,12 @@ function GoalsListView({
                             )
                           );
                     return (
-                      // KR sub-row — same overlay-handled vertical
-                      // dividers as parent rows. `relative` so the
-                      // row sits above the overlay's z-0.
+                      // KR sub-row — overlay handles vertical
+                      // dividers. NO `position: relative` (same
+                      // paint-group bug as parent rows).
                       <div
                         key={kr.id}
-                        className="hidden md:flex items-stretch text-sm border-b border-[#e6e9ef] last:border-b-0 relative"
+                        className="hidden md:flex items-stretch text-sm border-b border-[#e6e9ef] last:border-b-0"
                       >
                         <div className="flex-1 pl-12 pr-3 py-2 flex items-center justify-center gap-2 text-black">
                           <div className="w-2 h-2 rounded-full bg-black" />

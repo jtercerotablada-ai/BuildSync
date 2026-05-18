@@ -1301,9 +1301,20 @@ function SortableTaskRow({
           vertical divider in the body (continuous through empty
           rows, no half-lines). Horizontal `border-t` stays so each
           row still has a top divider. Color migrated to #e6e9ef
-          to match the overlay + header. */}
+          to match the overlay + header.
+
+          IMPORTANT: NO `position: relative` on this row. Even
+          without an explicit z-index, `position: relative` would
+          promote the row into the same paint group as the
+          overlay (positioned, z-index: auto ≈ 0) — and because
+          the row appears AFTER the overlay in tree order, it
+          would paint OVER the overlay's vertical lines and hide
+          them. Keeping the row in normal flow (default position)
+          puts it in group 3 (block-level non-positioned), which
+          paints BEFORE the overlay (group 6) — so the overlay's
+          lines correctly show on top of the transparent row. */}
       <div
-        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-[#e6e9ef] group [&>*]:px-2 [&>*]:min-w-0 relative"
+        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-[#e6e9ef] group [&>*]:px-2 [&>*]:min-w-0"
         style={{ gridTemplateColumns: gridTemplate }}
         onClick={() => onTaskClick(task.id)}
       >
