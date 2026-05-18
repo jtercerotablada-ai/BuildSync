@@ -72,10 +72,20 @@ export default async function AdminFormSubmissionsPage({
     where: { formId },
     orderBy: { createdAt: "desc" },
     take: 200,
-    include: {
-      task: { select: { id: true, name: true } },
-    },
   });
+
+  // FormSubmission stores taskId but doesn't have a typed Task relation,
+  // so fetch the task names in a separate batched query.
+  const taskIds = submissions
+    .map((s) => s.taskId)
+    .filter((id): id is string => !!id);
+  const tasks = taskIds.length
+    ? await prisma.task.findMany({
+        where: { id: { in: taskIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const taskById = new Map(tasks.map((t) => [t.id, t]));
 
   // Show ALL fields, even HEADING (skipped in cell). Order preserved.
   const fields = (form.fields as Array<{
@@ -150,6 +160,7 @@ export default async function AdminFormSubmissionsPage({
                 <TableBody>
                   {submissions.map((sub) => {
                     const data = (sub.data as SubmissionData) || {};
+                    const task = sub.taskId ? taskById.get(sub.taskId) : null;
                     return (
                       <TableRow key={sub.id}>
                         <TableCell className="text-muted-foreground whitespace-nowrap">
@@ -164,14 +175,14 @@ export default async function AdminFormSubmissionsPage({
                           </TableCell>
                         ))}
                         <TableCell>
-                          {sub.task ? (
+                          {task ? (
                             <Link
-                              href={`/tasks/${sub.task.id}`}
+                              href={`/tasks/${task.id}`}
                               className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                             >
-                              {sub.task.name.length > 30
-                                ? `${sub.task.name.slice(0, 30)}…`
-                                : sub.task.name}
+                              {task.name.length > 30
+                                ? `${task.name.slice(0, 30)}…`
+                                : task.name}
                               <ExternalLink className="h-3 w-3" />
                             </Link>
                           ) : (
