@@ -1,86 +1,200 @@
 'use client';
 
+/**
+ * StatusUpdatesWidget — "Project Status" tile on the home dashboard.
+ *
+ * Replaces the old chronological feed-of-posts. The old design had
+ * one row per status update POST, which hid the projects that
+ * weren't posting (the exact ones a PM needs to be reminded about).
+ *
+ * New design (one row per ACTIVE project):
+ *   - Status pill dot + project name
+ *   - Last update snippet OR a red "Never updated · Post first update" CTA
+ *   - "X days ago" badge — turns red when >= 14 days (stale)
+ *   - Click anywhere on the row → opens project Overview tab with
+ *     ?compose=status so the post composer auto-opens
+ *   - Header "Post update" button → project picker dropdown → same route
+ *
+ * Backend: /api/projects/status-overview (per-project rollup, not
+ * a post feed). See that endpoint for the sort order (never-updated
+ * first, then stale, then off-track, etc.).
+ */
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, ArrowRight } from 'lucide-react';
+import {
+  Plus,
+  ArrowRight,
+  AlertCircle,
+  Loader2,
+  Clock,
+  ChevronDown,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-interface StatusUpdate {
+type ProjectStatus =
+  | 'ON_TRACK'
+  | 'AT_RISK'
+  | 'OFF_TRACK'
+  | 'ON_HOLD'
+  | 'COMPLETE';
+
+interface ProjectStatusRow {
   id: string;
-  content: string;
-  status: string;
-  createdAt: string;
-  project: {
+  name: string;
+  color: string;
+  status: ProjectStatus;
+  gate: string | null;
+  lastUpdate: {
     id: string;
-    name: string;
-  };
-  author: {
-    name: string;
-  };
+    status: ProjectStatus;
+    summary: string;
+    createdAt: string;
+    author: { name: string; image: string | null } | null;
+  } | null;
+  daysSinceUpdate: number | null;
+}
+
+interface ProjectListItem {
+  id: string;
+  name: string;
+  color?: string;
+}
+
+// Status pill visuals — matches ProjectOverview.STATUS_VISUAL so the
+// widget and the project page read as one product.
+const STATUS_DOT: Record<ProjectStatus, { color: string; label: string }> = {
+  ON_TRACK: { color: '#c9a84c', label: 'On track' },
+  AT_RISK: { color: '#a8893a', label: 'At risk' },
+  OFF_TRACK: { color: '#000000', label: 'Off track' },
+  ON_HOLD: { color: '#94a3b8', label: 'On hold' },
+  COMPLETE: { color: '#c9a84c', label: 'Complete' },
+};
+
+function formatRelative(days: number): string {
+  if (days === 0) return 'today';
+  if (days === 1) return '1 day ago';
+  if (days < 7) return `${days} days ago`;
+  if (days < 14) return `${Math.floor(days / 7)} week ago`;
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+  if (days < 60) return '1 month ago';
+  return `${Math.floor(days / 30)} months ago`;
 }
 
 export function StatusUpdatesWidget() {
   const router = useRouter();
-  const [updates, setUpdates] = useState<StatusUpdate[]>([]);
+  const [rows, setRows] = useState<ProjectStatusRow[]>([]);
+  const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
-    async function fetchUpdates() {
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const load = async (showSpinner: boolean) => {
+      if (showSpinner) setLoading(true);
       try {
-        const res = await fetch('/api/status-updates?limit=5');
-        if (res.ok) {
-          const data = await res.json();
-          setUpdates(data);
+        const res = await fetch('/api/projects/status-overview?limit=8');
+        if (res.ok && !cancelled) {
+          const data = (await res.json()) as ProjectStatusRow[];
+          setRows(Array.isArray(data) ? data : []);
         }
-      } catch (error) {
-        console.error('Failed to fetch status updates:', error);
+      } catch (err) {
+        console.error('Failed to fetch status overview:', err);
       } finally {
-        setLoading(false);
+        if (showSpinner && !cancelled) setLoading(false);
       }
-    }
-    fetchUpdates();
+    };
+
+    void load(true);
+
+    // Refresh every 60s while visible — status changes slowly so
+    // we don't need /my-tasks' 30s cadence; once a minute is enough
+    // to catch a teammate's update without burning network.
+    const tick = () => {
+      if (document.hidden) return;
+      void load(false);
+    };
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(tick, 60000);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        tick();
+        start();
+      }
+    };
+    start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ON_TRACK': return 'bg-[#c9a84c]';
-      case 'AT_RISK': return 'bg-[#a8893a]';
-      case 'OFF_TRACK': return 'bg-black';
-      case 'COMPLETE': return 'bg-[#c9a84c]';
-      default: return 'bg-gray-400';
-    }
-  };
+  // Lazy-load projects only when the user opens the "Post update"
+  // picker — most home loads never need this list.
+  useEffect(() => {
+    if (!pickerOpen || projects.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/projects');
+        if (res.ok && !cancelled) {
+          const data = (await res.json()) as ProjectListItem[];
+          setProjects(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pickerOpen, projects.length]);
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
+  function openProjectStatus(projectId: string, compose = false) {
+    const qs = compose ? '?view=overview&compose=status' : '?view=overview';
+    router.push(`/projects/${projectId}${qs}`);
+  }
 
-  return (
-    <div className="h-full flex items-center justify-center">
-      {loading ? (
-        <div className="space-y-2 w-full">
-          {[1, 2].map(i => (
-            <div key={i} className="h-16 bg-gray-100 animate-pulse rounded" />
-          ))}
-        </div>
-      ) : updates.length === 0 ? (
-        <div className="text-center">
-          {/* Icon - document with circle */}
-          <div className="relative w-16 h-16 mx-auto mb-4">
-            <div className="w-12 h-14 border-2 border-gray-300 rounded-sm mx-auto">
-              <div className="mt-3 mx-2 space-y-1.5">
-                <div className="h-1 bg-gray-200 rounded" />
-                <div className="h-1 bg-gray-200 rounded w-3/4" />
-              </div>
+  // ── Empty state ───────────────────────────────────────────────
+  if (!loading && rows.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center max-w-[280px] px-2">
+          <div className="relative w-12 h-14 mx-auto mb-3 border-2 border-gray-300 rounded-sm">
+            <div className="mt-3 mx-2 space-y-1.5">
+              <div className="h-1 bg-gray-200 rounded" />
+              <div className="h-1 bg-gray-200 rounded w-3/4" />
             </div>
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-black rounded-full" />
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#c9a84c] rounded-full" />
           </div>
-          <p className="text-gray-500 text-sm mb-1">
-            Status updates let you share progress on your projects.
+          <p className="text-sm font-medium text-gray-900 mb-1">
+            Keep your projects visible
           </p>
-          <p className="text-gray-400 text-xs mb-4">
-            Go to any project and create a status update to see it here.
+          <p className="text-xs text-gray-500 mb-3 leading-snug">
+            Post a weekly status (On track / At risk / Off track) so
+            every project stays in sight — even the ones nobody is
+            talking about this week.
           </p>
           <Button
             variant="outline"
@@ -92,25 +206,161 @@ export function StatusUpdatesWidget() {
             <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </div>
-      ) : (
-        <div className="space-y-2 w-full overflow-y-auto h-full">
-          {updates.map((update) => (
-            <button
-              key={update.id}
-              className="w-full p-3 border border-gray-200 rounded-lg hover:bg-gray-50 text-left"
-              onClick={() => router.push(`/projects/${update.project.id}`)}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <span className={cn("w-2 h-2 rounded-full", getStatusColor(update.status))} />
-                <span className="font-medium text-sm">{update.project?.name}</span>
-              </div>
-              <p className="text-sm text-gray-600 line-clamp-2">{update.content}</p>
-              <p className="text-xs text-gray-400 mt-1">
-                {update.author?.name} · {formatDate(update.createdAt)}
-              </p>
-            </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Loading state — show shimmer rows so the layout doesn't jump. */}
+      {loading ? (
+        <div className="space-y-1.5 flex-1">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-14 bg-gray-100 animate-pulse rounded-lg"
+            />
           ))}
         </div>
+      ) : (
+        <>
+          <div className="flex-1 overflow-y-auto -mx-1">
+            <ul className="space-y-1.5 px-1">
+              {rows.map((row) => {
+                const pillStatus = row.lastUpdate?.status || row.status;
+                const dot = STATUS_DOT[pillStatus];
+                const isStale =
+                  row.daysSinceUpdate != null && row.daysSinceUpdate >= 14;
+                const neverUpdated = row.daysSinceUpdate == null;
+
+                return (
+                  <li key={row.id}>
+                    <button
+                      type="button"
+                      onClick={() => openProjectStatus(row.id, neverUpdated)}
+                      className={cn(
+                        'w-full p-3 rounded-lg text-left transition-colors border',
+                        neverUpdated
+                          ? 'border-[#a8893a]/40 bg-[#fdf7e8]/40 hover:bg-[#fdf7e8]/70'
+                          : isStale
+                            ? 'border-[#a8893a]/30 bg-amber-50/40 hover:bg-amber-50/70'
+                            : 'border-gray-200 hover:bg-gray-50'
+                      )}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        {/* Status dot — current project status (synced with
+                            the last update when possible). */}
+                        <span
+                          className="mt-1 w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: dot.color }}
+                          title={dot.label}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {row.name}
+                            </p>
+                            <span
+                              className={cn(
+                                'text-[10px] font-medium uppercase tracking-wide flex-shrink-0',
+                                neverUpdated || isStale
+                                  ? 'text-[#a8893a]'
+                                  : 'text-gray-700'
+                              )}
+                            >
+                              {dot.label}
+                            </span>
+                          </div>
+
+                          {neverUpdated ? (
+                            <div className="mt-1 flex items-center gap-1 text-[11px] text-[#a8893a] font-medium">
+                              <AlertCircle className="w-3 h-3" />
+                              Never updated — post first status
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-[12px] text-gray-600 line-clamp-2 mt-0.5">
+                                {row.lastUpdate?.summary}
+                              </p>
+                              <div className="flex items-center gap-1 mt-1 text-[11px]">
+                                <Clock
+                                  className={cn(
+                                    'w-3 h-3',
+                                    isStale ? 'text-[#a8893a]' : 'text-gray-400'
+                                  )}
+                                />
+                                <span
+                                  className={cn(
+                                    isStale
+                                      ? 'text-[#a8893a] font-medium'
+                                      : 'text-gray-500'
+                                  )}
+                                >
+                                  Updated{' '}
+                                  {formatRelative(row.daysSinceUpdate!)}
+                                  {row.lastUpdate?.author?.name &&
+                                    ` by ${row.lastUpdate.author.name}`}
+                                </span>
+                                {isStale && (
+                                  <span className="ml-auto text-[10px] uppercase tracking-wider text-[#a8893a] font-semibold">
+                                    Stale
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* "+ Post update" footer button — opens project picker so
+              the user can post WITHOUT navigating to the project
+              first. Same picker pattern as the Forms widget. */}
+          <DropdownMenu open={pickerOpen} onOpenChange={setPickerOpen}>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full mt-2 flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-800 hover:bg-gray-50 rounded transition-colors">
+                <Plus className="h-4 w-4" />
+                Post status update
+                <ChevronDown className="h-3.5 w-3.5 ml-auto" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="max-h-64 overflow-y-auto"
+            >
+              {projects.length === 0 ? (
+                <div className="px-2 py-3 text-xs text-slate-400 text-center">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto mb-1" />
+                  Loading projects…
+                </div>
+              ) : (
+                <>
+                  <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 font-semibold border-b">
+                    Post update for…
+                  </div>
+                  {projects.map((p) => (
+                    <DropdownMenuItem
+                      key={p.id}
+                      onClick={() => openProjectStatus(p.id, true)}
+                      className="cursor-pointer"
+                    >
+                      <span
+                        className="h-3 w-3 rounded-full mr-2 flex-shrink-0"
+                        style={{ backgroundColor: p.color || '#c9a84c' }}
+                      />
+                      <span className="truncate">{p.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
       )}
     </div>
   );

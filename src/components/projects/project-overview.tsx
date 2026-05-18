@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Plus,
@@ -244,6 +244,27 @@ export function ProjectOverview({
     setComposerStatus((project.status as ProjectStatusKey) || "ON_TRACK");
     setComposerOpen(true);
   }, [project.status]);
+
+  // Auto-open the composer when arriving from the home "Project Status"
+  // widget with `?compose=status`. Strip the query after handling so
+  // a manual refresh doesn't re-trigger the open. Runs once on mount.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("compose") !== "status") return;
+    openComposer();
+    // Best-effort URL cleanup — replaceState avoids a navigation /
+    // re-render. If the host page is reading other params we leave
+    // them intact.
+    if (typeof window !== "undefined" && window.history?.replaceState) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("compose");
+      window.history.replaceState(null, "", url.toString());
+    }
+    // We intentionally depend only on the searchParams snapshot at
+    // mount — re-running on every router change would re-open the
+    // composer after the user manually closed it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const saveDescription = useCallback(
     async (value: string) => {
