@@ -25,6 +25,7 @@ import {
   CheckSquare,
   CheckCircle2,
   Mail,
+  Inbox as InboxIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -47,7 +48,13 @@ interface Notification {
   preview: string;
   createdAt: Date;
   read: boolean;
-  type: "task_assigned" | "comment" | "mention" | "update" | "system";
+  type:
+    | "task_assigned"
+    | "comment"
+    | "mention"
+    | "update"
+    | "system"
+    | "form_submitted";
   taskId?: string;
   projectId?: string;
   // Set when a mention notification points at a specific message —
@@ -80,6 +87,11 @@ const TYPE_META: Record<
   },
   update: { icon: CheckCircle2, color: "#a8893a", label: "Update" },
   system: { icon: Mail, color: "#6b7280", label: "System" },
+  form_submitted: {
+    icon: InboxIcon,
+    color: "#a8893a",
+    label: "Form submission",
+  },
 };
 
 // Helper function to format relative time

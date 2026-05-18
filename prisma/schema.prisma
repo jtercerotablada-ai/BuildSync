@@ -921,6 +921,7 @@ enum ActivityType {
   CUSTOM_FIELD_CHANGED
   SUBTASK_ADDED
   DEPENDENCY_ADDED
+  FORM_SUBMITTED // Task was auto-created from a form submission
 }
 
 // ============ NOTIFICACIONES ============
@@ -951,6 +952,7 @@ enum NotificationType {
   PROJECT_INVITATION
   STATUS_UPDATE
   OBJECTIVE_SHARED
+  FORM_SUBMITTED // Someone submitted a form — fan out to assignee + owner
 }
 
 // ============ MENSAJES ============

@@ -81,12 +81,35 @@ export async function GET(req: Request) {
       take: limit,
     });
 
+    // Count of unread FORM_SUBMITTED inbox notifications per form
+    // for THIS user. Powers the "3 new" gold pill on the home widget
+    // + Workflow tab. Tied to the inbox read state so it clears as
+    // soon as the user opens the notification — same source of truth.
+    const unreadByForm = new Map<string, number>();
+    try {
+      const unreadFormNotifs = await prisma.notification.findMany({
+        where: { userId, type: "FORM_SUBMITTED", read: false, archived: false },
+        select: { data: true },
+      });
+      for (const n of unreadFormNotifs) {
+        const fid = (n.data as { formId?: unknown } | null)?.formId;
+        if (typeof fid === "string") {
+          unreadByForm.set(fid, (unreadByForm.get(fid) || 0) + 1);
+        }
+      }
+    } catch (err) {
+      // Non-fatal — widget falls back to "no new" if the count fails.
+      console.error("[GET /api/forms] unread count failed:", err);
+    }
+
     return NextResponse.json(
       forms.map((form) => ({
         id: form.id,
         name: form.name,
+        projectId: form.projectId,
         projectName: form.project.name,
         responsesCount: form._count.submissions,
+        newCount: unreadByForm.get(form.id) || 0,
         createdAt: form.createdAt.toISOString(),
         updatedAt: form.updatedAt.toISOString(),
         isActive: form.isActive,

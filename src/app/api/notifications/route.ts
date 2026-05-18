@@ -136,6 +136,7 @@ function mapNotificationType(type: string): string {
     PROJECT_INVITATION: "system",
     STATUS_UPDATE: "update",
     OBJECTIVE_SHARED: "update",
+    FORM_SUBMITTED: "form_submitted",
   };
 
   return typeMap[type] || "system";

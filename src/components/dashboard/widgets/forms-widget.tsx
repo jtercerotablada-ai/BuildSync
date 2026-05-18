@@ -26,6 +26,10 @@ interface FormRow {
   name: string;
   projectName: string;
   responsesCount: number;
+  /** Unread inbox notifications for this form for the current user.
+   *  Drives the gold "N new" pill. Clears when the inbox row is
+   *  marked read or archived. */
+  newCount?: number;
   isActive?: boolean;
   /** Project id (used to deep-link to the Workflow tab). */
   projectId?: string;
@@ -46,8 +50,10 @@ export function FormsWidget() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const load = async (showSpinner: boolean) => {
+      if (showSpinner) setLoading(true);
       try {
         const res = await fetch('/api/forms?limit=20');
         if (res.ok && !cancelled) {
@@ -57,11 +63,45 @@ export function FormsWidget() {
       } catch (err) {
         console.error('Failed to fetch forms:', err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (showSpinner && !cancelled) setLoading(false);
       }
-    })();
+    };
+
+    // Initial fetch shows the spinner; polls do not (silent refresh).
+    void load(true);
+
+    // Refresh the "N new" badge every 30s while visible — same
+    // cadence as the inbox so the two stay in sync. Pauses on
+    // tab-hidden to keep idle costs near-zero.
+    const tick = () => {
+      if (document.hidden) return;
+      void load(false);
+    };
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(tick, 30000);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        tick();
+        start();
+      }
+    };
+    start();
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
       cancelled = true;
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 
@@ -191,10 +231,20 @@ export function FormsWidget() {
                       </p>
                     </div>
                   </div>
-                  <span className="text-[11px] text-gray-500 tabular-nums flex-shrink-0">
-                    {form.responsesCount}{' '}
-                    {form.responsesCount === 1 ? 'response' : 'responses'}
-                  </span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {(form.newCount ?? 0) > 0 && (
+                      <span
+                        className="bg-[#a8893a] text-white text-[10px] leading-none px-1.5 py-[3px] rounded-full min-w-[20px] text-center font-semibold"
+                        title={`${form.newCount} new submission${(form.newCount ?? 0) === 1 ? '' : 's'} — open the inbox to clear`}
+                      >
+                        {form.newCount} new
+                      </span>
+                    )}
+                    <span className="text-[11px] text-gray-500 tabular-nums">
+                      {form.responsesCount}{' '}
+                      {form.responsesCount === 1 ? 'response' : 'responses'}
+                    </span>
+                  </div>
                 </button>
               </li>
             ))}

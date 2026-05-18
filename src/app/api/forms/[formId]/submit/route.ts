@@ -15,6 +15,7 @@ import {
   sendFormSubmissionEmail,
   sendFormSubmitterReceiptEmail,
 } from "@/lib/email";
+import { notifyFormSubmitted } from "@/lib/form-notifications";
 
 /**
  * POST /api/forms/:formId/submit
@@ -316,6 +317,49 @@ export async function POST(
         answers: previewAnswers,
       });
     }
+
+    // ── Inbox notifications (FORM_SUBMITTED) ──────────────────
+    // Fires regardless of notifyOnSubmission — that toggle controls
+    // EMAIL only. The inbox is the cheap, always-on signal so users
+    // never silently miss a submission when email is unconfigured /
+    // lands in spam. Activity row also lands on the new task so the
+    // task's history shows "Created from form submission".
+    let submitterName = "Someone";
+    if (submitterUserId) {
+      try {
+        const u = await prisma.user.findUnique({
+          where: { id: submitterUserId },
+          select: { name: true, email: true },
+        });
+        submitterName = u?.name || u?.email || "A teammate";
+      } catch {
+        /* fall back to "Someone" */
+      }
+    } else if (submitterEmail) {
+      submitterName = submitterEmail;
+    }
+
+    const firstAnswer = previewAnswers[0];
+    const previewLine = firstAnswer
+      ? `${firstAnswer.label}: ${firstAnswer.value}`
+      : "";
+
+    await notifyFormSubmitted({
+      taskId: result.taskId,
+      projectId: form.projectId,
+      projectName: form.project.name,
+      formId: form.id,
+      formName: form.name,
+      submissionId: result.submissionId,
+      previewLine,
+      submitterName,
+      submitterEmail,
+      submitterUserId: submitterUserId || null,
+      recipientUserIds: [
+        form.defaultAssigneeId,
+        form.project.ownerId,
+      ].filter((id): id is string => typeof id === "string" && id.length > 0),
+    });
 
     return NextResponse.json(
       {
