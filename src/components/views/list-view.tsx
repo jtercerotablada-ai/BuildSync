@@ -639,65 +639,10 @@ export function ListView({
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       >
       {/* Shared overflow-auto container so the header AND the rows
-          share the same scrollbar-deducted width. Before this fix the
-          header sat OUTSIDE the scroll container and resolved its
-          `1fr` Name column against the full viewport, while the rows
-          resolved theirs against (viewport - scrollbar) — about 17px
-          narrower. Every subsequent column in the rows shifted left
-          and the vertical dividers looked misaligned vs the header.
-          With both inside the same overflow context and the header
-          `sticky top-0`, 1fr resolves to the same pixel value
-          everywhere and the grid lines stack perfectly.
-
-          `relative` anchors the absolutely-positioned overlay.
-          `isolation-isolate` is CRITICAL: without it the scroll
-          container is NOT a stacking context, so the overlay (z:0
-          absolute) and the row contents (no position) end up
-          competing in the page's outer stacking context — and the
-          rows paint over the overlay's lines on body rows. With
-          `isolation: isolate` the scroll container becomes its
-          own stacking context: rows paint in group 3, overlay in
-          group 6, section headers (z:10) in group 7. Predictable
-          paint order, lines visible. */}
-      <div className="flex-1 overflow-auto relative isolate">
-      {/* Ghost-column overlay — single source of truth for the body's
-          vertical dividers. Same pattern shipped on /my-tasks:
-            · absolute inset-0 → covers the full scroll area, including
-              empty space below the last task in each section AND below
-              the "Add section" button (this is what kills the "half-
-              line" artifact Juan called out).
-            · grid + IDENTICAL gridTemplateColumns as header/rows so
-              every overlay cell's left border lands at the exact pixel
-              column boundary the header uses.
-            · px-6 matches the header (`px-6`) and TaskRow (`px-6`)
-              outer padding — without this the overlay would be 48px
-              wider than the content area and the lines would drift.
-            · pointer-events-none → clicks pass through to rows.
-            · z-0 → below the sticky header (z-10) so the header's own
-              per-cell borders draw on top of its opaque bg there; row
-              content sits at default z-auto (above z-0) so hover bg
-              still reads as expected.
-          #e6e9ef = the same subtle Asana divider tone used in
-          /my-tasks for consistency across the cockpit. */}
-      <div
-        className="hidden md:grid absolute inset-0 px-6 pointer-events-none z-0"
-        style={{ gridTemplateColumns: gridTemplate }}
-      >
-        {/* Cell 1: Checkbox — no left border (leftmost) */}
-        <div />
-        {/* Cells 2-6: Name | Assignee | Due | Priority | Status */}
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        {/* One overlay column per custom-field definition */}
-        {customFieldDefs.map((f) => (
-          <div key={f.id} className="border-l border-[#e6e9ef]" />
-        ))}
-        {/* Last cell: "+ add column" boundary */}
-        <div className="border-l border-[#e6e9ef]" />
-      </div>
+          share the same scrollbar-deducted width. The header sits
+          `sticky top-0` inside, so `1fr` resolves to the same pixel
+          value everywhere — column dividers align top-to-bottom. */}
+      <div className="flex-1 overflow-auto">
       {/* ========================================= */}
       {/* COLUMN HEADERS - ONLY ONCE AT THE TOP    */}
       {/* ========================================= */}
@@ -771,11 +716,10 @@ export function ListView({
 
         {localSections.map((section) => (
           <div key={section.id} className="border-b border-[#e6e9ef]">
-            {/* Section Header — opaque bg + z-10 so the ghost-column
-                overlay's vertical lines don't bleed through. Per
-                Juan's rule: gridlines divide tasks, NOT section
-                headings (To Do, In Progress, Done, etc.). */}
-            <div className="relative z-10 bg-white flex items-center gap-2 px-3 md:px-6 py-2 hover:bg-slate-50 group">
+            {/* Section Header — naturally clean (no per-cell borders
+                so no vertical gridlines pass through). Per Juan's rule:
+                gridlines divide tasks, NOT section headings. */}
+            <div className="flex items-center gap-2 px-3 md:px-6 py-2 hover:bg-slate-50 group">
               <button
                 onClick={() => toggleSection(section.id)}
                 className="flex items-center gap-2 flex-1 text-left"
@@ -928,13 +872,10 @@ export function ListView({
           </div>
         ))}
 
-        {/* Add Section Button — same opaque + z-10 treatment as the
-            section headers so the overlay's vertical lines don't
-            bleed through this action row. It's not a task; per
-            Juan's rule, only tasks carry vertical dividers. */}
+        {/* Add Section Button — naturally clean (action row, not a task) */}
         <button
           onClick={handleAddSection}
-          className="relative z-10 bg-white flex items-center gap-2 px-3 md:px-6 py-3 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left"
+          className="flex items-center gap-2 px-3 md:px-6 py-3 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left"
         >
           <Plus className="w-4 h-4" />
           Add section
@@ -1305,25 +1246,15 @@ function SortableTaskRow({
       </div>
 
       {/* ===== Desktop Grid Row =====
-          Per-cell `[&>*+*]:border-l` REMOVED — the ghost-column
-          overlay in the parent scroll container now draws every
-          vertical divider in the body (continuous through empty
-          rows, no half-lines). Horizontal `border-t` stays so each
-          row still has a top divider. Color migrated to #e6e9ef
-          to match the overlay + header.
-
-          IMPORTANT: NO `position: relative` on this row. Even
-          without an explicit z-index, `position: relative` would
-          promote the row into the same paint group as the
-          overlay (positioned, z-index: auto ≈ 0) — and because
-          the row appears AFTER the overlay in tree order, it
-          would paint OVER the overlay's vertical lines and hide
-          them. Keeping the row in normal flow (default position)
-          puts it in group 3 (block-level non-positioned), which
-          paints BEFORE the overlay (group 6) — so the overlay's
-          lines correctly show on top of the transparent row. */}
+          Per-cell `[&>*+*]:border-l` lives ON THE ROW DIRECTLY —
+          the only path that's 100% deterministic across browsers
+          and immune to stacking-context bugs. Adds a left border
+          to every cell except the first (the checkbox cell),
+          which gives vertical dividers between columns. Section
+          headers don't use this class so they stay naturally
+          clean (no lines passing through). */}
       <div
-        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-[#e6e9ef] group [&>*]:px-2 [&>*]:min-w-0"
+        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-[#e6e9ef] group [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-[#e6e9ef] [&>*]:min-w-0"
         style={{ gridTemplateColumns: gridTemplate }}
         onClick={() => onTaskClick(task.id)}
       >

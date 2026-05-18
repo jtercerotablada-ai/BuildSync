@@ -761,40 +761,12 @@ function GoalsListView({
     );
   }
 
-  // Shared grid template — must match the flex header widths above.
-  // Used by the ghost-column overlay so vertical dividers land on
-  // the exact same pixel boundaries the header/rows occupy.
-  const overlayGridTemplate = "1fr 80px 140px 100px 140px 80px 40px";
-
   return (
-    // relative + min-h-[60vh] anchors the ghost-column overlay so
-    // the gridlines extend through empty space below the last goal.
-    // `isolate` forces a stacking context so the overlay's lines
-    // paint predictably over the body rows (same fix as /my-tasks).
-    <div className="relative isolate min-h-[60vh]">
-      {/* Ghost-column overlay — single source of truth for body
-          vertical dividers. Same pattern as /my-tasks + project
-          list view: absolute inset-0, pointer-events-none, z-0
-          below the sticky header content. */}
-      <div
-        className="hidden md:grid absolute inset-0 pointer-events-none z-0"
-        style={{ gridTemplateColumns: overlayGridTemplate }}
-      >
-        <div />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-      </div>
-
-      {/* Column Headers — gridlines from /my-tasks + centered content.
-          Every column (header + data) horizontally centers its content
-          per Juan's request — visually consistent grid cells regardless
-          of value width (dot / bar / avatar / text). Header keeps its
-          per-cell `border-l` because it's opaque + above the overlay. */}
-      <div className="hidden md:flex items-stretch border-b border-[#e6e9ef] text-xs font-medium text-black uppercase tracking-wide bg-white relative">
+    <div>
+      {/* Column Headers — every column (header + data) horizontally
+          centers its content per Juan's request. Per-cell `border-l`
+          provides vertical dividers; rows below use the same pattern. */}
+      <div className="hidden md:flex items-stretch border-b border-[#e6e9ef] text-xs font-medium text-black uppercase tracking-wide bg-white">
         {columns.map((col, i) => (
           <div
             key={col.id}
@@ -813,17 +785,12 @@ function GoalsListView({
         </div>
       </div>
 
-      {/* Goals List — per-cell border-l REMOVED from rows + KR
-          sub-rows because the ghost-column overlay above handles
-          every body vertical divider. Horizontal `border-b` stays
-          so rows still have a bottom line. */}
-      <div className="relative">
+      {/* Goals List — per-cell `border-l` restored on each column
+          cell for guaranteed vertical dividers across browsers. */}
+      <div>
         {objectives.map((objective) => (
           <div key={objective.id}>
-            {/* Desktop row — per-cell `border-l` REMOVED; overlay
-                handles vertical dividers. NO `position: relative` —
-                see list-view.tsx for the rationale (same paint-group
-                bug). */}
+            {/* Desktop row — per-cell border-l on each column cell */}
             <div
               className="hidden md:flex items-stretch hover:bg-gray-50 cursor-pointer group border-b border-[#e6e9ef]"
               onClick={() => onRowClick(objective.id)}
@@ -852,7 +819,7 @@ function GoalsListView({
               </div>
 
               {/* Status */}
-              <div className="w-[80px] px-3 py-3 flex items-center justify-center">
+              <div className="w-[80px] px-3 py-3 border-l border-[#e6e9ef] flex items-center justify-center">
                 <div
                   className={cn(
                     "w-3 h-3 rounded-full",
@@ -862,7 +829,7 @@ function GoalsListView({
               </div>
 
               {/* Progress */}
-              <div className="w-[140px] px-3 py-3 flex items-center justify-center">
+              <div className="w-[140px] px-3 py-3 border-l border-[#e6e9ef] flex items-center justify-center">
                 <div className="flex items-center gap-2 w-full">
                   <div className="flex-1 h-2 bg-white border border-black rounded-full overflow-hidden">
                     <div
@@ -877,21 +844,21 @@ function GoalsListView({
               </div>
 
               {/* Period */}
-              <div className="w-[100px] px-3 py-3 flex items-center justify-center">
+              <div className="w-[100px] px-3 py-3 border-l border-[#e6e9ef] flex items-center justify-center">
                 <span className="text-sm text-black text-center">
                   {objective.period || "-"}
                 </span>
               </div>
 
               {/* Team */}
-              <div className="w-[140px] px-3 py-3 flex items-center justify-center">
+              <div className="w-[140px] px-3 py-3 border-l border-[#e6e9ef] flex items-center justify-center">
                 <span className="text-sm text-black text-center">
                   {objective.team?.name || "-"}
                 </span>
               </div>
 
               {/* Owner */}
-              <div className="w-[80px] px-3 py-3 flex items-center justify-center">
+              <div className="w-[80px] px-3 py-3 border-l border-[#e6e9ef] flex items-center justify-center">
                 {objective.owner ? (
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={objective.owner.image || ""} />
@@ -905,7 +872,7 @@ function GoalsListView({
               </div>
 
               {/* Add Column */}
-              <div className="w-10" />
+              <div className="w-10 border-l border-[#e6e9ef]" />
             </div>
 
             {/* Mobile card */}
@@ -979,9 +946,9 @@ function GoalsListView({
                             )
                           );
                     return (
-                      // KR sub-row — overlay handles vertical
-                      // dividers. NO `position: relative` (same
-                      // paint-group bug as parent rows).
+                      // KR sub-row — per-cell border-l matches parent
+                      // rows so the column dividers run continuously
+                      // when an objective is expanded.
                       <div
                         key={kr.id}
                         className="hidden md:flex items-stretch text-sm border-b border-[#e6e9ef] last:border-b-0"
@@ -990,8 +957,8 @@ function GoalsListView({
                           <div className="w-2 h-2 rounded-full bg-black" />
                           <span className="text-center">{kr.name}</span>
                         </div>
-                        <div className="w-[80px] px-3" />
-                        <div className="w-[140px] px-3 py-2 flex items-center justify-center">
+                        <div className="w-[80px] px-3 border-l border-[#e6e9ef]" />
+                        <div className="w-[140px] px-3 py-2 border-l border-[#e6e9ef] flex items-center justify-center">
                           <div className="flex items-center gap-2 w-full">
                             <div className="flex-1 h-1.5 bg-white border border-black rounded-full overflow-hidden">
                               <div
@@ -1004,10 +971,10 @@ function GoalsListView({
                             </span>
                           </div>
                         </div>
-                        <div className="w-[100px] px-3" />
-                        <div className="w-[140px] px-3" />
-                        <div className="w-[80px] px-3" />
-                        <div className="w-10" />
+                        <div className="w-[100px] px-3 border-l border-[#e6e9ef]" />
+                        <div className="w-[140px] px-3 border-l border-[#e6e9ef]" />
+                        <div className="w-[80px] px-3 border-l border-[#e6e9ef]" />
+                        <div className="w-10 border-l border-[#e6e9ef]" />
                       </div>
                     );
                   })}

@@ -473,34 +473,11 @@ function ProjectsListView({
   // overlay so every divider lands on the same pixel boundary.
   const gridTemplate = "100px minmax(220px, 1fr) 110px 130px 100px 56px";
   return (
-    // relative + min-h-[60vh] anchors the ghost-column overlay so
-    // the vertical dividers extend through empty space below the
-    // last project. `isolate` forces a stacking context so the
-    // overlay's lines paint predictably over the body rows.
-    <div className="font-sans relative isolate min-h-[60vh]">
-      {/* Ghost-column overlay — single source of truth for body
-          vertical dividers. Same pattern as /my-tasks + project
-          list view. z-0 sits below sticky header (z-10) and row
-          content (z-auto). pointer-events-none so clicks pass
-          through to row click handlers. */}
-      <div
-        className="hidden md:grid absolute inset-0 pointer-events-none z-0"
-        style={{ gridTemplateColumns: gridTemplate }}
-      >
-        <div />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-        <div className="border-l border-[#e6e9ef]" />
-      </div>
-
-      {/* Compact header — six columns. Numeric % column still uses
-          right-aligned tabular-nums; the EVM money/index columns
-          (BAC/EV/PV/SPI/CPI/EAC/Float) were removed per product
-          decision. Header keeps per-cell `border-l` because the
-          sticky header (z-10) has opaque bg that hides the overlay
-          there; every other body cell defers to the overlay. */}
+    <div className="font-sans">
+      {/* Compact header — six columns. Per-cell `border-l` provides
+          vertical dividers; same approach used on every row below
+          for guaranteed alignment across browsers (no overlay
+          stacking-context games). */}
       <div className="hidden md:grid items-stretch border-b border-[#e6e9ef] text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/60 sticky top-0 z-10"
            style={{ gridTemplateColumns: gridTemplate }}>
         <div className="px-3 py-2 border-l border-[#e6e9ef] first:border-l-0">#</div>
@@ -534,12 +511,9 @@ function ProjectsListView({
           <div
             key={p.id}
             onClick={() => onRowClick(p.id)}
-            // Per-cell `border-l` REMOVED — the ghost-column overlay
-            // above handles every vertical divider in the body. NO
-            // `position: relative` on the row: it would promote
-            // the row to the same paint group as the overlay
-            // (positioned z:auto) and, being later in tree order,
-            // paint OVER the overlay's lines and hide them.
+            // Per-cell `border-l` restored on each column cell —
+            // guaranteed vertical dividers, immune to stacking-
+            // context bugs.
             className="hidden md:grid items-stretch hover:bg-gray-50 cursor-pointer border-b border-[#e6e9ef] text-[12px] group"
             style={{ gridTemplateColumns: gridTemplate }}
           >
@@ -549,7 +523,7 @@ function ProjectsListView({
             </div>
 
             {/* Project (color bar + name + subline) */}
-            <div className="px-3 py-2.5 flex items-center gap-2.5 min-w-0">
+            <div className="px-3 py-2.5 border-l border-[#e6e9ef] flex items-center gap-2.5 min-w-0">
               <div
                 className="h-7 w-1 rounded-sm flex-shrink-0"
                 style={{ backgroundColor: p.color }}
@@ -566,14 +540,14 @@ function ProjectsListView({
             </div>
 
             {/* Gate */}
-            <div className="px-3 py-2.5 flex items-center">
+            <div className="px-3 py-2.5 border-l border-[#e6e9ef] flex items-center">
               <span className="text-[10px] font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
                 {p.gate ? GATE_LABEL[p.gate] : "—"}
               </span>
             </div>
 
             {/* % Complete with planned-vs-actual mini bars */}
-            <div className="px-3 py-2.5 flex flex-col justify-center gap-1">
+            <div className="px-3 py-2.5 border-l border-[#e6e9ef] flex flex-col justify-center gap-1">
               <div className="flex items-baseline gap-1">
                 <span className="text-[12px] font-mono font-semibold tabular-nums text-black">
                   {pmi.percentComplete}%
@@ -599,7 +573,7 @@ function ProjectsListView({
             </div>
 
             {/* Health pill */}
-            <div className="px-3 py-2.5 flex items-center">
+            <div className="px-3 py-2.5 border-l border-[#e6e9ef] flex items-center">
               <span
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tabular-nums"
                 style={{ backgroundColor: hv.hex, color: hv.textHex }}
@@ -610,7 +584,7 @@ function ProjectsListView({
             </div>
 
             {/* Owner */}
-            <div className="px-2 py-2.5 flex items-center justify-center">
+            <div className="px-2 py-2.5 border-l border-[#e6e9ef] flex items-center justify-center">
               {p.owner ? (
                 <Avatar className="h-6 w-6">
                   <AvatarImage src={p.owner.image || undefined} />

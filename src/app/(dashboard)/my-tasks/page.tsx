@@ -1404,62 +1404,7 @@ export default function MyTasksPage() {
             "--col-visibility": `${columnWidths.visibility}px`,
           } as React.CSSProperties}
         >
-          {/* `isolate` forces this scroll container to be its own
-              stacking context — keeps the ghost overlay (z:0) and
-              row contents (no position) from competing in the
-              outer stacking context, which lets rows paint over
-              the overlay lines and hide them. */}
-          <div className="flex-1 overflow-auto relative isolate">
-          {/* Ghost-column overlay — single source of truth for the
-              vertical dividers in the LIST BODY.
-              Implementation:
-                · absolute inset-0 → covers the whole scroll area
-                  including past the last task row.
-                · `px-6` matches the header (`px-6`) and TaskRow
-                  (`px-4 md:px-6`) so the overlay's content area is
-                  exactly the same width as the header/row content
-                  area. Without this the overlay was 48px wider
-                  (no padding), and `justify-end` pushed the lines
-                  ~24px past the header's column edges.
-                · `grid` with `gridTemplateColumns: taskGridTemplate`
-                  uses the IDENTICAL widths the header/rows use via
-                  --col-* CSS vars. Each grid cell's left border
-                  lands at the exact column boundary the header
-                  ColumnHeader cell starts at.
-                · pointer-events:none → clicks pass through to rows.
-                · z-0 → below the sticky header (z-20) and row
-                  content (default z-auto). Lines only show in the
-                  body area; the header's own per-cell borders draw
-                  on top of the header's opaque bg there.
-              Color #e6e9ef is the subtle Asana divider tone (close
-              to Tailwind's gray-200 but slightly cooler / more
-              neutral). */}
-          {view === "list" && (
-            <div
-              className="absolute inset-0 pointer-events-none hidden md:grid px-6 z-0"
-              style={{ gridTemplateColumns: taskGridTemplate }}
-            >
-              {/* Cell 1: Name — no border (leftmost column) */}
-              <div />
-              {!hiddenColumns.has("dueDate") && (
-                <div className="border-l border-[#e6e9ef]" />
-              )}
-              {!hiddenColumns.has("collaborators") && (
-                <div className="border-l border-[#e6e9ef]" />
-              )}
-              {!hiddenColumns.has("projects") && (
-                <div className="border-l border-[#e6e9ef]" />
-              )}
-              {!hiddenColumns.has("visibility") && (
-                <div className="border-l border-[#e6e9ef]" />
-              )}
-              {customColumns.map((col) => (
-                <div key={col.id} className="border-l border-[#e6e9ef]" />
-              ))}
-              {/* Last cell: "+" column boundary */}
-              <div className="border-l border-[#e6e9ef]" />
-            </div>
-          )}
+          <div className="flex-1 overflow-auto relative">
           {/* COLUMN HEADERS - sticky inside the scroll container so it shares
               the same effective width as the task rows below. Living outside
               the scroll container made the header ~15px wider than each row
@@ -1741,10 +1686,9 @@ export default function MyTasksPage() {
                 }
               }}
             />
-            <div className="relative z-10 bg-white">
-              {/* Add section button — opaque + z-10 so the ghost-
-                  column overlay's vertical lines don't bleed through.
-                  Per Juan's rule, only tasks carry vertical dividers. */}
+            <div>
+              {/* Add section button — naturally clean (no per-cell
+                  borders so no vertical lines). */}
               {isAddingSection ? (
                 <div className="flex items-center gap-2 px-6 py-3">
                   <input
@@ -2270,13 +2214,12 @@ function TaskSection({
         isOver && "bg-[#c9a84c]/5"
       )}
     >
-      {/* Section header — opaque bg + z-10 so the ghost-column
-          overlay's vertical dividers don't pass through it. Per
-          Juan's rule: gridlines divide tasks, NOT section headers
-          (To Do, Recently assigned, Do today, etc.). */}
+      {/* Section header — naturally clean (no per-cell borders so
+          no vertical lines pass through). Per Juan's rule, only
+          tasks carry vertical dividers. */}
       <button
         onClick={onToggleSection}
-        className="relative z-10 bg-white flex items-center px-4 md:px-6 w-full hover:bg-[var(--surface-hover)] text-left border-b border-[var(--border-subtle)]"
+        className="flex items-center px-4 md:px-6 w-full hover:bg-[var(--surface-hover)] text-left border-b border-[var(--border-subtle)]"
         style={{ height: "var(--row-h)" }}
       >
         <div className="w-8 flex-shrink-0 flex items-center">
@@ -2385,14 +2328,14 @@ function TaskSection({
                 <Plus className="w-3.5 h-3.5 text-gray-300" />
               </div>
               <span className="flex-1 text-[13px] text-gray-400">Add task</span>
-              {!hiddenColumns.has("dueDate") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-dueDate)" }} />}
-              {!hiddenColumns.has("collaborators") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-collaborators)" }} />}
-              {!hiddenColumns.has("projects") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-projects)" }} />}
-              {!hiddenColumns.has("visibility") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-visibility)" }} />}
+              {!hiddenColumns.has("dueDate") && <div className="hidden md:block flex-shrink-0 border-l border-[#e6e9ef]" style={{ width: "var(--col-dueDate)" }} />}
+              {!hiddenColumns.has("collaborators") && <div className="hidden md:block flex-shrink-0 border-l border-[#e6e9ef]" style={{ width: "var(--col-collaborators)" }} />}
+              {!hiddenColumns.has("projects") && <div className="hidden md:block flex-shrink-0 border-l border-[#e6e9ef]" style={{ width: "var(--col-projects)" }} />}
+              {!hiddenColumns.has("visibility") && <div className="hidden md:block flex-shrink-0 border-l border-[#e6e9ef]" style={{ width: "var(--col-visibility)" }} />}
               {Array.from({ length: customColumnCount }).map((_, i) => (
-                <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0" />
+                <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 border-l border-[#e6e9ef]" />
               ))}
-              <div className="hidden md:block w-8 flex-shrink-0" />
+              <div className="hidden md:block w-8 flex-shrink-0 border-l border-[#e6e9ef]" />
             </button>
           )}
         </SortableContext>
@@ -2969,13 +2912,11 @@ function TaskRow({
 
       {/* Due date — pl-2.5 pr-1 matches the header's internal padding
        * so the header label and the data text line up at the same X.
-       * NO border-l here: the ghost-column overlay in the list
-       * container draws the vertical divider continuously from the
-       * header through the bottom of the scroll area. Putting a
-       * border-l here would either double-up the line or end as a
-       * short fragment on empty rows. */}
+       * `border-l border-[#e6e9ef]` MATCHES the header's per-cell
+       * border so the vertical divider is continuous from header
+       * through every task row. */}
       {!hiddenColumns.has("dueDate") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center" style={{ width: "var(--col-dueDate)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#e6e9ef]" style={{ width: "var(--col-dueDate)" }}>
         <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
@@ -2984,7 +2925,7 @@ function TaskRow({
 
       {/* Collaborators */}
       {!hiddenColumns.has("collaborators") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center" style={{ width: "var(--col-collaborators)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#e6e9ef]" style={{ width: "var(--col-collaborators)" }}>
         {task.assignee && (
           <Avatar className="w-5 h-5">
             <AvatarImage src={task.assignee.image || undefined} />
@@ -2998,7 +2939,7 @@ function TaskRow({
 
       {/* Projects */}
       {!hiddenColumns.has("projects") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center" style={{ width: "var(--col-projects)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#e6e9ef]" style={{ width: "var(--col-projects)" }}>
         {task.project && (
           <div className="flex items-center gap-1.5 min-w-0">
             <div
@@ -3023,7 +2964,7 @@ function TaskRow({
 
       {/* Visibility */}
       {!hiddenColumns.has("visibility") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center" style={{ width: "var(--col-visibility)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#e6e9ef]" style={{ width: "var(--col-visibility)" }}>
         <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
           <Globe className="w-3 h-3 flex-shrink-0" />
           My workspace
@@ -3033,16 +2974,15 @@ function TaskRow({
 
       {/* Custom column cells */}
       {Array.from({ length: customColumnCount }).map((_, i) => (
-        <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 pl-2.5">
+        <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 pl-2.5 border-l border-[#e6e9ef]">
           <span className="text-[13px] text-gray-300">—</span>
         </div>
       ))}
 
       {/* Spacer for + button column — matches the AddColumnDropdown
           wrapper in the header (must be the exact same width or columns
-          to the left misalign because the row's flex-1 redistributes).
-          No border-l: the overlay draws it. */}
-      <div className="hidden md:block w-8 flex-shrink-0" />
+          to the left misalign because the row's flex-1 redistributes). */}
+      <div className="hidden md:block w-8 flex-shrink-0 border-l border-[#e6e9ef]" />
     </div>
     </>
   );
