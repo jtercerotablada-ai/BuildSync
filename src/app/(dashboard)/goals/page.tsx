@@ -761,38 +761,66 @@ function GoalsListView({
     );
   }
 
+  // Shared grid template — must match the flex header widths above.
+  // Used by the ghost-column overlay so vertical dividers land on
+  // the exact same pixel boundaries the header/rows occupy.
+  const overlayGridTemplate = "1fr 80px 140px 100px 140px 80px 40px";
+
   return (
-    <div>
+    // relative + min-h-[60vh] anchors the ghost-column overlay so
+    // the gridlines extend through empty space below the last goal.
+    <div className="relative min-h-[60vh]">
+      {/* Ghost-column overlay — single source of truth for body
+          vertical dividers. Same pattern as /my-tasks + project
+          list view: absolute inset-0, pointer-events-none, z-0
+          below the sticky header content. */}
+      <div
+        className="hidden md:grid absolute inset-0 pointer-events-none z-0"
+        style={{ gridTemplateColumns: overlayGridTemplate }}
+      >
+        <div />
+        <div className="border-l border-[#e6e9ef]" />
+        <div className="border-l border-[#e6e9ef]" />
+        <div className="border-l border-[#e6e9ef]" />
+        <div className="border-l border-[#e6e9ef]" />
+        <div className="border-l border-[#e6e9ef]" />
+        <div className="border-l border-[#e6e9ef]" />
+      </div>
+
       {/* Column Headers — gridlines from /my-tasks + centered content.
           Every column (header + data) horizontally centers its content
           per Juan's request — visually consistent grid cells regardless
-          of value width (dot / bar / avatar / text). */}
-      <div className="hidden md:flex items-stretch border-b border-gray-200 text-xs font-medium text-black uppercase tracking-wide">
+          of value width (dot / bar / avatar / text). Header keeps its
+          per-cell `border-l` because it's opaque + above the overlay. */}
+      <div className="hidden md:flex items-stretch border-b border-[#e6e9ef] text-xs font-medium text-black uppercase tracking-wide bg-white relative">
         {columns.map((col, i) => (
           <div
             key={col.id}
             className={cn(
               "py-2 px-3 flex items-center justify-center gap-1",
               col.className,
-              i > 0 && "border-l border-gray-200"
+              i > 0 && "border-l border-[#e6e9ef]"
             )}
           >
             {col.label}
             <ChevronDown className="w-3 h-3" />
           </div>
         ))}
-        <div className="w-10 border-l border-gray-200 flex items-center justify-center">
+        <div className="w-10 border-l border-[#e6e9ef] flex items-center justify-center">
           <Plus className="w-4 h-4 text-black" />
         </div>
       </div>
 
-      {/* Goals List — every row has same column dividers + bottom border */}
-      <div>
+      {/* Goals List — per-cell border-l REMOVED from rows + KR
+          sub-rows because the ghost-column overlay above handles
+          every body vertical divider. Horizontal `border-b` stays
+          so rows still have a bottom line. */}
+      <div className="relative">
         {objectives.map((objective) => (
           <div key={objective.id}>
-            {/* Desktop row */}
+            {/* Desktop row — per-cell `border-l` REMOVED; overlay handles. */}
             <div
-              className="hidden md:flex items-stretch hover:bg-gray-50 cursor-pointer group border-b border-gray-200"
+              className="hidden md:flex items-stretch hover:bg-gray-50 cursor-pointer group border-b border-[#e6e9ef] relative"
               onClick={() => onRowClick(objective.id)}
             >
               {/* Name */}
@@ -819,7 +847,7 @@ function GoalsListView({
               </div>
 
               {/* Status */}
-              <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
+              <div className="w-[80px] px-3 py-3 flex items-center justify-center">
                 <div
                   className={cn(
                     "w-3 h-3 rounded-full",
@@ -829,7 +857,7 @@ function GoalsListView({
               </div>
 
               {/* Progress */}
-              <div className="w-[140px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
+              <div className="w-[140px] px-3 py-3 flex items-center justify-center">
                 <div className="flex items-center gap-2 w-full">
                   <div className="flex-1 h-2 bg-white border border-black rounded-full overflow-hidden">
                     <div
@@ -844,21 +872,21 @@ function GoalsListView({
               </div>
 
               {/* Period */}
-              <div className="w-[100px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
+              <div className="w-[100px] px-3 py-3 flex items-center justify-center">
                 <span className="text-sm text-black text-center">
                   {objective.period || "-"}
                 </span>
               </div>
 
               {/* Team */}
-              <div className="w-[140px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
+              <div className="w-[140px] px-3 py-3 flex items-center justify-center">
                 <span className="text-sm text-black text-center">
                   {objective.team?.name || "-"}
                 </span>
               </div>
 
               {/* Owner */}
-              <div className="w-[80px] px-3 py-3 border-l border-gray-200 flex items-center justify-center">
+              <div className="w-[80px] px-3 py-3 flex items-center justify-center">
                 {objective.owner ? (
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={objective.owner.image || ""} />
@@ -872,7 +900,7 @@ function GoalsListView({
               </div>
 
               {/* Add Column */}
-              <div className="w-10 border-l border-gray-200" />
+              <div className="w-10" />
             </div>
 
             {/* Mobile card */}
@@ -946,16 +974,19 @@ function GoalsListView({
                             )
                           );
                     return (
+                      // KR sub-row — same overlay-handled vertical
+                      // dividers as parent rows. `relative` so the
+                      // row sits above the overlay's z-0.
                       <div
                         key={kr.id}
-                        className="hidden md:flex items-stretch text-sm border-b border-gray-200 last:border-b-0"
+                        className="hidden md:flex items-stretch text-sm border-b border-[#e6e9ef] last:border-b-0 relative"
                       >
                         <div className="flex-1 pl-12 pr-3 py-2 flex items-center justify-center gap-2 text-black">
                           <div className="w-2 h-2 rounded-full bg-black" />
                           <span className="text-center">{kr.name}</span>
                         </div>
-                        <div className="w-[80px] px-3 border-l border-gray-200" />
-                        <div className="w-[140px] px-3 py-2 border-l border-gray-200 flex items-center justify-center">
+                        <div className="w-[80px] px-3" />
+                        <div className="w-[140px] px-3 py-2 flex items-center justify-center">
                           <div className="flex items-center gap-2 w-full">
                             <div className="flex-1 h-1.5 bg-white border border-black rounded-full overflow-hidden">
                               <div
@@ -968,10 +999,10 @@ function GoalsListView({
                             </span>
                           </div>
                         </div>
-                        <div className="w-[100px] px-3 border-l border-gray-200" />
-                        <div className="w-[140px] px-3 border-l border-gray-200" />
-                        <div className="w-[80px] px-3 border-l border-gray-200" />
-                        <div className="w-10 border-l border-gray-200" />
+                        <div className="w-[100px] px-3" />
+                        <div className="w-[140px] px-3" />
+                        <div className="w-[80px] px-3" />
+                        <div className="w-10" />
                       </div>
                     );
                   })}

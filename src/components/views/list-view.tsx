@@ -647,18 +647,60 @@ export function ListView({
           and the vertical dividers looked misaligned vs the header.
           With both inside the same overflow context and the header
           `sticky top-0`, 1fr resolves to the same pixel value
-          everywhere and the grid lines stack perfectly. */}
-      <div className="flex-1 overflow-auto">
+          everywhere and the grid lines stack perfectly.
+
+          `relative` added to anchor the ghost-column overlay below. */}
+      <div className="flex-1 overflow-auto relative">
+      {/* Ghost-column overlay — single source of truth for the body's
+          vertical dividers. Same pattern shipped on /my-tasks:
+            · absolute inset-0 → covers the full scroll area, including
+              empty space below the last task in each section AND below
+              the "Add section" button (this is what kills the "half-
+              line" artifact Juan called out).
+            · grid + IDENTICAL gridTemplateColumns as header/rows so
+              every overlay cell's left border lands at the exact pixel
+              column boundary the header uses.
+            · px-6 matches the header (`px-6`) and TaskRow (`px-6`)
+              outer padding — without this the overlay would be 48px
+              wider than the content area and the lines would drift.
+            · pointer-events-none → clicks pass through to rows.
+            · z-0 → below the sticky header (z-10) so the header's own
+              per-cell borders draw on top of its opaque bg there; row
+              content sits at default z-auto (above z-0) so hover bg
+              still reads as expected.
+          #e6e9ef = the same subtle Asana divider tone used in
+          /my-tasks for consistency across the cockpit. */}
+      <div
+        className="hidden md:grid absolute inset-0 px-6 pointer-events-none z-0"
+        style={{ gridTemplateColumns: gridTemplate }}
+      >
+        {/* Cell 1: Checkbox — no left border (leftmost) */}
+        <div />
+        {/* Cells 2-6: Name | Assignee | Due | Priority | Status */}
+        <div className="border-l border-[#e6e9ef]" />
+        <div className="border-l border-[#e6e9ef]" />
+        <div className="border-l border-[#e6e9ef]" />
+        <div className="border-l border-[#e6e9ef]" />
+        <div className="border-l border-[#e6e9ef]" />
+        {/* One overlay column per custom-field definition */}
+        {customFieldDefs.map((f) => (
+          <div key={f.id} className="border-l border-[#e6e9ef]" />
+        ))}
+        {/* Last cell: "+ add column" boundary */}
+        <div className="border-l border-[#e6e9ef]" />
+      </div>
       {/* ========================================= */}
       {/* COLUMN HEADERS - ONLY ONCE AT THE TOP    */}
       {/* ========================================= */}
-      <div className="sticky top-0 bg-white border-b border-slate-200 z-10">
+      <div className="sticky top-0 bg-white border-b border-[#e6e9ef] z-10">
         <div
-          // Excel/Asana-style grid: vertical dividers between every
-          // column via `[&>*+*]:border-l`, internal cell padding via
-          // `[&>*]:px-2` so the borders sit flush against cell content
-          // instead of floating in a gap-2 whitespace strip.
-          className="hidden md:grid px-6 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-slate-200 [&>*]:flex [&>*]:items-center"
+          // Header keeps per-cell `[&>*+*]:border-l` because the
+          // sticky header (z-10) sits above the ghost overlay (z-0)
+          // and its bg-white would otherwise hide the overlay lines
+          // in the header row. This is the only place we still draw
+          // vertical dividers via per-cell borders — every other
+          // body cell defers to the overlay.
+          className="hidden md:grid px-6 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-[#e6e9ef] [&>*]:flex [&>*]:items-center"
           style={{ gridTemplateColumns: gridTemplate }}
         >
           <div onClick={(e) => e.stopPropagation()}>
@@ -719,7 +761,7 @@ export function ListView({
       </div>
 
         {localSections.map((section) => (
-          <div key={section.id} className="border-b border-slate-200">
+          <div key={section.id} className="border-b border-[#e6e9ef]">
             {/* Section Header */}
             <div className="flex items-center gap-2 px-3 md:px-6 py-2 hover:bg-slate-50 group">
               <button
@@ -1248,12 +1290,14 @@ function SortableTaskRow({
       </div>
 
       {/* ===== Desktop Grid Row =====
-          Vertical + horizontal dividers ALL use slate-200 so the
-          column lines align visually with the header (header was
-          slate-200 but rows used slate-100 which was nearly invisible
-          on white — looked like the columns were misaligned). */}
+          Per-cell `[&>*+*]:border-l` REMOVED — the ghost-column
+          overlay in the parent scroll container now draws every
+          vertical divider in the body (continuous through empty
+          rows, no half-lines). Horizontal `border-t` stays so each
+          row still has a top divider. Color migrated to #e6e9ef
+          to match the overlay + header. */}
       <div
-        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-slate-200 group [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-slate-200 [&>*]:min-w-0"
+        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-[#e6e9ef] group [&>*]:px-2 [&>*]:min-w-0 relative"
         style={{ gridTemplateColumns: gridTemplate }}
         onClick={() => onTaskClick(task.id)}
       >
