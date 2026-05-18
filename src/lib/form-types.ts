@@ -235,6 +235,16 @@ export function formatAnswerForText(value: FormAnswerValue): string {
 /**
  * Convert form answers into Task fields. Used by the submit endpoint
  * so the public form page → task pipeline is deterministic.
+ *
+ * Description format mirrors Asana's auto-generated task body: each
+ * answer is rendered as `Label:` on its own line followed by the
+ * value (NOT inline "Label: value"). Reads better for long RFI
+ * descriptions, multi-paragraph answers, etc.
+ *
+ * Attachments are rendered as "filename (size KB)" inline in the
+ * description for human reference; the submit endpoint separately
+ * mirrors each uploaded file as a real Task Attachment row so they
+ * show under "Attachments" on the task panel.
  */
 export function buildTaskFromSubmission(
   form: { fields: FormField[]; name: string },
@@ -252,13 +262,16 @@ export function buildTaskFromSubmission(
     }
 
     if (field.mapTo === "name") {
-      // First name-mapped field wins; subsequent ones append.
+      // First name-mapped field wins; subsequent ones fall through
+      // to the description block below.
       const stringValue = formatAnswerForText(raw);
-      if (!taskName) taskName = stringValue;
-      else descriptionParts.push(`${field.label}: ${stringValue}`);
-    } else if (field.mapTo === "description") {
-      descriptionParts.push(formatAnswerForText(raw));
-    } else if (field.mapTo === "dueDate" && field.type === "DATE") {
+      if (!taskName) {
+        taskName = stringValue;
+        continue;
+      }
+    }
+
+    if (field.mapTo === "dueDate" && field.type === "DATE") {
       // The DATE field gives us yyyy-MM-dd; convert to local-noon
       // ISO to avoid the timezone-shift bug we hit in the calendar.
       const parts = String(raw).split("-").map(Number);
@@ -273,19 +286,44 @@ export function buildTaskFromSubmission(
         );
         dueDate = noon.toISOString();
       }
-    } else {
-      // Unmapped field — append to description as a labeled line so
-      // the task reader can see the raw answers.
-      descriptionParts.push(`${field.label}: ${formatAnswerForText(raw)}`);
+      // Continue — also render the date in the description so the
+      // task reader sees it without having to look at the metadata.
     }
+
+    // Render as a labeled block. mapTo:"description" still gets the
+    // label so the answer's intent is obvious (a paragraph with no
+    // label tends to look like the description was empty).
+    descriptionParts.push(`${field.label}:\n${formatAnswerForText(raw)}`);
   }
 
   // Fall back to the form's name when no field is mapTo: "name".
-  if (!taskName) taskName = `New submission to ${form.name}`;
+  if (!taskName) taskName = `Submission: ${form.name}`;
 
   return {
     name: taskName.slice(0, 200), // sane upper bound
     description: descriptionParts.join("\n\n"),
     dueDate,
   };
+}
+
+/**
+ * Append a footer to the auto-generated task description with a link
+ * back to the source form — mirrors Asana's "Submitted via [Form]"
+ * line. Helps the task reader trace where the request came from and
+ * jump to the form to see what was originally asked.
+ *
+ * Kept as a separate helper (not baked into buildTaskFromSubmission)
+ * because the URL is environment-dependent and lives in the route.
+ */
+export function appendFormFooter(
+  description: string,
+  formName: string,
+  formUrl: string,
+  submitterDisplay: string | null
+): string {
+  const divider = "\n\n———————————————\n";
+  const submittedLine = `Submitted via ${formName}`;
+  const byLine = submitterDisplay ? `\nby ${submitterDisplay}` : "";
+  const linkLine = `\n${formUrl}`;
+  return `${description}${divider}${submittedLine}${byLine}${linkLine}`;
 }

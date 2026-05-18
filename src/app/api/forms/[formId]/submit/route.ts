@@ -6,11 +6,25 @@ import {
   type FormField,
   type FormSubmissionPayload,
   type FormAnswerValue,
+  type FormAttachment,
   buildTaskFromSubmission,
+  appendFormFooter,
   formatAnswerForText,
   pruneHiddenAnswers,
   isFieldVisible,
 } from "@/lib/form-types";
+
+const APP_URL = process.env.APP_URL || "http://localhost:3000";
+
+function isAttachmentValue(v: unknown): v is FormAttachment {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    "url" in v &&
+    "name" in v &&
+    "size" in v
+  );
+}
 import {
   sendFormSubmissionEmail,
   sendFormSubmitterReceiptEmail,
@@ -223,6 +237,66 @@ export async function POST(
       answers
     );
 
+    // Resolve submitter display name once so we can show it both in
+    // the description footer ("by Juan Tablada") and the inbox row.
+    let submitterDisplay: string | null = null;
+    if (submitterUserId) {
+      try {
+        const u = await prisma.user.findUnique({
+          where: { id: submitterUserId },
+          select: { name: true, email: true },
+        });
+        submitterDisplay = u?.name || u?.email || null;
+      } catch {
+        /* fall back to null — footer just omits the "by ..." line */
+      }
+    }
+    // For anonymous public submitters, the EMAIL field (if present) is
+    // the next-best identifier. Computed lazily here because we don't
+    // need it for ORGANIZATION submissions where the user lookup wins.
+    if (!submitterDisplay) {
+      for (const f of fields) {
+        if (f.type === "EMAIL") {
+          const v = answers[f.id];
+          if (typeof v === "string" && v.trim()) {
+            submitterDisplay = v.trim();
+            break;
+          }
+        }
+      }
+    }
+
+    // Compose the final description with the "Submitted via [Form]"
+    // footer + link back to the public form (Asana parity).
+    const formUrl = `${APP_URL}/forms/${form.id}`;
+    const descriptionWithFooter = appendFormFooter(
+      taskBuild.description,
+      form.name,
+      formUrl,
+      submitterDisplay
+    );
+
+    // Collect uploaded files from ATTACHMENT fields so we can mirror
+    // them as real Task Attachments inside the transaction. The
+    // uploader has to be a real User row (schema requires it); fall
+    // back to project owner for anonymous public submissions. When
+    // neither is available, we skip task-attachment creation but the
+    // files still live in FormSubmission.data so the submissions
+    // inbox keeps showing them.
+    const uploaderForAttachments =
+      submitterUserId || form.project.ownerId || null;
+    const filesToMirror: FormAttachment[] = [];
+    if (uploaderForAttachments) {
+      for (const f of fields) {
+        if (f.type !== "ATTACHMENT") continue;
+        const v = answers[f.id];
+        const list = Array.isArray(v) ? v : v != null ? [v] : [];
+        for (const item of list) {
+          if (isAttachmentValue(item)) filesToMirror.push(item);
+        }
+      }
+    }
+
     // ── Persist in a transaction ──────────────────────────────
     const result = await prisma.$transaction(async (tx) => {
       const submission = await tx.formSubmission.create({
@@ -236,7 +310,7 @@ export async function POST(
       const createdTask = await tx.task.create({
         data: {
           name: taskBuild.name,
-          description: taskBuild.description || null,
+          description: descriptionWithFooter,
           dueDate: taskBuild.dueDate ? new Date(taskBuild.dueDate) : null,
           projectId: form.projectId,
           sectionId: targetSectionId,
@@ -249,6 +323,23 @@ export async function POST(
         where: { id: submission.id },
         data: { taskId: createdTask.id },
       });
+
+      // Mirror form uploads as real task attachments so they show on
+      // the task panel under "Attachments" (Asana parity). createMany
+      // is one INSERT for the whole list — keeps the transaction
+      // tight even when an RFI has marked-up drawing + 5 photos.
+      if (uploaderForAttachments && filesToMirror.length > 0) {
+        await tx.attachment.createMany({
+          data: filesToMirror.map((a) => ({
+            taskId: createdTask.id,
+            uploaderId: uploaderForAttachments,
+            name: a.name,
+            url: a.url,
+            size: a.size,
+            mimeType: a.mimeType || "application/octet-stream",
+          })),
+        });
+      }
 
       return { submissionId: submission.id, taskId: createdTask.id };
     });
@@ -324,21 +415,6 @@ export async function POST(
     // never silently miss a submission when email is unconfigured /
     // lands in spam. Activity row also lands on the new task so the
     // task's history shows "Created from form submission".
-    let submitterName = "Someone";
-    if (submitterUserId) {
-      try {
-        const u = await prisma.user.findUnique({
-          where: { id: submitterUserId },
-          select: { name: true, email: true },
-        });
-        submitterName = u?.name || u?.email || "A teammate";
-      } catch {
-        /* fall back to "Someone" */
-      }
-    } else if (submitterEmail) {
-      submitterName = submitterEmail;
-    }
-
     const firstAnswer = previewAnswers[0];
     const previewLine = firstAnswer
       ? `${firstAnswer.label}: ${firstAnswer.value}`
@@ -352,7 +428,7 @@ export async function POST(
       formName: form.name,
       submissionId: result.submissionId,
       previewLine,
-      submitterName,
+      submitterName: submitterDisplay || "Someone",
       submitterEmail,
       submitterUserId: submitterUserId || null,
       recipientUserIds: [
