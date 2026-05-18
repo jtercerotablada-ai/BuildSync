@@ -1404,7 +1404,12 @@ export default function MyTasksPage() {
             "--col-visibility": `${columnWidths.visibility}px`,
           } as React.CSSProperties}
         >
-          <div className="flex-1 overflow-auto relative">
+          {/* `isolate` forces this scroll container to be its own
+              stacking context — keeps the ghost overlay (z:0) and
+              row contents (no position) from competing in the
+              outer stacking context, which lets rows paint over
+              the overlay lines and hide them. */}
+          <div className="flex-1 overflow-auto relative isolate">
           {/* Ghost-column overlay — single source of truth for the
               vertical dividers in the LIST BODY.
               Implementation:

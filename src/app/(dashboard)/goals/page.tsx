@@ -769,7 +769,9 @@ function GoalsListView({
   return (
     // relative + min-h-[60vh] anchors the ghost-column overlay so
     // the gridlines extend through empty space below the last goal.
-    <div className="relative min-h-[60vh]">
+    // `isolate` forces a stacking context so the overlay's lines
+    // paint predictably over the body rows (same fix as /my-tasks).
+    <div className="relative isolate min-h-[60vh]">
       {/* Ghost-column overlay — single source of truth for body
           vertical dividers. Same pattern as /my-tasks + project
           list view: absolute inset-0, pointer-events-none, z-0

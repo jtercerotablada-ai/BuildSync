@@ -475,9 +475,9 @@ function ProjectsListView({
   return (
     // relative + min-h-[60vh] anchors the ghost-column overlay so
     // the vertical dividers extend through empty space below the
-    // last project — fixes the "half-line" artifact when the list
-    // is shorter than the viewport.
-    <div className="font-sans relative min-h-[60vh]">
+    // last project. `isolate` forces a stacking context so the
+    // overlay's lines paint predictably over the body rows.
+    <div className="font-sans relative isolate min-h-[60vh]">
       {/* Ghost-column overlay — single source of truth for body
           vertical dividers. Same pattern as /my-tasks + project
           list view. z-0 sits below sticky header (z-10) and row

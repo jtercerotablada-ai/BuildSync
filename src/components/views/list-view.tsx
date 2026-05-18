@@ -649,8 +649,17 @@ export function ListView({
           `sticky top-0`, 1fr resolves to the same pixel value
           everywhere and the grid lines stack perfectly.
 
-          `relative` added to anchor the ghost-column overlay below. */}
-      <div className="flex-1 overflow-auto relative">
+          `relative` anchors the absolutely-positioned overlay.
+          `isolation-isolate` is CRITICAL: without it the scroll
+          container is NOT a stacking context, so the overlay (z:0
+          absolute) and the row contents (no position) end up
+          competing in the page's outer stacking context — and the
+          rows paint over the overlay's lines on body rows. With
+          `isolation: isolate` the scroll container becomes its
+          own stacking context: rows paint in group 3, overlay in
+          group 6, section headers (z:10) in group 7. Predictable
+          paint order, lines visible. */}
+      <div className="flex-1 overflow-auto relative isolate">
       {/* Ghost-column overlay — single source of truth for the body's
           vertical dividers. Same pattern shipped on /my-tasks:
             · absolute inset-0 → covers the full scroll area, including
