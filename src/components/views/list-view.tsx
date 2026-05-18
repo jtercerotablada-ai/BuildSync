@@ -762,8 +762,11 @@ export function ListView({
 
         {localSections.map((section) => (
           <div key={section.id} className="border-b border-[#e6e9ef]">
-            {/* Section Header */}
-            <div className="flex items-center gap-2 px-3 md:px-6 py-2 hover:bg-slate-50 group">
+            {/* Section Header — opaque bg + z-10 so the ghost-column
+                overlay's vertical lines don't bleed through. Per
+                Juan's rule: gridlines divide tasks, NOT section
+                headings (To Do, In Progress, Done, etc.). */}
+            <div className="relative z-10 bg-white flex items-center gap-2 px-3 md:px-6 py-2 hover:bg-slate-50 group">
               <button
                 onClick={() => toggleSection(section.id)}
                 className="flex items-center gap-2 flex-1 text-left"
@@ -916,10 +919,13 @@ export function ListView({
           </div>
         ))}
 
-        {/* Add Section Button */}
+        {/* Add Section Button — same opaque + z-10 treatment as the
+            section headers so the overlay's vertical lines don't
+            bleed through this action row. It's not a task; per
+            Juan's rule, only tasks carry vertical dividers. */}
         <button
           onClick={handleAddSection}
-          className="flex items-center gap-2 px-3 md:px-6 py-3 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left"
+          className="relative z-10 bg-white flex items-center gap-2 px-3 md:px-6 py-3 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-50 w-full text-left"
         >
           <Plus className="w-4 h-4" />
           Add section

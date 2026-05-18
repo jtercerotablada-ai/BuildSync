@@ -1736,8 +1736,10 @@ export default function MyTasksPage() {
                 }
               }}
             />
-            <div>
-              {/* Add section button */}
+            <div className="relative z-10 bg-white">
+              {/* Add section button — opaque + z-10 so the ghost-
+                  column overlay's vertical lines don't bleed through.
+                  Per Juan's rule, only tasks carry vertical dividers. */}
               {isAddingSection ? (
                 <div className="flex items-center gap-2 px-6 py-3">
                   <input
@@ -2263,10 +2265,13 @@ function TaskSection({
         isOver && "bg-[#c9a84c]/5"
       )}
     >
-      {/* Section header */}
+      {/* Section header — opaque bg + z-10 so the ghost-column
+          overlay's vertical dividers don't pass through it. Per
+          Juan's rule: gridlines divide tasks, NOT section headers
+          (To Do, Recently assigned, Do today, etc.). */}
       <button
         onClick={onToggleSection}
-        className="flex items-center px-4 md:px-6 w-full hover:bg-[var(--surface-hover)] text-left border-b border-[var(--border-subtle)]"
+        className="relative z-10 bg-white flex items-center px-4 md:px-6 w-full hover:bg-[var(--surface-hover)] text-left border-b border-[var(--border-subtle)]"
         style={{ height: "var(--row-h)" }}
       >
         <div className="w-8 flex-shrink-0 flex items-center">
