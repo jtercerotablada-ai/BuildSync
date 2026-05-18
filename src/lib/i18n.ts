@@ -182,10 +182,10 @@ export const dictionaries = {
     'cta.ready': 'Ready to start your project?',
     'cta.contact': 'Contact Us',
 
-    // Engineering tools (SaaS-only)
+    // Engineering tools (live inside the Knowledge hub)
     'resources.title': 'Engineering Tools',
-    'resources.subtitle': 'Structural engineering calculators and solvers built in-house \u2014 ready to use on every project in your workspace.',
-    'resources.section.label': 'Tools',
+    'resources.subtitle': 'Structural calculators and solvers built in-house \u2014 alongside the wiki entries in your Knowledge hub.',
+    'resources.section.label': 'Calculators',
     'resources.section.analysis': 'Analysis Software',
     'resources.section.design': 'Design Software',
     'resources.section.apps': 'Apps and Plugins',
@@ -426,11 +426,10 @@ export const dictionaries = {
     'cta.ready': 'Listo para comenzar su proyecto?',
     'cta.contact': 'Contactenos',
 
-    // Engineering tools (SaaS-only) \u2014 Spanish labels remain in i18n for the legacy ES locale,
-    // but the product UI is English-first now that the tools live inside the workspace.
+    // Engineering tools (product UI stays in English per workspace rule)
     'resources.title': 'Engineering Tools',
-    'resources.subtitle': 'Structural engineering calculators and solvers built in-house \u2014 ready to use on every project in your workspace.',
-    'resources.section.label': 'Tools',
+    'resources.subtitle': 'Structural calculators and solvers built in-house \u2014 alongside the wiki entries in your Knowledge hub.',
+    'resources.section.label': 'Calculators',
     'resources.section.analysis': 'Analysis Software',
     'resources.section.design': 'Design Software',
     'resources.section.apps': 'Apps and Plugins',
