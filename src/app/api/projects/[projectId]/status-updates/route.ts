@@ -11,14 +11,57 @@ const STATUS_VALUES = [
   "COMPLETE",
 ] as const;
 
+// Status Builder section types — same shape used by the composer.
+// CUSTOM allows future "add block" UX without another migration.
+const SECTION_TYPES = [
+  "SUMMARY",
+  "ACCOMPLISHED",
+  "BLOCKED",
+  "NEXT_STEPS",
+  "CUSTOM",
+] as const;
+
+const sectionSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(SECTION_TYPES),
+  label: z.string().min(1).max(120),
+  content: z.string().max(4000).default(""),
+});
+
 const createSchema = z.object({
   status: z.enum(STATUS_VALUES),
-  summary: z.string().min(1).max(4000),
+  // Optional — the block-builder composer sends `sections`; the
+  // legacy single-textarea path sends `summary` directly. Either
+  // satisfies the "must have content" check below.
+  summary: z.string().max(4000).optional(),
+  sections: z.array(sectionSchema).max(20).optional(),
   // When true we also patch the project itself so the cockpit-wide
   // status badge stays in sync. Front-end posts this every time —
   // PMs expect the "Update status" action to drive the badge.
   syncProjectStatus: z.boolean().optional().default(true),
 });
+
+type SectionInput = z.infer<typeof sectionSchema>;
+
+/**
+ * Render the structured sections into a single plaintext summary
+ * we store on `StatusUpdate.summary`. Keeps list views (home widget,
+ * /api/status-updates, etc.) able to show a quick preview without
+ * needing to parse `sections`.
+ *
+ * Format: each section becomes "LABEL:\ncontent\n" with blank lines
+ * between. Empty sections are skipped so the preview doesn't carry
+ * dead headers.
+ */
+function renderSectionsToSummary(sections: SectionInput[]): string {
+  const blocks: string[] = [];
+  for (const s of sections) {
+    const c = s.content.trim();
+    if (!c) continue;
+    blocks.push(`${s.label.toUpperCase()}:\n${c}`);
+  }
+  return blocks.join("\n\n");
+}
 
 async function assertProjectAccess(projectId: string, userId: string) {
   const project = await prisma.project.findUnique({
@@ -111,6 +154,9 @@ export async function GET(
         id: u.id,
         status: u.status,
         summary: u.summary,
+        // Structured blocks for the block-builder renderer. Null on
+        // pre-builder rows — clients fall back to `summary`.
+        sections: u.sections ?? null,
         createdAt: u.createdAt.toISOString(),
         author: a
           ? { id: a.id, name: a.name, email: a.email, image: a.image }
@@ -158,6 +204,30 @@ export async function POST(
       );
     }
 
+    // Resolve final summary + sections from either composer path:
+    //   block-builder → sections array → renderSectionsToSummary
+    //   legacy single-textarea → summary string (sections null)
+    // At least one of the two must carry actual content.
+    let finalSummary = (parsed.data.summary ?? "").trim();
+    let finalSections: SectionInput[] | null = null;
+    if (parsed.data.sections && parsed.data.sections.length > 0) {
+      // Filter out empty sections so we don't persist dead headers.
+      finalSections = parsed.data.sections.filter((s) => s.content.trim());
+      if (finalSections.length === 0) finalSections = null;
+      const rendered = finalSections
+        ? renderSectionsToSummary(finalSections)
+        : "";
+      // If the caller didn't supply an explicit summary, derive it
+      // from the rendered sections so list views still show preview text.
+      if (!finalSummary && rendered) finalSummary = rendered;
+    }
+    if (!finalSummary) {
+      return NextResponse.json(
+        { error: "Write at least one section before posting." },
+        { status: 400 }
+      );
+    }
+
     // Posting a status-update record is open to any viewer/commenter
     // (they're posting a comment, effectively). But driving the live
     // project.status badge is a write action and gated to editors+.
@@ -178,7 +248,13 @@ export async function POST(
         projectId,
         authorId: userId,
         status: parsed.data.status,
-        summary: parsed.data.summary.trim(),
+        summary: finalSummary,
+        // Prisma's Json column accepts the array directly; we
+        // stringify-then-parse to scrub any non-JSON-safe values
+        // (e.g. undefined) before insert.
+        sections: finalSections
+          ? JSON.parse(JSON.stringify(finalSections))
+          : undefined,
       },
     });
 
@@ -199,6 +275,7 @@ export async function POST(
         id: created.id,
         status: created.status,
         summary: created.summary,
+        sections: created.sections ?? null,
         createdAt: created.createdAt.toISOString(),
         author: author ?? null,
       },

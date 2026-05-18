@@ -16,6 +16,8 @@ import {
   Activity as ActivityIcon,
   Send,
   Paperclip,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,10 +78,26 @@ interface ProjectOverviewProps {
   onManageMembers?: () => void;
 }
 
+// Status Update block-builder section types. Matches the API enum.
+type SectionType =
+  | "SUMMARY"
+  | "ACCOMPLISHED"
+  | "BLOCKED"
+  | "NEXT_STEPS"
+  | "CUSTOM";
+
+interface StatusSection {
+  id: string;
+  type: SectionType;
+  label: string;
+  content: string;
+}
+
 interface StatusUpdate {
   id: string;
   status: ProjectStatusKey;
   summary: string;
+  sections?: StatusSection[] | null;
   createdAt: string;
   author: {
     id: string;
@@ -88,6 +106,48 @@ interface StatusUpdate {
     image: string | null;
   } | null;
 }
+
+interface StatusHighlights {
+  windowStart: string;
+  windowDays: number;
+  hadPriorUpdate: boolean;
+  counts: {
+    milestonesCompleted: number;
+    tasksCompleted: number;
+    tasksOverdue: number;
+    newFormSubmissions: number;
+    commentsCount: number;
+  };
+  milestonesRecent: { id: string; name: string; completedAt: string | null }[];
+  milestonesUpcoming: { id: string; name: string; dueDate: string | null }[];
+}
+
+/**
+ * Default Status Builder blocks shown when the composer opens.
+ * Matches Asana's default template — Summary / What we've accomplished
+ * / What's blocked / Next steps. Each one's `content` starts empty;
+ * the composer pre-fills "Accomplished" from highlights when available.
+ *
+ * IDs are stable strings (not nanoid) so re-renders don't churn the
+ * key list, and each block's label is editable in the UI but defaults
+ * to the friendly name.
+ */
+const DEFAULT_SECTIONS: StatusSection[] = [
+  { id: "summary", type: "SUMMARY", label: "Summary", content: "" },
+  {
+    id: "accomplished",
+    type: "ACCOMPLISHED",
+    label: "What we've accomplished",
+    content: "",
+  },
+  { id: "blocked", type: "BLOCKED", label: "What's blocked", content: "" },
+  {
+    id: "next_steps",
+    type: "NEXT_STEPS",
+    label: "Next steps",
+    content: "",
+  },
+];
 
 interface ActivityEvent {
   id: string;
@@ -231,19 +291,147 @@ export function ProjectOverview({
   const [composerStatus, setComposerStatus] = useState<ProjectStatusKey>(
     (project.status as ProjectStatusKey) || "ON_TRACK"
   );
-  const [composerText, setComposerText] = useState("");
+  // Block-builder state — array of sections the user is editing.
+  // Each block has its own `content` textarea; posting concatenates
+  // them into the rendered summary the API persists alongside.
+  const [composerSections, setComposerSections] = useState<StatusSection[]>(
+    () => DEFAULT_SECTIONS.map((s) => ({ ...s }))
+  );
+  const [highlights, setHighlights] = useState<StatusHighlights | null>(null);
+  const [highlightsLoading, setHighlightsLoading] = useState(false);
   const [posting, setPosting] = useState(false);
 
   // History pagination — start collapsed at 3, expand to full on demand.
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
+  // Build a pre-filled "Accomplished" block from the highlights data
+  // so the composer feels alive when it opens — the user can edit /
+  // delete / add more before posting. Returns "" when there's nothing
+  // notable to surface (a brand-new project with no activity).
+  const buildAccomplishedFromHighlights = useCallback(
+    (h: StatusHighlights): string => {
+      const lines: string[] = [];
+      if (h.milestonesRecent.length > 0) {
+        for (const m of h.milestonesRecent) {
+          lines.push(`✓ Milestone hit: ${m.name}`);
+        }
+      } else if (h.counts.milestonesCompleted > 0) {
+        lines.push(
+          `✓ ${h.counts.milestonesCompleted} milestone${
+            h.counts.milestonesCompleted === 1 ? "" : "s"
+          } completed`
+        );
+      }
+      if (h.counts.tasksCompleted > 0) {
+        lines.push(
+          `✓ ${h.counts.tasksCompleted} task${
+            h.counts.tasksCompleted === 1 ? "" : "s"
+          } closed in the last ${h.windowDays} day${
+            h.windowDays === 1 ? "" : "s"
+          }`
+        );
+      }
+      if (h.counts.newFormSubmissions > 0) {
+        lines.push(
+          `✓ ${h.counts.newFormSubmissions} new intake submission${
+            h.counts.newFormSubmissions === 1 ? "" : "s"
+          } received (RFI / change order / inspection)`
+        );
+      }
+      return lines.join("\n");
+    },
+    []
+  );
+
+  // Same idea but for the "Next steps" block — surfaces upcoming
+  // milestones so PMs don't start the section blank.
+  const buildNextStepsFromHighlights = useCallback(
+    (h: StatusHighlights): string => {
+      if (h.milestonesUpcoming.length === 0) return "";
+      return h.milestonesUpcoming
+        .map((m) => {
+          const due = m.dueDate
+            ? new Date(m.dueDate).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              })
+            : "TBD";
+          return `→ ${m.name} (due ${due})`;
+        })
+        .join("\n");
+    },
+    []
+  );
+
+  // Same idea but for the "What's blocked" block — surface overdue
+  // tasks as a starting point.
+  const buildBlockedFromHighlights = useCallback(
+    (h: StatusHighlights): string => {
+      if (h.counts.tasksOverdue === 0) return "";
+      return `⚠ ${h.counts.tasksOverdue} task${
+        h.counts.tasksOverdue === 1 ? " is" : "s are"
+      } currently overdue — review and rebaseline before this update goes out.`;
+    },
+    []
+  );
+
   // Opens the composer pre-seeded with the current project status so
   // the pill selector reflects reality every time, not the value from
-  // first mount. Fixes the stale-pill bug after using "Change".
+  // first mount. Also resets the block content + kicks off the
+  // highlights fetch so the auto-pulled chips render fresh.
   const openComposer = useCallback(() => {
     setComposerStatus((project.status as ProjectStatusKey) || "ON_TRACK");
+    setComposerSections(DEFAULT_SECTIONS.map((s) => ({ ...s })));
+    setHighlights(null);
+    setHighlightsLoading(true);
     setComposerOpen(true);
-  }, [project.status]);
+    // Fire-and-forget — the composer can render before the data
+    // arrives; we splice the pre-fills in once it lands.
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/projects/${project.id}/status-highlights`
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as StatusHighlights;
+        setHighlights(data);
+        // Pre-fill the three derived blocks IF the user hasn't typed
+        // into them yet. Check content === "" guards against a
+        // late-arriving fetch overwriting in-progress edits.
+        setComposerSections((prev) =>
+          prev.map((s) => {
+            if (s.content.trim() !== "") return s;
+            if (s.type === "ACCOMPLISHED") {
+              const pre = buildAccomplishedFromHighlights(data);
+              return pre ? { ...s, content: pre } : s;
+            }
+            if (s.type === "BLOCKED") {
+              const pre = buildBlockedFromHighlights(data);
+              return pre ? { ...s, content: pre } : s;
+            }
+            if (s.type === "NEXT_STEPS") {
+              const pre = buildNextStepsFromHighlights(data);
+              return pre ? { ...s, content: pre } : s;
+            }
+            return s;
+          })
+        );
+      } catch (err) {
+        // Highlights are a nice-to-have — if the fetch fails the
+        // composer still works with blank blocks. No toast (would
+        // be noisy on every open).
+        console.error("[ProjectOverview] highlights fetch failed:", err);
+      } finally {
+        setHighlightsLoading(false);
+      }
+    })();
+  }, [
+    project.id,
+    project.status,
+    buildAccomplishedFromHighlights,
+    buildBlockedFromHighlights,
+    buildNextStepsFromHighlights,
+  ]);
 
   // Auto-open the composer when arriving from the home "Project Status"
   // widget with `?compose=status`. Strip the query after handling so
@@ -420,14 +608,43 @@ export function ProjectOverview({
     };
   }, [project.sections, project.startDate, project.endDate, allMembers.length]);
 
+  // True when at least one section has typed content. Drives the
+  // Post button's enabled state + the cancel "discard?" prompt.
+  const hasComposerContent = useMemo(
+    () => composerSections.some((s) => s.content.trim().length > 0),
+    [composerSections]
+  );
+
+  // Sum of all block contents — drives the per-update length cap.
+  const composerTotalLength = useMemo(
+    () => composerSections.reduce((n, s) => n + s.content.length, 0),
+    [composerSections]
+  );
+
+  const updateSectionContent = useCallback(
+    (id: string, content: string) => {
+      setComposerSections((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? // Hard cap per block so a single section can't blow
+              // past the update-level limit on its own.
+              { ...s, content: content.slice(0, COMPOSER_MAX_LEN) }
+            : s
+        )
+      );
+    },
+    []
+  );
+
   const handlePostUpdate = useCallback(async () => {
-    const summary = composerText.trim();
-    if (!summary) {
-      toast.error("Write a short summary first");
+    if (!hasComposerContent) {
+      toast.error("Fill in at least one section before posting.");
       return;
     }
-    if (summary.length > COMPOSER_MAX_LEN) {
-      toast.error(`Summary must be ${COMPOSER_MAX_LEN} characters or fewer`);
+    if (composerTotalLength > COMPOSER_MAX_LEN) {
+      toast.error(
+        `Total content must be ${COMPOSER_MAX_LEN} characters or fewer.`
+      );
       return;
     }
     setPosting(true);
@@ -439,7 +656,14 @@ export function ProjectOverview({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status: composerStatus,
-            summary,
+            // Send the structured blocks; the API renders these into
+            // `summary` for back-compat list views.
+            sections: composerSections.map((s) => ({
+              id: s.id,
+              type: s.type,
+              label: s.label,
+              content: s.content.trim(),
+            })),
             syncProjectStatus: true,
           }),
         }
@@ -469,7 +693,7 @@ export function ProjectOverview({
         },
         ...prev,
       ]);
-      setComposerText("");
+      setComposerSections(DEFAULT_SECTIONS.map((s) => ({ ...s })));
       setComposerOpen(false);
       toast.success("Status update posted");
       router.refresh();
@@ -480,42 +704,50 @@ export function ProjectOverview({
     } finally {
       setPosting(false);
     }
-  }, [project.id, composerStatus, composerText, router]);
+  }, [
+    project.id,
+    composerStatus,
+    composerSections,
+    composerTotalLength,
+    hasComposerContent,
+    router,
+  ]);
 
-  // Cmd/Ctrl + Enter posts the update without leaving the textarea —
+  // Cmd/Ctrl + Enter posts the update from any block textarea —
   // matches Slack/Linear/Notion conventions for inline composers.
+  // Escape prompts to discard if the user has typed anything.
   const handleComposerKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        if (!posting && composerText.trim()) {
+        if (!posting && hasComposerContent) {
           handlePostUpdate();
         }
       } else if (e.key === "Escape") {
         e.preventDefault();
-        if (composerText.trim()) {
+        if (hasComposerContent) {
           const confirmed = window.confirm(
             "Discard your status update? Your text will be lost."
           );
           if (!confirmed) return;
         }
-        setComposerText("");
+        setComposerSections(DEFAULT_SECTIONS.map((s) => ({ ...s })));
         setComposerOpen(false);
       }
     },
-    [posting, composerText, handlePostUpdate]
+    [posting, hasComposerContent, handlePostUpdate]
   );
 
   const handleCancelComposer = useCallback(() => {
-    if (composerText.trim()) {
+    if (hasComposerContent) {
       const confirmed = window.confirm(
         "Discard your status update? Your text will be lost."
       );
       if (!confirmed) return;
     }
-    setComposerText("");
+    setComposerSections(DEFAULT_SECTIONS.map((s) => ({ ...s })));
     setComposerOpen(false);
-  }, [composerText]);
+  }, [hasComposerContent]);
 
   const handleQuickStatusChange = useCallback(
     async (newStatus: ProjectStatusKey) => {
@@ -806,7 +1038,7 @@ export function ProjectOverview({
                 </span>
               </button>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
+              <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-4">
                 {/* Status pill selector */}
                 <div className="flex items-center gap-1 flex-wrap">
                   {(Object.keys(STATUS_VISUAL) as ProjectStatusKey[]).map(
@@ -836,19 +1068,78 @@ export function ProjectOverview({
                     }
                   )}
                 </div>
-                <textarea
-                  value={composerText}
-                  onChange={(e) =>
-                    setComposerText(e.target.value.slice(0, COMPOSER_MAX_LEN))
-                  }
-                  onKeyDown={handleComposerKeyDown}
-                  placeholder="What's happening? Highlights, blockers, decisions, or next steps."
-                  className="w-full p-2 text-sm border border-slate-200 rounded-md resize-none h-20 focus:outline-none focus:ring-2 focus:ring-[#c9a84c] focus:border-transparent"
-                  autoFocus
-                  maxLength={COMPOSER_MAX_LEN}
-                  disabled={posting}
-                />
-                <div className="flex items-center justify-between gap-2">
+
+                {/* Highlights strip — auto-pulled chips that summarize
+                    what's happened since the last update. Pure-data —
+                    user can't edit, just glance. Pre-fills the body
+                    blocks below. */}
+                {highlightsLoading ? (
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Loading highlights for the last{" "}
+                    {highlights?.windowDays ?? 7} days…
+                  </div>
+                ) : highlights ? (
+                  <div className="rounded-md border border-[#e6e9ef] bg-[#fafaf7] px-3 py-2.5">
+                    <div className="text-[10px] uppercase tracking-[1.5px] text-slate-500 font-semibold mb-1.5 flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-[#a8893a]" />
+                      Highlights
+                      <span className="text-slate-400 normal-case tracking-normal font-normal text-[10px]">
+                        ·{" "}
+                        {highlights.hadPriorUpdate
+                          ? `since last update (${highlights.windowDays}d)`
+                          : `last ${highlights.windowDays}d`}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 text-[11px]">
+                      <HighlightChip
+                        icon="✓"
+                        label={`${highlights.counts.milestonesCompleted} milestones`}
+                        active={highlights.counts.milestonesCompleted > 0}
+                      />
+                      <HighlightChip
+                        icon="✓"
+                        label={`${highlights.counts.tasksCompleted} tasks closed`}
+                        active={highlights.counts.tasksCompleted > 0}
+                      />
+                      <HighlightChip
+                        icon="📨"
+                        label={`${highlights.counts.newFormSubmissions} new submissions`}
+                        active={highlights.counts.newFormSubmissions > 0}
+                      />
+                      <HighlightChip
+                        icon="💬"
+                        label={`${highlights.counts.commentsCount} comments`}
+                        active={highlights.counts.commentsCount > 0}
+                      />
+                      <HighlightChip
+                        icon="⚠"
+                        label={`${highlights.counts.tasksOverdue} overdue`}
+                        active={highlights.counts.tasksOverdue > 0}
+                        warning
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Block-builder — one textarea per section. Asana
+                    parity: always-visible blocks the user fills in.
+                    Pre-filled blocks (Accomplished / Blocked / Next
+                    steps) get a faint "auto" hint chip until edited. */}
+                <div className="space-y-3">
+                  {composerSections.map((section, idx) => (
+                    <ComposerBlock
+                      key={section.id}
+                      section={section}
+                      autoFocus={idx === 0}
+                      disabled={posting}
+                      onChange={(c) => updateSectionContent(section.id, c)}
+                      onKeyDown={handleComposerKeyDown}
+                    />
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1">
                   <div className="flex items-center gap-2 text-[11px] text-slate-400 min-w-0">
                     <span className="truncate">
                       ⌘/Ctrl+Enter to post · Esc to cancel
@@ -856,12 +1147,12 @@ export function ProjectOverview({
                     <span
                       className={cn(
                         "tabular-nums whitespace-nowrap",
-                        composerText.length >= COMPOSER_MAX_LEN * 0.9
+                        composerTotalLength >= COMPOSER_MAX_LEN * 0.9
                           ? "text-[#a8893a] font-medium"
                           : "text-slate-400"
                       )}
                     >
-                      {composerText.length}/{COMPOSER_MAX_LEN}
+                      {composerTotalLength}/{COMPOSER_MAX_LEN}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -878,7 +1169,7 @@ export function ProjectOverview({
                       size="sm"
                       className="h-8 text-xs bg-black hover:bg-gray-900 text-white"
                       onClick={handlePostUpdate}
-                      disabled={posting || !composerText.trim()}
+                      disabled={posting || !hasComposerContent}
                     >
                       {posting ? "Posting…" : "Post update"}
                     </Button>
@@ -930,14 +1221,61 @@ export function ProjectOverview({
                           {formatRelativeTime(u.createdAt)}
                         </span>
                       </div>
-                      <p
-                        className={cn(
-                          "text-sm text-slate-700 mb-2",
-                          historyExpanded ? "whitespace-pre-wrap" : "line-clamp-3"
-                        )}
-                      >
-                        {u.summary}
-                      </p>
+                      {/* Render structured blocks when present
+                          (block-builder updates), fall back to the
+                          plain `summary` paragraph for legacy rows
+                          posted before the builder existed. The
+                          collapsed view shows just the SUMMARY block
+                          (or the first 3 lines of legacy summary)
+                          so the history list reads scannable; the
+                          expanded view shows every filled section. */}
+                      {u.sections && u.sections.length > 0 ? (
+                        historyExpanded ? (
+                          <div className="space-y-2 mb-2">
+                            {u.sections
+                              .filter((s) => s.content.trim())
+                              .map((s) => (
+                                <div key={s.id}>
+                                  <p className="text-[10px] uppercase tracking-[1.5px] text-slate-500 font-semibold mb-0.5">
+                                    {s.label}
+                                  </p>
+                                  <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                                    {s.content}
+                                  </p>
+                                </div>
+                              ))}
+                          </div>
+                        ) : (
+                          (() => {
+                            // Collapsed view — prefer the SUMMARY
+                            // block as the teaser; fall back to the
+                            // first non-empty block if SUMMARY is
+                            // blank. Three-line clamp keeps history
+                            // cards uniform.
+                            const teaser =
+                              u.sections.find(
+                                (s) => s.type === "SUMMARY" && s.content.trim()
+                              ) ||
+                              u.sections.find((s) => s.content.trim());
+                            return (
+                              <p className="text-sm text-slate-700 mb-2 line-clamp-3">
+                                {teaser?.content || u.summary}
+                              </p>
+                            );
+                          })()
+                        )
+                      ) : (
+                        <p
+                          className={cn(
+                            "text-sm text-slate-700 mb-2",
+                            historyExpanded
+                              ? "whitespace-pre-wrap"
+                              : "line-clamp-3"
+                          )}
+                        >
+                          {u.summary}
+                        </p>
+                      )}
                       <div className="flex items-center gap-1.5">
                         <div
                           className={cn(
@@ -1094,4 +1432,100 @@ function ActivityIconCell({
     </div>
   );
 }
+
+/**
+ * Highlight chip — auto-pulled metric inside the composer's
+ * "Highlights" strip. Active=true paints with the brand gold (it's
+ * a real signal); active=false stays muted gray (zero, nothing to
+ * surface). warning=true overrides to the amber tint so overdue
+ * tasks read as "needs attention" not "achievement".
+ */
+function HighlightChip({
+  icon,
+  label,
+  active,
+  warning = false,
+}: {
+  icon: string;
+  label: string;
+  active: boolean;
+  warning?: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] border",
+        !active
+          ? "bg-white text-slate-400 border-slate-200"
+          : warning
+            ? "bg-[#fdf3e0] text-[#8a5a1a] border-[#e5c89a]"
+            : "bg-[#fdf7e8] text-[#8a7028] border-[#e0c87a]"
+      )}
+    >
+      <span aria-hidden>{icon}</span>
+      {label}
+    </span>
+  );
+}
+
+/**
+ * One block in the Status Builder composer. Renders a small label
+ * header + a textarea bound to the section's content. Tracks per-
+ * section character count so the user knows when they're getting
+ * close to the cap.
+ */
+function ComposerBlock({
+  section,
+  autoFocus,
+  disabled,
+  onChange,
+  onKeyDown,
+}: {
+  section: StatusSection;
+  autoFocus: boolean;
+  disabled: boolean;
+  onChange: (content: string) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+}) {
+  const placeholder = PLACEHOLDER_BY_TYPE[section.type] || "";
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[10px] uppercase tracking-[1.5px] text-slate-500 font-semibold">
+          {section.label}
+        </p>
+        {section.content.length > 0 && (
+          <span className="text-[10px] text-slate-400 tabular-nums">
+            {section.content.length}
+          </span>
+        )}
+      </div>
+      <textarea
+        value={section.content}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        rows={section.type === "SUMMARY" ? 2 : 3}
+        autoFocus={autoFocus}
+        disabled={disabled}
+        className="w-full px-2.5 py-2 text-sm border border-slate-200 rounded-md resize-y focus:outline-none focus:ring-2 focus:ring-[#c9a84c] focus:border-transparent disabled:bg-slate-50 disabled:text-slate-400"
+      />
+    </div>
+  );
+}
+
+// Placeholder text per block type — written in plain PM language so
+// even a first-time user knows what belongs where. Engineering-firm
+// flavored (RFI / milestone / approval) to match the cockpit.
+const PLACEHOLDER_BY_TYPE: Record<SectionType, string> = {
+  SUMMARY:
+    'One sentence on overall status. Example: "Foundation 80% complete, waiting on RFI #14 from the architect."',
+  ACCOMPLISHED:
+    "Bullet what shipped since the last update. Milestones hit, tasks closed, RFIs answered, approvals received.",
+  BLOCKED:
+    "What's holding us up? Open RFIs, pending approvals, overdue dependencies, missing information.",
+  NEXT_STEPS:
+    "What's coming up this week. Milestones due, decisions needed, key meetings, inspections scheduled.",
+  CUSTOM: "",
+};
 

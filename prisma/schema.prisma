@@ -1387,7 +1387,18 @@ model FormSubmission {
 model StatusUpdate {
   id        String        @id @default(cuid())
   status    ProjectStatus
+  // Free-form rendered text — concatenation of `sections` when the
+  // newer block-builder composer is used, or a single paragraph
+  // when posted via the legacy single-textarea path. Always
+  // populated so list views can render a quick preview without
+  // having to parse sections.
   summary   String
+  // Structured composer output — Asana-style Status Builder blocks.
+  // Shape: { id, type, label, content }[]
+  //   type: 'SUMMARY' | 'ACCOMPLISHED' | 'BLOCKED' | 'NEXT_STEPS' | 'CUSTOM'
+  // Null on rows posted before the block builder existed; the
+  // renderer falls back to `summary` when this is null.
+  sections  Json?
   createdAt DateTime      @default(now())
 
   projectId String
