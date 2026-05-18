@@ -30,6 +30,10 @@ import {
   sendFormSubmitterReceiptEmail,
 } from "@/lib/email";
 import { notifyFormSubmitted } from "@/lib/form-notifications";
+import {
+  signTrackingToken,
+  buildTrackingUrl,
+} from "@/lib/tracking-token";
 
 /**
  * POST /api/forms/:formId/submit
@@ -399,6 +403,17 @@ export async function POST(
       }
     }
 
+    // Generate a signed tracking URL the submitter can use to follow
+    // up without creating an account. Issued once at submit time;
+    // included in the receipt email AND returned in the success
+    // payload so the post-submit thank-you page can show it.
+    const trackingToken = signTrackingToken(result.submissionId);
+    const trackingUrl = buildTrackingUrl(
+      form.id,
+      result.submissionId,
+      trackingToken
+    );
+
     // Receipt to submitter if they gave an email.
     if (submitterEmail) {
       await sendFormSubmitterReceiptEmail({
@@ -406,6 +421,7 @@ export async function POST(
         formName: form.name,
         confirmationMessage: form.confirmationMessage,
         answers: previewAnswers,
+        trackingUrl,
       });
     }
 
@@ -444,6 +460,9 @@ export async function POST(
         confirmationMessage:
           form.confirmationMessage ||
           "Thanks — the project team has been notified and your submission has been added to their backlog.",
+        // Submitter saves this URL to follow status + post replies
+        // without needing an account. Expires in 1 year.
+        trackingUrl,
       },
       { status: 201 }
     );

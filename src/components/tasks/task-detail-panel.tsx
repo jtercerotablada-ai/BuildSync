@@ -101,6 +101,11 @@ interface TaskComment {
     name: string | null;
     image: string | null;
   } | null;
+  // Guest-comment fields — populated when an external submitter
+  // posts via the tracking URL. authorId is null in that case so
+  // we fall back to guestName for display.
+  guestName?: string | null;
+  source?: "INTERNAL" | "TRACKING_REPLY";
   attachments?: TaskAttachment[];
 }
 
@@ -1341,18 +1346,38 @@ export function TaskDetailPanel({
               <>
                 {taskDetail?.comments?.map((comment) => {
                   const atts = (comment.attachments ?? []) as TaskAttachment[];
+                  // Resolve display name + "via tracking link" badge
+                  // when the comment came from an external submitter.
+                  // No author → fall back to guestName; mark the row
+                  // visually so the engineer knows it's from outside.
+                  const isGuest = comment.source === "TRACKING_REPLY";
+                  const displayName =
+                    comment.author?.name ||
+                    comment.guestName ||
+                    "Deleted user";
                   return (
                     <div key={comment.id} className="flex gap-3">
                       <Avatar className="h-8 w-8">
-                        <AvatarFallback className="text-xs bg-white border border-black">
-                          {comment.author?.name?.charAt(0) || "?"}
+                        <AvatarFallback
+                          className={
+                            isGuest
+                              ? "text-xs bg-slate-100 text-slate-700 border border-slate-300"
+                              : "text-xs bg-white border border-black"
+                          }
+                        >
+                          {displayName.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium">
-                            {comment.author?.name}
+                            {displayName}
                           </span>
+                          {isGuest && (
+                            <span className="text-[10px] uppercase tracking-wider text-[#a8893a] bg-[#fdf7e8] border border-[#e0c87a] px-1.5 py-[1px] rounded font-semibold">
+                              via tracking link
+                            </span>
+                          )}
                           <span className="text-xs text-black">
                             {new Date(comment.createdAt).toLocaleDateString()}
                           </span>

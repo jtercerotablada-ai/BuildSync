@@ -472,12 +472,16 @@ interface FormSubmitterReceiptParams {
   formName: string;
   confirmationMessage: string | null;
   answers: { label: string; value: string }[];
+  /** Public tracking URL (signed JWT) so the submitter can follow
+   *  status + post replies without creating an account. */
+  trackingUrl?: string;
 }
 
 export async function sendFormSubmitterReceiptEmail(
   params: FormSubmitterReceiptParams
 ) {
-  const { toEmail, formName, confirmationMessage, answers } = params;
+  const { toEmail, formName, confirmationMessage, answers, trackingUrl } =
+    params;
   const safeForm = escapeHtml(formName);
   const safeMessage = confirmationMessage
     ? escapeHtml(confirmationMessage)
@@ -496,6 +500,26 @@ export async function sendFormSubmitterReceiptEmail(
         </tr>`
     )
     .join("");
+
+  // Tracking-URL block — when present, gives the submitter a "Track
+  // status" CTA so they don't have to email asking "did you see it?".
+  // No-op when the caller didn't pass one (legacy behavior preserved).
+  const trackingBlock = trackingUrl
+    ? `<table cellpadding="0" cellspacing="0" style="width:100%;background:#fdf7e8;border:1px solid #e0c87a;border-radius:8px;padding:16px;margin:0 0 20px">
+        <tr><td>
+          <p style="margin:0 0 8px;color:#8a7028;font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Follow your request</p>
+          <p style="margin:0 0 12px;color:#475569;font-size:13px;line-height:1.5">
+            Use this private link to check status, see responses from the engineering team, and post follow-up questions — no account needed.
+          </p>
+          <a href="${escapeHtml(trackingUrl)}" style="display:inline-block;background:#000;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:9px 16px;border-radius:6px">
+            Track status →
+          </a>
+          <p style="margin:10px 0 0;color:#94a3b8;font-size:11px;line-height:1.4">
+            Save this email — anyone with the link can view this request, so don't share it more broadly.
+          </p>
+        </td></tr>
+      </table>`
+    : "";
 
   try {
     await getResend().emails.send({
@@ -516,6 +540,7 @@ export async function sendFormSubmitterReceiptEmail(
       <p style="margin:0 0 6px;color:#a8893a;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:600">Submission received</p>
       <h1 style="margin:0 0 16px;font-size:20px;color:#0f172a;line-height:1.35">${safeForm}</h1>
       <p style="margin:0 0 20px;color:#475569;font-size:14px;line-height:1.55">${safeMessage}</p>
+      ${trackingBlock}
       ${
         rows
           ? `<table cellpadding="0" cellspacing="0" style="width:100%;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin:0 0 20px">

@@ -62,6 +62,11 @@ export default function PublicFormPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [confirmationText, setConfirmationText] = useState<string | null>(null);
+  // Signed URL the submitter can use to track status + reply later.
+  // Returned by the submit API; surfaced on the thank-you screen +
+  // sent in the receipt email.
+  const [trackingUrl, setTrackingUrl] = useState<string | null>(null);
+  const [copiedTracking, setCopiedTracking] = useState(false);
 
   // ── Fetch form schema ────────────────────────────────────────
   useEffect(() => {
@@ -242,6 +247,13 @@ export default function PublicFormPage() {
         body?.confirmationMessage ||
           "Thanks — the project team has been notified and your submission has been added to their backlog."
       );
+      // Show the tracking URL on the thank-you screen so the
+      // submitter can save it immediately (they also get it in
+      // the receipt email but in-page is the safer bet — email
+      // can land in spam).
+      if (typeof body?.trackingUrl === "string") {
+        setTrackingUrl(body.trackingUrl);
+      }
       setSubmitted(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Submission failed");
@@ -294,6 +306,66 @@ export default function PublicFormPage() {
           <p className="text-sm text-slate-500 whitespace-pre-wrap">
             {confirmationText}
           </p>
+
+          {/* Tracking URL block — the differentiator. Lets the
+              architect / owner save the link before the email
+              even lands. "Open tracking page" routes them to the
+              full view; "Copy link" lets them paste it into their
+              own notes / project file. */}
+          {trackingUrl && (
+            <div className="mt-5 rounded-lg border border-[#e0c87a] bg-[#fdf7e8] px-4 py-3 text-left">
+              <p className="text-[11px] uppercase tracking-[1.5px] text-[#8a7028] font-semibold mb-1">
+                Track your submission
+              </p>
+              <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                Save this private link to check status, see the team&apos;s
+                responses, and add follow-up info — no account needed.
+              </p>
+              <div className="flex items-stretch gap-2">
+                <input
+                  readOnly
+                  value={trackingUrl}
+                  onClick={(e) =>
+                    (e.target as HTMLInputElement).select()
+                  }
+                  className="flex-1 min-w-0 text-[11px] font-mono px-2 py-1.5 bg-white border border-slate-200 rounded text-slate-600 truncate"
+                />
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    // Capture the input element BEFORE the await so the
+                    // fallback branch still has a reference (React resets
+                    // currentTarget after the synchronous handler returns).
+                    const sibling = (
+                      e.currentTarget as HTMLElement
+                    ).parentElement?.querySelector("input");
+                    try {
+                      await navigator.clipboard.writeText(trackingUrl);
+                      setCopiedTracking(true);
+                      setTimeout(() => setCopiedTracking(false), 2000);
+                    } catch {
+                      // Clipboard API blocked (insecure context, Safari
+                      // permissions, etc.) → select the input so the
+                      // user can press ⌘C / Ctrl+C manually.
+                      if (sibling instanceof HTMLInputElement) sibling.select();
+                    }
+                  }}
+                  className="flex-shrink-0 text-xs font-medium px-2.5 py-1.5 bg-black text-white rounded hover:bg-gray-900"
+                >
+                  {copiedTracking ? "Copied!" : "Copy"}
+                </button>
+              </div>
+              <a
+                href={trackingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2.5 inline-block text-xs font-medium text-[#8a7028] hover:underline"
+              >
+                Open tracking page →
+              </a>
+            </div>
+          )}
+
           <Button
             variant="outline"
             className="mt-6"
@@ -303,6 +375,7 @@ export default function PublicFormPage() {
               setAttachments({});
               setSubmitted(false);
               setConfirmationText(null);
+              setTrackingUrl(null);
             }}
           >
             Submit another response

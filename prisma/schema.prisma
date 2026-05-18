@@ -824,6 +824,20 @@ model Comment {
   authorId String?
   parentId String? // For replies
 
+  // ── External guest comments (form-submission tracking URL) ──
+  // When an external submitter (architect, owner, property manager,
+  // etc.) replies via their public tracking URL, the comment has
+  // no authorId (they're not a User), and we capture their display
+  // name + email so the conversation renders cleanly.
+  guestName  String?
+  guestEmail String?
+  source     CommentSource @default(INTERNAL)
+  // When INTERNAL_NOTE, the comment is hidden from the public
+  // tracking page — useful for "checking with senior PE" notes
+  // the engineer doesn't want the architect to see. Defaults to
+  // EXTERNAL so the architect sees responses by default.
+  visibility CommentVisibility @default(EXTERNAL)
+
   task   Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   author User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
   parent Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
@@ -834,6 +848,16 @@ model Comment {
 
   @@index([taskId])
   @@index([authorId])
+}
+
+enum CommentSource {
+  INTERNAL // Posted by a logged-in team member from the task panel
+  TRACKING_REPLY // Posted by an external submitter via public tracking URL
+}
+
+enum CommentVisibility {
+  EXTERNAL // Visible on the public tracking page (default)
+  INTERNAL_NOTE // Hidden from the tracking page (internal team only)
 }
 
 model CommentLike {
