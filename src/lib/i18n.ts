@@ -182,18 +182,18 @@ export const dictionaries = {
     'cta.ready': 'Ready to start your project?',
     'cta.contact': 'Contact Us',
 
-    // Resources
-    'resources.title': 'Free Resources',
-    'resources.subtitle': 'Structural engineering calculators and tools \u2014 free for every engineer, student, and builder. Built in-house, designed for accuracy and simplicity.',
-    'resources.section.label': 'Free Tools',
+    // Engineering tools (SaaS-only)
+    'resources.title': 'Engineering Tools',
+    'resources.subtitle': 'Structural engineering calculators and solvers built in-house \u2014 ready to use on every project in your workspace.',
+    'resources.section.label': 'Tools',
     'resources.section.analysis': 'Analysis Software',
     'resources.section.design': 'Design Software',
     'resources.section.apps': 'Apps and Plugins',
     'resources.comingSoon': 'Coming Soon',
     'resources.available': 'Available',
     'resources.openTool': 'Open Tool',
-    'resources.cta.heading': 'Want a specific calculator?',
-    'resources.cta.desc': 'Tell us which tool you need and we will prioritize it in our roadmap.',
+    'resources.cta.heading': 'Need a specific calculator?',
+    'resources.cta.desc': 'Tell us which tool you need and we will prioritize it in the roadmap.',
 
     // Resources \u2014 Analysis tools
     'tool.s3d': 'Structural 3D',
@@ -426,18 +426,19 @@ export const dictionaries = {
     'cta.ready': 'Listo para comenzar su proyecto?',
     'cta.contact': 'Contactenos',
 
-    // Resources
-    'resources.title': 'Recursos Gratuitos',
-    'resources.subtitle': 'Calculadoras y herramientas de ingenieria estructural \u2014 gratis para todo ingeniero, estudiante y constructor. Desarrolladas por nosotros, pensadas para precision y simplicidad.',
-    'resources.section.label': 'Herramientas Gratis',
-    'resources.section.analysis': 'Software de Analisis',
-    'resources.section.design': 'Software de Diseno',
-    'resources.section.apps': 'Aplicaciones y Plugins',
-    'resources.comingSoon': 'Proximamente',
-    'resources.available': 'Disponible',
-    'resources.openTool': 'Abrir Herramienta',
-    'resources.cta.heading': 'Necesita una calculadora especifica?',
-    'resources.cta.desc': 'Diganos que herramienta necesita y la priorizaremos en nuestro roadmap.',
+    // Engineering tools (SaaS-only) \u2014 Spanish labels remain in i18n for the legacy ES locale,
+    // but the product UI is English-first now that the tools live inside the workspace.
+    'resources.title': 'Engineering Tools',
+    'resources.subtitle': 'Structural engineering calculators and solvers built in-house \u2014 ready to use on every project in your workspace.',
+    'resources.section.label': 'Tools',
+    'resources.section.analysis': 'Analysis Software',
+    'resources.section.design': 'Design Software',
+    'resources.section.apps': 'Apps and Plugins',
+    'resources.comingSoon': 'Coming Soon',
+    'resources.available': 'Available',
+    'resources.openTool': 'Open Tool',
+    'resources.cta.heading': 'Need a specific calculator?',
+    'resources.cta.desc': 'Tell us which tool you need and we will prioritize it in the roadmap.',
 
     // Resources \u2014 Analysis tools
     'tool.s3d': 'Estructural 3D',
