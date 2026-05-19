@@ -2,11 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "dev",
+      "name": "buildsync",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["next", "dev"],
-      "port": 3000,
-      "autoPort": true
+      "cwd": "C:\\Users\\Juan Tercero\\buildsync-temp",
+      "port": 3010,
+      "autoPort": false
     }
   ]
 }
