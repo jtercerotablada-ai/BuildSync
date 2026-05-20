@@ -54,6 +54,11 @@ import { CustomizeWidgetsModal } from "@/components/dashboard/customize-widgets-
 import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
 import type { WidgetType } from "@/types/dashboard";
 import type { CockpitData } from "@/components/cockpit/types";
+import {
+  getHomeBackground,
+  HOME_BACKGROUND_UI_STATE_KEY,
+  type HomeBackgroundId,
+} from "@/lib/home-background";
 
 import {
   HomeHeader,
@@ -96,6 +101,9 @@ export default function HomePage() {
     PERIOD_UI_STATE_KEY,
     "week"
   );
+  const { value: backgroundId, setValue: setBackgroundId } =
+    useUiState<HomeBackgroundId>(HOME_BACKGROUND_UI_STATE_KEY, "default");
+  const background = getHomeBackground(backgroundId);
   const [activeId, setActiveId] = useState<WidgetType | null>(null);
 
   // ── Widget layout persistence (DB-backed) ────────────────────────
@@ -243,23 +251,26 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-background overflow-auto">
+    <div
+      className="flex-1 flex flex-col h-full overflow-auto transition-colors duration-300"
+      style={{ backgroundColor: background.bg ?? undefined }}
+    >
       <HomeHeader
         userName={session?.user?.name}
         period={period}
         onPeriodChange={setPeriod}
         tasksCompleted={summary.tasksCompleted}
         collaboratorsCount={summary.collaborators}
+        actions={
+          <CustomizeWidgetsModal
+            preferences={preferences}
+            onToggleWidget={toggleWidget}
+            onReset={resetToDefaults}
+            backgroundId={backgroundId}
+            onBackgroundChange={setBackgroundId}
+          />
+        }
       />
-
-      {/* Customize bar — the modal renders its own trigger button */}
-      <div className="px-4 md:px-6 pt-4 flex items-center justify-end">
-        <CustomizeWidgetsModal
-          preferences={preferences}
-          onToggleWidget={toggleWidget}
-          onReset={resetToDefaults}
-        />
-      </div>
 
       <DndContext
         sensors={sensors}

@@ -46,12 +46,17 @@ export function HomeHeader({
   onPeriodChange,
   tasksCompleted,
   collaboratorsCount,
+  actions,
 }: {
   userName?: string | null;
   period: HomePeriod;
   onPeriodChange: (p: HomePeriod) => void;
   tasksCompleted: number;
   collaboratorsCount: number;
+  // Optional trailing slot — renders inline with the period selector
+  // and summary chips (Asana puts "Personalize" here instead of in a
+  // separate row below the header).
+  actions?: React.ReactNode;
 }) {
   const dateStr = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -101,6 +106,7 @@ export function HomeHeader({
             singular="collaborator"
             plural="collaborators"
           />
+          {actions}
         </div>
       </div>
     </div>

@@ -1,6 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+/**
+ * CustomizeWidgetsModal — side-drawer (Sheet) replacing the centered
+ * dialog. Mirrors Asana's "Personalize" panel which slides in from the
+ * right with: (1) a background-color picker for the Home page, and
+ * (2) the widgets toggle list.
+ *
+ * The export name is unchanged so existing imports keep working even
+ * though the underlying primitive is now a Sheet.
+ */
+
 import {
   CheckSquare,
   FolderKanban,
@@ -24,24 +33,32 @@ import {
   Flag,
   ShieldCheck,
   Activity,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+} from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { WidgetType, AVAILABLE_WIDGETS, UserWidgetPreferences } from '@/types/dashboard';
+import { HOME_BACKGROUND_PALETTE, type HomeBackgroundId } from '@/lib/home-background';
 
 interface CustomizeWidgetsModalProps {
   preferences: UserWidgetPreferences;
   onToggleWidget: (id: WidgetType) => void;
   onReset: () => void;
+  // Optional — when both are provided, the sheet shows a color picker
+  // that lets the user tint the page background. Pages that don't want
+  // the color picker (e.g. portal/dashboard) simply omit these props.
+  backgroundId?: HomeBackgroundId;
+  onBackgroundChange?: (id: HomeBackgroundId) => void;
 }
 
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -59,7 +76,6 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   FileText: <FileText className="h-5 w-5" />,
   AtSign: <AtSign className="h-5 w-5" />,
   Sparkles: <Sparkles className="h-5 w-5" />,
-  // PMI tile icons added in the Home rebuild
   AlertTriangle: <AlertTriangle className="h-5 w-5" />,
   Flag: <Flag className="h-5 w-5" />,
   ShieldCheck: <ShieldCheck className="h-5 w-5" />,
@@ -76,67 +92,108 @@ export function CustomizeWidgetsModal({
   preferences,
   onToggleWidget,
   onReset,
+  backgroundId,
+  onBackgroundChange,
 }: CustomizeWidgetsModalProps) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Settings2 className="h-4 w-4" />
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2 h-8">
+          <Settings2 className="h-3.5 w-3.5" />
           Customize
         </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Customize your Home</DialogTitle>
-          <DialogDescription>
-            Choose which widgets to display on your dashboard. Reorder them by dragging directly on the Home grid.
-          </DialogDescription>
-        </DialogHeader>
+      </SheetTrigger>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md p-0 flex flex-col gap-0"
+      >
+        <SheetHeader className="px-6 pt-6 pb-4 border-b">
+          <SheetTitle className="text-lg">Customize your Home</SheetTitle>
+          <SheetDescription>
+            Pick a background color and choose which widgets show up.
+          </SheetDescription>
+        </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto py-4 -mx-6 px-6">
-          <div className="space-y-2">
-            {AVAILABLE_WIDGETS.map((widget) => {
-              const isEnabled = preferences.visibleWidgets.includes(widget.id);
-
-              return (
-                <div
-                  key={widget.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-gray-100 text-gray-600">
-                      {ICON_MAP[widget.icon]}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-medium text-gray-900">{widget.title}</p>
-                        {widget.titleIcon && TITLE_ICON_MAP[widget.titleIcon]}
-                      </div>
-                      <p className="text-sm text-gray-500">{widget.description}</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={isEnabled}
-                    onCheckedChange={() => onToggleWidget(widget.id)}
-                  />
+        <div className="flex-1 overflow-y-auto">
+          {onBackgroundChange && backgroundId && (
+            <>
+              <section className="px-6 py-5">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+                  Background
+                </h3>
+                <div className="grid grid-cols-8 gap-2">
+                  {HOME_BACKGROUND_PALETTE.map((bg) => {
+                    const selected = bg.id === backgroundId;
+                    return (
+                      <button
+                        key={bg.id}
+                        type="button"
+                        aria-label={bg.label}
+                        onClick={() => onBackgroundChange(bg.id)}
+                        className="relative h-8 w-8 rounded-full border border-gray-300 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
+                        style={{ backgroundColor: bg.swatch }}
+                      >
+                        {selected && (
+                          <Check
+                            className="absolute inset-0 m-auto h-4 w-4"
+                            style={{ color: bg.checkColor }}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </section>
+              <Separator />
+            </>
+          )}
+
+          <section className="px-6 py-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+              Widgets
+            </h3>
+            <div className="space-y-2">
+              {AVAILABLE_WIDGETS.map((widget) => {
+                const isEnabled = preferences.visibleWidgets.includes(widget.id);
+                return (
+                  <div
+                    key={widget.id}
+                    className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="p-2 rounded-lg bg-gray-100 text-gray-600 flex-shrink-0">
+                        {ICON_MAP[widget.icon]}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-gray-900 text-sm truncate">
+                            {widget.title}
+                          </p>
+                          {widget.titleIcon && TITLE_ICON_MAP[widget.titleIcon]}
+                        </div>
+                        <p className="text-xs text-gray-500 truncate">
+                          {widget.description}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={isEnabled}
+                      onCheckedChange={() => onToggleWidget(widget.id)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
-        <DialogFooter className="flex justify-between sm:justify-between">
+        <SheetFooter className="px-6 py-4 border-t bg-background flex-row justify-between gap-0">
           <Button variant="ghost" size="sm" onClick={onReset} className="gap-2">
             <RotateCcw className="h-4 w-4" />
             Reset to defaults
           </Button>
-          <Button onClick={() => setOpen(false)}>
-            Done
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
