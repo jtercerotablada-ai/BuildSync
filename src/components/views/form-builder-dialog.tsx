@@ -39,7 +39,19 @@ import {
   Globe,
   Lock,
   ExternalLink,
+  Eye,
+  Share2,
+  Link2,
+  MoreHorizontal,
+  Star,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type {
@@ -400,9 +412,95 @@ export function FormBuilderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] sm:max-w-[1280px] h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-5 pb-3 border-b">
-          <DialogTitle className="text-base font-semibold">
-            {initial ? "Edit form" : showTemplatePicker ? "Start a new form" : "New form"}
-          </DialogTitle>
+          {/* Title row — Asana puts inline actions on the right
+              (Preview / Share / Copy link / More) once the form is
+              saved. They're disabled for unsaved drafts. */}
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle className="text-base font-semibold">
+              {initial ? "Edit form" : showTemplatePicker ? "Start a new form" : "New form"}
+            </DialogTitle>
+            {initial && !showTemplatePicker && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    publicUrl &&
+                    window.open(publicUrl, "_blank", "noopener,noreferrer")
+                  }
+                  disabled={!publicUrl}
+                  className="inline-flex items-center gap-1.5 h-8 px-2.5 text-[13px] text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-40"
+                  title="View form"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span className="hidden md:inline">View form</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab("settings")}
+                  className="inline-flex items-center gap-1.5 h-8 px-2.5 text-[13px] text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                  title="Share form"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                  <span className="hidden md:inline">Share form</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!publicUrl) return;
+                    navigator.clipboard.writeText(publicUrl);
+                    toast.success("Link copied");
+                  }}
+                  disabled={!publicUrl}
+                  className="inline-flex items-center gap-1.5 h-8 px-2.5 text-[13px] text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-40"
+                  title="Copy link"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  <span className="hidden md:inline">Copy link</span>
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center h-8 w-8 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                      title="More options"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onClick={() => toast.info("Favorite coming soon")}
+                    >
+                      <Star className="h-4 w-4 mr-2 text-gray-500" />
+                      Add to favorites
+                    </DropdownMenuItem>
+                    {publicUrl && (
+                      <DropdownMenuItem
+                        onClick={() =>
+                          window.open(
+                            `${publicUrl}/submissions`,
+                            "_blank",
+                            "noopener,noreferrer"
+                          )
+                        }
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2 text-gray-500" />
+                        View submissions
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => toast.info("Delete from project Workflow")}
+                      className="text-rose-600 focus:text-rose-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete form
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
+          </div>
           {!showTemplatePicker && (
             <>
               {/* Privacy notice bar — Asana-style. Reads from the
@@ -601,72 +699,125 @@ function BuildTab(props: {
   } = props;
 
   return (
-    <div className="space-y-5">
-      {/* Form-level name + description */}
-      <div className="space-y-1.5">
-        <Label htmlFor="form-name">Form name *</Label>
-        <Input
-          id="form-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. RFI Request"
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="form-desc">Description</Label>
-        <Textarea
-          id="form-desc"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-          placeholder="Shown at the top of the public form"
-          className="resize-none"
-        />
-      </div>
-
-      {/* Fields list */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <Label className="text-sm">Fields</Label>
-          <span className="text-[11px] text-slate-400">
-            {fields.length} field{fields.length === 1 ? "" : "s"}
-          </span>
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+      {/* LEFT — Form preview / edit. Mirrors Asana's main canvas
+          where the form name, description and questions live. */}
+      <div className="space-y-5 min-w-0">
+        {/* Form-level name + description */}
+        <div className="space-y-1.5">
+          <Label htmlFor="form-name">Form name *</Label>
+          <Input
+            id="form-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. RFI Request"
+          />
         </div>
-        <div className="space-y-2">
-          {fields.map((field, idx) => (
-            <FieldRow
-              key={field.id}
-              field={field}
-              index={idx}
-              total={fields.length}
-              previousFields={fields.slice(0, idx)}
-              isActive={activeFieldId === field.id}
-              onToggleActive={() =>
-                setActiveFieldId(activeFieldId === field.id ? null : field.id)
-              }
-              onUpdate={(patch) => updateField(field.id, patch)}
-              onRemove={() => removeField(field.id)}
-              onDuplicate={() => duplicateField(field.id)}
-              onMove={(dir) => moveField(field.id, dir)}
-            />
-          ))}
+        <div className="space-y-1.5">
+          <Label htmlFor="form-desc">Description</Label>
+          <Textarea
+            id="form-desc"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="Shown at the top of the public form"
+            className="resize-none"
+          />
         </div>
 
-        {/* Add-field menu */}
-        <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
-          {FIELD_TYPE_OPTIONS.map((opt) => (
+        {/* Fields list */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-sm">Fields</Label>
+            <span className="text-[11px] text-slate-400">
+              {fields.length} field{fields.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {fields.map((field, idx) => (
+              <FieldRow
+                key={field.id}
+                field={field}
+                index={idx}
+                total={fields.length}
+                previousFields={fields.slice(0, idx)}
+                isActive={activeFieldId === field.id}
+                onToggleActive={() =>
+                  setActiveFieldId(activeFieldId === field.id ? null : field.id)
+                }
+                onUpdate={(patch) => updateField(field.id, patch)}
+                onRemove={() => removeField(field.id)}
+                onDuplicate={() => duplicateField(field.id)}
+                onMove={(dir) => moveField(field.id, dir)}
+              />
+            ))}
+          </div>
+          {/* Drop-zone hint at the bottom mirroring Asana's
+              "Arrastra otra pregunta aquí" blue band. Clicking it
+              adds a Short Text field as the easiest default. */}
+          <button
+            type="button"
+            onClick={() => addField("TEXT")}
+            className="mt-3 w-full rounded-lg border-2 border-dashed border-[#c9a84c]/40 bg-[#c9a84c]/5 px-4 py-3 text-[13px] font-medium text-[#a8893a] hover:bg-[#c9a84c]/10 transition-colors"
+          >
+            + Drag or add another question here
+          </button>
+        </div>
+      </div>
+
+      {/* RIGHT — Sidebar with field-type library. Asana exposes
+          Email / Attachment / Heading as one-tap buttons and a
+          "+ New question" CTA underneath. We list all 10 types so
+          the user picks the right input in one click. */}
+      <aside className="lg:sticky lg:top-0 lg:self-start space-y-3">
+        <div className="rounded-lg border border-gray-200 bg-white">
+          <div className="px-3 py-2 border-b text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
+            Add a question
+          </div>
+          <div className="p-2 space-y-1">
+            {FIELD_TYPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => addField(opt.value)}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] text-gray-700 hover:bg-gray-50 rounded-md transition-colors"
+              >
+                <span className="text-gray-500">{opt.icon}</span>
+                <span className="truncate text-left">{opt.label}</span>
+              </button>
+            ))}
+            <div className="border-t border-gray-100 my-1" />
             <button
-              key={opt.value}
               type="button"
-              onClick={() => addField(opt.value)}
-              className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] border rounded-md hover:bg-slate-50 hover:border-slate-400 text-slate-700"
+              onClick={() => addField()}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-[#a8893a] hover:bg-[#c9a84c]/10 rounded-md transition-colors"
             >
-              {opt.icon}
-              <span className="truncate">{opt.label}</span>
+              <Plus className="h-3.5 w-3.5" />
+              New question
             </button>
-          ))}
+          </div>
         </div>
-      </div>
+
+        {/* Quick stats card — gives the editor a sense of size at a
+            glance. Asana doesn't have this exact card but the panel
+            looked thin without it. */}
+        {fields.length > 0 && (
+          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-[12px] text-gray-600">
+            <div className="flex items-center justify-between">
+              <span>Questions</span>
+              <span className="font-semibold tabular-nums text-gray-900">
+                {fields.length}
+              </span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span>Required</span>
+              <span className="font-semibold tabular-nums text-gray-900">
+                {fields.filter((f) => f.required).length}
+              </span>
+            </div>
+          </div>
+        )}
+      </aside>
     </div>
   );
 }
