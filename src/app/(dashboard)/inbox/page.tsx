@@ -205,6 +205,7 @@ export default function InboxPage() {
 
   const tabs = [
     { id: "activity", label: "Activity", icon: Bell },
+    { id: "mentions", label: "Mentions", icon: AtSign },
     { id: "favorites", label: "Favorites", icon: Star },
     { id: "archive", label: "Archive", icon: Archive },
   ];
@@ -341,11 +342,18 @@ export default function InboxPage() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const filteredNotifications = useMemo(() => {
-    if (filterType === "unread") return notifications.filter((n) => !n.read);
-    if (filterType === "mentions") return notifications.filter((n) => n.type === "mention");
-    if (filterType === "assignments") return notifications.filter((n) => n.type === "task_assigned");
-    return notifications;
-  }, [notifications, filterType]);
+    // Tab acts as the primary scope; the Filter dropdown narrows
+    // further inside that scope. "Mentions" tab is a hard filter to
+    // type === "mention", matching Asana's dedicated @-mentions tab.
+    let scope = notifications;
+    if (activeTab === "mentions") {
+      scope = scope.filter((n) => n.type === "mention");
+    }
+    if (filterType === "unread") return scope.filter((n) => !n.read);
+    if (filterType === "mentions") return scope.filter((n) => n.type === "mention");
+    if (filterType === "assignments") return scope.filter((n) => n.type === "task_assigned");
+    return scope;
+  }, [notifications, filterType, activeTab]);
 
   const groupedNotifications = groupNotificationsByTime(filteredNotifications);
 
@@ -471,7 +479,7 @@ export default function InboxPage() {
 
       {/* ─── Content Area ─── */}
       <div className="flex-1 overflow-auto">
-        {activeTab === "activity" && (
+        {(activeTab === "activity" || activeTab === "mentions") && (
           <>
             {/* AI Summary Card - hidden on mobile */}
             {showAISummary && <div className="hidden md:block"><InboxSummaryCard
