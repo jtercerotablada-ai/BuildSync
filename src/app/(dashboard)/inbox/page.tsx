@@ -122,6 +122,10 @@ export default function InboxPage() {
   const [showAISummary, setShowAISummary] = useState(true);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  // Asana's "Período: Semana anterior" selector — narrows the time
+  // window the AI summary considers. Default to last-week (matches
+  // Asana's default).
+  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>("last-week");
   const [defaultTab, setDefaultTab] = useState("activity");
   const [ctxMenu, setCtxMenu] = useState<{
     tabId: string;
@@ -484,11 +488,31 @@ export default function InboxPage() {
             {/* AI Summary Card - hidden on mobile */}
             {showAISummary && <div className="hidden md:block"><InboxSummaryCard
               onDismiss={() => setShowAISummary(false)}
+              period={summaryPeriod}
+              onPeriodChange={setSummaryPeriod}
               onViewSummary={async () => {
                 setAiSummaryLoading(true);
                 try {
+                  // Time window for the AI prompt — derived from the
+                  // user's selected period. Notifications older than
+                  // this cutoff are excluded from the summary input.
+                  const now = Date.now();
+                  const daysBack =
+                    summaryPeriod === "last-week"
+                      ? 7
+                      : summaryPeriod === "last-month"
+                        ? 30
+                        : 30;
+                  const cutoff = now - daysBack * 24 * 60 * 60 * 1000;
+                  const periodLabel =
+                    summaryPeriod === "last-week"
+                      ? "last 7 days"
+                      : summaryPeriod === "last-month"
+                        ? "last calendar month"
+                        : "last 30 days";
                   const summaryText = notifications
-                    .slice(0, 10)
+                    .filter((n) => new Date(n.createdAt).getTime() >= cutoff)
+                    .slice(0, 20)
                     .map(
                       (n) =>
                         `${n.sender.name}: ${n.title} - ${n.preview}`
@@ -498,8 +522,7 @@ export default function InboxPage() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                      prompt:
-                        "Summarize these notifications concisely in 2-3 bullet points. Focus on what needs attention:",
+                      prompt: `Summarize these notifications from the ${periodLabel} concisely in 2-3 bullet points. Focus on what needs attention:`,
                       text: summaryText,
                     }),
                   });
@@ -871,18 +894,34 @@ function InboxToolbar({
 }
 
 /* ─── Summary Card Component ─── */
+
+type SummaryPeriod = "last-week" | "last-month" | "last-30-days";
+
+const SUMMARY_PERIOD_LABEL: Record<SummaryPeriod, string> = {
+  "last-week": "Last week",
+  "last-month": "Last month",
+  "last-30-days": "Last 30 days",
+};
+
 function InboxSummaryCard({
   onDismiss,
   onViewSummary,
   aiSummary,
   aiSummaryLoading,
   disabled,
+  period,
+  onPeriodChange,
 }: {
   onDismiss: () => void;
   onViewSummary: () => void;
   aiSummary: string | null;
   aiSummaryLoading: boolean;
   disabled: boolean;
+  // Asana's "Período" selector — narrows the window the AI uses
+  // when building the summary. Default "last-week" matches what
+  // Asana shows out of the box.
+  period: SummaryPeriod;
+  onPeriodChange: (p: SummaryPeriod) => void;
 }) {
   return (
     <div className="mx-8 mt-5 mb-2">
@@ -907,6 +946,44 @@ function InboxSummaryCard({
             <p className="text-[13px] text-gray-500 mt-0.5 leading-snug">
               Get a summary of your most important notifications with AI.
             </p>
+            {/* Period selector — Asana shows "Período: Semana
+                anterior ▼" beneath the subtitle, so the user picks
+                the window before requesting the summary. */}
+            <div className="mt-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="inline-flex items-center gap-1 text-[12px] text-gray-600 hover:text-gray-900"
+                  >
+                    <span className="font-medium text-gray-500">Period:</span>
+                    <span className="text-gray-700">{SUMMARY_PERIOD_LABEL[period]}</span>
+                    <ChevronDown className="w-3 h-3 text-gray-400" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  sideOffset={4}
+                  className="w-[160px] rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
+                >
+                  {(Object.entries(SUMMARY_PERIOD_LABEL) as [SummaryPeriod, string][]).map(
+                    ([id, label]) => (
+                      <DropdownMenuItem
+                        key={id}
+                        onClick={() => onPeriodChange(id)}
+                        className="flex items-center gap-2 rounded-md px-3 py-2 text-[13px] text-gray-700"
+                      >
+                        <span className="w-4 flex-shrink-0">
+                          {period === id && (
+                            <Check className="w-3.5 h-3.5 text-gray-900" />
+                          )}
+                        </span>
+                        {label}
+                      </DropdownMenuItem>
+                    )
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             {aiSummary && (
               <div className="mt-3 p-3 bg-white/80 rounded-lg border border-gray-200 text-[13px] text-gray-700 leading-relaxed">
                 {aiSummary}
