@@ -1440,7 +1440,7 @@ export default function MyTasksPage() {
 
           {/* Due date — left handle: border with Task name, right handle: border with Collaborators */}
           {!hiddenColumns.has("dueDate") && (
-          <div className="relative flex-shrink-0 border-l border-[#d1d5db]" style={{ width: "var(--col-dueDate)", minWidth: 60 }}>
+          <div className="relative flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-dueDate)", minWidth: 60 }}>
             {/* Left border handle: drag to resize Due date (Task name auto-adjusts via flex) */}
             <div
               onMouseDown={(e) => handleResizeStart(e, null, "dueDate")}
@@ -1470,7 +1470,7 @@ export default function MyTasksPage() {
 
           {/* Collaborators — left handle: border with Due date */}
           {!hiddenColumns.has("collaborators") && (
-          <div className="relative flex-shrink-0 border-l border-[#d1d5db]" style={{ width: "var(--col-collaborators)", minWidth: 60 }}>
+          <div className="relative flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)", minWidth: 60 }}>
             <div
               onMouseDown={(e) => handleResizeStart(e, "dueDate", "collaborators")}
               onDoubleClick={handleResizeReset}
@@ -1492,7 +1492,7 @@ export default function MyTasksPage() {
 
           {/* Projects — left handle: border with Collaborators */}
           {!hiddenColumns.has("projects") && (
-          <div className="relative flex-shrink-0 border-l border-[#d1d5db]" style={{ width: "var(--col-projects)", minWidth: 60 }}>
+          <div className="relative flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-projects)", minWidth: 60 }}>
             <div
               onMouseDown={(e) => handleResizeStart(e, "collaborators", "projects")}
               onDoubleClick={handleResizeReset}
@@ -1520,7 +1520,7 @@ export default function MyTasksPage() {
 
           {/* Visibility — left handle: border with Projects, right handle: right edge */}
           {!hiddenColumns.has("visibility") && (
-          <div className="relative flex-shrink-0 border-l border-[#d1d5db]" style={{ width: "var(--col-visibility)", minWidth: 60 }}>
+          <div className="relative flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-visibility)", minWidth: 60 }}>
             {/* Left border: Projects ↔ Visibility */}
             <div
               onMouseDown={(e) => handleResizeStart(e, "projects", "visibility")}
@@ -1551,7 +1551,7 @@ export default function MyTasksPage() {
           {customColumns.map((col) => (
             <div
               key={col.id}
-              className="flex items-center gap-1 border-l border-[#d1d5db] pl-2.5 pr-1"
+              className="flex items-center gap-1 border-l border-[#94a3b8] pl-2.5 pr-1"
               style={{ width: "110px", minWidth: "110px", flexShrink: 0 }}
             >
               <span className="text-[11px] font-medium text-gray-500 truncate">{col.name}</span>
@@ -1562,7 +1562,7 @@ export default function MyTasksPage() {
               `w-8` spacer at the end of TaskRow (line ~2178) or every
               column to its left drifts left in the data rows because
               flex-1 distributes a different remainder. */}
-          <div className="w-8 flex-shrink-0 border-l border-[#d1d5db] flex items-center justify-center">
+          <div className="w-8 flex-shrink-0 border-l border-[#94a3b8] flex items-center justify-center">
             <AddColumnDropdown
               onSelectType={(ft: FieldTypeConfig, name: string) => {
                 setPreselectedFieldType(ft.id);
@@ -2328,14 +2328,14 @@ function TaskSection({
                 <Plus className="w-3.5 h-3.5 text-gray-300" />
               </div>
               <span className="flex-1 text-[13px] text-gray-400">Add task</span>
-              {!hiddenColumns.has("dueDate") && <div className="hidden md:block flex-shrink-0 border-l border-[#d1d5db]" style={{ width: "var(--col-dueDate)" }} />}
-              {!hiddenColumns.has("collaborators") && <div className="hidden md:block flex-shrink-0 border-l border-[#d1d5db]" style={{ width: "var(--col-collaborators)" }} />}
-              {!hiddenColumns.has("projects") && <div className="hidden md:block flex-shrink-0 border-l border-[#d1d5db]" style={{ width: "var(--col-projects)" }} />}
-              {!hiddenColumns.has("visibility") && <div className="hidden md:block flex-shrink-0 border-l border-[#d1d5db]" style={{ width: "var(--col-visibility)" }} />}
+              {!hiddenColumns.has("dueDate") && <div className="hidden md:block flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-dueDate)" }} />}
+              {!hiddenColumns.has("collaborators") && <div className="hidden md:block flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }} />}
+              {!hiddenColumns.has("projects") && <div className="hidden md:block flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-projects)" }} />}
+              {!hiddenColumns.has("visibility") && <div className="hidden md:block flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-visibility)" }} />}
               {Array.from({ length: customColumnCount }).map((_, i) => (
-                <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 border-l border-[#d1d5db]" />
+                <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 border-l border-[#94a3b8]" />
               ))}
-              <div className="hidden md:block w-8 flex-shrink-0 border-l border-[#d1d5db]" />
+              <div className="hidden md:block w-8 flex-shrink-0 border-l border-[#94a3b8]" />
             </button>
           )}
         </SortableContext>
@@ -2912,11 +2912,11 @@ function TaskRow({
 
       {/* Due date — pl-2.5 pr-1 matches the header's internal padding
        * so the header label and the data text line up at the same X.
-       * `border-l border-[#d1d5db]` MATCHES the header's per-cell
+       * `border-l border-[#94a3b8]` MATCHES the header's per-cell
        * border so the vertical divider is continuous from header
        * through every task row. */}
       {!hiddenColumns.has("dueDate") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#d1d5db]" style={{ width: "var(--col-dueDate)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-dueDate)" }}>
         <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
@@ -2925,7 +2925,7 @@ function TaskRow({
 
       {/* Collaborators */}
       {!hiddenColumns.has("collaborators") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#d1d5db]" style={{ width: "var(--col-collaborators)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }}>
         {task.assignee && (
           <Avatar className="w-5 h-5">
             <AvatarImage src={task.assignee.image || undefined} />
@@ -2939,7 +2939,7 @@ function TaskRow({
 
       {/* Projects */}
       {!hiddenColumns.has("projects") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#d1d5db]" style={{ width: "var(--col-projects)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-projects)" }}>
         {task.project && (
           <div className="flex items-center gap-1.5 min-w-0">
             <div
@@ -2964,7 +2964,7 @@ function TaskRow({
 
       {/* Visibility */}
       {!hiddenColumns.has("visibility") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#d1d5db]" style={{ width: "var(--col-visibility)" }}>
+      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-visibility)" }}>
         <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
           <Globe className="w-3 h-3 flex-shrink-0" />
           My workspace
@@ -2974,7 +2974,7 @@ function TaskRow({
 
       {/* Custom column cells */}
       {Array.from({ length: customColumnCount }).map((_, i) => (
-        <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 pl-2.5 border-l border-[#d1d5db]">
+        <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 pl-2.5 border-l border-[#94a3b8]">
           <span className="text-[13px] text-gray-300">—</span>
         </div>
       ))}
@@ -2982,7 +2982,7 @@ function TaskRow({
       {/* Spacer for + button column — matches the AddColumnDropdown
           wrapper in the header (must be the exact same width or columns
           to the left misalign because the row's flex-1 redistributes). */}
-      <div className="hidden md:block w-8 flex-shrink-0 border-l border-[#d1d5db]" />
+      <div className="hidden md:block w-8 flex-shrink-0 border-l border-[#94a3b8]" />
     </div>
     </>
   );
