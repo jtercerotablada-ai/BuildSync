@@ -210,6 +210,15 @@ export default function HomePage() {
         },
       ];
     }
+    if (id === "assigned-tasks") {
+      return [
+        {
+          label: "Assign task",
+          icon: <Plus className="h-4 w-4 mr-2" />,
+          onClick: () => setShowQuickComposer(true),
+        },
+      ];
+    }
     if (id === "goals") {
       return [
         {

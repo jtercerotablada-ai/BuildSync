@@ -25,7 +25,11 @@ interface AssignedTask {
   } | null;
 }
 
-type TabType = 'upcoming' | 'overdue' | 'completed';
+// Asana splits the active scope into "Esta semana" (due in the next
+// 7 days) and "Próximas" (due later than that). We mirror that 4-tab
+// layout so users get a fast read on the urgency of work they've
+// delegated.
+type TabType = 'this-week' | 'upcoming' | 'overdue' | 'completed';
 
 interface AssignedTasksWidgetProps {
   onAssignTask?: () => void;
@@ -57,9 +61,19 @@ function isOverdue(dueDate: string | null): boolean {
   return new Date(dueDate) < today;
 }
 
+function isThisWeek(dueDate: string | null): boolean {
+  if (!dueDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(today);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const due = new Date(dueDate);
+  return due >= today && due <= weekEnd;
+}
+
 export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabType>('upcoming');
+  const [activeTab, setActiveTab] = useState<TabType>('this-week');
   const [allTasks, setAllTasks] = useState<AssignedTask[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -81,35 +95,89 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
     fetchTasks();
   }, [fetchTasks]);
 
-  const handleToggleComplete = async (taskId: string, currentCompleted: boolean) => {
-    try {
+  // PATCH completed state — refactored out so the Undo action on the
+  // toast can replay the inverse without re-implementing the request.
+  const patchCompleted = useCallback(
+    async (taskId: string, nextCompleted: boolean) => {
       const res = await fetch('/api/tasks/' + taskId, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !currentCompleted }),
+        body: JSON.stringify({ completed: nextCompleted }),
       });
-      if (res.ok) {
-        toast.success(currentCompleted ? 'Task marked as incomplete' : 'Task completed!');
-        fetchTasks();
-      } else {
-        toast.error('Failed to update task');
-      }
-    } catch (error) {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    },
+    []
+  );
+
+  const handleToggleComplete = async (taskId: string, currentCompleted: boolean) => {
+    try {
+      await patchCompleted(taskId, !currentCompleted);
+      const message = currentCompleted
+        ? 'Task marked as incomplete'
+        : 'Task completed';
+      toast.success(message, {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            try {
+              await patchCompleted(taskId, currentCompleted);
+              fetchTasks();
+            } catch {
+              toast.error('Failed to undo');
+            }
+          },
+        },
+      });
+      fetchTasks();
+    } catch {
       toast.error('Failed to update task');
     }
   };
 
-  const filteredTasks = allTasks.filter((task) => {
-    if (activeTab === 'completed') return task.completed;
-    if (activeTab === 'overdue') return !task.completed && isOverdue(task.dueDate);
-    return !task.completed && !isOverdue(task.dueDate);
-  });
+  // Pre-bucket so we can label tabs with counts in one pass.
+  const thisWeekTasks = allTasks.filter(
+    (t) => !t.completed && !isOverdue(t.dueDate) && isThisWeek(t.dueDate)
+  );
+  const upcomingTasks = allTasks.filter(
+    (t) => !t.completed && !isOverdue(t.dueDate) && !isThisWeek(t.dueDate)
+  );
+  const overdueTasks = allTasks.filter(
+    (t) => !t.completed && isOverdue(t.dueDate)
+  );
+  const completedTasks = allTasks.filter((t) => t.completed);
 
-  const tabs: { id: TabType; label: string }[] = [
-    { id: 'upcoming', label: 'Upcoming' },
-    { id: 'overdue', label: 'Overdue' },
+  const filteredTasks =
+    activeTab === 'this-week'
+      ? thisWeekTasks
+      : activeTab === 'upcoming'
+        ? upcomingTasks
+        : activeTab === 'overdue'
+          ? overdueTasks
+          : completedTasks;
+
+  // Asana shows "(N)" on every active scope tab and omits it on
+  // "Finalizadas" (the completed bucket grows forever, count would
+  // just be noise). We follow that exact rule.
+  const tabs: { id: TabType; label: string; count?: number }[] = [
+    { id: 'this-week', label: 'This week', count: thisWeekTasks.length },
+    { id: 'upcoming', label: 'Upcoming', count: upcomingTasks.length },
+    { id: 'overdue', label: 'Overdue', count: overdueTasks.length },
     { id: 'completed', label: 'Completed' },
   ];
+
+  // Empty-state copy per tab. Overdue is intentionally upbeat so an
+  // empty Overdue tab reads as good news ("Way to go, team!") —
+  // mirrors Asana's "¡Vamos, equipo!".
+  const emptyCopy: Record<TabType, string> = {
+    'this-week':
+      "Tasks you assign that are due this week will show here.",
+    upcoming:
+      "Assign tasks to your teammates and track them here.",
+    overdue:
+      "No overdue assignments. Way to go, team!",
+    completed:
+      "Completed assignments will show here.",
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -120,11 +188,18 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all',
-                activeTab === tab.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                'flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap',
+                activeTab === tab.id
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
               )}
             >
               {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span className="ml-1 text-gray-400 tabular-nums">
+                  ({tab.count})
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -132,15 +207,21 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
       <div className="flex-1 min-h-0 overflow-hidden">
         {loading ? (
           <div className="space-y-2">
-            {[1, 2, 3].map((i) => (<div key={i} className="h-12 bg-gray-100 animate-pulse rounded" />))}
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-12 bg-gray-100 animate-pulse rounded" />
+            ))}
           </div>
         ) : filteredTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-8">
             <div className="w-16 h-16 rounded-full border-2 border-gray-300 flex items-center justify-center mb-4">
               <Check className="h-8 w-8 text-gray-400" />
             </div>
-            <p className="text-sm text-gray-500 mb-4 max-w-[250px]">Assign tasks to your teammates and track them here.</p>
-            <Button variant="outline" size="sm" onClick={onAssignTask}>Assign task</Button>
+            <p className="text-sm text-gray-500 mb-4 max-w-[280px]">
+              {emptyCopy[activeTab]}
+            </p>
+            <Button variant="outline" size="sm" onClick={onAssignTask}>
+              Assign task
+            </Button>
           </div>
         ) : (
           <div className="space-y-1 overflow-y-auto h-full max-h-[280px]">
@@ -156,22 +237,56 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
                   }
                 }}
               >
-                <button onClick={(e) => { e.stopPropagation(); handleToggleComplete(task.id, task.completed); }} className="mt-0.5 flex-shrink-0">
-                  {task.completed ? (<CheckCircle2 className="h-5 w-5 text-gray-900 fill-gray-900" />) : (<Circle className="h-5 w-5 text-gray-400 hover:text-gray-600" />)}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleComplete(task.id, task.completed);
+                  }}
+                  className="mt-0.5 flex-shrink-0"
+                >
+                  {task.completed ? (
+                    <CheckCircle2 className="h-5 w-5 text-gray-900 fill-gray-900" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  )}
                 </button>
                 <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm font-medium truncate', task.completed ? 'text-gray-400 line-through' : 'text-gray-900')}>{task.name}</p>
+                  <p
+                    className={cn(
+                      'text-sm font-medium truncate',
+                      task.completed
+                        ? 'text-gray-400 line-through'
+                        : 'text-gray-900'
+                    )}
+                  >
+                    {task.name}
+                  </p>
                   {task.assignee && (
                     <div className="flex items-center gap-1 mt-0.5">
                       <Avatar className="h-4 w-4">
                         <AvatarImage src={task.assignee.image || undefined} />
-                        <AvatarFallback className="text-[8px] bg-white text-black border border-black">{getInitials(task.assignee.name)}</AvatarFallback>
+                        <AvatarFallback className="text-[8px] bg-white text-black border border-black">
+                          {getInitials(task.assignee.name)}
+                        </AvatarFallback>
                       </Avatar>
-                      <span className="text-xs text-gray-500">{task.assignee.name}</span>
+                      <span className="text-xs text-gray-500">
+                        {task.assignee.name}
+                      </span>
                     </div>
                   )}
                 </div>
-                {task.dueDate && (<span className={cn('text-xs flex-shrink-0 mt-0.5', isOverdue(task.dueDate) && !task.completed ? 'text-black' : 'text-gray-400')}>{formatDueDate(task.dueDate)}</span>)}
+                {task.dueDate && (
+                  <span
+                    className={cn(
+                      'text-xs flex-shrink-0 mt-0.5',
+                      isOverdue(task.dueDate) && !task.completed
+                        ? 'text-black'
+                        : 'text-gray-400'
+                    )}
+                  >
+                    {formatDueDate(task.dueDate)}
+                  </span>
+                )}
               </div>
             ))}
           </div>
