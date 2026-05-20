@@ -177,6 +177,20 @@ export default function HomePage() {
     return { tasksCompleted, collaborators: data.team.length };
   }, [data]);
 
+  // ── Per-widget title link target ─────────────────────────────────
+  // Asana makes the widget heading itself a link to the full page
+  // (clicking "Mis tareas" → /my-tasks, "Metas" → /goals, etc.).
+  // We mirror that for the widgets whose data has a full-page view.
+  function getWidgetTitleHref(id: WidgetType): string | undefined {
+    if (id === "my-tasks") return "/my-tasks";
+    if (id === "goals") return "/goals";
+    if (id === "portfolios") return "/portfolios";
+    if (id === "projects") return "/projects/all";
+    if (id === "people") return "/people";
+    if (id === "forms") return "/portal/admin/forms";
+    return undefined;
+  }
+
   // ── Per-widget custom actions for the WidgetContainer ⋯ menu ─────
   // Mirrors Asana's per-widget Acciones (e.g. "+ Create task" /
   // "View all my tasks" on the My tasks widget) — these sit above
@@ -336,6 +350,7 @@ export default function HomePage() {
                   onSizeChange={(s) => setWidgetSize(id, s)}
                   onHide={() => toggleWidget(id)}
                   menuActions={getWidgetMenuActions(id)}
+                  titleHref={getWidgetTitleHref(id)}
                 >
                   {renderWidgetBody(id)}
                 </WidgetContainer>

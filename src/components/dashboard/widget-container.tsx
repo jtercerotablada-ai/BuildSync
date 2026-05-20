@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { MoreHorizontal, X, Lock, Info, Sparkles, Check, Trash2 } from 'lucide-react';
@@ -29,6 +30,10 @@ interface WidgetContainerProps {
   onSizeChange?: (size: WidgetSize) => void;
   hideHeader?: boolean; // For widgets with custom headers (like MyTasksWidget)
   menuActions?: WidgetMenuAction[]; // Custom actions to show at top of menu
+  // If set, the widget header title becomes a Link to this URL —
+  // mirrors Asana, where clicking the title of "Mis tareas" / "Metas" /
+  // etc. navigates to the corresponding full page.
+  titleHref?: string;
 }
 
 // Overlay component for drag preview
@@ -64,7 +69,7 @@ export function WidgetOverlay({ id, size = 'half' }: WidgetOverlayProps) {
   );
 }
 
-export function WidgetContainer({ id, children, onHide, size = 'half', onSizeChange, hideHeader = false, menuActions }: WidgetContainerProps) {
+export function WidgetContainer({ id, children, onHide, size = 'half', onSizeChange, hideHeader = false, menuActions, titleHref }: WidgetContainerProps) {
   const {
     attributes,
     listeners,
@@ -213,10 +218,21 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
             className="flex items-center justify-between px-4 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
           >
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-1.5">
-                {widget?.title}
-                {renderTitleIcon()}
-              </h3>
+              {titleHref ? (
+                <Link
+                  href={titleHref}
+                  onClick={(e) => e.stopPropagation()}
+                  className="font-semibold text-gray-900 flex items-center gap-1.5 hover:text-black hover:underline underline-offset-4 decoration-gray-300"
+                >
+                  {widget?.title}
+                  {renderTitleIcon()}
+                </Link>
+              ) : (
+                <h3 className="font-semibold text-gray-900 flex items-center gap-1.5">
+                  {widget?.title}
+                  {renderTitleIcon()}
+                </h3>
+              )}
             </div>
             {menu}
           </div>

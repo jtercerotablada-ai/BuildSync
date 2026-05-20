@@ -107,18 +107,42 @@ export function MyTasksWidget() {
 
   const completedTasks = allTasks.filter(task => task.completed).slice(0, 5);
 
-  const handleToggleTask = async (taskId: string, completed: boolean) => {
-    try {
+  // PATCH the completed flag for one task, with optimistic fetch and
+  // an Undo action on the toast (mirrors Asana's "Deshacer" — toast
+  // stays visible for ~5s and the revert is one click). The action
+  // re-PATCHes back to the previous state without any extra prompt.
+  const toggleCompleted = useCallback(
+    async (taskId: string, nextCompleted: boolean) => {
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !completed }),
+        body: JSON.stringify({ completed: nextCompleted }),
       });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    },
+    []
+  );
 
-      if (response.ok) {
-        toast.success(completed ? 'Task marked as incomplete' : 'Task completed!');
-        fetchTasks();
-      }
+  const handleToggleTask = async (taskId: string, completed: boolean) => {
+    try {
+      await toggleCompleted(taskId, !completed);
+      const message = completed
+        ? 'Task marked as incomplete'
+        : 'Task completed';
+      toast.success(message, {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            try {
+              await toggleCompleted(taskId, completed);
+              fetchTasks();
+            } catch {
+              toast.error('Failed to undo');
+            }
+          },
+        },
+      });
+      fetchTasks();
     } catch {
       toast.error('Failed to update task');
     }
@@ -239,7 +263,9 @@ export function MyTasksWidget() {
             ))}
           </div>
         ) : currentTasks.length === 0 ? (
-          /* Minimalist empty state */
+          /* Minimalist empty state — copy adapts to the tab so an
+             empty Overdue tab reads as a good thing ("You're on
+             track!") instead of neutral, matching Asana's pattern. */
           <div className="flex flex-col items-center justify-center h-full text-center py-4">
             <div className="w-12 h-12 mb-3 text-gray-200">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -247,7 +273,13 @@ export function MyTasksWidget() {
                 <rect x="3" y="3" width="18" height="18" rx="2" />
               </svg>
             </div>
-            <p className="text-gray-500 text-sm">No {activeTab} tasks</p>
+            <p className="text-gray-500 text-sm">
+              {activeTab === 'overdue'
+                ? "No overdue tasks. You're on track!"
+                : activeTab === 'upcoming'
+                  ? 'No upcoming tasks'
+                  : 'Nothing completed yet'}
+            </p>
           </div>
         ) : (
           /* Task list */
