@@ -114,6 +114,7 @@ model User {
   // Forms — default assignee + submission attribution
   formsAsDefaultAssignee Form[]           @relation("FormDefaultAssignee")
   formSubmissions        FormSubmission[] @relation("FormSubmitter")
+
 }
 
 // ============ PREFERENCIAS DE USUARIO ============
@@ -831,7 +832,7 @@ model Comment {
   // name + email so the conversation renders cleanly.
   guestName  String?
   guestEmail String?
-  source     CommentSource @default(INTERNAL)
+  source     CommentSource     @default(INTERNAL)
   // When INTERNAL_NOTE, the comment is hidden from the public
   // tracking page — useful for "checking with senior PE" notes
   // the engineer doesn't want the architect to see. Defaults to
@@ -1656,3 +1657,8 @@ model ContactSubmission {
 
   @@index([createdAt])
 }
+
+// NOTE: Timesheets MVP currently uses localStorage on the client
+// (see /timesheets page). When the DB-backed version ships, add the
+// TimeEntry model + TimeEntryStatus enum here and the matching
+// relations in User/Project/Task.
