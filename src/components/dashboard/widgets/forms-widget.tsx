@@ -62,6 +62,14 @@ export function FormsWidget() {
   // Form record the Workflow tab edits.
   const [editingForm, setEditingForm] = useState<FullFormRow | null>(null);
   const [editingFetching, setEditingFetching] = useState<string | null>(null);
+  // Create-inline state — clicking "+ New form" and picking a
+  // project opens the builder INLINE on Home (same dialog the
+  // Workflow tab uses). Previously this routed the user away to
+  // /projects/[id]?view=workflow&form=new, which broke the
+  // "edit & create from either surface" promise.
+  const [creatingForProjectId, setCreatingForProjectId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -164,7 +172,12 @@ export function FormsWidget() {
   }
 
   function startNewForm(projectId: string) {
-    router.push(`/projects/${projectId}?view=workflow&form=new`);
+    // Open the FormBuilderDialog inline on Home (no redirect). The
+    // dialog will POST to /api/forms with this projectId on save and
+    // the new form will appear in BOTH this widget AND the project's
+    // Workflow tab — same Form record either way.
+    setShowProjectPicker(false);
+    setCreatingForProjectId(projectId);
   }
 
   return (
@@ -340,6 +353,41 @@ export function FormsWidget() {
               )
             );
             setEditingForm(null);
+          }}
+        />
+      )}
+
+      {/* Inline form CREATE — opens when the user picks a project
+          from the "+ New form" dropdown. Same FormBuilderDialog the
+          Workflow tab uses (no initial → create mode). On save the
+          new form gets prepended to the widget list so it's visible
+          immediately without a refetch. The form also shows up in
+          the project's Workflow tab because both surfaces read from
+          the same Form record. */}
+      {creatingForProjectId && (
+        <FormBuilderDialog
+          open={!!creatingForProjectId}
+          onOpenChange={(open) => {
+            if (!open) setCreatingForProjectId(null);
+          }}
+          projectId={creatingForProjectId}
+          initial={null}
+          onSaved={(saved) => {
+            const proj = projects.find((p) => p.id === creatingForProjectId);
+            setForms((prev) => [
+              {
+                id: saved.id,
+                name: saved.name,
+                projectId: creatingForProjectId,
+                projectName: proj?.name || '',
+                responsesCount: 0,
+                isActive: saved.isActive ?? true,
+                newCount: 0,
+              },
+              ...prev,
+            ]);
+            setCreatingForProjectId(null);
+            toast.success('Form created');
           }}
         />
       )}
