@@ -710,6 +710,37 @@ function BuildTab(props: {
       {/* LEFT — Form preview / edit. Mirrors Asana's main canvas
           where the form name, description and questions live. */}
       <div className="space-y-5 min-w-0">
+        {/* Cover image placeholder — Asana renders an 'Agrega una
+            imagen de portada' band above the title in light-gray
+            diagonals + image icon. We mirror the visual but the
+            upload itself is wired for a follow-up commit (the
+            click currently surfaces a toast). */}
+        <button
+          type="button"
+          onClick={() => toast.info("Cover image upload coming soon")}
+          className="relative w-full h-28 rounded-lg border border-gray-200 bg-[repeating-linear-gradient(135deg,#f3f4f6_0_10px,#fafafa_10px_20px)] hover:bg-[repeating-linear-gradient(135deg,#eef0f3_0_10px,#f5f5f5_10px_20px)] flex items-center justify-center text-[12px] font-medium text-gray-600 transition-colors"
+        >
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/80 backdrop-blur rounded-md border border-gray-200">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
+            Add a cover image
+          </span>
+        </button>
+
         {/* Form-level name + description */}
         <div className="space-y-1.5">
           <Label htmlFor="form-name">Form name *</Label>
@@ -718,6 +749,7 @@ function BuildTab(props: {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. RFI Request"
+            className="text-[18px] font-semibold h-auto py-2"
           />
         </div>
         <div className="space-y-1.5">
