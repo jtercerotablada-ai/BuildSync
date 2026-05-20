@@ -58,10 +58,13 @@
   --col-header-h: 32px;
   --container-px: 24px;
 
-  /* Surface & interaction tokens */
+  /* Surface & interaction tokens. Row dividers were too subtle
+     vs Asana's Excel-style gridlines — bumped to gray-300 so the
+     horizontal lines are clearly visible and align with the new
+     vertical column dividers in /my-tasks. */
   --surface-hover: #f9f9f8;
-  --border-subtle: #eee;
-  --border-row: #f0f0f0;
+  --border-subtle: #d1d5db;
+  --border-row: #d1d5db;
   --text-muted-custom: #6b7280;
   --text-secondary-custom: #9ca3af;
   --header-band: #f6f8f9;
