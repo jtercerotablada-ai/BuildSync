@@ -23,6 +23,8 @@ import {
   Maximize2,
   CheckCircle,
   X,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -476,8 +478,13 @@ export function PrivateNotepadWidget() {
     },
   ];
 
-  // Toolbar buttons - ordered: Bold, Italic, Underline, Strikethrough, Bullet, Numbered, Quote, Link, Code, Code block, AI
+  // Toolbar buttons — matches Asana's order: Undo / Redo first
+  // (mirrors "Deshacer / Rehacer" in the Asana toolbar), then the
+  // format block, then lists / quote, then link / code, then AI.
   const toolbarButtons = [
+    { icon: Undo2, command: 'undo', tooltip: 'Undo (Ctrl+Z)' },
+    { icon: Redo2, command: 'redo', tooltip: 'Redo (Ctrl+Shift+Z)' },
+    { type: 'separator' as const },
     { icon: Bold, command: 'bold', tooltip: 'Bold (Ctrl+B)' },
     { icon: Italic, command: 'italic', tooltip: 'Italic (Ctrl+I)' },
     { icon: Underline, command: 'underline', tooltip: 'Underline (Ctrl+U)' },
