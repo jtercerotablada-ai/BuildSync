@@ -92,6 +92,13 @@ export function CalendarView({
     [sections]
   );
 
+  // Tasks with no due date can't render as a calendar bar. We surface
+  // them through a "No date (N)" pill in the toolbar (Asana parity).
+  const noDateTasks = useMemo<Task[]>(
+    () => tasks.filter((t) => !t.dueDate && !t.startDate),
+    [tasks]
+  );
+
   // ── State driving the "infinite" calendar ─────────────────────
   // `windowStart` is the very first Monday rendered. Seeded at 4
   // weeks before this week's Monday so the user can scroll up a
@@ -502,8 +509,11 @@ export function CalendarView({
     <div className="flex flex-col h-full">
       {/* Navigation toolbar — Today button + live month label.
           No prev/next buttons: the user drives navigation by scrolling,
-          the label tracks what they're looking at. */}
-      <div className="flex items-center justify-center gap-3 px-4 py-3 border-b">
+          the label tracks what they're looking at.
+          Right side: "No date (N)" pill (mirrors Asana's "Sin fecha
+          (N)") with a popover listing the dateless tasks, so they
+          don't get hidden by the calendar's date-centric layout. */}
+      <div className="relative flex items-center justify-center gap-3 px-4 py-3 border-b">
         <Button
           variant="outline"
           size="sm"
@@ -515,6 +525,48 @@ export function CalendarView({
         <span className="font-medium text-black ml-2 tabular-nums">
           {formatMonthYear(visibleMonth.year, visibleMonth.month)}
         </span>
+        {noDateTasks.length > 0 && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                title="Tasks with no due date"
+              >
+                <span className="tabular-nums">
+                  No date ({noDateTasks.length})
+                </span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 p-0">
+              <div className="px-3 py-2 border-b text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+                Tasks with no due date
+              </div>
+              <ul className="max-h-80 overflow-y-auto py-1">
+                {noDateTasks.map((task) => (
+                  <li key={task.id}>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 truncate"
+                      onClick={() => onTaskClick(task.id)}
+                    >
+                      {task.completed && (
+                        <span className="mr-1.5 text-gray-400">✓</span>
+                      )}
+                      <span
+                        className={cn(
+                          task.completed && "line-through text-gray-400"
+                        )}
+                      >
+                        {task.name}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
 
       {/* Single scroll container with sticky weekday header.
