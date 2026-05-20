@@ -890,72 +890,114 @@ function FieldRow({
   return (
     <div
       className={cn(
-        "border rounded-md bg-white",
-        isActive ? "border-slate-400 shadow-sm" : "border-slate-200"
+        "border rounded-md bg-white group",
+        isActive ? "border-slate-400 shadow-sm" : "border-slate-200 hover:border-slate-300"
       )}
     >
-      {/* Summary row */}
-      <div className="flex items-center gap-2 px-3 py-2">
-        <div className="flex flex-col -gap-0.5">
-          <button
-            type="button"
-            onClick={() => onMove("up")}
-            disabled={index === 0}
-            className="text-slate-300 hover:text-slate-700 disabled:opacity-40 leading-none"
-            aria-label="Move up"
-          >
-            ▲
-          </button>
-          <button
-            type="button"
-            onClick={() => onMove("down")}
-            disabled={index === total - 1}
-            className="text-slate-300 hover:text-slate-700 disabled:opacity-40 leading-none"
-            aria-label="Move down"
-          >
-            ▼
-          </button>
+      {/* Summary row — Asana shows each field as a WYSIWYG preview
+          (label on top, real input below) so the editor sees the
+          form exactly like a submitter will. Move/duplicate/delete
+          buttons surface on hover. Click anywhere in the body opens
+          the field editor underneath. */}
+      <div
+        className={cn(
+          "px-4 py-3 cursor-pointer",
+          isActive && "border-b"
+        )}
+        onClick={onToggleActive}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggleActive();
+          }
+        }}
+      >
+        {/* Top row: label + hover actions */}
+        <div className="flex items-start gap-2">
+          <div className="flex-shrink-0 flex flex-col items-center pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMove("up");
+              }}
+              disabled={index === 0}
+              className="text-slate-300 hover:text-slate-700 disabled:opacity-40 leading-none text-[10px]"
+              aria-label="Move up"
+            >
+              ▲
+            </button>
+            <GripVertical className="w-3 h-3 text-slate-300 my-0.5" />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMove("down");
+              }}
+              disabled={index === total - 1}
+              className="text-slate-300 hover:text-slate-700 disabled:opacity-40 leading-none text-[10px]"
+              aria-label="Move down"
+            >
+              ▼
+            </button>
+          </div>
+          <div className="flex-1 min-w-0">
+            {/* Label row + meta badges */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[13px] font-medium text-slate-900">
+                {field.label || "Untitled"}
+              </span>
+              {field.required && (
+                <span className="text-[13px] text-rose-600">*</span>
+              )}
+              <span className="text-[10px] uppercase tracking-wider text-slate-400">
+                · {typeLabel}
+              </span>
+              {field.mapTo && (
+                <span className="text-[10px] uppercase tracking-wider text-[#a8893a]">
+                  → {field.mapTo}
+                </span>
+              )}
+              {field.showWhen && (
+                <span className="text-[10px] uppercase tracking-wider text-blue-600">
+                  conditional
+                </span>
+              )}
+            </div>
+            {/* WYSIWYG preview of the actual input. Mirrors what the
+                public form viewer renders so the editor judges the
+                form as a submitter would. */}
+            <div className="mt-1.5">
+              <FieldPreviewControl field={field} />
+            </div>
+          </div>
+          <div className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate();
+              }}
+              className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100"
+              title="Duplicate field"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50"
+              title="Delete field"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-        <GripVertical className="w-3.5 h-3.5 text-slate-300" />
-        <button
-          type="button"
-          onClick={onToggleActive}
-          className="flex-1 flex items-center gap-2 text-left text-[13px] text-slate-800"
-        >
-          <span className="font-medium truncate">{field.label || "Untitled"}</span>
-          <span className="text-[11px] text-slate-400">· {typeLabel}</span>
-          {field.required && (
-            <span className="text-[10px] uppercase tracking-wider text-rose-600">
-              required
-            </span>
-          )}
-          {field.mapTo && (
-            <span className="text-[10px] uppercase tracking-wider text-[#a8893a]">
-              → {field.mapTo}
-            </span>
-          )}
-          {field.showWhen && (
-            <span className="text-[10px] uppercase tracking-wider text-blue-600">
-              conditional
-            </span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onDuplicate}
-          className="p-1 text-slate-400 hover:text-slate-700"
-          title="Duplicate field"
-        >
-          <Copy className="w-3.5 h-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
-          className="p-1 text-slate-400 hover:text-rose-600"
-          title="Delete field"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
       </div>
 
       {/* Editor (expanded when active) */}
@@ -1276,6 +1318,111 @@ function BranchingEditor({
         </div>
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// FIELD PREVIEW — read-only WYSIWYG render of a field as the
+// public form viewer would show it. Matches Asana's left-panel
+// preview behavior (label on top, real input below). Inputs are
+// disabled because this is preview, not data capture.
+// ─────────────────────────────────────────────────────────────────
+
+function FieldPreviewControl({ field }: { field: FormField }) {
+  // Headings render as a section divider — no input
+  if (field.type === "HEADING") {
+    return (
+      <div className="text-[15px] font-semibold text-slate-800 border-b border-slate-200 pb-1.5">
+        {field.label || "Section"}
+      </div>
+    );
+  }
+
+  const placeholder =
+    field.type === "EMAIL"
+      ? "name@example.com"
+      : field.type === "NUMBER"
+        ? "0"
+        : field.type === "TEXTAREA"
+          ? "Your answer…"
+          : field.type === "PEOPLE"
+            ? "Search for a person…"
+            : "Your answer";
+
+  if (field.type === "TEXTAREA") {
+    return (
+      <textarea
+        disabled
+        placeholder={placeholder}
+        rows={3}
+        className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-md text-slate-400 cursor-pointer resize-none"
+      />
+    );
+  }
+
+  if (field.type === "SELECT") {
+    return (
+      <div className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-md text-slate-400 cursor-pointer flex items-center justify-between">
+        <span>Choose an option…</span>
+        <ChevronDown className="h-3.5 w-3.5" />
+      </div>
+    );
+  }
+
+  if (field.type === "MULTI_SELECT") {
+    const opts = (field.options ?? []).slice(0, 3);
+    return (
+      <div className="space-y-1.5">
+        {opts.length > 0 ? (
+          opts.map((opt, i) => (
+            <label
+              key={i}
+              className="flex items-center gap-2 text-[13px] text-slate-600 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                disabled
+                className="rounded border-slate-300"
+              />
+              {opt}
+            </label>
+          ))
+        ) : (
+          <span className="text-[12px] text-slate-400">
+            Add options in the editor below
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if (field.type === "ATTACHMENT") {
+    return (
+      <div className="w-full px-3 py-4 text-[13px] bg-slate-50 border border-dashed border-slate-300 rounded-md text-slate-500 cursor-pointer text-center">
+        <span className="inline-flex items-center gap-1.5">
+          <Paperclip className="h-3.5 w-3.5" />
+          Click to upload or drag a file here
+        </span>
+      </div>
+    );
+  }
+
+  if (field.type === "DATE") {
+    return (
+      <div className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-md text-slate-400 cursor-pointer flex items-center justify-between">
+        <span>mm / dd / yyyy</span>
+        <Calendar className="h-3.5 w-3.5" />
+      </div>
+    );
+  }
+
+  // TEXT, EMAIL, NUMBER, PEOPLE — single-line inputs
+  return (
+    <input
+      disabled
+      placeholder={placeholder}
+      className="w-full px-3 py-2 text-[13px] bg-white border border-slate-200 rounded-md text-slate-400 cursor-pointer"
+    />
   );
 }
 
