@@ -172,7 +172,7 @@ export function ManagePrivacyModal({ open, onOpenChange }: ManagePrivacyModalPro
                 onChange={(e) => handleQueryChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onFocus={() => { if (results.length > 0) setShowResults(true); }}
-                placeholder="Add teammates by name or email\u2026"
+                placeholder="Add teammates by name or email..."
                 className="w-full h-10 px-3 text-[14px] text-gray-800 placeholder:text-gray-400 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 transition-colors"
               />
 
