@@ -391,32 +391,67 @@ export function FormBuilderDialog({
   }, [publicUrl]);
 
   // ── Render ─────────────────────────────────────────────────────
+  // Sized closer to Asana's form-editor modal (near-full-screen on
+  // desktop, with internal scroll). The privacy banner under the
+  // title bar mirrors Asana's "Solamente las personas de tu
+  // organización pueden acceder…" line, kept dynamic to the
+  // visibility setting so it stays accurate.
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="w-[95vw] sm:max-w-[1280px] h-[92vh] max-h-[92vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-5 pb-3 border-b">
           <DialogTitle className="text-base font-semibold">
             {initial ? "Edit form" : showTemplatePicker ? "Start a new form" : "New form"}
           </DialogTitle>
           {!showTemplatePicker && (
-            <div className="flex gap-4 border-b -mb-3 -mx-6 px-6 pt-3">
-              {(["build", "settings", "share"] as const).map((t) => (
+            <>
+              {/* Privacy notice bar — Asana-style. Reads from the
+                  current visibility setting so it stays accurate as
+                  the user toggles it in the Settings tab. */}
+              <div className="flex items-center gap-2 -mx-6 px-6 pt-3 pb-2 text-[12px] text-gray-600">
+                {visibility === "PUBLIC" ? (
+                  <>
+                    <Globe className="h-3.5 w-3.5 text-gray-500" />
+                    <span>
+                      Anyone with the link can access and submit this form.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-3.5 w-3.5 text-gray-500" />
+                    <span>
+                      Only members of your organization can access and submit
+                      this form.
+                    </span>
+                  </>
+                )}
                 <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  disabled={t === "share" && !initial}
-                  className={cn(
-                    "pb-2 text-[13px] font-medium border-b-2 -mb-px transition-colors capitalize",
-                    tab === t
-                      ? "border-black text-black"
-                      : "border-transparent text-gray-500 hover:text-gray-800",
-                    t === "share" && !initial && "opacity-40 cursor-not-allowed"
-                  )}
+                  type="button"
+                  onClick={() => setTab("settings")}
+                  className="text-[12px] text-[#a8893a] hover:underline font-medium ml-1"
                 >
-                  {t === "share" ? "Share" : t === "build" ? "Build" : "Settings"}
+                  Change
                 </button>
-              ))}
-            </div>
+              </div>
+              <div className="flex gap-4 border-b -mb-3 -mx-6 px-6 pt-2">
+                {(["build", "settings", "share"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTab(t)}
+                    disabled={t === "share" && !initial}
+                    className={cn(
+                      "pb-2 text-[13px] font-medium border-b-2 -mb-px transition-colors capitalize",
+                      tab === t
+                        ? "border-black text-black"
+                        : "border-transparent text-gray-500 hover:text-gray-800",
+                      t === "share" && !initial && "opacity-40 cursor-not-allowed"
+                    )}
+                  >
+                    {t === "share" ? "Share" : t === "build" ? "Build" : "Settings"}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </DialogHeader>
 
