@@ -154,9 +154,13 @@ export function MyTasksWidget() {
   const currentTasks = activeTab === 'upcoming' ? upcomingTasks :
                        activeTab === 'overdue' ? overdueTasks : completedTasks;
 
-  const tabs: { id: TabType; label: string }[] = [
+  // Count badges mirror Asana's pattern: only show a count on
+  // "Overdue" when there's something to flag (signal urgency).
+  // "Upcoming" and "Completed" stay countless to keep the header
+  // calm when nothing demands attention.
+  const tabs: { id: TabType; label: string; count?: number }[] = [
     { id: 'upcoming', label: 'Upcoming' },
-    { id: 'overdue', label: 'Overdue' },
+    { id: 'overdue', label: 'Overdue', count: overdueTasks.length },
     { id: 'completed', label: 'Completed' },
   ];
 
@@ -183,6 +187,11 @@ export function MyTasksWidget() {
             )}
           >
             {tab.label}
+            {tab.count !== undefined && tab.count > 0 && (
+              <span className="ml-1 text-gray-400 tabular-nums">
+                ({tab.count})
+              </span>
+            )}
           </button>
         ))}
       </div>

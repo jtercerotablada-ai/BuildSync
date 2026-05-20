@@ -43,12 +43,13 @@ import {
   rectSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, Eye } from "lucide-react";
 import { useWidgetPreferences } from "@/hooks/use-widget-preferences";
 import { useUiState } from "@/hooks/use-ui-state";
 import {
   WidgetContainer,
   WidgetOverlay,
+  type WidgetMenuAction,
 } from "@/components/dashboard/widget-container";
 import { CustomizeWidgetsModal } from "@/components/dashboard/customize-widgets-modal";
 import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
@@ -176,6 +177,46 @@ export default function HomePage() {
     return { tasksCompleted, collaborators: data.team.length };
   }, [data]);
 
+  // ── Per-widget custom actions for the WidgetContainer ⋯ menu ─────
+  // Mirrors Asana's per-widget Acciones (e.g. "+ Create task" /
+  // "View all my tasks" on the My tasks widget) — these sit above
+  // the shared "Half size / Full size / Remove widget" block.
+  function getWidgetMenuActions(id: WidgetType): WidgetMenuAction[] | undefined {
+    if (id === "my-tasks") {
+      return [
+        {
+          label: "Create task",
+          icon: <Plus className="h-4 w-4 mr-2" />,
+          onClick: () => setShowQuickComposer(true),
+        },
+        {
+          label: "View all my tasks",
+          icon: <Eye className="h-4 w-4 mr-2" />,
+          onClick: () => router.push("/my-tasks"),
+        },
+      ];
+    }
+    if (id === "goals") {
+      return [
+        {
+          label: "View all goals",
+          icon: <Eye className="h-4 w-4 mr-2" />,
+          onClick: () => router.push("/goals"),
+        },
+      ];
+    }
+    if (id === "portfolios") {
+      return [
+        {
+          label: "View all portfolios",
+          icon: <Eye className="h-4 w-4 mr-2" />,
+          onClick: () => router.push("/portfolios"),
+        },
+      ];
+    }
+    return undefined;
+  }
+
   // ── Render a single widget by id ────────────────────────────────
   function renderWidgetBody(id: WidgetType) {
     switch (id) {
@@ -294,6 +335,7 @@ export default function HomePage() {
                   size={getWidgetSize(id)}
                   onSizeChange={(s) => setWidgetSize(id, s)}
                   onHide={() => toggleWidget(id)}
+                  menuActions={getWidgetMenuActions(id)}
                 >
                   {renderWidgetBody(id)}
                 </WidgetContainer>
