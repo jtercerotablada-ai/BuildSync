@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Check, Plus } from 'lucide-react';
+import { Check, Plus, Calendar as CalendarIcon, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
+import { DueDatePicker } from '@/components/tasks/due-date-picker';
 
 interface Task {
   id: string;
@@ -53,11 +55,17 @@ export function MyTasksWidget() {
   // internal header. Kept the hook in case the body re-introduces a
   // greeting; for now the user object isn't referenced anywhere.
   useSession();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('upcoming');
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
+  // Asana's inline composer lets you pick a due date and open the
+  // detail modal *before* the task is saved. We capture the draft
+  // due date here and pass it through on POST.
+  const [newTaskDueDate, setNewTaskDueDate] = useState<Date | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -91,21 +99,27 @@ export function MyTasksWidget() {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  const upcomingTasks = allTasks.filter(task => {
+  // Asana shows ~5 tasks per tab by default and exposes a "Mostrar
+  // más" affordance to reveal the rest. We mirror that with showAll
+  // (cap stays at 5 unless the user expands).
+  const VISIBLE_LIMIT = 5;
+  const upcomingTasksAll = allTasks.filter(task => {
     if (task.completed) return false;
     if (!task.dueDate) return true;
     const dueDate = new Date(task.dueDate);
     return dueDate >= today;
-  }).slice(0, 5);
-
-  const overdueTasks = allTasks.filter(task => {
+  });
+  const overdueTasksAll = allTasks.filter(task => {
     if (task.completed) return false;
     if (!task.dueDate) return false;
     const dueDate = new Date(task.dueDate);
     return dueDate < today;
-  }).slice(0, 5);
+  });
+  const completedTasksAll = allTasks.filter(task => task.completed);
 
-  const completedTasks = allTasks.filter(task => task.completed).slice(0, 5);
+  const upcomingTasks = showAll ? upcomingTasksAll : upcomingTasksAll.slice(0, VISIBLE_LIMIT);
+  const overdueTasks = showAll ? overdueTasksAll : overdueTasksAll.slice(0, VISIBLE_LIMIT);
+  const completedTasks = showAll ? completedTasksAll : completedTasksAll.slice(0, VISIBLE_LIMIT);
 
   // PATCH the completed flag for one task, with optimistic fetch and
   // an Undo action on the toast (mirrors Asana's "Deshacer" — toast
@@ -154,13 +168,17 @@ export function MyTasksWidget() {
         const response = await fetch('/api/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: newTaskName.trim() }),
+          body: JSON.stringify({
+            name: newTaskName.trim(),
+            dueDate: newTaskDueDate ? newTaskDueDate.toISOString() : null,
+          }),
         });
 
         if (response.ok) {
           toast.success('Task created!');
           fetchTasks();
           setNewTaskName('');
+          setNewTaskDueDate(null);
           setIsCreating(false);
         }
       } catch {
@@ -177,6 +195,9 @@ export function MyTasksWidget() {
 
   const currentTasks = activeTab === 'upcoming' ? upcomingTasks :
                        activeTab === 'overdue' ? overdueTasks : completedTasks;
+  const currentTasksAll = activeTab === 'upcoming' ? upcomingTasksAll :
+                          activeTab === 'overdue' ? overdueTasksAll : completedTasksAll;
+  const hiddenCount = currentTasksAll.length - currentTasks.length;
 
   // Count badges mirror Asana's pattern: only show a count on
   // "Overdue" when there's something to flag (signal urgency).
@@ -222,7 +243,7 @@ export function MyTasksWidget() {
 
       {/* ========== INLINE TASK CREATION ========== */}
       {isCreating ? (
-        <div className="flex items-center gap-2 mb-2 py-1">
+        <div className="flex items-center gap-2 mb-2 py-1 group/composer">
           <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
           <Input
             ref={inputRef}
@@ -237,10 +258,61 @@ export function MyTasksWidget() {
               } else if (e.key === 'Escape') {
                 setIsCreating(false);
                 setNewTaskName('');
+                setNewTaskDueDate(null);
               }
             }}
-            onBlur={handleCreateTask}
+            onBlur={(e) => {
+              // Don't fire create if the blur came from clicking
+              // the inline date / details buttons — they live inside
+              // the composer row and would otherwise eat the click.
+              const next = e.relatedTarget as HTMLElement | null;
+              if (next?.closest('[data-composer-action]')) return;
+              handleCreateTask();
+            }}
           />
+          {/* Inline due-date picker — mirrors Asana's "Fecha de
+              entrega" button. Today/Tomorrow/date label shown when
+              set, otherwise just the calendar icon. */}
+          <DueDatePicker
+            dueDate={newTaskDueDate}
+            onChange={(_start, due) => setNewTaskDueDate(due)}
+            trigger={
+              <button
+                type="button"
+                data-composer-action
+                title="Set due date"
+                className={cn(
+                  'flex items-center gap-1 h-6 px-1.5 text-xs rounded hover:bg-gray-100 flex-shrink-0',
+                  newTaskDueDate ? 'text-gray-700' : 'text-gray-400'
+                )}
+              >
+                <CalendarIcon className="h-3.5 w-3.5" />
+                {newTaskDueDate && (
+                  <span className="tabular-nums">
+                    {formatDueDate(newTaskDueDate.toISOString()).text}
+                  </span>
+                )}
+              </button>
+            }
+          />
+          {/* "Detalles" — Asana opens the task detail with the
+              draft pre-filled. We persist first (if there's a
+              name), then route to /my-tasks where the saved task
+              opens automatically. */}
+          <button
+            type="button"
+            data-composer-action
+            title="Open task details"
+            onClick={async () => {
+              if (newTaskName.trim()) {
+                await handleCreateTask();
+              }
+              router.push('/my-tasks');
+            }}
+            className="flex items-center justify-center h-6 w-6 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex-shrink-0"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       ) : (
         <button
@@ -360,6 +432,17 @@ export function MyTasksWidget() {
                 </div>
               );
             })}
+            {/* Asana's "Mostrar más" — surfaces hidden tasks past the
+                default 5. Once expanded, the toggle reads "Show less". */}
+            {(hiddenCount > 0 || showAll) && (
+              <button
+                type="button"
+                onClick={() => setShowAll((v) => !v)}
+                className="text-xs text-gray-500 hover:text-gray-900 hover:underline underline-offset-4 mt-1 px-1 py-1"
+              >
+                {showAll ? 'Show less' : `Show more (${hiddenCount})`}
+              </button>
+            )}
           </div>
         )}
       </div>
