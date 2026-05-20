@@ -22,7 +22,6 @@ import {
   Users,
   Folder,
   FolderOpen,
-  Book,
   Clock,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
@@ -71,12 +70,6 @@ function getMainNavItems(basePath: string): NavItemDef[] {
       icon: Clock,
       section: "timesheets",
     },
-    {
-      href: `${basePath}/people`,
-      label: "People",
-      icon: Users,
-      section: "people",
-    },
   ];
 }
 
@@ -99,12 +92,6 @@ function getInsightsNavItems(basePath: string): NavItemDef[] {
       label: "Goals",
       icon: Target,
       section: "goals",
-    },
-    {
-      href: `${basePath}/knowledge`,
-      label: "Knowledge",
-      icon: Book,
-      section: "knowledge",
     },
   ];
 }
