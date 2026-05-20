@@ -11,10 +11,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, Bell, HelpCircle, Settings, LogOut, User, CheckSquare, FolderKanban, Briefcase, Target, Sparkles, Menu } from "lucide-react";
+import { Search, Plus, Bell, HelpCircle, Settings, LogOut, User, CheckSquare, FolderKanban, Briefcase, Target, Sparkles, Menu, MessageSquare, UserPlus } from "lucide-react";
 import { useAIPanel } from "@/contexts/ai-panel-context";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface HeaderProps {
   onCreateTask?: () => void;
@@ -28,6 +29,7 @@ interface HeaderProps {
 export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCreateGoal, onSearchOpen, onToggleSidebar }: HeaderProps) {
   const { data: session } = useSession();
   const { openPanel } = useAIPanel();
+  const router = useRouter();
 
   const userInitials = session?.user?.name
     ?.split(" ")
@@ -69,6 +71,13 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
               <FolderKanban className="mr-2 h-4 w-4 text-gray-500" />
               Project
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => toast.info("Messages coming soon — use the Messages tab inside a project for now")}
+              className="cursor-pointer"
+            >
+              <MessageSquare className="mr-2 h-4 w-4 text-gray-500" />
+              Message
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreatePortfolio} className="cursor-pointer">
               <Briefcase className="mr-2 h-4 w-4 text-gray-500" />
               Portfolio
@@ -76,6 +85,14 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
             <DropdownMenuItem onClick={onCreateGoal} className="cursor-pointer">
               <Target className="mr-2 h-4 w-4 text-gray-500" />
               Goal
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => router.push("/team?invite=true")}
+              className="cursor-pointer"
+            >
+              <UserPlus className="mr-2 h-4 w-4 text-gray-500" />
+              Invite
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
