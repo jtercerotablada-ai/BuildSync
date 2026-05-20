@@ -2328,14 +2328,14 @@ function TaskSection({
                 <Plus className="w-3.5 h-3.5 text-gray-300" />
               </div>
               <span className="flex-1 text-[13px] text-gray-400">Add task</span>
-              {!hiddenColumns.has("dueDate") && <div className="hidden md:block flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-dueDate)" }} />}
-              {!hiddenColumns.has("collaborators") && <div className="hidden md:block flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }} />}
-              {!hiddenColumns.has("projects") && <div className="hidden md:block flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-projects)" }} />}
-              {!hiddenColumns.has("visibility") && <div className="hidden md:block flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-visibility)" }} />}
+              {!hiddenColumns.has("dueDate") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-dueDate)" }} />}
+              {!hiddenColumns.has("collaborators") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }} />}
+              {!hiddenColumns.has("projects") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-projects)" }} />}
+              {!hiddenColumns.has("visibility") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-visibility)" }} />}
               {Array.from({ length: customColumnCount }).map((_, i) => (
-                <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 border-l border-[#94a3b8]" />
+                <div key={i} className="hidden md:block self-stretch w-[110px] min-w-[110px] flex-shrink-0 border-l border-[#94a3b8]" />
               ))}
-              <div className="hidden md:block w-8 flex-shrink-0 border-l border-[#94a3b8]" />
+              <div className="hidden md:block self-stretch w-8 flex-shrink-0 border-l border-[#94a3b8]" />
             </button>
           )}
         </SortableContext>
@@ -2838,7 +2838,7 @@ function TaskRow({
         {...attributes}
         {...listeners}
         onClick={onClick}
-        className="hidden md:flex items-center px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors select-none"
+        className="hidden md:flex items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors select-none"
       >
         {/* Drag hint — visible on hover. Pure decoration now: the
             whole row is draggable, the icon just shows the user the
@@ -2916,7 +2916,7 @@ function TaskRow({
        * border so the vertical divider is continuous from header
        * through every task row. */}
       {!hiddenColumns.has("dueDate") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-dueDate)" }}>
+      <div className="hidden md:flex flex-shrink-0 self-stretch pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-dueDate)" }}>
         <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
@@ -2925,7 +2925,7 @@ function TaskRow({
 
       {/* Collaborators */}
       {!hiddenColumns.has("collaborators") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }}>
+      <div className="hidden md:flex flex-shrink-0 self-stretch pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }}>
         {task.assignee && (
           <Avatar className="w-5 h-5">
             <AvatarImage src={task.assignee.image || undefined} />
@@ -2939,7 +2939,7 @@ function TaskRow({
 
       {/* Projects */}
       {!hiddenColumns.has("projects") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-projects)" }}>
+      <div className="hidden md:flex flex-shrink-0 self-stretch pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-projects)" }}>
         {task.project && (
           <div className="flex items-center gap-1.5 min-w-0">
             <div
@@ -2964,7 +2964,7 @@ function TaskRow({
 
       {/* Visibility */}
       {!hiddenColumns.has("visibility") && (
-      <div className="hidden md:flex flex-shrink-0 pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-visibility)" }}>
+      <div className="hidden md:flex flex-shrink-0 self-stretch pl-2.5 pr-1 overflow-hidden items-center border-l border-[#94a3b8]" style={{ width: "var(--col-visibility)" }}>
         <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
           <Globe className="w-3 h-3 flex-shrink-0" />
           My workspace
@@ -2974,7 +2974,7 @@ function TaskRow({
 
       {/* Custom column cells */}
       {Array.from({ length: customColumnCount }).map((_, i) => (
-        <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 pl-2.5 border-l border-[#94a3b8]">
+        <div key={i} className="hidden md:flex self-stretch items-center w-[110px] min-w-[110px] flex-shrink-0 pl-2.5 border-l border-[#94a3b8]">
           <span className="text-[13px] text-gray-300">—</span>
         </div>
       ))}
@@ -2982,7 +2982,7 @@ function TaskRow({
       {/* Spacer for + button column — matches the AddColumnDropdown
           wrapper in the header (must be the exact same width or columns
           to the left misalign because the row's flex-1 redistributes). */}
-      <div className="hidden md:block w-8 flex-shrink-0 border-l border-[#94a3b8]" />
+      <div className="hidden md:block self-stretch w-8 flex-shrink-0 border-l border-[#94a3b8]" />
     </div>
     </>
   );
