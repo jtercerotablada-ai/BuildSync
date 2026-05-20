@@ -461,14 +461,18 @@ export default function GoalsPage() {
         </div>
 
         <div className="flex items-center gap-1 md:gap-2 flex-wrap">
-          {/* View switcher — 4 buttons. Same data, opinionated layouts. */}
+          {/* View switcher — 4 buttons. Same data, opinionated layouts.
+              "Strategy map" mirrors Asana's "Mapa de estrategia" tab —
+              the tree visualization of goals connected by parent/child
+              edges. Icons + labels (not just icons) so users discover
+              the strategy map without hovering for a tooltip. */}
           <div className="hidden sm:flex items-center bg-white border rounded-md overflow-hidden">
             {(
               [
                 { id: "list" as ViewType, icon: List, label: "List" },
                 { id: "kanban" as ViewType, icon: Kanban, label: "Kanban" },
                 { id: "cards" as ViewType, icon: LayoutGrid, label: "Cards" },
-                { id: "tree" as ViewType, icon: Network, label: "Tree" },
+                { id: "tree" as ViewType, icon: Network, label: "Strategy map" },
               ] as const
             ).map((opt) => {
               const Icon = opt.icon;
@@ -479,13 +483,14 @@ export default function GoalsPage() {
                   aria-label={opt.label}
                   title={opt.label}
                   className={cn(
-                    "p-1.5 transition-colors",
+                    "flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium transition-colors",
                     selectedView === opt.id
                       ? "bg-black text-white"
                       : "text-gray-500 hover:text-black hover:bg-gray-50"
                   )}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">{opt.label}</span>
                 </button>
               );
             })}
