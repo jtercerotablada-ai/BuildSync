@@ -3,11 +3,17 @@
 /**
  * FormsWidget — home dashboard tile.
  *
- * Reads from /api/forms (workspace-scoped list). Each row deep-links
- * to the form's PROJECT Workflow tab with `?form=<id>` so the unified
- * Form Builder opens for inspection/edit. The "+ New form" CTA opens
- * the project picker first (since a form belongs to a project) and
- * then routes to that project's Workflow tab with `?form=new`.
+ * Reads from /api/forms (workspace-scoped list). Click on a form row
+ * opens the FormBuilderDialog INLINE on the Home page — the user
+ * never has to leave the dashboard to edit a form. Saves persist
+ * via /api/projects/[projectId]/forms/[formId], so edits made here
+ * are immediately visible in the project's Workflow tab (the two
+ * surfaces are connected to the same Form record).
+ *
+ * The "+ New form" CTA opens a project picker first (forms belong
+ * to a project) and then routes to the project's Workflow tab in
+ * create mode — new forms need a project context to live in. Edits
+ * can happen from either place after creation.
  */
 
 import { useEffect, useState } from 'react';
@@ -20,6 +26,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
+import { FormBuilderDialog } from '@/components/views/form-builder-dialog';
+import type { FormRow as FullFormRow } from '@/lib/form-types';
 
 interface FormRow {
   id: string;
@@ -47,6 +56,12 @@ export function FormsWidget() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  // Inline edit dialog state — opening a form from the widget now
+  // pops the FormBuilderDialog right on the Home page so the user
+  // never leaves the dashboard context. Saves persist to the same
+  // Form record the Workflow tab edits.
+  const [editingForm, setEditingForm] = useState<FullFormRow | null>(null);
+  const [editingFetching, setEditingFetching] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,15 +141,26 @@ export function FormsWidget() {
     };
   }, [showProjectPicker, projects.length]);
 
-  function openFormInWorkflow(form: FormRow) {
+  async function openFormInline(form: FormRow) {
     if (!form.projectId) {
-      // Fallback: hit the public form when we don't know the project.
+      // No project context — fall back to the public preview.
       router.push(`/forms/${form.id}`);
       return;
     }
-    router.push(
-      `/projects/${form.projectId}?view=workflow&form=${form.id}`
-    );
+    // Fetch the full Form record (the widget list only has summary
+    // fields) and open the builder dialog inline.
+    setEditingFetching(form.id);
+    try {
+      const res = await fetch(`/api/forms/${form.id}?settings=1`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const full = (await res.json()) as FullFormRow;
+      setEditingForm(full);
+    } catch (err) {
+      console.error('Failed to fetch form:', err);
+      toast.error("Couldn't open the form. Try again.");
+    } finally {
+      setEditingFetching(null);
+    }
   }
 
   function startNewForm(projectId: string) {
@@ -217,11 +243,16 @@ export function FormsWidget() {
               <li key={form.id}>
                 <button
                   type="button"
-                  onClick={() => openFormInWorkflow(form)}
-                  className="w-full p-3 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center justify-between gap-3"
+                  onClick={() => openFormInline(form)}
+                  disabled={editingFetching === form.id}
+                  className="w-full p-3 rounded-lg hover:bg-gray-50 transition-colors text-left flex items-center justify-between gap-3 disabled:opacity-60"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    {editingFetching === form.id ? (
+                      <Loader2 className="h-4 w-4 text-gray-400 flex-shrink-0 animate-spin" />
+                    ) : (
+                      <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    )}
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {form.name}
@@ -284,6 +315,33 @@ export function FormsWidget() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      )}
+
+      {/* Inline form editor — opens when the user clicks a form row.
+          Saves persist via the dialog's own PATCH to /api/projects/
+          [id]/forms/[formId], so the project's Workflow tab shows
+          the same edits next time it's opened. */}
+      {editingForm && (
+        <FormBuilderDialog
+          open={!!editingForm}
+          onOpenChange={(open) => {
+            if (!open) setEditingForm(null);
+          }}
+          projectId={editingForm.projectId}
+          initial={editingForm}
+          onSaved={(saved) => {
+            // Update the local list so the row reflects the new name/
+            // active state without a full refetch.
+            setForms((prev) =>
+              prev.map((f) =>
+                f.id === saved.id
+                  ? { ...f, name: saved.name, isActive: saved.isActive }
+                  : f
+              )
+            );
+            setEditingForm(null);
+          }}
+        />
       )}
     </div>
   );
