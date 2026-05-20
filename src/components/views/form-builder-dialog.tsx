@@ -160,10 +160,13 @@ export function FormBuilderDialog({
   const [tab, setTab] = useState<"build" | "settings" | "share">("build");
   const [saving, setSaving] = useState(false);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
-  // Show the template-picker overlay before the build form on a
-  // brand-new form (so the user doesn't stare at a blank canvas).
-  // Skipped automatically when editing an existing form.
-  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  // Template picker removed — Asana doesn't expose form templates,
+  // it just drops the user into the editor with a sensible default
+  // (Name + Email). Kept as a const so the existing render branch
+  // never fires.
+  const showTemplatePicker = false;
+  const setShowTemplatePicker = (_: boolean) => {};
+  void setShowTemplatePicker;
 
   // ── Core form state ────────────────────────────────────────────
   const [name, setName] = useState("");
@@ -203,20 +206,31 @@ export function FormBuilderDialog({
       setNotifyOnSubmission(initial.notifyOnSubmission);
       setVisibility(initial.visibility);
     } else {
+      // New form defaults — mirror Asana exactly. A fresh form drops
+      // the user into the editor with title empty (placeholder),
+      // empty description, and two pre-built fields: Name (required,
+      // maps to task name) + Email (required). Asana ships the
+      // same two defaults so submitters always identify themselves.
       setName("");
       setDescription("");
       setFields([
-        { ...emptyField("TEXT"), label: "Brief description", mapTo: "name" },
+        {
+          ...emptyField("TEXT"),
+          label: "Name",
+          required: true,
+          mapTo: "name",
+        },
+        {
+          ...emptyField("EMAIL"),
+          label: "Email address",
+          required: true,
+        },
       ]);
       setDefaultSectionId(null);
       setDefaultAssigneeId(null);
       setConfirmationMessage("");
       setNotifyOnSubmission(true);
       setVisibility("PUBLIC");
-      // New-form mode: open with the template picker so the user
-      // starts from one of the engineering quick-starts instead of
-      // a blank canvas.
-      setShowTemplatePicker(true);
     }
     setTab("build");
     setActiveFieldId(null);
@@ -417,9 +431,9 @@ export function FormBuilderDialog({
               saved. They're disabled for unsaved drafts. */}
           <div className="flex items-center justify-between gap-3">
             <DialogTitle className="text-base font-semibold">
-              {initial ? "Edit form" : showTemplatePicker ? "Start a new form" : "New form"}
+              {initial ? "Edit form" : "Add form"}
             </DialogTitle>
-            {initial && !showTemplatePicker && (
+            {initial && (
               <div className="flex items-center gap-1">
                 <button
                   type="button"
@@ -501,7 +515,7 @@ export function FormBuilderDialog({
               </div>
             )}
           </div>
-          {!showTemplatePicker && (
+          {(
             <>
               {/* Privacy notice bar — Asana-style. Reads from the
                   current visibility setting so it stays accurate as
@@ -557,14 +571,7 @@ export function FormBuilderDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          {showTemplatePicker && (
-            <TemplatePicker
-              onPick={pickTemplate}
-              onSkip={() => setShowTemplatePicker(false)}
-            />
-          )}
-
-          {!showTemplatePicker && tab === "build" && (
+          {tab === "build" && (
             <BuildTab
               name={name}
               setName={setName}
@@ -581,7 +588,7 @@ export function FormBuilderDialog({
             />
           )}
 
-          {!showTemplatePicker && (tab === "settings" || tab === "share") && (
+          {(tab === "settings" || tab === "share") && (
             <div className="space-y-8">
               {/* Asana merges Settings and Share into a single
                   'Ajustes' tab — task settings on top, sharing /
@@ -618,7 +625,7 @@ export function FormBuilderDialog({
           )}
         </div>
 
-        {!showTemplatePicker && (
+        {(
           <DialogFooter className="px-6 py-3 border-t bg-slate-50">
             {!validation.ok && (
               <span className="text-[12px] text-rose-600 mr-auto">
