@@ -103,6 +103,7 @@ import { CustomFieldModal, type CreatedFieldInfo } from "@/components/tasks/cust
 import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
 import { UploadToTaskDialog } from "@/components/tasks/upload-to-task-dialog";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
+import { BuiltinFieldCell } from "@/components/tasks/builtin-field-cell";
 import { useUiState } from "@/hooks/use-ui-state";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
@@ -139,6 +140,21 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 // Types
+/** Metadata for a dynamic column in the My Tasks list view. Covers
+ *  BOTH user-created custom fields AND the built-in extras Asana
+ *  surfaces under "Show more" (Priority, Tags, Blocked by, Blocks,
+ *  Completion date, Last modified, Creation date, Created by). When
+ *  `builtin` is set the cell renders from Task fields; otherwise from
+ *  CustomFieldValue. */
+export interface ListColumn {
+  id: string;
+  name: string;
+  type: string;
+  color: string;
+  builtin?: string;
+  width?: number;
+}
+
 interface Task {
   id: string;
   name: string;
@@ -151,7 +167,14 @@ interface Task {
   taskType?: "TASK" | "MILESTONE" | "APPROVAL";
   position?: number;
   createdAt: string;
+  // Last-modified timestamp — surfaced as a built-in column in the
+  // Asana-parity list view ("Last modified"). Prisma auto-includes
+  // it, the API just returns the row.
+  updatedAt: string;
   assignee: { id: string; name: string | null; email: string | null; image: string | null } | null;
+  // Created by — built-in column ("Created by" in Asana). The
+  // /api/tasks endpoint already includes the creator relation.
+  creator?: { id: string; name: string | null; email: string | null; image: string | null } | null;
   project: {
     id: string;
     name: string;
@@ -167,6 +190,12 @@ interface Task {
   } | null;
   section: { id: string; name: string } | null;
   subtasks?: { id: string; name: string; completed: boolean }[];
+  // Dependencies (Asana "Blocked by") — tasks that must finish
+  // before this one can start. Shaped from TaskDependency.blockingTask.
+  dependencies?: { blockingTask: { id: string; name: string; completed: boolean } }[];
+  // Dependents (Asana "Blocks") — tasks that are waiting on THIS
+  // one. Shaped from TaskDependency.dependentTask.
+  dependents?: { dependentTask: { id: string; name: string; completed: boolean } }[];
   myTaskSection: "RECENTLY_ASSIGNED" | "DO_TODAY" | "DO_NEXT_WEEK" | "DO_LATER" | null;
   _count: { subtasks: number; comments: number; attachments: number };
 }
@@ -218,7 +247,14 @@ export default function MyTasksPage() {
   const [preselectedFieldType, setPreselectedFieldType] = useState<string | null>(null);
   const [preselectedFieldName, setPreselectedFieldName] = useState("");
   const [initialTab, setInitialTab] = useState<"create" | "library">("create");
-  const [customColumns, setCustomColumns] = useState<{ id: string; name: string; type: string; color: string }[]>([]);
+  // customColumns now holds BOTH user-created custom fields AND
+  // built-in extra columns Asana surfaces under "Show more" (Priority,
+  // Tags, Blocked by, Blocks, Completion date, Last modified, Creation
+  // date, Created by). Discriminator is the optional `builtin` key —
+  // when present, the column reads from the Task object instead of
+  // CustomFieldValue. The `id` for built-ins is the BUILTIN_FIELDS id
+  // (e.g. "priority"), `type` is "__BUILTIN__".
+  const [customColumns, setCustomColumns] = useState<ListColumn[]>([]);
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [showCalendarSync, setShowCalendarSync] = useState(false);
   const [calendarSyncType, setCalendarSyncType] = useState<"outlook" | "google" | "ical">("outlook");
@@ -369,7 +405,7 @@ export default function MyTasksPage() {
     if (!hiddenColumns.has("visibility")) {
       cols.push("var(--col-visibility)");
     }
-    for (let i = 0; i < customColumns.length; i++) cols.push("110px");
+    for (const c of customColumns) cols.push(`${c.width || 110}px`);
     cols.push("32px"); // "+" column (matches w-8)
     return cols.join(" ");
   }, [hiddenColumns, customColumns.length]);
@@ -1548,15 +1584,35 @@ export default function MyTasksPage() {
           )}
 
           {/* Dynamic custom columns */}
-          {customColumns.map((col) => (
-            <div
-              key={col.id}
-              className="flex items-center gap-1 border-l border-[#94a3b8] pl-2.5 pr-1"
-              style={{ width: "110px", minWidth: "110px", flexShrink: 0 }}
-            >
-              <span className="text-[11px] font-medium text-gray-500 truncate">{col.name}</span>
-            </div>
-          ))}
+          {customColumns.map((col) => {
+            const w = col.width || 110;
+            return (
+              <div
+                key={col.id}
+                className="group/colhdr flex items-center gap-1 border-l border-[#94a3b8] pl-2.5 pr-1"
+                style={{ width: `${w}px`, minWidth: `${w}px`, flexShrink: 0 }}
+              >
+                <span className="text-[11px] font-medium text-gray-500 truncate flex-1">
+                  {col.name}
+                </span>
+                {/* Remove column — visible on hover. Built-ins are
+                    just unpinned; custom fields stay defined at the
+                    project level (the user can remove the field
+                    itself from the Custom Field Modal). */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCustomColumns((prev) => prev.filter((c) => c.id !== col.id))
+                  }
+                  className="opacity-0 group-hover/colhdr:opacity-100 transition-opacity flex items-center justify-center w-4 h-4 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded"
+                  title={col.builtin ? "Hide column" : "Hide column (field stays defined)"}
+                  aria-label="Hide column"
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3 h-3"><path d="m4 4 8 8M12 4l-8 8"/></svg>
+                </button>
+              </div>
+            );
+          })}
 
           {/* Add column (+) button — width MUST match the data row's
               `w-8` spacer at the end of TaskRow (line ~2178) or every
@@ -1564,11 +1620,36 @@ export default function MyTasksPage() {
               flex-1 distributes a different remainder. */}
           <div className="w-8 flex-shrink-0 border-l border-[#94a3b8] flex items-center justify-center">
             <AddColumnDropdown
+              activeBuiltinIds={customColumns
+                .map((c) => c.builtin)
+                .filter((b): b is string => !!b)}
               onSelectType={(ft: FieldTypeConfig, name: string) => {
                 setPreselectedFieldType(ft.id);
                 setPreselectedFieldName(name);
                 setInitialTab("create");
                 setShowCustomFieldModal(true);
+              }}
+              onSelectBuiltin={(b) => {
+                // Built-in columns skip the CustomFieldModal entirely
+                // (no schema row needed — they read existing Task
+                // fields). Just append to customColumns with the
+                // discriminator and Asana surfaces the new column on
+                // the next render. Dedupe defensively in case the
+                // dropdown's `activeBuiltinIds` check missed.
+                setCustomColumns((prev) => {
+                  if (prev.some((c) => c.builtin === b.id)) return prev;
+                  return [
+                    ...prev,
+                    {
+                      id: `builtin-${b.id}`,
+                      name: b.label,
+                      type: "__BUILTIN__",
+                      color: "#6f7782",
+                      builtin: b.id,
+                      width: b.defaultWidth,
+                    },
+                  ];
+                });
               }}
               onFromLibrary={() => {
                 setPreselectedFieldType(null);
@@ -1594,6 +1675,7 @@ export default function MyTasksPage() {
               onAddTask={handleAddTask}
               formatDueDate={formatDueDate}
               customColumnCount={customColumns.length}
+              customColumns={customColumns}
               hiddenColumns={hiddenColumns}
               onReorderTasks={async (sectionId, orderedTaskIds) => {
                 // Optimistic: re-number positions on the in-memory
@@ -2126,6 +2208,7 @@ function TaskSection({
   onAddTask,
   formatDueDate,
   customColumnCount = 0,
+  customColumns = [],
   hiddenColumns = new Set(),
 }: {
   section: SmartSection;
@@ -2135,6 +2218,7 @@ function TaskSection({
   onAddTask: (name: string, sectionId: string, taskType?: "TASK" | "MILESTONE" | "APPROVAL") => Promise<boolean>;
   formatDueDate: (date: string | null) => { text: string; className: string };
   customColumnCount?: number;
+  customColumns?: ListColumn[];
   hiddenColumns?: Set<string>;
 }) {
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -2313,6 +2397,7 @@ function TaskSection({
               onClick={() => onTaskClick(task)}
               formatDueDate={formatDueDate}
               customColumnCount={customColumnCount}
+              customColumns={customColumns}
               hiddenColumns={hiddenColumns}
             />
           ))}
@@ -2369,6 +2454,7 @@ function ListDndProvider({
   onAddTask,
   formatDueDate,
   customColumnCount,
+  customColumns,
   hiddenColumns,
 }: {
   sections: SmartSection[];
@@ -2389,6 +2475,7 @@ function ListDndProvider({
   ) => Promise<boolean>;
   formatDueDate: (date: string | null) => { text: string; className: string };
   customColumnCount: number;
+  customColumns?: ListColumn[];
   hiddenColumns?: Set<string>;
 }) {
   const sensors = useSensors(
@@ -2561,6 +2648,7 @@ function ListDndProvider({
           onAddTask={onAddTask}
           formatDueDate={formatDueDate}
           customColumnCount={customColumnCount}
+          customColumns={customColumns}
           hiddenColumns={hiddenColumns}
         />
       ))}
@@ -2659,6 +2747,7 @@ function TaskRow({
   onClick,
   formatDueDate,
   customColumnCount = 0,
+  customColumns = [],
   hiddenColumns = new Set(),
 }: {
   task: Task;
@@ -2666,6 +2755,7 @@ function TaskRow({
   onClick: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
   customColumnCount?: number;
+  customColumns?: ListColumn[];
   hiddenColumns?: Set<string>;
 }) {
   const dueDateInfo = formatDueDate(task.dueDate);
@@ -2972,12 +3062,37 @@ function TaskRow({
       </div>
       )}
 
-      {/* Custom column cells */}
-      {Array.from({ length: customColumnCount }).map((_, i) => (
-        <div key={i} className="hidden md:flex self-stretch items-center w-[110px] min-w-[110px] flex-shrink-0 pl-2.5 border-l border-[#94a3b8]">
-          <span className="text-[13px] text-gray-300">—</span>
-        </div>
-      ))}
+      {/* Custom column cells — render real data for built-ins; for
+          regular custom fields we still show a dash for now (Fase 2
+          will fetch CustomFieldValue per task and render via
+          CustomFieldCell). The column array is preferred when present;
+          we keep `customColumnCount` as a fallback for callers that
+          haven't been threaded yet. */}
+      {(customColumns.length > 0
+        ? customColumns
+        : (Array.from({ length: customColumnCount }, (_, i) => ({
+            id: `placeholder-${i}`,
+            name: "",
+            type: "",
+            color: "",
+            width: 110,
+          })) as ListColumn[])
+      ).map((col) => {
+        const w = col.width || 110;
+        return (
+          <div
+            key={col.id}
+            className="hidden md:flex self-stretch items-center flex-shrink-0 pl-2.5 pr-1 overflow-hidden border-l border-[#94a3b8]"
+            style={{ width: `${w}px`, minWidth: `${w}px` }}
+          >
+            {col.builtin ? (
+              <BuiltinFieldCell builtinId={col.builtin} task={task} />
+            ) : (
+              <span className="text-[13px] text-gray-300">—</span>
+            )}
+          </div>
+        );
+      })}
 
       {/* Spacer for + button column — matches the AddColumnDropdown
           wrapper in the header (must be the exact same width or columns

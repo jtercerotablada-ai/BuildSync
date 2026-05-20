@@ -696,13 +696,24 @@ export function ListView({
               <span className="truncate">{field.name}</span>
             </div>
           ))}
-          {/* Add column button */}
+          {/* Add column button. NOTE: built-in extras (Priority,
+              Tags, Blocked by, etc.) are wired in My Tasks list only
+              for now — the project-level list-view will get them in
+              Fase 2 once we plumb the same render path through the
+              ProjectCustomField selection state. */}
           <AddColumnDropdown
             onSelectType={(ft: FieldTypeConfig, name: string) => {
               setPreselectedFieldType(ft.id);
               setPreselectedFieldName(name);
               setInitialTab("create");
               setCustomFieldModalOpen(true);
+            }}
+            onSelectBuiltin={() => {
+              // Placeholder so the same dropdown component works.
+              // Project list will support these in Fase 2.
+              toast.info(
+                "Built-in extras coming to project lists in the next pass."
+              );
             }}
             onFromLibrary={() => {
               setPreselectedFieldType(null);

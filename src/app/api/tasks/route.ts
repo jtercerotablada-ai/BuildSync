@@ -111,6 +111,25 @@ export async function GET(req: Request) {
             completed: true,
           },
         },
+        // Dependencies for the "Blocked by" / "Blocks" built-in
+        // columns in My Tasks list. "dependencies" = rows where this
+        // task IS the dependent → the blockingTask is what blocks me.
+        // "dependents" = rows where this task IS the blocker → the
+        // dependentTask is what I block.
+        dependencies: {
+          select: {
+            blockingTask: {
+              select: { id: true, name: true, completed: true },
+            },
+          },
+        },
+        dependents: {
+          select: {
+            dependentTask: {
+              select: { id: true, name: true, completed: true },
+            },
+          },
+        },
         _count: {
           select: {
             subtasks: true,

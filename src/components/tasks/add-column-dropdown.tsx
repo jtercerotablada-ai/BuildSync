@@ -1,21 +1,38 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Plus, BookOpen } from "lucide-react";
+import { Plus, BookOpen, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { FIELD_TYPES, type FieldTypeConfig } from "@/lib/field-types";
+import {
+  FIELD_TYPES,
+  BUILTIN_FIELDS,
+  type FieldTypeConfig,
+  type BuiltinFieldConfig,
+} from "@/lib/field-types";
 
 interface AddColumnDropdownProps {
   onSelectType: (fieldType: FieldTypeConfig, fieldName: string) => void;
+  onSelectBuiltin: (builtin: BuiltinFieldConfig) => void;
   onFromLibrary: () => void;
+  /** Built-in field ids already shown in the list (so we can disable them
+   *  in the dropdown — Asana grays them out when already pinned). */
+  activeBuiltinIds?: string[];
 }
 
 export function AddColumnDropdown({
   onSelectType,
+  onSelectBuiltin,
   onFromLibrary,
+  activeBuiltinIds = [],
 }: AddColumnDropdownProps) {
   const [open, setOpen] = useState(false);
   const [fieldName, setFieldName] = useState("");
+  // "Show more" — collapsed section with Asana's built-in extras
+  // (Priority, Tags, Blocked by, Blocks, Completion date, Last
+  // modified, Creation date, Created by). Mirrors Asana exactly:
+  // a thin "Show more" trigger inside the menu that expands the
+  // list of extra columns without leaving the dropdown.
+  const [showBuiltins, setShowBuiltins] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,12 +80,22 @@ export function AddColumnDropdown({
 
   function handleSelectType(ft: FieldTypeConfig) {
     setOpen(false);
+    setShowBuiltins(false);
     onSelectType(ft, fieldName.trim());
+    setFieldName("");
+  }
+
+  function handleSelectBuiltin(b: BuiltinFieldConfig) {
+    if (activeBuiltinIds.includes(b.id)) return; // already pinned
+    setOpen(false);
+    setShowBuiltins(false);
+    onSelectBuiltin(b);
     setFieldName("");
   }
 
   function handleFromLibrary() {
     setOpen(false);
+    setShowBuiltins(false);
     onFromLibrary();
     setFieldName("");
   }
@@ -111,7 +138,7 @@ export function AddColumnDropdown({
           </div>
 
           {/* Field type list */}
-          <div className="max-h-[320px] overflow-y-auto">
+          <div className="max-h-[420px] overflow-y-auto">
             {FIELD_TYPES.map((ft) => {
               const Icon = ft.icon;
               return (
@@ -125,6 +152,54 @@ export function AddColumnDropdown({
                 </button>
               );
             })}
+
+            {/* Show more — Asana mirrors this exact pattern: a thin
+                row that expands the built-in extras list inline. */}
+            <button
+              onClick={() => setShowBuiltins((v) => !v)}
+              className="w-full flex items-center gap-2.5 px-3 h-9 text-[13px] text-[#6f7782] hover:bg-black/[0.04] transition-colors text-left cursor-pointer"
+            >
+              <ChevronDown
+                className={cn(
+                  "w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform",
+                  showBuiltins ? "rotate-0" : "-rotate-90"
+                )}
+              />
+              <span>{showBuiltins ? "Show less" : "Show more"}</span>
+            </button>
+
+            {showBuiltins &&
+              BUILTIN_FIELDS.map((b) => {
+                const Icon = b.icon;
+                const alreadyActive = activeBuiltinIds.includes(b.id);
+                return (
+                  <button
+                    key={b.id}
+                    onClick={() => handleSelectBuiltin(b)}
+                    disabled={alreadyActive}
+                    title={alreadyActive ? "Already shown" : undefined}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-3 h-9 text-[13px] text-left cursor-pointer transition-colors",
+                      alreadyActive
+                        ? "text-gray-300 cursor-not-allowed"
+                        : "text-gray-700 hover:bg-black/[0.04]"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "w-4 h-4 flex-shrink-0",
+                        alreadyActive ? "text-gray-300" : "text-gray-400"
+                      )}
+                    />
+                    <span>{b.label}</span>
+                    {alreadyActive && (
+                      <span className="ml-auto text-[11px] text-gray-300">
+                        Added
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
           </div>
 
           {/* Separator */}
