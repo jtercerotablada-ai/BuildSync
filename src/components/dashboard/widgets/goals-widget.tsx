@@ -49,6 +49,31 @@ const getStatusTextColor = (progress: number, status: string) => {
   return 'text-black';
 };
 
+// Goal status -> human label + tailwind classes for the meta pill
+// below the progress bar (Asana shows "Sin estado", "En curso", "En
+// riesgo", etc. on each goal card).
+function formatStatusPill(status: string): { label: string; className: string } {
+  switch (status) {
+    case 'ON_TRACK':
+      return { label: 'On track', className: 'bg-emerald-50 text-emerald-700' };
+    case 'AT_RISK':
+      return { label: 'At risk', className: 'bg-amber-50 text-amber-700' };
+    case 'OFF_TRACK':
+      return { label: 'Off track', className: 'bg-rose-50 text-rose-700' };
+    case 'ACHIEVED':
+      return { label: 'Achieved', className: 'bg-emerald-50 text-emerald-700' };
+    case 'MISSED':
+      return { label: 'Missed', className: 'bg-rose-50 text-rose-700' };
+    case 'DROPPED':
+      return { label: 'Dropped', className: 'bg-gray-100 text-gray-600' };
+    case 'NO_STATUS':
+    case '':
+      return { label: 'No status', className: 'bg-gray-100 text-gray-600' };
+    default:
+      return { label: status, className: 'bg-gray-100 text-gray-600' };
+  }
+}
+
 export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('my');
@@ -234,7 +259,10 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
               Create goal
             </button>
 
-            {/* Goal cards */}
+            {/* Goal cards — Asana shows period + status pill on each
+                card; we mirror both so the read is full-context (you
+                see *when* and *how it's going* without opening the
+                goal). */}
             {goals.map((goal) => (
               <button
                 key={goal.id}
@@ -266,6 +294,29 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
                     {goal.progress}%
                   </span>
                 </div>
+                {/* Meta row: period + status pill */}
+                {(goal.period || goal.status) && (
+                  <div className="flex items-center gap-2 mt-1.5 ml-[108px]">
+                    {goal.period && (
+                      <span className="text-[11px] text-gray-500 tabular-nums">
+                        {goal.period}
+                      </span>
+                    )}
+                    {goal.period && goal.status && (
+                      <span className="text-gray-300">·</span>
+                    )}
+                    {goal.status && (
+                      <span
+                        className={cn(
+                          'text-[11px] px-1.5 py-0.5 rounded font-medium',
+                          formatStatusPill(goal.status).className
+                        )}
+                      >
+                        {formatStatusPill(goal.status).label}
+                      </span>
+                    )}
+                  </div>
+                )}
               </button>
             ))}
 
