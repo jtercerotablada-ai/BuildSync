@@ -43,6 +43,7 @@ interface Person {
   jobTitle?: string | null;
   overdueCount?: number;
   completedCount?: number;
+  upcomingCount?: number;
 }
 
 interface PeopleWidgetProps {
@@ -181,12 +182,13 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
                   .slice(0, 2) || '?';
               const overdue = person.overdueCount ?? 0;
               const completed = person.completedCount ?? 0;
+              const upcoming = person.upcomingCount ?? 0;
               return (
                 <li key={person.id}>
                   <button
                     type="button"
                     className="w-full flex items-center gap-3 px-2 py-2 hover:bg-gray-50 transition-colors text-left"
-                    onClick={() => router.push('/team')}
+                    onClick={() => router.push(`/profile/${person.id}`)}
                   >
                     <Avatar className="h-8 w-8 flex-shrink-0">
                       <AvatarImage src={person.image || undefined} />
@@ -197,10 +199,10 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
                     <span className="text-sm text-gray-800 truncate flex-1 min-w-0">
                       {person.name || person.email}
                     </span>
-                    {/* Stat pills — pink/red for overdue, green for
-                        completed. Match the Asana palette. Pills only
-                        render when there's something to show, so a
-                        brand-new workspace doesn't look spammed. */}
+                    {/* Stat pills — red for overdue (urgent), gray for
+                        upcoming (load), green for completed (progress).
+                        Match the Asana palette + adds upcoming pill
+                        ("X próximas") to give a complete picture. */}
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <span
                         className={cn(
@@ -212,6 +214,17 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
                         title={`${overdue} overdue`}
                       >
                         {overdue} overdue
+                      </span>
+                      <span
+                        className={cn(
+                          'text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-full',
+                          upcoming > 0
+                            ? 'bg-[#eef4fb] text-[#2c5b8a]'
+                            : 'bg-gray-50 text-gray-400'
+                        )}
+                        title={`${upcoming} upcoming`}
+                      >
+                        {upcoming} upcoming
                       </span>
                       <span
                         className={cn(

@@ -8,7 +8,7 @@ import { getCurrentUserId } from "@/lib/auth-utils";
  * Query params:
  *   ?limit=20                 max users returned (default 20)
  *   ?filter=all|frequent      "frequent" ranks by shared-project count
- *   ?includeStats=true        also attach per-user overdueCount + completedCount
+ *   ?includeStats=true        also attach per-user overdueCount + completedCount + upcomingCount
  *   ?period=week|month        time window for completedCount (default week)
  *
  * Stats semantics (when includeStats=true):
@@ -131,7 +131,7 @@ export async function GET(req: Request) {
       periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (day - 1));
     }
 
-    const [overdueRows, completedRows] = await Promise.all([
+    const [overdueRows, completedRows, upcomingRows] = await Promise.all([
       prisma.task.groupBy({
         by: ["assigneeId"],
         where: {
@@ -151,6 +151,20 @@ export async function GET(req: Request) {
         },
         _count: { _all: true },
       }),
+      // Upcoming = incomplete, due today or later, due within the
+      // selected period window. Mirrors Asana's "X próximas" stat
+      // on the Personas widget — gives a fast read on each
+      // collaborator's near-term load.
+      prisma.task.groupBy({
+        by: ["assigneeId"],
+        where: {
+          assigneeId: { in: memberIds },
+          completedAt: null,
+          dueDate: { gte: today },
+          project: { workspaceId },
+        },
+        _count: { _all: true },
+      }),
     ]);
 
     // Map results onto member ids — groupBy types `assigneeId` as
@@ -165,11 +179,17 @@ export async function GET(req: Request) {
         .filter((r): r is typeof r & { assigneeId: string } => r.assigneeId !== null)
         .map((r) => [r.assigneeId, r._count._all])
     );
+    const upcomingByUser = new Map<string, number>(
+      upcomingRows
+        .filter((r): r is typeof r & { assigneeId: string } => r.assigneeId !== null)
+        .map((r) => [r.assigneeId, r._count._all])
+    );
 
     const enriched = members.map((m) => ({
       ...m,
       overdueCount: overdueByUser.get(m.id) ?? 0,
       completedCount: completedByUser.get(m.id) ?? 0,
+      upcomingCount: upcomingByUser.get(m.id) ?? 0,
     }));
 
     return NextResponse.json(enriched);
