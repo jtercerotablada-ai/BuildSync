@@ -104,6 +104,7 @@ import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
 import { UploadToTaskDialog } from "@/components/tasks/upload-to-task-dialog";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { BuiltinFieldCell } from "@/components/tasks/builtin-field-cell";
+import { CustomFieldCell } from "@/components/tasks/custom-field-cell";
 import { useUiState } from "@/hooks/use-ui-state";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
@@ -196,6 +197,29 @@ interface Task {
   // Dependents (Asana "Blocks") — tasks that are waiting on THIS
   // one. Shaped from TaskDependency.dependentTask.
   dependents?: { dependentTask: { id: string; name: string; completed: boolean } }[];
+  // Custom field values keyed by fieldId. The field metadata is
+  // embedded so CustomFieldCell can render with type + options
+  // without an extra fetch. `value` is a Prisma Json — shape depends
+  // on the field's type.
+  customFieldValues?: {
+    fieldId: string;
+    value: unknown;
+    field: {
+      id: string;
+      name: string;
+      type:
+        | "TEXT"
+        | "NUMBER"
+        | "DATE"
+        | "DROPDOWN"
+        | "MULTI_SELECT"
+        | "PEOPLE"
+        | "CHECKBOX"
+        | "CURRENCY"
+        | "PERCENTAGE";
+      options: unknown;
+    };
+  }[];
   myTaskSection: "RECENTLY_ASSIGNED" | "DO_TODAY" | "DO_NEXT_WEEK" | "DO_LATER" | null;
   _count: { subtasks: number; comments: number; attachments: number };
 }
@@ -247,14 +271,6 @@ export default function MyTasksPage() {
   const [preselectedFieldType, setPreselectedFieldType] = useState<string | null>(null);
   const [preselectedFieldName, setPreselectedFieldName] = useState("");
   const [initialTab, setInitialTab] = useState<"create" | "library">("create");
-  // customColumns now holds BOTH user-created custom fields AND
-  // built-in extra columns Asana surfaces under "Show more" (Priority,
-  // Tags, Blocked by, Blocks, Completion date, Last modified, Creation
-  // date, Created by). Discriminator is the optional `builtin` key —
-  // when present, the column reads from the Task object instead of
-  // CustomFieldValue. The `id` for built-ins is the BUILTIN_FIELDS id
-  // (e.g. "priority"), `type` is "__BUILTIN__".
-  const [customColumns, setCustomColumns] = useState<ListColumn[]>([]);
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
   const [showCalendarSync, setShowCalendarSync] = useState(false);
   const [calendarSyncType, setCalendarSyncType] = useState<"outlook" | "google" | "ical">("outlook");
@@ -264,13 +280,16 @@ export default function MyTasksPage() {
   const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
 
   // Per-user UI preferences — server-backed via useUiState so they
-  // follow the user across devices/browsers. We bundle the 4 my-tasks
+  // follow the user across devices/browsers. We bundle the my-tasks
   // prefs into one uiState sub-key ("myTasks") for atomic reads/writes.
+  // `customColumns` was added in Fase 2A so the user's pinned built-in
+  // extras (and eventually custom fields) survive reload + device.
   interface MyTasksUiState {
     columnWidths: Record<string, number>;
     hiddenColumns: string[];
     viewIcon: string;
     viewName: string;
+    customColumns?: ListColumn[];
   }
   const DEFAULT_MY_TASKS_UI: MyTasksUiState = {
     columnWidths: {
@@ -282,6 +301,7 @@ export default function MyTasksPage() {
     hiddenColumns: [],
     viewIcon: "📋",
     viewName: "List",
+    customColumns: [],
   };
   const {
     value: myTasksUi,
@@ -291,6 +311,34 @@ export default function MyTasksPage() {
 
   // Adapter shims so the rest of the component reads/writes individual
   // pieces as it did before; under the hood they all hit one payload.
+  //
+  // customColumns now reads from / writes through useUiState so the
+  // user's pinned columns survive reload AND follow them across
+  // devices/browsers (same store as columnWidths + hiddenColumns).
+  // The discriminator stays on each column: optional `builtin` key
+  // means it renders from Task fields, otherwise from CustomFieldValue.
+  const customColumns = useMemo(
+    () => (myTasksUi.customColumns ?? []) as ListColumn[],
+    [myTasksUi.customColumns]
+  );
+  const setCustomColumns = useCallback(
+    (
+      next:
+        | ListColumn[]
+        | ((prev: ListColumn[]) => ListColumn[])
+    ) => {
+      setMyTasksUi((prev) => {
+        const current = (prev.customColumns ?? []) as ListColumn[];
+        const resolved =
+          typeof next === "function"
+            ? (next as (p: ListColumn[]) => ListColumn[])(current)
+            : next;
+        return { ...prev, customColumns: resolved };
+      });
+    },
+    [setMyTasksUi]
+  );
+
   const columnWidths = useMemo(
     () => ({ ...DEFAULT_MY_TASKS_UI.columnWidths, ...(myTasksUi.columnWidths ?? {}) }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -869,9 +917,17 @@ export default function MyTasksPage() {
   }
 
   function handleFieldCreated(field: CreatedFieldInfo) {
+    // When the modal persisted the field (projectId was provided) we
+    // get back the real CustomFieldDefinition id — use it so the
+    // value lookup in TaskRow (`task.customFieldValues.find(v =>
+    // v.fieldId === col.id)`) matches and the cells render real
+    // values. For cosmetic-only fields (no projectId on the modal)
+    // we fall back to a synthetic id; cells stay empty until the
+    // user wires the field to a project.
+    const columnId = field.id ? field.id : `cf-${Date.now()}`;
     setCustomColumns((prev) => [
       ...prev,
-      { id: `cf-${Date.now()}`, name: field.name, type: field.type, color: field.color },
+      { id: columnId, name: field.name, type: field.type, color: field.color },
     ]);
   }
 
@@ -3079,6 +3135,13 @@ function TaskRow({
           })) as ListColumn[])
       ).map((col) => {
         const w = col.width || 110;
+        // For non-builtin columns (real CustomFieldDefinition), look
+        // up the value embedded on the task. The field definition
+        // ships alongside so CustomFieldCell can render with the
+        // correct type + options without an extra fetch.
+        const cfv = !col.builtin
+          ? task.customFieldValues?.find((v) => v.fieldId === col.id)
+          : undefined;
         return (
           <div
             key={col.id}
@@ -3087,9 +3150,13 @@ function TaskRow({
           >
             {col.builtin ? (
               <BuiltinFieldCell builtinId={col.builtin} task={task} />
-            ) : (
-              <span className="text-[13px] text-gray-300">—</span>
-            )}
+            ) : cfv ? (
+              <CustomFieldCell
+                type={cfv.field.type}
+                options={(cfv.field.options as { id: string; label: string; color?: string }[] | null) || null}
+                value={cfv.value}
+              />
+            ) : null}
           </div>
         );
       })}

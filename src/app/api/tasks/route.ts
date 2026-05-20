@@ -130,6 +130,24 @@ export async function GET(req: Request) {
             },
           },
         },
+        // Custom field values + their definitions so the My Tasks
+        // list can render pinned custom-field columns in one round
+        // trip. Each row carries everything CustomFieldCell needs:
+        // fieldId, value JSON, and the parent field's name/type/options.
+        customFieldValues: {
+          select: {
+            fieldId: true,
+            value: true,
+            field: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                options: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             subtasks: true,
