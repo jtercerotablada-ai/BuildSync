@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
@@ -55,6 +55,21 @@ const patchSchema = z.object({
   confirmationMessage: z.string().max(2000).nullable().optional(),
   notifyOnSubmission: z.boolean().optional(),
   visibility: z.enum(["PUBLIC", "ORGANIZATION"]).optional(),
+  // Open-ended settings bag — currently holds coverImageUrl. The
+  // bag is a Prisma Json column so we just accept any shape and
+  // pass through, but bound the URL length to keep payloads sane.
+  settings: z
+    .object({
+      coverImageUrl: z
+        .string()
+        .url()
+        .max(2048)
+        .nullable()
+        .optional(),
+    })
+    .partial()
+    .optional()
+    .nullable(),
 });
 
 async function assertFormEditAccess(formId: string, userId: string) {
@@ -226,6 +241,10 @@ export async function PATCH(
       data.notifyOnSubmission = p.notifyOnSubmission;
     }
     if (p.visibility !== undefined) data.visibility = p.visibility;
+    if (p.settings !== undefined) {
+      // Json column — Prisma accepts InputJsonValue. Null clears it.
+      data.settings = (p.settings ?? Prisma.JsonNull) as Prisma.InputJsonValue;
+    }
 
     const form = await prisma.form.update({
       where: { id: formId },

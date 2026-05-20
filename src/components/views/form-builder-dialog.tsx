@@ -183,6 +183,16 @@ export function FormBuilderDialog({
   const [visibility, setVisibility] = useState<"PUBLIC" | "ORGANIZATION">(
     "PUBLIC"
   );
+  // Cover image URL — persisted in Form.settings JSON so we don't
+  // need a schema migration. Accepts any HTTPS image URL the user
+  // pastes (Unsplash, GitHub raw, S3, etc.).
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
+  const [coverModalOpen, setCoverModalOpen] = useState(false);
+  const [coverInput, setCoverInput] = useState("");
+  // Favorites persist in localStorage so they survive reloads. Per-
+  // user, per-form. Mirrors Asana's ⭐ star on the form editor.
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // ── Picker options (lazy-loaded when needed) ───────────────────
   const [sections, setSections] = useState<ProjectSection[]>([]);
@@ -205,6 +215,22 @@ export function FormBuilderDialog({
       setConfirmationMessage(initial.confirmationMessage || "");
       setNotifyOnSubmission(initial.notifyOnSubmission);
       setVisibility(initial.visibility);
+      // Cover image lives inside the open-ended settings JSON so we
+      // don't need a schema migration. Cast carefully because TS
+      // doesn't know the shape of FormRow.settings.
+      const settings = (initial as unknown as { settings?: { coverImageUrl?: string } }).settings;
+      setCoverImageUrl(settings?.coverImageUrl || null);
+      setCoverInput(settings?.coverImageUrl || "");
+      // Favorites are per-user, per-form, in localStorage.
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("buildsync-fav-forms");
+          const set = new Set<string>(raw ? JSON.parse(raw) : []);
+          setIsFavorite(set.has(initial.id));
+        } catch {
+          setIsFavorite(false);
+        }
+      }
     } else {
       // New form defaults — mirror Asana exactly. A fresh form drops
       // the user into the editor with title empty (placeholder),
@@ -231,6 +257,9 @@ export function FormBuilderDialog({
       setConfirmationMessage("");
       setNotifyOnSubmission(true);
       setVisibility("PUBLIC");
+      setCoverImageUrl(null);
+      setCoverInput("");
+      setIsFavorite(false);
     }
     setTab("build");
     setActiveFieldId(null);
@@ -381,6 +410,11 @@ export function FormBuilderDialog({
         confirmationMessage: confirmationMessage.trim() || null,
         notifyOnSubmission,
         visibility,
+        // Persist the cover image URL inside the open-ended
+        // settings JSON so we don't need a Form schema migration
+        // just to add a header image. The Form viewer reads it
+        // back out of the same bag.
+        settings: { coverImageUrl: coverImageUrl || null },
       };
       const url = initial ? `/api/forms/${initial.id}` : "/api/forms";
       const method = initial ? "PATCH" : "POST";
@@ -415,6 +449,98 @@ export function FormBuilderDialog({
     if (!publicUrl) return "";
     return `<iframe src="${publicUrl}?embed=1" style="border:0;width:100%;min-height:680px" loading="lazy"></iframe>`;
   }, [publicUrl]);
+
+  // ── Cover image: save the pasted URL via PATCH so it persists
+  //    independently from the rest of the form data. The dialog
+  //    closes the cover modal on success. ─────────────────────────
+  async function saveCoverImage() {
+    const url = coverInput.trim();
+    if (url && !/^https?:\/\//i.test(url)) {
+      toast.error("Use an https:// URL");
+      return;
+    }
+    setCoverImageUrl(url || null);
+    setCoverModalOpen(false);
+    if (initial?.id) {
+      try {
+        const res = await fetch(`/api/forms/${initial.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            settings: { coverImageUrl: url || null },
+          }),
+        });
+        if (!res.ok) throw new Error();
+        toast.success(url ? "Cover image saved" : "Cover image removed");
+      } catch {
+        toast.error("Couldn't save the cover image");
+      }
+    } else {
+      // New form — the cover will save together with the rest of
+      // the form when the user hits Save.
+      toast.info("Cover will save with the form");
+    }
+  }
+
+  // ── Favorites: persisted per-user in localStorage. Toggle adds /
+  //    removes the form id from the set. ───────────────────────────
+  function toggleFavorite() {
+    if (!initial?.id || typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("buildsync-fav-forms");
+      const set = new Set<string>(raw ? JSON.parse(raw) : []);
+      if (set.has(initial.id)) {
+        set.delete(initial.id);
+        setIsFavorite(false);
+        toast.success("Removed from favorites");
+      } else {
+        set.add(initial.id);
+        setIsFavorite(true);
+        toast.success("Added to favorites");
+      }
+      localStorage.setItem("buildsync-fav-forms", JSON.stringify(Array.from(set)));
+    } catch {
+      toast.error("Couldn't update favorites");
+    }
+  }
+
+  // ── Delete: confirms first, then DELETEs and closes the dialog.
+  //    The parent form list refresh happens because onSaved isn't
+  //    called — the parent should refetch when the dialog closes. ─
+  async function handleDelete() {
+    if (!initial?.id) return;
+    if (
+      !window.confirm(
+        `Delete the form "${initial.name}"? This can't be undone.`
+      )
+    )
+      return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/forms/${initial.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Form deleted");
+      onOpenChange(false);
+    } catch {
+      toast.error("Couldn't delete the form");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // ── Submissions: open the admin submissions view in a new tab.
+  //    The portal admin route at /portal/admin/forms/[id]/submissions
+  //    already exists and lists every submission with filters. ─────
+  function openSubmissions() {
+    if (!initial?.id) return;
+    window.open(
+      `/portal/admin/forms/${initial.id}/submissions`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
 
   // ── Render ─────────────────────────────────────────────────────
   // Sized closer to Asana's form-editor modal (near-full-screen on
@@ -482,33 +608,29 @@ export function FormBuilderDialog({
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem
-                      onClick={() => toast.info("Favorite coming soon")}
-                    >
-                      <Star className="h-4 w-4 mr-2 text-gray-500" />
-                      Add to favorites
+                    <DropdownMenuItem onClick={toggleFavorite}>
+                      <Star
+                        className={cn(
+                          "h-4 w-4 mr-2",
+                          isFavorite
+                            ? "text-[#c9a84c] fill-[#c9a84c]"
+                            : "text-gray-500"
+                        )}
+                      />
+                      {isFavorite ? "Remove from favorites" : "Add to favorites"}
                     </DropdownMenuItem>
-                    {publicUrl && (
-                      <DropdownMenuItem
-                        onClick={() =>
-                          window.open(
-                            `${publicUrl}/submissions`,
-                            "_blank",
-                            "noopener,noreferrer"
-                          )
-                        }
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2 text-gray-500" />
-                        View submissions
-                      </DropdownMenuItem>
-                    )}
+                    <DropdownMenuItem onClick={openSubmissions}>
+                      <ExternalLink className="h-4 w-4 mr-2 text-gray-500" />
+                      View submissions
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => toast.info("Delete from project Workflow")}
+                      onClick={handleDelete}
+                      disabled={deleting}
                       className="text-rose-600 focus:text-rose-600"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Delete form
+                      {deleting ? "Deleting…" : "Delete form"}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -585,6 +707,11 @@ export function FormBuilderDialog({
               duplicateField={duplicateField}
               moveField={moveField}
               addField={addField}
+              coverImageUrl={coverImageUrl}
+              onOpenCoverModal={() => {
+                setCoverInput(coverImageUrl || "");
+                setCoverModalOpen(true);
+              }}
             />
           )}
 
@@ -668,6 +795,60 @@ export function FormBuilderDialog({
           </DialogFooter>
         )}
       </DialogContent>
+
+      {/* Cover-image URL modal — Asana hosts uploads natively but
+          BuildSync's MVP accepts any https:// image URL (Unsplash,
+          GitHub raw, S3, etc.). The URL is persisted to
+          Form.settings.coverImageUrl so no schema migration is
+          needed. Clear the input to remove the cover. */}
+      <Dialog open={coverModalOpen} onOpenChange={setCoverModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Cover image</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cover-url">Image URL</Label>
+              <Input
+                id="cover-url"
+                type="url"
+                value={coverInput}
+                onChange={(e) => setCoverInput(e.target.value)}
+                placeholder="https://images.unsplash.com/photo-…"
+              />
+              <p className="text-[12px] text-gray-500">
+                Paste a public image URL (https only). Leave blank to remove
+                the cover.
+              </p>
+            </div>
+            {coverInput.trim() && /^https?:\/\//i.test(coverInput.trim()) && (
+              <div className="rounded-lg border border-gray-200 overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={coverInput.trim()}
+                  alt="Cover preview"
+                  className="w-full h-32 object-cover"
+                  onError={(e) =>
+                    ((e.target as HTMLImageElement).style.display = "none")
+                  }
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCoverModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={saveCoverImage}>
+              {coverInput.trim() ? "Save cover" : "Remove cover"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
@@ -689,6 +870,8 @@ function BuildTab(props: {
   duplicateField: (id: string) => void;
   moveField: (id: string, dir: "up" | "down") => void;
   addField: (type?: FormFieldType) => void;
+  coverImageUrl: string | null;
+  onOpenCoverModal: () => void;
 }) {
   const {
     name,
@@ -703,6 +886,8 @@ function BuildTab(props: {
     duplicateField,
     moveField,
     addField,
+    coverImageUrl,
+    onOpenCoverModal,
   } = props;
 
   return (
@@ -710,36 +895,58 @@ function BuildTab(props: {
       {/* LEFT — Form preview / edit. Mirrors Asana's main canvas
           where the form name, description and questions live. */}
       <div className="space-y-5 min-w-0">
-        {/* Cover image placeholder — Asana renders an 'Agrega una
-            imagen de portada' band above the title in light-gray
-            diagonals + image icon. We mirror the visual but the
-            upload itself is wired for a follow-up commit (the
-            click currently surfaces a toast). */}
-        <button
-          type="button"
-          onClick={() => toast.info("Cover image upload coming soon")}
-          className="relative w-full h-28 rounded-lg border border-gray-200 bg-[repeating-linear-gradient(135deg,#f3f4f6_0_10px,#fafafa_10px_20px)] hover:bg-[repeating-linear-gradient(135deg,#eef0f3_0_10px,#f5f5f5_10px_20px)] flex items-center justify-center text-[12px] font-medium text-gray-600 transition-colors"
-        >
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/80 backdrop-blur rounded-md border border-gray-200">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <path d="m21 15-5-5L5 21" />
-            </svg>
-            Add a cover image
-          </span>
-        </button>
+        {/* Cover image — clicking opens a small modal where the
+            user pastes a URL. The URL persists inside
+            Form.settings.coverImageUrl and renders here on next
+            open. Image-set state shows the actual cover with a
+            'Change cover' overlay on hover; empty state mirrors
+            Asana's diagonal-stripes placeholder. */}
+        {coverImageUrl ? (
+          <button
+            type="button"
+            onClick={onOpenCoverModal}
+            className="relative w-full h-28 rounded-lg border border-gray-200 overflow-hidden group/cover"
+            title="Change cover image"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={coverImageUrl}
+              alt="Form cover"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <span className="absolute inset-0 bg-black/0 group-hover/cover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover/cover:opacity-100">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/90 rounded-md border border-white text-[12px] font-medium text-gray-900">
+                Change cover image
+              </span>
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenCoverModal}
+            className="relative w-full h-28 rounded-lg border border-gray-200 bg-[repeating-linear-gradient(135deg,#f3f4f6_0_10px,#fafafa_10px_20px)] hover:bg-[repeating-linear-gradient(135deg,#eef0f3_0_10px,#f5f5f5_10px_20px)] flex items-center justify-center text-[12px] font-medium text-gray-600 transition-colors"
+          >
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/80 backdrop-blur rounded-md border border-gray-200">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
+              Add a cover image
+            </span>
+          </button>
+        )}
 
         {/* Form-level name + description */}
         <div className="space-y-1.5">

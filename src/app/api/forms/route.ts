@@ -43,6 +43,14 @@ const createFormSchema = z.object({
   confirmationMessage: z.string().max(2000).nullable().optional(),
   notifyOnSubmission: z.boolean().optional(),
   visibility: z.enum(["PUBLIC", "ORGANIZATION"]).optional(),
+  // Open-ended settings bag, currently only stores coverImageUrl.
+  settings: z
+    .object({
+      coverImageUrl: z.string().url().max(2048).nullable().optional(),
+    })
+    .partial()
+    .optional()
+    .nullable(),
 });
 
 // GET /api/forms — list forms in the user's projects
@@ -192,6 +200,9 @@ export async function POST(req: Request) {
         confirmationMessage: data.confirmationMessage ?? null,
         notifyOnSubmission: data.notifyOnSubmission ?? true,
         visibility: data.visibility ?? "PUBLIC",
+        settings: data.settings
+          ? (data.settings as unknown as object)
+          : undefined,
       },
       include: {
         project: { select: { id: true, name: true } },
