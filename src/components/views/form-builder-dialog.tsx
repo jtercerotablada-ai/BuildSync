@@ -433,21 +433,24 @@ export function FormBuilderDialog({
                   Change
                 </button>
               </div>
+              {/* Two tabs only — Asana ships 'Preguntas / Ajustes',
+                  and the share panel lives inside Ajustes. The legacy
+                  'share' tab is retained as a target for the privacy
+                  banner's Change link by aliasing 'share' to
+                  'settings' at the tab handler. */}
               <div className="flex gap-4 border-b -mb-3 -mx-6 px-6 pt-2">
-                {(["build", "settings", "share"] as const).map((t) => (
+                {(["build", "settings"] as const).map((t) => (
                   <button
                     key={t}
                     onClick={() => setTab(t)}
-                    disabled={t === "share" && !initial}
                     className={cn(
                       "pb-2 text-[13px] font-medium border-b-2 -mb-px transition-colors capitalize",
-                      tab === t
+                      (tab === t || (t === "settings" && tab === "share"))
                         ? "border-black text-black"
-                        : "border-transparent text-gray-500 hover:text-gray-800",
-                      t === "share" && !initial && "opacity-40 cursor-not-allowed"
+                        : "border-transparent text-gray-500 hover:text-gray-800"
                     )}
                   >
-                    {t === "share" ? "Share" : t === "build" ? "Build" : "Settings"}
+                    {t === "build" ? "Questions" : "Settings"}
                   </button>
                 ))}
               </div>
@@ -480,29 +483,40 @@ export function FormBuilderDialog({
             />
           )}
 
-          {!showTemplatePicker && tab === "settings" && (
-            <SettingsTab
-              sections={sections}
-              members={members}
-              defaultSectionId={defaultSectionId}
-              setDefaultSectionId={setDefaultSectionId}
-              defaultAssigneeId={defaultAssigneeId}
-              setDefaultAssigneeId={setDefaultAssigneeId}
-              confirmationMessage={confirmationMessage}
-              setConfirmationMessage={setConfirmationMessage}
-              notifyOnSubmission={notifyOnSubmission}
-              setNotifyOnSubmission={setNotifyOnSubmission}
-              visibility={visibility}
-              setVisibility={setVisibility}
-            />
-          )}
-
-          {!showTemplatePicker && tab === "share" && initial && (
-            <ShareTab
-              publicUrl={publicUrl}
-              embedSnippet={embedSnippet}
-              visibility={visibility}
-            />
+          {!showTemplatePicker && (tab === "settings" || tab === "share") && (
+            <div className="space-y-8">
+              {/* Asana merges Settings and Share into a single
+                  'Ajustes' tab — task settings on top, sharing /
+                  embed at the bottom. We mirror that layout here so
+                  the user has one Settings surface instead of two
+                  tabs to flip between. */}
+              <SettingsTab
+                sections={sections}
+                members={members}
+                defaultSectionId={defaultSectionId}
+                setDefaultSectionId={setDefaultSectionId}
+                defaultAssigneeId={defaultAssigneeId}
+                setDefaultAssigneeId={setDefaultAssigneeId}
+                confirmationMessage={confirmationMessage}
+                setConfirmationMessage={setConfirmationMessage}
+                notifyOnSubmission={notifyOnSubmission}
+                setNotifyOnSubmission={setNotifyOnSubmission}
+                visibility={visibility}
+                setVisibility={setVisibility}
+              />
+              {initial && (
+                <div className="pt-6 border-t">
+                  <h4 className="text-[13px] font-semibold text-gray-900 mb-3">
+                    Share form
+                  </h4>
+                  <ShareTab
+                    publicUrl={publicUrl}
+                    embedSnippet={embedSnippet}
+                    visibility={visibility}
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
 
