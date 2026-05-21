@@ -2529,7 +2529,11 @@ function TaskSection({
                   <div className="w-4 h-4 rounded-full border-2 border-gray-200 flex-shrink-0" />
                 )}
               </div>
-              <div className="flex-1 min-w-0">
+              {/* min-w-[260px] keeps the inline add-task input at
+                  the same horizontal slice the data rows use, so the
+                  column placeholders below it line up with the rows
+                  above. */}
+              <div className="flex-1 min-w-[260px]">
                 <input
                   ref={inputRef}
                   type="text"
@@ -2615,7 +2619,14 @@ function TaskSection({
               <div className="w-8 flex-shrink-0 flex items-center">
                 <Plus className="w-3.5 h-3.5 text-gray-300" />
               </div>
-              <span className="flex-1 text-[13px] text-gray-400">Add task</span>
+              {/* min-w-[260px] mirrors the data row's Task name cell
+                  so this trigger occupies the same horizontal slice
+                  the rows above use. Without it, flex-1 shrinks the
+                  "Add task" text to its content width, pulling every
+                  column placeholder to its right ~200px left of the
+                  data row's column borders — the desalineación Juan
+                  flagged. */}
+              <span className="flex-1 min-w-[260px] text-[13px] text-gray-400">Add task</span>
               {!hiddenColumns.has("dueDate") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-dueDate)" }} />}
               {!hiddenColumns.has("collaborators") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }} />}
               {!hiddenColumns.has("projects") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-projects)" }} />}
