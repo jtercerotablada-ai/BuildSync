@@ -20,6 +20,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyTaskAccess } from "@/lib/auth-guards";
+import { recomputeFormulasForTask } from "@/lib/formula-eval";
 
 const bodySchema = z.object({
   // `unknown` because the shape depends on the field type — we
@@ -249,6 +250,25 @@ export async function PATCH(
       },
       update: { value: JSON.parse(JSON.stringify(coerced)) },
     });
+
+    // After saving, recompute every FORMULA / ROLLUP on this task —
+    // edits to source values propagate to dependent formulas in the
+    // same round trip, matching Asana's "type a number and watch
+    // Doble esfuerzo update" behavior. Skip when the edited field
+    // itself is a formula (its result is what we just wrote).
+    if (
+      task.projectId &&
+      field.type !== "FORMULA" &&
+      field.type !== "ROLLUP"
+    ) {
+      try {
+        await recomputeFormulasForTask(taskId, task.projectId);
+      } catch (e) {
+        // Non-fatal — the source write succeeded; formulas can be
+        // recomputed on the next edit if this one threw.
+        console.error("[formula recompute] error:", e);
+      }
+    }
 
     return NextResponse.json({
       taskId: row.taskId,
