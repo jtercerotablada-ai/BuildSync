@@ -1513,6 +1513,15 @@ export default function MyTasksPage() {
               className="hidden md:flex items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20"
               style={{ height: "var(--col-header-h, 32px)" }}
             >
+          {/* Grip-handle spacer — matches the row's hidden GripVertical
+              (w-4 -ml-1 mr-1) so the header columns line up exactly
+              with the data row columns. Without it the entire header
+              sat ~16px to the left of every row cell, causing
+              "DESALINEADAS" — Juan flagged this after the 11+ custom
+              column test pushed enough columns to make the offset
+              obvious across the whole row. */}
+          <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
+
           {/* Checkbox spacer */}
           <div className="w-8 flex-shrink-0" />
 
@@ -2401,6 +2410,10 @@ function TaskSection({
         className="flex items-center px-4 md:px-6 w-full hover:bg-[var(--surface-hover)] text-left border-b border-[var(--border-subtle)]"
         style={{ height: "var(--row-h)" }}
       >
+        {/* Grip-handle spacer — matches the data row's hidden
+            GripVertical so the chevron + section name line up with
+            the row's checkbox + task name beneath. */}
+        <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
         <div className="w-8 flex-shrink-0 flex items-center">
           {section.collapsed ? (
             <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
@@ -2427,6 +2440,9 @@ function TaskSection({
               className="flex items-center px-4 md:px-6 border-b border-[var(--border-subtle)] bg-[#c9a84c]/10/60"
               style={{ height: "var(--row-h)" }}
             >
+              {/* Grip-handle spacer — aligns this input row with the
+                  data rows that have a hidden GripVertical icon. */}
+              <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
               <div className="w-8 flex-shrink-0 flex items-center">
                 {activeTaskType === "MILESTONE" ? (
                   <Diamond className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
@@ -2504,6 +2520,10 @@ function TaskSection({
               className="flex items-center px-4 md:px-6 w-full text-left border-b border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] transition-colors"
               style={{ height: "var(--row-h)" }}
             >
+              {/* Grip-handle spacer — aligns the + Add task button with
+                  the data row checkbox column (which sits to the
+                  right of a hidden GripVertical). */}
+              <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
               <div className="w-8 flex-shrink-0 flex items-center">
                 <Plus className="w-3.5 h-3.5 text-gray-300" />
               </div>
