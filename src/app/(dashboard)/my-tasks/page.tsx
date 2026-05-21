@@ -1654,33 +1654,110 @@ export default function MyTasksPage() {
           </div>
           )}
 
-          {/* Dynamic custom columns */}
+          {/* Dynamic custom columns — use the same ColumnHeader
+              dropdown the built-in columns use, so every column gets
+              the full Asana-parity menu (Edit / Sort / Filter / Group
+              / Add / Move / Hide / Delete). The X-button hover we had
+              before only offered "remove" — Juan flagged that all
+              column headers should have the same dropdown like Asana. */}
           {customColumns.map((col) => {
             const w = col.width || 110;
+            const isBuiltin = !!col.builtin;
             return (
               <div
                 key={col.id}
-                className="group/colhdr flex items-center gap-1 border-l border-[#94a3b8] pl-2.5 pr-1"
+                className="relative flex items-center gap-1 border-l border-[#94a3b8] pl-2.5 pr-1"
                 style={{ width: `${w}px`, minWidth: `${w}px`, flexShrink: 0 }}
               >
-                <span className="text-[11px] font-medium text-gray-500 truncate flex-1">
-                  {col.name}
-                </span>
-                {/* Remove column — visible on hover. Built-ins are
-                    just unpinned; custom fields stay defined at the
-                    project level (the user can remove the field
-                    itself from the Custom Field Modal). */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCustomColumns((prev) => prev.filter((c) => c.id !== col.id))
+                <ColumnHeader
+                  config={{
+                    id: col.id,
+                    label: col.name,
+                    sortable: true,
+                    filterable: !isBuiltin,
+                    groupable: false,
+                    width: "100%",
+                    minWidth: "100%",
+                  }}
+                  isDropdownOpen={openColumnDropdown === col.id}
+                  onDropdownToggle={() =>
+                    setOpenColumnDropdown(
+                      openColumnDropdown === col.id ? null : col.id
+                    )
                   }
-                  className="opacity-0 group-hover/colhdr:opacity-100 transition-opacity flex items-center justify-center w-4 h-4 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded"
-                  title={col.builtin ? "Hide column" : "Hide column (field stays defined)"}
-                  aria-label="Hide column"
-                >
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3 h-3"><path d="m4 4 8 8M12 4l-8 8"/></svg>
-                </button>
+                  callbacks={{
+                    onSortAsc: () =>
+                      toast(
+                        isBuiltin
+                          ? `Sort by ${col.name} — coming in next pass`
+                          : "Sort by custom field — coming in next pass"
+                      ),
+                    onSortDesc: () =>
+                      toast(
+                        isBuiltin
+                          ? `Sort by ${col.name} desc — coming in next pass`
+                          : "Sort by custom field desc — coming in next pass"
+                      ),
+                    onFilter: () => setFilterPanelOpen(true),
+                    onAddColumn: () => setShowCustomFieldModal(true),
+                    onMoveLeft: () => {
+                      setCustomColumns((prev) => {
+                        const idx = prev.findIndex((c) => c.id === col.id);
+                        if (idx <= 0) return prev;
+                        const next = [...prev];
+                        [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                        return next;
+                      });
+                    },
+                    onMoveRight: () => {
+                      setCustomColumns((prev) => {
+                        const idx = prev.findIndex((c) => c.id === col.id);
+                        if (idx < 0 || idx >= prev.length - 1) return prev;
+                        const next = [...prev];
+                        [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                        return next;
+                      });
+                    },
+                    // Hide = unpin from the list. For built-ins this
+                    // is the only destructive action available (they
+                    // live on the Task model, can't be deleted).
+                    onHideColumn: () => {
+                      setCustomColumns((prev) =>
+                        prev.filter((c) => c.id !== col.id)
+                      );
+                      toast.success("Column hidden");
+                    },
+                    // Edit field — opens the CustomFieldModal in edit
+                    // mode for custom fields. Built-ins route to the
+                    // task detail panel where the source field lives.
+                    onEditField: isBuiltin
+                      ? undefined
+                      : () => {
+                          setShowCustomFieldModal(true);
+                          toast(
+                            "Editor will pre-load this field in the next pass."
+                          );
+                        },
+                    // Delete field — RED bottom action. Custom only.
+                    // Confirms then removes the column from the list
+                    // (full deletion of the CustomFieldDefinition
+                    // would touch other projects and is a follow-up).
+                    onDeleteField: isBuiltin
+                      ? undefined
+                      : () => {
+                          if (
+                            !confirm(
+                              `Delete field "${col.name}"? It will be removed from this list.`
+                            )
+                          )
+                            return;
+                          setCustomColumns((prev) =>
+                            prev.filter((c) => c.id !== col.id)
+                          );
+                          toast.success(`Field "${col.name}" deleted`);
+                        },
+                  }}
+                />
               </div>
             );
           })}

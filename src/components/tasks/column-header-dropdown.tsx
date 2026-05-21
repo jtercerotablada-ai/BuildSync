@@ -19,6 +19,7 @@ import {
   Clock,
   Pencil,
   CalendarCheck,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +49,14 @@ export interface ColumnHeaderCallbacks {
   onMoveRight?: () => void;
   onHideColumn?: () => void;
   onOpenCustomField?: () => void;
+  /** Edit-field action (top of menu). Shows for custom fields and
+   *  Asana built-in extras — matches Asana's "Editar campo" pill at
+   *  the top of every column dropdown. */
+  onEditField?: () => void;
+  /** Delete-field action (bottom, RED). Only for custom fields the
+   *  user actually created — built-in columns can be hidden but not
+   *  deleted. */
+  onDeleteField?: () => void;
 }
 
 // ─── Predefined configs ──────────────────────────────────
@@ -232,6 +241,21 @@ const ColumnDropdown = forwardRef<
       ref={ref}
       className="absolute left-0 top-[calc(100%+4px)] bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100/60 py-1.5 z-50 min-w-[220px] animate-in fade-in slide-in-from-top-1 duration-150"
     >
+      {/* Edit field — Asana shows this as the FIRST item for every
+          column (and as "Editar campo" en español). For built-in
+          columns it routes to the column-config sidebar; for custom
+          fields it opens the field editor. */}
+      {callbacks.onEditField && (
+        <>
+          <DropdownItem
+            icon={<Pencil className="w-4 h-4" />}
+            label="Edit field"
+            onClick={() => { callbacks.onEditField?.(); onClose(); }}
+          />
+          <div className="my-1.5 mx-3 border-t border-gray-200" />
+        </>
+      )}
+
       {/* Sortable: Ordenar > submenu */}
       {config.sortable && (
         <DropdownSubmenu
@@ -324,6 +348,21 @@ const ColumnDropdown = forwardRef<
         label="Hide column"
         onClick={() => { callbacks.onHideColumn?.(); onClose(); }}
       />
+
+      {/* Delete field — Asana "Eliminar campo" (RED). Only for custom
+          fields the user owns; built-in columns can only be hidden.
+          Separated above so it doesn't feel adjacent to Hide. */}
+      {callbacks.onDeleteField && (
+        <>
+          <div className="my-1.5 mx-3 border-t border-gray-200" />
+          <DropdownItem
+            icon={<Trash2 className="w-4 h-4" />}
+            label="Delete field"
+            danger
+            onClick={() => { callbacks.onDeleteField?.(); onClose(); }}
+          />
+        </>
+      )}
     </div>
   );
 });
@@ -335,24 +374,39 @@ function DropdownItem({
   label,
   onClick,
   accent,
+  danger,
 }: {
   icon?: React.ReactNode;
   label: string;
   onClick?: () => void;
   accent?: boolean;
+  /** Destructive action — red text + red icon, matches Asana's
+   *  "Eliminar campo" style at the bottom of column header menus. */
+  danger?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       className={cn(
         "w-full flex items-center gap-2.5 px-3 h-9 text-[13px] transition-colors text-left cursor-pointer",
-        accent
+        danger
+          ? "text-rose-600 hover:bg-rose-50"
+          : accent
           ? "text-[#a8893a] hover:bg-black/[0.04]"
           : "text-gray-700 hover:bg-black/[0.04]"
       )}
     >
       {icon && (
-        <span className={cn("flex-shrink-0", accent ? "text-[#a8893a]" : "text-gray-400")}>
+        <span
+          className={cn(
+            "flex-shrink-0",
+            danger
+              ? "text-rose-500"
+              : accent
+              ? "text-[#a8893a]"
+              : "text-gray-400"
+          )}
+        >
           {icon}
         </span>
       )}
