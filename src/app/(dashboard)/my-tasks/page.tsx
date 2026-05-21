@@ -464,6 +464,37 @@ export default function MyTasksPage() {
     return cols.join(" ");
   }, [hiddenColumns, customColumns.length]);
 
+  // Row-level grid template — matches what the header + TaskRow use
+  // when laid out as CSS Grid (not Flex). Includes the leading
+  // GripVertical spacer + checkbox columns the data row has before
+  // the Task name cell. This is the SAME pattern src/components/views
+  // /list-view.tsx uses with `[&>*+*]:border-l` — the project list
+  // view that renders crisp borders at every DPR/zoom because grid
+  // tracks align deterministically to the pixel grid (flex with
+  // per-cell border-l + overflow-hidden hits sub-pixel drift). The
+  // author of list-view.tsx documented the choice: "the only path
+  // that's 100% deterministic across browsers and immune to
+  // stacking-context bugs."
+  const rowGridTemplate = useMemo(() => {
+    // First cell is a COMBINED slot: Grip (16px) + Checkbox (32px) +
+    // Task name (≥260px, flexes). Grouping them as a single grid
+    // child means the [&>*+*]:border-l pattern won't draw unwanted
+    // verticals between Grip↔Checkbox and Checkbox↔Name — the FIRST
+    // border appears between this combined cell and the next column
+    // (Due date). Matches the project list view's "1 first cell +
+    // data cells" pattern in src/components/views/list-view.tsx.
+    const cols: string[] = [
+      "minmax(308px, 1fr)", // 16 + 32 + 260 = 308 min; flexes
+    ];
+    if (!hiddenColumns.has("dueDate")) cols.push("var(--col-dueDate)");
+    if (!hiddenColumns.has("collaborators")) cols.push("var(--col-collaborators)");
+    if (!hiddenColumns.has("projects")) cols.push("var(--col-projects)");
+    if (!hiddenColumns.has("visibility")) cols.push("var(--col-visibility)");
+    for (const c of customColumns) cols.push(`${c.width || 110}px`);
+    cols.push("32px"); // + Add column spacer
+    return cols.join(" ");
+  }, [hiddenColumns, customColumns]);
+
 
   // Double-click on any resize handle → reset all columns to defaults
   const handleResizeReset = useCallback(() => {
@@ -1555,52 +1586,67 @@ export default function MyTasksPage() {
               column dividers to jog at the header/data seam. */}
           {view === "list" && (
             <div
-              className="hidden md:flex items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20"
-              style={{ height: "var(--col-header-h, 32px)" }}
+              // CSS Grid header — matches the data row TaskRow's grid
+              // template exactly so every column edge lines up
+              // deterministically across all DPRs. The `[&>*+*]:border-l`
+              // pattern lives ON THE ROW DIRECTLY rather than on each
+              // child wrapper — this is the only path that's 100%
+              // deterministic across browsers and immune to stacking-
+              // context bugs at zooms != 67% on HiDPI displays. See
+              // src/components/views/list-view.tsx line ~1398 for the
+              // same pattern in the project list view.
+              className="hidden md:grid items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20 [&>*+*]:border-l-[1.5px] [&>*+*]:border-[#94a3b8] [&>*]:min-w-0"
+              style={{
+                height: "var(--col-header-h, 32px)",
+                gridTemplateColumns: rowGridTemplate,
+              }}
             >
-          {/* Grip-handle spacer — matches the row's hidden GripVertical
-              (w-4 -ml-1 mr-1) so the header columns line up exactly
-              with the data row columns. Without it the entire header
-              sat ~16px to the left of every row cell, causing
-              "DESALINEADAS" — Juan flagged this after the 11+ custom
-              column test pushed enough columns to make the offset
-              obvious across the whole row. */}
-          <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
+          {/* COMBINED FIRST CELL — mirrors the data row's combined
+              Grip + Checkbox + Task name slot. Internal flex preserves
+              the original visual; the wrapper itself is ONE grid child
+              so the row's [&>*+*]:border-l only adds vertical dividers
+              from Due date onward. */}
+          <div className="flex items-center min-w-0">
+            {/* Grip-handle spacer — matches the row's hidden
+                GripVertical (w-4 -ml-1 mr-1). */}
+            <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
 
-          {/* Checkbox spacer */}
-          <div className="w-8 flex-shrink-0" />
+            {/* Checkbox spacer (w-8). */}
+            <div className="w-8 flex-shrink-0" />
 
-          {/* Task name */}
-          <ColumnHeader
-            config={{ id: "name", ...COLUMN_CONFIGS.name }}
-            isDropdownOpen={openColumnDropdown === "name"}
-            onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "name" ? null : "name")}
-            callbacks={{
-              onSortAsc: () => setSortState({ field: "alphabetical", direction: "asc" }),
-              onSortDesc: () => setSortState({ field: "alphabetical", direction: "desc" }),
-              onFilter: () => setFilterPanelOpen(true),
-              onGroupBy: (field) => {
-                handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
-              },
-              onAddColumn: () => setShowCustomFieldModal(true),
-              onMoveLeft: () => toast("Already the first column"),
-              onMoveRight: () => toast.success("Column moved right"),
-              onHideColumn: () => toast("Cannot hide the Name column"),
-              onOpenCustomField: () => setShowCustomFieldModal(true),
-            }}
-          />
+            {/* Task name. */}
+            <ColumnHeader
+              config={{ id: "name", ...COLUMN_CONFIGS.name }}
+              isDropdownOpen={openColumnDropdown === "name"}
+              onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "name" ? null : "name")}
+              callbacks={{
+                onSortAsc: () => setSortState({ field: "alphabetical", direction: "asc" }),
+                onSortDesc: () => setSortState({ field: "alphabetical", direction: "desc" }),
+                onFilter: () => setFilterPanelOpen(true),
+                onGroupBy: (field) => {
+                  handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
+                },
+                onAddColumn: () => setShowCustomFieldModal(true),
+                onMoveLeft: () => toast("Already the first column"),
+                onMoveRight: () => toast.success("Column moved right"),
+                onHideColumn: () => toast("Cannot hide the Name column"),
+                onOpenCustomField: () => setShowCustomFieldModal(true),
+              }}
+            />
+          </div>
 
-          {/* Due date — left handle: border with Task name, right handle: border with Collaborators */}
+          {/* Due date — width from grid template (var(--col-dueDate)).
+              Border comes from row's [&>*+*]:border-l. */}
           {!hiddenColumns.has("dueDate") && (
-          <div className="relative flex-shrink-0 border-l-2 border-[#94a3b8]" style={{ width: "var(--col-dueDate)", minWidth: 60 }}>
-            {/* Left border handle: drag to resize Due date (Task name auto-adjusts via flex) */}
+          <div className="relative">
+            {/* Left border handle: drag to resize Due date */}
             <div
               onMouseDown={(e) => handleResizeStart(e, null, "dueDate")}
               onDoubleClick={handleResizeReset}
               className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
             />
             <ColumnHeader
-              config={{ id: "dueDate", ...COLUMN_CONFIGS.dueDate, width: "100%", minWidth: "100%" }}
+              config={{ id: "dueDate", ...COLUMN_CONFIGS.dueDate, width: "100%", minWidth: "100%", isFirst: true }}
               isDropdownOpen={openColumnDropdown === "dueDate"}
               onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "dueDate" ? null : "dueDate")}
               callbacks={{
@@ -1620,16 +1666,16 @@ export default function MyTasksPage() {
           </div>
           )}
 
-          {/* Collaborators — left handle: border with Due date */}
+          {/* Collaborators — width from grid template. */}
           {!hiddenColumns.has("collaborators") && (
-          <div className="relative flex-shrink-0 border-l-2 border-[#94a3b8]" style={{ width: "var(--col-collaborators)", minWidth: 60 }}>
+          <div className="relative">
             <div
               onMouseDown={(e) => handleResizeStart(e, "dueDate", "collaborators")}
               onDoubleClick={handleResizeReset}
               className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
             />
             <ColumnHeader
-              config={{ id: "collaborators", ...COLUMN_CONFIGS.collaborators, width: "100%", minWidth: "100%" }}
+              config={{ id: "collaborators", ...COLUMN_CONFIGS.collaborators, width: "100%", minWidth: "100%", isFirst: true }}
               isDropdownOpen={openColumnDropdown === "collaborators"}
               onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "collaborators" ? null : "collaborators")}
               callbacks={{
@@ -1642,16 +1688,16 @@ export default function MyTasksPage() {
           </div>
           )}
 
-          {/* Projects — left handle: border with Collaborators */}
+          {/* Projects — width from grid template. */}
           {!hiddenColumns.has("projects") && (
-          <div className="relative flex-shrink-0 border-l-2 border-[#94a3b8]" style={{ width: "var(--col-projects)", minWidth: 60 }}>
+          <div className="relative">
             <div
               onMouseDown={(e) => handleResizeStart(e, "collaborators", "projects")}
               onDoubleClick={handleResizeReset}
               className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
             />
             <ColumnHeader
-              config={{ id: "projects", ...COLUMN_CONFIGS.projects, width: "100%", minWidth: "100%" }}
+              config={{ id: "projects", ...COLUMN_CONFIGS.projects, width: "100%", minWidth: "100%", isFirst: true }}
               isDropdownOpen={openColumnDropdown === "projects"}
               onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "projects" ? null : "projects")}
               callbacks={{
@@ -1670,17 +1716,16 @@ export default function MyTasksPage() {
           </div>
           )}
 
-          {/* Visibility — left handle: border with Projects, right handle: right edge */}
+          {/* Visibility — width from grid template. */}
           {!hiddenColumns.has("visibility") && (
-          <div className="relative flex-shrink-0 border-l-2 border-[#94a3b8]" style={{ width: "var(--col-visibility)", minWidth: 60 }}>
-            {/* Left border: Projects ↔ Visibility */}
+          <div className="relative">
             <div
               onMouseDown={(e) => handleResizeStart(e, "projects", "visibility")}
               onDoubleClick={handleResizeReset}
               className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
             />
             <ColumnHeader
-              config={{ id: "visibility", ...COLUMN_CONFIGS.visibility, width: "100%", minWidth: "100%" }}
+              config={{ id: "visibility", ...COLUMN_CONFIGS.visibility, width: "100%", minWidth: "100%", isFirst: true }}
               isDropdownOpen={openColumnDropdown === "visibility"}
               onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "visibility" ? null : "visibility")}
               callbacks={{
@@ -1706,13 +1751,15 @@ export default function MyTasksPage() {
               before only offered "remove" — Juan flagged that all
               column headers should have the same dropdown like Asana. */}
           {customColumns.map((col) => {
-            const w = col.width || 110;
             const isBuiltin = !!col.builtin;
             return (
               <div
                 key={col.id}
-                className="relative flex items-center gap-1 border-l-2 border-[#94a3b8] pl-2.5 pr-1"
-                style={{ width: `${w}px`, minWidth: `${w}px`, flexShrink: 0 }}
+                // Width comes from the grid template; border comes from
+                // the row's [&>*+*]:border-l. Wrapper only needs
+                // `relative` (for the absolute resize handle) +
+                // `flex items-center` for vertical centering.
+                className="relative flex items-center gap-1 pl-2.5 pr-1"
               >
                 {/* Resize handle — absolute overlay at the left edge,
                     same pattern as the built-in Due date/Collaborators
@@ -1823,11 +1870,10 @@ export default function MyTasksPage() {
             );
           })}
 
-          {/* Add column (+) button — width MUST match the data row's
-              `w-8` spacer at the end of TaskRow (line ~2178) or every
-              column to its left drifts left in the data rows because
-              flex-1 distributes a different remainder. */}
-          <div className="w-8 flex-shrink-0 border-l-2 border-[#94a3b8] flex items-center justify-center">
+          {/* Add column (+) button — width comes from the trailing
+              "32px" in the grid template (matches the data row's
+              spacer). Border comes from the row's [&>*+*]:border-l. */}
+          <div className="flex items-center justify-center">
             <AddColumnDropdown
               activeBuiltinIds={customColumns
                 .map((c) => c.builtin)
@@ -1919,6 +1965,7 @@ export default function MyTasksPage() {
               customColumnCount={customColumns.length}
               customColumns={customColumns}
               hiddenColumns={hiddenColumns}
+              rowGridTemplate={rowGridTemplate}
               onReorderTasks={async (sectionId, orderedTaskIds) => {
                 // Optimistic: re-number positions on the in-memory
                 // tasks so the next re-render keeps the dragged order.
@@ -2452,6 +2499,7 @@ function TaskSection({
   customColumnCount = 0,
   customColumns = [],
   hiddenColumns = new Set(),
+  rowGridTemplate,
 }: {
   section: SmartSection;
   onToggleSection: () => void;
@@ -2462,6 +2510,9 @@ function TaskSection({
   customColumnCount?: number;
   customColumns?: ListColumn[];
   hiddenColumns?: Set<string>;
+  /** CSS grid template the TaskRow uses — same value passed to the
+   *  header so every row aligns to the same column tracks. */
+  rowGridTemplate?: string;
 }) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
@@ -2663,6 +2714,7 @@ function TaskSection({
               customColumnCount={customColumnCount}
               customColumns={customColumns}
               hiddenColumns={hiddenColumns}
+              rowGridTemplate={rowGridTemplate}
             />
           ))}
 
@@ -2748,6 +2800,7 @@ function ListDndProvider({
   customColumnCount,
   customColumns,
   hiddenColumns,
+  rowGridTemplate,
 }: {
   sections: SmartSection[];
   onMoveTask: (taskId: string, destSectionId: string) => Promise<void> | void;
@@ -2769,6 +2822,9 @@ function ListDndProvider({
   customColumnCount: number;
   customColumns?: ListColumn[];
   hiddenColumns?: Set<string>;
+  /** CSS grid template the TaskSection forwards to each TaskRow so
+   *  every data row uses the same column tracks as the header. */
+  rowGridTemplate?: string;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -2942,6 +2998,7 @@ function ListDndProvider({
           customColumnCount={customColumnCount}
           customColumns={customColumns}
           hiddenColumns={hiddenColumns}
+          rowGridTemplate={rowGridTemplate}
         />
       ))}
       {/* DragOverlay — rendered via portal to document.body. The
@@ -3041,6 +3098,7 @@ function TaskRow({
   customColumnCount = 0,
   customColumns = [],
   hiddenColumns = new Set(),
+  rowGridTemplate,
 }: {
   task: Task;
   onToggleComplete: () => void;
@@ -3049,6 +3107,13 @@ function TaskRow({
   customColumnCount?: number;
   customColumns?: ListColumn[];
   hiddenColumns?: Set<string>;
+  /** CSS grid-template-columns string computed once by the parent so
+   *  every row + the sticky header all align to the SAME track widths.
+   *  Required for the inherited [&>*+*]:border-l pattern to render
+   *  borders at deterministic X positions across rows (the flex
+   *  approach we used before had per-cell sub-pixel offsets that
+   *  broke at DPR 1.25 / zoom !== 67%). */
+  rowGridTemplate?: string;
 }) {
   const dueDateInfo = formatDueDate(task.dueDate);
 
@@ -3216,33 +3281,48 @@ function TaskRow({
           longer owns the drag — the row does. */}
       <div
         ref={setNodeRef}
-        style={{ ...dragStyle, height: "var(--row-h)" }}
+        style={{
+          ...dragStyle,
+          height: "var(--row-h)",
+          gridTemplateColumns: rowGridTemplate,
+        }}
         {...attributes}
         {...listeners}
         onClick={onClick}
-        className="hidden md:flex items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b-2 border-[var(--border-subtle)] cursor-pointer group transition-colors select-none"
+        // CSS Grid with inherited per-cell border-l matches the
+        // project list view's working pattern (file:
+        // src/components/views/list-view.tsx#L1398). Grid track
+        // widths align deterministically to the pixel grid at any
+        // DPR/zoom, fixing the sub-pixel border drift we hit with
+        // flex+per-cell-border-l at zoom levels != 67%.
+        //   [&>*+*]:border-l       → 1px border on every child
+        //                            EXCEPT the first (grip handle).
+        //   [&>*]:min-w-0          → cells can shrink under their
+        //                            content width (default min for
+        //                            flex/grid children is "auto").
+        className="hidden md:grid items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors select-none [&>*+*]:border-l [&>*+*]:border-[#94a3b8] [&>*]:min-w-0"
       >
-        {/* Drag hint — visible on hover. Pure decoration now: the
-            whole row is draggable, the icon just shows the user the
-            row CAN be dragged. */}
-        <div
-          className="w-4 -ml-1 mr-1 flex items-center justify-center flex-shrink-0 text-gray-300 opacity-0 group-hover:opacity-100"
-          aria-hidden="true"
-        >
-          <GripVertical className="w-3.5 h-3.5" />
-        </div>
+        {/* COMBINED FIRST CELL: Grip + Checkbox + Task name + indicators.
+            Internal flex layout (16 + 32 + flex-1) preserves the
+            original visual; the wrapper itself is ONE grid child so the
+            row's [&>*+*]:border-l only adds vertical dividers from
+            Due date onward (not between Grip↔Checkbox↔Name). */}
+        <div className="flex items-center min-w-0">
+          {/* Drag hint — visible on hover. Pure decoration now: the
+              whole row is draggable, the icon just shows the user the
+              row CAN be dragged. */}
+          <div
+            className="w-4 -ml-1 mr-1 flex items-center justify-center flex-shrink-0 text-gray-300 opacity-0 group-hover:opacity-100"
+            aria-hidden="true"
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </div>
 
-        {/* Checkbox */}
-        <div className="w-8 flex-shrink-0 flex items-center">{checkboxEl}</div>
+          {/* Checkbox */}
+          <div className="w-8 flex-shrink-0 flex items-center">{checkboxEl}</div>
 
-        {/* Task name + indicators. min-w-[260px] keeps the cell from
-            being crushed to 0px when many custom + built-in columns
-            are pinned — without it, with 10+ extra columns the
-            flex-1 + min-w-0 combo collapses the name to invisible
-            (Juan reported "task names disappear when many cols").
-            The parent row's hidden overflow + the container's
-            overflow-x:auto give the user horizontal scroll instead. */}
-        <div className="flex-1 flex items-center gap-2 min-w-[260px]">
+          {/* Task name + indicators. */}
+          <div className="flex-1 flex items-center gap-2 min-w-0">
           {isEditingName ? (
             <input
               type="text"
@@ -3296,24 +3376,24 @@ function TaskRow({
               {task._count.comments}
             </span>
           )}
+          </div>
         </div>
 
-      {/* Due date — pl-2.5 pr-1 matches the header's internal padding
-       * so the header label and the data text line up at the same X.
-       * `border-l-2 border-[#94a3b8]` MATCHES the header's per-cell
-       * border so the vertical divider is continuous from header
-       * through every task row. */}
+      {/* Built-in column cells. Border + width now come from the row's
+       * CSS Grid template + the inherited [&>*+*]:border-l class on the
+       * row parent — no per-cell border-l, no flex-shrink-0, no
+       * self-stretch (grid auto-stretches), no explicit width (grid
+       * tracks define width). Just padding + content. */}
       {!hiddenColumns.has("dueDate") && (
-      <div className="hidden md:flex flex-shrink-0 self-stretch pl-2.5 pr-1 overflow-hidden items-center border-l-2 border-[#94a3b8]" style={{ width: "var(--col-dueDate)" }}>
+      <div className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
         <span className={cn("text-[13px]", dueDateInfo.className)}>
           {dueDateInfo.text}
         </span>
       </div>
       )}
 
-      {/* Collaborators */}
       {!hiddenColumns.has("collaborators") && (
-      <div className="hidden md:flex flex-shrink-0 self-stretch pl-2.5 pr-1 overflow-hidden items-center border-l-2 border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }}>
+      <div className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
         {task.assignee && (
           <Avatar className="w-5 h-5">
             <AvatarImage src={task.assignee.image || undefined} />
@@ -3325,9 +3405,8 @@ function TaskRow({
       </div>
       )}
 
-      {/* Projects */}
       {!hiddenColumns.has("projects") && (
-      <div className="hidden md:flex flex-shrink-0 self-stretch pl-2.5 pr-1 overflow-hidden items-center border-l-2 border-[#94a3b8]" style={{ width: "var(--col-projects)" }}>
+      <div className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
         {task.project && (
           <div className="flex items-center gap-1.5 min-w-0">
             <div
@@ -3350,9 +3429,8 @@ function TaskRow({
       </div>
       )}
 
-      {/* Visibility */}
       {!hiddenColumns.has("visibility") && (
-      <div className="hidden md:flex flex-shrink-0 self-stretch pl-2.5 pr-1 overflow-hidden items-center border-l-2 border-[#94a3b8]" style={{ width: "var(--col-visibility)" }}>
+      <div className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
         <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
           <Globe className="w-3 h-3 flex-shrink-0" />
           My workspace
@@ -3376,19 +3454,19 @@ function TaskRow({
             width: 110,
           })) as ListColumn[])
       ).map((col) => {
-        const w = col.width || 110;
         // For non-builtin columns (real CustomFieldDefinition), look
         // up the value embedded on the task. The field definition
         // ships alongside so CustomFieldCell can render with the
         // correct type + options without an extra fetch.
+        // Border + width come from the row's grid template + the
+        // inherited [&>*+*]:border-l class.
         const cfv = !col.builtin
           ? task.customFieldValues?.find((v) => v.fieldId === col.id)
           : undefined;
         return (
           <div
             key={col.id}
-            className="hidden md:flex self-stretch items-center flex-shrink-0 pl-2.5 pr-1 overflow-hidden border-l-2 border-[#94a3b8]"
-            style={{ width: `${w}px`, minWidth: `${w}px` }}
+            className="hidden md:flex items-center pl-2.5 pr-1 overflow-hidden"
           >
             {col.builtin ? (
               <BuiltinFieldCell builtinId={col.builtin} task={task} />
@@ -3406,9 +3484,10 @@ function TaskRow({
       })}
 
       {/* Spacer for + button column — matches the AddColumnDropdown
-          wrapper in the header (must be the exact same width or columns
-          to the left misalign because the row's flex-1 redistributes). */}
-      <div className="hidden md:block self-stretch w-8 flex-shrink-0 border-l-2 border-[#94a3b8]" />
+          wrapper in the header. Width comes from the grid template
+          ("32px" at the end of rowGridTemplate), border comes from the
+          row container's [&>*+*]:border-l pattern. */}
+      <div className="hidden md:block" />
     </div>
     </>
   );
