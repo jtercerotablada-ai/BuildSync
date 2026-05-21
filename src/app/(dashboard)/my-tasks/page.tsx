@@ -1536,6 +1536,15 @@ export default function MyTasksPage() {
             "--col-collaborators": `${columnWidths.collaborators}px`,
             "--col-projects": `${columnWidths.projects}px`,
             "--col-visibility": `${columnWidths.visibility}px`,
+            // --row-h was referenced by data row + section header +
+            // Add task rows but NEVER defined on any ancestor, so
+            // height: var(--row-h) resolved to "" and the rows
+            // collapsed to their content height. That's why Juan saw
+            // the vertical column borders disappear at section
+            // headers + Add task rows when scrolled — only data rows
+            // had min-h-[40px] to backstop. Defining it once here
+            // covers every row that style-references it.
+            "--row-h": "40px",
           } as React.CSSProperties}
         >
           <div className="flex-1 overflow-auto relative">
