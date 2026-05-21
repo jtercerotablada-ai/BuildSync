@@ -70,10 +70,40 @@ export default async function ProjectPage({
                   image: true,
                 },
               },
+              // Built-in "Created by" column source.
+              creator: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  image: true,
+                },
+              },
               subtasks: {
                 select: {
                   id: true,
                   completed: true,
+                },
+              },
+              // "Blocked by" / "Blocks" built-in columns.
+              dependencies: {
+                select: {
+                  blockingTask: {
+                    select: { id: true, name: true, completed: true },
+                  },
+                },
+              },
+              dependents: {
+                select: {
+                  dependentTask: {
+                    select: { id: true, name: true, completed: true },
+                  },
+                },
+              },
+              // "Tags" built-in column.
+              taskTags: {
+                select: {
+                  tag: { select: { id: true, name: true, color: true } },
                 },
               },
               _count: {

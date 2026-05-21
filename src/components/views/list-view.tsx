@@ -40,9 +40,10 @@ import { toast } from "sonner";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
 import { CustomFieldCell } from "@/components/tasks/custom-field-cell";
+import { BuiltinFieldCell } from "@/components/tasks/builtin-field-cell";
 import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import { formatRangeLabel } from "@/lib/task-helpers";
-import type { FieldTypeConfig } from "@/lib/field-types";
+import type { FieldTypeConfig, BuiltinFieldConfig } from "@/lib/field-types";
 
 // Per-project custom field metadata returned by
 // GET /api/projects/:id/custom-fields.
@@ -96,11 +97,15 @@ interface Task {
   name: string;
   description: string | null;
   completed: boolean;
+  completedAt?: string | null;
   dueDate: string | null;
   // Optional start date for the Asana-style range picker. When both
   // startDate and dueDate are set the row shows "May 14 – 27"; when
   // only dueDate is set it falls back to the legacy single-date pill.
   startDate?: string | null;
+  // Source columns for the Asana "Show more" built-in extras.
+  createdAt?: string;
+  updatedAt?: string;
   priority: string;
   // Optional so legacy rows / cached pages keep rendering; the API
   // serializes the enum verbatim when present and the UI swaps the
@@ -116,7 +121,20 @@ interface Task {
     email: string | null;
     image: string | null;
   } | null;
+  /** Task creator — backs the "Created by" built-in column. */
+  creator?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  } | null;
   subtasks: { id: string; completed: boolean }[];
+  /** Dependencies (this task is blocked by these) — Asana "Blocked by". */
+  dependencies?: { blockingTask: { id: string; name: string; completed: boolean } }[];
+  /** Dependents (these tasks are blocked by this one) — Asana "Blocks". */
+  dependents?: { dependentTask: { id: string; name: string; completed: boolean } }[];
+  /** Tags worn by this task — Asana "Tags" column. */
+  taskTags?: { tag: { id: string; name: string; color: string } }[];
   _count: {
     subtasks: number;
     comments: number;
@@ -186,6 +204,15 @@ export function ListView({
   const [customFieldValues, setCustomFieldValues] = useState<
     Record<string, Record<string, unknown>>
   >({});
+  // Pinned built-in extras for this project — Asana's "Show more"
+  // columns (Tags, Blocked by, Blocks, Created by, etc.). Local state
+  // for now; a follow-up will persist to useUiState scoped by project
+  // id so the choice survives reload + device.
+  // Priority isn't offered here because it's already a hardcoded
+  // column to the left of Status.
+  const [pinnedBuiltins, setPinnedBuiltins] = useState<BuiltinFieldConfig[]>(
+    []
+  );
 
   const reloadCustomFields = useCallback(async () => {
     try {
@@ -235,8 +262,13 @@ export function ListView({
   // the Name column and the task title visually touched the circle.
   const gridTemplate = useMemo(() => {
     const customCols = customFieldDefs.map(() => "140px").join(" ");
-    return `48px 1fr 140px 130px 90px 90px${customCols ? ` ${customCols}` : ""} 40px`;
-  }, [customFieldDefs]);
+    const builtinCols = pinnedBuiltins
+      .map((b) => `${b.defaultWidth}px`)
+      .join(" ");
+    return `48px 1fr 140px 130px 90px 90px${customCols ? ` ${customCols}` : ""}${
+      builtinCols ? ` ${builtinCols}` : ""
+    } 40px`;
+  }, [customFieldDefs, pinnedBuiltins]);
 
   // Drag & drop state — same pattern as my-tasks ListDndProvider.
   // localSections is the optimistic source of truth during a drag so
@@ -696,24 +728,52 @@ export function ListView({
               <span className="truncate">{field.name}</span>
             </div>
           ))}
-          {/* Add column button. NOTE: built-in extras (Priority,
-              Tags, Blocked by, etc.) are wired in My Tasks list only
-              for now — the project-level list-view will get them in
-              Fase 2 once we plumb the same render path through the
-              ProjectCustomField selection state. */}
+          {/* Built-in extra columns headers — Asana's "Show more"
+              picks (Tags, Blocked by, Blocks, Completion date,
+              Last modified, Creation date, Created by). Each carries
+              a hover X to unpin. */}
+          {pinnedBuiltins.map((b) => (
+            <div
+              key={b.id}
+              className="group/bhdr flex items-center gap-1 truncate"
+              title={b.label}
+            >
+              <span className="truncate flex-1">{b.label}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setPinnedBuiltins((prev) =>
+                    prev.filter((p) => p.id !== b.id)
+                  )
+                }
+                className="opacity-0 group-hover/bhdr:opacity-100 transition-opacity flex items-center justify-center w-4 h-4 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded"
+                title="Hide column"
+                aria-label="Hide column"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+          {/* Add column button — now supports both custom field types
+              AND Asana's built-in extras ("Show more" in the dropdown).
+              Priority is excluded because it's already a hardcoded
+              column to the left of Status. */}
           <AddColumnDropdown
+            activeBuiltinIds={[
+              "priority", // suppress — already a column
+              ...pinnedBuiltins.map((b) => b.id),
+            ]}
             onSelectType={(ft: FieldTypeConfig, name: string) => {
               setPreselectedFieldType(ft.id);
               setPreselectedFieldName(name);
               setInitialTab("create");
               setCustomFieldModalOpen(true);
             }}
-            onSelectBuiltin={() => {
-              // Placeholder so the same dropdown component works.
-              // Project list will support these in Fase 2.
-              toast.info(
-                "Built-in extras coming to project lists in the next pass."
-              );
+            onSelectBuiltin={(b) => {
+              setPinnedBuiltins((prev) => {
+                if (prev.some((p) => p.id === b.id)) return prev;
+                return [...prev, b];
+              });
             }}
             onFromLibrary={() => {
               setPreselectedFieldType(null);
@@ -823,6 +883,7 @@ export function ListView({
                     saveInlineEdit={saveInlineEdit}
                     customFieldDefs={customFieldDefs}
                     customFieldValuesForTask={customFieldValues[task.id] ?? {}}
+                    pinnedBuiltins={pinnedBuiltins}
                     gridTemplate={gridTemplate}
                   />
                 ))}
@@ -1126,6 +1187,10 @@ interface SortableTaskRowProps {
   customFieldDefs: CustomFieldDef[];
   /** Map of fieldId → value for this task. */
   customFieldValuesForTask: Record<string, unknown>;
+  /** Asana "Show more" built-in extras pinned in the header — Tags,
+   *  Blocked by, Blocks, Completion date, Last modified, Creation
+   *  date, Created by. Rendered to the right of custom fields. */
+  pinnedBuiltins: BuiltinFieldConfig[];
   /** CSS gridTemplateColumns string the row should use so the row
    *  aligns with the header. */
   gridTemplate: string;
@@ -1149,6 +1214,7 @@ function SortableTaskRow({
   saveInlineEdit,
   customFieldDefs,
   customFieldValuesForTask,
+  pinnedBuiltins,
   gridTemplate,
 }: SortableTaskRowProps) {
   const {
@@ -1623,6 +1689,34 @@ function SortableTaskRow({
               type={field.type}
               options={field.options}
               value={customFieldValuesForTask[field.id] ?? null}
+            />
+          </div>
+        ))}
+
+        {/* Built-in extra value cells — Asana "Show more" picks. The
+            BuiltinFieldCell maps the column id to the right Task
+            field and handles its own formatting (chips, pills,
+            avatars, dates). Priority + Tags include inline editors. */}
+        {pinnedBuiltins.map((b) => (
+          <div
+            key={b.id}
+            className="overflow-hidden flex items-center"
+            onClick={(e) => e.stopPropagation()}
+            title={b.label}
+          >
+            <BuiltinFieldCell
+              builtinId={b.id}
+              task={{
+                id: task.id,
+                priority: task.priority as "NONE" | "LOW" | "MEDIUM" | "HIGH",
+                completedAt: task.completedAt ?? null,
+                createdAt: task.createdAt || "",
+                updatedAt: task.updatedAt || "",
+                creator: task.creator,
+                dependencies: task.dependencies,
+                dependents: task.dependents,
+                taskTags: task.taskTags,
+              }}
             />
           </div>
         ))}
