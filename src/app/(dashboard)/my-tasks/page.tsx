@@ -1586,16 +1586,14 @@ export default function MyTasksPage() {
               column dividers to jog at the header/data seam. */}
           {view === "list" && (
             <div
-              // CSS Grid header — matches the data row TaskRow's grid
-              // template exactly so every column edge lines up
-              // deterministically across all DPRs. The `[&>*+*]:border-l`
-              // pattern lives ON THE ROW DIRECTLY rather than on each
-              // child wrapper — this is the only path that's 100%
-              // deterministic across browsers and immune to stacking-
-              // context bugs at zooms != 67% on HiDPI displays. See
-              // src/components/views/list-view.tsx line ~1398 for the
-              // same pattern in the project list view.
-              className="hidden md:grid items-center px-6 border-b border-gray-200 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20 [&>*+*]:border-l-[1.5px] [&>*+*]:border-[#94a3b8] [&>*]:min-w-0"
+              // CSS Grid header + box-shadow inset for borders. See
+              // the same comment block on the data row below — box-
+              // shadow:inset is the only paint mechanism that renders
+              // a consistent 2px stripe across DPR + browser zoom
+              // combinations. border-left at 1.5px landed on sub-
+              // pixel positions and produced inconsistent lines per
+              // cell at the 100/125/150% zoom range Juan uses.
+              className="hidden md:grid items-center px-6 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20 shadow-[inset_0_-1px_0_#d1d5db] [&>*+*]:shadow-[inset_2px_0_0_#94a3b8] [&>*]:min-w-0"
               style={{
                 height: "var(--col-header-h, 32px)",
                 gridTemplateColumns: rowGridTemplate,
@@ -3289,18 +3287,29 @@ function TaskRow({
         {...attributes}
         {...listeners}
         onClick={onClick}
-        // CSS Grid with inherited per-cell border-l matches the
-        // project list view's working pattern (file:
-        // src/components/views/list-view.tsx#L1398). Grid track
-        // widths align deterministically to the pixel grid at any
-        // DPR/zoom, fixing the sub-pixel border drift we hit with
-        // flex+per-cell-border-l at zoom levels != 67%.
-        //   [&>*+*]:border-l       → 1px border on every child
-        //                            EXCEPT the first (grip handle).
-        //   [&>*]:min-w-0          → cells can shrink under their
-        //                            content width (default min for
-        //                            flex/grid children is "auto").
-        className="hidden md:grid items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] border-b border-[var(--border-subtle)] cursor-pointer group transition-colors select-none [&>*+*]:border-l [&>*+*]:border-[#94a3b8] [&>*]:min-w-0"
+        // CSS Grid + box-shadow inset for borders. Why box-shadow
+        // instead of border-left:
+        //   border-l on a 1.5px width at DPR 1.25 + browser zoom !=
+        //   67% landed on sub-pixel positions that the browser
+        //   rendered inconsistently — some cells showed the line,
+        //   others didn't, even though every cell wrapper used the
+        //   exact same class. box-shadow:inset paints into the cell's
+        //   paint box independently of the layout/border-collapse
+        //   math, so it renders the same 2px stripe regardless of
+        //   the cell's outer position on the pixel grid. This is the
+        //   "deterministic" version of the project list view's
+        //   border pattern.
+        //
+        // Pattern:
+        //   [&>*+*]:shadow-[inset_2px_0_0_#94a3b8]  → 2px left "line"
+        //                                              on every child
+        //                                              except the first
+        //                                              combined cell.
+        //   shadow-[inset_0_-1px_0_#e5e7eb]         → bottom row
+        //                                              divider (replaces
+        //                                              the unreliable
+        //                                              border-b).
+        className="hidden md:grid items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors select-none shadow-[inset_0_-1px_0_#e5e7eb] [&>*+*]:shadow-[inset_2px_0_0_#94a3b8] [&>*]:min-w-0"
       >
         {/* COMBINED FIRST CELL: Grip + Checkbox + Task name + indicators.
             Internal flex layout (16 + 32 + flex-1) preserves the
