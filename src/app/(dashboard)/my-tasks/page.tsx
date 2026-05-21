@@ -1586,14 +1586,12 @@ export default function MyTasksPage() {
               column dividers to jog at the header/data seam. */}
           {view === "list" && (
             <div
-              // CSS Grid header + box-shadow inset for borders. See
-              // the same comment block on the data row below — box-
-              // shadow:inset is the only paint mechanism that renders
-              // a consistent 2px stripe across DPR + browser zoom
-              // combinations. border-left at 1.5px landed on sub-
-              // pixel positions and produced inconsistent lines per
-              // cell at the 100/125/150% zoom range Juan uses.
-              className="hidden md:grid items-center px-6 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20 shadow-[inset_0_-1px_0_#d1d5db] [&>*+*]:shadow-[inset_2px_0_0_#94a3b8] [&>*]:min-w-0"
+              // CSS Grid header + Asana-exact border. Same dark
+              // #404244 color as the data row below — verified via
+              // DevTools on Asana's My Tasks. Light grays (slate-400
+              // and lighter) become invisible at DPR 1.25 + browser
+              // zoom != 67% due to sub-pixel anti-aliasing.
+              className="hidden md:grid items-center px-6 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20 border-b border-[#404244] [&>*+*]:border-l [&>*+*]:border-[#404244] [&>*]:min-w-0"
               style={{
                 height: "var(--col-header-h, 32px)",
                 gridTemplateColumns: rowGridTemplate,
@@ -1781,7 +1779,7 @@ export default function MyTasksPage() {
                     // isFirst:true suppresses ColumnHeader's internal
                     // `border-l border-gray-200 pl-2.5 pr-1`. The
                     // parent wrapper above already has the darker
-                    // border-[#94a3b8] — Juan flagged the doble línea
+                    // border-[#404244] — Juan flagged the doble línea
                     // (slate-200 + slate-400) before this fix.
                     isFirst: true,
                   }}
@@ -1892,7 +1890,7 @@ export default function MyTasksPage() {
                         id: "tt-estimated",
                         name: "Estimated time",
                         type: "TIME_TRACKING",
-                        color: "#94a3b8",
+                        color: "#404244",
                         width: 120,
                       });
                     }
@@ -1901,7 +1899,7 @@ export default function MyTasksPage() {
                         id: "tt-actual",
                         name: "Actual time",
                         type: "TIME_TRACKING",
-                        color: "#94a3b8",
+                        color: "#404244",
                         width: 120,
                       });
                     }
@@ -3287,29 +3285,22 @@ function TaskRow({
         {...attributes}
         {...listeners}
         onClick={onClick}
-        // CSS Grid + box-shadow inset for borders. Why box-shadow
-        // instead of border-left:
-        //   border-l on a 1.5px width at DPR 1.25 + browser zoom !=
-        //   67% landed on sub-pixel positions that the browser
-        //   rendered inconsistently — some cells showed the line,
-        //   others didn't, even though every cell wrapper used the
-        //   exact same class. box-shadow:inset paints into the cell's
-        //   paint box independently of the layout/border-collapse
-        //   math, so it renders the same 2px stripe regardless of
-        //   the cell's outer position on the pixel grid. This is the
-        //   "deterministic" version of the project list view's
-        //   border pattern.
+        // CSS Grid + Asana-exact border technique. Verified via
+        // DevTools on app.asana.com/my-tasks (May 2026):
+        //   Asana applies `border: 0.909091px solid rgb(64, 66, 68)`
+        //   on every SpreadsheetCell — note the DARK color (#404244),
+        //   almost black, not the slate-400 light gray we used
+        //   before. The "secret" is that the color must be dark
+        //   enough to survive the browser's sub-pixel anti-aliasing
+        //   at HiDPI displays. Light grays (#94a3b8 etc.) get
+        //   blended into the background at DPR 1.25 + zoom != 67%
+        //   and become invisible. Dark grays render visibly even
+        //   when the physical width is below 1px.
         //
-        // Pattern:
-        //   [&>*+*]:shadow-[inset_2px_0_0_#94a3b8]  → 2px left "line"
-        //                                              on every child
-        //                                              except the first
-        //                                              combined cell.
-        //   shadow-[inset_0_-1px_0_#e5e7eb]         → bottom row
-        //                                              divider (replaces
-        //                                              the unreliable
-        //                                              border-b).
-        className="hidden md:grid items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors select-none shadow-[inset_0_-1px_0_#e5e7eb] [&>*+*]:shadow-[inset_2px_0_0_#94a3b8] [&>*]:min-w-0"
+        //   We use `border-l` (1px solid #404244) on every child
+        //   except the first combined cell, plus a `border-b` on
+        //   the row itself for horizontal dividers.
+        className="hidden md:grid items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors select-none border-b border-[#404244] [&>*+*]:border-l [&>*+*]:border-[#404244] [&>*]:min-w-0"
       >
         {/* COMBINED FIRST CELL: Grip + Checkbox + Task name + indicators.
             Internal flex layout (16 + 32 + flex-1) preserves the
