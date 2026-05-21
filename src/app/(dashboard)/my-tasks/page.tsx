@@ -3038,8 +3038,14 @@ function TaskRow({
         {/* Checkbox */}
         <div className="w-8 flex-shrink-0 flex items-center">{checkboxEl}</div>
 
-        {/* Task name + indicators */}
-        <div className="flex-1 flex items-center gap-2 min-w-0">
+        {/* Task name + indicators. min-w-[260px] keeps the cell from
+            being crushed to 0px when many custom + built-in columns
+            are pinned — without it, with 10+ extra columns the
+            flex-1 + min-w-0 combo collapses the name to invisible
+            (Juan reported "task names disappear when many cols").
+            The parent row's hidden overflow + the container's
+            overflow-x:auto give the user horizontal scroll instead. */}
+        <div className="flex-1 flex items-center gap-2 min-w-[260px]">
           {isEditingName ? (
             <input
               type="text"

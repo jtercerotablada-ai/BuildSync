@@ -171,7 +171,12 @@ export function ColumnHeader({
     <div
       className={cn(
         "relative flex items-center gap-1",
-        config.flex ? "flex-1 min-w-0" : "",
+        // min-w-[260px] on flex columns (the "Task name" header) keeps
+        // it from collapsing to invisible when 15+ custom + built-in
+        // columns are pinned. Mirrors the same min-width on the data
+        // row's name cell so header and row stay aligned. The parent
+        // container's overflow-x:auto gives the user horizontal scroll.
+        config.flex ? "flex-1 min-w-[260px]" : "",
         !config.isFirst && "border-l border-gray-200 pl-2.5 pr-1"
       )}
       style={containerStyle}
