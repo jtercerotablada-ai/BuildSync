@@ -39,7 +39,7 @@ import { format, isToday, isTomorrow, isPast, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
-import { CustomFieldCell } from "@/components/tasks/custom-field-cell";
+import { EditableCustomFieldCell } from "@/components/tasks/editable-custom-field-cell";
 import { BuiltinFieldCell } from "@/components/tasks/builtin-field-cell";
 import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import { formatRangeLabel } from "@/lib/task-helpers";
@@ -932,10 +932,75 @@ export function ListView({
                   <div className="hidden md:block"></div>
                   <div className="hidden md:block"></div>
                   <div className="hidden md:block"></div>
-                  {/* Empty placeholders matching custom-field columns */}
-                  {customFieldDefs.map((f) => (
-                    <div key={f.id} className="hidden md:block"></div>
-                  ))}
+                  {/* Per-column SUMA — Asana shows "SUMA X.X" at the
+                      bottom of NUMBER / CURRENCY / PERCENTAGE / FORMULA
+                      / ROLLUP columns aggregating every visible row.
+                      We mirror that: walk the section's tasks, sum the
+                      numeric value, render in the cell aligned with
+                      the column header. Empty/non-numeric columns
+                      render a blank placeholder so the grid stays
+                      aligned. */}
+                  {customFieldDefs.map((f) => {
+                    const numericTypes = new Set([
+                      "NUMBER",
+                      "CURRENCY",
+                      "PERCENTAGE",
+                      "FORMULA",
+                      "ROLLUP",
+                    ]);
+                    if (!numericTypes.has(f.type)) {
+                      return <div key={f.id} className="hidden md:block" />;
+                    }
+                    let sum = 0;
+                    let any = false;
+                    for (const t of section.tasks) {
+                      const raw = customFieldValues[t.id]?.[f.id];
+                      if (raw == null) continue;
+                      let n: number;
+                      if (typeof raw === "number") n = raw;
+                      else if (
+                        typeof raw === "object" &&
+                        raw !== null &&
+                        "result" in raw &&
+                        typeof (raw as { result?: unknown }).result === "number"
+                      ) {
+                        n = (raw as { result: number }).result;
+                      } else {
+                        const parsed = Number(raw);
+                        if (!Number.isFinite(parsed)) continue;
+                        n = parsed;
+                      }
+                      sum += n;
+                      any = true;
+                    }
+                    return (
+                      <div
+                        key={f.id}
+                        className="hidden md:flex items-center justify-end gap-1 pr-2 text-[11px] text-slate-400"
+                      >
+                        {any && (
+                          <>
+                            <span className="font-medium tracking-wide uppercase">
+                              Suma
+                            </span>
+                            <span className="tabular-nums text-slate-700 font-medium">
+                              {f.type === "CURRENCY"
+                                ? new Intl.NumberFormat("en-US", {
+                                    style: "currency",
+                                    currency: "USD",
+                                    maximumFractionDigits: 2,
+                                  }).format(sum)
+                                : f.type === "PERCENTAGE"
+                                ? `${sum.toFixed(1)}%`
+                                : sum.toLocaleString("en-US", {
+                                    maximumFractionDigits: 2,
+                                  })}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                   <div className="hidden md:block"></div>
                 </div>
               </div>
@@ -1676,8 +1741,11 @@ function SortableTaskRow({
         </div>
 
         {/* Custom field value cells — one per project-linked field.
-            Read-only here; editing happens inside the task detail
-            panel (CustomFieldsSection) which has type-aware inputs. */}
+            Click-to-edit via EditableCustomFieldCell (DROPDOWN /
+            MULTI_SELECT pop a picker, TEXT/NUMBER opens an inline
+            input, DATE opens a date popover, etc.). Read-only types
+            (PEOPLE/REFERENCE/FORMULA/TIMER/TIME_TRACKING/ROLLUP)
+            still render via the underlying CustomFieldCell. */}
         {customFieldDefs.map((field) => (
           <div
             key={field.id}
@@ -1685,7 +1753,9 @@ function SortableTaskRow({
             onClick={(e) => e.stopPropagation()}
             title={field.name}
           >
-            <CustomFieldCell
+            <EditableCustomFieldCell
+              taskId={task.id}
+              fieldId={field.id}
               type={field.type}
               options={field.options}
               value={customFieldValuesForTask[field.id] ?? null}

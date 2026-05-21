@@ -104,7 +104,7 @@ import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
 import { UploadToTaskDialog } from "@/components/tasks/upload-to-task-dialog";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { BuiltinFieldCell } from "@/components/tasks/builtin-field-cell";
-import { CustomFieldCell } from "@/components/tasks/custom-field-cell";
+import { EditableCustomFieldCell } from "@/components/tasks/editable-custom-field-cell";
 import { useUiState } from "@/hooks/use-ui-state";
 import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
@@ -3216,7 +3216,9 @@ function TaskRow({
             {col.builtin ? (
               <BuiltinFieldCell builtinId={col.builtin} task={task} />
             ) : cfv ? (
-              <CustomFieldCell
+              <EditableCustomFieldCell
+                taskId={task.id}
+                fieldId={cfv.field.id}
                 type={cfv.field.type}
                 options={(cfv.field.options as { id: string; label: string; color?: string }[] | null) || null}
                 value={cfv.value}
