@@ -1,21 +1,24 @@
 "use client";
 
 /**
- * BuiltinFieldCell — read-only render of the "Show more" built-in
- * columns that Asana surfaces on its list view (Priority, Tags,
- * Blocked by, Blocks, Completion date, Last modified, Creation date,
- * Created by). Each one reads directly from existing Task fields, so
- * there's no fetch, no CustomFieldValue, no schema row — just a
- * formatter.
+ * BuiltinFieldCell — render of the "Show more" built-in columns that
+ * Asana surfaces on its list view (Priority, Tags, Blocked by, Blocks,
+ * Completion date, Last modified, Creation date, Created by). Each
+ * one reads directly from existing Task fields, so there's no fetch,
+ * no CustomFieldValue, no schema row — just a formatter.
  *
- * Kept deliberately compact: matches the inline-pill style of the
- * core columns (Due date, Collaborators) so the list reads evenly
- * left-to-right. The detail panel handles full editing.
+ * Most built-ins are read-only (timestamps, creator, dependencies).
+ * Two are inline-editable: Priority (popover with 4 options) and
+ * Tags (popover with picker + create-new). When the user has write
+ * access we mount the editable variants; otherwise we fall back to
+ * the plain renderers here.
  */
 
 import { Flag, Ban, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { EditablePriorityCell } from "@/components/tasks/editable-priority-cell";
+import { EditableTagsCell } from "@/components/tasks/editable-tags-cell";
 
 interface TaskRefMin {
   id: string;
@@ -24,6 +27,7 @@ interface TaskRefMin {
 }
 
 interface TaskForBuiltins {
+  id: string;
   priority: "NONE" | "LOW" | "MEDIUM" | "HIGH";
   completedAt: string | null;
   createdAt: string;
@@ -65,12 +69,29 @@ const PRIORITY_META: Record<
 export function BuiltinFieldCell({
   builtinId,
   task,
+  onPatchTask,
 }: {
   builtinId: string;
   task: TaskForBuiltins;
+  /** Optimistic update hook — parent passes a function that splices
+   *  the task in its in-memory list so the cell reflects the change
+   *  immediately. Optional: when omitted, the cell still saves but
+   *  the row may flicker until the next refetch. */
+  onPatchTask?: (taskId: string, patch: Partial<TaskForBuiltins>) => void;
 }) {
   switch (builtinId) {
     case "priority": {
+      return (
+        <EditablePriorityCell
+          taskId={task.id}
+          value={task.priority}
+          onChange={(next) => onPatchTask?.(task.id, { priority: next })}
+        />
+      );
+    }
+    case "_priority_static": {
+      // Static fallback (unused for now). Kept so callers that only
+      // want a non-interactive render can opt in later via a flag.
       const meta = PRIORITY_META[task.priority];
       if (!meta) return null;
       return (
@@ -152,36 +173,12 @@ export function BuiltinFieldCell({
       );
     }
     case "tags": {
-      const tags = task.taskTags || [];
-      if (tags.length === 0) return null;
-      // Show the first 2 chips inline + a "+N" pill for overflow so
-      // the cell doesn't blow out the column width when a task has
-      // many tags. The hover title surfaces the full list.
-      const visible = tags.slice(0, 2);
-      const overflow = tags.length - visible.length;
       return (
-        <div
-          className="flex items-center gap-1 min-w-0"
-          title={tags.map((t) => t.tag.name).join(", ")}
-        >
-          {visible.map((t) => (
-            <span
-              key={t.tag.id}
-              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium truncate max-w-[80px]"
-              style={{
-                backgroundColor: `${t.tag.color}1a`, // ~10% alpha
-                color: t.tag.color,
-              }}
-            >
-              {t.tag.name}
-            </span>
-          ))}
-          {overflow > 0 && (
-            <span className="text-[11px] text-slate-400 tabular-nums">
-              +{overflow}
-            </span>
-          )}
-        </div>
+        <EditableTagsCell
+          taskId={task.id}
+          value={task.taskTags || []}
+          onChange={(next) => onPatchTask?.(task.id, { taskTags: next })}
+        />
       );
     }
     default:
