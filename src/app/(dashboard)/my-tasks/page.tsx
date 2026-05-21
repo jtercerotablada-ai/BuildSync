@@ -2688,15 +2688,17 @@ function TaskSection({
                   data row's column borders — the desalineación Juan
                   flagged. */}
               <span className="flex-1 min-w-[260px] text-[13px] text-gray-400">Add task</span>
-              {!hiddenColumns.has("dueDate") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-dueDate)" }} />}
-              {!hiddenColumns.has("collaborators") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }} />}
-              {!hiddenColumns.has("projects") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-projects)" }} />}
-              {!hiddenColumns.has("visibility") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-visibility)" }} />}
-              {/* Use each column's real width (built-ins vary: 130 for
-                  dates, 140 for tags, 160 for blocked-by, etc.) so the
-                  Add-task row's vertical dividers line up with the data
-                  rows above. The old hardcoded w-[110px] was the cause
-                  of the desalineación Juan flagged. */}
+              {/* Placeholders for column alignment — NO border-l on
+                  this row. Asana parity: Add task rows live in the
+                  "between sections" band along with section headers,
+                  and that band is intentionally free of column
+                  verticals so the data rows above and below feel
+                  like distinct groups. Border-b on the parent button
+                  keeps the row separable from the next section. */}
+              {!hiddenColumns.has("dueDate") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-dueDate)" }} />}
+              {!hiddenColumns.has("collaborators") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-collaborators)" }} />}
+              {!hiddenColumns.has("projects") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-projects)" }} />}
+              {!hiddenColumns.has("visibility") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-visibility)" }} />}
               {(customColumns.length > 0
                 ? customColumns
                 : Array.from({ length: customColumnCount }, () => ({ width: 110 } as { width: number })))
@@ -2705,12 +2707,12 @@ function TaskSection({
                   return (
                     <div
                       key={(col as { id?: string }).id ?? `placeholder-${i}`}
-                      className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]"
+                      className="hidden md:block flex-shrink-0"
                       style={{ width: `${w}px`, minWidth: `${w}px` }}
                     />
                   );
                 })}
-              <div className="hidden md:block self-stretch w-8 flex-shrink-0 border-l border-[#94a3b8]" />
+              <div className="hidden md:block w-8 flex-shrink-0" />
             </button>
           )}
         </SortableContext>
