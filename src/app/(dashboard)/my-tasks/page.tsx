@@ -197,6 +197,12 @@ interface Task {
   // Dependents (Asana "Blocks") — tasks that are waiting on THIS
   // one. Shaped from TaskDependency.dependentTask.
   dependents?: { dependentTask: { id: string; name: string; completed: boolean } }[];
+  // Tags worn by this task (Asana "Tags" column). Workspace-scoped
+  // so any task in the user's workspace can carry any tag from the
+  // shared library.
+  taskTags?: {
+    tag: { id: string; name: string; color: string };
+  }[];
   // Custom field values keyed by fieldId. The field metadata is
   // embedded so CustomFieldCell can render with type + options
   // without an extra fetch. `value` is a Prisma Json — shape depends

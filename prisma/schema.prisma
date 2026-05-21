@@ -167,6 +167,7 @@ model Workspace {
   knowledge    KnowledgeEntry[]
   notes        WorkspaceNote[]
   templates    ProjectTemplate[]
+  tags         Tag[]
 }
 
 model WorkspaceMember {
@@ -677,6 +678,7 @@ model Task {
   objectives        ObjectiveTask[]
   keyResults        KeyResultTask[]
   clientApprovals   ClientApproval[]   @relation("TaskApprovals")
+  taskTags          TaskTag[]
 
   @@index([projectId])
   @@index([sectionId])
@@ -1662,3 +1664,38 @@ model ContactSubmission {
 // (see /timesheets page). When the DB-backed version ships, add the
 // TimeEntry model + TimeEntryStatus enum here and the matching
 // relations in User/Project/Task.
+
+// ============ TAGS (ETIQUETAS) ============
+//
+// Workspace-scoped labels that any task in the workspace can wear.
+// Asana exposes a "Tags" column under the My Tasks list's "Show more"
+// menu — we mirror that. Color is hex so the chip rendering can use
+// it directly. Names are unique per workspace so the picker doesn't
+// duplicate.
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#94a3b8")
+  createdAt DateTime @default(now())
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  tasks TaskTag[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+model TaskTag {
+  taskId    String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@index([tagId])
+}

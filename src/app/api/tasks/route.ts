@@ -148,6 +148,13 @@ export async function GET(req: Request) {
             },
           },
         },
+        // Tags — for the "Tags" built-in column in My Tasks. Embedded
+        // so chip rendering doesn't need a follow-up fetch per task.
+        taskTags: {
+          select: {
+            tag: { select: { id: true, name: true, color: true } },
+          },
+        },
         _count: {
           select: {
             subtasks: true,

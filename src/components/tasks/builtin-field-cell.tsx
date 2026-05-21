@@ -36,6 +36,7 @@ interface TaskForBuiltins {
   } | null;
   dependencies?: { blockingTask: TaskRefMin }[];
   dependents?: { dependentTask: TaskRefMin }[];
+  taskTags?: { tag: { id: string; name: string; color: string } }[];
 }
 
 function formatShortDate(iso: string | null | undefined): string | null {
@@ -150,11 +151,39 @@ export function BuiltinFieldCell({
         </span>
       );
     }
-    case "tags":
-      // Tags model doesn't exist yet — Phase 2 will add a Tag table
-      // and TaskTag join. Render an empty cell for now so the column
-      // can still be pinned without breaking the layout.
-      return null;
+    case "tags": {
+      const tags = task.taskTags || [];
+      if (tags.length === 0) return null;
+      // Show the first 2 chips inline + a "+N" pill for overflow so
+      // the cell doesn't blow out the column width when a task has
+      // many tags. The hover title surfaces the full list.
+      const visible = tags.slice(0, 2);
+      const overflow = tags.length - visible.length;
+      return (
+        <div
+          className="flex items-center gap-1 min-w-0"
+          title={tags.map((t) => t.tag.name).join(", ")}
+        >
+          {visible.map((t) => (
+            <span
+              key={t.tag.id}
+              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium truncate max-w-[80px]"
+              style={{
+                backgroundColor: `${t.tag.color}1a`, // ~10% alpha
+                color: t.tag.color,
+              }}
+            >
+              {t.tag.name}
+            </span>
+          ))}
+          {overflow > 0 && (
+            <span className="text-[11px] text-slate-400 tabular-nums">
+              +{overflow}
+            </span>
+          )}
+        </div>
+      );
+    }
     default:
       return null;
   }
