@@ -482,6 +482,42 @@ export default function MyTasksPage() {
   // leftColId = column to the left of the border (gets wider when dragging right)
   // rightColId = column to the right of the border (gets narrower when dragging right)
   // Either can be null (e.g. leftmost border has no left col, rightmost has no right col)
+  // Resize handler for custom + built-in extra columns whose width
+  // lives directly on the ListColumn (not in the --col-* CSS vars
+  // that the original built-ins use). Reads col.width as starting
+  // point, updates the in-memory column synchronously on every
+  // mousemove via setCustomColumns (React batches into one re-render
+  // per frame). Commits to useUiState on mouseup. Same min-width
+  // floor (60) as the original handler.
+  const handleResizeCustomCol = useCallback(
+    (e: React.MouseEvent, colId: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startCol = customColumns.find((c) => c.id === colId);
+      const startWidth = startCol?.width ?? 110;
+
+      const onMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX;
+        const nextWidth = Math.max(60, startWidth + delta);
+        setCustomColumns((prev) =>
+          prev.map((c) => (c.id === colId ? { ...c, width: nextWidth } : c))
+        );
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [customColumns, setCustomColumns]
+  );
+
   const handleResizeStart = useCallback((e: React.MouseEvent, leftColId: string | null, rightColId: string | null) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1669,6 +1705,16 @@ export default function MyTasksPage() {
                 className="relative flex items-center gap-1 border-l border-[#94a3b8] pl-2.5 pr-1"
                 style={{ width: `${w}px`, minWidth: `${w}px`, flexShrink: 0 }}
               >
+                {/* Resize handle — absolute overlay at the left edge,
+                    same pattern as the built-in Due date/Collaborators
+                    /etc handles. Dragging updates col.width directly
+                    so the header + data row + Add task placeholder all
+                    re-render at the new width together (they all read
+                    from the same customColumns array). */}
+                <div
+                  onMouseDown={(e) => handleResizeCustomCol(e, col.id)}
+                  className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
+                />
                 <ColumnHeader
                   config={{
                     id: col.id,
@@ -1678,6 +1724,12 @@ export default function MyTasksPage() {
                     groupable: false,
                     width: "100%",
                     minWidth: "100%",
+                    // isFirst:true suppresses ColumnHeader's internal
+                    // `border-l border-gray-200 pl-2.5 pr-1`. The
+                    // parent wrapper above already has the darker
+                    // border-[#94a3b8] — Juan flagged the doble línea
+                    // (slate-200 + slate-400) before this fix.
+                    isFirst: true,
                   }}
                   isDropdownOpen={openColumnDropdown === col.id}
                   onDropdownToggle={() =>
