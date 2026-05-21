@@ -31,6 +31,12 @@ const FIELD_TYPES = [
   "CHECKBOX",
   "CURRENCY",
   "PERCENTAGE",
+  // Asana-parity (Fase 3): now persistable.
+  "REFERENCE",
+  "FORMULA",
+  "TIMER",
+  "TIME_TRACKING",
+  "ROLLUP",
 ] as const;
 
 const createSchema = z.object({

@@ -18,7 +18,7 @@
  */
 
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
+import { Check, Link2, FunctionSquare, Timer as TimerIcon, Clock } from "lucide-react";
 
 type FieldType =
   | "TEXT"
@@ -29,7 +29,13 @@ type FieldType =
   | "PEOPLE"
   | "CHECKBOX"
   | "CURRENCY"
-  | "PERCENTAGE";
+  | "PERCENTAGE"
+  // Fase 3 — Asana parity additions.
+  | "REFERENCE"
+  | "FORMULA"
+  | "TIMER"
+  | "TIME_TRACKING"
+  | "ROLLUP";
 
 interface FieldOption {
   id: string;
@@ -149,6 +155,96 @@ export function CustomFieldCell({
           {value.length} {value.length === 1 ? "person" : "people"}
         </span>
       );
+    case "REFERENCE": {
+      // Reference value shape: { kind: 'task'|'project'|'portfolio'|'objective', id, name }
+      // Multiple refs come as an array. Render the first as a chip with
+      // an icon, +N overflow for the rest.
+      const refs = Array.isArray(value) ? value : value ? [value] : [];
+      if (refs.length === 0) return null;
+      const first = refs[0] as { name?: string; kind?: string } | null;
+      if (!first || !first.name) return null;
+      const more = refs.length - 1;
+      return (
+        <span className="inline-flex items-center gap-1 text-[12px] text-[#1e1f21] truncate">
+          <Link2 className="w-3 h-3 text-slate-400 flex-shrink-0" />
+          <span className="truncate">{first.name}</span>
+          {more > 0 && (
+            <span className="text-slate-400 tabular-nums">+{more}</span>
+          )}
+        </span>
+      );
+    }
+    case "FORMULA":
+    case "ROLLUP": {
+      // Formula values are precomputed on the server (or client) and
+      // stored as { result: number|string, error?: string }. Show the
+      // result; show "—" on missing.
+      const v = value as { result?: unknown; error?: string } | null;
+      if (!v) return null;
+      if (v.error) {
+        return (
+          <span className="inline-flex items-center gap-1 text-[12px] text-rose-500" title={v.error}>
+            <FunctionSquare className="w-3 h-3" />
+            #ERR
+          </span>
+        );
+      }
+      const r = v.result;
+      if (r === null || r === undefined || r === "") return null;
+      return (
+        <span className="inline-flex items-center gap-1 text-[13px] text-[#1e1f21] tabular-nums">
+          <FunctionSquare className="w-3 h-3 text-slate-400 flex-shrink-0" />
+          {String(r)}
+        </span>
+      );
+    }
+    case "TIMER": {
+      // Timer value: { targetIso: string, format: '00 h 00 m' } —
+      // render remaining time. When passed, prefix with "−".
+      const v = value as { targetIso?: string } | null;
+      if (!v?.targetIso) return null;
+      const target = new Date(v.targetIso).getTime();
+      const now = Date.now();
+      const diff = Math.abs(target - now);
+      const past = now > target;
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      return (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 text-[12px] font-medium tabular-nums",
+            past ? "text-rose-600" : "text-slate-700"
+          )}
+        >
+          <TimerIcon className="w-3 h-3" />
+          {past ? "−" : ""}
+          {h}h {m}m
+        </span>
+      );
+    }
+    case "TIME_TRACKING": {
+      // Compound value: { estimatedMin: number, actualMin: number }
+      // Render "estimated / actual" so the list view shows both at a glance.
+      const v = value as { estimatedMin?: number; actualMin?: number } | null;
+      if (!v) return null;
+      const est = v.estimatedMin ?? 0;
+      const act = v.actualMin ?? 0;
+      if (est === 0 && act === 0) return null;
+      const fmt = (mins: number) => {
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return h > 0 ? `${h}h ${m}m` : `${m}m`;
+      };
+      const over = act > est && est > 0;
+      return (
+        <span className="inline-flex items-center gap-1 text-[12px] tabular-nums">
+          <Clock className="w-3 h-3 text-slate-400" />
+          <span className={cn(over && "text-rose-600 font-medium")}>{fmt(act)}</span>
+          <span className="text-slate-300">/</span>
+          <span className="text-slate-500">{fmt(est)}</span>
+        </span>
+      );
+    }
     default:
       return null;
   }

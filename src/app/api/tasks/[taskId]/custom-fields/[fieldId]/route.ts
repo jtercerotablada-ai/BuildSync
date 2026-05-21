@@ -188,6 +188,56 @@ export async function PATCH(
         coerced = String(raw).slice(0, 4000);
         break;
       }
+      // Fase 3 — Asana-parity types. Accept the JSON shape verbatim
+      // after a structural sanity check; full domain validation can
+      // tighten as edit UIs ship in follow-up passes.
+      case "REFERENCE": {
+        // Array of { kind, id, name } refs.
+        if (!Array.isArray(raw)) {
+          return NextResponse.json(
+            { error: "Reference value must be an array of refs" },
+            { status: 400 }
+          );
+        }
+        coerced = raw;
+        break;
+      }
+      case "FORMULA":
+      case "ROLLUP": {
+        // Server-precomputed { result, error? } payload. The expression
+        // itself lives on the field definition's `options.formula`; the
+        // value row carries the cached result for display.
+        if (typeof raw !== "object" || raw === null) {
+          return NextResponse.json(
+            { error: "Formula value must be { result, error? }" },
+            { status: 400 }
+          );
+        }
+        coerced = raw;
+        break;
+      }
+      case "TIMER": {
+        // { targetIso: ISO string, format? }
+        if (typeof raw !== "object" || raw === null) {
+          return NextResponse.json(
+            { error: "Timer value must be { targetIso }" },
+            { status: 400 }
+          );
+        }
+        coerced = raw;
+        break;
+      }
+      case "TIME_TRACKING": {
+        // { estimatedMin, actualMin } — both optional numbers.
+        if (typeof raw !== "object" || raw === null) {
+          return NextResponse.json(
+            { error: "Time tracking value must be { estimatedMin, actualMin }" },
+            { status: 400 }
+          );
+        }
+        coerced = raw;
+        break;
+      }
     }
 
     const row = await prisma.customFieldValue.upsert({

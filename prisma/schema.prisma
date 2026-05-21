@@ -787,6 +787,12 @@ enum CustomFieldType {
   CHECKBOX
   CURRENCY
   PERCENTAGE
+  // Asana-parity additions (Fase 3):
+  REFERENCE     // points to another Task / Project / Portfolio / Objective
+  FORMULA       // computed value; expression stored in `options.formula`
+  TIMER         // countdown to a target; target stored in value
+  TIME_TRACKING // pair: estimated minutes + actual minutes (in value)
+  ROLLUP        // formula variant aggregating subtasks
 }
 
 model ProjectCustomField {

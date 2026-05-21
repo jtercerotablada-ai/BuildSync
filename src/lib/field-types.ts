@@ -34,12 +34,13 @@ export const FIELD_TYPES: FieldTypeConfig[] = [
   { id: "multi_select", label: "Multi select", icon: ListChecks, prismaType: "MULTI_SELECT" },
   { id: "date", label: "Date", icon: Calendar, prismaType: "DATE" },
   { id: "people", label: "People", icon: Users, prismaType: "PEOPLE" },
-  { id: "reference", label: "Reference", icon: Link2, prismaType: null },
+  { id: "reference", label: "Reference", icon: Link2, prismaType: "REFERENCE" },
   { id: "text", label: "Text", icon: Type, prismaType: "TEXT" },
   { id: "number", label: "Number", icon: Hash, prismaType: "NUMBER" },
-  { id: "formula", label: "Formula", icon: FunctionSquare, prismaType: null },
-  { id: "timer", label: "Timer", icon: Timer, prismaType: null },
-  { id: "time_tracking", label: "Time tracking", icon: Clock, prismaType: null },
+  { id: "formula", label: "Formula", icon: FunctionSquare, prismaType: "FORMULA" },
+  { id: "timer", label: "Timer", icon: Timer, prismaType: "TIMER" },
+  { id: "time_tracking", label: "Time tracking", icon: Clock, prismaType: "TIME_TRACKING" },
+  { id: "rollup", label: "Roll-up", icon: FunctionSquare, prismaType: "ROLLUP" },
 ];
 
 /**

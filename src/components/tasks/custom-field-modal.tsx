@@ -71,7 +71,9 @@ interface CustomFieldModalProps {
 }
 
 // Map the UI's field-type ids to the Prisma CustomFieldType enum the
-// API expects. Returns null for cosmetic-only types so we skip POST.
+// API expects. Fase 3 added the Asana-parity types (REFERENCE,
+// FORMULA, TIMER, TIME_TRACKING, ROLLUP) so every UI choice now
+// persists — no more cosmetic-only fields.
 const UI_TO_PRISMA_TYPE: Record<string, string> = {
   text: "TEXT",
   number: "NUMBER",
@@ -82,6 +84,11 @@ const UI_TO_PRISMA_TYPE: Record<string, string> = {
   people: "PEOPLE",
   currency: "CURRENCY",
   percentage: "PERCENTAGE",
+  reference: "REFERENCE",
+  formula: "FORMULA",
+  timer: "TIMER",
+  time_tracking: "TIME_TRACKING",
+  rollup: "ROLLUP",
 };
 
 // ─── Field type options ──────────────────────────────────
@@ -94,6 +101,11 @@ const FIELD_TYPES: FieldType[] = [
   { id: "multi_select", label: "Multi-select", icon: List, description: "Select multiple options" },
   { id: "checkbox", label: "Checkbox", icon: ToggleLeft, description: "Yes or no" },
   { id: "people", label: "People", icon: Users, description: "Select people" },
+  { id: "reference", label: "Reference", icon: List, description: "Link to a task / project / portfolio / objective" },
+  { id: "formula", label: "Formula", icon: Hash, description: "Computed value from other fields" },
+  { id: "timer", label: "Timer", icon: Calendar, description: "Countdown to a target time" },
+  { id: "time_tracking", label: "Time tracking", icon: Calendar, description: "Estimated + actual minutes" },
+  { id: "rollup", label: "Roll-up", icon: Hash, description: "Aggregate subtask values" },
 ];
 
 // ─── Color options ───────────────────────────────────────
@@ -272,9 +284,12 @@ export function CustomFieldModal({
     }
   }
 
-  function handleAddFromLibrary(fieldName: string) {
-    onFieldCreated?.({ name: fieldName, type: "text", color: "none" });
-    toast.success(`Field "${fieldName}" added from library`);
+  function handleAddFromLibrary(field: { name: string; uiTypeId: string }) {
+    // Use the prefab's declared uiTypeId so the resulting column
+    // renders with the right Prisma type (DROPDOWN, NUMBER, etc.)
+    // instead of defaulting to TEXT.
+    onFieldCreated?.({ name: field.name, type: field.uiTypeId, color: "none" });
+    toast.success(`Field "${field.name}" added from library`);
     resetAndClose();
   }
 
@@ -554,15 +569,26 @@ function CreateTab({
 
 // ─── Library Tab ─────────────────────────────────────────
 
-const LIBRARY_FIELDS = [
-  { id: "status", name: "Status", type: "Dropdown", usedBy: 12 },
-  { id: "priority", name: "Priority", type: "Dropdown", usedBy: 8 },
-  { id: "sprint", name: "Sprint", type: "Dropdown", usedBy: 5 },
-  { id: "effort", name: "Effort", type: "Number", usedBy: 3 },
-  { id: "department", name: "Department", type: "Dropdown", usedBy: 6 },
-  { id: "cost", name: "Cost", type: "Number", usedBy: 2 },
-  { id: "stage", name: "Stage", type: "Dropdown", usedBy: 4 },
-  { id: "tags", name: "Tags", type: "Multi-select", usedBy: 7 },
+// Prefab field templates — Asana's "Desde la biblioteca" picks plus a
+// few BuildSync-specific ones (Esfuerzo, Asignación %). Each carries
+// the matching UI-type id so handleAddFromLibrary creates the field
+// with the right Prisma type instead of falling back to TEXT.
+const LIBRARY_FIELDS: {
+  id: string;
+  name: string;
+  type: string;
+  uiTypeId: string;
+  usedBy: number;
+}[] = [
+  { id: "status", name: "Status", type: "Dropdown", uiTypeId: "single_select", usedBy: 12 },
+  { id: "priority", name: "Priority", type: "Dropdown", uiTypeId: "single_select", usedBy: 8 },
+  { id: "sprint", name: "Sprint", type: "Dropdown", uiTypeId: "single_select", usedBy: 5 },
+  { id: "effort", name: "Effort", type: "Number", uiTypeId: "number", usedBy: 3 },
+  { id: "department", name: "Department", type: "Dropdown", uiTypeId: "single_select", usedBy: 6 },
+  { id: "cost", name: "Cost", type: "Currency", uiTypeId: "currency", usedBy: 2 },
+  { id: "stage", name: "Stage", type: "Dropdown", uiTypeId: "single_select", usedBy: 4 },
+  { id: "tshirt", name: "T-shirt size", type: "Dropdown", uiTypeId: "single_select", usedBy: 6 },
+  { id: "allocation", name: "Asignación %", type: "Percentage", uiTypeId: "percentage", usedBy: 3 },
 ];
 
 function LibraryTab({
@@ -572,7 +598,7 @@ function LibraryTab({
 }: {
   search: string;
   onSearchChange: (v: string) => void;
-  onAddField: (fieldName: string) => void;
+  onAddField: (field: { name: string; uiTypeId: string }) => void;
 }) {
   const filtered = LIBRARY_FIELDS.filter(
     (f) =>
@@ -617,7 +643,7 @@ function LibraryTab({
           filtered.map((field) => (
             <button
               key={field.id}
-              onClick={() => onAddField(field.name)}
+              onClick={() => onAddField({ name: field.name, uiTypeId: field.uiTypeId })}
               className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-black/[0.03] transition-colors text-left group"
             >
               <div>

@@ -1686,6 +1686,39 @@ export default function MyTasksPage() {
                 .map((c) => c.builtin)
                 .filter((b): b is string => !!b)}
               onSelectType={(ft: FieldTypeConfig, name: string) => {
+                // Asana parity: picking "Time tracking" in Asana skips
+                // the config modal entirely and auto-adds a compound
+                // pair of columns (estimated + actual). Mirror that —
+                // pin both cosmetic columns so the user can see them
+                // immediately. Full DB persistence (creating real
+                // CustomFieldDefinitions) ships when the user attaches
+                // them to a project in the next pass.
+                if (ft.id === "time_tracking") {
+                  setCustomColumns((prev) => {
+                    const next = [...prev];
+                    if (!next.some((c) => c.id === "tt-estimated")) {
+                      next.push({
+                        id: "tt-estimated",
+                        name: "Estimated time",
+                        type: "TIME_TRACKING",
+                        color: "#94a3b8",
+                        width: 120,
+                      });
+                    }
+                    if (!next.some((c) => c.id === "tt-actual")) {
+                      next.push({
+                        id: "tt-actual",
+                        name: "Actual time",
+                        type: "TIME_TRACKING",
+                        color: "#94a3b8",
+                        width: 120,
+                      });
+                    }
+                    return next;
+                  });
+                  toast.success("Time tracking columns added");
+                  return;
+                }
                 setPreselectedFieldType(ft.id);
                 setPreselectedFieldName(name);
                 setInitialTab("create");
