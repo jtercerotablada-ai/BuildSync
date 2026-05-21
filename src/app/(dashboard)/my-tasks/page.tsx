@@ -2489,10 +2489,21 @@ function TaskSection({
                 </span>
               </div>
               )}
-              {/* Custom column placeholders */}
-              {Array.from({ length: customColumnCount }).map((_, i) => (
-                <div key={i} className="hidden md:block w-[110px] min-w-[110px] flex-shrink-0 pl-2.5" />
-              ))}
+              {/* Custom column placeholders — same width mapping as
+                  the data row so the inline-add input lines up. */}
+              {(customColumns.length > 0
+                ? customColumns
+                : Array.from({ length: customColumnCount }, () => ({ width: 110 } as { width: number })))
+                .map((col, i) => {
+                  const w = (col as { width?: number }).width || 110;
+                  return (
+                    <div
+                      key={(col as { id?: string }).id ?? `placeholder-${i}`}
+                      className="hidden md:block flex-shrink-0 pl-2.5"
+                      style={{ width: `${w}px`, minWidth: `${w}px` }}
+                    />
+                  );
+                })}
               {/* Spinner / spacer */}
               <div className="w-8 flex-shrink-0 flex items-center justify-center">
                 {isCreating && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
@@ -2532,9 +2543,24 @@ function TaskSection({
               {!hiddenColumns.has("collaborators") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-collaborators)" }} />}
               {!hiddenColumns.has("projects") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-projects)" }} />}
               {!hiddenColumns.has("visibility") && <div className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]" style={{ width: "var(--col-visibility)" }} />}
-              {Array.from({ length: customColumnCount }).map((_, i) => (
-                <div key={i} className="hidden md:block self-stretch w-[110px] min-w-[110px] flex-shrink-0 border-l border-[#94a3b8]" />
-              ))}
+              {/* Use each column's real width (built-ins vary: 130 for
+                  dates, 140 for tags, 160 for blocked-by, etc.) so the
+                  Add-task row's vertical dividers line up with the data
+                  rows above. The old hardcoded w-[110px] was the cause
+                  of the desalineación Juan flagged. */}
+              {(customColumns.length > 0
+                ? customColumns
+                : Array.from({ length: customColumnCount }, () => ({ width: 110 } as { width: number })))
+                .map((col, i) => {
+                  const w = (col as { width?: number }).width || 110;
+                  return (
+                    <div
+                      key={(col as { id?: string }).id ?? `placeholder-${i}`}
+                      className="hidden md:block self-stretch flex-shrink-0 border-l border-[#94a3b8]"
+                      style={{ width: `${w}px`, minWidth: `${w}px` }}
+                    />
+                  );
+                })}
               <div className="hidden md:block self-stretch w-8 flex-shrink-0 border-l border-[#94a3b8]" />
             </button>
           )}
