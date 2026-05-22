@@ -305,3 +305,33 @@
   width: 18px;
   border-radius: 3px;
 }
+
+/* ==========================================
+   MY-TASKS SPREADSHEET DIVIDERS
+   ==========================================
+   Robust grid-cell dividers for the /my-tasks list view.
+   Replaces the Tailwind `[&>*+*]:border-l ...` arbitrary-selector
+   pattern which silently fails in some Tailwind v4 builds because
+   the JIT can drop `border-style: solid` when combined with arbitrary
+   color selectors. By writing plain CSS with explicit
+   `border-style: solid` + width + color, the lines are guaranteed
+   to render at every DPR / zoom / browser.
+   Color #404244 (rgb 64,66,68) matches Asana's SpreadsheetCell
+   border verified in DevTools — dark enough to survive sub-pixel
+   anti-aliasing at HiDPI displays. */
+.tt-grid-divider-row {
+  border-bottom: 1px solid #d1d5db;
+}
+.tt-grid-divider-row > * {
+  min-width: 0;
+  /* Stretch each grid item to the full row height. Without this,
+     align-items:center on the row collapses empty cells to 0 height,
+     making their border-left invisible — the exact bug Juan reported.
+     align-self:stretch overrides the parent's align-items:center for
+     this child only, so the cell's BOX fills the row height while its
+     inner content (flex items-center inside) stays vertically centered. */
+  align-self: stretch;
+}
+.tt-grid-divider-row > * + * {
+  border-left: 1px solid #d1d5db;
+}

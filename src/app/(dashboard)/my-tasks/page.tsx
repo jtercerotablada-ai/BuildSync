@@ -1591,7 +1591,7 @@ export default function MyTasksPage() {
               // DevTools on Asana's My Tasks. Light grays (slate-400
               // and lighter) become invisible at DPR 1.25 + browser
               // zoom != 67% due to sub-pixel anti-aliasing.
-              className="hidden md:grid items-center px-6 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20 border-b border-[#404244] [&>*+*]:border-l [&>*+*]:border-[#404244] [&>*]:min-w-0"
+              className="tt-grid-divider-row hidden md:grid items-center px-6 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20"
               style={{
                 height: "var(--col-header-h, 32px)",
                 gridTemplateColumns: rowGridTemplate,
@@ -3300,7 +3300,7 @@ function TaskRow({
         //   We use `border-l` (1px solid #404244) on every child
         //   except the first combined cell, plus a `border-b` on
         //   the row itself for horizontal dividers.
-        className="hidden md:grid items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors select-none border-b border-[#404244] [&>*+*]:border-l [&>*+*]:border-[#404244] [&>*]:min-w-0"
+        className="tt-grid-divider-row hidden md:grid items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors select-none"
       >
         {/* COMBINED FIRST CELL: Grip + Checkbox + Task name + indicators.
             Internal flex layout (16 + 32 + flex-1) preserves the
