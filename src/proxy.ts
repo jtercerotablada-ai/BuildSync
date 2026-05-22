@@ -45,9 +45,14 @@ const MAINTENANCE_MODE = true;
 function isMaintenanceActive(): boolean {
   if (!MAINTENANCE_MODE) return false;
   if (process.env.MAINTENANCE_MODE_OFF === "true") return false;
-  // Vercel sets this for both production AND preview deployments. Local
-  // `next dev` / `next start` doesn't set it, so localhost stays open.
-  return !!process.env.VERCEL_ENV;
+  // NODE_ENV is the ONE flag Next.js owns end-to-end and that `.env.local`
+  // cannot poison: `next dev` always exports "development" regardless of
+  // what's checked into the repo's env files, and Vercel runs the built
+  // image with "production". VERCEL_ENV/VERCEL won't work here because
+  // `vercel pull` writes those into .env.local for emulation, which then
+  // makes the dev server think it's in prod and redirects every request
+  // to /maintenance — Juan hit this on first run.
+  return process.env.NODE_ENV === "production";
 }
 
 export async function proxy(request: NextRequest) {
