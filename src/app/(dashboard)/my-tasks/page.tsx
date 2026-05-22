@@ -2587,29 +2587,50 @@ function TaskSection({
         isOver && "bg-[#c9a84c]/5"
       )}
     >
-      {/* Section header — naturally clean (no per-cell borders so
-          no vertical lines pass through). Per Juan's rule, only
-          tasks carry vertical dividers. */}
+      {/* Section header — uses the SAME grid template as TaskRow so
+          vertical column dividers continue through it uninterrupted
+          (Juan's "unified grid" rule, May 2026). Combined first cell
+          holds the chevron + section name + count; remaining cells
+          are empty grid items that exist only so the grid generates
+          their column tracks (and therefore the verticals). */}
       <button
         onClick={onToggleSection}
-        className="flex items-center px-4 md:px-6 w-full hover:bg-[var(--surface-hover)] text-left border-b-2 border-[var(--border-subtle)]"
-        style={{ height: "var(--row-h)" }}
+        className="tt-grid-divider-row hidden md:grid items-center px-4 md:px-6 w-full text-left hover:bg-[var(--surface-hover)]"
+        style={{ height: "var(--row-h)", gridTemplateColumns: rowGridTemplate }}
       >
-        {/* Grip-handle spacer — matches the data row's hidden
-            GripVertical so the chevron + section name line up with
-            the row's checkbox + task name beneath. */}
-        <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
-        <div className="w-8 flex-shrink-0 flex items-center">
-          {section.collapsed ? (
-            <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
-          ) : (
-            <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+        {/* Combined first cell — chevron + section name + count.
+            Mirrors the data row's combined Grip + Checkbox + Task
+            name slot so the chevron lines up with the row checkbox. */}
+        <div className="flex items-center min-w-0">
+          <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
+          <div className="w-8 flex-shrink-0 flex items-center">
+            {section.collapsed ? (
+              <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+            )}
+          </div>
+          <span className="text-[13px] font-semibold text-gray-900 truncate">{section.name}</span>
+          {section.tasks.length > 0 && (
+            <span className="text-gray-400 text-[11px] ml-2 flex-shrink-0">{section.tasks.length}</span>
           )}
         </div>
-        <span className="text-[13px] font-semibold text-gray-900">{section.name}</span>
-        {section.tasks.length > 0 && (
-          <span className="text-gray-400 text-[11px] ml-2">{section.tasks.length}</span>
-        )}
+        {/* Empty grid cells — one per visible column. They exist
+            ONLY so the grid renders their tracks and the verticals
+            from tt-grid-divider-row > * + * are drawn through this
+            row, matching the data rows above/below. */}
+        {!hiddenColumns.has("dueDate") && <div />}
+        {!hiddenColumns.has("collaborators") && <div />}
+        {!hiddenColumns.has("projects") && <div />}
+        {!hiddenColumns.has("visibility") && <div />}
+        {(customColumns.length > 0
+          ? customColumns
+          : Array.from({ length: customColumnCount }, (_, i) => ({ id: `phc-${i}` } as { id: string })))
+          .map((col, i) => (
+            <div key={(col as { id?: string }).id ?? `phc-${i}`} />
+          ))}
+        {/* + spacer cell to match the 32px tail in rowGridTemplate */}
+        <div />
       </button>
 
       {/* Tasks */}
@@ -2619,29 +2640,26 @@ function TaskSection({
           items={section.tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
         >
-          {/* Inline input row — appears at TOP of section (Asana behavior) */}
+          {/* Inline input row — appears at TOP of section (Asana behavior).
+              Uses the same grid template as TaskRow so verticals continue
+              through it. Empty cells exist purely as grid tracks. */}
           {isAddingTask && (
             <div
-              className="flex items-center px-4 md:px-6 border-b-2 border-[var(--border-subtle)] bg-[#c9a84c]/10/60"
-              style={{ height: "var(--row-h)" }}
+              className="tt-grid-divider-row hidden md:grid items-center px-4 md:px-6 bg-[#c9a84c]/5"
+              style={{ height: "var(--row-h)", gridTemplateColumns: rowGridTemplate }}
             >
-              {/* Grip-handle spacer — aligns this input row with the
-                  data rows that have a hidden GripVertical icon. */}
-              <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
-              <div className="w-8 flex-shrink-0 flex items-center">
-                {activeTaskType === "MILESTONE" ? (
-                  <Diamond className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
-                ) : activeTaskType === "APPROVAL" ? (
-                  <ThumbsUp className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
-                ) : (
-                  <div className="w-4 h-4 rounded-full border-2 border-gray-200 flex-shrink-0" />
-                )}
-              </div>
-              {/* min-w-[260px] keeps the inline add-task input at
-                  the same horizontal slice the data rows use, so the
-                  column placeholders below it line up with the rows
-                  above. */}
-              <div className="flex-1 min-w-[260px]">
+              {/* Combined first cell — spacer + type icon + input */}
+              <div className="flex items-center min-w-0">
+                <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
+                <div className="w-8 flex-shrink-0 flex items-center">
+                  {activeTaskType === "MILESTONE" ? (
+                    <Diamond className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
+                  ) : activeTaskType === "APPROVAL" ? (
+                    <ThumbsUp className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-200 flex-shrink-0" />
+                  )}
+                </div>
                 <input
                   ref={inputRef}
                   type="text"
@@ -2650,51 +2668,24 @@ function TaskSection({
                   onKeyDown={handleKeyDown}
                   onBlur={handleBlur}
                   placeholder={activeTaskType === "MILESTONE" ? "Type the milestone name" : activeTaskType === "APPROVAL" ? "Type the approval name" : "Type the task name"}
-                  className="w-full bg-transparent outline-none text-[13px] text-gray-900 placeholder:text-gray-400"
+                  className="flex-1 min-w-0 bg-transparent outline-none text-[13px] text-gray-900 placeholder:text-gray-400"
                   autoFocus
                   disabled={isCreating}
                 />
               </div>
-              {/* Due date placeholder */}
-              {!hiddenColumns.has("dueDate") && (
-              <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-dueDate)" }}>
-                <Calendar className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              )}
-              {/* Collaborators placeholder */}
-              {!hiddenColumns.has("collaborators") && (
-                <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-collaborators)" }} />
-              )}
-              {/* Projects placeholder */}
-              {!hiddenColumns.has("projects") && (
-                <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-projects)" }} />
-              )}
-              {/* Visibility placeholder */}
-              {!hiddenColumns.has("visibility") && (
-              <div className="hidden md:block flex-shrink-0 pl-2.5" style={{ width: "var(--col-visibility)" }}>
-                <span className="text-[13px] text-gray-300 flex items-center gap-1">
-                  <Lock className="w-3 h-3" />
-                  Only me
-                </span>
-              </div>
-              )}
-              {/* Custom column placeholders — same width mapping as
-                  the data row so the inline-add input lines up. */}
+              {/* Empty grid cells — same shape as TaskRow + section header */}
+              {!hiddenColumns.has("dueDate") && <div />}
+              {!hiddenColumns.has("collaborators") && <div />}
+              {!hiddenColumns.has("projects") && <div />}
+              {!hiddenColumns.has("visibility") && <div />}
               {(customColumns.length > 0
                 ? customColumns
-                : Array.from({ length: customColumnCount }, () => ({ width: 110 } as { width: number })))
-                .map((col, i) => {
-                  const w = (col as { width?: number }).width || 110;
-                  return (
-                    <div
-                      key={(col as { id?: string }).id ?? `placeholder-${i}`}
-                      className="hidden md:block flex-shrink-0 pl-2.5"
-                      style={{ width: `${w}px`, minWidth: `${w}px` }}
-                    />
-                  );
-                })}
-              {/* Spinner / spacer */}
-              <div className="w-8 flex-shrink-0 flex items-center justify-center">
+                : Array.from({ length: customColumnCount }, (_, i) => ({ id: `phc-${i}` } as { id: string })))
+                .map((col, i) => (
+                  <div key={(col as { id?: string }).id ?? `phc-${i}`} />
+                ))}
+              {/* + spacer with spinner */}
+              <div className="flex items-center justify-center">
                 {isCreating && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
               </div>
             </div>
@@ -2714,53 +2705,35 @@ function TaskSection({
             />
           ))}
 
-          {/* "+ Add task" trigger row */}
+          {/* "+ Add task" trigger row — uses unified grid so verticals
+              continue uninterrupted into the next section. */}
           {!isAddingTask && (
             <button
               onClick={() => { setActiveTaskType("TASK"); setIsAddingTask(true); }}
-              className="flex items-center px-4 md:px-6 w-full text-left border-b-2 border-[var(--border-subtle)] hover:bg-[var(--surface-hover)] transition-colors"
-              style={{ height: "var(--row-h)" }}
+              className="tt-grid-divider-row hidden md:grid items-center px-4 md:px-6 w-full text-left hover:bg-[var(--surface-hover)] transition-colors"
+              style={{ height: "var(--row-h)", gridTemplateColumns: rowGridTemplate }}
             >
-              {/* Grip-handle spacer — aligns the + Add task button with
-                  the data row checkbox column (which sits to the
-                  right of a hidden GripVertical). */}
-              <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
-              <div className="w-8 flex-shrink-0 flex items-center">
-                <Plus className="w-3.5 h-3.5 text-gray-300" />
+              {/* Combined first cell — Plus icon + "Add task" label */}
+              <div className="flex items-center min-w-0">
+                <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
+                <div className="w-8 flex-shrink-0 flex items-center">
+                  <Plus className="w-3.5 h-3.5 text-gray-300" />
+                </div>
+                <span className="text-[13px] text-gray-400 truncate">Add task</span>
               </div>
-              {/* min-w-[260px] mirrors the data row's Task name cell
-                  so this trigger occupies the same horizontal slice
-                  the rows above use. Without it, flex-1 shrinks the
-                  "Add task" text to its content width, pulling every
-                  column placeholder to its right ~200px left of the
-                  data row's column borders — the desalineación Juan
-                  flagged. */}
-              <span className="flex-1 min-w-[260px] text-[13px] text-gray-400">Add task</span>
-              {/* Placeholders for column alignment — NO border-l on
-                  this row. Asana parity: Add task rows live in the
-                  "between sections" band along with section headers,
-                  and that band is intentionally free of column
-                  verticals so the data rows above and below feel
-                  like distinct groups. Border-b on the parent button
-                  keeps the row separable from the next section. */}
-              {!hiddenColumns.has("dueDate") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-dueDate)" }} />}
-              {!hiddenColumns.has("collaborators") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-collaborators)" }} />}
-              {!hiddenColumns.has("projects") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-projects)" }} />}
-              {!hiddenColumns.has("visibility") && <div className="hidden md:block flex-shrink-0" style={{ width: "var(--col-visibility)" }} />}
+              {/* Empty grid cells — same shape as TaskRow + section header */}
+              {!hiddenColumns.has("dueDate") && <div />}
+              {!hiddenColumns.has("collaborators") && <div />}
+              {!hiddenColumns.has("projects") && <div />}
+              {!hiddenColumns.has("visibility") && <div />}
               {(customColumns.length > 0
                 ? customColumns
-                : Array.from({ length: customColumnCount }, () => ({ width: 110 } as { width: number })))
-                .map((col, i) => {
-                  const w = (col as { width?: number }).width || 110;
-                  return (
-                    <div
-                      key={(col as { id?: string }).id ?? `placeholder-${i}`}
-                      className="hidden md:block flex-shrink-0"
-                      style={{ width: `${w}px`, minWidth: `${w}px` }}
-                    />
-                  );
-                })}
-              <div className="hidden md:block w-8 flex-shrink-0" />
+                : Array.from({ length: customColumnCount }, (_, i) => ({ id: `phc-${i}` } as { id: string })))
+                .map((col, i) => (
+                  <div key={(col as { id?: string }).id ?? `phc-${i}`} />
+                ))}
+              {/* + spacer cell */}
+              <div />
             </button>
           )}
         </SortableContext>
@@ -3300,7 +3273,7 @@ function TaskRow({
         //   We use `border-l` (1px solid #404244) on every child
         //   except the first combined cell, plus a `border-b` on
         //   the row itself for horizontal dividers.
-        className="tt-grid-divider-row hidden md:grid items-center min-h-[40px] px-4 md:px-6 hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors select-none"
+        className="tt-grid-divider-row hidden md:grid items-center px-4 md:px-6 hover:bg-[var(--surface-hover)] cursor-pointer group transition-colors select-none"
       >
         {/* COMBINED FIRST CELL: Grip + Checkbox + Task name + indicators.
             Internal flex layout (16 + 32 + flex-1) preserves the

@@ -320,7 +320,7 @@
    border verified in DevTools — dark enough to survive sub-pixel
    anti-aliasing at HiDPI displays. */
 .tt-grid-divider-row {
-  border-bottom: 1px solid #d1d5db;
+  border-bottom: 1px solid #94a3b8;
 }
 .tt-grid-divider-row > * {
   min-width: 0;
@@ -333,5 +333,5 @@
   align-self: stretch;
 }
 .tt-grid-divider-row > * + * {
-  border-left: 1px solid #d1d5db;
+  border-left: 1px solid #94a3b8;
 }
