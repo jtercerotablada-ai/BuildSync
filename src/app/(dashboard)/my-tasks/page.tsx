@@ -110,7 +110,7 @@ import type { FieldTypeConfig } from "@/lib/field-types";
 import { AdvancedSearchModal, type AdvancedSearchCriteria } from "@/components/tasks/advanced-search-modal";
 import { FileViewerModal } from "@/components/files/file-viewer-modal";
 import { downloadFile } from "@/lib/download";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ColumnHeader, COLUMN_CONFIGS, type ColumnConfig } from "@/components/tasks/column-header-dropdown";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { AssigneeSelector } from "@/components/tasks/assignee-selector";
@@ -282,6 +282,13 @@ export default function MyTasksPage() {
   const [calendarSyncType, setCalendarSyncType] = useState<"outlook" | "google" | "ical">("outlook");
   const [showGoogleSheetsHelp, setShowGoogleSheetsHelp] = useState(false);
   const [calendarFeedUrl, setCalendarFeedUrl] = useState("");
+  /** Asana-parity delete-field confirmation. `col` is null when closed;
+   *  when the user clicks "Delete field" on a custom column header,
+   *  setDeleteFieldDialog({ col }) opens the modal and the actual
+   *  removal runs only after the user confirms in the dialog. */
+  const [deleteFieldDialog, setDeleteFieldDialog] = useState<{
+    col: ListColumn | null;
+  }>({ col: null });
   const [calendarFeedLoading, setCalendarFeedLoading] = useState(false);
   const [openColumnDropdown, setOpenColumnDropdown] = useState<string | null>(null);
 
@@ -1578,7 +1585,7 @@ export default function MyTasksPage() {
             "--row-h": "40px",
           } as React.CSSProperties}
         >
-          <div className="flex-1 overflow-auto relative">
+          <div className="flex-1 overflow-auto relative bg-white">
           {/* COLUMN HEADERS - sticky inside the scroll container so it shares
               the same effective width as the task rows below. Living outside
               the scroll container made the header ~15px wider than each row
@@ -1591,7 +1598,7 @@ export default function MyTasksPage() {
               // DevTools on Asana's My Tasks. Light grays (slate-400
               // and lighter) become invisible at DPR 1.25 + browser
               // zoom != 67% due to sub-pixel anti-aliasing.
-              className="tt-grid-divider-row hidden md:grid items-center px-6 bg-[var(--header-band)] text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20"
+              className="tt-grid-divider-row tt-grid-header hidden md:grid items-center px-6 text-[11px] font-medium text-gray-500 flex-shrink-0 sticky top-0 z-20"
               style={{
                 height: "var(--col-header-h, 32px)",
                 gridTemplateColumns: rowGridTemplate,
@@ -1634,7 +1641,7 @@ export default function MyTasksPage() {
           {/* Due date — width from grid template (var(--col-dueDate)).
               Border comes from row's [&>*+*]:border-l. */}
           {!hiddenColumns.has("dueDate") && (
-          <div className="relative">
+          <div className="relative flex items-center pl-2.5 pr-1">
             {/* Left border handle: drag to resize Due date */}
             <div
               onMouseDown={(e) => handleResizeStart(e, null, "dueDate")}
@@ -1664,7 +1671,7 @@ export default function MyTasksPage() {
 
           {/* Collaborators — width from grid template. */}
           {!hiddenColumns.has("collaborators") && (
-          <div className="relative">
+          <div className="relative flex items-center pl-2.5 pr-1">
             <div
               onMouseDown={(e) => handleResizeStart(e, "dueDate", "collaborators")}
               onDoubleClick={handleResizeReset}
@@ -1686,7 +1693,7 @@ export default function MyTasksPage() {
 
           {/* Projects — width from grid template. */}
           {!hiddenColumns.has("projects") && (
-          <div className="relative">
+          <div className="relative flex items-center pl-2.5 pr-1">
             <div
               onMouseDown={(e) => handleResizeStart(e, "collaborators", "projects")}
               onDoubleClick={handleResizeReset}
@@ -1714,7 +1721,7 @@ export default function MyTasksPage() {
 
           {/* Visibility — width from grid template. */}
           {!hiddenColumns.has("visibility") && (
-          <div className="relative">
+          <div className="relative flex items-center pl-2.5 pr-1">
             <div
               onMouseDown={(e) => handleResizeStart(e, "projects", "visibility")}
               onDoubleClick={handleResizeReset}
@@ -1843,23 +1850,12 @@ export default function MyTasksPage() {
                           );
                         },
                     // Delete field — RED bottom action. Custom only.
-                    // Confirms then removes the column from the list
-                    // (full deletion of the CustomFieldDefinition
-                    // would touch other projects and is a follow-up).
+                    // Opens the Asana-parity confirm dialog; actual
+                    // removal happens after the user confirms inside
+                    // the modal (see deleteFieldDialog JSX below).
                     onDeleteField: isBuiltin
                       ? undefined
-                      : () => {
-                          if (
-                            !confirm(
-                              `Delete field "${col.name}"? It will be removed from this list.`
-                            )
-                          )
-                            return;
-                          setCustomColumns((prev) =>
-                            prev.filter((c) => c.id !== col.id)
-                          );
-                          toast.success(`Field "${col.name}" deleted`);
-                        },
+                      : () => setDeleteFieldDialog({ col }),
                   }}
                 />
               </div>
@@ -2478,6 +2474,57 @@ export default function MyTasksPage() {
               </button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete field confirmation — Asana-parity modal. Opens when the
+          user picks "Delete field" on a custom column header dropdown.
+          Title quotes the field name; body explains the consequence
+          (existing values kept, editing disabled, rules break);
+          destructive action is red. */}
+      <Dialog
+        open={!!deleteFieldDialog.col}
+        onOpenChange={(open) => {
+          if (!open) setDeleteFieldDialog({ col: null });
+        }}
+      >
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-[16px] font-semibold text-gray-900">
+              {deleteFieldDialog.col
+                ? `Delete the ${deleteFieldDialog.col.name} field from My tasks?`
+                : ""}
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-gray-600 leading-relaxed pt-2">
+              This will remove the field from My tasks. Existing values on
+              tasks will be kept, but won&apos;t be editable. Rules or
+              automations using this field will stop working.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 mt-2">
+            <button
+              onClick={() => setDeleteFieldDialog({ col: null })}
+              className="px-4 py-2 text-[13px] font-medium text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                const col = deleteFieldDialog.col;
+                if (!col) return;
+                setCustomColumns((prev) =>
+                  prev.filter((c) => c.id !== col.id)
+                );
+                toast.success(`Field "${col.name}" deleted`);
+                setDeleteFieldDialog({ col: null });
+              }}
+              className="px-4 py-2 text-[13px] font-medium text-white bg-[#d1485a] hover:bg-[#b93b4c] rounded-md transition-colors"
+            >
+              {deleteFieldDialog.col
+                ? `Delete ${deleteFieldDialog.col.name}`
+                : "Delete"}
+            </button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -31,8 +31,44 @@ function isPublicRoute(pathname: string): boolean {
   return publicPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
+/**
+ * Maintenance mode — when true, every request from the public web
+ * lands on /maintenance. Localhost (`next dev`) is NEVER affected
+ * because the trip-wire below only fires on Vercel-hosted environments.
+ *
+ * To take the site live again, flip MAINTENANCE_MODE to `false` and
+ * push. (Alternative: set MAINTENANCE_MODE_OFF=true in Vercel project
+ * env vars to override without a code change.)
+ */
+const MAINTENANCE_MODE = true;
+
+function isMaintenanceActive(): boolean {
+  if (!MAINTENANCE_MODE) return false;
+  if (process.env.MAINTENANCE_MODE_OFF === "true") return false;
+  // Vercel sets this for both production AND preview deployments. Local
+  // `next dev` / `next start` doesn't set it, so localhost stays open.
+  return !!process.env.VERCEL_ENV;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // ── Maintenance mode (production-only) ──────────────────────────
+  // Redirect every non-maintenance, non-asset request to /maintenance.
+  if (isMaintenanceActive()) {
+    if (
+      pathname === "/maintenance" ||
+      pathname.startsWith("/_next") ||
+      pathname.startsWith("/ttc/") ||
+      pathname.startsWith("/api/health") ||
+      pathname === "/favicon.ico" ||
+      pathname === "/icon.svg" ||
+      pathname === "/robots.txt"
+    ) {
+      return NextResponse.next();
+    }
+    return NextResponse.redirect(new URL("/maintenance", request.url));
+  }
 
   // Skip public routes
   if (isPublicRoute(pathname)) {

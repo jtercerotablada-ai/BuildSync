@@ -68,7 +68,7 @@
   --border-row: #94a3b8;
   --text-muted-custom: #6b7280;
   --text-secondary-custom: #9ca3af;
-  --header-band: #f6f8f9;
+  --header-band: #f3f4f6;
 
   /* Search capsule */
   --search-bg: #f1f2f4;
@@ -319,9 +319,6 @@
    Color #404244 (rgb 64,66,68) matches Asana's SpreadsheetCell
    border verified in DevTools — dark enough to survive sub-pixel
    anti-aliasing at HiDPI displays. */
-.tt-grid-divider-row {
-  border-bottom: 1px solid #94a3b8;
-}
 .tt-grid-divider-row > * {
   min-width: 0;
   /* Stretch each grid item to the full row height. Without this,
@@ -331,7 +328,28 @@
      this child only, so the cell's BOX fills the row height while its
      inner content (flex items-center inside) stays vertically centered. */
   align-self: stretch;
+  /* border-bottom lives on EACH CELL (not the row container) so the
+     horizontal line extends through every column the grid renders —
+     even the ones that scroll horizontally beyond the viewport's
+     right edge. Putting border-bottom on the row container only
+     painted the line up to the container's clipped width, leaving the
+     right-side columns visually orphaned (Juan's "left side has
+     horizontal lines, right side only has verticals" bug, May 2026). */
+  border-bottom: 1px solid #e5e7eb;
 }
 .tt-grid-divider-row > * + * {
-  border-left: 1px solid #94a3b8;
+  border-left: 1px solid #e5e7eb;
+}
+
+/* Header band that survives custom column wrappers — every cell in
+   the header row is painted explicitly, so no descendant wrapper
+   (resize handles, ColumnHeader internals, etc.) can break the
+   continuous light-gray band that runs across the full table width.
+   Without this, Juan saw the gray "die" partway through the custom
+   columns because some wrappers stacked above the row's background. */
+.tt-grid-header {
+  background-color: var(--header-band);
+}
+.tt-grid-header > * {
+  background-color: var(--header-band);
 }
