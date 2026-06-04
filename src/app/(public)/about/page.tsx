@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useTranslation } from '@/components/ttc/language-provider';
 import { CounterStat } from '@/components/ttc/counter-stat';
 import { ValueItem } from '@/components/ttc/value-item';
-import { Marquee } from '@/components/ttc/marquee';
+import { WhyUs } from '@/components/ttc/why-us';
 import type { TranslationKey } from '@/lib/i18n';
 
 export default function AboutPage() {
@@ -78,15 +78,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="section clients">
-        <div className="container">
-          <div className="section__header">
-            <span className="section__label">{t('section.trustedBy')}</span>
-            <h2 className="section__title">{t('section.ourClients')}</h2>
-          </div>
-        </div>
-        <Marquee />
-      </section>
+      <WhyUs />
 
       <section className="section cta-section">
         <div className="container cta-section__inner">
