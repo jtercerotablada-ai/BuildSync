@@ -8,6 +8,7 @@ import 'leaflet/dist/leaflet.css';
 import './ttc-globals.css';
 import './ttc-fx-pro.css';
 import './ttc-sections-pro.css';
+import './ttc-pop.css';
 
 const playfair = Playfair_Display({
   subsets: ['latin'],

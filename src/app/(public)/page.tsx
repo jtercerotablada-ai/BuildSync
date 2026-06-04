@@ -11,6 +11,7 @@ import { Marquee } from '@/components/ttc/marquee';
 import { CounterStat } from '@/components/ttc/counter-stat';
 import { ContactForm } from '@/components/ttc/contact-form';
 import { CtaBand } from '@/components/ttc/cta-band';
+import { ProcessSection } from '@/components/ttc/process-section';
 import { serviceIcons } from '@/components/ttc/service-icons';
 import type { TranslationKey } from '@/lib/i18n';
 
@@ -142,6 +143,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <ProcessSection />
 
       {/* VALUES */}
       <section className="section values" id="values">
