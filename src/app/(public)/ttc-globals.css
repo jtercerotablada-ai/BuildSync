@@ -320,7 +320,7 @@ img, svg {
 }
 
 .footer__logo-img {
-  height: 56px;
+  height: 72px;
   width: auto;
   margin: 0 auto 0.75rem;
   filter: drop-shadow(0 4px 20px var(--color-accent-glow));
@@ -3599,7 +3599,7 @@ img, svg {
   }
 
   .footer__logo-img {
-    height: 80px;
+    height: 100px;
   }
 }
 
