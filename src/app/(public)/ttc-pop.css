@@ -301,16 +301,28 @@
   color: #c9a84c !important;
 }
 .hero__badge {
-  color: #b88a2e !important;
+  color: #9a7b2e !important;
+  text-shadow: 0 1px 8px rgba(246, 245, 242, 0.85);
 }
 .hero__materials {
-  color: #6b6b62 !important;
+  color: #33312a !important;
+  text-shadow: 0 1px 10px rgba(246, 245, 242, 0.95), 0 0 2px rgba(246, 245, 242, 0.9);
 }
 .hero__desc {
-  color: #4d4d47 !important;
+  color: #2c2a24 !important;
+  text-shadow: 0 1px 12px rgba(246, 245, 242, 0.95), 0 0 2px rgba(246, 245, 242, 0.9);
 }
 .hero__credential {
-  color: #8a877e !important;
+  color: #33312a !important;
+  text-shadow: 0 1px 10px rgba(246, 245, 242, 0.97), 0 0 2px rgba(246, 245, 242, 0.95);
+}
+.hero__scroll-text {
+  color: #9a7b2e !important;
+  text-shadow: 0 1px 8px rgba(246, 245, 242, 0.95);
+}
+/* a soft light halo keeps the big title crisp over the more-visible video */
+.hero__title-line {
+  text-shadow: 0 2px 22px rgba(246, 245, 242, 0.55);
 }
 
 /* Outline button readable on light */
@@ -369,4 +381,81 @@
 .values .section__header::before,
 .clients .section__header::before {
   color: rgba(201, 168, 76, 0.13);
+}
+
+/* ============================================================
+   "Why work with us" — replaces the clients/partners section
+   (trust through concrete benefits, not a client list).
+   ============================================================ */
+.why-us {
+  position: relative;
+  overflow: hidden;
+  background: #f6f5f2;
+  padding: 7rem 0;
+}
+.why-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+.why-card {
+  position: relative;
+  padding: 2.25rem 1.6rem 2rem;
+  background: #ffffff;
+  border: 1px solid rgba(20, 20, 15, 0.08);
+  border-radius: 14px;
+  transition:
+    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.45s ease,
+    border-color 0.45s ease;
+}
+.why-card:hover {
+  transform: translateY(-8px);
+  border-color: rgba(201, 168, 76, 0.5);
+  box-shadow: 0 22px 50px rgba(20, 20, 15, 0.12);
+}
+.why-card__icon {
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c9a84c;
+  background: rgba(201, 168, 76, 0.1);
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  border-radius: 12px;
+  margin-bottom: 1.4rem;
+}
+.why-card__icon svg {
+  width: 26px;
+  height: 26px;
+}
+.why-card__title {
+  font-family: var(--font-inter, 'Inter', sans-serif);
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: #14140f;
+  margin: 0 0 0.55rem;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.why-card__desc {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #5b5b54;
+  margin: 0;
+}
+@media (max-width: 980px) {
+  .why-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .why-us {
+    padding: 4.5rem 0;
+  }
+  .why-grid {
+    grid-template-columns: 1fr;
+  }
 }

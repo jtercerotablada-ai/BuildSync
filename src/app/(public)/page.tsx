@@ -7,7 +7,7 @@ import { useTranslation } from '@/components/ttc/language-provider';
 import { ProjectCard } from '@/components/ttc/project-card';
 import { ServiceCard } from '@/components/ttc/service-card';
 import { ValueItem } from '@/components/ttc/value-item';
-import { Marquee } from '@/components/ttc/marquee';
+import { WhyUs } from '@/components/ttc/why-us';
 import { CounterStat } from '@/components/ttc/counter-stat';
 import { ContactForm } from '@/components/ttc/contact-form';
 import { CtaBand } from '@/components/ttc/cta-band';
@@ -198,17 +198,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CLIENTS */}
-      <section className="section clients" id="clients">
-        <div className="container">
-          <div className="section__header">
-            <span className="section__label">{t('section.trustedBy')}</span>
-            <h2 className="section__title">{t('section.ourClients')}</h2>
-            <p className="section__subtitle">{t('section.clientsSubtitle')}</p>
-          </div>
-        </div>
-        <Marquee />
-      </section>
+      {/* WHY WORK WITH US (replaces clients/partners) */}
+      <WhyUs />
 
       <CtaBand />
 
