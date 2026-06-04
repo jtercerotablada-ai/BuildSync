@@ -119,12 +119,12 @@
 }
 
 .pop-step__title {
-  font-family: var(--font-inter, 'Inter', sans-serif);
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-family: var(--font-display, var(--font-playfair, 'Playfair Display', serif));
+  font-size: 1.25rem;
+  font-weight: 500;
   color: #14140f;
   margin: 0 0 0.6rem;
-  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 .pop-step__desc {
@@ -432,13 +432,12 @@
   height: 26px;
 }
 .why-card__title {
-  font-family: var(--font-inter, 'Inter', sans-serif);
-  font-size: 1.12rem;
-  font-weight: 700;
+  font-family: var(--font-display, var(--font-playfair, 'Playfair Display', serif));
+  font-size: 1.25rem;
+  font-weight: 500;
   color: #14140f;
   margin: 0 0 0.55rem;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 .why-card__desc {
   font-size: 0.95rem;
