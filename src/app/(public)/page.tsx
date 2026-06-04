@@ -168,7 +168,7 @@ export default function HomePage() {
       </section>
 
       {/* ABOUT */}
-      <section className="section about" id="about">
+      <section className="section about about--light" id="about">
         <div className="container">
           <div className="about__grid">
             <div className="about__image" data-aos="fade-right">

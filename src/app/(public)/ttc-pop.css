@@ -147,3 +147,91 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+   About section → white "pop" treatment (black/white/gold rhythm).
+   Scoped to .about--light so only the homepage About flips.
+   ============================================================ */
+.about--light {
+  background: #f6f5f2 !important;
+  color: #14140f;
+}
+.about--light::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(12.5% - 1px),
+    rgba(201, 168, 76, 0.16) calc(12.5% - 1px),
+    rgba(201, 168, 76, 0.16) 12.5%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+}
+.about--light .container {
+  position: relative;
+  z-index: 1;
+}
+.about--light .section__title {
+  color: #14140f !important;
+}
+.about--light .about__content p {
+  color: #4d4d47 !important;
+}
+.about--light .section__label {
+  color: #b88a2e !important;
+}
+.about--light .stat__label {
+  color: #5b5b54 !important;
+}
+.about--light .about__stats {
+  border-top-color: rgba(20, 20, 15, 0.12) !important;
+}
+.about--light .about__image {
+  border-color: rgba(20, 20, 15, 0.12) !important;
+}
+
+/* ============================================================
+   Giant faint-gold "pop" watermark numbers behind the dark
+   section headers (popwebdesign signature). Header content is
+   lifted to z-index 1 so the number always sits behind it.
+   ============================================================ */
+.projects .section__header,
+.services .section__header,
+.values .section__header,
+.clients .section__header {
+  position: relative;
+}
+.projects .section__header > *,
+.services .section__header > *,
+.values .section__header > *,
+.clients .section__header > * {
+  position: relative;
+  z-index: 1;
+}
+.projects .section__header::before,
+.services .section__header::before,
+.values .section__header::before,
+.clients .section__header::before {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -56%);
+  font-family: var(--font-playfair, var(--font-display, serif));
+  font-weight: 600;
+  font-size: clamp(6rem, 13vw, 12rem);
+  line-height: 1;
+  color: rgba(201, 168, 76, 0.07);
+  z-index: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.projects .section__header::before { content: '01'; }
+.services .section__header::before { content: '02'; }
+.values .section__header::before { content: '03'; }
+.clients .section__header::before { content: '04'; }
