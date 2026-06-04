@@ -1,20 +1,37 @@
 'use client';
 
 import React from 'react';
+import { useTranslation } from './language-provider';
 
-const clients = [
-  'YOUR ARCHITECT PARTNER',
-  'YOUR CONSTRUCTION FIRM',
-  'YOUR DEVELOPER GROUP',
-  'YOUR DESIGN STUDIO',
-  'YOUR GENERAL CONTRACTOR',
-  'YOUR ARCHITECTURE OFFICE',
-  'YOUR REAL ESTATE PARTNER',
-  'YOUR BUILDER CO.',
-];
+// Honest partner TYPES (the firm collaborates with these) — not fabricated
+// named clients. Swap in real client names here once available.
+const PARTNERS: Record<string, string[]> = {
+  en: [
+    'ARCHITECTS',
+    'REAL ESTATE DEVELOPERS',
+    'GENERAL CONTRACTORS',
+    'CONSTRUCTION MANAGERS',
+    'DESIGN-BUILD FIRMS',
+    'OWNERS & INVESTORS',
+    'MEP ENGINEERS',
+    'PUBLIC AGENCIES',
+  ],
+  es: [
+    'ARQUITECTOS',
+    'DESARROLLADORES INMOBILIARIOS',
+    'CONTRATISTAS GENERALES',
+    'GERENTES DE CONSTRUCCIÓN',
+    'FIRMAS DISEÑO-CONSTRUCCIÓN',
+    'PROPIETARIOS E INVERSORES',
+    'INGENIEROS MEP',
+    'AGENCIAS PÚBLICAS',
+  ],
+};
 
 export function Marquee() {
-  const items = [...clients, ...clients];
+  const { language } = useTranslation();
+  const base = PARTNERS[language] ?? PARTNERS.en;
+  const items = [...base, ...base];
 
   return (
     <div className="marquee">
@@ -22,7 +39,7 @@ export function Marquee() {
         {items.map((item, i) => (
           <React.Fragment key={i}>
             <span>{item}</span>
-            <span>{'\u00b7'}</span>
+            <span>{'·'}</span>
           </React.Fragment>
         ))}
       </div>
