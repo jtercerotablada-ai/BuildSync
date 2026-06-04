@@ -235,3 +235,24 @@
 .services .section__header::before { content: '02'; }
 .values .section__header::before { content: '03'; }
 .clients .section__header::before { content: '04'; }
+
+/* ============================================================
+   Hero blueprint guide-line grid — ties the dark video hero to
+   the white "pop" sections. Sits above the overlay (z-1), below
+   the content (z-2); masked so lines fade away behind the title.
+   ============================================================ */
+.hero-bp {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(8.3333% - 1px),
+    rgba(201, 168, 76, 0.10) calc(8.3333% - 1px),
+    rgba(201, 168, 76, 0.10) 8.3333%
+  );
+  -webkit-mask-image: radial-gradient(ellipse 62% 52% at center, transparent 20%, #000 74%);
+  mask-image: radial-gradient(ellipse 62% 52% at center, transparent 20%, #000 74%);
+}

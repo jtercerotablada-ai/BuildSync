@@ -66,6 +66,7 @@ export default function HomePage() {
           </video>
         </div>
         <div className="hero__overlay"></div>
+        <div className="hero-bp" aria-hidden="true"></div>
         <div className="hero__side-lines" aria-hidden="true"></div>
         <div className="hero__content">
           <div className="hero__badge">{t('hero.badge')}</div>
