@@ -256,3 +256,50 @@
   -webkit-mask-image: radial-gradient(ellipse 62% 52% at center, transparent 20%, #000 74%);
   mask-image: radial-gradient(ellipse 62% 52% at center, transparent 20%, #000 74%);
 }
+
+/* ============================================================
+   LIGHT THEME — off-white base + black text + gold (the look Juan
+   prefers, popwebdesign style). ttc-pop.css only loads on the
+   PUBLIC site, so this :root override never reaches the SaaS app.
+   Hero / header / footer / CTA stay dark ("anchors") by re-asserting
+   the dark palette locally on those subtrees.
+   ============================================================ */
+:root {
+  --color-bg: #f6f5f2;
+  --color-bg-alt: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-surface: #eceae4;
+  --color-border: rgba(20, 20, 15, 0.12);
+  --color-border-light: rgba(20, 20, 15, 0.07);
+  --color-text: #14140f;
+  --color-text-muted: #5b5b54;
+  --color-text-dim: #8a877e;
+  --shadow-sm: 0 2px 10px rgba(20, 20, 15, 0.06);
+  --shadow-md: 0 10px 30px rgba(20, 20, 15, 0.10);
+  --shadow-lg: 0 24px 60px rgba(20, 20, 15, 0.14);
+}
+
+.header,
+.hero,
+.footer,
+.cta-band {
+  --color-bg: #0a0a0a;
+  --color-bg-alt: #0d0d0d;
+  --color-bg-card: #141414;
+  --color-bg-elevated: #1a1a1a;
+  --color-surface: #222222;
+  --color-border: #2a2a2a;
+  --color-border-light: #3a3a3a;
+  --color-text: #ffffff;
+  --color-text-muted: #a0a0a0;
+  --color-text-dim: #6a6a6a;
+}
+
+/* Watermark numbers read a touch stronger on the light sections */
+.projects .section__header::before,
+.services .section__header::before,
+.values .section__header::before,
+.clients .section__header::before {
+  color: rgba(201, 168, 76, 0.13);
+}
