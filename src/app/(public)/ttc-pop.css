@@ -280,20 +280,62 @@
   --shadow-lg: 0 24px 60px rgba(20, 20, 15, 0.14);
 }
 
-.header,
-.hero,
-.footer,
+/* ---- Cohesive LIGHT everywhere — no dark anchors. Override the
+        elements that hardcoded white/dark for the old dark theme. ---- */
+
+/* Hero: light wash over the video + dark editorial text */
+.hero__overlay {
+  background:
+    radial-gradient(ellipse at center, rgba(246, 245, 242, 0.82) 0%, rgba(246, 245, 242, 0.93) 68%, rgba(246, 245, 242, 0.98) 100%),
+    linear-gradient(to bottom, rgba(246, 245, 242, 0.76) 0%, rgba(246, 245, 242, 0.92) 100%) !important;
+}
+.hero__title-line {
+  background: linear-gradient(135deg, #14140f 0%, #39362c 100%) !important;
+}
+.hero__badge {
+  color: #b88a2e !important;
+}
+.hero__materials {
+  color: #6b6b62 !important;
+}
+.hero__desc {
+  color: #4d4d47 !important;
+}
+.hero__credential {
+  color: #8a877e !important;
+}
+
+/* Outline button readable on light */
+.btn--outline {
+  color: #14140f !important;
+  border-color: rgba(20, 20, 15, 0.32) !important;
+}
+.btn--outline:hover {
+  color: #ffffff !important;
+  border-color: var(--color-accent) !important;
+}
+
+/* Header → light, with the dark mark + dark nav (nav uses --color-text) */
+.header.scrolled,
+.header--solid {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-bottom-color: rgba(20, 20, 15, 0.08) !important;
+}
+.header__logo-img {
+  content: url('/ttc/img/logo-square.png') !important;
+}
+
+/* Footer → light, with the dark lockup */
+.footer__logo-img {
+  content: url('/ttc/img/logo-horizontal.png') !important;
+}
+
+/* CTA band → light */
 .cta-band {
-  --color-bg: #0a0a0a;
-  --color-bg-alt: #0d0d0d;
-  --color-bg-card: #141414;
-  --color-bg-elevated: #1a1a1a;
-  --color-surface: #222222;
-  --color-border: #2a2a2a;
-  --color-border-light: #3a3a3a;
-  --color-text: #ffffff;
-  --color-text-muted: #a0a0a0;
-  --color-text-dim: #6a6a6a;
+  background:
+    radial-gradient(circle at 82% 50%, rgba(201, 168, 76, 0.20), transparent 55%),
+    #efece6 !important;
+  border-top-color: rgba(20, 20, 15, 0.08) !important;
 }
 
 /* Watermark numbers read a touch stronger on the light sections */
