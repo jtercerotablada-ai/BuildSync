@@ -12,7 +12,7 @@ two are CC0 / public domain. Attribution below satisfies the license terms.
 |------|----------|--------|---------|--------|
 | projects/project-01.jpg | Residential Tower | Antti Leppänen | CC BY 4.0 | https://commons.wikimedia.org/wiki/File:Merihaka_apartment_high-rises.JPG |
 | projects/project-02.jpg | Commercial Complex | Jonathan Simcoe (jdsimcoe) | CC0 | https://commons.wikimedia.org/wiki/File:Glass_building_corner_(Unsplash).jpg |
-| projects/project-03.jpg | Industrial Warehouse | 依田奏 | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Toyo_Suisan_Chubu_Logistics_Center（2021.06.14）.jpg |
+| projects/project-03.jpg | Industrial Warehouse | James Emmans | CC BY-SA 2.0 | https://commons.wikimedia.org/wiki/File:Sandown_Industrial_Park_-_Warehouse_-_geograph.org.uk_-_4961070.jpg |
 | projects/project-04.jpg | Luxury Residence | Aklaklakl | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Black_Ember_residence_-_AKL_Architects.jpg |
 | projects/project-05.jpg | Multi-Family Housing | Micheal Kaluba | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Apartment_and_office_building_with_car_park_in_Naguru,_2022.jpg |
 | projects/project-06.jpg | Public Infrastructure | Asopotnik | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Highway_bridge_over_Mura_River.jpg |
