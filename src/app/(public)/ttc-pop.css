@@ -458,3 +458,12 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Project cards: text sits OVER the (dark) photos, so it must stay
+        light regardless of the light theme (the title went invisible). ---- */
+.project-card__info h3 {
+  color: #ffffff !important;
+}
+.project-card__info span:not(.project-card__category) {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
