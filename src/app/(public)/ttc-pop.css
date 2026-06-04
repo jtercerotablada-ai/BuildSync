@@ -467,3 +467,15 @@
 .project-card__info span:not(.project-card__category) {
   color: rgba(255, 255, 255, 0.82) !important;
 }
+
+/* ---- Mobile menu → light (matches theme). Was hardcoded dark, so the
+        dark nav labels were invisible; on light they read fine. ---- */
+.mobile-menu {
+  background: rgba(246, 245, 242, 0.985) !important;
+}
+.mobile-menu__nav a {
+  color: #14140f !important;
+}
+.mobile-menu__nav a:hover {
+  color: var(--color-accent) !important;
+}
