@@ -22,4 +22,4 @@ two are CC0 / public domain. Attribution below satisfies the license terms.
 | projects/project-10.jpg | Hospitality (Nobu Hotel, Barcelona) | Matti Blume | CC BY-SA | https://commons.wikimedia.org/wiki/File:Nobu_Hotel,_Barcelona_(P1170738).jpg |
 | projects/project-11.jpg | Distribution Center (Container Terminal Tollerort, Hamburg) | Wikimedia Commons | CC BY-SA 3.0 DE | https://commons.wikimedia.org/wiki/File:Container_Terminal_Tollerort_(Hamburg-Steinwerder).6.phb.ajb.jpg |
 | projects/project-12.jpg | Office Building (Post Tower, Bonn) | Dietmar Rabich | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:Bonn,_Post-Tower_--_2017_--_2128_(bw).jpg |
-| team.jpg | Team / About | U.S. Army (Christopher Gardner) | Public domain | https://commons.wikimedia.org/wiki/File:U_S_Army_Corps_of_Engineers_Construction_Mission_in_Hungary_(9306300).jpg |
+| team.jpg | About (high-rise under construction) | PortlandAppraisalBlog | CC BY-SA 4.0 | https://commons.wikimedia.org/wiki/File:HollywoodHUB_under_construction_with_tower_crane_at_Hollywood_Transit_Center,_Portland,_Oregon_(January_2026).jpg |
