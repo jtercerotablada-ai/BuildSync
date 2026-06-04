@@ -53,8 +53,8 @@ export function WhyUs() {
   const label = es ? 'Por qué Tercero Tablada' : 'Why Tercero Tablada';
   const title = es ? 'Por qué trabajar con nosotros' : 'Why work with us';
   const sub = es
-    ? 'Somos un equipo estructural enfocado y liderado por seniors — esto es lo que significa para tu proyecto.'
-    : "We're a focused, senior-led structural team — here's what that means for your project.";
+    ? 'Somos un equipo estructural enfocado — esto es lo que tu proyecto gana al trabajar con nosotros.'
+    : "We're a focused structural engineering team — here's what your project gains by working with us.";
 
   return (
     <section className="why-us" id="why-us">
