@@ -85,16 +85,26 @@ export function FxElements() {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const parallaxEls = Array.from(document.querySelectorAll<HTMLElement>('[data-parallax]'));
     let parallaxRaf: number | null = null;
+    // Layout position via the offset chain — transform-independent, so the
+    // element's OWN parallax translate never feeds back into the measurement
+    // (measuring getBoundingClientRect would, and stalls the effect).
+    const docTop = (node: HTMLElement | null) => {
+      let t = 0;
+      while (node) { t += node.offsetTop; node = node.offsetParent as HTMLElement | null; }
+      return t;
+    };
     const updateParallax = () => {
       parallaxRaf = null;
       const vh = window.innerHeight;
+      const sy = window.scrollY;
       for (const el of parallaxEls) {
-        const rect = el.getBoundingClientRect();
-        if (rect.bottom < -240 || rect.top > vh + 240) continue;
+        const h = el.offsetHeight;
+        const centerVp = docTop(el) + h / 2 - sy; // element centre, viewport-relative
+        if (centerVp < -h - 400 || centerVp > vh + h + 400) continue;
         const speed = parseFloat(el.getAttribute('data-parallax') || '0.3') || 0.3;
-        const center = rect.top + rect.height / 2;
-        const offset = (center - vh / 2) / vh; // ~ -0.5 .. 0.5 across the viewport
-        el.style.setProperty('--parallax', `${(-offset * speed * 100).toFixed(1)}px`);
+        const offset = (centerVp - vh / 2) / vh;
+        const px = Math.max(-38, Math.min(38, -offset * speed * 100));
+        el.style.setProperty('--parallax', `${px.toFixed(1)}px`);
       }
     };
     const onParallax = () => {

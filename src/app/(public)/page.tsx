@@ -168,7 +168,7 @@ export default function HomePage() {
         <div className="container">
           <div className="about__grid">
             <div className="about__image" data-aos="fade-right">
-              <div className="about__image-parallax" data-parallax="0.32">
+              <div className="about__image-parallax" data-parallax="0.45">
                 <Image
                   src="/ttc/img/team.jpg"
                   alt="Tercero Tablada Team"
