@@ -4,10 +4,11 @@ import React from 'react';
 import { useTranslation } from './language-provider';
 
 const Ico = {
-  senior: (
+  globe: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="3.5" />
-      <path d="M5 20v-1a7 7 0 0 1 14 0v1" />
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18" />
     </svg>
   ),
   save: (
@@ -32,14 +33,14 @@ const Ico = {
 };
 
 const EN = [
-  { i: Ico.senior, t: 'Senior engineers, start to finish', d: 'You work directly with the principal engineer on every project — never handed off to junior staff.' },
+  { i: Ico.globe, t: 'Borderless by design', d: 'An international, fully bilingual team — structural engineering delivered seamlessly across borders and building codes.' },
   { i: Ico.save, t: 'Engineered to save you money', d: 'We optimize the structure from day one to cut material and construction cost — without ever compromising safety.' },
   { i: Ico.shield, t: 'No surprises in the field', d: 'Clashes are caught and resolved in the 3D model before construction — protecting your schedule and your budget.' },
   { i: Ico.stamp, t: 'Permit-ready, code-compliant', d: 'Every design is stamped by a Registered P.E. and built to current codes — ready to build.' },
 ];
 
 const ES = [
-  { i: Ico.senior, t: 'Ingenieros senior, de principio a fin', d: 'Trabajás directo con el ingeniero principal en cada proyecto — nunca derivado a personal junior.' },
+  { i: Ico.globe, t: 'Ingeniería sin fronteras', d: 'Un equipo internacional y totalmente bilingüe — ingeniería estructural entregada sin fricción a través de fronteras y códigos.' },
   { i: Ico.save, t: 'Diseñado para ahorrarte dinero', d: 'Optimizamos la estructura desde el día uno para reducir el costo de material y construcción — sin comprometer la seguridad.' },
   { i: Ico.shield, t: 'Sin sorpresas en la obra', d: 'Detectamos y resolvemos conflictos en el modelo 3D antes de construir — protegiendo tu plazo y tu presupuesto.' },
   { i: Ico.stamp, t: 'Lista para permiso y según código', d: 'Cada diseño lleva el sello de un Ingeniero P.E. registrado y cumple los códigos vigentes — lista para construir.' },
