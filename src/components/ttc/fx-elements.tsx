@@ -80,6 +80,32 @@ export function FxElements() {
       }
     }
 
+    // Parallax depth — offset written into the --parallax CSS var, consumed
+    // by ttc-fx-pro.css. Subtle, rAF-throttled, disabled for reduced-motion.
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const parallaxEls = Array.from(document.querySelectorAll<HTMLElement>('[data-parallax]'));
+    let parallaxRaf: number | null = null;
+    const updateParallax = () => {
+      parallaxRaf = null;
+      const vh = window.innerHeight;
+      for (const el of parallaxEls) {
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom < -240 || rect.top > vh + 240) continue;
+        const speed = parseFloat(el.getAttribute('data-parallax') || '0.3') || 0.3;
+        const center = rect.top + rect.height / 2;
+        const offset = (center - vh / 2) / vh; // ~ -0.5 .. 0.5 across the viewport
+        el.style.setProperty('--parallax', `${(-offset * speed * 100).toFixed(1)}px`);
+      }
+    };
+    const onParallax = () => {
+      if (parallaxRaf === null) parallaxRaf = requestAnimationFrame(updateParallax);
+    };
+    if (parallaxEls.length && !prefersReducedMotion) {
+      window.addEventListener('scroll', onParallax, { passive: true });
+      window.addEventListener('resize', onParallax, { passive: true });
+      updateParallax();
+    }
+
     // Custom cursor (desktop only)
     const isDesktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     let targetX = 0, targetY = 0, ringX = 0, ringY = 0;
@@ -174,6 +200,9 @@ export function FxElements() {
 
     return () => {
       window.removeEventListener('scroll', updateScrollProgress);
+      window.removeEventListener('scroll', onParallax);
+      window.removeEventListener('resize', onParallax);
+      if (parallaxRaf !== null) cancelAnimationFrame(parallaxRaf);
       aosObserver?.disconnect();
       mutationObserver?.disconnect();
       if (rafId !== null) cancelAnimationFrame(rafId);

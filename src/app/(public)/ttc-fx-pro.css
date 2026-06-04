@@ -1,0 +1,84 @@
+/* ============================================================
+   TT — Pro scroll-FX layer.  Loaded AFTER ttc-globals.css so it
+   only enhances; kept in its own file to avoid touching the
+   in-progress styles living in ttc-globals.css.
+   ============================================================ */
+
+:root {
+  --ttc-ease-wow: cubic-bezier(0.16, 1, 0.3, 1); /* easeOutExpo-style decel */
+}
+
+/* ---- Richer, slower, premium reveals (depth via scale + blur) ---- */
+[data-aos] {
+  transform: translateY(48px) scale(0.97);
+  filter: blur(6px);
+  transition:
+    opacity 1s var(--ttc-ease-wow),
+    transform 1s var(--ttc-ease-wow),
+    filter 1s var(--ttc-ease-wow);
+  will-change: opacity, transform, filter;
+}
+[data-aos="fade-right"] { transform: translateX(-48px) scale(0.97); }
+[data-aos="fade-left"]  { transform: translateX(48px) scale(0.97); }
+[data-aos="zoom-in"]    { transform: scale(0.88); }
+
+[data-aos].aos-animate {
+  filter: blur(0) !important;
+}
+
+/* Replace the base fallback so a JS failure ALSO clears the blur
+   (the original keyframe only restored opacity + transform). */
+@keyframes ttc-reveal-fallback {
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+[data-aos]:not(.aos-animate) {
+  animation: ttc-reveal-fallback 0.7s var(--ttc-ease-wow) 2s forwards;
+}
+
+/* ---- Parallax depth — translateY driven by FxElements (--parallax) ---- */
+[data-parallax] {
+  will-change: transform;
+}
+.about__image {
+  overflow: hidden;
+}
+.about__image-parallax {
+  position: absolute;
+  inset: 0;
+  transform: scale(1.16) translate3d(0, var(--parallax, 0px), 0);
+  will-change: transform;
+}
+
+/* ---- Premium thin gold scrollbar (pointer devices) ---- */
+@media (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-accent, #c9a84c) transparent;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #c9a84c, #9a7b34);
+    border-radius: 999px;
+    border: 2px solid rgba(0, 0, 0, 0.35);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #d8b860, #b08a3c);
+  }
+}
+
+/* ---- Accessibility: honour reduced-motion (no blur/scale/parallax) ---- */
+@media (prefers-reduced-motion: reduce) {
+  [data-aos] {
+    filter: none !important;
+    transform: none !important;
+    transition-duration: 0.01ms !important;
+  }
+  .about__image-parallax {
+    transform: scale(1.16) !important;
+  }
+}

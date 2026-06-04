@@ -6,6 +6,7 @@ import { TTCFooter } from '@/components/ttc/ttc-footer';
 import { FxElements } from '@/components/ttc/fx-elements';
 import 'leaflet/dist/leaflet.css';
 import './ttc-globals.css';
+import './ttc-fx-pro.css';
 
 const playfair = Playfair_Display({
   subsets: ['latin'],

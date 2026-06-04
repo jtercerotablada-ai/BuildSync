@@ -167,14 +167,16 @@ export default function HomePage() {
       <section className="section about" id="about">
         <div className="container">
           <div className="about__grid">
-            <div className="about__image">
-              <Image
-                src="/ttc/img/team.jpg"
-                alt="Tercero Tablada Team"
-                fill
-                sizes="(max-width: 768px) 100vw, 50vw"
-                style={{ objectFit: 'cover' }}
-              />
+            <div className="about__image" data-aos="fade-right">
+              <div className="about__image-parallax" data-parallax="0.32">
+                <Image
+                  src="/ttc/img/team.jpg"
+                  alt="Tercero Tablada Team"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  style={{ objectFit: 'cover' }}
+                />
+              </div>
             </div>
             <div className="about__content">
               <span className="section__label">{t('section.aboutUs')}</span>
