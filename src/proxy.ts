@@ -12,6 +12,8 @@ const publicPrefixes = [
   "/api/auth",
   "/api/my-tasks/calendar-feed",
   "/api/contact",
+  "/resources",
+  "/api/load-gen",
 ];
 
 // TTC public pages (marketing / informational) - no auth required
@@ -40,7 +42,7 @@ function isPublicRoute(pathname: string): boolean {
  * push. (Alternative: set MAINTENANCE_MODE_OFF=true in Vercel project
  * env vars to override without a code change.)
  */
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 
 function isMaintenanceActive(): boolean {
   if (!MAINTENANCE_MODE) return false;
@@ -106,9 +108,22 @@ export async function proxy(request: NextRequest) {
   // Role-based redirects for authenticated users
   const userRole = (token as Record<string, unknown>).role as string | undefined;
 
-  // CLIENT role users accessing dashboard should be redirected to client portal
-  if (userRole === "CLIENT" && pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(new URL("/client", request.url));
+  // CLIENT role users accessing internal dashboard should be sent to
+  // their client portal. The actual internal dashboard lives under
+  // `/home`, `/my-tasks`, `/projects`, etc. (no `/dashboard` route
+  // exists). Match the (dashboard) group's actual root path.
+  if (
+    userRole === "CLIENT" &&
+    (pathname === "/home" ||
+      pathname.startsWith("/my-tasks") ||
+      pathname.startsWith("/projects") ||
+      pathname.startsWith("/inbox") ||
+      pathname.startsWith("/reporting") ||
+      pathname.startsWith("/portfolios") ||
+      pathname.startsWith("/goals") ||
+      pathname.startsWith("/teams"))
+  ) {
+    return NextResponse.redirect(new URL("/client/dashboard", request.url));
   }
 
   // WORKER role users accessing client portal should be redirected to portal
@@ -116,14 +131,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/portal", request.url));
   }
 
-  // Prevent non-admin/owner users from accessing admin routes
+  // Prevent non-admin/owner users from accessing admin routes.
+  // Redirect target is `/home` — there is NO `/dashboard` route in this
+  // app (the dashboard root lives at `/home` inside the `(dashboard)`
+  // route group). Previous `/dashboard` value bounced users to 404 —
+  // fixed during QC Fase 1 on May 22 2026 (bugs CL-1, CL-2).
   if (
     pathname.startsWith("/portal") &&
     userRole !== "WORKER" &&
     userRole !== "ADMIN" &&
     userRole !== "OWNER"
   ) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/home", request.url));
   }
 
   if (
@@ -132,7 +151,7 @@ export async function proxy(request: NextRequest) {
     userRole !== "ADMIN" &&
     userRole !== "OWNER"
   ) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/home", request.url));
   }
 
   return NextResponse.next();
