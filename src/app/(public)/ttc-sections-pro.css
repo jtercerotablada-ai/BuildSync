@@ -1,57 +1,7 @@
 /* ============================================================
-   TT — extra marketing sections: Codes & Standards authority
-   band + CTA band. Self-contained; loaded after ttc-globals.css
-   so it never touches the in-progress styles there.
+   TT — extra marketing sections. Self-contained; loaded after
+   ttc-globals.css so it never touches the in-progress styles there.
    ============================================================ */
-
-/* ---- Codes & Standards authority band ---- */
-.standards-band {
-  background: var(--color-bg-alt, #0d0d0d);
-  border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-}
-
-.standards-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.85rem;
-  max-width: 940px;
-  margin: 2.75rem auto 0;
-}
-
-.standard-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-family: var(--font-inter, 'Inter', sans-serif);
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--color-text, #f5f5f5);
-  padding: 0.7rem 1.3rem;
-  background: rgba(201, 168, 76, 0.05);
-  border: 1px solid var(--color-accent-soft, rgba(201, 168, 76, 0.32));
-  border-radius: 999px;
-  transition:
-    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-    background 0.35s ease,
-    border-color 0.35s ease,
-    box-shadow 0.35s ease;
-}
-
-.standard-chip:hover {
-  transform: translateY(-3px);
-  background: rgba(201, 168, 76, 0.12);
-  border-color: var(--color-accent, #c9a84c);
-  box-shadow: 0 8px 30px rgba(201, 168, 76, 0.18);
-}
-
-.standard-chip__check {
-  color: var(--color-accent, #c9a84c);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
 
 /* ---- CTA band (before contact) ---- */
 .cta-band {
@@ -100,9 +50,5 @@
   }
   .cta-band__inner {
     gap: 1.75rem;
-  }
-  .standard-chip {
-    font-size: 0.85rem;
-    padding: 0.6rem 1.05rem;
   }
 }

@@ -10,7 +10,6 @@ import { ValueItem } from '@/components/ttc/value-item';
 import { Marquee } from '@/components/ttc/marquee';
 import { CounterStat } from '@/components/ttc/counter-stat';
 import { ContactForm } from '@/components/ttc/contact-form';
-import { StandardsBand } from '@/components/ttc/standards-band';
 import { CtaBand } from '@/components/ttc/cta-band';
 import { serviceIcons } from '@/components/ttc/service-icons';
 import type { TranslationKey } from '@/lib/i18n';
@@ -143,8 +142,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      <StandardsBand />
 
       {/* VALUES */}
       <section className="section values" id="values">
