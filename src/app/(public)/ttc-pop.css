@@ -494,7 +494,7 @@
   align-items: center;
   justify-content: center;
   color: #14140f;
-  border: 1px solid rgba(20, 20, 15, 0.16);
+  border: 1px solid rgba(201, 168, 76, 0.5);
   border-radius: 50%;
   transition:
     transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
@@ -511,6 +511,6 @@
   box-shadow: 0 8px 20px rgba(201, 168, 76, 0.32);
 }
 .footer__social-icons svg {
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
 }
