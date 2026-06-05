@@ -479,3 +479,38 @@
 .mobile-menu__nav a:hover {
   color: var(--color-accent) !important;
 }
+
+/* ---- Footer social icons — our style: circular, subtle gold border,
+        gold fill on hover (not the loud brand colors) ---- */
+.footer__social-icons {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1.15rem;
+}
+.footer__social-icons a {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #14140f;
+  border: 1px solid rgba(20, 20, 15, 0.16);
+  border-radius: 50%;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    background 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.footer__social-icons a:hover {
+  color: #ffffff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(201, 168, 76, 0.32);
+}
+.footer__social-icons svg {
+  width: 17px;
+  height: 17px;
+}
