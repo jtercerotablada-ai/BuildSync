@@ -1198,6 +1198,17 @@ img, svg {
   height: 32px;
 }
 
+/* Resource cards (engineering tools) get a larger icon for legibility */
+.resource-card .service-card__icon {
+  width: 80px;
+  height: 80px;
+}
+
+.resource-card .service-card__icon svg {
+  width: 48px;
+  height: 48px;
+}
+
 .service-card h3 {
   font-family: var(--font-display);
   font-size: 1.25rem;
@@ -1297,6 +1308,387 @@ img, svg {
 
 .resource-card--available:hover .resource-card__action {
   gap: 0.85rem;
+}
+
+/* Standard / code badge on grid cards — keeps titles clean while still
+   surfacing the design code the calculator follows. */
+.resource-card__code {
+  align-self: flex-start;
+  display: inline-block;
+  margin: 0.1rem 0 0.85rem;
+  padding: 0.2rem 0.55rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  background: rgba(201, 168, 76, 0.06);
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+}
+
+.resource-card--available:hover .resource-card__code,
+.resource-card--coming-soon:hover .resource-card__code {
+  border-color: rgba(201, 168, 76, 0.45);
+  color: var(--color-text);
+}
+
+/* ─── Resources page enhancements (stats, search, featured cards) ─── */
+.resources-hero {
+  padding-bottom: 3rem;
+}
+
+/* Lift the radial-gold glow up so it stays visible behind the stats
+   + search row on this taller hero, and brighten the grid pattern
+   so it matches the depth of the Projects page hero. */
+.resources-hero::after {
+  bottom: -25%;
+  width: 1200px;
+  height: 1200px;
+  background: radial-gradient(
+    circle,
+    rgba(201, 168, 76, 0.28) 0%,
+    rgba(201, 168, 76, 0.08) 35%,
+    transparent 65%
+  );
+  filter: blur(20px);
+}
+
+.resources-hero::before {
+  opacity: 0.35;
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 85%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 85%);
+}
+
+.resources-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  max-width: 720px;
+  margin: 2.5rem auto 0;
+  text-align: center;
+}
+
+.resources-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1.25rem 0.5rem;
+  border-top: 1px solid var(--color-border-light);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.resources-stat__num {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-accent);
+  letter-spacing: -0.02em;
+}
+
+.resources-stat__label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.resources-toolbar {
+  margin: 2.5rem auto 0;
+  max-width: 880px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.resources-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: all 0.25s var(--ease-out);
+}
+
+.resources-search:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.resources-search__icon {
+  position: absolute;
+  left: 1.1rem;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.resources-search__input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 1rem 1.25rem 1rem 3rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--color-text);
+  width: 100%;
+}
+
+.resources-search__input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.resources-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.resources-filter {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.6rem 1.1rem;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.25s var(--ease-out);
+}
+
+.resources-filter:hover {
+  color: var(--color-text);
+  border-color: var(--color-accent-soft);
+}
+
+.resources-filter.is-active {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  border-color: var(--color-accent);
+}
+
+.resources-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  margin-top: 1.25rem;
+  max-width: 880px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.resources-cat-chip {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  padding: 0.45rem 0.9rem;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-out);
+}
+
+.resources-cat-chip:hover {
+  color: var(--color-text);
+  border-color: var(--color-accent-soft);
+}
+
+.resources-cat-chip.is-active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.resources-section-count {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+.resource-featured-card__code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  margin-left: 0.5rem;
+}
+
+/* Featured tools — 3-up large cards above the rest */
+.resources-page--featured {
+  padding-top: 4rem;
+  padding-bottom: 2rem;
+}
+
+.resources-featured-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.resource-featured-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(
+    160deg,
+    rgba(201, 168, 76, 0.06) 0%,
+    var(--color-bg-card) 55%
+  );
+  border: 1px solid var(--color-accent-soft);
+  border-radius: var(--radius-md);
+  padding: 2.25rem;
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+  transition: all 0.35s var(--ease-out);
+  min-height: 340px;
+}
+
+.resource-featured-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at top right,
+    rgba(201, 168, 76, 0.18),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-out);
+  pointer-events: none;
+}
+
+.resource-featured-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--color-accent);
+  box-shadow:
+    var(--shadow-md),
+    0 0 50px rgba(201, 168, 76, 0.18);
+}
+
+.resource-featured-card:hover::before {
+  opacity: 1;
+}
+
+.resource-featured-card__icon {
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(201, 168, 76, 0.12);
+  border: 1px solid var(--color-accent-soft);
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+  margin-bottom: 1.75rem;
+  transition: all 0.35s var(--ease-out);
+}
+
+.resource-featured-card__icon svg {
+  width: 56px;
+  height: 56px;
+}
+
+.resource-featured-card:hover .resource-featured-card__icon {
+  background: var(--color-accent);
+  color: var(--color-bg);
+  transform: rotate(-4deg) scale(1.04);
+}
+
+.resource-featured-card__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.resource-featured-card__top {
+  margin-bottom: 0.85rem;
+}
+
+/* Override the absolutely-positioned badge from .resource-card so the
+   featured cards show it inline above the title instead. */
+.resource-featured-card .resource-card__status {
+  position: static;
+  display: inline-flex;
+  top: auto;
+  right: auto;
+}
+
+.resource-featured-card__title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  margin-bottom: 0.65rem;
+}
+
+.resource-featured-card__desc {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-bottom: auto;
+}
+
+.resource-featured-card__action {
+  margin-top: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  transition: gap 0.3s var(--ease-out);
+}
+
+.resource-featured-card:hover .resource-featured-card__action {
+  gap: 0.95rem;
+}
+
+.resources-empty {
+  text-align: center;
+  padding: 4rem 1rem;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+}
+
+@media (max-width: 900px) {
+  .resources-featured-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .resources-stats {
+    gap: 1rem;
+  }
+
+  .resources-stat {
+    padding: 1rem 0.25rem;
+  }
 }
 
 .cta-section__desc {
@@ -3531,6 +3923,13 @@ img, svg {
 }
 
 /* ---------- SCROLL ANIMATIONS ---------- */
+@keyframes aos-fallback-reveal {
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(0) scale(1);
+  }
+}
+
 [data-aos] {
   opacity: 0;
   transform: translateY(40px);
@@ -3540,6 +3939,14 @@ img, svg {
 [data-aos].aos-animate {
   opacity: 1 !important;
   transform: translateY(0) translateX(0) scale(1) !important;
+}
+
+/* Safety net: if AOS JS never marks this card as animated (slow page,
+   script error, broken observer), reveal it after 1.8s anyway so the
+   page never ships with permanently-invisible content. The :not() guard
+   keeps this from racing AOS on pages where it works. */
+[data-aos]:not(.aos-animate) {
+  animation: aos-fallback-reveal 0.6s ease-out 1.8s forwards;
 }
 
 [data-aos="fade-right"] {
@@ -3861,6 +4268,16 @@ img, svg {
   .service-card__icon svg {
     width: 28px;
     height: 28px;
+  }
+
+  .resource-card .service-card__icon {
+    width: 64px;
+    height: 64px;
+  }
+
+  .resource-card .service-card__icon svg {
+    width: 38px;
+    height: 38px;
   }
 
   .service-card h3 {
@@ -8992,12 +9409,12 @@ img, svg {
   margin-bottom: 1.2rem;
 }
 .rc-status--pass {
-  background: linear-gradient(135deg, rgba(127, 182, 145, 0.18), rgba(127, 182, 145, 0.04));
-  border-color: rgba(127, 182, 145, 0.55);
+  background: linear-gradient(135deg, rgba(127, 182, 145, 0.20), rgba(127, 182, 145, 0.07));
+  border-color: rgba(127, 182, 145, 0.6);
 }
 .rc-status--fail {
-  background: linear-gradient(135deg, rgba(232, 131, 106, 0.20), rgba(232, 131, 106, 0.05));
-  border-color: rgba(232, 131, 106, 0.6);
+  background: linear-gradient(135deg, rgba(232, 131, 106, 0.22), rgba(232, 131, 106, 0.09));
+  border-color: rgba(232, 131, 106, 0.7);
 }
 .rc-status__icon {
   flex: 0 0 auto;
@@ -9013,15 +9430,24 @@ img, svg {
 .rc-status__text {
   display: flex; flex-direction: column; gap: 0.2rem;
   font-size: 0.95rem; line-height: 1.4;
-  color: rgba(255,255,255,0.92);
+  color: #2a2a30;
 }
 .rc-status__text strong { font-weight: 700; }
-.rc-status__es { opacity: 0.75; font-size: 0.86rem; }
+.rc-status__es { font-size: 0.86rem; }
 .rc-status__action {
   margin-top: 0.3rem;
   font-size: 0.86rem;
-  color: #f5d56b;
+  font-weight: 600;
+  color: #2a2a30;
 }
+
+/* Readable state text — dark ink on the light tinted panel (fixes white-on-pale contrast) */
+.rc-status--fail .rc-status__text strong { color: #8e2a17; }
+.rc-status--fail .rc-status__es { color: #a8412b; }
+.rc-status--fail .rc-status__action { color: #9a3412; }
+.rc-status--pass .rc-status__text strong { color: #15663f; }
+.rc-status--pass .rc-status__es { color: #1f7a4d; }
+.rc-status--pass .rc-status__action { color: #1f7a4d; }
 
 /* ----- Envelope diagram ----- */
 .rc-env { display: flex; flex-direction: column; gap: 1rem; }
