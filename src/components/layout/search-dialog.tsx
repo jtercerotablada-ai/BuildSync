@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   CommandDialog,
@@ -43,23 +43,30 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   });
   const [isLoading, setIsLoading] = useState(false);
 
+  // Tracks the most recent query so a slower response for an older query
+  // can't overwrite results for a newer one.
+  const latestQueryRef = useRef("");
   const search = useCallback(async (q: string) => {
     if (q.length < 2) {
+      latestQueryRef.current = q;
       setResults({ tasks: [], projects: [], teams: [], users: [] });
       return;
     }
 
+    latestQueryRef.current = q;
     setIsLoading(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      if (q !== latestQueryRef.current) return; // a newer query superseded this
       if (res.ok) {
         const data = await res.json();
+        if (q !== latestQueryRef.current) return;
         setResults(data);
       }
     } catch {
       // Silently fail
     } finally {
-      setIsLoading(false);
+      if (q === latestQueryRef.current) setIsLoading(false);
     }
   }, []);
 

@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getLevel } from "@/lib/people-types";
 import { getTemplateById } from "@/lib/templates-data";
+import { readJson, jsonErrorResponse } from "@/lib/http";
 
 const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -223,7 +224,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
+    const body = await readJson(req);
     const {
       name,
       description,
@@ -367,206 +368,202 @@ export async function POST(req: Request) {
           { name: "Calendar", type: "CALENDAR" as const, isDefault: false },
         ];
 
-    // Create project with sections and views
-    const project = await prisma.project.create({
-      data: {
-        name,
-        description: description || template?.description,
-        color: color || template?.color || "#c9a84c",
-        icon: icon || template?.icon,
-        workspaceId: targetWorkspaceId,
-        teamId: teamId || null,
-        ownerId: userId,
-        startDate: startDate ? new Date(startDate) : new Date(),
-        type: type ?? null,
-        gate: gate ?? "PRE_DESIGN",
-        location: location ?? null,
-        latitude: latitude ?? null,
-        longitude: longitude ?? null,
-        budget: budget ?? null,
-        currency: currency ?? "USD",
-        clientName: clientName ?? null,
-        projectNumber,
-        members: {
-          create: {
-            userId,
-            role: "ADMIN",
-          },
-        },
-        sections: {
-          createMany: {
-            data: sectionsToCreate,
-          },
-        },
-        views: {
-          createMany: {
-            data: viewsToCreate,
-          },
-        },
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        sections: {
-          orderBy: { position: "asc" },
-        },
-        views: true,
-      },
-    });
-
-    // ── Project-template custom fields ──────────────────────────
-    // Created BEFORE tasks so task creation can resolve their
-    // customFieldValues by field name. Each definition is created in
-    // the project's workspace and linked via ProjectCustomField.
-    const customFieldDefByName = new Map<
-      string,
-      { id: string; type: string }
-    >();
-    if (explicitCustomFields && explicitCustomFields.length > 0) {
-      for (let i = 0; i < explicitCustomFields.length; i++) {
-        const cf = explicitCustomFields[i];
-        // Dropdown / multi-select need options; skip silently if
-        // they're missing rather than blow up the whole create.
-        const needsOptions =
-          cf.type === "DROPDOWN" || cf.type === "MULTI_SELECT";
-        if (needsOptions && (!cf.options || cf.options.length === 0)) {
-          continue;
-        }
-        const def = await prisma.customFieldDefinition.create({
+    // Create the project and everything a template seeds (sections, views,
+    // members, custom fields, tasks, subtasks, custom-field values) inside a
+    // SINGLE transaction so a failure part-way through rolls the whole thing
+    // back instead of leaving a half-built project — audit DB-03. Timeout is
+    // raised because large templates do many sequential writes.
+    const project = await prisma.$transaction(
+      async (tx) => {
+        const created = await tx.project.create({
           data: {
-            name: cf.name,
-            type: cf.type,
-            options: needsOptions && cf.options
-              ? JSON.parse(JSON.stringify(cf.options))
-              : null,
+            name,
+            description: description || template?.description,
+            color: color || template?.color || "#c9a84c",
+            icon: icon || template?.icon,
             workspaceId: targetWorkspaceId,
+            teamId: teamId || null,
+            ownerId: userId,
+            startDate: startDate ? new Date(startDate) : new Date(),
+            type: type ?? null,
+            gate: gate ?? "PRE_DESIGN",
+            location: location ?? null,
+            latitude: latitude ?? null,
+            longitude: longitude ?? null,
+            budget: budget ?? null,
+            currency: currency ?? "USD",
+            clientName: clientName ?? null,
+            projectNumber,
+            members: {
+              create: {
+                userId,
+                role: "ADMIN",
+              },
+            },
+            sections: {
+              createMany: {
+                data: sectionsToCreate,
+              },
+            },
+            views: {
+              createMany: {
+                data: viewsToCreate,
+              },
+            },
+          },
+          include: {
+            owner: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+            sections: {
+              orderBy: { position: "asc" },
+            },
+            views: true,
           },
         });
-        await prisma.projectCustomField.create({
-          data: { projectId: project.id, fieldId: def.id, position: i },
-        });
-        customFieldDefByName.set(cf.name, { id: def.id, type: def.type });
-      }
-    }
 
-    // ── Pre-baked tasks from a project-template gallery pick ────
-    // (explicitTasks) — matches tasks to the freshly-created sections
-    // by name, then creates each parent task + any subtasks via
-    // parentTaskId. We do this BEFORE the legacy template-tasks branch
-    // so the two paths are independent: a gallery pick uses
-    // explicitTasks, a legacy templateId uses template.tasks.
-    if (explicitTasks && explicitTasks.length > 0) {
-      const sectionByName = new Map(
-        project.sections.map((s) => [s.name, s])
-      );
-      // Track position per section so tasks within the same column
-      // render in the order they appear in the template.
-      const positionBySection = new Map<string, number>();
-      for (const t of explicitTasks) {
-        const section = sectionByName.get(t.section);
-        if (!section) continue;
-        const parentPosition = positionBySection.get(section.id) ?? 0;
-        positionBySection.set(section.id, parentPosition + 1);
-        const parent = await prisma.task.create({
-          data: {
-            name: t.name,
-            projectId: project.id,
-            sectionId: section.id,
-            creatorId: userId,
-            position: parentPosition * 1000,
-            taskType: t.type ?? "TASK",
-          },
-          select: { id: true },
-        });
-        if (t.subtasks && t.subtasks.length > 0) {
-          await prisma.task.createMany({
-            data: t.subtasks.map((subName, i) => ({
-              name: subName,
-              projectId: project.id,
-              sectionId: section.id,
-              creatorId: userId,
-              parentTaskId: parent.id,
-              position: i * 1000,
-            })),
-          });
-        }
-        // Apply template-defined custom field values. Keys reference
-        // the field NAME from explicitCustomFields above; unknown
-        // names are silently skipped (defensive against drift).
-        if (t.customFieldValues) {
-          for (const [fieldName, rawValue] of Object.entries(
-            t.customFieldValues
-          )) {
-            const def = customFieldDefByName.get(fieldName);
-            if (!def) continue;
-            await prisma.customFieldValue.create({
+        // ── Project-template custom fields ──────────────────────────
+        // Created BEFORE tasks so task creation can resolve their
+        // customFieldValues by field name.
+        const customFieldDefByName = new Map<
+          string,
+          { id: string; type: string }
+        >();
+        if (explicitCustomFields && explicitCustomFields.length > 0) {
+          for (let i = 0; i < explicitCustomFields.length; i++) {
+            const cf = explicitCustomFields[i];
+            // Dropdown / multi-select need options; skip silently if
+            // they're missing rather than blow up the whole create.
+            const needsOptions =
+              cf.type === "DROPDOWN" || cf.type === "MULTI_SELECT";
+            if (needsOptions && (!cf.options || cf.options.length === 0)) {
+              continue;
+            }
+            const def = await tx.customFieldDefinition.create({
               data: {
-                taskId: parent.id,
-                fieldId: def.id,
-                value: JSON.parse(JSON.stringify(rawValue)),
+                name: cf.name,
+                type: cf.type,
+                options: needsOptions && cf.options
+                  ? JSON.parse(JSON.stringify(cf.options))
+                  : null,
+                workspaceId: targetWorkspaceId,
               },
             });
+            await tx.projectCustomField.create({
+              data: { projectId: created.id, fieldId: def.id, position: i },
+            });
+            customFieldDefByName.set(cf.name, { id: def.id, type: def.type });
           }
         }
-      }
-    }
 
-    // If template has tasks, create them
-    if (template && template.tasks.length > 0) {
-      const projectStartDate = startDate ? new Date(startDate) : new Date();
-
-      // Create tasks for each template task
-      for (const templateTask of template.tasks) {
-        const section = project.sections[templateTask.sectionIndex];
-        if (!section) continue;
-
-        // Calculate due date based on relative days
-        let dueDate: Date | null = null;
-        if (templateTask.relativeDueDate !== undefined) {
-          dueDate = new Date(projectStartDate);
-          dueDate.setDate(dueDate.getDate() + templateTask.relativeDueDate);
-        }
-
-        // Create the task
-        const createdTask = await prisma.task.create({
-          data: {
-            name: templateTask.name,
-            description: templateTask.description || null,
-            projectId: project.id,
-            sectionId: section.id,
-            creatorId: userId,
-            priority: templateTask.priority || "NONE",
-            taskType: templateTask.taskType || "TASK",
-            dueDate,
-            position: 0,
-          },
-        });
-
-        // Create subtasks if any
-        if (templateTask.subtasks && templateTask.subtasks.length > 0) {
-          for (let i = 0; i < templateTask.subtasks.length; i++) {
-            const subtask = templateTask.subtasks[i];
-            await prisma.task.create({
+        // ── Pre-baked tasks from a project-template gallery pick ────
+        if (explicitTasks && explicitTasks.length > 0) {
+          const sectionByName = new Map(
+            created.sections.map((s) => [s.name, s])
+          );
+          const positionBySection = new Map<string, number>();
+          for (const t of explicitTasks) {
+            const section = sectionByName.get(t.section);
+            if (!section) continue;
+            const parentPosition = positionBySection.get(section.id) ?? 0;
+            positionBySection.set(section.id, parentPosition + 1);
+            const parent = await tx.task.create({
               data: {
-                name: subtask.name,
-                description: subtask.description || null,
-                projectId: project.id,
+                name: t.name,
+                projectId: created.id,
                 sectionId: section.id,
                 creatorId: userId,
-                parentTaskId: createdTask.id,
-                position: i,
+                position: parentPosition * 1000,
+                taskType: t.type ?? "TASK",
               },
+              select: { id: true },
             });
+            if (t.subtasks && t.subtasks.length > 0) {
+              await tx.task.createMany({
+                data: t.subtasks.map((subName, i) => ({
+                  name: subName,
+                  projectId: created.id,
+                  sectionId: section.id,
+                  creatorId: userId,
+                  parentTaskId: parent.id,
+                  position: i * 1000,
+                })),
+              });
+            }
+            if (t.customFieldValues) {
+              for (const [fieldName, rawValue] of Object.entries(
+                t.customFieldValues
+              )) {
+                const def = customFieldDefByName.get(fieldName);
+                if (!def) continue;
+                await tx.customFieldValue.create({
+                  data: {
+                    taskId: parent.id,
+                    fieldId: def.id,
+                    value: JSON.parse(JSON.stringify(rawValue)),
+                  },
+                });
+              }
+            }
           }
         }
-      }
-    }
+
+        // If template has tasks, create them
+        if (template && template.tasks.length > 0) {
+          const projectStartDate = startDate ? new Date(startDate) : new Date();
+
+          for (const templateTask of template.tasks) {
+            const section = created.sections[templateTask.sectionIndex];
+            if (!section) continue;
+
+            let dueDate: Date | null = null;
+            if (templateTask.relativeDueDate !== undefined) {
+              dueDate = new Date(projectStartDate);
+              dueDate.setDate(dueDate.getDate() + templateTask.relativeDueDate);
+            }
+
+            const createdTask = await tx.task.create({
+              data: {
+                name: templateTask.name,
+                description: templateTask.description || null,
+                projectId: created.id,
+                sectionId: section.id,
+                creatorId: userId,
+                priority: templateTask.priority || "NONE",
+                taskType: templateTask.taskType || "TASK",
+                dueDate,
+                position: 0,
+              },
+            });
+
+            if (templateTask.subtasks && templateTask.subtasks.length > 0) {
+              for (let i = 0; i < templateTask.subtasks.length; i++) {
+                const subtask = templateTask.subtasks[i];
+                await tx.task.create({
+                  data: {
+                    name: subtask.name,
+                    description: subtask.description || null,
+                    projectId: created.id,
+                    sectionId: section.id,
+                    creatorId: userId,
+                    parentTaskId: createdTask.id,
+                    position: i,
+                  },
+                });
+              }
+            }
+          }
+        }
+
+        return created;
+      },
+      { timeout: 20000, maxWait: 8000 }
+    );
 
     // Fetch the complete project with tasks
     const completeProject = await prisma.project.findUnique({
@@ -594,6 +591,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json(completeProject, { status: 201 });
   } catch (error) {
+    const badJson = jsonErrorResponse(error);
+    if (badJson) return badJson;
     if (error instanceof z.ZodError) {
       const zodError = error as z.ZodError;
       return NextResponse.json(

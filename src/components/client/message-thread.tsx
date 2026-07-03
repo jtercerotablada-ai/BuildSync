@@ -49,6 +49,13 @@ export function MessageThread({
     .toUpperCase()
     .slice(0, 2);
 
+  // Identifies the open thread so an in-flight fetch for a previous thread
+  // can detect it's stale and skip applying its result / read-marking.
+  const threadKeyRef = useRef(`${otherUserId}:${projectId ?? ""}`);
+  useEffect(() => {
+    threadKeyRef.current = `${otherUserId}:${projectId ?? ""}`;
+  }, [otherUserId, projectId]);
+
   useEffect(() => {
     fetchMessages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,6 +68,7 @@ export function MessageThread({
   }, [messages]);
 
   async function fetchMessages() {
+    const key = `${otherUserId}:${projectId ?? ""}`;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -68,23 +76,28 @@ export function MessageThread({
         ...(projectId ? { projectId } : {}),
       });
       const res = await fetch(`/api/client/messages?${params}`);
+      // Drop the response if the user switched threads while it was loading.
+      if (key !== threadKeyRef.current) return;
       if (res.ok) {
         const data = await res.json();
+        if (key !== threadKeyRef.current) return;
         setMessages(data.messages || []);
 
-        // Mark unread messages as read
+        // Mark unread messages as read (fire-and-forget, errors ignored).
         const unreadIds = (data.messages || [])
           .filter((m: Message) => m.senderId !== currentUserId && !m.read)
           .map((m: Message) => m.id);
 
         for (const id of unreadIds) {
-          fetch(`/api/client/messages/${id}/read`, { method: "PATCH" });
+          fetch(`/api/client/messages/${id}/read`, { method: "PATCH" }).catch(
+            () => {}
+          );
         }
       }
     } catch (error) {
       console.error("Failed to fetch messages:", error);
     } finally {
-      setLoading(false);
+      if (key === threadKeyRef.current) setLoading(false);
     }
   }
 

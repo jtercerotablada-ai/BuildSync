@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId, verifyProjectAccess, verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { readJson, jsonErrorResponse } from "@/lib/http";
 import { notifyTaskAssigned } from "@/lib/task-notifications";
 
 const createTaskSchema = z.object({
@@ -197,7 +198,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
+    const body = await readJson(req);
     const data = createTaskSchema.parse(body);
 
     // Verify user has access to the target project
@@ -332,6 +333,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json(task, { status: 201 });
   } catch (error) {
+    const badJson = jsonErrorResponse(error);
+    if (badJson) return badJson;
     if (error instanceof z.ZodError) {
       const zodError = error as z.ZodError;
       return NextResponse.json(

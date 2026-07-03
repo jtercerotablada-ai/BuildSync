@@ -201,22 +201,34 @@ export function TaskDetailModal({
   const [editingSubtaskName, setEditingSubtaskName] = useState('');
   const isAddingSubtaskRef = useRef(false);
 
+  // Tracks the task currently open so in-flight fetches for a previous task
+  // can detect they're stale and skip applying their result.
+  const currentTaskIdRef = useRef(taskId);
+  useEffect(() => {
+    currentTaskIdRef.current = taskId;
+  }, [taskId]);
+
   const fetchTask = useCallback(async () => {
     if (!taskId) return;
 
     setLoading(true);
     try {
       const response = await fetch(`/api/tasks/${taskId}`);
+      // If the user switched to a different task while this was in flight,
+      // drop the stale response so it can't overwrite the current task.
+      if (taskId !== currentTaskIdRef.current) return;
       if (!response.ok) throw new Error('Failed to fetch task');
       const data = await response.json();
+      if (taskId !== currentTaskIdRef.current) return;
       setTask(data);
       setName(data.name);
       setDescription(data.description || '');
     } catch (error) {
+      if (taskId !== currentTaskIdRef.current) return;
       toast.error('Failed to load task');
       onOpenChange(false);
     } finally {
-      setLoading(false);
+      if (taskId === currentTaskIdRef.current) setLoading(false);
     }
   }, [taskId, onOpenChange]);
 

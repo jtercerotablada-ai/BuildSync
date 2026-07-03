@@ -425,10 +425,12 @@ export function BoardView({
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ completed: !task.completed }),
-                    }).then((res) => {
-                      if (res.ok) router.refresh();
-                      else toast.error("Failed to update task");
-                    });
+                    })
+                      .then((res) => {
+                        if (res.ok) router.refresh();
+                        else toast.error("Failed to update task");
+                      })
+                      .catch(() => toast.error("Failed to update task"));
                   }}
                   className={cn(
                     "mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
