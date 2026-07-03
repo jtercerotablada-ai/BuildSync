@@ -46,6 +46,20 @@ export async function PATCH(
       return NextResponse.json({ error: "Member not found in this team" }, { status: 404 });
     }
 
+    // Don't allow demoting the last LEAD — that would leave the team with no
+    // one who can manage membership/settings (mirrors the DELETE guard).
+    if (memberToUpdate.role === "LEAD" && role === "MEMBER") {
+      const leadCount = await prisma.teamMember.count({
+        where: { teamId, role: "LEAD" },
+      });
+      if (leadCount <= 1) {
+        return NextResponse.json(
+          { error: "Cannot demote the last team lead. Assign another lead first." },
+          { status: 400 }
+        );
+      }
+    }
+
     // Update the member
     const updatedMember = await prisma.teamMember.update({
       where: { id: memberId },

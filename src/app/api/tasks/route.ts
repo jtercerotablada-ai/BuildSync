@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, verifyProjectAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { getUserWorkspaceId, verifyProjectAccess, verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { notifyTaskAssigned } from "@/lib/task-notifications";
 
 const createTaskSchema = z.object({
@@ -203,6 +203,13 @@ export async function POST(req: Request) {
     // Verify user has access to the target project
     if (data.projectId) {
       await verifyProjectAccess(userId, data.projectId);
+    }
+
+    // When creating a subtask, the caller must have access to the parent —
+    // otherwise a new task could be grafted under a parent in another
+    // workspace, polluting that task's subtree.
+    if (data.parentTaskId) {
+      await verifyTaskAccess(userId, data.parentTaskId);
     }
 
     // Auto-assign to current user if no assigneeId provided (for My Tasks)

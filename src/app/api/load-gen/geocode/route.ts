@@ -25,6 +25,8 @@ export async function POST(req: Request) {
         'Accept-Language': 'en',
       },
       cache: 'no-store',
+      // Cap the wait so a slow upstream can't hang the function.
+      signal: AbortSignal.timeout(8000),
     });
     if (!r.ok) {
       return NextResponse.json(

@@ -18,6 +18,9 @@ export async function POST(req: Request) {
           'User-Agent': 'ttcivilstructural.com Load Generator',
         },
         cache: 'no-store',
+        // open-elevation can be slow/flaky — cap the wait; on failure the
+        // catch below already falls back to elevation 0.
+        signal: AbortSignal.timeout(8000),
       }
     );
     if (!r.ok) {

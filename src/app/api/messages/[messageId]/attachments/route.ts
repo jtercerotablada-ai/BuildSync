@@ -79,9 +79,12 @@ export async function POST(
       { status: 201 }
     );
   } catch (err) {
+    // Log the detail server-side but return a generic message — raw
+    // err.message can leak internals (paths, storage keys) to the client.
     console.error("[message attachment POST] error:", err);
-    const message =
-      err instanceof Error ? err.message : "Failed to upload attachment";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to upload attachment" },
+      { status: 500 }
+    );
   }
 }

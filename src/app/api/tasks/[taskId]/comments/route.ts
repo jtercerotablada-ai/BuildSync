@@ -137,6 +137,21 @@ export async function POST(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
+    // When replying, the parent comment must belong to THIS task — otherwise
+    // a reply could be grafted onto a comment on another task/workspace.
+    if (parentId) {
+      const parent = await prisma.comment.findFirst({
+        where: { id: parentId, taskId },
+        select: { id: true },
+      });
+      if (!parent) {
+        return NextResponse.json(
+          { error: "Parent comment not found on this task" },
+          { status: 404 }
+        );
+      }
+    }
+
     const comment = await prisma.comment.create({
       data: {
         content,

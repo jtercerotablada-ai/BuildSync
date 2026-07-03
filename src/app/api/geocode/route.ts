@@ -38,6 +38,8 @@ export async function GET(req: Request) {
         "User-Agent": "BuildSync/1.0 (https://ttcivilstructural.com)",
         Accept: "application/json",
       },
+      // Cap the wait so a slow/hung upstream can't tie up the function.
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!res.ok) {

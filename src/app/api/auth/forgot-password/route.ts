@@ -41,7 +41,9 @@ export async function POST(req: Request) {
       return successResponse;
     }
 
-    const token = await createToken(`password-reset:${normalizedEmail}`);
+    // 30-minute lifetime for reset links (shorter than the 60-min default)
+    // to narrow the window an intercepted/guessed token stays valid — AUTH low.
+    const token = await createToken(`password-reset:${normalizedEmail}`, 30);
     await sendPasswordResetEmail(normalizedEmail, token);
 
     return successResponse;

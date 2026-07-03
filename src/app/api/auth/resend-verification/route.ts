@@ -50,14 +50,26 @@ export async function POST(req: Request) {
       },
     });
 
+    // For the unauthenticated path (email supplied in the body) always return
+    // the same generic message so the response can't be used to probe whether
+    // an address is registered/unverified. Authenticated users (who already
+    // know their own state) get the specific message.
+    const genericMsg = "If that email exists, a verification link has been sent";
+
     if (recentToken) {
-      return NextResponse.json({ message: "Verification email already sent. Please wait a moment before requesting again." });
+      return NextResponse.json({
+        message: userId
+          ? "Verification email already sent. Please wait a moment before requesting again."
+          : genericMsg,
+      });
     }
 
     const token = await createToken(`email-verify:${email}`);
     await sendVerificationEmail(email, token);
 
-    return NextResponse.json({ message: "Verification email sent" });
+    return NextResponse.json({
+      message: userId ? "Verification email sent" : genericMsg,
+    });
   } catch (error) {
     console.error("Error resending verification:", error);
     return NextResponse.json(

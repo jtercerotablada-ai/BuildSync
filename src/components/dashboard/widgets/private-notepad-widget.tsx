@@ -41,6 +41,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
+import DOMPurify from 'dompurify';
 import { cn } from '@/lib/utils';
 
 const STORAGE_KEY = 'buildsync-private-notepad';
@@ -129,7 +130,7 @@ export function PrivateNotepadWidget() {
             noteIdRef.current = notepad.id;
             setContent(notepad.content || '');
             if (editorRef.current) {
-              editorRef.current.innerHTML = notepad.content || '';
+              editorRef.current.innerHTML = DOMPurify.sanitize(notepad.content || '');
             }
             setIsLoaded(true);
             return;
@@ -149,12 +150,12 @@ export function PrivateNotepadWidget() {
           const savedContent = data.content || '';
           setContent(savedContent);
           if (editorRef.current) {
-            editorRef.current.innerHTML = savedContent;
+            editorRef.current.innerHTML = DOMPurify.sanitize(savedContent);
           }
         } catch {
           setContent(saved);
           if (editorRef.current) {
-            editorRef.current.innerHTML = saved;
+            editorRef.current.innerHTML = DOMPurify.sanitize(saved);
           }
         }
       }
