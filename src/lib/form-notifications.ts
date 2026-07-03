@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { shouldNotify } from "@/lib/notification-prefs";
 
 /**
  * Fan out a FORM_SUBMITTED event after a public/internal form
@@ -87,6 +88,10 @@ export async function notifyFormSubmitted(opts: {
 
   for (const userId of unique) {
     try {
+      // Preference gate. FORM_SUBMITTED is unmapped today (always
+      // true), but we route through shouldNotify so the producer
+      // honors any future toggle.
+      if (!(await shouldNotify(userId, "FORM_SUBMITTED"))) continue;
       await prisma.notification.create({
         data: {
           userId,

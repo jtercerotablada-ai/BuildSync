@@ -19,10 +19,11 @@ export default function ClientSettingsPage() {
     bio: "",
   });
   const [notifications, setNotifications] = useState({
+    notifyTaskAssigned: true,
     notifyTaskCompleted: true,
     notifyCommentAdded: true,
+    notifyMentioned: true,
     notifyProjectUpdates: true,
-    notifyWeeklyDigest: false,
   });
   const [passwords, setPasswords] = useState({
     current: "",
@@ -61,10 +62,11 @@ export default function ClientSettingsPage() {
       if (res.ok) {
         const prefs = await res.json();
         setNotifications({
+          notifyTaskAssigned: prefs.notifyTaskAssigned ?? true,
           notifyTaskCompleted: prefs.notifyTaskCompleted ?? true,
           notifyCommentAdded: prefs.notifyCommentAdded ?? true,
+          notifyMentioned: prefs.notifyMentioned ?? true,
           notifyProjectUpdates: prefs.notifyProjectUpdates ?? true,
-          notifyWeeklyDigest: prefs.notifyWeeklyDigest ?? false,
         });
       }
     } catch (error) {
@@ -242,10 +244,11 @@ export default function ClientSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {[
+            { key: "notifyTaskAssigned" as const, label: "Task assignments" },
             { key: "notifyTaskCompleted" as const, label: "Task completions" },
             { key: "notifyCommentAdded" as const, label: "New comments" },
+            { key: "notifyMentioned" as const, label: "Mentions" },
             { key: "notifyProjectUpdates" as const, label: "Project updates" },
-            { key: "notifyWeeklyDigest" as const, label: "Weekly digest email" },
           ].map((item) => (
             <div key={item.key} className="flex items-center justify-between">
               <Label className="text-white/70">{item.label}</Label>

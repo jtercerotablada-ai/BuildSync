@@ -28,10 +28,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useUiState } from "@/hooks/use-ui-state";
 
 // Types
 interface Notification {
@@ -113,8 +115,30 @@ function formatRelativeTime(date: Date): string {
 
 export default function InboxPage() {
   const router = useRouter();
+  // Persisted "default tab" (context-menu → Set as default). We seed
+  // activeTab from it once uiState hydrates (see effect below).
+  const {
+    value: persistedDefaultTab,
+    setValue: setPersistedDefaultTab,
+    isHydrated: defaultTabHydrated,
+  } = useUiState<string>("inbox.defaultTab", "activity");
+  // Persisted favorites — array of notification ids the user starred.
+  const { value: favorites, setValue: setFavorites } = useUiState<string[]>(
+    "inbox.favorites",
+    []
+  );
   const [activeTab, setActiveTab] = useState("activity");
+  // Only apply the persisted default once, on first hydration, so we
+  // don't fight the user's in-session tab clicks.
+  const appliedDefaultRef = useRef(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Server-computed unread count (read=false AND archived=false),
+  // independent of the current tab/filter/page. Drives the Activity
+  // badge so it never shows archived rows.
+  const [serverUnreadCount, setServerUnreadCount] = useState(0);
+  // Opaque cursor for the next (older) page; null when no more.
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<"all" | "unread" | "mentions" | "assignments">("all");
   const [sortOrder, setSortOrder] = useState<"recent" | "oldest" | "unread">("recent");
@@ -126,7 +150,6 @@ export default function InboxPage() {
   // window the AI summary considers. Default to last-week (matches
   // Asana's default).
   const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>("last-week");
-  const [defaultTab, setDefaultTab] = useState("activity");
   const [ctxMenu, setCtxMenu] = useState<{
     tabId: string;
     tabLabel: string;
@@ -146,26 +169,85 @@ export default function InboxPage() {
     setCtxMenu({ tabId, tabLabel, x, y });
   };
 
+  // Favorites are logically part of the "activity" stream (non-archived
+  // notifications), so we hit the same archived=false endpoint for them.
+  const isArchivedScope = activeTab === "archive";
+
   const fetchNotifications = useCallback(async () => {
     try {
-      const archived = activeTab === "archive";
-      const res = await fetch(`/api/notifications?archived=${archived}`);
+      const res = await fetch(
+        `/api/notifications?archived=${isArchivedScope}`
+      );
       if (res.ok) {
         const data = await res.json();
-        const formattedData = data.map(
-          (n: Notification & { createdAt: string }) => ({
-            ...n,
-            createdAt: new Date(n.createdAt),
-          })
-        );
+        // New GET shape: { notifications, nextCursor, unreadCount }.
+        // Stay tolerant of the legacy bare-array shape during rollout.
+        const rows: (Notification & { createdAt: string })[] = Array.isArray(
+          data
+        )
+          ? data
+          : data.notifications ?? [];
+        const formattedData = rows.map((n) => ({
+          ...n,
+          createdAt: new Date(n.createdAt),
+        }));
         setNotifications(formattedData);
+        setNextCursor(Array.isArray(data) ? null : data.nextCursor ?? null);
+        if (!Array.isArray(data) && typeof data.unreadCount === "number") {
+          setServerUnreadCount(data.unreadCount);
+        }
       }
     } catch (error) {
       console.error("Error fetching notifications:", error);
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [isArchivedScope]);
+
+  // Fetch the next (older) page and append it to the current list.
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/notifications?archived=${isArchivedScope}&cursor=${encodeURIComponent(
+          nextCursor
+        )}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const rows: (Notification & { createdAt: string })[] = Array.isArray(
+          data
+        )
+          ? data
+          : data.notifications ?? [];
+        const formattedData = rows.map((n) => ({
+          ...n,
+          createdAt: new Date(n.createdAt),
+        }));
+        setNotifications((prev) => [...prev, ...formattedData]);
+        setNextCursor(Array.isArray(data) ? null : data.nextCursor ?? null);
+        if (!Array.isArray(data) && typeof data.unreadCount === "number") {
+          setServerUnreadCount(data.unreadCount);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading more notifications:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [nextCursor, loadingMore, isArchivedScope]);
+
+  // Seed the active tab from the persisted default exactly once, after
+  // uiState hydrates. Guarded so a user's tab click is never overridden.
+  useEffect(() => {
+    if (defaultTabHydrated && !appliedDefaultRef.current) {
+      appliedDefaultRef.current = true;
+      if (persistedDefaultTab && persistedDefaultTab !== "activity") {
+        setActiveTab(persistedDefaultTab);
+      }
+    }
+  }, [defaultTabHydrated, persistedDefaultTab]);
 
   useEffect(() => {
     fetchNotifications();
@@ -291,21 +373,49 @@ export default function InboxPage() {
     }
   };
 
+  // Server-side archive-all — one PATCH archives EVERY non-archived row
+  // for the caller (not just the loaded page), then we refetch to get
+  // the fresh list + server unreadCount.
   const archiveAll = async () => {
     const prev = notifications;
     setNotifications([]);
     try {
-      const ids = prev.map((n) => n.id);
       const res = await fetch("/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids, archived: true }),
+        body: JSON.stringify({ archiveAll: true }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await fetchNotifications();
     } catch (error) {
       console.error("Error archiving notifications:", error);
       setNotifications(prev);
     }
+  };
+
+  // Optimistic single-unarchive — used on the Archive tab. Removes the
+  // row from the archived list and flips archived=false server-side.
+  const unarchiveOne = async (id: string) => {
+    const prev = notifications;
+    setNotifications((cur) => cur.filter((n) => n.id !== id));
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id], archived: false }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (error) {
+      console.error("Error unarchiving notification:", error);
+      setNotifications(prev);
+    }
+  };
+
+  // Toggle a notification's favorite status (persisted in uiState).
+  const toggleFavorite = (id: string) => {
+    setFavorites((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    );
   };
 
   const handleNotificationClick = (notification: Notification) => {
@@ -343,21 +453,30 @@ export default function InboxPage() {
     }
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Use the SERVER unread count for the badge — it's the count of
+  // read=false AND archived=false rows regardless of the loaded page,
+  // so the badge never desyncs with archived/paged local state.
+  const unreadCount = serverUnreadCount;
+
+  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
 
   const filteredNotifications = useMemo(() => {
     // Tab acts as the primary scope; the Filter dropdown narrows
     // further inside that scope. "Mentions" tab is a hard filter to
     // type === "mention", matching Asana's dedicated @-mentions tab.
+    // "Favorites" keeps only starred notifications from the activity
+    // stream.
     let scope = notifications;
     if (activeTab === "mentions") {
       scope = scope.filter((n) => n.type === "mention");
+    } else if (activeTab === "favorites") {
+      scope = scope.filter((n) => favoriteSet.has(n.id));
     }
     if (filterType === "unread") return scope.filter((n) => !n.read);
     if (filterType === "mentions") return scope.filter((n) => n.type === "mention");
     if (filterType === "assignments") return scope.filter((n) => n.type === "task_assigned");
     return scope;
-  }, [notifications, filterType, activeTab]);
+  }, [notifications, filterType, activeTab, favoriteSet]);
 
   const groupedNotifications = groupNotificationsByTime(filteredNotifications);
 
@@ -376,6 +495,16 @@ export default function InboxPage() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem
+              onClick={() => router.push("/settings?tab=notifications")}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Notification settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[11px] font-medium text-gray-400">
+              Quick actions
+            </DropdownMenuLabel>
             <DropdownMenuItem
               onClick={markAllAsRead}
             >
@@ -434,12 +563,12 @@ export default function InboxPage() {
         <TabContextMenu
           tabId={ctxMenu.tabId}
           tabName={ctxMenu.tabLabel}
-          isDefault={ctxMenu.tabId === defaultTab}
+          isDefault={ctxMenu.tabId === persistedDefaultTab}
           x={ctxMenu.x}
           y={ctxMenu.y}
           onClose={() => setCtxMenu(null)}
           onSetDefault={() => {
-            setDefaultTab(ctxMenu.tabId);
+            setPersistedDefaultTab(ctxMenu.tabId);
             setCtxMenu(null);
           }}
         />
@@ -483,10 +612,12 @@ export default function InboxPage() {
 
       {/* ─── Content Area ─── */}
       <div className="flex-1 overflow-auto">
-        {(activeTab === "activity" || activeTab === "mentions") && (
+        {(activeTab === "activity" ||
+          activeTab === "mentions" ||
+          activeTab === "favorites") && (
           <>
             {/* AI Summary Card - hidden on mobile */}
-            {showAISummary && <div className="hidden md:block"><InboxSummaryCard
+            {activeTab !== "favorites" && showAISummary && <div className="hidden md:block"><InboxSummaryCard
               onDismiss={() => setShowAISummary(false)}
               period={summaryPeriod}
               onPeriodChange={setSummaryPeriod}
@@ -549,7 +680,11 @@ export default function InboxPage() {
                 <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
               </div>
             ) : filteredNotifications.length === 0 ? (
-              <EmptyInbox />
+              activeTab === "favorites" ? (
+                <EmptyFavorites />
+              ) : (
+                <EmptyInbox />
+              )
             ) : (
               <div className="px-4 md:px-8 py-4">
                 {Object.entries(groupedNotifications).map(
@@ -565,6 +700,10 @@ export default function InboxPage() {
                               key={notification.id}
                               notification={notification}
                               compact={density === "compact"}
+                              favorited={favoriteSet.has(notification.id)}
+                              onToggleFavorite={() =>
+                                toggleFavorite(notification.id)
+                              }
                               onClick={() =>
                                 handleNotificationClick(notification)
                               }
@@ -576,18 +715,41 @@ export default function InboxPage() {
                     )
                 )}
 
-                <button
-                  onClick={archiveAll}
-                  className="text-[13px] text-gray-500 hover:text-[#a8893a] hover:underline mt-2 mb-8 px-1"
-                >
-                  Archive all notifications
-                </button>
+                {/* Load more (older) — only when the server says there's
+                    another page. Favorites are filtered client-side, so
+                    fetching more activity may surface more favorites. */}
+                {nextCursor && (
+                  <div className="flex justify-center mt-2 mb-4">
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="inline-flex items-center gap-1.5 text-[13px] text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        "Load more"
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {activeTab !== "favorites" && (
+                  <button
+                    onClick={archiveAll}
+                    className="text-[13px] text-gray-500 hover:text-[#a8893a] hover:underline mt-2 mb-8 px-1"
+                  >
+                    Archive all notifications
+                  </button>
+                )}
               </div>
             )}
           </>
         )}
 
-        {activeTab === "favorites" && <EmptyFavorites />}
         {activeTab === "archive" && (
           <>
             {loading ? (
@@ -603,10 +765,32 @@ export default function InboxPage() {
                     key={notification.id}
                     notification={notification}
                     compact={density === "compact"}
+                    archived
+                    favorited={favoriteSet.has(notification.id)}
+                    onToggleFavorite={() => toggleFavorite(notification.id)}
                     onClick={() => handleNotificationClick(notification)}
-                    onArchive={() => archiveOne(notification.id)}
+                    onArchive={() => unarchiveOne(notification.id)}
                   />
                 ))}
+
+                {nextCursor && (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="inline-flex items-center gap-1.5 text-[13px] text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        "Load more"
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -1019,11 +1203,18 @@ function InboxSummaryCard({
 function NotificationItem({
   notification,
   compact = false,
+  archived = false,
+  favorited = false,
+  onToggleFavorite,
   onClick,
   onArchive,
 }: {
   notification: Notification;
   compact?: boolean;
+  // On the Archive tab the row action UNARCHIVES rather than archives.
+  archived?: boolean;
+  favorited?: boolean;
+  onToggleFavorite?: () => void;
   onClick: () => void;
   onArchive?: () => void;
 }) {
@@ -1042,20 +1233,47 @@ function NotificationItem({
       )}
       onClick={onClick}
     >
-      {/* Archive on hover */}
-      <button
+      {/* Row actions on hover — star (favorite) + archive/unarchive.
+          A favorited star stays visible even when not hovering. */}
+      <div
         className={cn(
-          "opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0",
+          "flex items-center gap-1.5 flex-shrink-0",
           compact ? "mt-0.5" : "mt-1"
         )}
-        onClick={(e) => {
-          e.stopPropagation();
-          onArchive?.();
-        }}
-        title="Archive"
       >
-        <Archive className="w-[15px] h-[15px] text-gray-400 hover:text-gray-600" />
-      </button>
+        <button
+          className={cn(
+            "transition-opacity",
+            favorited
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100"
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite?.();
+          }}
+          title={favorited ? "Remove from favorites" : "Add to favorites"}
+        >
+          <Star
+            className={cn(
+              "w-[15px] h-[15px]",
+              favorited
+                ? "fill-[#c9a84c] text-[#c9a84c]"
+                : "text-gray-400 hover:text-gray-600"
+            )}
+          />
+        </button>
+        <button
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation();
+            onArchive?.();
+          }}
+          title={archived ? "Unarchive" : "Archive"}
+        >
+          <Archive className="w-[15px] h-[15px] text-gray-400 hover:text-gray-600" />
+        </button>
+      </div>
 
       {/* Avatar with type-icon overlay */}
       <div className="relative flex-shrink-0">

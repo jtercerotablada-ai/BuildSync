@@ -56,19 +56,41 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Invalid theme" }, { status: 400 });
     }
 
-    const allowedScalarFields = [
+    const notifyFields = [
       "notifyTaskAssigned",
       "notifyTaskCompleted",
       "notifyCommentAdded",
       "notifyMentioned",
       "notifyProjectUpdates",
       "notifyWeeklyDigest",
-      "theme",
     ];
+    const allowedScalarFields = [...notifyFields, "theme"];
+
+    // Coerce notify* toggles to a strict boolean so a non-boolean payload
+    // (e.g. "yes") can't reach Prisma and 500. Accepts real booleans and
+    // common truthy/falsy scalars; rejects anything else with a 400.
+    const truthy = new Set([true, "true", "1", 1, "on", "yes"]);
+    const falsy = new Set([false, "false", "0", 0, "off", "no", ""]);
+    function coerceBoolean(value: unknown): boolean | undefined {
+      if (typeof value === "boolean") return value;
+      if (truthy.has(value as never)) return true;
+      if (falsy.has(value as never)) return false;
+      return undefined;
+    }
 
     const updateData: Record<string, unknown> = {};
     for (const key of allowedScalarFields) {
-      if (body[key] !== undefined) {
+      if (body[key] === undefined) continue;
+      if (notifyFields.includes(key)) {
+        const coerced = coerceBoolean(body[key]);
+        if (coerced === undefined) {
+          return NextResponse.json(
+            { error: `${key} must be a boolean` },
+            { status: 400 }
+          );
+        }
+        updateData[key] = coerced;
+      } else {
         updateData[key] = body[key];
       }
     }

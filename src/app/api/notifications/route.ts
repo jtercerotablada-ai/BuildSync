@@ -12,18 +12,48 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "50") || 50, 1), 100);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "30") || 30, 1), 100);
     const archived = searchParams.get("archived") === "true";
+    const cursor = searchParams.get("cursor") || undefined;
+
+    // Resolve the cursor row so we can page by (createdAt desc, id tiebreak).
+    // cuid ids aren't time-ordered, so we filter on the cursor's createdAt.
+    let cursorFilter:
+      | {
+          OR: (
+            | { createdAt: { lt: Date } }
+            | { createdAt: Date; id: { lt: string } }
+          )[];
+        }
+      | undefined;
+    if (cursor) {
+      const cursorRow = await prisma.notification.findFirst({
+        where: { id: cursor, userId },
+        select: { id: true, createdAt: true },
+      });
+      if (cursorRow) {
+        cursorFilter = {
+          OR: [
+            { createdAt: { lt: cursorRow.createdAt } },
+            { createdAt: cursorRow.createdAt, id: { lt: cursorRow.id } },
+          ],
+        };
+      }
+    }
 
     const notifications = await prisma.notification.findMany({
       where: {
         userId,
         archived,
+        ...(cursorFilter ?? {}),
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: limit,
+    });
+
+    // Unread count is independent of the current filter/page.
+    const unreadCount = await prisma.notification.count({
+      where: { userId, read: false, archived: false },
     });
 
     // Transform to frontend format
@@ -62,7 +92,17 @@ export async function GET(req: Request) {
       };
     });
 
-    return NextResponse.json(formattedNotifications);
+    // Full page returned -> more may exist; expose the last id as the cursor.
+    const nextCursor =
+      notifications.length === limit
+        ? notifications[notifications.length - 1].id
+        : null;
+
+    return NextResponse.json({
+      notifications: formattedNotifications,
+      nextCursor,
+      unreadCount,
+    });
   } catch (error) {
     console.error("Error fetching notifications:", error);
     return NextResponse.json(
@@ -82,14 +122,15 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const { ids, read, archived, markAllRead } = body;
+    const { ids, read, archived, markAllRead, archiveAll } = body;
 
     if (markAllRead) {
-      // Mark all unread notifications as read
+      // Mark all unread, non-archived notifications as read.
       await prisma.notification.updateMany({
         where: {
           userId,
           read: false,
+          archived: false,
         },
         data: {
           read: true,
@@ -99,8 +140,46 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    if (!ids || !Array.isArray(ids)) {
+    if (archiveAll) {
+      // Archive all of the caller's non-archived notifications.
+      await prisma.notification.updateMany({
+        where: {
+          userId,
+          archived: false,
+        },
+        data: {
+          archived: true,
+        },
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      !ids.every((id) => typeof id === "string")
+    ) {
       return NextResponse.json({ error: "Invalid notification IDs" }, { status: 400 });
+    }
+
+    // Unbounded-guard: cap the number of ids per request.
+    if (ids.length > 500) {
+      return NextResponse.json(
+        { error: "Too many notification IDs" },
+        { status: 400 }
+      );
+    }
+
+    // Reject non-boolean read/archived values.
+    if (read !== undefined && typeof read !== "boolean") {
+      return NextResponse.json({ error: "Invalid read value" }, { status: 400 });
+    }
+    if (archived !== undefined && typeof archived !== "boolean") {
+      return NextResponse.json(
+        { error: "Invalid archived value" },
+        { status: 400 }
+      );
     }
 
     const updateData: { read?: boolean; archived?: boolean } = {};

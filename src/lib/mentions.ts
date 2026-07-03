@@ -1,4 +1,17 @@
 import prisma from "@/lib/prisma";
+import { shouldNotify } from "@/lib/notification-prefs";
+
+/**
+ * Filter a set of MENTIONED recipients down to those who haven't
+ * opted out of mention notifications (notifyMentioned). Preserves
+ * order and dedupes nothing (callers pass an already-clean list).
+ */
+async function gateMentionRecipients(recipients: string[]): Promise<string[]> {
+  const flags = await Promise.all(
+    recipients.map((uid) => shouldNotify(uid, "MENTIONED"))
+  );
+  return recipients.filter((_, i) => flags[i]);
+}
 
 /**
  * Mention helpers shared across the message + reply endpoints.
@@ -111,7 +124,9 @@ export async function persistMentionsForNewMessage(opts: SyncOptions) {
 
   // Skip the author from notification fan-out — pinging yourself
   // is noise.
-  const recipients = allowed.filter((uid) => uid !== actorUserId);
+  const recipients = await gateMentionRecipients(
+    allowed.filter((uid) => uid !== actorUserId)
+  );
   if (recipients.length === 0) return;
 
   const title = `${opts.authorName || "Someone"} mentioned you`;
@@ -176,7 +191,9 @@ export async function syncMentionsForEditedMessage(opts: SyncOptions) {
 
   // Only notify the newly-added mentions (not re-mentions that
   // were already there).
-  const recipients = toAdd.filter((uid) => uid !== actorUserId);
+  const recipients = await gateMentionRecipients(
+    toAdd.filter((uid) => uid !== actorUserId)
+  );
   if (recipients.length === 0) return;
 
   const title = `${opts.authorName || "Someone"} mentioned you`;
@@ -310,7 +327,9 @@ export async function persistTeamMentionsForNewMessage(
     skipDuplicates: true,
   });
 
-  const recipients = allowed.filter((uid) => uid !== actorUserId);
+  const recipients = await gateMentionRecipients(
+    allowed.filter((uid) => uid !== actorUserId)
+  );
   if (recipients.length === 0) return;
 
   const title = `${opts.authorName || "Someone"} mentioned you`;
@@ -369,7 +388,9 @@ export async function syncTeamMentionsForEditedMessage(
     skipDuplicates: true,
   });
 
-  const recipients = toAdd.filter((uid) => uid !== actorUserId);
+  const recipients = await gateMentionRecipients(
+    toAdd.filter((uid) => uid !== actorUserId)
+  );
   if (recipients.length === 0) return;
 
   const title = `${opts.authorName || "Someone"} mentioned you`;

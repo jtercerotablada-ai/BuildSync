@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { shouldNotify } from "@/lib/notification-prefs";
 
 /**
  * Drop an OBJECTIVE_SHARED Notification when the owner adds someone
@@ -24,6 +25,11 @@ export async function notifyObjectiveShared(opts: {
 
   // Self-share: silent.
   if (recipientUserId === sharerUserId) return;
+
+  // Preference gate. OBJECTIVE_SHARED is unmapped today (always true),
+  // but routing through shouldNotify keeps the producer honest if a
+  // toggle is added later.
+  if (!(await shouldNotify(recipientUserId, "OBJECTIVE_SHARED"))) return;
 
   // Resolve sharer's display info so the inbox row carries a real
   // avatar + name instead of the generic fallback.

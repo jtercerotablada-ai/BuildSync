@@ -3,6 +3,8 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId, getCurrentUser } from "@/lib/auth-utils";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { shouldNotify } from "@/lib/notification-prefs";
+import { resolveAllowedMentionUserIds } from "@/lib/mentions";
 
 // Helper function to extract mentioned user IDs from HTML content
 function extractMentionedUserIds(content: string): string[] {
@@ -130,7 +132,13 @@ export async function POST(
     // Verify task exists and get task name for notifications
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      select: { id: true, name: true, projectId: true },
+      select: {
+        id: true,
+        name: true,
+        projectId: true,
+        assigneeId: true,
+        creatorId: true,
+      },
     });
 
     if (!task) {
@@ -181,20 +189,37 @@ export async function POST(
       },
     });
 
-    // Extract mentioned users and create notifications
-    const mentionedUserIds = extractMentionedUserIds(content);
+    // ── Notification fan-out (best-effort) ──────────────────────
+    // Everything below is wrapped so a bad @-mention id or a prefs
+    // hiccup can never 500 a comment that already saved successfully.
+    const textPreview = getTextPreview(content);
 
-    if (mentionedUserIds.length > 0) {
-      // Filter out the comment author (don't notify yourself)
-      const usersToNotify = mentionedUserIds.filter(id => id !== currentUser.id);
+    // Parse @-mentions from the client HTML. These are UNVALIDATED —
+    // the data-user-id attributes come straight off the wire, so we
+    // validate them against the project's membership before use to
+    // avoid a foreign-key P2003 on createMany.
+    const rawMentionIds = extractMentionedUserIds(content).filter(
+      (id) => id !== currentUser.id
+    );
 
-      if (usersToNotify.length > 0) {
-        const textPreview = getTextPreview(content);
+    let mentionedUserIds: string[] = [];
+    try {
+      // Comments only carry mentions when the task lives in a project
+      // (mentions resolve against project membership). Task-less tasks
+      // (personal My Tasks) get no mention fan-out.
+      if (rawMentionIds.length > 0 && task.projectId) {
+        const gated = await Promise.all(
+          (
+            await resolveAllowedMentionUserIds(task.projectId, rawMentionIds)
+          ).map(async (uid) => ((await shouldNotify(uid, "MENTIONED")) ? uid : null))
+        );
+        mentionedUserIds = gated.filter((uid): uid is string => uid !== null);
+      }
 
-        // Create notifications for each mentioned user
+      if (mentionedUserIds.length > 0) {
         await prisma.notification.createMany({
-          data: usersToNotify.map(userId => ({
-            type: "MENTIONED",
+          data: mentionedUserIds.map((userId) => ({
+            type: "MENTIONED" as const,
             title: `${currentUser.name || "Someone"} mentioned you in a comment`,
             message: textPreview,
             userId,
@@ -209,6 +234,55 @@ export async function POST(
           })),
         });
       }
+    } catch (err) {
+      // A bad mention id (or any createMany failure) must never sink
+      // a successfully-saved comment.
+      console.error("[task comment MENTIONED fan-out] failed:", err);
+    }
+
+    // ── COMMENT_ADDED fan-out ───────────────────────────────────
+    // Ping the task's assignee AND creator that a new comment landed.
+    // Exclude the comment author and anyone already @-mentioned above
+    // (they got a MENTIONED ping — no need to double-notify).
+    try {
+      const mentionedSet = new Set(mentionedUserIds);
+      const commentRecipients = Array.from(
+        new Set(
+          [task.assigneeId, task.creatorId].filter(
+            (id): id is string =>
+              typeof id === "string" &&
+              id.length > 0 &&
+              id !== currentUser.id &&
+              !mentionedSet.has(id)
+          )
+        )
+      );
+
+      const gatedRecipients: string[] = [];
+      for (const uid of commentRecipients) {
+        if (await shouldNotify(uid, "COMMENT_ADDED")) gatedRecipients.push(uid);
+      }
+
+      if (gatedRecipients.length > 0) {
+        await prisma.notification.createMany({
+          data: gatedRecipients.map((userId) => ({
+            type: "COMMENT_ADDED" as const,
+            title: `${currentUser.name || "Someone"} commented on a task`,
+            message: textPreview,
+            userId,
+            data: {
+              taskId: task.id,
+              taskName: task.name,
+              projectId: task.projectId,
+              commentId: comment.id,
+              authorId: currentUser.id,
+              authorName: currentUser.name,
+            },
+          })),
+        });
+      }
+    } catch (err) {
+      console.error("[task comment COMMENT_ADDED fan-out] failed:", err);
     }
 
     return NextResponse.json(comment, { status: 201 });

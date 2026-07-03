@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { sendTaskAssignedEmail } from "@/lib/email";
+import { shouldNotify } from "@/lib/notification-prefs";
 
 /**
  * Drop a TASK_ASSIGNED Notification row + fire an email when a task
@@ -33,6 +34,10 @@ export async function notifyTaskAssigned(opts: {
 
   // Self-assign: silent.
   if (assigneeId === assignerUserId) return;
+
+  // Preference gate: respect notifyTaskAssigned for BOTH the inbox
+  // row and the email. When off, the whole producer is a no-op.
+  if (!(await shouldNotify(assigneeId, "TASK_ASSIGNED"))) return;
 
   // Resolve actor + recipient profile fields once for both the
   // inbox row and the email payload.
@@ -135,6 +140,9 @@ export async function notifyTaskCompleted(opts: {
 
   // Self-complete: silent. (You finished your own task — you know.)
   if (recipientUserId === completerUserId) return;
+
+  // Preference gate: recipient opted out of completion pings.
+  if (!(await shouldNotify(recipientUserId, "TASK_COMPLETED"))) return;
 
   // Resolve completer's display so the inbox can render their avatar
   // + name instead of the generic firm fallback.

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { shouldNotify } from "@/lib/notification-prefs";
 
 const STATUS_VALUES = [
   "ON_TRACK",
@@ -269,6 +270,45 @@ export async function POST(
       where: { id: userId },
       select: { id: true, name: true, email: true, image: true },
     });
+
+    // ── STATUS_UPDATE fan-out (best-effort) ─────────────────────
+    // Notify project members (owner + explicit members) that a new
+    // status update landed, excluding the author. Gated by
+    // notifyProjectUpdates. Wrapped so a notification failure never
+    // rolls back the already-committed status update.
+    try {
+      const memberIds = new Set<string>();
+      if (access.project.ownerId) memberIds.add(access.project.ownerId);
+      for (const m of access.project.members) memberIds.add(m.userId);
+      memberIds.delete(userId); // never notify the author
+
+      const gated: string[] = [];
+      for (const uid of memberIds) {
+        if (await shouldNotify(uid, "STATUS_UPDATE")) gated.push(uid);
+      }
+
+      if (gated.length > 0) {
+        const authorName = author?.name ?? author?.email ?? "A teammate";
+        const preview = finalSummary.slice(0, 140);
+        await prisma.notification.createMany({
+          data: gated.map((recipientId) => ({
+            userId: recipientId,
+            type: "STATUS_UPDATE" as const,
+            title: `${authorName} posted a status update`,
+            message: preview,
+            data: {
+              projectId,
+              statusUpdateId: created.id,
+              status: created.status,
+              authorName,
+              authorImage: author?.image ?? null,
+            },
+          })),
+        });
+      }
+    } catch (err) {
+      console.error("[project status-updates STATUS_UPDATE fan-out] failed:", err);
+    }
 
     return NextResponse.json(
       {

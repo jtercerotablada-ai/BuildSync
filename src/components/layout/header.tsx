@@ -16,6 +16,7 @@ import { useAIPanel } from "@/contexts/ai-panel-context";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface HeaderProps {
   onCreateTask?: () => void;
@@ -30,6 +31,41 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
   const { data: session } = useSession();
   const { openPanel } = useAIPanel();
   const router = useRouter();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchUnread = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      try {
+        const res = await fetch("/api/notifications?archived=false", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && typeof data?.unreadCount === "number") {
+          setUnreadCount(data.unreadCount);
+        }
+      } catch {
+        // ignore transient network errors
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    // Refresh immediately when the tab regains focus so the badge is
+    // current the moment the user returns, instead of waiting up to 30s.
+    const onVisible = () => {
+      if (typeof document !== "undefined" && !document.hidden) fetchUnread();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   const userInitials = session?.user?.name
     ?.split(" ")
@@ -142,13 +178,18 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
           <Sparkles className="h-[18px] w-[18px]" style={{ color: "#D97757" }} />
         </button>
 
-        <button
-          type="button"
-          onClick={() => toast.info("Notifications coming soon")}
-          className="flex items-center justify-center h-8 w-8 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+        <Link
+          href="/inbox"
+          aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+          className="relative flex items-center justify-center h-8 w-8 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
         >
           <Bell className="h-[18px] w-[18px]" />
-        </button>
+          {unreadCount > 0 && (
+            <span className="absolute top-1 right-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#a8893a] px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </Link>
 
         <button
           type="button"

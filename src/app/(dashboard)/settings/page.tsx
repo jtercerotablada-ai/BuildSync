@@ -39,6 +39,16 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Deep-link support: /settings?tab=notifications selects that tab on
+  // load (used by the Inbox "Notification settings" link). Read from the
+  // URL directly to avoid a Suspense boundary for useSearchParams.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    if (requested && tabs.some((t) => t.id === requested)) {
+      setActiveTab(requested as SettingsTab);
+    }
+  }, []);
+
   useEffect(() => {
     async function fetchProfile() {
       try {

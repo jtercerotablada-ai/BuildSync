@@ -11,7 +11,6 @@ interface NotificationPreferences {
   notifyCommentAdded: boolean;
   notifyMentioned: boolean;
   notifyProjectUpdates: boolean;
-  notifyWeeklyDigest: boolean;
 }
 
 const notificationItems: {
@@ -44,11 +43,6 @@ const notificationItems: {
     label: "Project updates",
     description: "Status changes on your projects",
   },
-  {
-    key: "notifyWeeklyDigest",
-    label: "Weekly digest",
-    description: "A weekly summary of your activity",
-  },
 ];
 
 export function NotificationsSection() {
@@ -58,7 +52,6 @@ export function NotificationsSection() {
     notifyCommentAdded: true,
     notifyMentioned: true,
     notifyProjectUpdates: true,
-    notifyWeeklyDigest: false,
   });
   const [loading, setLoading] = useState(true);
 
@@ -74,7 +67,6 @@ export function NotificationsSection() {
             notifyCommentAdded: data.notifyCommentAdded,
             notifyMentioned: data.notifyMentioned,
             notifyProjectUpdates: data.notifyProjectUpdates,
-            notifyWeeklyDigest: data.notifyWeeklyDigest,
           });
         }
       } catch {

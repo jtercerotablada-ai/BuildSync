@@ -4,5 +4,10 @@
   "buildCommand": "prisma generate && next build",
   "installCommand": "npm install",
   "regions": ["iad1"],
-  "crons": []
+  "crons": [
+    {
+      "path": "/api/cron/due-dates",
+      "schedule": "0 13 * * *"
+    }
+  ]
 }
