@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { Check, Plus, Calendar as CalendarIcon, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday } from '@/lib/date-only';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
 import { DueDatePicker } from '@/components/tasks/due-date-picker';
 
@@ -30,31 +30,29 @@ type TabType = 'upcoming' | 'overdue' | 'completed';
 
 // Format due date
 function formatDueDate(date: string): { text: string; isSpecial: boolean } {
-  const d = new Date(date);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const diff = daysFromToday(date);
 
-  if (d.toDateString() === today.toDateString()) {
+  if (diff === 0) {
     return { text: 'Today', isSpecial: true };
   }
-  if (d.toDateString() === tomorrow.toDateString()) {
+  if (diff === 1) {
     return { text: 'Tomorrow', isSpecial: true };
+  }
+  if (diff === -1) {
+    return { text: 'Yesterday', isSpecial: true };
   }
 
   // Format: "jan 20", "feb 1"
   return {
-    text: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toLowerCase(),
+    text: dueDateToLocalMidnight(date)
+      .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      .toLowerCase(),
     isSpecial: false
   };
 }
 
 // Size / Remove handled by WidgetContainer — no props needed.
 export function MyTasksWidget() {
-  // useSession was used to show the user's avatar in the (now-removed)
-  // internal header. Kept the hook in case the body re-introduces a
-  // greeting; for now the user object isn't referenced anywhere.
-  useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('upcoming');
   const [allTasks, setAllTasks] = useState<Task[]>([]);
@@ -69,24 +67,43 @@ export function MyTasksWidget() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Concurrent fetchTasks calls (mount + task-created event + modal
+  // update) can resolve out of order; tag each with an incrementing id
+  // and ignore any response that isn't the latest request.
+  const fetchIdRef = useRef(0);
 
   const fetchTasks = useCallback(async () => {
+    const requestId = ++fetchIdRef.current;
+    setError(null);
     try {
       const res = await fetch('/api/tasks?myTasks=true');
+      if (fetchIdRef.current !== requestId) return;
       if (res.ok) {
         const data = await res.json();
+        if (fetchIdRef.current !== requestId) return;
         setAllTasks(data);
+      } else {
+        setError('Failed to load data');
       }
     } catch (error) {
+      if (fetchIdRef.current !== requestId) return;
       console.error('Failed to fetch tasks:', error);
       setError('Failed to load data');
     } finally {
-      setLoading(false);
+      if (fetchIdRef.current === requestId) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchTasks();
+  }, [fetchTasks]);
+
+  // Stay in sync when a task is created elsewhere (quick-add modal,
+  // other widgets' composers).
+  useEffect(() => {
+    const onTaskCreated = () => fetchTasks();
+    window.addEventListener('buildsync:task-created', onTaskCreated);
+    return () => window.removeEventListener('buildsync:task-created', onTaskCreated);
   }, [fetchTasks]);
 
   // Focus input when create mode is activated
@@ -96,8 +113,7 @@ export function MyTasksWidget() {
     }
   }, [isCreating]);
 
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = startOfLocalDay();
 
   // Asana shows ~5 tasks per tab by default and exposes a "Mostrar
   // más" affordance to reveal the rest. We mirror that with showAll
@@ -106,14 +122,12 @@ export function MyTasksWidget() {
   const upcomingTasksAll = allTasks.filter(task => {
     if (task.completed) return false;
     if (!task.dueDate) return true;
-    const dueDate = new Date(task.dueDate);
-    return dueDate >= today;
+    return dueDateToLocalMidnight(task.dueDate) >= today;
   });
   const overdueTasksAll = allTasks.filter(task => {
     if (task.completed) return false;
     if (!task.dueDate) return false;
-    const dueDate = new Date(task.dueDate);
-    return dueDate < today;
+    return dueDateToLocalMidnight(task.dueDate) < today;
   });
   const completedTasksAll = allTasks.filter(task => task.completed);
 
@@ -121,10 +135,11 @@ export function MyTasksWidget() {
   const overdueTasks = showAll ? overdueTasksAll : overdueTasksAll.slice(0, VISIBLE_LIMIT);
   const completedTasks = showAll ? completedTasksAll : completedTasksAll.slice(0, VISIBLE_LIMIT);
 
-  // PATCH the completed flag for one task, with optimistic fetch and
-  // an Undo action on the toast (mirrors Asana's "Deshacer" — toast
-  // stays visible for ~5s and the revert is one click). The action
-  // re-PATCHes back to the previous state without any extra prompt.
+  // PATCH the completed flag for one task, with an optimistic local
+  // flip and an Undo action on the toast (mirrors Asana's "Deshacer" —
+  // toast stays visible for ~5s and the revert is one click). The
+  // action re-PATCHes back to the previous state without any extra
+  // prompt.
   const toggleCompleted = useCallback(
     async (taskId: string, nextCompleted: boolean) => {
       const response = await fetch(`/api/tasks/${taskId}`, {
@@ -137,9 +152,17 @@ export function MyTasksWidget() {
     []
   );
 
+  const setTaskCompleted = useCallback((taskId: string, completed: boolean) => {
+    setAllTasks(prev =>
+      prev.map(t => (t.id === taskId ? { ...t, completed } : t))
+    );
+  }, []);
+
   const handleToggleTask = async (taskId: string, completed: boolean) => {
+    const next = !completed;
+    setTaskCompleted(taskId, next);
     try {
-      await toggleCompleted(taskId, !completed);
+      await toggleCompleted(taskId, next);
       const message = completed
         ? 'Task marked as incomplete'
         : 'Task completed';
@@ -147,17 +170,18 @@ export function MyTasksWidget() {
         action: {
           label: 'Undo',
           onClick: async () => {
+            setTaskCompleted(taskId, completed);
             try {
               await toggleCompleted(taskId, completed);
-              fetchTasks();
             } catch {
+              setTaskCompleted(taskId, next);
               toast.error('Failed to undo');
             }
           },
         },
       });
-      fetchTasks();
     } catch {
+      setTaskCompleted(taskId, completed);
       toast.error('Failed to update task');
     }
   };
@@ -176,10 +200,13 @@ export function MyTasksWidget() {
 
         if (response.ok) {
           toast.success('Task created!');
-          fetchTasks();
+          // Our own listener refetches, and sibling widgets stay in sync.
+          window.dispatchEvent(new CustomEvent('buildsync:task-created'));
           setNewTaskName('');
           setNewTaskDueDate(null);
           setIsCreating(false);
+        } else {
+          toast.error('Failed to create task');
         }
       } catch {
         toast.error('Failed to create task');
@@ -205,7 +232,7 @@ export function MyTasksWidget() {
   // calm when nothing demands attention.
   const tabs: { id: TabType; label: string; count?: number }[] = [
     { id: 'upcoming', label: 'Upcoming' },
-    { id: 'overdue', label: 'Overdue', count: overdueTasks.length },
+    { id: 'overdue', label: 'Overdue', count: overdueTasksAll.length },
     { id: 'completed', label: 'Completed' },
   ];
 
@@ -219,10 +246,12 @@ export function MyTasksWidget() {
           was lost. */}
 
       {/* ========== TABS WITH UNDERLINE ========== */}
-      <div className="flex border-b border-gray-200 mb-3">
+      <div role="tablist" className="flex border-b border-gray-200 mb-3">
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
               'px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
@@ -324,8 +353,6 @@ export function MyTasksWidget() {
         </button>
       )}
 
-      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
-
       {/* ========== TASK LIST ========== */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
@@ -333,6 +360,17 @@ export function MyTasksWidget() {
             {[1, 2, 3].map(i => (
               <div key={i} className="h-10 bg-gray-100 animate-pulse rounded" />
             ))}
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-4 gap-2">
+            <p className="text-sm text-red-600">{error}</p>
+            <button
+              type="button"
+              onClick={() => fetchTasks()}
+              className="text-xs text-gray-500 hover:text-gray-900 hover:underline underline-offset-4 px-1 py-1"
+            >
+              Retry
+            </button>
           </div>
         ) : currentTasks.length === 0 ? (
           /* Minimalist empty state — copy adapts to the tab so an
@@ -362,11 +400,21 @@ export function MyTasksWidget() {
               return (
                 <div
                   key={task.id}
+                  role="button"
+                  tabIndex={0}
                   className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded cursor-pointer group"
                   onClick={() => handleTaskClick(task)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleTaskClick(task);
+                    }
+                  }}
                 >
                   {/* Circular checkbox with checkmark on hover */}
                   <button
+                    aria-label={task.completed ? 'Mark task as incomplete' : 'Mark task as complete'}
+                    aria-pressed={task.completed}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleToggleTask(task.id, task.completed);
@@ -398,9 +446,9 @@ export function MyTasksWidget() {
 
                     {/* Project with color badge */}
                     {task.project && (
-                      <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
                         <span
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs"
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs min-w-0 max-w-full"
                           style={{
                             backgroundColor: `${task.project.color || '#c9a84c'}20`,
                             color: task.project.color || '#c9a84c'
@@ -410,7 +458,7 @@ export function MyTasksWidget() {
                             className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                             style={{ backgroundColor: task.project.color || '#c9a84c' }}
                           />
-                          {task.project.name}
+                          <span className="truncate">{task.project.name}</span>
                         </span>
                       </div>
                     )}

@@ -9,7 +9,7 @@
  * tile and the dedicated PMI widgets below.
  */
 
-import { Calendar, ChevronDown, CheckCircle2, Users } from "lucide-react";
+import { Calendar, Check, ChevronDown, CheckCircle2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -51,8 +51,11 @@ export function HomeHeader({
   userName?: string | null;
   period: HomePeriod;
   onPeriodChange: (p: HomePeriod) => void;
-  tasksCompleted: number;
-  collaboratorsCount: number;
+  // Tri-state chip counts: number → render, null → still loading
+  // (skeleton), undefined → data unavailable (chip hidden, the rest
+  // of the header renders normally).
+  tasksCompleted?: number | null;
+  collaboratorsCount?: number | null;
   // Optional trailing slot — renders inline with the period selector
   // and summary chips (Asana puts "Personalize" here instead of in a
   // separate row below the header).
@@ -87,6 +90,11 @@ export function HomeHeader({
               {(Object.entries(PERIOD_LABEL) as [HomePeriod, string][]).map(
                 ([id, label]) => (
                   <DropdownMenuItem key={id} onClick={() => onPeriodChange(id)}>
+                    {id === period ? (
+                      <Check className="h-4 w-4 mr-2" />
+                    ) : (
+                      <span className="w-4 mr-2" />
+                    )}
                     {label}
                   </DropdownMenuItem>
                 )
@@ -94,18 +102,22 @@ export function HomeHeader({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <SummaryChip
-            icon={<CheckCircle2 className="h-3.5 w-3.5 text-gray-500" />}
-            count={tasksCompleted}
-            singular="task completed"
-            plural="tasks completed"
-          />
-          <SummaryChip
-            icon={<Users className="h-3.5 w-3.5 text-gray-500" />}
-            count={collaboratorsCount}
-            singular="collaborator"
-            plural="collaborators"
-          />
+          {tasksCompleted !== undefined && (
+            <SummaryChip
+              icon={<CheckCircle2 className="h-3.5 w-3.5 text-gray-500" />}
+              count={tasksCompleted}
+              singular="task completed"
+              plural="tasks completed"
+            />
+          )}
+          {collaboratorsCount !== undefined && (
+            <SummaryChip
+              icon={<Users className="h-3.5 w-3.5 text-gray-500" />}
+              count={collaboratorsCount}
+              singular="collaborator"
+              plural="collaborators"
+            />
+          )}
           {actions}
         </div>
       </div>
@@ -120,15 +132,23 @@ function SummaryChip({
   plural,
 }: {
   icon: React.ReactNode;
-  count: number;
+  count: number | null; // null → loading skeleton
   singular: string;
   plural: string;
 }) {
   return (
     <div className="flex items-center gap-1.5 text-xs text-gray-700">
       {icon}
-      <span className="font-semibold tabular-nums">{count}</span>
-      <span className="text-gray-600">{count === 1 ? singular : plural}</span>
+      {count === null ? (
+        <span className="h-3 w-20 rounded bg-gray-200 animate-pulse" />
+      ) : (
+        <>
+          <span className="font-semibold tabular-nums">{count}</span>
+          <span className="text-gray-600">
+            {count === 1 ? singular : plural}
+          </span>
+        </>
+      )}
     </div>
   );
 }

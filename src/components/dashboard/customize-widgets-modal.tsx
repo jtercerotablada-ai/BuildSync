@@ -129,6 +129,7 @@ export function CustomizeWidgetsModal({
                         key={bg.id}
                         type="button"
                         aria-label={bg.label}
+                        aria-pressed={selected}
                         onClick={() => onBackgroundChange(bg.id)}
                         className="relative h-8 w-8 rounded-full border border-gray-300 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
                         style={{ backgroundColor: bg.swatch }}
@@ -155,6 +156,10 @@ export function CustomizeWidgetsModal({
             <div className="space-y-2">
               {AVAILABLE_WIDGETS.map((widget) => {
                 const isEnabled = preferences.visibleWidgets.includes(widget.id);
+                // 'draft-comments' has no data producer yet — surface a
+                // "Coming soon" badge and lock the toggle so users can't
+                // enable a dead widget.
+                const comingSoon = widget.id === 'draft-comments';
                 return (
                   <div
                     key={widget.id}
@@ -170,6 +175,11 @@ export function CustomizeWidgetsModal({
                             {widget.title}
                           </p>
                           {widget.titleIcon && TITLE_ICON_MAP[widget.titleIcon]}
+                          {comingSoon && (
+                            <span className="flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                              Coming soon
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 truncate">
                           {widget.description}
@@ -177,7 +187,8 @@ export function CustomizeWidgetsModal({
                       </div>
                     </div>
                     <Switch
-                      checked={isEnabled}
+                      checked={comingSoon ? false : isEnabled}
+                      disabled={comingSoon}
                       onCheckedChange={() => onToggleWidget(widget.id)}
                     />
                   </div>

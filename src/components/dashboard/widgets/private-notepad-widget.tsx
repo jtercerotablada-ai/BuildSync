@@ -80,6 +80,7 @@ export function PrivateNotepadWidget() {
   const [selectedText, setSelectedText] = useState('');
   const [aiResult, setAiResult] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'error' | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const savedSelectionRef = useRef<Range | null>(null);
 
@@ -116,6 +117,11 @@ export function PrivateNotepadWidget() {
 
   // Track the server-side note ID (for the dedicated home notepad note)
   const noteIdRef = useRef<string | null>(null);
+  // Last content confirmed loaded/saved — dirty check so plain loads never PUT
+  const lastSavedContentRef = useRef('');
+  // In-flight first-save POST, shared so blur + debounce can't create duplicates
+  const createInFlightRef = useRef<Promise<void> | null>(null);
+  const initialSyncDoneRef = useRef(false);
 
   // Load saved content from API (with localStorage fallback for offline / unauthenticated)
   useEffect(() => {
@@ -128,10 +134,8 @@ export function PrivateNotepadWidget() {
           const notepad = notes.find((n) => n.title === NOTEPAD_TITLE);
           if (notepad) {
             noteIdRef.current = notepad.id;
+            lastSavedContentRef.current = notepad.content || '';
             setContent(notepad.content || '');
-            if (editorRef.current) {
-              editorRef.current.innerHTML = DOMPurify.sanitize(notepad.content || '');
-            }
             setIsLoaded(true);
             return;
           }
@@ -148,15 +152,11 @@ export function PrivateNotepadWidget() {
         try {
           const data = JSON.parse(saved);
           const savedContent = data.content || '';
+          lastSavedContentRef.current = savedContent;
           setContent(savedContent);
-          if (editorRef.current) {
-            editorRef.current.innerHTML = DOMPurify.sanitize(savedContent);
-          }
         } catch {
+          lastSavedContentRef.current = saved;
           setContent(saved);
-          if (editorRef.current) {
-            editorRef.current.innerHTML = DOMPurify.sanitize(saved);
-          }
         }
       }
       setIsLoaded(true);
@@ -164,8 +164,20 @@ export function PrivateNotepadWidget() {
     return () => { cancelled = true; };
   }, []);
 
+  // The skeleton early-return keeps the editor unmounted while loading, so
+  // push the loaded note into it once it exists (one-shot).
+  useEffect(() => {
+    if (!isLoaded || initialSyncDoneRef.current || !editorRef.current) return;
+    initialSyncDoneRef.current = true;
+    if (content) {
+      editorRef.current.innerHTML = DOMPurify.sanitize(content);
+    }
+  }, [isLoaded, content]);
+
   // Save to API (and localStorage as offline fallback)
   const saveNote = useCallback(async () => {
+    if (content === lastSavedContentRef.current) return;
+
     // Always cache locally so the note isn't lost if the API call fails
     if (typeof window !== 'undefined') {
       try {
@@ -179,9 +191,17 @@ export function PrivateNotepadWidget() {
     }
 
     try {
+      // A first-save POST may still be in flight (blur + debounce overlap):
+      // wait for it instead of creating a duplicate note
+      if (!noteIdRef.current && createInFlightRef.current) {
+        await createInFlightRef.current;
+        if (content === lastSavedContentRef.current) return;
+      }
+
       if (noteIdRef.current) {
         // Update existing
-        await fetch('/api/workspace/notes', {
+        setSaveStatus('saving');
+        const res = await fetch('/api/workspace/notes', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -189,31 +209,44 @@ export function PrivateNotepadWidget() {
             content,
           }),
         });
+        if (!res.ok) throw new Error(`Save failed: ${res.status}`);
       } else {
         // Create new (first save) — only if there's actual content
         if (!content.trim()) return;
-        const res = await fetch('/api/workspace/notes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: NOTEPAD_TITLE,
-            content,
-            visibility: 'PRIVATE',
-          }),
-        });
-        if (res.ok) {
+        setSaveStatus('saving');
+        const createPromise = (async () => {
+          const res = await fetch('/api/workspace/notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: NOTEPAD_TITLE,
+              content,
+              visibility: 'PRIVATE',
+            }),
+          });
+          if (!res.ok) throw new Error(`Save failed: ${res.status}`);
           const created = await res.json();
           noteIdRef.current = created.id;
+        })();
+        createInFlightRef.current = createPromise;
+        try {
+          await createPromise;
+        } finally {
+          createInFlightRef.current = null;
         }
       }
+      lastSavedContentRef.current = content;
+      setSaveStatus('saved');
     } catch {
-      // network error — local copy is the fallback
+      // network/API error — the localStorage copy above is the fallback
+      setSaveStatus('error');
     }
   }, [content]);
 
-  // Auto-save
+  // Auto-save (only when content actually changed since load / last save)
   useEffect(() => {
     if (!isLoaded) return;
+    if (content === lastSavedContentRef.current) return;
     const timer = setTimeout(saveNote, 2000);
     return () => clearTimeout(timer);
   }, [content, saveNote, isLoaded]);
@@ -241,6 +274,15 @@ export function PrivateNotepadWidget() {
     if (editorRef.current) {
       const newContent = editorRef.current.innerHTML;
       setContent(newContent);
+      // Synchronous cache — a refresh inside the 2s debounce must not lose keystrokes
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ content: newContent, savedAt: new Date().toISOString() })
+        );
+      } catch {
+        // ignore
+      }
     }
   }, []);
 
@@ -549,8 +591,14 @@ export function PrivateNotepadWidget() {
     const text = selection?.toString() || '';
 
     if (!text.trim()) {
-      // If no selection, use all content
+      // If no selection, use all content — and select it so 'Replace text'
+      // actually replaces instead of inserting at a stale caret
       setSelectedText(editorRef.current?.textContent || '');
+      if (editorRef.current) {
+        const range = document.createRange();
+        range.selectNodeContents(editorRef.current);
+        savedSelectionRef.current = range;
+      }
     } else {
       setSelectedText(text);
       saveSelection();
@@ -586,8 +634,11 @@ export function PrivateNotepadWidget() {
     if (button.action === 'inlineCode') {
       const selection = window.getSelection();
       if (selection && selection.toString()) {
-        // Wrap selection in <code> tags
-        const text = selection.toString();
+        // Wrap selection in <code> tags (escape it — insertHTML parses markup)
+        const text = selection.toString()
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
         document.execCommand('insertHTML', false, `<code style="background-color: #f3f4f6; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em;">${text}</code>`);
       } else {
         // Create empty code element and place cursor inside
@@ -722,8 +773,9 @@ export function PrivateNotepadWidget() {
       }
     }
 
-    // @ for mentions
+    // @ for mentions — prevent the literal '@' (the picker inserts the mention)
     if (e.key === '@') {
+      e.preventDefault();
       saveSelection();
       setShowMentionPicker(true);
     }
@@ -778,7 +830,7 @@ export function PrivateNotepadWidget() {
 
       {/* TOOLBAR */}
       <TooltipProvider>
-        <div className="flex items-center gap-0.5 pt-2 border-t border-gray-200">
+        <div className="flex flex-wrap items-center gap-0.5 pt-2 border-t border-gray-200">
           {/* INSERT MENU (+) */}
           <DropdownMenu open={insertMenuOpen} onOpenChange={setInsertMenuOpen}>
             <DropdownMenuTrigger asChild>
@@ -844,6 +896,17 @@ export function PrivateNotepadWidget() {
               </Tooltip>
             );
           })}
+
+          {saveStatus && (
+            <span
+              className={cn(
+                'ml-auto pl-2 text-xs whitespace-nowrap',
+                saveStatus === 'error' ? 'text-red-600' : 'text-gray-400'
+              )}
+            >
+              {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : 'Couldn’t save'}
+            </span>
+          )}
         </div>
       </TooltipProvider>
 
@@ -1000,6 +1063,9 @@ export function PrivateNotepadWidget() {
                     <button
                       onClick={() => {
                         restoreSelection();
+                        // Insert after the selection, don't replace it
+                        const sel = window.getSelection();
+                        if (sel && sel.rangeCount > 0) sel.collapseToEnd();
                         document.execCommand('insertText', false, '\n\n' + aiResult);
                         handleContentChange();
                         setShowAIAssist(false);

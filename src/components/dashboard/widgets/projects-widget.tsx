@@ -37,21 +37,29 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Guard against out-of-order commits: rapid sort toggles fire
+    // overlapping fetches, so abort the previous one and drop any
+    // response that resolves after this effect has been torn down.
+    const controller = new AbortController();
     async function fetchProjects() {
       try {
-        const res = await fetch(`/api/projects?sort=${sortBy}&limit=4`);
+        const res = await fetch(`/api/projects?sort=${sortBy}&limit=4`, {
+          signal: controller.signal,
+        });
         if (res.ok) {
           const data = await res.json();
-          setProjects(data);
+          if (!controller.signal.aborted) setProjects(data);
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error('Failed to fetch projects:', error);
         setError('Failed to load data');
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     fetchProjects();
+    return () => controller.abort();
   }, [sortBy]);
 
   const getStatusLabel = (status: string) => {
@@ -59,6 +67,7 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
       case 'ON_TRACK': return 'On track';
       case 'AT_RISK': return 'At risk';
       case 'OFF_TRACK': return 'Off track';
+      case 'ON_HOLD': return 'On hold';
       case 'COMPLETE': return 'Complete';
       default: return '';
     }
@@ -66,10 +75,16 @@ export function ProjectsWidget({ onCreateProject }: ProjectsWidgetProps) {
 
   const getStatusClasses = (status: string) => {
     switch (status) {
-      case 'ON_TRACK': return 'bg-[#c9a84c]/15 text-[#a8893a] border border-[#c9a84c]/30';
-      case 'AT_RISK': return 'bg-[#a8893a]/15 text-[#a8893a] border border-[#a8893a]/30';
-      case 'OFF_TRACK': return 'bg-gray-100 text-black border border-gray-300';
-      case 'COMPLETE': return 'bg-[#c9a84c]/15 text-[#a8893a] border border-[#c9a84c]/30';
+      // On track — light gold outline (the "everything's fine" resting state).
+      case 'ON_TRACK': return 'bg-[#c9a84c]/15 text-[#8a7028] border border-[#c9a84c]/40';
+      // At risk — deeper amber so it reads a notch hotter than on track.
+      case 'AT_RISK': return 'bg-[#a8893a]/20 text-[#6e5a26] border border-[#a8893a]/50';
+      // Off track — high-contrast dark, the alarm state.
+      case 'OFF_TRACK': return 'bg-black text-white border border-black';
+      // On hold — neutral slate pill (matches ProjectOverview.STATUS_VISUAL).
+      case 'ON_HOLD': return 'bg-slate-100 text-slate-700 border border-slate-400';
+      // Complete — solid gold so a finished project is visually distinct from on track.
+      case 'COMPLETE': return 'bg-[#c9a84c] text-white border border-[#c9a84c]';
       default: return 'bg-gray-100 text-gray-700';
     }
   };

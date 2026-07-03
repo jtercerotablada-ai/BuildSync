@@ -24,12 +24,25 @@ import { isWorkspaceOwner } from "@/lib/people-types";
 
 const ACTIVE_GATES = ["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION"] as const;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Floor for `summary.tasksCompleted` — the home header passes the
+    // selected period's start as an ISO string; default last 7 days.
+    const periodStartParam = new URL(request.url).searchParams.get(
+      "periodStart"
+    );
+    const parsedPeriodStart = periodStartParam
+      ? new Date(periodStartParam)
+      : null;
+    const periodStart =
+      parsedPeriodStart && !Number.isNaN(parsedPeriodStart.getTime())
+        ? parsedPeriodStart
+        : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     const access = await getEffectiveAccess(userId);
     if (!access) {
@@ -43,6 +56,7 @@ export async function GET() {
         compliance: [],
         revenuePipeline: [],
         activity: [],
+        summary: { tasksCompleted: 0, teamCount: 0 },
       });
     }
 
@@ -85,7 +99,14 @@ export async function GET() {
         ? { project: { workspaceId } }
         : { projectId: { in: scopedProjectIds } };
 
-    const [projects, completedTaskCounts, workspaceMembers, recentTasks, recentActivities] =
+    const [
+      projects,
+      completedTaskCounts,
+      workspaceMembers,
+      recentTasks,
+      recentActivities,
+      periodCompletedCount,
+    ] =
       await Promise.all([
         prisma.project.findMany({
           where: projectWhere,
@@ -209,6 +230,13 @@ export async function GET() {
           },
           orderBy: { updatedAt: "desc" },
           take: 12,
+        }),
+
+        // Full completed-in-period count for the header chip. The
+        // activity sample above is capped at 12 rows, so deriving the
+        // stat from it undercounts — this is the real number.
+        prisma.task.count({
+          where: { ...taskWhere, completedAt: { gte: periodStart } },
         }),
       ]);
 
@@ -361,6 +389,12 @@ export async function GET() {
       compliance,
       revenuePipeline: months,
       activity: recentActivities,
+      // Explicit header-chip stats: full counts, not derived from the
+      // capped activity sample or the team slice(0,8) above.
+      summary: {
+        tasksCompleted: periodCompletedCount,
+        teamCount: workspaceMembers.length,
+      },
       // Hint to the UI for graceful degradation. The Home page can
       // hide finance widgets entirely when this is false.
       viewerCapabilities: {

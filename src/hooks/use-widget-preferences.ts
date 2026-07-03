@@ -50,51 +50,35 @@ function migratePreferences(
   // PMI tiles enabled), restore the defaults so they're not stuck
   // staring at a blank grid.
   if (visible.length === 0) return getDefaultPreferences();
-  return { visibleWidgets: visible, widgetOrder: order, widgetSizes: sizes };
+  // Repair an order missing visible IDs (e.g. a partial payload from
+  // an old client) — a widget that is visible but absent from the
+  // order would otherwise render nowhere.
+  const repairedOrder = [
+    ...order,
+    ...visible.filter((id) => !order.includes(id)),
+  ];
+  return { visibleWidgets: visible, widgetOrder: repairedOrder, widgetSizes: sizes };
+}
+
+function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 /**
- * Auto-calculate widget sizes based on grid position.
+ * True when migration actually dropped or repaired something.
+ * JSON key order from the server varies, so a naive stringify
+ * comparison would flag a change (and PATCH back) on every load.
  */
-function calculateAutoSizes(
-  visibleWidgets: WidgetType[],
-  widgetOrder: WidgetType[],
-  currentSizes: Partial<Record<WidgetType, WidgetSize>>
-): Partial<Record<WidgetType, WidgetSize>> {
-  const orderedVisible = widgetOrder.filter(w => visibleWidgets.includes(w));
-  const newSizes: Partial<Record<WidgetType, WidgetSize>> = {};
-
-  let col = 0;
-  let rowWidgets: WidgetType[] = [];
-
-  for (const widget of orderedVisible) {
-    const manualSize = currentSizes[widget];
-
-    if (manualSize === 'full') {
-      if (rowWidgets.length === 1) {
-        newSizes[rowWidgets[0]] = 'full';
-      }
-      newSizes[widget] = 'full';
-      rowWidgets = [];
-      col = 0;
-      continue;
-    }
-
-    rowWidgets.push(widget);
-    newSizes[widget] = 'half';
-    col++;
-
-    if (col === 2) {
-      rowWidgets = [];
-      col = 0;
-    }
-  }
-
-  if (rowWidgets.length === 1) {
-    newSizes[rowWidgets[0]] = 'full';
-  }
-
-  return newSizes;
+function migrationChanged(
+  raw: Partial<UserWidgetPreferences>,
+  migrated: UserWidgetPreferences
+): boolean {
+  if (!arraysEqual(raw.visibleWidgets ?? [], migrated.visibleWidgets)) return true;
+  if (!arraysEqual(raw.widgetOrder ?? [], migrated.widgetOrder)) return true;
+  const rawSizes = Object.entries(raw.widgetSizes ?? {});
+  const migratedSizes = migrated.widgetSizes ?? {};
+  if (rawSizes.length !== Object.keys(migratedSizes).length) return true;
+  return rawSizes.some(([id, size]) => migratedSizes[id as WidgetType] !== size);
 }
 
 const getDefaultPreferences = (): UserWidgetPreferences => {
@@ -114,11 +98,30 @@ export function useWidgetPreferences() {
   const [preferences, setPreferences] = useState<UserWidgetPreferences>(getDefaultPreferences);
   const [isLoaded, setIsLoaded] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitialLoadRef = useRef(true);
+  // Only persist after the user actually mutates preferences — never
+  // echo the just-loaded layout back, and never let defaults overwrite
+  // the saved server layout when the initial GET fails.
+  const isDirtyRef = useRef(false);
+  const preferencesRef = useRef(preferences);
+  const pendingSaveRef = useRef(false);
 
   // Load from API on mount, fall back to localStorage migration
   useEffect(() => {
     let cancelled = false;
+    // Apply a locally-stored layout without persisting it back — used
+    // when the server GET fails (non-ok or network error) so an offline
+    // user keeps their saved layout instead of seeing defaults. Never
+    // sets the dirty flag, so no PATCH follows a failed load.
+    const applyLocalFallback = () => {
+      if (typeof window === 'undefined' || cancelled) return;
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return;
+      try {
+        setPreferences(migratePreferences(JSON.parse(stored)));
+      } catch {
+        // ignore
+      }
+    };
     (async () => {
       try {
         const res = await fetch('/api/users/preferences');
@@ -130,10 +133,7 @@ export function useWidgetPreferences() {
             setPreferences(migrated);
             // If migration changed the payload, write the cleaned
             // version back so we don't re-migrate on every load.
-            if (
-              JSON.stringify(migrated) !==
-              JSON.stringify(data.widgetPreferences)
-            ) {
+            if (migrationChanged(data.widgetPreferences, migrated)) {
               fetch('/api/users/preferences', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -163,24 +163,14 @@ export function useWidgetPreferences() {
           }
         } else if (!cancelled) {
           // API failed (e.g. unauthenticated) — fall back to localStorage
-          if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
-              try {
-                const parsed = JSON.parse(stored);
-                setPreferences(migratePreferences(parsed));
-              } catch {
-                // ignore
-              }
-            }
-          }
+          applyLocalFallback();
         }
       } catch {
-        // network error — defaults
+        // network error — same localStorage fallback as a non-ok response
+        applyLocalFallback();
       } finally {
         if (!cancelled) {
           setIsLoaded(true);
-          isInitialLoadRef.current = false;
         }
       }
     })();
@@ -189,7 +179,8 @@ export function useWidgetPreferences() {
 
   // Persist to API (debounced) + localStorage as offline fallback
   useEffect(() => {
-    if (!isLoaded || isInitialLoadRef.current) return;
+    preferencesRef.current = preferences;
+    if (!isLoaded || !isDirtyRef.current) return;
 
     // Always save locally as offline fallback
     if (typeof window !== 'undefined') {
@@ -202,7 +193,9 @@ export function useWidgetPreferences() {
 
     // Debounced API save
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    pendingSaveRef.current = true;
     saveTimeoutRef.current = setTimeout(() => {
+      pendingSaveRef.current = false;
       fetch('/api/users/preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -217,64 +210,64 @@ export function useWidgetPreferences() {
     };
   }, [preferences, isLoaded]);
 
-  // Mark initial load complete after first render with isLoaded=true
+  // Flush (not cancel) a still-debounced save on unmount, so a drag
+  // followed by an immediate navigation isn't lost — keepalive lets
+  // the request outlive the page.
   useEffect(() => {
-    if (isLoaded) {
-      const t = setTimeout(() => { isInitialLoadRef.current = false; }, 100);
-      return () => clearTimeout(t);
-    }
-  }, [isLoaded]);
+    return () => {
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        fetch('/api/users/preferences', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ widgetPreferences: preferencesRef.current }),
+          keepalive: true,
+        }).catch(() => {
+          // ignore — local copy is the fallback
+        });
+      }
+    };
+  }, []);
 
   const toggleWidget = useCallback((widgetId: WidgetType) => {
+    isDirtyRef.current = true;
     setPreferences(prev => {
       const isVisible = prev.visibleWidgets.includes(widgetId);
 
-      let newVisible: WidgetType[];
-      let newOrder: WidgetType[];
-
       if (isVisible) {
-        newVisible = prev.visibleWidgets.filter(id => id !== widgetId);
-        newOrder = prev.widgetOrder.filter(id => id !== widgetId);
-      } else {
-        newVisible = [...prev.visibleWidgets, widgetId];
-        newOrder = [...prev.widgetOrder, widgetId];
+        return {
+          ...prev,
+          visibleWidgets: prev.visibleWidgets.filter(id => id !== widgetId),
+          widgetOrder: prev.widgetOrder.filter(id => id !== widgetId),
+        };
       }
 
-      const newSizes = calculateAutoSizes(newVisible, newOrder, prev.widgetSizes || {});
-
+      // Sizes are user intent — never recomputed here.
       return {
         ...prev,
-        visibleWidgets: newVisible,
-        widgetOrder: newOrder,
-        widgetSizes: newSizes,
+        visibleWidgets: [...prev.visibleWidgets, widgetId],
+        widgetOrder: prev.widgetOrder.includes(widgetId)
+          ? prev.widgetOrder
+          : [...prev.widgetOrder, widgetId],
       };
     });
   }, []);
 
   const reorderWidgets = useCallback((newOrder: WidgetType[]) => {
+    isDirtyRef.current = true;
     setPreferences(prev => ({
       ...prev,
       widgetOrder: newOrder,
     }));
   }, []);
 
-  const recalculateWidgetSizes = useCallback(() => {
-    setPreferences(prev => {
-      const newSizes = calculateAutoSizes(prev.visibleWidgets, prev.widgetOrder, prev.widgetSizes || {});
-      return {
-        ...prev,
-        widgetSizes: newSizes,
-      };
-    });
-  }, []);
-
   const resetToDefaults = useCallback(() => {
-    const defaults = getDefaultPreferences();
-    defaults.widgetSizes = calculateAutoSizes(defaults.visibleWidgets, defaults.widgetOrder, {});
-    setPreferences(defaults);
+    isDirtyRef.current = true;
+    setPreferences(getDefaultPreferences());
   }, []);
 
   const setWidgetSize = useCallback((widgetId: WidgetType, size: WidgetSize) => {
+    isDirtyRef.current = true;
     setPreferences(prev => ({
       ...prev,
       widgetSizes: {
@@ -293,7 +286,6 @@ export function useWidgetPreferences() {
     isLoaded,
     toggleWidget,
     reorderWidgets,
-    recalculateWidgetSizes,
     resetToDefaults,
     setWidgetSize,
     getWidgetSize,

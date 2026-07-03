@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId, AuthorizationError } from "@/lib/auth-guards";
 
 /**
  * GET /api/users
@@ -10,6 +11,13 @@ import { getCurrentUserId } from "@/lib/auth-utils";
  *   ?filter=all|frequent      "frequent" ranks by shared-project count
  *   ?includeStats=true        also attach per-user overdueCount + completedCount + upcomingCount
  *   ?period=week|month        time window for completedCount (default week)
+ *   ?tzOffset=300             caller's timezone offset in minutes, as returned by
+ *                             JS Date.getTimezoneOffset() (positive = west of UTC,
+ *                             e.g. UTC-5 → 300). Used to compute "today" and the
+ *                             period bounds in the caller's zone.
+ *   ?tz=America/New_York      alternative to tzOffset: an IANA zone name. Ignored
+ *                             when tzOffset is present. When neither is supplied
+ *                             the bounds fall back to the server's local time.
  *
  * Stats semantics (when includeStats=true):
  *   overdueCount   incomplete tasks assigned to this user with dueDate < today
@@ -31,15 +39,20 @@ export async function GET(req: Request) {
     const filter = (searchParams.get("filter") || "all") as "all" | "frequent";
     const includeStats = searchParams.get("includeStats") === "true";
     const period = (searchParams.get("period") || "week") as "week" | "month";
+    const tzOffsetParam = searchParams.get("tzOffset");
+    const tzParam = searchParams.get("tz");
 
-    // Find the caller's primary workspace.
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-      orderBy: { joinedAt: "asc" },
-    });
-    if (!workspaceMember) return NextResponse.json([]);
-    const { workspaceId } = workspaceMember;
+    // Resolve the caller's effective workspace with the shared
+    // multi-member heuristic (prefers the firm workspace over the
+    // auto-created personal singleton) so the member list and stats
+    // scope to the same workspace as the rest of the app.
+    let workspaceId: string;
+    try {
+      workspaceId = await getUserWorkspaceId(userId);
+    } catch (err) {
+      if (err instanceof AuthorizationError) return NextResponse.json([]);
+      throw err;
+    }
 
     // ── 1. Resolve the candidate user list (filtered + ordered) ────
     const userSelect = {
@@ -118,17 +131,74 @@ export async function GET(req: Request) {
 
     const memberIds = members.map((m) => m.id);
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // Start of the period:
-    //   week  → most recent Monday at 00:00 (Mon=1 ... Sun=0 → 7)
-    //   month → first of this month at 00:00
-    let periodStart: Date;
-    if (period === "month") {
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Resolve the caller's calendar "now" (year/month/day/weekday) in their
+    // own timezone so the buckets don't skew for users outside the server's
+    // zone (this firm is UTC-5/-6). Due dates are stored at UTC midnight of
+    // their calendar day (api/tasks/route.ts stores `new Date("YYYY-MM-DD")`),
+    // so we build every boundary below with Date.UTC(...) to compare on the
+    // same calendar frame.
+    //
+    //   tzOffset  minutes from Date.getTimezoneOffset(): UTC = local + offset,
+    //             so positive means west of UTC (UTC-5 → 300). We subtract it
+    //             from `now` and read the shifted instant with UTC getters to
+    //             recover the caller's wall-clock date.
+    //   tz        an IANA zone; Intl.DateTimeFormat yields the wall-clock parts
+    //             directly. Ignored when tzOffset is present.
+    // With neither param we keep the original server-local behavior.
+    let y: number;
+    let mo: number;
+    let d: number;
+    let weekday: number; // 0 = Sunday ... 6 = Saturday
+    let toBoundary: (year: number, month: number, day: number) => Date;
+
+    const tzOffset = tzOffsetParam !== null ? parseInt(tzOffsetParam, 10) : NaN;
+    if (!Number.isNaN(tzOffset)) {
+      const local = new Date(now.getTime() - tzOffset * 60000);
+      y = local.getUTCFullYear();
+      mo = local.getUTCMonth();
+      d = local.getUTCDate();
+      weekday = local.getUTCDay();
+      toBoundary = (year, month, day) => new Date(Date.UTC(year, month, day));
+    } else if (tzParam) {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: tzParam,
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        weekday: "short",
+      }).formatToParts(now);
+      const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+      y = parseInt(get("year"), 10);
+      mo = parseInt(get("month"), 10) - 1;
+      d = parseInt(get("day"), 10);
+      weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(
+        get("weekday")
+      );
+      toBoundary = (year, month, day) => new Date(Date.UTC(year, month, day));
     } else {
-      const day = now.getDay() === 0 ? 7 : now.getDay();
-      periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (day - 1));
+      y = now.getFullYear();
+      mo = now.getMonth();
+      d = now.getDate();
+      weekday = now.getDay();
+      toBoundary = (year, month, day) => new Date(year, month, day);
+    }
+
+    const today = toBoundary(y, mo, d);
+
+    // Bounds of the period:
+    //   week  → most recent Monday at 00:00 (Mon=1 ... Sun=0 → 7)
+    //           through next Monday (exclusive)
+    //   month → first of this month through first of next (exclusive)
+    let periodStart: Date;
+    let periodEnd: Date;
+    if (period === "month") {
+      periodStart = toBoundary(y, mo, 1);
+      periodEnd = toBoundary(y, mo + 1, 1);
+    } else {
+      const day = weekday === 0 ? 7 : weekday;
+      periodStart = toBoundary(y, mo, d - (day - 1));
+      periodEnd = toBoundary(y, mo, d - (day - 1) + 7);
     }
 
     const [overdueRows, completedRows, upcomingRows] = await Promise.all([
@@ -160,7 +230,7 @@ export async function GET(req: Request) {
         where: {
           assigneeId: { in: memberIds },
           completedAt: null,
-          dueDate: { gte: today },
+          dueDate: { gte: today, lt: periodEnd },
           project: { workspaceId },
         },
         _count: { _all: true },

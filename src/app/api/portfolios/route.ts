@@ -10,14 +10,21 @@ const createPortfolioSchema = z.object({
   privacy: z.enum(["PRIVATE", "WORKSPACE", "PUBLIC"]).optional(),
 });
 
-// GET /api/portfolios - List all portfolios
-export async function GET() {
+// GET /api/portfolios - List all portfolios (optional ?limit=N)
+export async function GET(req: Request) {
   try {
     const userId = await getCurrentUserId();
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Optional limit (the home widget asks for 5); absent = all.
+    const { searchParams } = new URL(req.url);
+    const limitParam = parseInt(searchParams.get("limit") || "", 10);
+    const take = Number.isFinite(limitParam)
+      ? Math.min(Math.max(limitParam, 1), 100)
+      : undefined;
 
     // Get user's workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
@@ -78,6 +85,7 @@ export async function GET() {
         },
       },
       orderBy: { updatedAt: "desc" },
+      take,
     });
 
     // Compute aggregate stats per portfolio so the list page can render

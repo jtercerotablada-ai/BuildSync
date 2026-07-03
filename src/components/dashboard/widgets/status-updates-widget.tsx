@@ -74,13 +74,13 @@ const STATUS_DOT: Record<ProjectStatus, { color: string; label: string }> = {
   ON_TRACK: { color: '#c9a84c', label: 'On track' },
   AT_RISK: { color: '#a8893a', label: 'At risk' },
   OFF_TRACK: { color: '#000000', label: 'Off track' },
-  ON_HOLD: { color: '#94a3b8', label: 'On hold' },
+  ON_HOLD: { color: '#64748b', label: 'On hold' },
   COMPLETE: { color: '#c9a84c', label: 'Complete' },
 };
 
 function formatRelative(days: number): string {
   if (days === 0) return 'today';
-  if (days === 1) return '1 day ago';
+  if (days === 1) return 'yesterday';
   if (days < 7) return `${days} days ago`;
   if (days < 14) return `${Math.floor(days / 7)} week ago`;
   if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
@@ -88,12 +88,40 @@ function formatRelative(days: number): string {
   return `${Math.floor(days / 30)} months ago`;
 }
 
+// Calendar-day difference between two dates in the user's local zone.
+// The server's daysSinceUpdate counts elapsed 24h blocks, so a post
+// from late yesterday reads "today" this morning; comparing startOfDay
+// deltas gives the label the calendar boundary users expect.
+function calendarDaysAgo(iso: string): number {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return 0;
+  const startOfThen = new Date(
+    then.getFullYear(),
+    then.getMonth(),
+    then.getDate(),
+  );
+  const now = new Date();
+  const startOfNow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const diff = Math.round(
+    (startOfNow.getTime() - startOfThen.getTime()) / 86400000,
+  );
+  return Math.max(0, diff);
+}
+
 export function StatusUpdatesWidget() {
   const router = useRouter();
   const [rows, setRows] = useState<ProjectStatusRow[]>([]);
-  const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  // null = not fetched yet (picker never opened / fetch in flight).
+  const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [projectsError, setProjectsError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,14 +129,19 @@ export function StatusUpdatesWidget() {
 
     const load = async (showSpinner: boolean) => {
       if (showSpinner) setLoading(true);
+      setError(null);
       try {
         const res = await fetch('/api/projects/status-overview?limit=8');
-        if (res.ok && !cancelled) {
+        if (cancelled) return;
+        if (res.ok) {
           const data = (await res.json()) as ProjectStatusRow[];
           setRows(Array.isArray(data) ? data : []);
+        } else {
+          setError('Failed to load project status');
         }
       } catch (err) {
         console.error('Failed to fetch status overview:', err);
+        if (!cancelled) setError('Failed to load project status');
       } finally {
         if (showSpinner && !cancelled) setLoading(false);
       }
@@ -148,32 +181,54 @@ export function StatusUpdatesWidget() {
       stop();
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, []);
+  }, [refreshKey]);
 
   // Lazy-load projects only when the user opens the "Post update"
   // picker — most home loads never need this list.
   useEffect(() => {
-    if (!pickerOpen || projects.length > 0) return;
+    if (!pickerOpen || projects !== null || projectsError) return;
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch('/api/projects');
-        if (res.ok && !cancelled) {
+        if (cancelled) return;
+        if (res.ok) {
           const data = (await res.json()) as ProjectListItem[];
           setProjects(Array.isArray(data) ? data : []);
+        } else {
+          setProjectsError(true);
         }
       } catch {
-        /* ignore */
+        if (!cancelled) setProjectsError(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [pickerOpen, projects.length]);
+  }, [pickerOpen, projects, projectsError]);
 
   function openProjectStatus(projectId: string, compose = false) {
     const qs = compose ? '?view=overview&compose=status' : '?view=overview';
     router.push(`/projects/${projectId}${qs}`);
+  }
+
+  // ── Error state — shown instead of the empty state so a fetch
+  // failure never reads as "you have no projects". ───────────────
+  if (!loading && error && rows.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center px-2">
+          <p className="text-xs text-red-600 mb-2">{error}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setRefreshKey((k) => k + 1)}
+          >
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   // ── Empty state ───────────────────────────────────────────────
@@ -227,8 +282,7 @@ export function StatusUpdatesWidget() {
           <div className="flex-1 overflow-y-auto -mx-1">
             <ul className="space-y-1.5 px-1">
               {rows.map((row) => {
-                const pillStatus = row.lastUpdate?.status || row.status;
-                const dot = STATUS_DOT[pillStatus];
+                const dot = STATUS_DOT[row.status];
                 const isStale =
                   row.daysSinceUpdate != null && row.daysSinceUpdate >= 14;
                 const neverUpdated = row.daysSinceUpdate == null;
@@ -248,8 +302,8 @@ export function StatusUpdatesWidget() {
                       )}
                     >
                       <div className="flex items-start gap-2.5">
-                        {/* Status dot — current project status (synced with
-                            the last update when possible). */}
+                        {/* Status dot — current project status (the same
+                            pill the project header shows). */}
                         <span
                           className="mt-1 w-2.5 h-2.5 rounded-full flex-shrink-0"
                           style={{ backgroundColor: dot.color }}
@@ -285,24 +339,29 @@ export function StatusUpdatesWidget() {
                               <div className="flex items-center gap-1 mt-1 text-[11px]">
                                 <Clock
                                   className={cn(
-                                    'w-3 h-3',
+                                    'w-3 h-3 flex-shrink-0',
                                     isStale ? 'text-[#a8893a]' : 'text-gray-400'
                                   )}
                                 />
                                 <span
                                   className={cn(
+                                    'min-w-0 truncate',
                                     isStale
                                       ? 'text-[#a8893a] font-medium'
                                       : 'text-gray-500'
                                   )}
                                 >
                                   Updated{' '}
-                                  {formatRelative(row.daysSinceUpdate!)}
+                                  {formatRelative(
+                                    row.lastUpdate
+                                      ? calendarDaysAgo(row.lastUpdate.createdAt)
+                                      : row.daysSinceUpdate!
+                                  )}
                                   {row.lastUpdate?.author?.name &&
                                     ` by ${row.lastUpdate.author.name}`}
                                 </span>
                                 {isStale && (
-                                  <span className="ml-auto text-[10px] uppercase tracking-wider text-[#a8893a] font-semibold">
+                                  <span className="ml-auto flex-shrink-0 text-[10px] uppercase tracking-wider text-[#a8893a] font-semibold">
                                     Stale
                                   </span>
                                 )}
@@ -333,10 +392,28 @@ export function StatusUpdatesWidget() {
               align="start"
               className="max-h-64 overflow-y-auto"
             >
-              {projects.length === 0 ? (
+              {projectsError ? (
+                <div className="px-2 py-3 text-xs text-center">
+                  <p className="text-red-600 mb-1.5">
+                    Failed to load projects
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setProjectsError(false)}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : projects === null ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
                   <Loader2 className="w-3.5 h-3.5 animate-spin mx-auto mb-1" />
                   Loading projects…
+                </div>
+              ) : projects.length === 0 ? (
+                <div className="px-2 py-3 text-xs text-slate-400 text-center">
+                  No projects yet
                 </div>
               ) : (
                 <>

@@ -112,7 +112,11 @@ export function QuickCreateTaskModal({
   const [minimized, setMinimized] = useState(false);
   const [creating, setCreating] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState(false);
   const [projects, setProjects] = useState<Project[]>(projectsProp ?? []);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -135,26 +139,44 @@ export function QuickCreateTaskModal({
     if (!open) return;
     let cancelled = false;
     (async () => {
+      setUsersLoading(true);
+      setUsersError(false);
       try {
-        const res = await fetch("/api/users");
-        if (res.ok && !cancelled) {
-          const data: User[] = await res.json();
-          setUsers(data);
+        // The API defaults to limit=20, which silently truncates the
+        // picker in larger workspaces — ask for more explicitly.
+        const res = await fetch("/api/users?limit=100");
+        if (!cancelled) {
+          if (res.ok) {
+            const data: User[] = await res.json();
+            setUsers(data);
+          } else {
+            setUsersError(true);
+          }
         }
       } catch {
-        // ignore — picker just shows empty
+        if (!cancelled) setUsersError(true);
+      } finally {
+        if (!cancelled) setUsersLoading(false);
       }
     })();
     if (!projectsProp || projectsProp.length === 0) {
       (async () => {
+        setProjectsLoading(true);
+        setProjectsError(false);
         try {
           const res = await fetch("/api/projects");
-          if (res.ok && !cancelled) {
-            const data: Project[] = await res.json();
-            setProjects(data);
+          if (!cancelled) {
+            if (res.ok) {
+              const data: Project[] = await res.json();
+              setProjects(data);
+            } else {
+              setProjectsError(true);
+            }
           }
         } catch {
-          // ignore
+          if (!cancelled) setProjectsError(true);
+        } finally {
+          if (!cancelled) setProjectsLoading(false);
         }
       })();
     }
@@ -169,6 +191,17 @@ export function QuickCreateTaskModal({
     if (projectsProp && projectsProp.length > 0) setProjects(projectsProp);
   }, [projectsProp]);
 
+  // Escape minimizes the composer (Gmail behavior) rather than closing —
+  // the draft is preserved in the minimized rail, never silently wiped.
+  useEffect(() => {
+    if (!open || minimized) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMinimized(true);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, minimized]);
+
   const handleClose = () => {
     onOpenChange(false);
     setMinimized(false);
@@ -182,6 +215,18 @@ export function QuickCreateTaskModal({
     t.setDate(t.getDate() + 1);
     t.setHours(9, 0, 0, 0);
     setDueDate(t);
+  };
+
+  /** X-button close: a typed draft is one misclick (24px from Minimize)
+   *  away from being lost, so confirm before wiping it. */
+  const handleCloseClick = () => {
+    if (
+      (title.trim() || description.trim()) &&
+      !window.confirm("Discard this task?")
+    ) {
+      return;
+    }
+    handleClose();
   };
 
   /** Pure helper: format a Date as YYYY-MM-DD without timezone drift. */
@@ -207,10 +252,15 @@ export function QuickCreateTaskModal({
         }),
       });
       if (res.ok) {
+        // Let Home widgets (My Tasks / Assigned Tasks) refetch.
+        window.dispatchEvent(new CustomEvent("buildsync:task-created"));
+        // The API coerces a null assignee to the creator, so an empty
+        // picker self-assigns — say so honestly instead of a vague
+        // "Task created".
         toast.success(
           selectedAssignee
             ? `Task assigned to ${selectedAssignee.name ?? selectedAssignee.email}`
-            : "Task created"
+            : "Task created and assigned to you"
         );
         handleClose();
       } else {
@@ -254,6 +304,8 @@ export function QuickCreateTaskModal({
 
   return (
     <div
+      role="dialog"
+      aria-label="New task"
       // Bumped to 480px to match Asana's quick-create composer width
       // — the previous 420px felt cramped once the assignee + project
       // pills had real content in them.
@@ -274,7 +326,7 @@ export function QuickCreateTaskModal({
             <Minus className="h-4 w-4 text-slate-500" />
           </button>
           <button
-            onClick={handleClose}
+            onClick={handleCloseClick}
             className="p-1 hover:bg-slate-100 rounded transition-colors"
             title="Close"
           >
@@ -293,6 +345,14 @@ export function QuickCreateTaskModal({
           placeholder="Task name"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter commits when the required fields are set; handleCreateTask
+            // is itself a no-op if title/project are missing, so this is safe.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleCreateTask();
+            }
+          }}
           className="w-full text-[22px] font-semibold text-slate-900 placeholder:text-slate-400 border-0 outline-none bg-transparent leading-tight"
         />
 
@@ -320,7 +380,15 @@ export function QuickCreateTaskModal({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56 max-h-64 overflow-y-auto">
-              {users.length === 0 ? (
+              {usersLoading ? (
+                <div className="px-2 py-3 text-xs text-slate-400 text-center">
+                  Loading…
+                </div>
+              ) : usersError ? (
+                <div className="px-2 py-3 text-xs text-slate-400 text-center">
+                  Teammates unavailable
+                </div>
+              ) : users.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
                   No teammates available
                 </div>
@@ -366,7 +434,15 @@ export function QuickCreateTaskModal({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-y-auto">
-              {projects.length === 0 ? (
+              {projectsLoading ? (
+                <div className="px-2 py-3 text-xs text-slate-400 text-center">
+                  Loading…
+                </div>
+              ) : projectsError ? (
+                <div className="px-2 py-3 text-xs text-slate-400 text-center">
+                  Projects unavailable
+                </div>
+              ) : projects.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
                   No projects available
                 </div>

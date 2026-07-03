@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
@@ -107,6 +108,20 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get("workspaceId");
     const query = searchParams.get("q") || "";
+    // Optional widget knobs. Absent params keep the historical behavior:
+    // no row cap and updatedAt-desc ordering.
+    const limitParam = searchParams.get("limit");
+    const limit = limitParam ? parseInt(limitParam, 10) : null;
+    const take = limit && limit > 0 ? limit : undefined;
+    const sort = searchParams.get("sort");
+    const orderBy:
+      | Prisma.ProjectOrderByWithRelationInput
+      | Prisma.ProjectOrderByWithRelationInput[] =
+      sort === "alphabetical"
+        ? { name: "asc" }
+        : sort === "status"
+          ? [{ status: "asc" }, { updatedAt: "desc" }]
+          : { updatedAt: "desc" };
 
     // ── Per-workspace access resolution ────────────────────────
     // Critical: a user may belong to MULTIPLE workspaces (e.g.
@@ -200,9 +215,8 @@ export async function GET(req: Request) {
           },
         },
       },
-      orderBy: {
-        updatedAt: "desc",
-      },
+      orderBy,
+      ...(take ? { take } : {}),
     });
 
     return NextResponse.json(projects);

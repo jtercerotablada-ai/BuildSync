@@ -55,6 +55,7 @@ import { CustomizeWidgetsModal } from "@/components/dashboard/customize-widgets-
 import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
 import type { WidgetType } from "@/types/dashboard";
 import type { CockpitData } from "@/components/cockpit/types";
+import { startOfLocalDay } from "@/lib/date-only";
 import {
   getHomeBackground,
   HOME_BACKGROUND_UI_STATE_KEY,
@@ -87,13 +88,39 @@ import {
 // localStorage. Default "week" matches the original behavior.
 const PERIOD_UI_STATE_KEY = "home.period";
 
+// /api/dashboard/ceo now also returns explicit header-chip counts.
+// Typed locally (optional) so older cached payloads without it don't
+// crash the UI right after a deploy.
+type HomeCockpitData = CockpitData & {
+  summary?: { tasksCompleted: number; teamCount: number };
+};
+
+// Maps the header period to the PAST window the "tasks completed"
+// chip counts over. next14/lookahead3w are forward-looking planning
+// windows where a completed-count is meaningless, so they fall back
+// to the last 7 days (same as "week").
+function periodStartFor(period: HomePeriod): Date {
+  const now = new Date();
+  switch (period) {
+    case "today":
+      return startOfLocalDay();
+    case "quarter":
+      return new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    case "week":
+    case "next14":
+    case "lookahead3w":
+    default:
+      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  }
+}
+
 export default function HomePage() {
   const { data: session } = useSession();
   const router = useRouter();
   // We keep this fetch only for the two summary chips in HomeHeader
   // ("X tasks completed" + "Y collaborators"). All widgets below
   // self-fetch.
-  const [data, setData] = useState<CockpitData | null>(null);
+  const [data, setData] = useState<HomeCockpitData | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Gmail-compose-style task composer triggered by the Assigned
   // Tasks widget's "Assign task" CTA (and any future caller).
@@ -113,7 +140,6 @@ export default function HomePage() {
     isLoaded,
     toggleWidget,
     reorderWidgets,
-    recalculateWidgetSizes,
     resetToDefaults,
     setWidgetSize,
     getWidgetSize,
@@ -128,15 +154,23 @@ export default function HomePage() {
     })
   );
 
-  // ── Single fetch for the HomeHeader summary chips ────────────────
+  // ── Fetch for the HomeHeader summary chips ───────────────────────
+  // Refetches when the period changes; data is reset to null first so
+  // the chips show their skeleton instead of the previous period's
+  // numbers.
   useEffect(() => {
     let cancelled = false;
+    setData(null);
     setError(null);
     (async () => {
       try {
-        const res = await fetch("/api/dashboard/ceo", { cache: "no-store" });
+        const periodStart = periodStartFor(period).toISOString();
+        const res = await fetch(
+          `/api/dashboard/ceo?periodStart=${encodeURIComponent(periodStart)}`,
+          { cache: "no-store" }
+        );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as CockpitData;
+        const json = (await res.json()) as HomeCockpitData;
         if (!cancelled) setData(json);
       } catch (e) {
         if (!cancelled)
@@ -146,7 +180,7 @@ export default function HomePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [period]);
 
   // ── Drag handlers ───────────────────────────────────────────────
   function handleDragStart(event: DragStartEvent) {
@@ -162,20 +196,21 @@ export default function HomePage() {
       const newIndex = preferences.widgetOrder.indexOf(over.id as WidgetType);
       const newOrder = arrayMove(preferences.widgetOrder, oldIndex, newIndex);
       reorderWidgets(newOrder);
-      setTimeout(() => recalculateWidgetSizes(), 300);
     }
   }
 
   // ── Header summary chips (Asana-style) ──────────────────────────
-  const summary = useMemo(() => {
-    if (!data) return { tasksCompleted: 0, collaborators: 0 };
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const tasksCompleted = data.activity.filter(
-      (a) => a.completedAt && new Date(a.completedAt) >= weekAgo
-    ).length;
-    return { tasksCompleted, collaborators: data.team.length };
-  }, [data]);
+  // Tri-state per chip: number → render, null → loading (skeleton in
+  // HomeHeader), undefined → fetch failed (chips hidden; the rest of
+  // the page is unaffected — every widget self-fetches).
+  const chips = useMemo(() => {
+    if (error) return { tasksCompleted: undefined, collaborators: undefined };
+    if (!data) return { tasksCompleted: null, collaborators: null };
+    return {
+      tasksCompleted: data.summary?.tasksCompleted ?? 0,
+      collaborators: data.summary?.teamCount ?? data.team.length,
+    };
+  }, [data, error]);
 
   // ── Per-widget title link target ─────────────────────────────────
   // Asana makes the widget heading itself a link to the full page
@@ -187,7 +222,8 @@ export default function HomePage() {
     if (id === "portfolios") return "/portfolios";
     if (id === "projects") return "/projects/all";
     if (id === "people") return "/people";
-    if (id === "forms") return "/portal/admin/forms";
+    // forms: no titleHref — there is no dashboard-side forms page yet,
+    // and /portal/admin/forms ejects MEMBER users to the marketing site.
     return undefined;
   }
 
@@ -290,29 +326,23 @@ export default function HomePage() {
   }
 
   // ── Loading state ───────────────────────────────────────────────
+  // Carry the saved background tint here too — useUiState hydrates it
+  // from cache before widget prefs finish loading, so applying it on
+  // the spinner branch avoids a white flash on every Home mount for
+  // users who have a tint set.
   if (!isLoaded) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
+      <div
+        className="flex items-center justify-center h-[60vh]"
+        style={{ backgroundColor: background.bg ?? undefined }}
+      >
         <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
       </div>
     );
   }
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] gap-3 text-center px-6">
-        <h2 className="text-lg font-semibold text-black">
-          Couldn&rsquo;t load home
-        </h2>
-        <p className="text-sm text-gray-500 max-w-md">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="px-3 py-1.5 border rounded-md text-sm hover:bg-gray-50"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
+  // A chips-fetch failure must never blank the page: the fetch only
+  // feeds the two header chips, and every widget below self-fetches.
+  // On error the chips are simply hidden (see the `chips` memo).
 
   return (
     <div
@@ -323,8 +353,8 @@ export default function HomePage() {
         userName={session?.user?.name}
         period={period}
         onPeriodChange={setPeriod}
-        tasksCompleted={summary.tasksCompleted}
-        collaboratorsCount={summary.collaborators}
+        tasksCompleted={chips.tasksCompleted}
+        collaboratorsCount={chips.collaborators}
         actions={
           <CustomizeWidgetsModal
             preferences={preferences}

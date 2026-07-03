@@ -35,7 +35,9 @@ const fieldSchema = z.object({
 
 const createFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(120),
-  description: z.string().max(2000).optional(),
+  // Nullable to match the PATCH schema — the builder dialog sends
+  // `description: null` when the field is left blank.
+  description: z.string().max(2000).nullable().optional(),
   fields: z.array(fieldSchema).default([]),
   projectId: z.string().min(1, "Project is required"),
   defaultSectionId: z.string().nullable().optional(),

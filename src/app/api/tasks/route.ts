@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
@@ -77,6 +78,14 @@ export async function GET(req: Request) {
     if (completed !== null) {
       whereClause.completed = completed === "true";
     }
+
+    // When the caller asks specifically for completed tasks (My Tasks
+    // "Completed" tab), surface the most-recent completions first.
+    // Otherwise keep the position/createdAt ordering used everywhere else.
+    const orderBy: Prisma.TaskOrderByWithRelationInput[] =
+      completed === "true"
+        ? [{ completedAt: "desc" }, { createdAt: "desc" }]
+        : [{ position: "asc" }, { createdAt: "desc" }];
 
     const tasks = await prisma.task.findMany({
       where: whereClause,
@@ -171,7 +180,7 @@ export async function GET(req: Request) {
           },
         },
       },
-      orderBy: [{ position: "asc" }, { createdAt: "desc" }],
+      orderBy,
       take,
     });
 

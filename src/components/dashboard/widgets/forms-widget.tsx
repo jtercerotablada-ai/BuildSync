@@ -16,7 +16,7 @@
  * can happen from either place after creation.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FileText, Plus, ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -53,7 +53,10 @@ interface Project {
 export function FormsWidget() {
   const router = useRouter();
   const [forms, setForms] = useState<FormRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   // Inline edit dialog state — opening a form from the widget now
@@ -71,34 +74,36 @@ export function FormsWidget() {
     null
   );
 
+  // Hoisted so the dialog-close handler and the Retry button can
+  // trigger a refetch outside the polling effect.
+  const loadForms = useCallback(async (showSpinner: boolean) => {
+    if (showSpinner) setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/forms?limit=20');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as FormRow[];
+      setForms(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch forms:', err);
+      setError("Couldn't load forms.");
+    } finally {
+      if (showSpinner) setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
 
-    const load = async (showSpinner: boolean) => {
-      if (showSpinner) setLoading(true);
-      try {
-        const res = await fetch('/api/forms?limit=20');
-        if (res.ok && !cancelled) {
-          const data = (await res.json()) as FormRow[];
-          setForms(Array.isArray(data) ? data : []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch forms:', err);
-      } finally {
-        if (showSpinner && !cancelled) setLoading(false);
-      }
-    };
-
     // Initial fetch shows the spinner; polls do not (silent refresh).
-    void load(true);
+    void loadForms(true);
 
     // Refresh the "N new" badge every 30s while visible — same
     // cadence as the inbox so the two stay in sync. Pauses on
     // tab-hidden to keep idle costs near-zero.
     const tick = () => {
       if (document.hidden) return;
-      void load(false);
+      void loadForms(false);
     };
     const start = () => {
       if (timer) return;
@@ -122,32 +127,34 @@ export function FormsWidget() {
     document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
-      cancelled = true;
       stop();
       document.removeEventListener('visibilitychange', onVisibility);
     };
+  }, [loadForms]);
+
+  // Hoisted so the inline Retry in the picker can refetch on demand.
+  const loadProjects = useCallback(async () => {
+    setProjectsLoading(true);
+    setProjectsError(false);
+    try {
+      const res = await fetch('/api/projects');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as Project[];
+      setProjects(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch projects:', err);
+      setProjectsError(true);
+    } finally {
+      setProjectsLoading(false);
+    }
   }, []);
 
   // Lazy-load projects only when the user opens the "New form" picker
   // — most home loads never need this list.
   useEffect(() => {
     if (!showProjectPicker || projects.length > 0) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/projects');
-        if (res.ok && !cancelled) {
-          const data = (await res.json()) as Project[];
-          setProjects(Array.isArray(data) ? data : []);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [showProjectPicker, projects.length]);
+    void loadProjects();
+  }, [showProjectPicker, projects.length, loadProjects]);
 
   async function openFormInline(form: FormRow) {
     if (!form.projectId) {
@@ -188,6 +195,13 @@ export function FormsWidget() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
         </div>
+      ) : error ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 py-4">
+          <p className="text-xs text-red-600">{error}</p>
+          <Button variant="outline" size="sm" onClick={() => void loadForms(true)}>
+            Retry
+          </Button>
+        </div>
       ) : forms.length === 0 ? (
         // Educational empty state — most users have never used a Forms
         // feature before. Concrete examples teach what it's for.
@@ -222,7 +236,22 @@ export function FormsWidget() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
-              {projects.length === 0 ? (
+              {projectsLoading ? (
+                <div className="flex items-center justify-center px-2 py-3">
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                </div>
+              ) : projectsError ? (
+                <div className="px-2 py-3 text-xs text-red-600 text-center">
+                  Couldn&apos;t load projects.{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => void loadProjects()}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : projects.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
                   Create a project first — forms belong to a project.
                 </div>
@@ -306,7 +335,22 @@ export function FormsWidget() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
-              {projects.length === 0 ? (
+              {projectsLoading ? (
+                <div className="flex items-center justify-center px-2 py-3">
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                </div>
+              ) : projectsError ? (
+                <div className="px-2 py-3 text-xs text-red-600 text-center">
+                  Couldn&apos;t load projects.{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => void loadProjects()}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : projects.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
                   No projects yet
                 </div>
@@ -338,7 +382,13 @@ export function FormsWidget() {
         <FormBuilderDialog
           open={!!editingForm}
           onOpenChange={(open) => {
-            if (!open) setEditingForm(null);
+            if (!open) {
+              setEditingForm(null);
+              // The dialog deletes forms without calling onSaved and
+              // expects the parent to refresh on close — refetch so
+              // deletes/edits reflect now, not at the next 30s poll.
+              void loadForms(false);
+            }
           }}
           projectId={editingForm.projectId}
           initial={editingForm}

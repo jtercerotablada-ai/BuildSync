@@ -67,7 +67,6 @@ export default function PortalDashboardPage() {
     isLoaded,
     toggleWidget,
     reorderWidgets,
-    recalculateWidgetSizes,
     resetToDefaults,
     setWidgetSize,
     getWidgetSize,
@@ -99,10 +98,6 @@ export default function PortalDashboardPage() {
       const newIndex = preferences.widgetOrder.indexOf(over.id as WidgetType);
       const newOrder = arrayMove(preferences.widgetOrder, oldIndex, newIndex);
       reorderWidgets(newOrder);
-
-      setTimeout(() => {
-        recalculateWidgetSizes();
-      }, 300);
     }
   };
 

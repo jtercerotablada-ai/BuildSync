@@ -60,15 +60,20 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterMode>('frequent');
   const [period, setPeriod] = useState<PeriodTab>('week');
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     async function fetchPeople() {
       setLoading(true);
+      setError(null);
       try {
         const limit = filter === 'all' ? 12 : 6;
+        // Send the viewer's timezone offset so the API buckets overdue/
+        // upcoming/done by the user's calendar day, not the server's.
+        const tzOffset = new Date().getTimezoneOffset();
         const res = await fetch(
-          `/api/users?limit=${limit}&filter=${filter}&includeStats=true&period=${period}`
+          `/api/users?limit=${limit}&filter=${filter}&includeStats=true&period=${period}&tzOffset=${tzOffset}`
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: Person[] = await res.json();
@@ -86,7 +91,7 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
     return () => {
       cancelled = true;
     };
-  }, [filter, period]);
+  }, [filter, period, retryToken]);
 
   const handleInvite = () => {
     if (onInvite) {
@@ -119,8 +124,10 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
       </div>
 
       {/* Period tabs (This week / This month) */}
-      <div className="flex gap-4 border-b border-gray-200 mb-2">
+      <div role="tablist" className="flex gap-4 border-b border-gray-200 mb-2">
         <button
+          role="tab"
+          aria-selected={period === 'week'}
           onClick={() => setPeriod('week')}
           className={cn(
             'pb-1.5 text-[13px] font-medium border-b-2 -mb-px transition-colors',
@@ -132,6 +139,8 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
           This week
         </button>
         <button
+          role="tab"
+          aria-selected={period === 'month'}
           onClick={() => setPeriod('month')}
           className={cn(
             'pb-1.5 text-[13px] font-medium border-b-2 -mb-px transition-colors',
@@ -144,11 +153,20 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
         </button>
       </div>
 
-      {error && <p className="text-sm text-black mb-2">{error}</p>}
-
-      {/* People list — scrollable */}
+      {/* People list — scrollable. Skeleton only on the initial
+          load; period/filter refetches keep the current rows. */}
       <div className="flex-1 overflow-y-auto -mx-1">
-        {loading ? (
+        {error ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-6">
+            <p className="text-sm text-red-600 mb-3">{error}</p>
+            <button
+              onClick={() => setRetryToken((t) => t + 1)}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        ) : loading && people.length === 0 ? (
           <div className="space-y-2 px-1 py-2">
             {[1, 2, 3].map((i) => (
               <div
@@ -202,41 +220,45 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
                     {/* Stat pills — red for overdue (urgent), gray for
                         upcoming (load), green for completed (progress).
                         Match the Asana palette + adds upcoming pill
-                        ("X próximas") to give a complete picture. */}
+                        ("X próximas") to give a complete picture.
+                        Zero-value pills are hidden so the name keeps its
+                        room at half width; if all three are zero we show a
+                        single muted "0 done" so the row isn't bare. */}
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <span
-                        className={cn(
-                          'text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-full',
-                          overdue > 0
-                            ? 'bg-[#fce4e4] text-[#a8323a]'
-                            : 'bg-gray-50 text-gray-400'
-                        )}
-                        title={`${overdue} overdue`}
-                      >
-                        {overdue} overdue
-                      </span>
-                      <span
-                        className={cn(
-                          'text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-full',
-                          upcoming > 0
-                            ? 'bg-[#eef4fb] text-[#2c5b8a]'
-                            : 'bg-gray-50 text-gray-400'
-                        )}
-                        title={`${upcoming} upcoming`}
-                      >
-                        {upcoming} upcoming
-                      </span>
-                      <span
-                        className={cn(
-                          'text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-full',
-                          completed > 0
-                            ? 'bg-[#dff1e6] text-[#1d6b3e]'
-                            : 'bg-gray-50 text-gray-400'
-                        )}
-                        title={`${completed} completed`}
-                      >
-                        {completed} done
-                      </span>
+                      {overdue > 0 && (
+                        <span
+                          className="text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-full bg-[#fce4e4] text-[#a8323a]"
+                          title={`${overdue} overdue`}
+                        >
+                          {overdue} overdue
+                        </span>
+                      )}
+                      {upcoming > 0 && (
+                        <span
+                          className="text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-full bg-[#eef4fb] text-[#2c5b8a]"
+                          title={`${upcoming} upcoming`}
+                        >
+                          {upcoming} upcoming
+                        </span>
+                      )}
+                      {completed > 0 ? (
+                        <span
+                          className="text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-full bg-[#dff1e6] text-[#1d6b3e]"
+                          title={`${completed} completed`}
+                        >
+                          {completed} done
+                        </span>
+                      ) : (
+                        overdue === 0 &&
+                        upcoming === 0 && (
+                          <span
+                            className="text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-full bg-gray-50 text-gray-400"
+                            title="0 completed"
+                          >
+                            0 done
+                          </span>
+                        )
+                      )}
                     </div>
                   </button>
                 </li>
@@ -248,7 +270,7 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
 
       {/* "+ Invite teammate" footer link — always visible when there
           are at least a few people, matches Asana's bottom CTA. */}
-      {!loading && people.length > 0 && (
+      {!error && people.length > 0 && (
         <button
           onClick={handleInvite}
           className="flex items-center gap-2 px-2 py-2 mt-1 text-sm text-gray-500 hover:text-gray-800 hover:bg-gray-50 rounded transition-colors"

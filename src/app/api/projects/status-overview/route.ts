@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId } from "@/lib/auth-guards";
+import { getLevel } from "@/lib/people-types";
 
 /**
  * GET /api/projects/status-overview
@@ -18,9 +19,11 @@ import { getUserWorkspaceId } from "@/lib/auth-guards";
  * PM most needs to be reminded about. The per-project model never
  * loses sight of a project just because its owner went silent.
  *
- * Access scope: same as the projects list — workspace projects the
- * user owns, is a member of, or that are PUBLIC. Completed projects
- * are filtered OUT because the widget is for "current work" only.
+ * Access scope: same as the projects list — workspace leadership
+ * (OWNER/ADMIN role or L4+ position) sees all workspace projects;
+ * everyone else only sees projects they own, are a member of, or
+ * that are PUBLIC. Completed projects are filtered OUT because the
+ * widget is for "current work" only.
  */
 export async function GET(req: Request) {
   try {
@@ -36,10 +39,22 @@ export async function GET(req: Request) {
       30
     );
 
-    // Pull every project the user has access to in this workspace.
-    // We hand-merge "owned + member-of + workspace-visible PUBLIC"
-    // rather than rely on a single OR query because the workspace
-    // PUBLIC case doesn't go through ProjectMember.
+    // Mirror /api/projects GET's visibility rules: workspace
+    // leadership (OWNER/ADMIN role) and L4+ positions see every
+    // workspace project; L1–L3 only see projects they own, are a
+    // member of, or that are PUBLIC. visibility=WORKSPACE does NOT
+    // auto-grant — that leaked projects to invited users who were
+    // only meant to see one specific project.
+    const membership = await prisma.workspaceMember.findFirst({
+      where: { userId, workspaceId },
+      select: { role: true, user: { select: { position: true } } },
+    });
+    const seesAllInWorkspace =
+      membership != null &&
+      (membership.role === "OWNER" ||
+        membership.role === "ADMIN" ||
+        getLevel(membership.user.position) >= 4);
+
     const projects = await prisma.project.findMany({
       where: {
         workspaceId,
@@ -47,12 +62,13 @@ export async function GET(req: Request) {
         // ON_HOLD intentionally stays IN: a paused project still
         // deserves a "why are we paused?" check-in.
         status: { not: "COMPLETE" },
-        OR: [
-          { ownerId: userId },
-          { members: { some: { userId } } },
-          { visibility: "PUBLIC" },
-          { visibility: "WORKSPACE" },
-        ],
+        OR: seesAllInWorkspace
+          ? undefined
+          : [
+              { ownerId: userId },
+              { members: { some: { userId } } },
+              { visibility: "PUBLIC" },
+            ],
       },
       select: {
         id: true,

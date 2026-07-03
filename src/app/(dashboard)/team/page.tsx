@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { openCreateProjectGallery } from "@/lib/open-create-project";
 import {
   ChevronDown,
@@ -146,8 +146,25 @@ interface Team {
 
 type TabType = "overview" | "members" | "work" | "messages" | "calendar";
 
+// useSearchParams must live under a Suspense boundary in Next 15,
+// so the page itself is a thin wrapper around the real content.
 export default function TeamPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      }
+    >
+      <TeamPageContent />
+    </Suspense>
+  );
+}
+
+function TeamPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [teams, setTeams] = useState<Team[]>([]);
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
@@ -165,6 +182,15 @@ export default function TeamPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // ?invite=true (e.g. from the home People widget's CTA) opens the
+  // invite modal; strip the param so back/refresh doesn't reopen it.
+  useEffect(() => {
+    if (searchParams.get("invite") === "true") {
+      setShowInviteModal(true);
+      router.replace("/team", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   async function fetchData() {
     setIsLoading(true);

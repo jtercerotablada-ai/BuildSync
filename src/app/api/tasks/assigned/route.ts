@@ -11,7 +11,10 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Tasks where the current user is the CREATOR but NOT the assignee
+    // Tasks where the current user is the CREATOR but NOT the assignee.
+    // Consumed only by the assigned-tasks widget, so the select is slimmed
+    // to exactly the fields it renders (id/name/completed/dueDate + assignee
+    // and project stubs).
     const tasks = await prisma.task.findMany({
       where: {
         creatorId: userId,
@@ -20,7 +23,11 @@ export async function GET() {
         },
         parentTaskId: null, // Only top-level tasks
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        completed: true,
+        dueDate: true,
         assignee: {
           select: {
             id: true,
@@ -41,6 +48,7 @@ export async function GET() {
         { dueDate: "asc" },
         { createdAt: "desc" },
       ],
+      take: 200,
     });
 
     return NextResponse.json(tasks);

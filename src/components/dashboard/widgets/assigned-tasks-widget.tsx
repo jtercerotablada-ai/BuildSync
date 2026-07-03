@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Circle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { dueDateToLocalMidnight, daysFromToday } from '@/lib/date-only';
 
 interface AssignedTask {
   id: string;
@@ -15,7 +16,7 @@ interface AssignedTask {
   dueDate: string | null;
   assignee: {
     id: string;
-    name: string;
+    name: string | null;
     image: string | null;
   } | null;
   project?: {
@@ -35,40 +36,33 @@ interface AssignedTasksWidgetProps {
   onAssignTask?: () => void;
 }
 
-function getInitials(name: string): string {
+function getInitials(name: string | null): string {
+  if (!name) return '?';
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
+// Due dates arrive as UTC-midnight timestamps; bucket and label by the
+// UTC calendar day via date-only helpers, never local getters.
 function formatDueDate(date: string): string {
-  const d = new Date(date);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const dateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  if (dateOnly.getTime() === today.getTime()) return 'Today';
-  if (dateOnly.getTime() === tomorrow.getTime()) return 'Tomorrow';
-  if (dateOnly.getTime() === yesterday.getTime()) return 'Yesterday';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const days = daysFromToday(date);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  if (days === -1) return 'Yesterday';
+  return dueDateToLocalMidnight(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function isOverdue(dueDate: string | null): boolean {
   if (!dueDate) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(dueDate) < today;
+  return daysFromToday(dueDate) < 0;
 }
 
 function isThisWeek(dueDate: string | null): boolean {
   if (!dueDate) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const weekEnd = new Date(today);
-  weekEnd.setDate(weekEnd.getDate() + 7);
-  const due = new Date(dueDate);
-  return due >= today && due <= weekEnd;
+  const days = daysFromToday(dueDate);
+  return days >= 0 && days <= 7;
 }
 
 export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) {
@@ -76,23 +70,44 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
   const [activeTab, setActiveTab] = useState<TabType>('this-week');
   const [allTasks, setAllTasks] = useState<AssignedTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  // Concurrent fetchTasks calls (mount + task-created event + retry)
+  // can resolve out of order; tag each with an incrementing id and
+  // ignore any response that isn't the latest request.
+  const fetchIdRef = useRef(0);
 
   const fetchTasks = useCallback(async () => {
+    const requestId = ++fetchIdRef.current;
+    setError(null);
     try {
       const res = await fetch('/api/tasks/assigned');
+      if (fetchIdRef.current !== requestId) return;
       if (res.ok) {
         const data = await res.json();
+        if (fetchIdRef.current !== requestId) return;
         setAllTasks(data);
+      } else {
+        setError('Failed to load tasks');
       }
     } catch (error) {
+      if (fetchIdRef.current !== requestId) return;
       console.error('Failed to fetch assigned tasks:', error);
+      setError('Failed to load tasks');
     } finally {
-      setLoading(false);
+      if (fetchIdRef.current === requestId) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchTasks();
+  }, [fetchTasks]);
+
+  // Refresh when the quick-create composer saves a task, so newly
+  // assigned work shows up without a page reload.
+  useEffect(() => {
+    const onTaskCreated = () => fetchTasks();
+    window.addEventListener('buildsync:task-created', onTaskCreated);
+    return () => window.removeEventListener('buildsync:task-created', onTaskCreated);
   }, [fetchTasks]);
 
   // PATCH completed state — refactored out so the Undo action on the
@@ -109,9 +124,19 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
     []
   );
 
+  // Flip the flag in local state so the checkbox responds instantly;
+  // the PATCH confirms it and a failure rolls the flip back.
+  const setTaskCompleted = useCallback((taskId: string, completed: boolean) => {
+    setAllTasks((tasks) =>
+      tasks.map((t) => (t.id === taskId ? { ...t, completed } : t))
+    );
+  }, []);
+
   const handleToggleComplete = async (taskId: string, currentCompleted: boolean) => {
+    const nextCompleted = !currentCompleted;
+    setTaskCompleted(taskId, nextCompleted);
     try {
-      await patchCompleted(taskId, !currentCompleted);
+      await patchCompleted(taskId, nextCompleted);
       const message = currentCompleted
         ? 'Task marked as incomplete'
         : 'Task completed';
@@ -119,17 +144,18 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
         action: {
           label: 'Undo',
           onClick: async () => {
+            setTaskCompleted(taskId, currentCompleted);
             try {
               await patchCompleted(taskId, currentCompleted);
-              fetchTasks();
             } catch {
+              setTaskCompleted(taskId, nextCompleted);
               toast.error('Failed to undo');
             }
           },
         },
       });
-      fetchTasks();
     } catch {
+      setTaskCompleted(taskId, currentCompleted);
       toast.error('Failed to update task');
     }
   };
@@ -182,10 +208,12 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
   return (
     <div className="h-full flex flex-col">
       <div className="mb-4">
-        <div className="flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+        <div role="tablist" className="flex rounded-lg border border-gray-200 p-1 bg-gray-50">
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
                 'flex-1 px-2.5 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap',
@@ -211,6 +239,20 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
               <div key={i} className="h-12 bg-gray-100 animate-pulse rounded" />
             ))}
           </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-8">
+            <p className="text-sm text-red-600 mb-3">{error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLoading(true);
+                fetchTasks();
+              }}
+            >
+              Retry
+            </Button>
+          </div>
         ) : filteredTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-8">
             <div className="w-16 h-16 rounded-full border-2 border-gray-300 flex items-center justify-center mb-4">
@@ -228,16 +270,20 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
             {filteredTasks.map((task) => (
               <div
                 key={task.id}
+                role="button"
+                tabIndex={0}
                 className="flex items-start gap-3 py-2 px-2 rounded-lg hover:bg-gray-50 group cursor-pointer"
-                onClick={() => {
-                  if (task.project?.id) {
-                    router.push('/projects/' + task.project.id + '?task=' + task.id);
-                  } else {
-                    router.push('/my-tasks?task=' + task.id);
+                onClick={() => router.push('/tasks/' + task.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    router.push('/tasks/' + task.id);
                   }
                 }}
               >
                 <button
+                  aria-label={task.completed ? 'Mark task as incomplete' : 'Mark task as complete'}
+                  aria-pressed={task.completed}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleToggleComplete(task.id, task.completed);
@@ -262,14 +308,14 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
                     {task.name}
                   </p>
                   {task.assignee && (
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <Avatar className="h-4 w-4">
+                    <div className="flex items-center gap-1 mt-0.5 min-w-0">
+                      <Avatar className="h-4 w-4 flex-shrink-0">
                         <AvatarImage src={task.assignee.image || undefined} />
                         <AvatarFallback className="text-[8px] bg-white text-black border border-black">
                           {getInitials(task.assignee.name)}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500 truncate">
                         {task.assignee.name}
                       </span>
                     </div>

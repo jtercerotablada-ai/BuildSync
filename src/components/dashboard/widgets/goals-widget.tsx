@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { getStatusOption } from '@/lib/goal-utils';
 
 interface Objective {
   id: string;
@@ -49,31 +50,6 @@ const getStatusTextColor = (progress: number, status: string) => {
   return 'text-black';
 };
 
-// Goal status -> human label + tailwind classes for the meta pill
-// below the progress bar (Asana shows "Sin estado", "En curso", "En
-// riesgo", etc. on each goal card).
-function formatStatusPill(status: string): { label: string; className: string } {
-  switch (status) {
-    case 'ON_TRACK':
-      return { label: 'On track', className: 'bg-emerald-50 text-emerald-700' };
-    case 'AT_RISK':
-      return { label: 'At risk', className: 'bg-amber-50 text-amber-700' };
-    case 'OFF_TRACK':
-      return { label: 'Off track', className: 'bg-rose-50 text-rose-700' };
-    case 'ACHIEVED':
-      return { label: 'Achieved', className: 'bg-emerald-50 text-emerald-700' };
-    case 'MISSED':
-      return { label: 'Missed', className: 'bg-rose-50 text-rose-700' };
-    case 'DROPPED':
-      return { label: 'Dropped', className: 'bg-gray-100 text-gray-600' };
-    case 'NO_STATUS':
-    case '':
-      return { label: 'No status', className: 'bg-gray-100 text-gray-600' };
-    default:
-      return { label: status, className: 'bg-gray-100 text-gray-600' };
-  }
-}
-
 export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>('my');
@@ -82,6 +58,9 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // True once /api/teams/list has settled (ok or not) — the Team tab
+  // query waits for it so an unfiltered fetch never shows up as team goals.
+  const [teamsLoaded, setTeamsLoaded] = useState(false);
 
   // Fetch teams for the team selector
   useEffect(() => {
@@ -97,13 +76,28 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
         }
       } catch (error) {
         console.error('Failed to fetch teams:', error);
-        setError('Failed to load data');
+      } finally {
+        setTeamsLoaded(true);
       }
     }
     fetchTeams();
   }, []);
 
-  const fetchGoals = useCallback(async () => {
+  const fetchGoals = useCallback(async (signal?: AbortSignal) => {
+    setError(null);
+    if (activeTab === 'team') {
+      // Wait for the teams request to settle — an unfiltered query here
+      // would show every accessible goal mislabeled as team goals.
+      if (!teamsLoaded) {
+        setLoading(true);
+        return;
+      }
+      if (!selectedTeam) {
+        setGoals([]);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -117,7 +111,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
 
       params.append('limit', '4');
 
-      const res = await fetch('/api/objectives?' + params.toString());
+      const res = await fetch('/api/objectives?' + params.toString(), { signal });
       if (res.ok) {
         const data = await res.json();
         // Filter to open goals only
@@ -125,17 +119,24 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
           !['ACHIEVED', 'MISSED', 'DROPPED'].includes(g.status)
         );
         setGoals(openGoals.slice(0, 4));
+      } else {
+        setGoals([]);
+        setError('Failed to load goals');
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       console.error('Failed to fetch goals:', error);
-      setError('Failed to load data');
+      setError('Failed to load goals');
     } finally {
-      setLoading(false);
+      // An aborted request means a newer fetch owns the loading state.
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [activeTab, selectedTeam]);
+  }, [activeTab, selectedTeam, teamsLoaded]);
 
   useEffect(() => {
-    fetchGoals();
+    const controller = new AbortController();
+    fetchGoals(controller.signal);
+    return () => controller.abort();
   }, [fetchGoals]);
 
   const tabs = [
@@ -167,11 +168,13 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Tabs */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+        <div role="tablist" className="flex items-center gap-4 min-w-0">
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
                 'text-sm font-medium pb-1 border-b-2 transition-colors',
@@ -189,7 +192,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
         {activeTab === 'team' && teams.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-2 text-sm">
+              <Button variant="outline" size="sm" className="h-8 gap-2 text-sm min-w-0">
                 <Users className="h-3.5 w-3.5" />
                 <span className="truncate max-w-[120px]">
                   {selectedTeam?.name || 'Select team'}
@@ -218,8 +221,6 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
         )}
       </div>
 
-      {error && <p className="text-sm text-black px-4 py-2">{error}</p>}
-
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {loading ? (
@@ -227,6 +228,13 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
             {[1, 2].map(i => (
               <div key={i} className="h-14 bg-gray-100 animate-pulse rounded-lg" />
             ))}
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2 py-4 text-center">
+            <p className="text-sm text-red-600">{error}</p>
+            <Button variant="outline" size="sm" onClick={() => fetchGoals()}>
+              Retry
+            </Button>
           </div>
         ) : goals.length === 0 ? (
           <div className="flex items-start justify-between py-4">
@@ -308,11 +316,17 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
                     {goal.status && (
                       <span
                         className={cn(
-                          'text-[11px] px-1.5 py-0.5 rounded font-medium',
-                          formatStatusPill(goal.status).className
+                          'inline-flex items-center gap-1 text-[11px] font-medium',
+                          getStatusOption(goal.status).textColor
                         )}
                       >
-                        {formatStatusPill(goal.status).label}
+                        <span
+                          className={cn(
+                            'w-1.5 h-1.5 rounded-full',
+                            getStatusOption(goal.status).color
+                          )}
+                        />
+                        {getStatusOption(goal.status).label}
                       </span>
                     )}
                   </div>

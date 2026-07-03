@@ -41,6 +41,11 @@ export async function GET(req: Request) {
     const teamId = searchParams.get("teamId");
     const ownerId = searchParams.get("ownerId");
     const parentId = searchParams.get("parentId");
+    // Optional cap for widget consumers (Home goals widget sends ?limit=4).
+    // Absent = unchanged (no take).
+    const limitParam = searchParams.get("limit");
+    const limit = limitParam ? parseInt(limitParam, 10) : null;
+    const take = limit && limit > 0 ? limit : undefined;
 
     // Get user's workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
@@ -113,6 +118,7 @@ export async function GET(req: Request) {
         },
       },
       orderBy: { createdAt: "desc" },
+      ...(take ? { take } : {}),
     });
 
     // Calculate progress for each objective

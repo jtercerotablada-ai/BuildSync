@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -122,8 +122,25 @@ const PERIODS = [
   "FY26",
 ];
 
+// useSearchParams must live under a Suspense boundary in Next 15, so the
+// page body is a child component and the default export only wraps it.
 export default function GoalsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-black" />
+        </div>
+      }
+    >
+      <GoalsPageContent />
+    </Suspense>
+  );
+}
+
+function GoalsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,6 +191,16 @@ export default function GoalsPage() {
     if (typeof window === "undefined") return;
     localStorage.setItem(FILTER_STORAGE_KEY, filterMode);
   }, [filterMode]);
+
+  // The home Goals widget deep-links here with ?new=1 to open the create
+  // dialog directly. Strip the param after opening so a refresh (or
+  // back-navigation) doesn't re-trigger the dialog.
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setCreateOpen(true);
+      router.replace("/goals");
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     const controller = new AbortController();

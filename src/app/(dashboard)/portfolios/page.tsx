@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -153,7 +153,16 @@ function formatBudget(value: number, currency: string): string {
 export default function PortfoliosPage() {
   return (
     <SectionGuard section="portfolios">
-      <PortfoliosPageInner />
+      {/* useSearchParams in the inner component requires a Suspense boundary (Next 15). */}
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-black" />
+          </div>
+        }
+      >
+        <PortfoliosPageInner />
+      </Suspense>
     </SectionGuard>
   );
 }
@@ -172,6 +181,7 @@ type DefaultView =
 
 function PortfoliosPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -198,6 +208,14 @@ function PortfoliosPageInner() {
     fetchPortfolios();
     setFavorites(loadFavorites());
   }, []);
+
+  // Deep link from the home widget: /portfolios?create=1 opens the dialog.
+  useEffect(() => {
+    if (searchParams.get("create") === "1") {
+      setCreateOpen(true);
+      router.replace("/portfolios", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   async function fetchPortfolios() {
     try {

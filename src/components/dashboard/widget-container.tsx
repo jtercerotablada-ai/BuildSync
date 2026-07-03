@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { WidgetType, WidgetSize, AVAILABLE_WIDGETS } from '@/types/dashboard';
 
@@ -39,19 +40,17 @@ interface WidgetContainerProps {
 // Overlay component for drag preview
 interface WidgetOverlayProps {
   id: WidgetType;
-  size?: WidgetSize;
+  size?: WidgetSize; // accepted for caller compatibility; the overlay always fills its wrapper
 }
 
-export function WidgetOverlay({ id, size = 'half' }: WidgetOverlayProps) {
+export function WidgetOverlay({ id }: WidgetOverlayProps) {
   const widget = AVAILABLE_WIDGETS.find(w => w.id === id);
 
   return (
+    // DragOverlay's wrapper is already sized to the measured active node,
+    // so the preview must simply fill it — any own width/height distorts it.
     <div
-      className={cn(
-        'bg-white rounded-lg border-2 border-black shadow-2xl',
-        'h-[320px] flex flex-col',
-        size === 'full' ? 'w-full' : 'w-[calc(50%-12px)]',
-      )}
+      className="bg-white rounded-lg border-2 border-black shadow-2xl w-full h-full flex flex-col"
       style={{
         transform: 'rotate(2deg) scale(1.02)',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
@@ -102,7 +101,22 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
       case 'lock':
         return <Lock className="h-3.5 w-3.5 text-gray-400" />;
       case 'info':
-        return <Info className="h-3.5 w-3.5 text-gray-400" />;
+        return (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={widget.description}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="inline-flex items-center"
+              >
+                <Info className="h-3.5 w-3.5 text-gray-400" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{widget.description}</TooltipContent>
+          </Tooltip>
+        );
       case 'sparkles':
         return <Sparkles className="h-3.5 w-3.5 text-[#a8893a]" />;
       default:
@@ -125,6 +139,9 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
               : "h-8 w-8 text-gray-400 hover:text-gray-600"
           )}
           onClick={(e) => e.stopPropagation()}
+          // Keep Enter/Space from reaching the sortable header listeners,
+          // which would start a keyboard drag instead of opening the menu.
+          onKeyDown={(e) => e.stopPropagation()}
         >
           <MoreHorizontal className="h-4 w-4" />
         </Button>
@@ -206,7 +223,7 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
             ? "opacity-40"
             : "opacity-40 border-2 border-dashed border-gray-400 bg-gray-50 shadow-inner"),
         // Hover-over target during drag
-        isOver && !isDragging && "ring-2 ring-black ring-offset-2 rounded-2xl"
+        isOver && !isDragging && "ring-2 ring-black ring-offset-0 rounded-lg"
       )}
     >
       {!hideHeader ? (
@@ -222,6 +239,7 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
                 <Link
                   href={titleHref}
                   onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
                   className="font-semibold text-gray-900 flex items-center gap-1.5 hover:text-black hover:underline underline-offset-4 decoration-gray-300"
                 >
                   {widget?.title}

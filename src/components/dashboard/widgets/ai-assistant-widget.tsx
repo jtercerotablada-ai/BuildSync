@@ -34,17 +34,15 @@ interface MentionItem {
 }
 
 const defaultSuggestions: Suggestion[] = [
-  { id: '1', icon: 'search', text: 'Find my recently overdue tasks' },
-  { id: '2', icon: 'docs', text: 'How to get started' },
-  { id: '3', icon: 'docs', text: 'How to create and manage projects' },
+  { id: '1', icon: 'docs', text: 'Draft a status update for a client' },
+  { id: '2', icon: 'docs', text: 'Improve the wording of an email' },
+  { id: '3', icon: 'docs', text: 'Summarize a block of text' },
 ];
 
 // Helper to format relative date like BuildSync
 function formatRelativeDate(timestamp: number): string {
   const now = new Date();
   const date = new Date(timestamp);
-  const diff = now.getTime() - timestamp;
-  const days = Math.floor(diff / 86400000);
 
   // Format time as "12:56pm"
   const formatTime = (d: Date) => {
@@ -55,15 +53,17 @@ function formatRelativeDate(timestamp: number): string {
     return `${hours}:${minutes.toString().padStart(2, '0')}${ampm}`;
   };
 
-  // Check if same day
-  const isToday = now.toDateString() === date.toDateString();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = yesterday.toDateString() === date.toDateString();
+  // Whole calendar days between the two local-midnight boundaries, so a
+  // topic from 38 hours ago counts as 2 days rather than a 24h-block "1".
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round(
+    (startOfDay(now).getTime() - startOfDay(date).getTime()) / 86400000
+  );
 
-  if (isToday) return `Today at ${formatTime(date)}`;
-  if (isYesterday) return `Yesterday at ${formatTime(date)}`;
-  if (days < 7) return `${days} days ago`;
+  if (days === 0) return `Today at ${formatTime(date)}`;
+  if (days === 1) return `Yesterday at ${formatTime(date)}`;
+  if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
   if (days < 14) return 'Last week';
   return date.toLocaleDateString();
 }
@@ -79,9 +79,12 @@ export function AIAssistantWidget() {
   const [pastTopics, setPastTopics] = useState<PastTopic[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
+  const [mentionsLoaded, setMentionsLoaded] = useState(false);
   const [mentionSearch, setMentionSearch] = useState('');
+  const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Fetch people and projects for @ mentions
@@ -108,6 +111,8 @@ export function AIAssistantWidget() {
         setMentionItems(items);
       } catch {
         // silently fail
+      } finally {
+        setMentionsLoaded(true);
       }
     }
     fetchMentionData();
@@ -116,6 +121,7 @@ export function AIAssistantWidget() {
   const handleMentionClick = () => {
     setShowMentionPicker(true);
     setMentionSearch('');
+    setMentionActiveIndex(0);
   };
 
   const handleMentionSelect = (item: MentionItem) => {
@@ -129,6 +135,31 @@ export function AIAssistantWidget() {
   const filteredMentionItems = mentionItems.filter(item =>
     item.name.toLowerCase().includes(mentionSearch.toLowerCase())
   );
+  const visibleMentionItems = filteredMentionItems.slice(0, 8);
+
+  const handleMentionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setShowMentionPicker(false);
+      inputRef.current?.focus();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setMentionActiveIndex(i =>
+        visibleMentionItems.length ? (i + 1) % visibleMentionItems.length : 0
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setMentionActiveIndex(i =>
+        visibleMentionItems.length
+          ? (i - 1 + visibleMentionItems.length) % visibleMentionItems.length
+          : 0
+      );
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const item = visibleMentionItems[mentionActiveIndex];
+      if (item) handleMentionSelect(item);
+    }
+  };
 
   // Load past topics from API (DB-persisted), fall back to localStorage
   useEffect(() => {
@@ -181,15 +212,7 @@ export function AIAssistantWidget() {
     const currentQuestion = question;
     setIsLoading(true);
     setResponse(null);
-
-    // Add to past topics
-    const newTopic: PastTopic = {
-      id: Date.now().toString(),
-      question: currentQuestion,
-      date: 'Just now',
-      timestamp: Date.now(),
-    };
-    savePastTopics([newTopic, ...pastTopics.slice(0, 19)]); // Keep max 20
+    setError(null);
 
     try {
       const res = await fetch('/api/ai/assist', {
@@ -198,20 +221,39 @@ export function AIAssistantWidget() {
         body: JSON.stringify({
           prompt: 'Answer the following question helpfully and concisely:',
           text: currentQuestion,
+          mode: 'qa',
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
         setResponse(data.result);
+        setQuestion('');
+
+        // Record only questions that actually got an answer
+        const newTopic: PastTopic = {
+          id: Date.now().toString(),
+          question: currentQuestion,
+          date: 'Just now',
+          timestamp: Date.now(),
+        };
+        savePastTopics([newTopic, ...pastTopics.slice(0, 19)]); // Keep max 20
+      } else if (res.status === 503) {
+        setError('AI features aren\'t configured for this workspace');
       } else {
-        setResponse('Sorry, I couldn\'t process your request. Please try again.');
+        let message = 'Sorry, I couldn\'t process your request. Please try again.';
+        try {
+          const data = await res.json();
+          if (typeof data?.error === 'string') message = data.error;
+        } catch {
+          // keep fallback message
+        }
+        setError(message);
       }
     } catch {
-      setResponse('Sorry, something went wrong. Please try again.');
+      setError('Sorry, something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
-      setQuestion('');
     }
   };
 
@@ -223,6 +265,7 @@ export function AIAssistantWidget() {
     setQuestion(topic.question);
     setActiveTab('ask');
     setResponse(null);
+    setError(null);
   };
 
   const getIcon = (type: string) => {
@@ -246,7 +289,7 @@ export function AIAssistantWidget() {
       {/* Tabs */}
       <div className="flex gap-4 border-b border-gray-200 mb-3">
         <button
-          onClick={() => { setActiveTab('ask'); setResponse(null); }}
+          onClick={() => { setActiveTab('ask'); setResponse(null); setError(null); }}
           className={cn(
             'pb-2 text-sm font-medium border-b-2 -mb-px transition-colors',
             activeTab === 'ask'
@@ -257,7 +300,7 @@ export function AIAssistantWidget() {
           Ask
         </button>
         <button
-          onClick={() => { setActiveTab('past'); setResponse(null); }}
+          onClick={() => { setActiveTab('past'); setResponse(null); setError(null); }}
           className={cn(
             'pb-2 text-sm font-medium border-b-2 -mb-px transition-colors',
             activeTab === 'past'
@@ -273,12 +316,25 @@ export function AIAssistantWidget() {
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'ask' ? (
           <>
-            {response ? (
+            {error ? (
+              // Error state — styled distinctly from an AI response
+              <div className="space-y-3">
+                <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                  <p className="text-sm text-red-600 whitespace-pre-wrap break-words">{error}</p>
+                </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : response ? (
               // Show AI response
               <div className="space-y-3">
                 <div className="p-3 bg-gray-50 rounded-lg border">
                   <p className="text-xs text-gray-500 mb-1">Response:</p>
-                  <p className="text-sm text-gray-700">{response}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{response}</p>
                 </div>
                 <button
                   onClick={() => setResponse(null)}
@@ -355,21 +411,28 @@ export function AIAssistantWidget() {
                 <input
                   type="text"
                   value={mentionSearch}
-                  onChange={(e) => setMentionSearch(e.target.value)}
+                  onChange={(e) => { setMentionSearch(e.target.value); setMentionActiveIndex(0); }}
+                  onKeyDown={handleMentionKeyDown}
                   placeholder="Search people or projects..."
                   className="w-full text-sm outline-none bg-transparent"
                   autoFocus
                 />
               </div>
               <div className="overflow-y-auto">
-                {filteredMentionItems.length === 0 ? (
+                {!mentionsLoaded ? (
+                  <p className="text-xs text-gray-400 text-center py-3">Loading…</p>
+                ) : visibleMentionItems.length === 0 ? (
                   <p className="text-xs text-gray-400 text-center py-3">No results</p>
                 ) : (
-                  filteredMentionItems.slice(0, 8).map((item) => (
+                  visibleMentionItems.map((item, index) => (
                     <button
                       key={`${item.type}-${item.id}`}
                       onClick={() => handleMentionSelect(item)}
-                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-left text-sm"
+                      onMouseEnter={() => setMentionActiveIndex(index)}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-3 py-2 text-left text-sm',
+                        index === mentionActiveIndex ? 'bg-gray-50' : 'hover:bg-gray-50'
+                      )}
                     >
                       {item.type === 'person' ? (
                         <span className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-600">
@@ -397,12 +460,13 @@ export function AIAssistantWidget() {
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder="Ask about @projects or @people"
+            placeholder="Ask a question or draft some text"
             className="flex-1 text-sm outline-none bg-transparent"
             disabled={isLoading}
           />
           <button
             onClick={handleMentionClick}
+            aria-label="Insert mention"
             className={cn(
               'p-1 rounded transition-colors',
               showMentionPicker
@@ -415,6 +479,7 @@ export function AIAssistantWidget() {
           <button
             onClick={handleSubmit}
             disabled={!question.trim() || isLoading}
+            aria-label="Send question"
             className={cn(
               'p-1 rounded transition-colors',
               question.trim() && !isLoading

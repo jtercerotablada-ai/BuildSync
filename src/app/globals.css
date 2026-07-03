@@ -151,6 +151,13 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Tailwind v4 preflight leaves buttons at cursor:default (v3 used
+     pointer). Restore the pointer app-wide per the official v4 upgrade
+     guide, so every clickable button/role=button reads as interactive. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* ==========================================

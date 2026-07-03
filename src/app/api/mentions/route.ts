@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId } from "@/lib/auth-guards";
+import { AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { getLevel } from "@/lib/people-types";
 
 // GET /api/mentions - Get comments mentioning the current user
 export async function GET(req: Request) {
@@ -14,7 +15,42 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "10") || 10, 1), 100);
-    const workspaceId = await getUserWorkspaceId(userId);
+
+    // Resolve per-workspace project visibility, mirroring GET /api/projects:
+    // OWNER/ADMIN or Position level >= 4 see every project in the workspace;
+    // everyone else only sees projects they own, are a member of, or PUBLIC.
+    // Scoping mentions by workspace alone leaked comment text (and a 404 link)
+    // for @-mentions in PRIVATE projects the user isn't a member of.
+    const memberships = await prisma.workspaceMember.findMany({
+      where: { userId },
+      include: {
+        user: { select: { position: true } },
+      },
+    });
+
+    if (memberships.length === 0) {
+      throw new AuthorizationError("No workspace found");
+    }
+
+    const projectVisibilityClauses = memberships.map((m) => {
+      const role = m.role;
+      const level = getLevel(m.user.position);
+      const isWorkspaceLeadership = role === "OWNER" || role === "ADMIN";
+      const seesAllInWorkspace = isWorkspaceLeadership || level >= 4;
+
+      if (seesAllInWorkspace) {
+        return { workspaceId: m.workspaceId };
+      }
+
+      return {
+        workspaceId: m.workspaceId,
+        OR: [
+          { ownerId: userId },
+          { members: { some: { userId } } },
+          { visibility: "PUBLIC" as const },
+        ],
+      };
+    });
 
     // Search for comments that contain the user's ID in a data-user-id attribute
     // The mention format is: <span data-user-id="userId">@Name</span>
@@ -27,11 +63,13 @@ export async function GET(req: Request) {
         authorId: {
           not: userId,
         },
-        // Scope to user's workspace
+        // Scope to projects the user is actually allowed to see, plus
+        // personal (project-less) tasks the user created or is assigned to
+        // (verifyTaskAccess grants creator OR assignee).
         task: {
           OR: [
-            { project: { workspaceId } },
-            { projectId: null, creatorId: userId },
+            { project: { OR: projectVisibilityClauses } },
+            { projectId: null, OR: [{ creatorId: userId }, { assigneeId: userId }] },
           ],
         },
       },
@@ -74,6 +112,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json(mentions);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching mentions:", error);
     return NextResponse.json(
       { error: "Failed to fetch mentions" },
