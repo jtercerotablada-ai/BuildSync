@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { verifyTaskAccess, assertUserInWorkspace, getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 // POST /api/tasks/:taskId/collaborators - Add collaborator
 export async function POST(
@@ -17,7 +17,7 @@ export async function POST(
     }
 
     // Verify user has access to this task
-    await verifyTaskAccess(userId, taskId);
+    const task = await verifyTaskAccess(userId, taskId);
 
     const { userId: collaboratorId } = await req.json();
 
@@ -27,6 +27,13 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    // The collaborator must be a member of the task's workspace. Without
+    // this, collaboratorId is trusted from the body and the endpoint returns
+    // { id, name, image } for ANY user id — a cross-workspace enumeration
+    // oracle and PII leak — plus it attaches out-of-workspace users — audit SEC-03.
+    const workspaceId = task.project?.workspaceId ?? (await getUserWorkspaceId(userId));
+    await assertUserInWorkspace(collaboratorId, workspaceId);
 
     // Check if already a collaborator
     const existing = await prisma.taskCollaborator.findUnique({

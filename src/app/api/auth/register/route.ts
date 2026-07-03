@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createToken } from "@/lib/tokens";
 import { sendVerificationEmail } from "@/lib/email";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -10,6 +11,17 @@ const registerSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    // Throttle signups per IP to curb automated registration / email
+    // dispatch abuse — audit AUTH-02.
+    const ip = clientIp(req.headers);
+    const limited = rateLimit(`register:${ip}`, 10, 15 * 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { message: "If this email is not already registered, a verification email has been sent." },
+        { status: 200, headers: { "Retry-After": String(limited.retryAfter) } }
+      );
+    }
+
     const body = await req.json();
     const { email } = registerSchema.parse(body);
 

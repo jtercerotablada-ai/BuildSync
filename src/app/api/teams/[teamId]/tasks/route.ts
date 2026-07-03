@@ -103,6 +103,22 @@ export async function POST(
       );
     }
 
+    // When a projectId is supplied it MUST belong to this team. Without this
+    // check a team member could inject tasks into an arbitrary project in
+    // another team/workspace by guessing its id — audit (cross-tenant write).
+    if (projectId) {
+      const belongs = await prisma.project.findFirst({
+        where: { id: projectId, teamId },
+        select: { id: true },
+      });
+      if (!belongs) {
+        return NextResponse.json(
+          { error: "Project not found in this team" },
+          { status: 404 }
+        );
+      }
+    }
+
     // Resolve project: use provided or pick first team project
     let resolvedProjectId = projectId;
     if (!resolvedProjectId) {

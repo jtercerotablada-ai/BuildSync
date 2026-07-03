@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { createToken } from "@/lib/tokens";
 import { sendPasswordResetEmail } from "@/lib/email";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const schema = z.object({
   email: z.string().email(),
@@ -10,6 +11,17 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
+    // Throttle so this can't be used to email-bomb a victim address or to
+    // fish for valid accounts at volume — audit AUTH-02.
+    const ip = clientIp(req.headers);
+    const limited = rateLimit(`forgot:${ip}`, 5, 15 * 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { message: "If an account with that email exists, a reset link has been sent" },
+        { headers: { "Retry-After": String(limited.retryAfter) } }
+      );
+    }
+
     const body = await req.json();
     const { email } = schema.parse(body);
     const normalizedEmail = email.trim().toLowerCase();

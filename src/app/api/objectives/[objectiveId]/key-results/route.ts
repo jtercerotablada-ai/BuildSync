@@ -131,7 +131,10 @@ export async function PATCH(
       where: { id: keyResultId },
     });
 
-    if (!existing) {
+    // Bind the key result to THIS objective. Without this, keyResultId is
+    // trusted from the query and any KeyResult in the database can be
+    // edited by pairing it with an objective the caller owns — audit SEC-04.
+    if (!existing || existing.objectiveId !== objectiveId) {
       return NextResponse.json(
         { error: "Key result not found" },
         { status: 404 }
@@ -232,9 +235,17 @@ export async function DELETE(
       );
     }
 
-    await prisma.keyResult.delete({
-      where: { id: keyResultId },
+    // Scope the delete to THIS objective so a keyResultId from another
+    // objective/workspace deletes nothing (count 0 → 404) — audit SEC-04.
+    const deleted = await prisma.keyResult.deleteMany({
+      where: { id: keyResultId, objectiveId },
     });
+    if (deleted.count === 0) {
+      return NextResponse.json(
+        { error: "Key result not found" },
+        { status: 404 }
+      );
+    }
 
     // Recalculate objective progress after deleting key result
     await GoalProgressService.recalculateProgress(objectiveId);

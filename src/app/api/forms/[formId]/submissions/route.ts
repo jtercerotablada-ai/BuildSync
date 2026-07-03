@@ -39,12 +39,15 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Access check — same shape as the rest of the workflow endpoints.
+    // Access check. Submissions carry PII of EXTERNAL submitters, so — unlike
+    // reading the project itself — a PUBLIC project visibility must NOT grant
+    // access to them. Only the project owner/members, or a member of the
+    // project's workspace, may list submissions — audit SEC-08.
     const member = form.project.members.find((m) => m.userId === userId);
     const isOwner = form.project.ownerId === userId;
     const isMember = !!member;
-    let allowed = isOwner || isMember || form.project.visibility === "PUBLIC";
-    if (!allowed && form.project.visibility === "WORKSPACE") {
+    let allowed = isOwner || isMember;
+    if (!allowed) {
       const wsMember = await prisma.workspaceMember.findUnique({
         where: {
           userId_workspaceId: {

@@ -2,7 +2,22 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
+import { getUserWorkspaceId, assertProjectInWorkspace, assertTaskInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+
+/**
+ * Confirm the keyResult belongs to the objective from the path. Without
+ * this, keyResultId is trusted and connections of another objective's key
+ * result (even in another workspace) can be read/mutated — audit SEC-04.
+ */
+async function assertKeyResultInObjective(keyResultId: string, objectiveId: string) {
+  const kr = await prisma.keyResult.findFirst({
+    where: { id: keyResultId, objectiveId },
+    select: { id: true },
+  });
+  if (!kr) {
+    throw new NotFoundError("Key result not found");
+  }
+}
 
 const connectProjectSchema = z.object({
   type: z.literal("project"),
@@ -41,6 +56,7 @@ export async function GET(
     if (!objective || objective.workspaceId !== workspaceId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    await assertKeyResultInObjective(keyResultId, objectiveId);
 
     const [projects, tasks] = await Promise.all([
       prisma.keyResultProject.findMany({
@@ -119,7 +135,7 @@ export async function GET(
       tasks: tasksFormatted,
     });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }
@@ -154,8 +170,17 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    await assertKeyResultInObjective(keyResultId, objectiveId);
+
     const body = await req.json();
     const data = connectionSchema.parse(body);
+
+    // Scope connected project/task to the objective's workspace — audit SEC-04.
+    if (data.type === "project") {
+      await assertProjectInWorkspace(data.projectId, workspaceId);
+    } else {
+      await assertTaskInWorkspace(data.taskId, workspaceId);
+    }
 
     if (data.type === "project") {
       const existing = await prisma.keyResultProject.findUnique({
@@ -227,7 +252,7 @@ export async function POST(
       return NextResponse.json(connection, { status: 201 });
     }
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }
@@ -253,7 +278,7 @@ export async function DELETE(
 ) {
   try {
     const userId = await getCurrentUserId();
-    const { objectiveId } = await params;
+    const { objectiveId, keyResultId } = await params;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -268,6 +293,7 @@ export async function DELETE(
     if (!objective || objective.workspaceId !== workspaceId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    await assertKeyResultInObjective(keyResultId, objectiveId);
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
@@ -280,14 +306,22 @@ export async function DELETE(
       );
     }
 
+    // Scope the delete to THIS key result so a foreign connectionId
+    // removes nothing (count 0 → 404) — audit SEC-04.
     if (type === "project") {
-      await prisma.keyResultProject.delete({
-        where: { id: connectionId },
+      const res = await prisma.keyResultProject.deleteMany({
+        where: { id: connectionId, keyResultId },
       });
+      if (res.count === 0) {
+        return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      }
     } else if (type === "task") {
-      await prisma.keyResultTask.delete({
-        where: { id: connectionId },
+      const res = await prisma.keyResultTask.deleteMany({
+        where: { id: connectionId, keyResultId },
       });
+      if (res.count === 0) {
+        return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      }
     } else {
       return NextResponse.json(
         { error: "Invalid connection type" },
@@ -297,7 +331,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }

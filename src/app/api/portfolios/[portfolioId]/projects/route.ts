@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId } from "@/lib/auth-guards";
+import { getUserWorkspaceId, assertProjectInWorkspace, getErrorStatus, NotFoundError, AuthorizationError } from "@/lib/auth-guards";
 
 const addProjectSchema = z.object({
   projectId: z.string().min(1),
@@ -52,6 +52,11 @@ export async function POST(
 
     const body = await req.json();
     const data = addProjectSchema.parse(body);
+
+    // Scope the project being attached to the caller's workspace. Without
+    // this, an attacker attaches an arbitrary cross-workspace project and
+    // then reads its budget/tasks/owner back via the portfolio GET — audit SEC-02.
+    await assertProjectInWorkspace(data.projectId, workspaceId);
 
     // Check if already exists
     const existing = await prisma.portfolioProject.findUnique({
@@ -105,6 +110,10 @@ export async function POST(
         { error: error.issues[0]?.message || "Validation error" },
         { status: 400 }
       );
+    }
+    if (error instanceof NotFoundError || error instanceof AuthorizationError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
     }
 
     console.error("Error adding project to portfolio:", error);

@@ -106,9 +106,15 @@ export async function DELETE(
       return NextResponse.json({ error: "widgetId required" }, { status: 400 });
     }
 
-    await prisma.reportWidget.delete({
-      where: { id: widgetId },
+    // Bind the widget to THIS dashboard so a widgetId from another
+    // dashboard deletes nothing (count 0 → 404) instead of removing an
+    // arbitrary widget by id — audit.
+    const deleted = await prisma.reportWidget.deleteMany({
+      where: { id: widgetId, reportId: dashboardId },
     });
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: "Widget not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

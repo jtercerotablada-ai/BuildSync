@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
 
 // GET /api/workspace/messages - Get workspace messages
 export async function GET(req: Request) {
@@ -140,8 +140,24 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Message not found" }, { status: 404 });
     }
 
+    // Scope the message to the caller's workspace. Without this, any
+    // authenticated user could pin/unpin or edit messages in other
+    // workspaces by id — audit (cross-workspace tampering).
+    const access = await getEffectiveAccess(userId);
+    if (!access || message.workspaceId !== access.workspaceId) {
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+
     if (content !== undefined && message.authorId !== userId) {
       return NextResponse.json({ error: "Cannot edit others' messages" }, { status: 403 });
+    }
+
+    // Pinning is an admin action, not something any member can do.
+    if (isPinned !== undefined && !["OWNER", "ADMIN"].includes(access.workspaceRole)) {
+      return NextResponse.json(
+        { error: "Only workspace admins can pin messages" },
+        { status: 403 }
+      );
     }
 
     const updatedMessage = await prisma.message.update({
@@ -199,16 +215,19 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Message not found" }, { status: 404 });
     }
 
-    if (message.authorId !== userId) {
-      // Check if user is admin
-      const currentMember = await prisma.workspaceMember.findFirst({
-        where: { userId },
-        select: { role: true },
-      });
+    // Scope to the caller's workspace first, so an admin of workspace A
+    // cannot delete a message in workspace B — audit (the previous admin
+    // check used findFirst without matching the message's workspace).
+    const access = await getEffectiveAccess(userId);
+    if (!access || message.workspaceId !== access.workspaceId) {
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
 
-      if (!currentMember || !["OWNER", "ADMIN"].includes(currentMember.role)) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-      }
+    if (
+      message.authorId !== userId &&
+      !["OWNER", "ADMIN"].includes(access.workspaceRole)
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     await prisma.message.delete({

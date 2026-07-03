@@ -103,12 +103,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If projectId is provided, verify client has access
+    // If projectId is provided, verify client has access to it.
     if (projectId) {
       const access = await prisma.clientProjectAccess.findUnique({
         where: { userId_projectId: { userId: user.id, projectId } },
       });
       if (!access) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
+    } else {
+      // No project context: the recipient must belong to a project this
+      // client has been granted access to. Without this, a CLIENT could
+      // send a direct message to ANY user in the system — audit SEC-07.
+      const shared = await prisma.clientProjectAccess.findFirst({
+        where: {
+          userId: user.id,
+          project: {
+            OR: [
+              { ownerId: receiverId },
+              { members: { some: { userId: receiverId } } },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      if (!shared) {
         return NextResponse.json({ error: "Access denied" }, { status: 403 });
       }
     }

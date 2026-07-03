@@ -34,6 +34,13 @@ export async function GET(req: Request) {
     const assigneeId = searchParams.get("assigneeId");
     const completed = searchParams.get("completed");
     const myTasks = searchParams.get("myTasks") === "true";
+    // Safety bound so a single request can't pull an unbounded result set
+    // with the heavy include below (audit DB-02). Default 1000 is well above
+    // realistic per-view task counts; callers can raise it up to 2000.
+    const take = Math.min(
+      Math.max(parseInt(searchParams.get("limit") || "1000", 10) || 1000, 1),
+      2000
+    );
 
     // Scope to user's workspace
     const workspaceId = await getUserWorkspaceId(userId);
@@ -164,6 +171,7 @@ export async function GET(req: Request) {
         },
       },
       orderBy: [{ position: "asc" }, { createdAt: "desc" }],
+      take,
     });
 
     return NextResponse.json(tasks);

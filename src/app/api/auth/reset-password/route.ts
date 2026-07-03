@@ -3,9 +3,20 @@ import { hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { validateToken, consumeToken } from "@/lib/tokens";
 import { validatePassword } from "@/lib/auth-utils";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
+    // Throttle so reset tokens can't be brute-force guessed at volume — AUTH-02.
+    const ip = clientIp(req.headers);
+    const limited = rateLimit(`reset:${ip}`, 10, 15 * 60 * 1000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please wait a few minutes and try again." },
+        { status: 429, headers: { "Retry-After": String(limited.retryAfter) } }
+      );
+    }
+
     const { token, password } = await req.json();
 
     if (!token) {
@@ -40,7 +51,9 @@ export async function POST(req: Request) {
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword },
+      // Stamp passwordChangedAt so any JWT issued before now is rejected on
+      // its next use — the reset actually evicts existing sessions (AUTH-03).
+      data: { password: hashedPassword, passwordChangedAt: new Date() },
     });
 
     await consumeToken(token);

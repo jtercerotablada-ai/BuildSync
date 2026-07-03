@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
+import { verifyTeamAccess, assertProjectInWorkspace, getErrorStatus } from "@/lib/auth-guards";
 
 // POST /api/teams/:teamId/work - Link work to team
 export async function POST(
@@ -24,6 +24,21 @@ export async function POST(
 
     // Link the project to the team
     if (workType === "project") {
+      if (!workId) {
+        return NextResponse.json({ error: "workId is required" }, { status: 400 });
+      }
+      // Scope the target project to THIS team's workspace before mutating it.
+      // Without this, workId is trusted straight from the body, letting any
+      // team member re-parent and rename ANY project in the database — audit SEC-01.
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { workspaceId: true },
+      });
+      if (!team) {
+        return NextResponse.json({ error: "Team not found" }, { status: 404 });
+      }
+      await assertProjectInWorkspace(workId, team.workspaceId);
+
       const project = await prisma.project.update({
         where: { id: workId },
         data: {

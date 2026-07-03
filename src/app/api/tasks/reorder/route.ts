@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
   verifyBulkTaskAccess,
+  assertSectionInWorkspace,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
@@ -47,21 +48,12 @@ export async function POST(req: Request) {
     // Workspace-scoped task access check — same gate the rest of the
     // task endpoints use. Throws if any task is outside the user's
     // workspace or if the user lacks edit access.
-    await verifyBulkTaskAccess(userId, orderedTaskIds);
+    const workspaceId = await verifyBulkTaskAccess(userId, orderedTaskIds);
 
-    // Confirm the section actually belongs to a workspace the user
-    // has access to. Reuse the first task's project as the pivot —
-    // verifyBulkTaskAccess already proved the user can edit it.
-    const section = await prisma.section.findUnique({
-      where: { id: sectionId },
-      select: { id: true, projectId: true },
-    });
-    if (!section) {
-      return NextResponse.json(
-        { error: "Section not found" },
-        { status: 404 }
-      );
-    }
+    // Confirm the destination section actually belongs to the caller's
+    // workspace. Existence alone is NOT enough — without this a user could
+    // relocate their tasks into an arbitrary foreign section — audit.
+    await assertSectionInWorkspace(sectionId, workspaceId);
 
     // Snapshot which tasks are entering this section for the first
     // time (their old sectionId differs from the destination) so we

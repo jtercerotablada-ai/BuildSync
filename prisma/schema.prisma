@@ -54,6 +54,10 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
+  // Bumped whenever the password is reset/changed. JWTs issued before this
+  // instant are rejected in the auth jwt callback so a password reset
+  // actually evicts existing sessions — audit AUTH-03.
+  passwordChangedAt DateTime?
   jobTitle      String? // Legacy free-form title — kept for backwards
   // compatibility. Prefer `position` going forward.
   position      Position? // Structured role within their firm
@@ -182,6 +186,9 @@ model WorkspaceMember {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId])
+  // The composite unique indexes (userId, workspaceId) and can't serve a
+  // reverse "all members of a workspace" lookup — add a standalone index.
+  @@index([workspaceId])
 }
 
 enum WorkspaceRole {
@@ -276,6 +283,9 @@ model TeamMember {
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([userId, teamId])
+  // Standalone index so "all members of a team" doesn't scan — the
+  // composite unique above leads with userId and can't serve it.
+  @@index([teamId])
 }
 
 enum TeamRole {
@@ -434,6 +444,13 @@ model Project {
   clientAccesses  ClientProjectAccess[] @relation("ClientAccesses")
   clientApprovals ClientApproval[]      @relation("ProjectApprovals")
   directMessages  DirectMessage[]       @relation("ProjectDirectMessages")
+
+  // Indexes on the most-filtered foreign keys. Every workspace-scoped
+  // list and the team/owner lookups hit these columns; without indexes
+  // Postgres sequential-scans the whole table as data grows — audit DB-01.
+  @@index([workspaceId])
+  @@index([teamId])
+  @@index([ownerId])
 }
 
 model ProjectMember {

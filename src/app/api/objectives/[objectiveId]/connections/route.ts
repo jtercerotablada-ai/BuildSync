@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
+import { getUserWorkspaceId, assertProjectInWorkspace, assertTaskInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { GoalProgressService } from "@/lib/goal-progress";
 
 const connectProjectSchema = z.object({
@@ -159,6 +159,15 @@ export async function POST(
     const body = await req.json();
     const data = connectionSchema.parse(body);
 
+    // Scope the connected project/task to the objective's workspace. Without
+    // this, projectId/taskId are trusted from the body and a user can link
+    // (and expose progress of) resources from another company — audit SEC-04.
+    if (data.type === "project") {
+      await assertProjectInWorkspace(data.projectId, workspaceId);
+    } else {
+      await assertTaskInWorkspace(data.taskId, workspaceId);
+    }
+
     if (data.type === "project") {
       // Check if connection already exists
       const existing = await prisma.objectiveProject.findUnique({
@@ -198,7 +207,7 @@ export async function POST(
 
       return NextResponse.json(connection, { status: 201 });
     } else {
-      // Connect task
+      // Connect task (task workspace already asserted above)
       const existing = await prisma.objectiveTask.findUnique({
         where: {
           objectiveId_taskId: {
@@ -237,7 +246,7 @@ export async function POST(
       return NextResponse.json(connection, { status: 201 });
     }
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
       return NextResponse.json({ error: message }, { status });
     }
@@ -290,14 +299,23 @@ export async function DELETE(
       );
     }
 
+    // Bind the connection row to THIS objective. deleteMany with both ids
+    // means a connectionId from another objective/workspace deletes nothing
+    // (count 0 → 404) instead of removing an arbitrary row — audit SEC-04.
     if (type === "project") {
-      await prisma.objectiveProject.delete({
-        where: { id: connectionId },
+      const res = await prisma.objectiveProject.deleteMany({
+        where: { id: connectionId, objectiveId },
       });
+      if (res.count === 0) {
+        return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      }
     } else if (type === "task") {
-      await prisma.objectiveTask.delete({
-        where: { id: connectionId },
+      const res = await prisma.objectiveTask.deleteMany({
+        where: { id: connectionId, objectiveId },
       });
+      if (res.count === 0) {
+        return NextResponse.json({ error: "Connection not found" }, { status: 404 });
+      }
     } else {
       return NextResponse.json(
         { error: "Invalid connection type" },

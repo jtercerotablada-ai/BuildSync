@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getCurrentUserId } from "@/lib/auth-utils";
+import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
+import { canAccessSection } from "@/lib/access-control";
 
 const COLORS = [
   "#3b82f6", // blue
@@ -31,20 +32,26 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type"); // my-impact | organization
 
-    // Get user's workspace
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
-
-    if (!workspaceMember) {
+    // Resolve effective access (workspace + level) with the multi-member
+    // heuristic — not a bare findFirst.
+    const access = await getEffectiveAccess(userId);
+    if (!access) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
     }
+    const workspaceId = access.workspaceId;
 
     const isMyImpact = type === "my-impact";
+
+    // Server-side level gate. Everyone may see their personal "my-impact"
+    // view, but organization-wide reporting is L3+ (OWNER bypasses). Before
+    // this, the L3 gate lived only in the sidebar UI — hiding a nav item is
+    // not access control, so any user could call this endpoint — audit PERM-01.
+    if (!isMyImpact && !canAccessSection(access, "reporting")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const baseWhere = {
       project: {
-        workspaceId: workspaceMember.workspaceId,
+        workspaceId: workspaceId,
       },
       ...(isMyImpact ? { assigneeId: userId } : {}),
     };
@@ -141,7 +148,7 @@ export async function GET(req: Request) {
       prisma.project.groupBy({
         by: ["status"],
         where: {
-          workspaceId: workspaceMember.workspaceId,
+          workspaceId: workspaceId,
           ...(isMyImpact ? { ownerId: userId } : {}),
         },
         _count: true,
@@ -192,7 +199,7 @@ export async function GET(req: Request) {
       prisma.project.groupBy({
         by: ["ownerId"],
         where: {
-          workspaceId: workspaceMember.workspaceId,
+          workspaceId: workspaceId,
           ...(isMyImpact ? { ownerId: userId } : {}),
         },
         _count: true,
@@ -201,10 +208,10 @@ export async function GET(req: Request) {
       prisma.portfolioProject.findMany({
         where: {
           portfolio: {
-            workspaceId: workspaceMember.workspaceId,
+            workspaceId: workspaceId,
           },
           project: {
-            workspaceId: workspaceMember.workspaceId,
+            workspaceId: workspaceId,
             ...(isMyImpact ? { ownerId: userId } : {}),
           },
         },
@@ -217,7 +224,7 @@ export async function GET(req: Request) {
       prisma.objective.groupBy({
         by: ["status"],
         where: {
-          workspaceId: workspaceMember.workspaceId,
+          workspaceId: workspaceId,
           ...(isMyImpact ? { ownerId: userId } : {}),
         },
         _count: true,

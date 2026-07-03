@@ -49,7 +49,10 @@ export async function POST(req: Request) {
 
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashedPassword },
+      // Bump passwordChangedAt so all sessions issued before now (including a
+      // possibly-hijacked one) are evicted on next use — audit AUTH-03. The
+      // user re-authenticates with the new password.
+      data: { password: hashedPassword, passwordChangedAt: new Date() },
     });
 
     return NextResponse.json({ success: true });

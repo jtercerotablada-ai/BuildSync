@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyBulkTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { verifyBulkTaskAccess, assertSectionInWorkspace, assertUserInWorkspace, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const bulkSchema = z.object({
   taskIds: z.array(z.string()).min(1),
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const { taskIds, action, value } = bulkSchema.parse(body);
 
     // Verify all tasks belong to user's workspace
-    await verifyBulkTaskAccess(userId, taskIds);
+    const workspaceId = await verifyBulkTaskAccess(userId, taskIds);
 
     switch (action) {
       case "complete":
@@ -50,6 +50,12 @@ export async function POST(req: Request) {
         if (!value) {
           return NextResponse.json({ error: "User ID required" }, { status: 400 });
         }
+        // The assignee must be a member of the caller's workspace — otherwise
+        // an arbitrary userId could be written as assignee (integrity/cross-
+        // workspace leak). "unassign" clears it.
+        if (value !== "unassign") {
+          await assertUserInWorkspace(value, workspaceId);
+        }
         await prisma.task.updateMany({
           where: { id: { in: taskIds } },
           data: { assigneeId: value === "unassign" ? null : value },
@@ -74,6 +80,9 @@ export async function POST(req: Request) {
         if (!value) {
           return NextResponse.json({ error: "Section ID required" }, { status: 400 });
         }
+        // The destination section must live in the caller's workspace —
+        // otherwise tasks can be pointed at a foreign/dangling section.
+        await assertSectionInWorkspace(value, workspaceId);
         await prisma.task.updateMany({
           where: { id: { in: taskIds } },
           data: { sectionId: value },
