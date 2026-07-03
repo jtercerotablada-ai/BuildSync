@@ -6,8 +6,6 @@ import {
   Filter,
   MoreHorizontal,
   ExternalLink,
-  TrendingUp,
-  TrendingDown,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -34,10 +32,8 @@ import {
   Pie,
   Cell,
   Legend,
-  AreaChart,
-  Area,
 } from "recharts";
-import { format, parseISO, isPast, isToday } from "date-fns";
+import { parseISO, isPast, isToday } from "date-fns";
 
 // ============================================
 // TYPES
@@ -183,32 +179,6 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
     }));
   }, [allTasks]);
 
-  // Progress over time (simulated - in production would come from actual data)
-  const progressOverTime = useMemo(() => {
-    const dates = [];
-    const today = new Date();
-
-    for (let i = 13; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-
-      // Simulate gradual completion
-      const dayIndex = 13 - i;
-      const completedByDate = Math.min(
-        Math.floor((dayIndex / 14) * kpis.completed * 1.5),
-        kpis.completed
-      );
-
-      dates.push({
-        date: format(date, "MMM d"),
-        total: kpis.total,
-        completed: completedByDate,
-      });
-    }
-
-    return dates;
-  }, [kpis]);
-
   // ============================================
   // RENDER
   // ============================================
@@ -242,7 +212,6 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
           title="Completed tasks"
           value={kpis.completed}
           icon={<CheckCircle2 className="w-5 h-5 text-black" />}
-          trend={kpis.completed > 0 ? { value: 12, isPositive: true } : undefined}
           filterCount={1}
         />
         <KPICard
@@ -401,67 +370,6 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
             <EmptyChartState message="No assignees found" />
           )}
         </ChartCard>
-
-        {/* Area Chart - Progress Over Time */}
-        <ChartCard title="Task completion over time">
-          {progressOverTime.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart
-                data={progressOverTime}
-                margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
-              >
-                <defs>
-                  <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={COLORS.gray} stopOpacity={0.1} />
-                    <stop offset="95%" stopColor={COLORS.gray} stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 10, fill: "#6B7280" }}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 12, fill: "#6B7280" }}
-                  allowDecimals={false}
-                />
-                <Tooltip />
-                <Legend verticalAlign="bottom" iconType="circle" iconSize={8} />
-                <Area
-                  type="monotone"
-                  dataKey="total"
-                  stroke={COLORS.gray}
-                  fillOpacity={1}
-                  fill="url(#colorTotal)"
-                  strokeWidth={2}
-                  dot={false}
-                  name="Total"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="completed"
-                  stroke={COLORS.primary}
-                  fillOpacity={1}
-                  fill="url(#colorCompleted)"
-                  strokeWidth={2}
-                  dot={{ fill: COLORS.primary, r: 3 }}
-                  name="Completed"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChartState message="No data to display" />
-          )}
-        </ChartCard>
       </div>
     </div>
   );
@@ -475,12 +383,11 @@ interface KPICardProps {
   title: string;
   value: number;
   icon?: React.ReactNode;
-  trend?: { value: number; isPositive: boolean };
   filterCount?: number;
   highlight?: "success" | "warning" | "danger";
 }
 
-function KPICard({ title, value, icon, trend, filterCount, highlight }: KPICardProps) {
+function KPICard({ title, value, icon, filterCount, highlight }: KPICardProps) {
   return (
     <div
       className={cn(
@@ -506,22 +413,6 @@ function KPICard({ title, value, icon, trend, filterCount, highlight }: KPICardP
           >
             {value}
           </p>
-
-          {trend && (
-            <div
-              className={cn(
-                "flex items-center gap-1 text-xs mt-1",
-                trend.isPositive ? "text-black" : "text-black"
-              )}
-            >
-              {trend.isPositive ? (
-                <TrendingUp className="w-3 h-3" />
-              ) : (
-                <TrendingDown className="w-3 h-3" />
-              )}
-              <span>{trend.value}% from last week</span>
-            </div>
-          )}
         </div>
       </div>
 

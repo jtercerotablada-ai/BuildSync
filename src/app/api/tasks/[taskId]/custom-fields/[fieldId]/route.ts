@@ -45,29 +45,10 @@ export async function PATCH(
 
     await verifyTaskAccess(userId, taskId);
 
-    // Confirm the field is linked to this task's project — we can't
-    // let a user write values for arbitrary fields they don't own.
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       select: { projectId: true },
     });
-    if (!task?.projectId) {
-      return NextResponse.json(
-        { error: "Task has no project, can't have custom fields" },
-        { status: 400 }
-      );
-    }
-    const link = await prisma.projectCustomField.findUnique({
-      where: {
-        projectId_fieldId: { projectId: task.projectId, fieldId },
-      },
-    });
-    if (!link) {
-      return NextResponse.json(
-        { error: "Field is not on this task's project" },
-        { status: 404 }
-      );
-    }
 
     const field = await prisma.customFieldDefinition.findUnique({
       where: { id: fieldId },
@@ -75,6 +56,37 @@ export async function PATCH(
     });
     if (!field) {
       return NextResponse.json({ error: "Field not found" }, { status: 404 });
+    }
+
+    // A PERSONAL field has ZERO ProjectCustomField links. Such fields hold
+    // private per-task values and work even on projectless tasks — the
+    // verifyTaskAccess check above is sufficient authorization. PROJECT
+    // fields (>=1 link) keep the original security rule below.
+    const linkCount = await prisma.projectCustomField.count({
+      where: { fieldId },
+    });
+    const isPersonal = linkCount === 0;
+
+    if (!isPersonal) {
+      // Project field: it must be linked to THIS task's project — we can't
+      // let a user write values for arbitrary shared fields they don't own.
+      if (!task?.projectId) {
+        return NextResponse.json(
+          { error: "Task has no project, can't have custom fields" },
+          { status: 400 }
+        );
+      }
+      const link = await prisma.projectCustomField.findUnique({
+        where: {
+          projectId_fieldId: { projectId: task.projectId, fieldId },
+        },
+      });
+      if (!link) {
+        return NextResponse.json(
+          { error: "Field is not on this task's project" },
+          { status: 404 }
+        );
+      }
     }
 
     const body = await req.json();
@@ -257,7 +269,7 @@ export async function PATCH(
     // Doble esfuerzo update" behavior. Skip when the edited field
     // itself is a formula (its result is what we just wrote).
     if (
-      task.projectId &&
+      task?.projectId &&
       field.type !== "FORMULA" &&
       field.type !== "ROLLUP"
     ) {

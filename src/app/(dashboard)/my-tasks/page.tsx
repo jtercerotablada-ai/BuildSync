@@ -147,6 +147,24 @@ import { toast } from "sonner";
  *  Completion date, Last modified, Creation date, Created by). When
  *  `builtin` is set the cell renders from Task fields; otherwise from
  *  CustomFieldValue. */
+// The Prisma CustomFieldType enum values the editable custom-field cell
+// accepts. Kept in sync with EditableCustomFieldCell's `type` prop.
+type CustomFieldType =
+  | "TEXT"
+  | "NUMBER"
+  | "DATE"
+  | "DROPDOWN"
+  | "MULTI_SELECT"
+  | "PEOPLE"
+  | "CHECKBOX"
+  | "CURRENCY"
+  | "PERCENTAGE"
+  | "REFERENCE"
+  | "FORMULA"
+  | "TIMER"
+  | "TIME_TRACKING"
+  | "ROLLUP";
+
 export interface ListColumn {
   id: string;
   name: string;
@@ -154,6 +172,10 @@ export interface ListColumn {
   color: string;
   builtin?: string;
   width?: number;
+  // For personal custom-field columns created from the My Tasks
+  // toolbar: the seeded options (DROPDOWN / MULTI_SELECT) so the
+  // editable cell can render its picker without an extra fetch.
+  options?: { id: string; label: string; color?: string }[] | null;
 }
 
 interface Task {
@@ -244,6 +266,9 @@ export default function MyTasksPage() {
   const [view, setView] = useState<ViewType>("list");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  // Non-null when the last task fetch failed — surfaces a compact
+  // error + retry block instead of silently showing an empty list.
+  const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   // Bumped whenever an attachment is uploaded or removed inside the
@@ -253,6 +278,9 @@ export default function MyTasksPage() {
   const [sections, setSections] = useState<SmartSection[]>([]);
   const [quickFilters, setQuickFilters] = useState<QuickFilterKey[]>([]);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  // Assignee-name filters from the Advanced Search modal (free-text
+  // names, matched case-insensitively against task.assignee.name).
+  const [assigneeNameFilters, setAssigneeNameFilters] = useState<string[]>([]);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const [sortState, setSortState] = useState<SortState>({ field: "none", direction: "asc" });
@@ -303,6 +331,14 @@ export default function MyTasksPage() {
     viewIcon: string;
     viewName: string;
     customColumns?: ListColumn[];
+    // Persisted view controls (Fase — survive reload + follow device).
+    quickFilters?: QuickFilterKey[];
+    activeFilters?: ActiveFilter[];
+    assigneeNameFilters?: string[];
+    sortState?: SortState;
+    groupType?: string;
+    groupConfigs?: GroupConfig[];
+    collapsedSectionIds?: string[];
   }
   const DEFAULT_MY_TASKS_UI: MyTasksUiState = {
     columnWidths: {
@@ -404,6 +440,75 @@ export default function MyTasksPage() {
     (next: string) => setMyTasksUi((prev) => ({ ...prev, viewName: next })),
     [setMyTasksUi]
   );
+
+  // ─── Persisted view controls (filter / sort / group / collapse) ──
+  // These stay as plain useState for in-session behavior, but hydrate
+  // from useUiState once and write back on change so they survive
+  // reload and follow the user across devices — mirroring how
+  // columnWidths / customColumns already persist.
+  //
+  // Section-collapse lives here too: a persisted list of section ids
+  // the user has collapsed. organizeTasks always emits collapsed:false;
+  // getFilteredSections overlays this set so the collapse survives
+  // re-derivation and reload.
+  const [collapsedSectionIds, setCollapsedSectionIds] = useState<string[]>([]);
+
+  // One-time hydration: when useUiState finishes loading, seed the
+  // local view-control state from the persisted payload. Guarded so a
+  // later server sync doesn't clobber in-flight local edits.
+  const viewControlsHydratedRef = useRef(false);
+  useEffect(() => {
+    if (!myTasksUiHydrated || viewControlsHydratedRef.current) return;
+    viewControlsHydratedRef.current = true;
+    if (myTasksUi.quickFilters) setQuickFilters(myTasksUi.quickFilters);
+    if (myTasksUi.activeFilters) setActiveFilters(myTasksUi.activeFilters);
+    if (myTasksUi.assigneeNameFilters)
+      setAssigneeNameFilters(myTasksUi.assigneeNameFilters);
+    if (myTasksUi.sortState) setSortState(myTasksUi.sortState);
+    if (myTasksUi.groupConfigs) setGroupConfigs(myTasksUi.groupConfigs);
+    if (myTasksUi.groupType) setGroupType(myTasksUi.groupType);
+    if (myTasksUi.collapsedSectionIds)
+      setCollapsedSectionIds(myTasksUi.collapsedSectionIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTasksUiHydrated]);
+
+  // Persist view-control changes back to the store. Gated on hydration
+  // so we don't write the defaults over the freshly-loaded values
+  // before hydration has run.
+  useEffect(() => {
+    if (!viewControlsHydratedRef.current) return;
+    setMyTasksUi((prev) => ({
+      ...prev,
+      quickFilters,
+      activeFilters,
+      assigneeNameFilters,
+      sortState,
+      groupType,
+      groupConfigs,
+      collapsedSectionIds,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    quickFilters,
+    activeFilters,
+    assigneeNameFilters,
+    sortState,
+    groupType,
+    groupConfigs,
+    collapsedSectionIds,
+  ]);
+
+  // Re-derive sections whenever the active grouping changes (e.g. after
+  // hydration restores a persisted groupType different from the default,
+  // or the user re-groups). organizeTasks reads groupType via closure,
+  // so an explicit re-run keeps sections in sync with the grouping.
+  useEffect(() => {
+    if (!viewControlsHydratedRef.current) return;
+    if (tasks.length === 0) return;
+    organizeTasks(tasks, groupType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupType]);
+
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
 
@@ -664,6 +769,7 @@ export default function MyTasksPage() {
     if (!silent && !initialLoadDoneRef.current) {
       setLoading(true);
     }
+    setError(null);
     try {
       const res = await fetch("/api/tasks?myTasks=true");
       if (res.ok) {
@@ -671,9 +777,12 @@ export default function MyTasksPage() {
         setTasks(data);
         organizeTasks(data);
         initialLoadDoneRef.current = true;
+      } else {
+        setError(`Couldn't load your tasks (HTTP ${res.status})`);
       }
     } catch (error) {
       console.error("Error fetching tasks:", error);
+      setError("Couldn't load your tasks — check your connection");
     } finally {
       setLoading(false);
     }
@@ -867,6 +976,9 @@ export default function MyTasksPage() {
     lastWeekEnd.setHours(23, 59, 59, 999);
 
     switch (range) {
+      // Overdue = strictly before the start of today. Completion is
+      // handled by the caller (a completed task isn't "overdue").
+      case "overdue": return date < today;
       case "today": return date >= today && date < tomorrow;
       case "yesterday": return date >= yesterday && date < today;
       case "tomorrow": return date >= tomorrow && date < new Date(tomorrow.getTime() + 86400000);
@@ -886,10 +998,24 @@ export default function MyTasksPage() {
 
     return sections.map((section) => ({
       ...section,
+      // Overlay the persisted collapse state so a collapsed section
+      // stays collapsed across re-derivation (organizeTasks) + reload.
+      collapsed: collapsedSectionIds.includes(section.id),
       tasks: section.tasks.filter((task) => {
         // Search filter
         if (searchQuery && !task.name.toLowerCase().includes(searchQuery.toLowerCase())) {
           return false;
+        }
+
+        // Assignee-name filter (from Advanced Search). OR logic across
+        // the entered names; a task passes if its assignee name matches
+        // any of them (case-insensitive substring).
+        if (assigneeNameFilters.length > 0) {
+          const assigneeName = (task.assignee?.name || "").toLowerCase();
+          const matches = assigneeNameFilters.some((n) =>
+            assigneeName.includes(n.toLowerCase())
+          );
+          if (!matches) return false;
         }
 
         // Quick filters (OR logic between quick filters)
@@ -920,7 +1046,11 @@ export default function MyTasksPage() {
             case "due_date":
               if (f.operator === "is_set" && !task.dueDate) return false;
               if (f.operator === "is_not_set" && task.dueDate) return false;
-              if (f.operator === "is_within" && !isDateInRange(task.dueDate, f.value)) return false;
+              if (f.operator === "is_within") {
+                if (!isDateInRange(task.dueDate, f.value)) return false;
+                // A completed task is never "overdue".
+                if (f.value === "overdue" && task.completed) return false;
+              }
               if (f.operator === "is_before" && task.dueDate) {
                 // "is before today" etc — simplified
                 if (!isDateInRange(task.dueDate, f.value)) {
@@ -991,24 +1121,182 @@ export default function MyTasksPage() {
   const filteredSections = getFilteredSections();
 
   function toggleSection(sectionId: string) {
-    setSections((prev) =>
-      prev.map((s) => (s.id === sectionId ? { ...s, collapsed: !s.collapsed } : s))
+    // Toggle in the persisted collapsed-id set (drives the `collapsed`
+    // overlay in getFilteredSections + survives reload).
+    setCollapsedSectionIds((prev) =>
+      prev.includes(sectionId)
+        ? prev.filter((id) => id !== sectionId)
+        : [...prev, sectionId]
     );
   }
 
-  function handleFieldCreated(field: CreatedFieldInfo) {
-    // When the modal persisted the field (projectId was provided) we
-    // get back the real CustomFieldDefinition id — use it so the
-    // value lookup in TaskRow (`task.customFieldValues.find(v =>
-    // v.fieldId === col.id)`) matches and the cells render real
-    // values. For cosmetic-only fields (no projectId on the modal)
-    // we fall back to a synthetic id; cells stay empty until the
-    // user wires the field to a project.
-    const columnId = field.id ? field.id : `cf-${Date.now()}`;
-    setCustomColumns((prev) => [
-      ...prev,
-      { id: columnId, name: field.name, type: field.type, color: field.color },
-    ]);
+  // Map the UI's field-type ids to the Prisma CustomFieldType enum the
+  // personal custom-field endpoint expects. Mirrors the same map in
+  // CustomFieldModal so a field created from the My Tasks toolbar
+  // persists with the correct type and its cells render/edit properly.
+  const UI_TO_PRISMA_FIELD_TYPE: Record<string, string> = {
+    text: "TEXT",
+    number: "NUMBER",
+    date: "DATE",
+    single_select: "DROPDOWN",
+    multi_select: "MULTI_SELECT",
+    checkbox: "CHECKBOX",
+    people: "PEOPLE",
+    currency: "CURRENCY",
+    percentage: "PERCENTAGE",
+    reference: "REFERENCE",
+    formula: "FORMULA",
+    timer: "TIMER",
+    time_tracking: "TIME_TRACKING",
+    rollup: "ROLLUP",
+  };
+
+  async function handleFieldCreated(field: CreatedFieldInfo) {
+    // Project-scoped path: the modal already persisted the field and
+    // handed back the real CustomFieldDefinition id + the Prisma type.
+    // Use them directly so the value lookup in TaskRow matches.
+    if (field.id) {
+      const columnId = field.id;
+      setCustomColumns((prev) => {
+        if (prev.some((c) => c.id === columnId)) return prev; // idempotent
+        return [
+          ...prev,
+          { id: columnId, name: field.name, type: field.type, color: field.color },
+        ];
+      });
+      return;
+    }
+
+    // Personal ("My Tasks") path: the modal only fired a cosmetic
+    // callback. Persist a REAL personal CustomFieldDefinition (no
+    // ProjectCustomField link) so per-task values can actually save.
+    // `field.type` here is a UI type id (e.g. "text") — map it to the
+    // Prisma enum the endpoint expects.
+    const prismaType = UI_TO_PRISMA_FIELD_TYPE[field.type];
+    if (!prismaType) {
+      toast.error("This field type isn't supported yet");
+      return;
+    }
+    try {
+      const res = await fetch("/api/my-tasks/custom-fields", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: field.name, type: prismaType }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const created = await res.json();
+      const columnId: string = created.id;
+      // Carry the Prisma type + any seeded options on the column so
+      // EditableCustomFieldCell renders/edits with the right editor.
+      const options = created.options ?? null;
+      setCustomColumns((prev) => {
+        if (prev.some((c) => c.id === columnId)) return prev; // idempotent
+        return [
+          ...prev,
+          {
+            id: columnId,
+            name: created.name ?? field.name,
+            type: created.type ?? prismaType,
+            color: field.color,
+            options,
+          },
+        ];
+      });
+    } catch (err) {
+      console.error("Create personal custom field error:", err);
+      toast.error("Couldn't create the field");
+    }
+  }
+
+  // Shared cross-grouping move handler for the List + Board drag-drop.
+  // The destination section id means different things depending on the
+  // active grouping, so we translate it into the correct PATCH before
+  // touching the DB. Getting this wrong (the old code always wrote
+  // myTaskSection) corrupted state under Project/Priority/Assignee
+  // groupings — it failed to move AND wiped any prior myTaskSection.
+  async function handleMoveTaskToSection(
+    taskId: string,
+    destSectionId: string
+  ) {
+    // Build the PATCH body for the active grouping. `null` body means
+    // "don't issue a corrupting PATCH" (e.g. group=none / unknown).
+    let patch: Record<string, unknown> | null = null;
+    // Optimistic mutation applied to the in-memory task.
+    let applyOptimistic: (t: Task) => Task = (t) => t;
+
+    if (groupType === "project") {
+      const projectId = destSectionId === "no-project" ? null : destSectionId;
+      patch = { projectId };
+      applyOptimistic = (t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              // Optimistically clear the project relation when moving to
+              // "No project"; otherwise leave the id and let the silent
+              // refetch fill in the project name.
+              project: projectId ? t.project : null,
+            }
+          : t;
+    } else if (groupType === "priority") {
+      // Priority buckets are keyed by the enum value itself (see
+      // organizeTasks: ids are "HIGH" | "MEDIUM" | "LOW" | "NONE").
+      const priority = destSectionId as Task["priority"];
+      patch = { priority };
+      applyOptimistic = (t) =>
+        t.id === taskId ? { ...t, priority } : t;
+    } else if (groupType === "assignee") {
+      const assigneeId =
+        destSectionId === "unassigned" ? null : destSectionId;
+      patch = { assigneeId };
+      applyOptimistic = (t) =>
+        t.id === taskId
+          ? { ...t, assignee: assigneeId ? t.assignee : null }
+          : t;
+    } else if (groupType === "due_date") {
+      // Default My-tasks grouping: map the 4 due-date section ids to
+      // the myTaskSection enum.
+      const sectionMap: Record<string, string> = {
+        "recently-assigned": "RECENTLY_ASSIGNED",
+        "do-today": "DO_TODAY",
+        "do-next-week": "DO_NEXT_WEEK",
+        "do-later": "DO_LATER",
+      };
+      if (!(destSectionId in sectionMap)) {
+        toast.info("Can't drop here in this grouping");
+        return;
+      }
+      const myTaskSection = sectionMap[destSectionId];
+      patch = { myTaskSection };
+      applyOptimistic = (t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              myTaskSection: myTaskSection as Task["myTaskSection"],
+            }
+          : t;
+    }
+
+    // group=none / unknown → no meaningful destination; bail without a
+    // corrupting write. Nothing moved optimistically, so no revert.
+    if (!patch) return;
+
+    const updatedTasks = tasks.map(applyOptimistic);
+    setTasks(updatedTasks);
+    organizeTasks(updatedTasks);
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      fetchTasks(true);
+    } catch (err) {
+      console.error("Move task error:", err);
+      toast.error("Couldn't move task — reverting");
+      fetchTasks(true);
+    }
   }
 
   async function handleToggleComplete(task: Task) {
@@ -1945,6 +2233,17 @@ export default function MyTasksPage() {
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-black" />
             </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center px-6">
+              <p className="text-sm text-gray-700">{error}</p>
+              <button
+                type="button"
+                onClick={() => fetchTasks()}
+                className="mt-3 inline-flex items-center h-8 px-3 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md"
+              >
+                Retry
+              </button>
+            </div>
           ) : view === "list" ? (
             <>
             <ListDndProvider
@@ -1995,59 +2294,7 @@ export default function MyTasksPage() {
                 }
                 void sectionId;
               }}
-              onMoveTask={async (taskId: string, destSectionId: string) => {
-                const sectionMap: Record<string, string> = {
-                  "recently-assigned": "RECENTLY_ASSIGNED",
-                  "do-today": "DO_TODAY",
-                  "do-next-week": "DO_NEXT_WEEK",
-                  "do-later": "DO_LATER",
-                };
-                // Drops on any other section id (e.g. user-created
-                // sections under "group by project") aren't supported
-                // yet — bail without optimistic updates so the row
-                // visibly snaps back.
-                if (!(destSectionId in sectionMap)) {
-                  toast.info(
-                    "Drag-drop only supported in the default 'My tasks' grouping"
-                  );
-                  return;
-                }
-                const myTaskSection = sectionMap[destSectionId] ?? null;
-
-                // Optimistic update: update tasks AND re-derive
-                // sections so the row visually lands in the new
-                // section immediately — otherwise the UI keeps
-                // reading from the stale sections state and the row
-                // "bounces back" until the server responds.
-                const updatedTasks = tasks.map((t) =>
-                  t.id === taskId
-                    ? {
-                        ...t,
-                        myTaskSection:
-                          myTaskSection as Task["myTaskSection"],
-                      }
-                    : t
-                );
-                setTasks(updatedTasks);
-                organizeTasks(updatedTasks);
-
-                try {
-                  const res = await fetch(`/api/tasks/${taskId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ myTaskSection }),
-                  });
-                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                  // Silent refresh to reconcile with server state
-                  // (in case anything raced).
-                  fetchTasks(true);
-                } catch (err) {
-                  console.error("Move task error:", err);
-                  toast.error("Couldn't move task — reverting");
-                  // Roll back optimistic update
-                  fetchTasks(true);
-                }
-              }}
+              onMoveTask={handleMoveTaskToSection}
             />
             <div>
               {/* Add section button — naturally clean (no per-cell
@@ -2084,48 +2331,7 @@ export default function MyTasksPage() {
               onToggleComplete={handleToggleComplete}
               onTaskClick={openTaskDetail}
               onAddTask={handleAddTask}
-              onMoveTask={async (taskId: string, destSectionId: string) => {
-                // Map virtual section ID to myTaskSection enum value
-                const sectionMap: Record<string, string> = {
-                  "recently-assigned": "RECENTLY_ASSIGNED",
-                  "do-today": "DO_TODAY",
-                  "do-next-week": "DO_NEXT_WEEK",
-                  "do-later": "DO_LATER",
-                };
-                const myTaskSection = sectionMap[destSectionId] ?? null;
-
-                // 1. Optimistic update — update tasks + re-derive sections for ALL views
-                const updatedTasks = tasks.map(t =>
-                  t.id === taskId ? { ...t, myTaskSection: myTaskSection as Task["myTaskSection"] } : t
-                );
-                setTasks(updatedTasks);
-                organizeTasks(updatedTasks);
-
-                // 2. Persist to database
-                try {
-                  const res = await fetch(`/api/tasks/${taskId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ myTaskSection }),
-                  });
-                  if (!res.ok) {
-                    const errorBody = await res.text().catch(() => "Unknown error");
-                    console.error("[MoveTask] API error:", res.status, errorBody);
-                    toast.error("Error saving task move");
-                    // Revert by re-fetching from server
-                    await fetchTasks(true);
-                    return;
-                  }
-                } catch (err) {
-                  console.error("[MoveTask] Network error:", err);
-                  toast.error("Network error — task move not saved");
-                  await fetchTasks(true);
-                  return;
-                }
-
-                // 3. Silent re-sync from server to ensure consistency
-                await fetchTasks(true);
-              }}
+              onMoveTask={handleMoveTaskToSection}
               onAddSection={() => {
                 const name = prompt('Section name:', 'New section');
                 if (!name?.trim()) return;
@@ -2171,7 +2377,7 @@ export default function MyTasksPage() {
             />
           ) : view === "calendar" ? (
             <CalendarView
-              tasks={tasks}
+              tasks={filteredSections.flatMap((s) => s.tasks)}
               onTaskCreated={() => fetchTasks(true)}
               onTaskClick={openTaskDetail}
             />
@@ -2307,6 +2513,9 @@ export default function MyTasksPage() {
             setSearchQuery(criteria.words);
             setShowToolbarSearch(true);
           }
+          // Assignees: apply the entered names as an assignee-name
+          // filter (empty array clears it).
+          setAssigneeNameFilters(criteria.assignees ?? []);
           if (criteria.status === "incomplete") {
             setActiveFilters((prev) => [
               ...prev.filter((f) => f.field !== "completion"),
@@ -2323,7 +2532,7 @@ export default function MyTasksPage() {
               today: "today",
               this_week: "this_week",
               next_week: "next_week",
-              overdue: "today",
+              overdue: "overdue",
               no_date: "",
             };
             if (criteria.dueDate === "no_date") {
@@ -3483,6 +3692,22 @@ function TaskRow({
         const cfv = !col.builtin
           ? task.customFieldValues?.find((v) => v.fieldId === col.id)
           : undefined;
+        // Legacy `cf-`-prefixed columns came from earlier cosmetic
+        // testing and have no real CustomFieldDefinition behind them,
+        // so their values can never persist — render an empty cell.
+        const isLegacyCosmetic = !col.builtin && col.id.startsWith("cf-");
+        // Field type + options: prefer the value's embedded definition
+        // (present once a value exists), else fall back to what the
+        // column itself carries (personal fields created this session).
+        const fieldType = (cfv?.field.type ??
+          col.type) as CustomFieldType;
+        const fieldOptions =
+          (cfv?.field.options as
+            | { id: string; label: string; color?: string }[]
+            | null
+            | undefined) ??
+          col.options ??
+          null;
         return (
           <div
             key={col.id}
@@ -3490,15 +3715,19 @@ function TaskRow({
           >
             {col.builtin ? (
               <BuiltinFieldCell builtinId={col.builtin} task={task} />
-            ) : cfv ? (
+            ) : isLegacyCosmetic ? null : (
+              // Always render the editable cell for real personal /
+              // project custom fields — even with no value yet — so the
+              // user can fill an empty cell. It PATCHes the value route
+              // and does its own optimistic update.
               <EditableCustomFieldCell
                 taskId={task.id}
-                fieldId={cfv.field.id}
-                type={cfv.field.type}
-                options={(cfv.field.options as { id: string; label: string; color?: string }[] | null) || null}
-                value={cfv.value}
+                fieldId={col.id}
+                type={fieldType}
+                options={fieldOptions}
+                value={cfv?.value ?? null}
               />
-            ) : null}
+            )}
           </div>
         );
       })}
