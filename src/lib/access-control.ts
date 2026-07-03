@@ -80,8 +80,7 @@ export type AppSection =
   | "templates"         // Everyone use; create L4+
   | "knowledge"         // Engineering knowledge base — everyone
   | "workflow"          // Per-project; visible L3+, edit L4+
-  | "portal-admin"      // Client portal admin — L4+
-  | "timesheets";       // Personal time tracking — everyone
+  | "portal-admin";     // Client portal admin — L4+
 
 export function canAccessSection(
   access: EffectiveAccess,
@@ -104,7 +103,6 @@ export function canAccessSection(
     case "teams":
     case "templates":
     case "knowledge":
-    case "timesheets":
       return true;
 
     case "goals":

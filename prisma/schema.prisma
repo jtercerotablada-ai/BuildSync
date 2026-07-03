@@ -1666,11 +1666,6 @@ model ContactSubmission {
   @@index([createdAt])
 }
 
-// NOTE: Timesheets MVP currently uses localStorage on the client
-// (see /timesheets page). When the DB-backed version ships, add the
-// TimeEntry model + TimeEntryStatus enum here and the matching
-// relations in User/Project/Task.
-
 // ============ TAGS (ETIQUETAS) ============
 //
 // Workspace-scoped labels that any task in the workspace can wear.

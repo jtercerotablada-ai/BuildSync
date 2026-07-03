@@ -22,7 +22,6 @@ import {
   Users,
   Folder,
   FolderOpen,
-  Clock,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
@@ -63,12 +62,6 @@ function getMainNavItems(basePath: string): NavItemDef[] {
       label: "Inbox",
       icon: Inbox,
       section: "inbox",
-    },
-    {
-      href: `${basePath}/timesheets`,
-      label: "Timesheets",
-      icon: Clock,
-      section: "timesheets",
     },
   ];
 }
