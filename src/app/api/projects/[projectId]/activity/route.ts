@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 // GET /api/projects/:projectId/activity
 //
@@ -35,6 +36,10 @@ interface ActivityEvent {
   } | null;
 }
 
+// Canonical read access (matches the project page): owner, member, PUBLIC,
+// or workspace OWNER/ADMIN / Position L4+. The old inline check leaked
+// WORKSPACE-visibility projects to any member and 403'd workspace admins on
+// PRIVATE ones.
 async function assertProjectAccess(projectId: string, userId: string) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -43,28 +48,15 @@ async function assertProjectAccess(projectId: string, userId: string) {
       ownerId: true,
       visibility: true,
       workspaceId: true,
-      members: { select: { userId: true } },
+      members: { select: { userId: true, role: true } },
     },
   });
 
   if (!project) return { ok: false as const, status: 404 };
 
-  const isOwner = project.ownerId === userId;
-  const isMember = project.members.some((m) => m.userId === userId);
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project };
-  }
-
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project };
-  }
-
-  return { ok: false as const, status: 403 };
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) return { ok: false as const, status: 403 };
+  return { ok: true as const, project };
 }
 
 export async function GET(

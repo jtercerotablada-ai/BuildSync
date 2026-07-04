@@ -69,7 +69,7 @@ type ProjectStatus =
   | "AT_RISK"
   | "OFF_TRACK"
   | "ON_HOLD"
-  | "COMPLETED";
+  | "COMPLETE";
 
 interface Project {
   id: string;
@@ -117,7 +117,7 @@ const STATUS_DOT: Record<ProjectStatus, string> = {
   AT_RISK: "#a8893a",
   OFF_TRACK: "#0a0a0a",
   ON_HOLD: "#666666",
-  COMPLETED: "#c9a84c",
+  COMPLETE: "#c9a84c",
 };
 
 type View = "grid" | "list" | "gantt";
@@ -491,7 +491,11 @@ function ProjectsListView({
       {/* Rows */}
       {projects.map((p) => {
         const taskList = p.tasks || [];
-        const totalTasks = p._count.tasks ?? taskList.length;
+        // Use the root-task array length as the denominator: the API's
+        // `tasks` is filtered to root tasks (parentTaskId: null) but
+        // _count.tasks counts subtasks too, so mixing them made "% Comp"
+        // read e.g. 5/30 instead of 5/10.
+        const totalTasks = taskList.length;
         const completedTasks = taskList.filter((t) => t.completed).length;
         const pmi = computePmiSnapshot({
           startDate: p.startDate,
@@ -505,7 +509,7 @@ function ProjectsListView({
         const isOverdue =
           p.endDate !== null &&
           new Date(p.endDate) < new Date() &&
-          p.status !== "COMPLETED";
+          p.status !== "COMPLETE";
 
         return (
           <div
@@ -604,7 +608,9 @@ function ProjectsListView({
       <div className="md:hidden divide-y">
         {projects.map((p) => {
           const taskList = p.tasks || [];
-          const totalTasks = p._count.tasks ?? taskList.length;
+          // Root-task count (see desktop rows above) — _count.tasks includes
+          // subtasks and would deflate the completion %.
+          const totalTasks = taskList.length;
           const completedTasks = taskList.filter((t) => t.completed).length;
           const pmi = computePmiSnapshot({
             startDate: p.startDate,

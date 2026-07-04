@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getProjectAccess } from "@/lib/project-access";
 
 // GET /api/projects/:projectId/dependencies
 //
@@ -11,38 +12,6 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 // The shape is intentionally narrow — front-end only needs the two
 // task ids, the dependency type, and the row id (to enable future
 // delete / patch flows).
-
-async function assertProjectAccess(projectId: string, userId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      ownerId: true,
-      visibility: true,
-      workspaceId: true,
-      members: { select: { userId: true } },
-    },
-  });
-
-  if (!project) return { ok: false as const, status: 404 };
-
-  const isOwner = project.ownerId === userId;
-  const isMember = project.members.some((m) => m.userId === userId);
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project };
-  }
-
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project };
-  }
-
-  return { ok: false as const, status: 403 };
-}
 
 export async function GET(
   _req: Request,
@@ -55,7 +24,10 @@ export async function GET(
     }
 
     const { projectId } = await params;
-    const access = await assertProjectAccess(projectId, userId);
+    // Use the canonical project-access rule (same as the page): the old
+    // inline check granted read to ANY workspace member on WORKSPACE
+    // visibility (a leak) yet 403'd workspace admins on PRIVATE projects.
+    const access = await getProjectAccess(projectId, userId);
     if (!access.ok) {
       return NextResponse.json(
         { error: access.status === 404 ? "Not found" : "Forbidden" },

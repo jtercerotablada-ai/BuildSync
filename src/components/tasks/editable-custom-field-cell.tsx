@@ -72,6 +72,7 @@ export function EditableCustomFieldCell({
   options,
   value,
   onChange,
+  onCommitted,
 }: {
   taskId: string;
   fieldId: string;
@@ -79,6 +80,10 @@ export function EditableCustomFieldCell({
   options: FieldOption[] | null;
   value: unknown;
   onChange?: (next: unknown) => void;
+  /** Fires AFTER a successful save so the parent can refetch values that
+   *  the server may have recomputed (e.g. FORMULA / ROLLUP columns and the
+   *  per-column SUMA footer). */
+  onCommitted?: () => void;
 }) {
   const [optimistic, setOptimistic] = useState<unknown>(value);
   const [open, setOpen] = useState(false);
@@ -106,6 +111,7 @@ export function EditableCustomFieldCell({
         }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onCommitted?.();
     } catch {
       setOptimistic(value); // roll back
       onChange?.(value);

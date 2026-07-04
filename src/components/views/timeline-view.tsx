@@ -34,12 +34,12 @@ import {
   differenceInDays,
   isSameDay,
   startOfDay,
-  parseISO,
   eachDayOfInterval,
   eachWeekOfInterval,
   eachMonthOfInterval,
   isWeekend,
 } from "date-fns";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
 
 // ============================================
 // TYPES
@@ -158,7 +158,11 @@ export function TimelineView({
     return () => {
       canceled = true;
     };
-  }, [projectId]);
+    // Re-fetch when the task set changes too: adding/removing a dependency
+    // from the task panel triggers router.refresh(), which updates `sections`
+    // — keying only on projectId left the arrows/count stale until remount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, sections]);
   const [dragState, setDragState] = useState<{
     taskId: string;
     // "left"/"right" handles resize one edge. "move" drags the whole
@@ -202,7 +206,7 @@ export function TimelineView({
         // window from today. Tasks without a dueDate are kept so
         // the user can still see backlog rows.
         if (lookAheadEnd && task.dueDate) {
-          const due = parseISO(task.dueDate);
+          const due = dueDateToLocalMidnight(task.dueDate);
           if (due > lookAheadEnd) return false;
         }
         // Then the user-selected task filter.
@@ -210,7 +214,7 @@ export function TimelineView({
         if (taskFilter === "completed") return task.completed;
         if (taskFilter === "due_this_week") {
           if (!task.dueDate) return false;
-          const due = parseISO(task.dueDate);
+          const due = dueDateToLocalMidnight(task.dueDate);
           return due >= weekStart && due <= weekEnd;
         }
         return true;
@@ -343,14 +347,24 @@ export function TimelineView({
         : startOfMonth(currentDate);
 
       const timelineStart = columns[0]?.date || startDate;
-      const timelineEnd = addDays(
-        columns[columns.length - 1]?.date || startDate,
-        zoomLevel === "day" ? 1 : zoomLevel === "week" ? 7 : 30
-      );
+      const lastColumn = columns[columns.length - 1]?.date || startDate;
+      // The last column's true span must match its header, or bars drift
+      // badly at month/quarter zoom (a quarter column spans ~91 days, not
+      // 30). Extend by the real unit so totalDays reflects the drawn range.
+      const timelineEnd =
+        zoomLevel === "day"
+          ? addDays(lastColumn, 1)
+          : zoomLevel === "week"
+            ? addDays(lastColumn, 7)
+            : zoomLevel === "month"
+              ? addMonths(lastColumn, 1)
+              : addMonths(lastColumn, 3);
 
-      const taskEnd = parseISO(task.dueDate);
+      // dueDate/startDate are UTC-midnight instants; read them by their UTC
+      // calendar day so bars don't render a day early for US-timezone users.
+      const taskEnd = dueDateToLocalMidnight(task.dueDate);
       const taskStart = task.startDate
-        ? parseISO(task.startDate)
+        ? dueDateToLocalMidnight(task.startDate)
         : new Date(taskEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
 
       if (taskEnd < timelineStart || taskStart > timelineEnd) {
@@ -509,24 +523,32 @@ export function TimelineView({
         return;
       }
 
+      // Read the originals by their UTC calendar day (they're UTC-midnight
+      // instants). Round-tripping through parseISO+local format shifted every
+      // saved date one day earlier for users west of UTC.
+      const origDue = dueDateToLocalMidnight(dragState.originalDue);
+      const impliedStart = dragState.originalStart
+        ? dueDateToLocalMidnight(dragState.originalStart)
+        : addDays(origDue, -7);
+
       const body: Record<string, string | null> = {};
       if (dragState.handle === "left") {
-        const origStart = dragState.originalStart
-          ? parseISO(dragState.originalStart)
-          : addDays(parseISO(dragState.originalDue), -7);
-        const newStart = addDays(origStart, deltaDays);
+        const newStart = addDays(impliedStart, deltaDays);
         body.startDate = format(newStart, "yyyy-MM-dd");
       } else if (dragState.handle === "right") {
-        const newDue = addDays(parseISO(dragState.originalDue), deltaDays);
+        const newDue = addDays(origDue, deltaDays);
         body.dueDate = format(newDue, "yyyy-MM-dd");
+        // Pin the left edge: for a task with no persisted startDate the bar's
+        // implied start (dueDate − 7d) would otherwise recompute from the new
+        // dueDate and the bar would translate right instead of growing.
+        if (!dragState.originalStart) {
+          body.startDate = format(impliedStart, "yyyy-MM-dd");
+        }
       } else {
         // "move" — shift BOTH dates by the same delta so the
         // duration is preserved.
-        const origStart = dragState.originalStart
-          ? parseISO(dragState.originalStart)
-          : addDays(parseISO(dragState.originalDue), -7);
-        const newStart = addDays(origStart, deltaDays);
-        const newDue = addDays(parseISO(dragState.originalDue), deltaDays);
+        const newStart = addDays(impliedStart, deltaDays);
+        const newDue = addDays(origDue, deltaDays);
         body.startDate = format(newStart, "yyyy-MM-dd");
         body.dueDate = format(newDue, "yyyy-MM-dd");
       }
@@ -626,7 +648,7 @@ export function TimelineView({
   const isTaskDueSoon = (task: Task) => {
     if (!task.dueDate) return false;
     if (task.completed) return false;
-    const dueDate = parseISO(task.dueDate);
+    const dueDate = dueDateToLocalMidnight(task.dueDate);
     const today = new Date();
     const daysUntilDue = differenceInDays(dueDate, today);
     return daysUntilDue >= 0 && daysUntilDue <= 7;
@@ -646,9 +668,9 @@ export function TimelineView({
   const isTaskMilestone = (task: Task) => {
     if (task.taskType === "MILESTONE") return true;
     if (!task.dueDate) return false;
-    const taskEnd = parseISO(task.dueDate);
+    const taskEnd = dueDateToLocalMidnight(task.dueDate);
     const taskStart = task.startDate
-      ? parseISO(task.startDate)
+      ? dueDateToLocalMidnight(task.startDate)
       : new Date(taskEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
     return isSameDay(taskStart, taskEnd);
   };
@@ -1195,6 +1217,13 @@ export function TimelineView({
                               : position.width
                           : position?.width;
 
+                        // Milestones/approvals are point-in-time markers on
+                        // their DUE date — i.e. the bar's right edge — not on
+                        // the implied start (dueDate − 7d) that getTaskPosition
+                        // returns as `left`. Center the 24px icon on that point.
+                        const markerLeft =
+                          (renderLeft ?? 0) + (renderWidth ?? 0) - 12;
+
                         return (
                           <div
                             key={task.id}
@@ -1219,7 +1248,7 @@ export function TimelineView({
                                 // List / Board / Calendar convention)
                                 <div
                                   className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
-                                  style={{ left: renderLeft }}
+                                  style={{ left: markerLeft }}
                                   onClick={() => onTaskClick(task.id)}
                                   title={`${task.name} — milestone`}
                                 >
@@ -1233,7 +1262,7 @@ export function TimelineView({
                                 // Approval gate — gold ThumbsUp
                                 <div
                                   className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
-                                  style={{ left: renderLeft }}
+                                  style={{ left: markerLeft }}
                                   onClick={() => onTaskClick(task.id)}
                                   title={`${task.name} — approval gate`}
                                 >
@@ -1353,10 +1382,10 @@ export function TimelineView({
                                 <div className="font-medium">{task.name}</div>
                                 <div className="text-slate-300">
                                   {task.startDate &&
-                                    format(parseISO(task.startDate), "MMM d")}{" "}
+                                    format(dueDateToLocalMidnight(task.startDate), "MMM d")}{" "}
                                   →{" "}
                                   {task.dueDate &&
-                                    format(parseISO(task.dueDate), "MMM d")}
+                                    format(dueDateToLocalMidnight(task.dueDate), "MMM d")}
                                 </div>
                                 {progress > 0 && (
                                   <div className="text-slate-300">

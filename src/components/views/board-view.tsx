@@ -45,7 +45,8 @@ import {
   Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, isToday, isTomorrow, isPast, parseISO } from "date-fns";
+import { format, isToday, isTomorrow, isPast } from "date-fns";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
 import { toast } from "sonner";
 
 // ============================================
@@ -88,6 +89,13 @@ interface BoardViewProps {
   onTaskClick: (taskId: string) => void;
   onAddTask: (sectionId?: string) => void;
   projectId: string;
+  /** True when a toolbar search/filter/sort is active, so the displayed
+   *  cards are a subset. Drag-reorder is disabled in that state to avoid
+   *  persisting a filtered order over the section's real positions. */
+  reorderDisabled?: boolean;
+  /** Unfiltered task count per section id, for the delete-section confirm
+   *  (the displayed `section.tasks` may be filtered and understate it). */
+  rawSectionCounts?: Record<string, number>;
 }
 
 // ============================================
@@ -110,12 +118,16 @@ export function BoardView({
   onTaskClick,
   onAddTask,
   projectId,
+  reorderDisabled = false,
+  rawSectionCounts,
 }: BoardViewProps) {
   const router = useRouter();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [addingTaskInSection, setAddingTaskInSection] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState("");
   const [mobileColumnIndex, setMobileColumnIndex] = useState(0);
+  // Prevents held/double Enter from POSTing the same quick-add task twice.
+  const isAddingTaskRef = useRef(false);
 
   // Optimistic state: local copy of sections for instant UI updates
   const [localSections, setLocalSections] = useState<Section[]>(sections);
@@ -142,6 +154,7 @@ export function BoardView({
   // ---- DRAG START ----
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
+      if (reorderDisabled) return;
       const taskId = event.active.id as string;
       isDraggingRef.current = true;
       for (const section of localSections) {
@@ -153,7 +166,7 @@ export function BoardView({
         }
       }
     },
-    [localSections]
+    [localSections, reorderDisabled]
   );
 
   // Atomic reorder of a section. The endpoint wraps every position
@@ -174,6 +187,7 @@ export function BoardView({
   // ---- DRAG OVER (optimistic cross-column move) ----
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
+      if (reorderDisabled) return;
       const { active, over } = event;
       if (!over) return;
       const activeId = active.id as string;
@@ -209,8 +223,20 @@ export function BoardView({
         });
       });
     },
-    []
+    [reorderDisabled]
   );
+
+  // ---- DRAG CANCEL (Escape) ----
+  // dnd-kit fires onDragCancel (not onDragEnd) on Escape. Without this
+  // handler the cleanup in handleDragEnd never runs: isDraggingRef stays
+  // true (freezing all future prop→local sync), the drag overlay sticks,
+  // and the optimistic cross-column move is left un-rolled-back.
+  const handleDragCancel = useCallback(() => {
+    setActiveTask(null);
+    dragSourceSectionRef.current = null;
+    isDraggingRef.current = false;
+    setLocalSections(sections);
+  }, [sections]);
 
   // ---- DRAG END (persist to backend) ----
   //
@@ -226,9 +252,9 @@ export function BoardView({
   // round-trip, atomic in $transaction.
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
+      if (reorderDisabled) return;
       const { active, over } = event;
       setActiveTask(null);
-      const originalSourceId = dragSourceSectionRef.current;
       dragSourceSectionRef.current = null;
       isDraggingRef.current = false;
 
@@ -253,10 +279,13 @@ export function BoardView({
       }
       if (!destSectionId) return;
 
-      // Same-section path: arrayMove the local copy first so the
-      // optimistic order matches what we're about to persist.
+      // Position the card at the row it was dropped ON, for BOTH same-column
+      // reorders and cross-column moves. handleDragOver already inserted a
+      // cross-column card at its ENTRY index; keying this off the drag's
+      // ORIGINAL section (as before) skipped the correction for cross-column
+      // drops, persisting the card at the wrong index.
       let workingSections = localSections;
-      if (destSectionId === originalSourceId && activeId !== overId) {
+      if (activeId !== overId && overId !== destSectionId) {
         const section = workingSections.find((s) => s.id === destSectionId);
         if (section) {
           const oldIndex = section.tasks.findIndex((t) => t.id === activeId);
@@ -286,7 +315,7 @@ export function BoardView({
         setLocalSections(sections); // rollback to server truth
       }
     },
-    [localSections, sections, router, persistReorder]
+    [localSections, sections, router, persistReorder, reorderDisabled]
   );
 
   // ---- CREATE TASK ----
@@ -299,6 +328,8 @@ export function BoardView({
       setNewTaskName("");
       return;
     }
+    if (isAddingTaskRef.current) return;
+    isAddingTaskRef.current = true;
 
     try {
       const res = await fetch("/api/tasks", {
@@ -308,6 +339,8 @@ export function BoardView({
           name: newTaskName.trim(),
           projectId,
           sectionId,
+          // Leave project tasks unassigned (Asana parity).
+          assigneeId: null,
         }),
       });
       if (!res.ok) throw new Error();
@@ -318,6 +351,8 @@ export function BoardView({
       setNewTaskName("");
     } catch {
       toast.error("Failed to create task");
+    } finally {
+      isAddingTaskRef.current = false;
     }
   };
 
@@ -337,13 +372,14 @@ export function BoardView({
     }
   };
 
-  // Mobile helpers
+  // Mobile helpers — dueDates are UTC-midnight, so read them by UTC
+  // calendar day; local parsing would render/flag them a day early.
   const isMobileOverdue = (dueDate: string) => {
-    const date = parseISO(dueDate);
+    const date = dueDateToLocalMidnight(dueDate);
     return isPast(date) && !isToday(date);
   };
   const formatMobileDate = (dueDate: string) => {
-    const date = parseISO(dueDate);
+    const date = dueDateToLocalMidnight(dueDate);
     if (isToday(date)) return "Today";
     if (isTomorrow(date)) return "Tomorrow";
     return format(date, "MMM d");
@@ -357,6 +393,8 @@ export function BoardView({
       setAddingTaskInSection(null);
       return;
     }
+    if (isAddingTaskRef.current) return;
+    isAddingTaskRef.current = true;
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
@@ -365,6 +403,7 @@ export function BoardView({
           name: newTaskName.trim(),
           projectId,
           sectionId: mobileActiveSection.id,
+          assigneeId: null,
         }),
       });
       if (!res.ok) throw new Error();
@@ -374,6 +413,8 @@ export function BoardView({
       setAddingTaskInSection(null);
     } catch {
       toast.error("Failed to create task");
+    } finally {
+      isAddingTaskRef.current = false;
     }
   };
 
@@ -524,11 +565,16 @@ export function BoardView({
                 if (mobileActiveSection) {
                   setAddingTaskInSection(mobileActiveSection.id);
                   setNewTaskName("");
+                } else {
+                  // No sections yet — create one first (previously this tap
+                  // was a silent no-op on mobile, with no way to add a
+                  // section). After the refresh the user can add tasks.
+                  handleAddSection();
                 }
               }}
               className="w-full py-3 text-sm text-gray-400 text-center"
             >
-              + Add task
+              {mobileActiveSection ? "+ Add task" : "+ Add section"}
             </button>
           )}
         </div>
@@ -541,6 +587,7 @@ export function BoardView({
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       >
         {/* Outer container is responsible for BOTH axes of scroll
@@ -553,6 +600,7 @@ export function BoardView({
             <BoardColumn
               key={section.id}
               section={section}
+              rawTaskCount={rawSectionCounts?.[section.id]}
               onTaskClick={onTaskClick}
               projectId={projectId}
               isAddingTask={addingTaskInSection === section.id}
@@ -597,6 +645,7 @@ export function BoardView({
 
 function BoardColumn({
   section,
+  rawTaskCount,
   onTaskClick,
   projectId,
   isAddingTask,
@@ -607,6 +656,7 @@ function BoardColumn({
   onCancelAddTask,
 }: {
   section: Section;
+  rawTaskCount?: number;
   onTaskClick: (taskId: string) => void;
   projectId: string;
   isAddingTask: boolean;
@@ -647,9 +697,14 @@ function BoardColumn({
   };
 
   const handleDelete = async () => {
+    // Use the UNFILTERED task count when available — section.tasks is the
+    // displayed (possibly filtered/hidden) list, so it can understate how
+    // many tasks the server will permanently delete. Deleting cascades to
+    // all tasks and their subtasks regardless of the current filter.
+    const count = rawTaskCount ?? section.tasks.length;
     const msg =
-      section.tasks.length > 0
-        ? `Delete "${section.name}" and its ${section.tasks.length} task${section.tasks.length > 1 ? "s" : ""}?`
+      count > 0
+        ? `Delete "${section.name}" and all ${count} of its task${count > 1 ? "s" : ""} (including completed and hidden tasks and their sub-tasks)? This cannot be undone.`
         : `Delete "${section.name}"?`;
     if (!confirm(msg)) return;
     try {
@@ -1036,7 +1091,7 @@ function DueDateBadge({
   dueDate: string;
   completed: boolean;
 }) {
-  const date = parseISO(dueDate);
+  const date = dueDateToLocalMidnight(dueDate);
   const overdue = !completed && isPast(date) && !isToday(date);
   const today = isToday(date);
   const tomorrow = isTomorrow(date);

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   Plus,
@@ -258,6 +259,20 @@ export function ProjectOverview({
   onManageMembers,
 }: ProjectOverviewProps) {
   const router = useRouter();
+  const { data: session } = useSession();
+  // Whether the current user may edit the project (description, live status,
+  // status-badge sync). Owner or a project ADMIN/EDITOR — matches the PATCH
+  // gate on /api/projects/[id] and the status-sync gate on status-updates.
+  const canEdit = useMemo(() => {
+    const email = session?.user?.email;
+    if (!email) return false;
+    if (project.owner?.email && project.owner.email === email) return true;
+    return project.members.some(
+      (m) =>
+        m.user.email === email &&
+        (m.role === "ADMIN" || m.role === "EDITOR")
+    );
+  }, [session?.user?.email, project.owner, project.members]);
   const [description, setDescription] = useState(project.description || "");
   const [statusUpdates, setStatusUpdates] = useState<StatusUpdate[]>([]);
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
@@ -303,6 +318,20 @@ export function ProjectOverview({
 
   // History pagination — start collapsed at 3, expand to full on demand.
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  // Per-card expand — independent of pagination, so the structured blocks of
+  // an update are viewable even when there are 3 or fewer updates (the
+  // pagination toggle only appears at >3, previously stranding their content).
+  const [expandedUpdateIds, setExpandedUpdateIds] = useState<Set<string>>(
+    new Set()
+  );
+  const toggleUpdateExpanded = useCallback((id: string) => {
+    setExpandedUpdateIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   // Build a pre-filled "Accomplished" block from the highlights data
   // so the composer feels alive when it opens — the user can edit /
@@ -354,6 +383,9 @@ export function ProjectOverview({
             ? new Date(m.dueDate).toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
+                // dueDate is UTC midnight — format in UTC so the label doesn't
+                // slip to the previous day for US timezones.
+                timeZone: "UTC",
               })
             : "TBD";
           return `→ ${m.name} (due ${due})`;
@@ -664,7 +696,10 @@ export function ProjectOverview({
               label: s.label,
               content: s.content.trim(),
             })),
-            syncProjectStatus: true,
+            // Only editors/owner may drive the live project badge. Non-editors
+            // can still POST the update record; requesting the sync would make
+            // the whole POST 403. (See canEdit above.)
+            syncProjectStatus: canEdit,
           }),
         }
       );
@@ -757,11 +792,20 @@ export function ProjectOverview({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: newStatus }),
         });
-        if (!res.ok) throw new Error("Failed");
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          const msg =
+            (body && typeof body === "object" && "error" in body
+              ? String(body.error)
+              : null) || "Failed to update status";
+          throw new Error(msg);
+        }
         toast.success(`Status set to ${STATUS_VISUAL[newStatus].label}`);
         router.refresh();
-      } catch {
-        toast.error("Failed to update status");
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to update status"
+        );
       }
     },
     [project.id, router]
@@ -853,7 +897,7 @@ export function ProjectOverview({
             <h2 className="text-base font-semibold text-slate-900">
               Project description
             </h2>
-            {description !== seededDescription && (
+            {canEdit && description !== seededDescription && (
               <span className="text-xs text-slate-400 italic">
                 Saves on blur
               </span>
@@ -862,9 +906,17 @@ export function ProjectOverview({
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value.slice(0, 10000))}
-            onBlur={(e) => saveDescription(e.target.value)}
-            placeholder="What is this project about? Capture scope, deliverables, key stakeholders, and constraints."
-            className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none h-28 focus:outline-none focus:ring-2 focus:ring-[#c9a84c] focus:border-transparent bg-white"
+            onBlur={(e) => canEdit && saveDescription(e.target.value)}
+            readOnly={!canEdit}
+            placeholder={
+              canEdit
+                ? "What is this project about? Capture scope, deliverables, key stakeholders, and constraints."
+                : "No description."
+            }
+            className={cn(
+              "w-full p-3 border border-slate-200 rounded-lg text-sm resize-none h-28 focus:outline-none focus:ring-2 focus:ring-[#c9a84c] focus:border-transparent bg-white",
+              !canEdit && "cursor-default bg-slate-50 focus:ring-0"
+            )}
             maxLength={10000}
           />
         </div>
@@ -998,6 +1050,9 @@ export function ProjectOverview({
                   {currentStatus.label}
                 </h3>
               </div>
+              {/* Only editors/owner can change the live status — the API
+                  403s everyone else, so hide the control for read-only users. */}
+              {canEdit && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="h-8 text-xs">
@@ -1024,6 +1079,7 @@ export function ProjectOverview({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
             </div>
 
             {/* Composer */}
@@ -1199,6 +1255,14 @@ export function ProjectOverview({
                 ).map((u) => {
                   const v =
                     STATUS_VISUAL[u.status] || STATUS_VISUAL.ON_TRACK;
+                  const cardExpanded = expandedUpdateIds.has(u.id);
+                  const filledSections =
+                    u.sections?.filter((s) => s.content.trim()) ?? [];
+                  // There's more to show if the update has structured blocks
+                  // beyond a single summary, or a long legacy summary.
+                  const hasMore =
+                    filledSections.length > 1 ||
+                    (filledSections.length === 0 && (u.summary?.length ?? 0) > 140);
                   return (
                     <div
                       key={u.id}
@@ -1230,7 +1294,7 @@ export function ProjectOverview({
                           so the history list reads scannable; the
                           expanded view shows every filled section. */}
                       {u.sections && u.sections.length > 0 ? (
-                        historyExpanded ? (
+                        cardExpanded ? (
                           <div className="space-y-2 mb-2">
                             {u.sections
                               .filter((s) => s.content.trim())
@@ -1268,13 +1332,22 @@ export function ProjectOverview({
                         <p
                           className={cn(
                             "text-sm text-slate-700 mb-2",
-                            historyExpanded
+                            cardExpanded
                               ? "whitespace-pre-wrap"
                               : "line-clamp-3"
                           )}
                         >
                           {u.summary}
                         </p>
+                      )}
+                      {hasMore && (
+                        <button
+                          type="button"
+                          onClick={() => toggleUpdateExpanded(u.id)}
+                          className="text-[11px] text-[#a8893a] hover:text-[#8a7028] font-medium hover:underline mb-2"
+                        >
+                          {cardExpanded ? "Show less" : "Show more"}
+                        </button>
                       )}
                       <div className="flex items-center gap-1.5">
                         <div
@@ -1288,7 +1361,7 @@ export function ProjectOverview({
                         <span className="text-[11px] text-slate-500">
                           {u.author
                             ? u.author.name || u.author.email
-                            : "Deleted user"}
+                            : "Someone"}
                         </span>
                       </div>
                     </div>
@@ -1337,7 +1410,7 @@ export function ProjectOverview({
                         <span className="font-medium">
                           {a.actor
                             ? a.actor.name || a.actor.email || "Someone"
-                            : "Deleted user"}
+                            : "Someone"}
                         </span>{" "}
                         <span className="text-slate-500">{a.title}</span>
                       </p>

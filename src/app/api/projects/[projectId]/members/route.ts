@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
   verifyWorkspaceAccess,
+  verifyProjectAccess,
   AuthorizationError,
   NotFoundError,
   getErrorStatus,
@@ -72,16 +73,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { workspaceId: true },
-    });
-
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
-    }
-
-    await verifyWorkspaceAccess(userId, project.workspaceId);
+    // Read the roster only when the caller can read the PROJECT (matches the
+    // page). Bare workspace membership leaked PRIVATE-project rosters to any
+    // L1–L3 workspace member, including GUEST/CLIENT.
+    await verifyProjectAccess(userId, projectId);
 
     const members = await prisma.projectMember.findMany({
       where: { projectId },

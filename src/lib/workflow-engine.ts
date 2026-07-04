@@ -225,16 +225,28 @@ async function runAction(
       });
       if (!src) return;
 
-      // De-dup: don't re-create if a twin task already exists.
+      // De-dup by name within the target project. The twin MUST be a root
+      // task (parentTaskId: null) or it never appears in the target project —
+      // every list/board/section query filters parentTaskId: null. The old
+      // code used parentTaskId: ctx.taskId as a de-dup marker, which made the
+      // copy a hidden subtask of the source task.
       const existingTwin = await prisma.task.findFirst({
         where: {
           projectId: action.projectId,
           name: src.name,
-          parentTaskId: ctx.taskId,
+          parentTaskId: null,
         },
         select: { id: true },
       });
       if (existingTwin) return;
+
+      // Place it at the end of the target section.
+      const lastInSection = await prisma.task.findFirst({
+        where: { sectionId: target.sections[0].id },
+        orderBy: { position: "desc" },
+        select: { position: true },
+      });
+      const twinPosition = (lastInSection?.position ?? -1) + 1;
 
       await prisma.task.create({
         data: {
@@ -247,7 +259,8 @@ async function runAction(
           projectId: action.projectId,
           sectionId: target.sections[0].id,
           creatorId: ctx.actorUserId,
-          parentTaskId: ctx.taskId,
+          parentTaskId: null,
+          position: twinPosition,
         },
       });
       return;

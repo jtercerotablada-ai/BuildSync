@@ -88,7 +88,16 @@ function getFileType(mimeType: string): FileType {
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType.startsWith("audio/")) return "audio";
   if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("csv")) return "spreadsheet";
-  if (mimeType.includes("pdf") || mimeType.includes("document") || mimeType.includes("text/")) return "document";
+  if (
+    mimeType.includes("pdf") ||
+    mimeType.includes("document") ||
+    mimeType.includes("text/") ||
+    // Legacy Office (msword, ppt) + presentations were mis-bucketed as "other".
+    mimeType.includes("msword") ||
+    mimeType.includes("powerpoint") ||
+    mimeType.includes("presentation")
+  )
+    return "document";
   return "other";
 }
 
@@ -136,23 +145,34 @@ export function FilesView({ sections, projectId }: FilesViewProps) {
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     async function fetchFiles() {
+      setLoading(true);
+      setLoadError(false);
       try {
         const res = await fetch(`/api/projects/${projectId}/attachments`);
-        if (res.ok) {
-          const data = await res.json();
-          setFiles(data);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setFiles(data);
       } catch (error) {
         console.error("Error fetching files:", error);
+        // Distinguish "load failed" from "no files" — otherwise a fetch
+        // failure showed the same empty state that claims the project has
+        // no attachments.
+        if (!cancelled) setLoadError(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     fetchFiles();
-  }, [projectId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, reloadKey]);
 
   const filteredFiles = useMemo(() => {
     return files.filter((file) => {
@@ -164,9 +184,18 @@ export function FilesView({ sections, projectId }: FilesViewProps) {
   }, [files, searchQuery, selectedType]);
 
   const handleDownload = (file: FileAttachment) => {
-    if (file.url) {
-      window.open(file.url, "_blank");
-    }
+    if (!file.url) return;
+    // Force a download instead of opening a preview tab. Vercel Blob serves
+    // browser-renderable types inline, so window.open just previewed them;
+    // `?download=1` (and the download attr) makes it save to disk.
+    const sep = file.url.includes("?") ? "&" : "?";
+    const a = document.createElement("a");
+    a.href = `${file.url}${sep}download=1`;
+    a.download = file.name;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   const handleDelete = async (file: FileAttachment) => {
@@ -192,6 +221,20 @@ export function FilesView({ sections, projectId }: FilesViewProps) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white min-h-[400px]">
         <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center bg-white min-h-[400px] gap-3">
+        <p className="text-sm text-slate-500">Couldn&apos;t load files.</p>
+        <button
+          onClick={() => setReloadKey((k) => k + 1)}
+          className="px-3 py-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -224,8 +267,10 @@ export function FilesView({ sections, projectId }: FilesViewProps) {
               <option value="">All types</option>
               <option value="image">Images</option>
               <option value="video">Videos</option>
+              <option value="audio">Audio</option>
               <option value="document">Documents</option>
               <option value="spreadsheet">Spreadsheets</option>
+              <option value="other">Other</option>
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -348,7 +393,7 @@ function FileCard({ file, onDownload, onDelete }: { file: FileAttachment; onDown
         onClick={() => onDownload(file)}
       >
         {isImage && file.url ? (
-          <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+          <img src={file.url} alt={file.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
         ) : (
           getFileIcon(fileType)
         )}

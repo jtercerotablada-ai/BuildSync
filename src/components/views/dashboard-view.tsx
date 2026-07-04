@@ -5,7 +5,6 @@ import {
   Plus,
   Filter,
   MoreHorizontal,
-  ExternalLink,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -33,7 +32,8 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { parseISO, isPast, isToday } from "date-fns";
+import { isPast, isToday } from "date-fns";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
 
 // ============================================
 // TYPES
@@ -110,7 +110,9 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
     const incomplete = allTasks.filter((t) => !t.completed).length;
     const overdue = allTasks.filter((t) => {
       if (!t.dueDate || t.completed) return false;
-      const dueDate = parseISO(t.dueDate);
+      // dueDate is UTC midnight — compare by UTC calendar day so a task due
+      // today isn't counted overdue for users west of UTC.
+      const dueDate = dueDateToLocalMidnight(t.dueDate);
       return isPast(dueDate) && !isToday(dueDate);
     }).length;
     const total = allTasks.length;
@@ -207,24 +209,21 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
       </div>
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <KPICard
           title="Completed tasks"
           value={kpis.completed}
           icon={<CheckCircle2 className="w-5 h-5 text-black" />}
-          filterCount={1}
         />
         <KPICard
           title="Incomplete tasks"
           value={kpis.incomplete}
           icon={<Clock className="w-5 h-5 text-black" />}
-          filterCount={1}
         />
         <KPICard
           title="Overdue tasks"
           value={kpis.overdue}
           icon={<AlertTriangle className="w-5 h-5 text-black" />}
-          filterCount={1}
           highlight={kpis.overdue > 0 ? "danger" : undefined}
         />
         <KPICard
@@ -235,10 +234,10 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
       </div>
 
       {/* Charts Row 1 */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Bar Chart - Tasks by Section */}
-        <ChartCard title="Incomplete tasks by section" filterCount={2}>
-          {tasksBySection.length > 0 ? (
+        <ChartCard title="Incomplete tasks by section">
+          {tasksBySection.some((s) => s.total > 0) ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart
                 data={tasksBySection}
@@ -281,7 +280,7 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
         </ChartCard>
 
         {/* Donut Chart - Tasks by Status */}
-        <ChartCard title="Tasks by completion status" filterCount={1}>
+        <ChartCard title="Tasks by completion status">
           {tasksByStatus.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
@@ -317,9 +316,9 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
       </div>
 
       {/* Charts Row 2 */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Bar Chart - Tasks by Assignee */}
-        <ChartCard title="Tasks by assignee" filterCount={2}>
+        <ChartCard title="Tasks by assignee">
           {tasksByAssignee.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={200}>
@@ -433,10 +432,9 @@ function KPICard({ title, value, icon, filterCount, highlight }: KPICardProps) {
 interface ChartCardProps {
   title: string;
   children: React.ReactNode;
-  filterCount?: number;
 }
 
-function ChartCard({ title, children, filterCount }: ChartCardProps) {
+function ChartCard({ title, children }: ChartCardProps) {
   return (
     <div className="bg-white rounded-xl border p-4 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-4">
@@ -456,17 +454,6 @@ function ChartCard({ title, children, filterCount }: ChartCardProps) {
       </div>
 
       {children}
-
-      <div className="mt-4 pt-3 border-t flex items-center justify-between">
-        <div className="flex items-center text-xs text-slate-500">
-          <Filter className="w-3 h-3 mr-1" />
-          {filterCount !== undefined ? `${filterCount} filters` : "No filters"}
-        </div>
-        <button className="text-xs text-black hover:text-black flex items-center gap-1">
-          View all
-          <ExternalLink className="w-3 h-3" />
-        </button>
-      </div>
     </div>
   );
 }

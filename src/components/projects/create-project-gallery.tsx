@@ -356,7 +356,7 @@ function ConfirmTemplateDialog({
       // exists, we just couldn't seed its rules.
       if (template.workflowTemplateId) {
         try {
-          await fetch(
+          const wfRes = await fetch(
             `/api/projects/${project.id}/workflow/templates`,
             {
               method: "POST",
@@ -366,6 +366,14 @@ function ConfirmTemplateDialog({
               }),
             }
           );
+          // A non-ok response (400/403/404/500) resolves without throwing, so
+          // check res.ok explicitly — otherwise the user gets an unconditional
+          // success toast even when the rules weren't seeded.
+          if (!wfRes.ok) {
+            toast.warning(
+              "Project created, but couldn't seed workflow rules. You can apply the template manually from the Workflow tab."
+            );
+          }
         } catch {
           toast.warning(
             "Project created, but couldn't seed workflow rules. You can apply the template manually from the Workflow tab."

@@ -233,8 +233,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this task's workspace
-    await verifyTaskAccess(userId, taskId);
+    // Verify user can WRITE this task (project ADMIN/EDITOR, owner, or the
+    // task's own creator/assignee) — not merely share its workspace.
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     const body = await req.json();
     const data = updateTaskSchema.parse(body);
@@ -539,8 +540,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this task's workspace
-    await verifyTaskAccess(userId, taskId);
+    // Verify user can WRITE (delete) this task, not merely share its workspace.
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     await prisma.task.delete({
       where: { id: taskId },

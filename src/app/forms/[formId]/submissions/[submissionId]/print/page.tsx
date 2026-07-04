@@ -68,10 +68,12 @@ export default async function PrintSubmissionPage({ params }: PageProps) {
   });
   if (!form) notFound();
 
-  // Access check — same as /api/forms/:id/submissions
+  // Access check — same as /api/forms/:id/submissions. Submissions carry PII,
+  // so (unlike plain project read) a PUBLIC project does NOT expose them: only
+  // the owner, a project member, or a workspace member may view a submission.
   const member = form.project.members.find((m) => m.userId === user.id);
   const isOwner = form.project.ownerId === user.id;
-  let allowed = isOwner || !!member || form.project.visibility === "PUBLIC";
+  let allowed = isOwner || !!member;
   if (!allowed && form.project.visibility === "WORKSPACE") {
     const wsMember = await prisma.workspaceMember.findUnique({
       where: {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { persistMentionsForNewMessage } from "@/lib/mentions";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 /**
  * GET /api/projects/:projectId/messages
@@ -43,23 +44,12 @@ async function assertProjectAccess(projectId: string, userId: string) {
 
   if (!project) return { ok: false as const, status: 404 };
 
-  const member = project.members.find((m) => m.userId === userId);
-  const isOwner = project.ownerId === userId;
-  const isMember = !!member;
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project, member };
-  }
-
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project, member: null };
-  }
-
-  return { ok: false as const, status: 403 };
+  // Canonical read rule (matches the page). The old inline check granted read
+  // to ANY workspace member on WORKSPACE-visibility projects — the same leak
+  // the project list deliberately removed.
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) return { ok: false as const, status: 403 };
+  return { ok: true as const, project, access };
 }
 
 export async function GET(
@@ -213,6 +203,19 @@ export async function POST(
       return NextResponse.json(
         { error: access.status === 404 ? "Not found" : "Forbidden" },
         { status: access.status }
+      );
+    }
+    // Posting requires actual membership (owner / project member) or workspace
+    // leadership — a plain workspace member who merely can't be denied READ
+    // must not be able to write into a channel they aren't part of.
+    const canPost =
+      access.access.isOwner ||
+      access.access.isMember ||
+      access.access.isWorkspaceManager;
+    if (!canPost) {
+      return NextResponse.json(
+        { error: "You must be a member of this project to post messages." },
+        { status: 403 }
       );
     }
 

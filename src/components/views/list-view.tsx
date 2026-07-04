@@ -35,7 +35,8 @@ import {
   GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, isToday, isTomorrow, isPast, parseISO } from "date-fns";
+import { format, isToday, isTomorrow, isPast } from "date-fns";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
 import { toast } from "sonner";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
@@ -76,6 +77,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   MeasuringStrategy,
   type DragStartEvent,
   type DragEndEvent,
@@ -154,6 +156,11 @@ interface ListViewProps {
   onTaskClick: (taskId: string) => void;
   onAddTask: (sectionId?: string) => void;
   projectId: string;
+  /** True when the toolbar has an active search/filter/sort, so the
+   *  displayed order is NOT the section's canonical order. Drag-reorder
+   *  is disabled in that state — otherwise persisting the filtered/sorted
+   *  view would overwrite the real task positions. */
+  reorderDisabled?: boolean;
 }
 
 const PRIORITY_COLORS = {
@@ -175,6 +182,7 @@ export function ListView({
   onTaskClick,
   onAddTask,
   projectId,
+  reorderDisabled = false,
 }: ListViewProps) {
   const router = useRouter();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -240,6 +248,19 @@ export function ListView({
     }
   }, [projectId]);
 
+  // Optimistically reflect an inline custom-field edit in the local value
+  // map so the per-section SUMA footer updates immediately (before the
+  // refetch that picks up server-recomputed FORMULA/ROLLUP columns).
+  const handleCustomFieldChange = useCallback(
+    (taskId: string, fieldId: string, next: unknown) => {
+      setCustomFieldValues((prev) => ({
+        ...prev,
+        [taskId]: { ...(prev[taskId] ?? {}), [fieldId]: next },
+      }));
+    },
+    []
+  );
+
   useEffect(() => {
     reloadCustomFields();
     reloadCustomFieldValues();
@@ -279,11 +300,49 @@ export function ListView({
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const isDraggingRef = useRef(false);
   const dragSourceSectionRef = useRef<string | null>(null);
+  // Prevents a double-submit (two Enters) from creating duplicate tasks.
+  const isAddingTaskRef = useRef(false);
 
   // Sync from server props — but never clobber an in-flight drag.
   useEffect(() => {
     if (isDraggingRef.current) return;
     setLocalSections(sections);
+  }, [sections]);
+
+  // Auto-expand sections that appear after mount (e.g. one just created
+  // via "Add section", surfaced by router.refresh). Without this, a new
+  // section renders collapsed and its "Add task" menu item is a no-op
+  // because the inline input lives inside the expanded branch.
+  useEffect(() => {
+    setExpandedSections((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const s of sections) {
+        if (!next.has(s.id)) {
+          next.add(s.id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [sections]);
+
+  // Prune multi-select to only tasks still visible. ListView renders the
+  // FILTERED sections, so after selecting rows and then typing a search or
+  // toggling a filter, hidden-but-selected ids would otherwise remain in
+  // the set and be swept into a bulk action (including destructive delete)
+  // the user can no longer see.
+  useEffect(() => {
+    const visible = new Set(sections.flatMap((s) => s.tasks.map((t) => t.id)));
+    setSelectedTasks((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (visible.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
   }, [sections]);
 
   const sensors = useSensors(
@@ -298,6 +357,7 @@ export function ListView({
   const someSelected = selectedTasks.size > 0;
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    if (reorderDisabled) return;
     const id = event.active.id as string;
     isDraggingRef.current = true;
     for (const section of localSections) {
@@ -308,13 +368,14 @@ export function ListView({
         break;
       }
     }
-  }, [localSections]);
+  }, [localSections, reorderDisabled]);
 
   // Mid-drag updater that runs entirely inside setLocalSections so
   // there are no stale closure reads of localSections. This is the
   // exact pattern that makes the my-tasks list drag visually fluid
   // across columns without the dreaded bounce-back.
   const handleDragOver = useCallback((event: DragOverEvent) => {
+    if (reorderDisabled) return;
     const { active, over } = event;
     if (!over) return;
     const activeId = active.id as string;
@@ -351,12 +412,12 @@ export function ListView({
         return s;
       });
     });
-  }, []);
+  }, [reorderDisabled]);
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
+      if (reorderDisabled) return;
       const { active, over } = event;
-      const originalSourceId = dragSourceSectionRef.current;
       setActiveTask(null);
       dragSourceSectionRef.current = null;
       isDraggingRef.current = false;
@@ -381,10 +442,13 @@ export function ListView({
       }
       if (!destSectionId) return;
 
-      // Same-section path: arrayMove the local copy first so the
-      // ordering we're about to persist matches what the user sees.
+      // Position the dragged task at the row it was dropped ON, for BOTH
+      // same-section reorders and cross-section moves. handleDragOver has
+      // already inserted a cross-section task at its ENTRY index; without
+      // this correction the persisted order would keep it there instead of
+      // where the user actually released it.
       let workingSections = localSections;
-      if (originalSourceId === destSectionId && overId !== destSectionId) {
+      if (overId !== destSectionId) {
         const section = workingSections.find((s) => s.id === destSectionId);
         if (section) {
           const oldIndex = section.tasks.findIndex((t) => t.id === activeId);
@@ -426,7 +490,7 @@ export function ListView({
         setLocalSections(sections); // rollback to server truth
       }
     },
-    [localSections, sections, router]
+    [localSections, sections, router, reorderDisabled]
   );
 
   const toggleTaskSelection = (taskId: string, e: React.MouseEvent) => {
@@ -510,6 +574,11 @@ export function ListView({
       setNewTaskName("");
       return;
     }
+    // Guard against a second Enter firing while the first POST is still in
+    // flight (newTaskName is only cleared after the round-trip resolves),
+    // which would create duplicate rows.
+    if (isAddingTaskRef.current) return;
+    isAddingTaskRef.current = true;
 
     try {
       const response = await fetch("/api/tasks", {
@@ -519,6 +588,10 @@ export function ListView({
           name: newTaskName.trim(),
           projectId,
           sectionId,
+          // Project tasks stay unassigned (Asana parity); the server would
+          // otherwise auto-assign to the creator, which is only wanted for
+          // projectless My-Tasks rows.
+          assigneeId: null,
         }),
       });
 
@@ -532,6 +605,8 @@ export function ListView({
       setAddingTaskInSection(null);
     } catch {
       toast.error("Failed to create task");
+    } finally {
+      isAddingTaskRef.current = false;
     }
   };
 
@@ -645,11 +720,11 @@ export function ListView({
 
   // Mobile helpers
   const isOverdue = (dueDate: string) => {
-    const date = parseISO(dueDate);
+    const date = dueDateToLocalMidnight(dueDate);
     return isPast(date) && !isToday(date);
   };
   const formatMobileDate = (dueDate: string) => {
-    const date = parseISO(dueDate);
+    const date = dueDateToLocalMidnight(dueDate);
     if (isToday(date)) return "Today";
     if (isTomorrow(date)) return "Tomorrow";
     return format(date, "MMM d");
@@ -696,26 +771,15 @@ export function ListView({
               className="rounded"
             />
           </div>
-          <div className="flex items-center gap-1 cursor-pointer hover:text-slate-700">
-            Name
-            <ChevronDown className="w-3 h-3" />
-          </div>
-          <div className="flex items-center gap-1 cursor-pointer hover:text-slate-700">
-            Assignee
-            <ChevronDown className="w-3 h-3" />
-          </div>
-          <div className="flex items-center gap-1 cursor-pointer hover:text-slate-700">
-            Due date
-            <ChevronDown className="w-3 h-3" />
-          </div>
-          <div className="flex items-center gap-1 cursor-pointer hover:text-slate-700">
-            Priority
-            <ChevronDown className="w-3 h-3" />
-          </div>
-          <div className="flex items-center gap-1 cursor-pointer hover:text-slate-700">
-            Status
-            <ChevronDown className="w-3 h-3" />
-          </div>
+          {/* Header labels only — sorting is driven from the toolbar
+              Sort menu in project-content, so these cells intentionally
+              carry no click affordance (no cursor-pointer / chevron) to
+              avoid signalling a click-to-sort that doesn't exist here. */}
+          <div className="flex items-center gap-1">Name</div>
+          <div className="flex items-center gap-1">Assignee</div>
+          <div className="flex items-center gap-1">Due date</div>
+          <div className="flex items-center gap-1">Priority</div>
+          <div className="flex items-center gap-1">Status</div>
           {/* Custom field columns — one header per project-linked
               CustomFieldDefinition. Header label only; clicking the
               header could open a config dropdown in a future iteration. */}
@@ -837,7 +901,18 @@ export function ListView({
                     <Pencil className="w-4 h-4 mr-2" />
                     Rename section
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setAddingTaskInSection(section.id)}>
+                  <DropdownMenuItem onClick={() => {
+                    // Expand first — the inline add-task input only renders
+                    // inside the expanded branch, so on a collapsed section
+                    // this click would otherwise do nothing visible.
+                    setExpandedSections((prev) => {
+                      if (prev.has(section.id)) return prev;
+                      const next = new Set(prev);
+                      next.add(section.id);
+                      return next;
+                    });
+                    setAddingTaskInSection(section.id);
+                  }}>
                     <Plus className="w-4 h-4 mr-2" />
                     Add task
                   </DropdownMenuItem>
@@ -860,7 +935,7 @@ export function ListView({
                 strategy={verticalListSortingStrategy}
                 id={section.id}
               >
-              <div>
+              <DroppableSectionBody sectionId={section.id}>
                 {/* Tasks */}
                 {section.tasks.map((task) => (
                   <SortableTaskRow
@@ -885,6 +960,9 @@ export function ListView({
                     customFieldValuesForTask={customFieldValues[task.id] ?? {}}
                     pinnedBuiltins={pinnedBuiltins}
                     gridTemplate={gridTemplate}
+                    reorderDisabled={reorderDisabled}
+                    onCustomFieldChange={handleCustomFieldChange}
+                    onCustomFieldCommitted={reloadCustomFieldValues}
                   />
                 ))}
 
@@ -1003,7 +1081,7 @@ export function ListView({
                   })}
                   <div className="hidden md:block"></div>
                 </div>
-              </div>
+              </DroppableSectionBody>
               </SortableContext>
             )}
           </div>
@@ -1083,7 +1161,7 @@ export function ListView({
           <Button
             variant="ghost"
             size="sm"
-            className="text-black hover:bg-black/30 hover:text-gray-300 gap-1.5 h-7 text-xs"
+            className="text-white hover:bg-slate-700 gap-1.5 h-7 text-xs"
             onClick={() => {
               if (confirm(`Delete ${selectedTasks.size} task${selectedTasks.size > 1 ? "s" : ""}? This cannot be undone.`)) {
                 handleBulkAction("delete");
@@ -1128,7 +1206,7 @@ function DueDateBadge({
   dueDate: string;
   completed: boolean;
 }) {
-  const date = parseISO(dueDate);
+  const date = dueDateToLocalMidnight(dueDate);
   const isOverdue = !completed && isPast(date) && !isToday(date);
 
   let label = format(date, "MMM d");
@@ -1217,6 +1295,21 @@ function TaskCompletionIcon({
 // =============================================================
 // SORTABLE TASK ROW
 // =============================================================
+// Registers each section's task area as a droppable container so tasks
+// can be dropped into an EMPTY section. Without this, the only droppables
+// are task rows (via useSortable), so a section with zero tasks has no
+// drop target and kanbanCollisionDetection can never resolve it.
+function DroppableSectionBody({
+  sectionId,
+  children,
+}: {
+  sectionId: string;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef } = useDroppable({ id: sectionId });
+  return <div ref={setNodeRef}>{children}</div>;
+}
+
 // Wraps each row in useSortable so dnd-kit can register it as a
 // sortable item. The grip lives on the whole row (mirroring
 // my-tasks' approach) — a quick click still opens the slide-over,
@@ -1259,6 +1352,12 @@ interface SortableTaskRowProps {
   /** CSS gridTemplateColumns string the row should use so the row
    *  aligns with the header. */
   gridTemplate: string;
+  /** When true, the row can't be drag-reordered (a filter/sort is active). */
+  reorderDisabled?: boolean;
+  /** Reflects an inline custom-field edit in the parent value map. */
+  onCustomFieldChange?: (taskId: string, fieldId: string, next: unknown) => void;
+  /** Refetches custom-field values after a successful inline save. */
+  onCustomFieldCommitted?: () => void;
 }
 
 function SortableTaskRow({
@@ -1281,6 +1380,9 @@ function SortableTaskRow({
   customFieldValuesForTask,
   pinnedBuiltins,
   gridTemplate,
+  reorderDisabled = false,
+  onCustomFieldChange,
+  onCustomFieldCommitted,
 }: SortableTaskRowProps) {
   const {
     attributes,
@@ -1289,7 +1391,7 @@ function SortableTaskRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: reorderDisabled });
 
   // Hide the source row entirely while dragging — the portal-mounted
   // DragOverlay paints the visual ghost. Anything other than full
@@ -1525,8 +1627,8 @@ function SortableTaskRow({
             the row instantly reflects "May 14 – 27" when set. */}
         <div onClick={(e) => e.stopPropagation()}>
           <DueDatePicker
-            startDate={task.startDate ? parseISO(task.startDate) : null}
-            dueDate={task.dueDate ? parseISO(task.dueDate) : null}
+            startDate={task.startDate ? dueDateToLocalMidnight(task.startDate) : null}
+            dueDate={task.dueDate ? dueDateToLocalMidnight(task.dueDate) : null}
             onChange={(start, due) => {
               const startStr = start ? format(start, "yyyy-MM-dd") : null;
               const dueStr = due ? format(due, "yyyy-MM-dd") : null;
@@ -1544,8 +1646,8 @@ function SortableTaskRow({
                         "flex items-center gap-1 text-sm",
                         !task.completed &&
                           task.dueDate &&
-                          isPast(parseISO(task.dueDate)) &&
-                          !isToday(parseISO(task.dueDate))
+                          isPast(dueDateToLocalMidnight(task.dueDate)) &&
+                          !isToday(dueDateToLocalMidnight(task.dueDate))
                           ? "text-black"
                           : "text-slate-600",
                         task.completed && "text-slate-400"
@@ -1553,9 +1655,9 @@ function SortableTaskRow({
                     >
                       <Calendar className="h-3 w-3" />
                       {formatRangeLabel(
-                        parseISO(task.startDate),
-                        parseISO(task.dueDate),
-                        format(parseISO(task.dueDate), "MMM d")
+                        dueDateToLocalMidnight(task.startDate),
+                        dueDateToLocalMidnight(task.dueDate),
+                        format(dueDateToLocalMidnight(task.dueDate), "MMM d")
                       )}
                     </div>
                   ) : task.dueDate ? (
@@ -1570,7 +1672,7 @@ function SortableTaskRow({
                     <div className="flex items-center gap-1 text-sm text-slate-600">
                       <Calendar className="h-3 w-3" />
                       {formatRangeLabel(
-                        parseISO(task.startDate!),
+                        dueDateToLocalMidnight(task.startDate!),
                         null,
                         ""
                       )}
@@ -1674,8 +1776,8 @@ function SortableTaskRow({
                   }
                   if (
                     task.dueDate &&
-                    isPast(parseISO(task.dueDate)) &&
-                    !isToday(parseISO(task.dueDate))
+                    isPast(dueDateToLocalMidnight(task.dueDate)) &&
+                    !isToday(dueDateToLocalMidnight(task.dueDate))
                   ) {
                     return (
                       <Badge
@@ -1759,6 +1861,10 @@ function SortableTaskRow({
               type={field.type}
               options={field.options}
               value={customFieldValuesForTask[field.id] ?? null}
+              onChange={(next) =>
+                onCustomFieldChange?.(task.id, field.id, next)
+              }
+              onCommitted={onCustomFieldCommitted}
             />
           </div>
         ))}

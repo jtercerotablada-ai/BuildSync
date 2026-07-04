@@ -2,6 +2,78 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
+
+/**
+ * Validate that a rule's targets (trigger section, action user ids, and any
+ * ADD_TO_PROJECT target) actually belong to this project / its workspace and
+ * the caller can reach them. Without this the engine would later write into
+ * foreign projects and assign arbitrary users. Returns an error message or
+ * null when everything is valid.
+ */
+export async function validateRuleTargets(
+  rule: { trigger: unknown; actions: unknown[] },
+  project: { id: string; workspaceId: string },
+  userId: string
+): Promise<string | null> {
+  const trigger = rule.trigger as { type?: string; sectionId?: string };
+  if (trigger?.type === "TASK_MOVED_TO_SECTION" && trigger.sectionId) {
+    const section = await prisma.section.findFirst({
+      where: { id: trigger.sectionId, projectId: project.id },
+      select: { id: true },
+    });
+    if (!section) return "Trigger section doesn't belong to this project";
+  }
+
+  const userIdsToCheck = new Set<string>();
+  for (const raw of rule.actions) {
+    const a = raw as {
+      type?: string;
+      userId?: string | null;
+      userIds?: string[];
+      projectId?: string;
+    };
+    if (a.type === "SET_ASSIGNEE" && a.userId) userIdsToCheck.add(a.userId);
+    if (a.type === "ADD_COLLABORATORS" && Array.isArray(a.userIds)) {
+      a.userIds.forEach((u) => userIdsToCheck.add(u));
+    }
+    if (a.type === "ADD_TO_PROJECT" && a.projectId) {
+      const targetProject = await prisma.project.findUnique({
+        where: { id: a.projectId },
+        select: {
+          id: true,
+          ownerId: true,
+          visibility: true,
+          workspaceId: true,
+          members: { select: { userId: true, role: true } },
+        },
+      });
+      if (!targetProject || targetProject.workspaceId !== project.workspaceId) {
+        return "Target project is not in this workspace";
+      }
+      const targetAccess = await resolveProjectAccess(targetProject, userId);
+      if (!targetAccess.ok) {
+        return "You don't have access to the target project";
+      }
+    }
+  }
+
+  if (userIdsToCheck.size > 0) {
+    const members = await prisma.workspaceMember.findMany({
+      where: {
+        workspaceId: project.workspaceId,
+        userId: { in: [...userIdsToCheck] },
+      },
+      select: { userId: true },
+    });
+    const found = new Set(members.map((m) => m.userId));
+    for (const uid of userIdsToCheck) {
+      if (!found.has(uid)) return "An assignee/collaborator is not in this workspace";
+    }
+  }
+
+  return null;
+}
 
 /**
  * POST /api/projects/:projectId/workflow/rules
@@ -67,33 +139,15 @@ async function assertProjectAccess(projectId: string, userId: string) {
 
   if (!project) return { ok: false as const, status: 404 };
 
-  const member = project.members.find((m) => m.userId === userId);
-  const isOwner = project.ownerId === userId;
-  const isMember = !!member;
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project, member };
-  }
-
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project, member: null };
-  }
-
-  return { ok: false as const, status: 403 };
-}
-
-function canEditWorkflow(
-  project: { ownerId: string | null },
-  member: { role: string } | null,
-  userId: string
-): boolean {
-  if (project.ownerId === userId) return true;
-  if (!member) return false;
-  return member.role === "ADMIN" || member.role === "EDITOR";
+  // Canonical read rule (matches the page); the old inline check leaked
+  // WORKSPACE-visibility projects to any member.
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) return { ok: false as const, status: 403 };
+  return {
+    ok: true as const,
+    project,
+    canWrite: access.canWrite,
+  };
 }
 
 export async function POST(
@@ -115,7 +169,7 @@ export async function POST(
       );
     }
 
-    if (!canEditWorkflow(access.project, access.member ?? null, userId)) {
+    if (!access.canWrite) {
       return NextResponse.json(
         {
           error:
@@ -132,6 +186,17 @@ export async function POST(
         { error: "Invalid payload", details: parsed.error.flatten() },
         { status: 400 }
       );
+    }
+
+    // Validate that the rule's targets belong to this project / workspace and
+    // the caller can reach them (foreign section / project / user injection).
+    const targetError = await validateRuleTargets(
+      parsed.data,
+      access.project,
+      userId
+    );
+    if (targetError) {
+      return NextResponse.json({ error: targetError }, { status: 400 });
     }
 
     // Find-or-create the workflow first.

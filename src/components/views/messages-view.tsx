@@ -430,6 +430,11 @@ export function MessagesView({
                 p.id === m.id &&
                 p.updatedAt === m.updatedAt &&
                 p.isPinned === m.isPinned &&
+                // A new reply from another user changes only replyCount /
+                // lastReplyAt on the root — omitting these made the poll a
+                // no-op, so new replies never surfaced until a manual reload.
+                p.replyCount === m.replyCount &&
+                p.lastReplyAt === m.lastReplyAt &&
                 p.reactions.length === m.reactions.length &&
                 p.attachments.length === m.attachments.length &&
                 m.reactions.every((r, ri) => {
@@ -1451,7 +1456,14 @@ export function MessagesView({
       {/* Full-screen file viewer (lazy — only rendered when open) */}
       {viewer &&
         (() => {
-          const m = messages.find((x) => x.id === viewer.messageId);
+          // Resolve from root messages OR any loaded thread — an attachment on
+          // a reply lives in repliesByThread, not `messages`, so clicking it
+          // previously found nothing and opened a blank viewer.
+          const m =
+            messages.find((x) => x.id === viewer.messageId) ??
+            Object.values(repliesByThread)
+              .flat()
+              .find((x) => x.id === viewer.messageId);
           if (!m || m.attachments.length === 0) return null;
           return (
             <FileViewerModal

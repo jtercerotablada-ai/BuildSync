@@ -151,6 +151,10 @@ export async function GET(
         projectId: true,
         confirmationMessage: true,
         visibility: true,
+        // Included so the public render page can show the cover image
+        // (previously write-only: stored but never returned anywhere).
+        settings: true,
+        project: { select: { workspaceId: true } },
       },
     });
     if (!form) {
@@ -162,7 +166,29 @@ export async function GET(
         { status: 410 }
       );
     }
-    return NextResponse.json(form);
+    // ORGANIZATION forms are NOT public — the builder promises "only members
+    // of your organization can access this form". Require an authenticated
+    // workspace member before returning the definition.
+    if (form.visibility === "ORGANIZATION") {
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const wsMember = await prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: {
+            userId,
+            workspaceId: form.project.workspaceId,
+          },
+        },
+        select: { userId: true },
+      });
+      if (!wsMember) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+    const { project: _project, ...publicForm } = form;
+    return NextResponse.json(publicForm);
   } catch (err) {
     console.error("[form GET] error:", err);
     return NextResponse.json(

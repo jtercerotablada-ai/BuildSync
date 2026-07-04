@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { shouldNotify } from "@/lib/notification-prefs";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 const STATUS_VALUES = [
   "ON_TRACK",
@@ -64,6 +65,10 @@ function renderSectionsToSummary(sections: SectionInput[]): string {
   return blocks.join("\n\n");
 }
 
+// Read access via the canonical rule (matches the project page): owner,
+// member, PUBLIC, or workspace OWNER/ADMIN / Position L4+. The old inline
+// check both leaked WORKSPACE-visibility projects to any member AND wrongly
+// 403'd workspace admins on PRIVATE projects.
 async function assertProjectAccess(projectId: string, userId: string) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
@@ -78,37 +83,11 @@ async function assertProjectAccess(projectId: string, userId: string) {
 
   if (!project) return { ok: false as const, status: 404 };
 
-  const member = project.members.find((m) => m.userId === userId) ?? null;
-  const isOwner = project.ownerId === userId;
-  const isMember = !!member;
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project, member };
-  }
-
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project, member: null };
-  }
-
-  return { ok: false as const, status: 403 };
-}
-
-// Mirrors the role gate in /api/projects/[id] PATCH: only the owner,
-// an ADMIN, or an EDITOR can change the live project.status. Anyone
-// with read access can still post a status-update record — they just
-// can't drive the cockpit-wide badge.
-function canEditProject(
-  project: { ownerId: string | null },
-  member: { role: string } | null,
-  userId: string
-): boolean {
-  if (project.ownerId === userId) return true;
-  if (!member) return false;
-  return member.role === "ADMIN" || member.role === "EDITOR";
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) return { ok: false as const, status: 403 };
+  // canWrite = owner / project ADMIN or EDITOR — the gate for driving the
+  // live project.status badge (posting the record itself is open to readers).
+  return { ok: true as const, project, canWrite: access.canWrite };
 }
 
 // GET /api/projects/:projectId/status-updates
@@ -233,7 +212,7 @@ export async function POST(
     // (they're posting a comment, effectively). But driving the live
     // project.status badge is a write action and gated to editors+.
     const wantsSync = parsed.data.syncProjectStatus;
-    const canSync = canEditProject(access.project, access.member, userId);
+    const canSync = access.canWrite;
     if (wantsSync && !canSync) {
       return NextResponse.json(
         {
@@ -244,27 +223,32 @@ export async function POST(
       );
     }
 
-    const created = await prisma.statusUpdate.create({
-      data: {
-        projectId,
-        authorId: userId,
-        status: parsed.data.status,
-        summary: finalSummary,
-        // Prisma's Json column accepts the array directly; we
-        // stringify-then-parse to scrub any non-JSON-safe values
-        // (e.g. undefined) before insert.
-        sections: finalSections
-          ? JSON.parse(JSON.stringify(finalSections))
-          : undefined,
-      },
-    });
-
-    if (wantsSync) {
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { status: parsed.data.status },
+    // Create the record and (optionally) sync the project badge atomically —
+    // otherwise a sync failure returns 500 for an update that was already
+    // committed, and the client re-posts a duplicate.
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.statusUpdate.create({
+        data: {
+          projectId,
+          authorId: userId,
+          status: parsed.data.status,
+          summary: finalSummary,
+          // Prisma's Json column accepts the array directly; we
+          // stringify-then-parse to scrub any non-JSON-safe values
+          // (e.g. undefined) before insert.
+          sections: finalSections
+            ? JSON.parse(JSON.stringify(finalSections))
+            : undefined,
+        },
       });
-    }
+      if (wantsSync) {
+        await tx.project.update({
+          where: { id: projectId },
+          data: { status: parsed.data.status },
+        });
+      }
+      return row;
+    });
 
     const author = await prisma.user.findUnique({
       where: { id: userId },

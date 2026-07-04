@@ -19,6 +19,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -32,6 +33,15 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
+
+/** Format a local Date as a date-only "YYYY-MM-DD" string (the wire format
+ *  the API stores as UTC midnight — consistent with every other composer). */
+function toYmd(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
 
 type TaskType = "TASK" | "MILESTONE" | "APPROVAL";
 
@@ -104,7 +114,7 @@ export function CalendarView({
   // weeks before this week's Monday so the user can scroll up a
   // month from today AND forward indefinitely. `weekCount` grows as
   // the bottom sentinel enters the viewport.
-  const [windowStart] = useState<Date>(() => {
+  const [windowStart, setWindowStart] = useState<Date>(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dayOffset = today.getDay() === 0 ? 6 : today.getDay() - 1;
@@ -114,6 +124,20 @@ export function CalendarView({
     start.setDate(thisMonday.getDate() - 4 * 7); // 4 weeks back
     return start;
   });
+  // Height snapshot so prepending earlier weeks doesn't jump the scroll.
+  const prependAnchorRef = useRef<number | null>(null);
+
+  // Prepend 8 earlier weeks (the window used to be hard-capped 4 weeks back,
+  // stranding older tasks with no way to reach them).
+  function loadEarlierWeeks() {
+    if (scrollRef.current) prependAnchorRef.current = scrollRef.current.scrollHeight;
+    setWeekCount((c) => c + 8);
+    setWindowStart((s) => {
+      const n = new Date(s);
+      n.setDate(s.getDate() - 8 * 7);
+      return n;
+    });
+  }
   const [weekCount, setWeekCount] = useState(16); // ~4 months on mount
   const [visibleMonth, setVisibleMonth] = useState<{
     year: number;
@@ -138,6 +162,16 @@ export function CalendarView({
       newTaskInputRef.current.focus();
     }
   }, [addingForDate]);
+
+  // Keep the viewport stable after prepending earlier weeks: push scrollTop
+  // down by the height that was just inserted above the current view.
+  useLayoutEffect(() => {
+    if (prependAnchorRef.current != null && scrollRef.current) {
+      const delta = scrollRef.current.scrollHeight - prependAnchorRef.current;
+      scrollRef.current.scrollTop += delta;
+      prependAnchorRef.current = null;
+    }
+  }, [windowStart]);
 
   // ── Drag-to-reschedule (HTML5 drag, no extra deps) ────────────
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
@@ -174,34 +208,37 @@ export function CalendarView({
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
-    // Mid-day anchor avoids the date flipping under DST or near-
-    // midnight edits across timezones.
-    const noon = new Date(dropDate);
-    noon.setHours(12, 0, 0, 0);
-
-    const oldDue = task.dueDate ? new Date(task.dueDate) : null;
-    const oldStart = task.startDate ? new Date(task.startDate) : null;
+    // Work in whole calendar days. dropDate is a local calendar date (from
+    // the grid); old dates are UTC-midnight, normalized to their UTC day.
+    const DAY = 86400000;
+    const dropDay = new Date(
+      dropDate.getFullYear(),
+      dropDate.getMonth(),
+      dropDate.getDate()
+    );
+    const oldDue = task.dueDate ? dueDateToLocalMidnight(task.dueDate) : null;
+    const oldStart = task.startDate
+      ? dueDateToLocalMidnight(task.startDate)
+      : null;
 
     const body: { dueDate?: string | null; startDate?: string | null } = {};
     if (oldStart && oldDue) {
-      // Preserve duration: shift both dates by the same delta.
-      const oldDueNoon = new Date(oldDue);
-      oldDueNoon.setHours(12, 0, 0, 0);
-      const deltaMs = noon.getTime() - oldDueNoon.getTime();
-      body.dueDate = noon.toISOString();
-      body.startDate = new Date(oldStart.getTime() + deltaMs).toISOString();
+      // Preserve duration: shift both dates by the same whole-day delta.
+      const deltaDays = Math.round((dropDay.getTime() - oldDue.getTime()) / DAY);
+      body.dueDate = toYmd(dropDay);
+      body.startDate = toYmd(new Date(oldStart.getTime() + deltaDays * DAY));
     } else if (oldStart && !oldDue) {
-      body.startDate = noon.toISOString();
+      body.startDate = toYmd(dropDay);
     } else {
-      body.dueDate = noon.toISOString();
+      body.dueDate = toYmd(dropDay);
     }
 
+    // No-op if dropped on the same calendar day it already occupies.
     const sameDue =
-      (body.dueDate ?? null) ===
-      (task.dueDate ? new Date(task.dueDate).toISOString() : null);
+      body.dueDate === undefined || (oldDue !== null && toYmd(oldDue) === body.dueDate);
     const sameStart =
-      (body.startDate ?? null) ===
-      (task.startDate ? new Date(task.startDate).toISOString() : null);
+      body.startDate === undefined ||
+      (oldStart !== null && toYmd(oldStart) === body.startDate);
     if (sameDue && sameStart) return;
 
     try {
@@ -226,6 +263,10 @@ export function CalendarView({
       setNewTaskName("");
       return;
     }
+    // Re-entrancy guard: Enter sets creatingInline=true and disables the
+    // input, which blurs it and fires the blur-commit — without this guard
+    // that second call creates a duplicate task.
+    if (creatingInline) return;
     setCreatingInline(true);
     try {
       const res = await fetch("/api/tasks", {
@@ -233,7 +274,9 @@ export function CalendarView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          dueDate: forDate.toISOString(),
+          // Date-only wire format → stored as UTC midnight, so the task lands
+          // on the day the user clicked regardless of timezone.
+          dueDate: toYmd(forDate),
           projectId,
         }),
       });
@@ -299,20 +342,13 @@ export function CalendarView({
 
     for (const task of tasks) {
       if (!task.dueDate && !task.startDate) continue;
-      const dueRaw = task.dueDate
-        ? new Date(task.dueDate)
-        : new Date(task.startDate!);
-      const startRaw = task.startDate ? new Date(task.startDate) : dueRaw;
-      const start = new Date(
-        startRaw.getFullYear(),
-        startRaw.getMonth(),
-        startRaw.getDate()
-      );
-      const due = new Date(
-        dueRaw.getFullYear(),
-        dueRaw.getMonth(),
-        dueRaw.getDate()
-      );
+      // Bucket by the UTC calendar day: dueDate/startDate are stored at UTC
+      // midnight, so local getters (the previous behaviour) placed every bar
+      // one day early for viewers west of UTC.
+      const due = dueDateToLocalMidnight(task.dueDate ?? task.startDate!);
+      const start = task.startDate
+        ? dueDateToLocalMidnight(task.startDate)
+        : due;
 
       if (allDays.length === 0) continue;
       if (
@@ -514,6 +550,15 @@ export function CalendarView({
           (N)") with a popover listing the dateless tasks, so they
           don't get hidden by the calendar's date-centric layout. */}
       <div className="relative flex items-center justify-center gap-3 px-4 py-3 border-b">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={loadEarlierWeeks}
+          className="absolute left-4 top-1/2 -translate-y-1/2 px-2 text-xs text-gray-600"
+          title="Show earlier weeks"
+        >
+          ◀ Earlier
+        </Button>
         <Button
           variant="outline"
           size="sm"
@@ -717,7 +762,12 @@ export function CalendarView({
                         }}
                         title={seg.task.name}
                         className={cn(
-                          "w-full block text-left text-[11px] leading-snug px-1.5 py-[3px] truncate cursor-grab active:cursor-grabbing pointer-events-auto font-medium transition-colors",
+                          "w-full block text-left text-[11px] leading-snug px-1.5 py-[3px] truncate cursor-grab active:cursor-grabbing font-medium transition-colors",
+                          // While a drag is in flight, let dragover/drop pass
+                          // THROUGH the bars to the day cells beneath — otherwise
+                          // a task bar blocks dropping onto a busy day (browser
+                          // shows the no-drop cursor). Interactive otherwise.
+                          draggingTaskId ? "pointer-events-none" : "pointer-events-auto",
                           !seg.clipsLeft && "rounded-l-sm",
                           !seg.clipsRight && "rounded-r-sm",
                           seg.task.completed

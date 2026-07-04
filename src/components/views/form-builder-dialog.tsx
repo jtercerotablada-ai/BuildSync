@@ -108,6 +108,9 @@ interface Props {
   /** Existing form (edit mode). When null, the dialog is in create mode. */
   initial?: FormRow | null;
   onSaved: (form: FormRow) => void;
+  /** Called with the deleted form id so the parent can drop it from its list
+   *  (the parent doesn't otherwise refetch when the dialog closes). */
+  onDeleted?: (formId: string) => void;
 }
 
 const FIELD_TYPE_OPTIONS: {
@@ -156,6 +159,7 @@ export function FormBuilderDialog({
   projectId,
   initial,
   onSaved,
+  onDeleted,
 }: Props) {
   const [tab, setTab] = useState<"build" | "settings" | "share">("build");
   const [saving, setSaving] = useState(false);
@@ -377,8 +381,16 @@ export function FormBuilderDialog({
     }
     for (const f of fields) {
       if (!f.label.trim()) return { ok: false, msg: "Every field needs a label" };
-      if ((f.type === "SELECT" || f.type === "MULTI_SELECT") && (!f.options || f.options.length === 0)) {
-        return { ok: false, msg: `"${f.label}" needs at least one option` };
+      if (f.type === "SELECT" || f.type === "MULTI_SELECT") {
+        if (!f.options || f.options.length === 0) {
+          return { ok: false, msg: `"${f.label}" needs at least one option` };
+        }
+        // Blank options pass the length check but the server rejects them
+        // (options: array of non-empty strings), so catch them here with a
+        // clear, field-specific message instead of a cryptic 400 on save.
+        if (f.options.some((o) => !o.trim())) {
+          return { ok: false, msg: `"${f.label}" has an empty option` };
+        }
       }
     }
     // Exactly one mapTo:"name" or zero (auto-fallback "New submission to …")
@@ -504,24 +516,27 @@ export function FormBuilderDialog({
     }
   }
 
-  // ── Delete: confirms first, then DELETEs and closes the dialog.
-  //    The parent form list refresh happens because onSaved isn't
-  //    called — the parent should refetch when the dialog closes. ─
+  // ── Delete: confirms, soft-deletes (closes the form so submissions are
+  //    preserved — a hard DELETE cascades them away), tells the parent to
+  //    drop it from the list, then closes the dialog. ─
   async function handleDelete() {
     if (!initial?.id) return;
     if (
       !window.confirm(
-        `Delete the form "${initial.name}"? This can't be undone.`
+        `Delete the form "${initial.name}"? New submissions will be rejected; past submissions are kept.`
       )
     )
       return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/forms/${initial.id}`, {
-        method: "DELETE",
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: false }),
       });
       if (!res.ok) throw new Error();
       toast.success("Form deleted");
+      onDeleted?.(initial.id);
       onOpenChange(false);
     } catch {
       toast.error("Couldn't delete the form");

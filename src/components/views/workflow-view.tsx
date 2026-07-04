@@ -8,7 +8,6 @@ import {
   Users,
   MessageSquare,
   User,
-  MoreHorizontal,
   X,
   Info,
   Loader2,
@@ -349,7 +348,13 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     const snapshot = forms;
     setForms((prev) => prev.filter((f) => f.id !== formId));
     try {
-      const res = await fetch(`/api/forms/${formId}`, { method: "DELETE" });
+      // Soft-delete (close) the form so its submissions are preserved, as the
+      // confirm promises — a hard DELETE cascades-deletes every submission.
+      const res = await fetch(`/api/forms/${formId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: false }),
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error || "Failed to delete form");
@@ -393,6 +398,65 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     }
   };
 
+  // Remove a SINGLE action chip. Each chip is one action of a rule that may
+  // bundle several (templates ship 2-4), so deleting the whole rule would
+  // silently drop the sibling actions. PATCH the rule with the remaining
+  // actions; only DELETE it when its last action is removed.
+  const removeAction = async (ruleId: string, actionIdx: number) => {
+    const rule = workflow?.rules.find((r) => r.id === ruleId);
+    if (!rule) return;
+    const remaining = (rule.actions as WorkflowAction[]).filter(
+      (_, i) => i !== actionIdx
+    );
+    const snapshot = workflow;
+
+    if (remaining.length === 0) {
+      setWorkflow((prev) =>
+        prev
+          ? { ...prev, rules: prev.rules.filter((r) => r.id !== ruleId) }
+          : prev
+      );
+    } else {
+      setWorkflow((prev) =>
+        prev
+          ? {
+              ...prev,
+              rules: prev.rules.map((r) =>
+                r.id === ruleId ? { ...r, actions: remaining } : r
+              ),
+            }
+          : prev
+      );
+    }
+
+    try {
+      const res =
+        remaining.length === 0
+          ? await fetch(
+              `/api/projects/${projectId}/workflow/rules/${ruleId}`,
+              { method: "DELETE" }
+            )
+          : await fetch(
+              `/api/projects/${projectId}/workflow/rules/${ruleId}`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ actions: remaining }),
+              }
+            );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "Failed to remove action");
+      }
+      toast.success("Action removed");
+    } catch (err) {
+      setWorkflow(snapshot); // rollback
+      toast.error(
+        err instanceof Error ? err.message : "Failed to remove action"
+      );
+    }
+  };
+
   // ── Render states ──────────────────────────────────────────
 
   if (loading) {
@@ -416,7 +480,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                 : "Workflow"}
             </h1>
             <p className="text-sm text-slate-500">
-              {workflow?.rules.length === 0
+              {(workflow?.rules.length ?? 0) === 0
                 ? "Automate your team's process. Pick an action for any section — it persists and runs when tasks move there."
                 : `${workflow?.rules.length} rule${
                     workflow?.rules.length === 1 ? "" : "s"
@@ -628,7 +692,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                   section={section}
                   rules={rulesBySection[section.id] || []}
                   onAddAction={(type) => startAddAction(section.id, type)}
-                  onRemoveRule={removeRule}
+                  onRemoveAction={removeAction}
                 />
                 {index < sections.length - 1 && (
                   <div className="flex items-center self-center h-full py-16">
@@ -649,7 +713,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
             <CompletionCard
               rules={completionRules}
               onAddAction={startAddCompletionAction}
-              onRemoveRule={removeRule}
+              onRemoveAction={removeAction}
             />
           </div>
         </div>
@@ -686,6 +750,9 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
         projectId={projectId}
         initial={editingForm}
         onSaved={handleFormSaved}
+        onDeleted={(formId) =>
+          setForms((prev) => prev.filter((f) => f.id !== formId))
+        }
       />
 
       {/* Submissions inbox per form (Phase 4.B). Opens the list of
@@ -730,14 +797,14 @@ interface SectionCardProps {
   section: Section;
   rules: WorkflowRuleRow[];
   onAddAction: (type: WorkflowActionType) => void;
-  onRemoveRule: (ruleId: string) => void;
+  onRemoveAction: (ruleId: string, actionIdx: number) => void;
 }
 
 function SectionCard({
   section,
   rules,
   onAddAction,
-  onRemoveRule,
+  onRemoveAction,
 }: SectionCardProps) {
   const incompleteCount = section.tasks.filter((t) => !t.completed).length;
 
@@ -758,9 +825,6 @@ function SectionCard({
       <div className="p-3 border-b">
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs text-slate-400">Section</span>
-          <button className="p-1 hover:bg-slate-100 rounded text-slate-300 cursor-default">
-            <MoreHorizontal className="w-3 h-3" />
-          </button>
         </div>
         <h3 className="font-semibold text-slate-900 text-sm truncate" title={section.name}>
           {section.name}
@@ -797,7 +861,7 @@ function SectionCard({
                 {ACTION_LABELS[chip.type]}
               </span>
               <button
-                onClick={() => onRemoveRule(chip.ruleId)}
+                onClick={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
                 className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-200 rounded transition-all"
                 aria-label="Remove rule"
               >
@@ -842,13 +906,13 @@ function SectionCard({
 interface CompletionCardProps {
   rules: WorkflowRuleRow[];
   onAddAction: (type: WorkflowActionType) => void;
-  onRemoveRule: (ruleId: string) => void;
+  onRemoveAction: (ruleId: string, actionIdx: number) => void;
 }
 
 function CompletionCard({
   rules,
   onAddAction,
-  onRemoveRule,
+  onRemoveAction,
 }: CompletionCardProps) {
   const ruleChips = rules.flatMap((r) =>
     (r.actions as WorkflowAction[]).map((a, idx) => ({
@@ -892,7 +956,7 @@ function CompletionCard({
                 {ACTION_LABELS[chip.type]}
               </span>
               <button
-                onClick={() => onRemoveRule(chip.ruleId)}
+                onClick={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
                 className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-200 rounded transition-all"
                 aria-label="Remove rule"
               >
@@ -911,7 +975,7 @@ function CompletionCard({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
-            {PICKABLE_ACTIONS.map((type) => (
+            {PICKABLE_ACTIONS.filter((t) => t !== "MARK_COMPLETE").map((type) => (
               <DropdownMenuItem
                 key={type}
                 onClick={() => onAddAction(type)}

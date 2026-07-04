@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
 import type { CompanyRole } from "@prisma/client";
 
 /**
@@ -56,22 +57,12 @@ async function loadProjectAccess(projectId: string, userId: string) {
   });
   if (!project) return { ok: false as const, status: 404 };
 
-  const member = project.members.find((m) => m.userId === userId);
-  const isOwner = project.ownerId === userId;
-  const isMember = !!member;
-  let readable =
-    isOwner || isMember || project.visibility === "PUBLIC";
-  if (!readable && project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) readable = true;
-  }
-  if (!readable) return { ok: false as const, status: 403 };
-
-  const canWrite = isOwner || member?.role === "ADMIN";
+  // Canonical read rule (matches the page): the old inline check leaked
+  // WORKSPACE-visibility projects to any member and 403'd workspace admins /
+  // L4+ who can legitimately open a PRIVATE project's Team tab.
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) return { ok: false as const, status: 403 };
+  const canWrite = access.isOwner || access.memberRole === "ADMIN";
   return { ok: true as const, project, canWrite };
 }
 
@@ -134,9 +125,37 @@ export async function GET(
       })),
     }));
 
+    // Members not attached to any firm (companyId=null) — includes every
+    // project's creator. Previously invisible because the Team tab only
+    // renders company groups; surface them as an "Unaffiliated" group.
+    const unaffiliated = await prisma.projectMember.findMany({
+      where: { projectId, companyId: null },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            position: true,
+            customTitle: true,
+            jobTitle: true,
+          },
+        },
+      },
+      orderBy: { joinedAt: "asc" },
+    });
+
     return NextResponse.json({
       canWrite: access.canWrite,
       companies: shaped,
+      unaffiliatedMembers: unaffiliated.map((m) => ({
+        id: m.id,
+        userId: m.userId,
+        projectRole: m.role,
+        joinedAt: m.joinedAt.toISOString(),
+        user: m.user,
+      })),
     });
   } catch (err) {
     console.error("[companies GET] error:", err);

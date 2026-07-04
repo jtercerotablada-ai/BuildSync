@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 /**
  * GET  /api/projects/:projectId/forms — list every form in the
@@ -68,23 +69,12 @@ async function assertProjectAccess(projectId: string, userId: string) {
 
   if (!project) return { ok: false as const, status: 404 };
 
-  const member = project.members.find((m) => m.userId === userId);
-  const isOwner = project.ownerId === userId;
-  const isMember = !!member;
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project, member };
-  }
-
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project, member: null };
-  }
-
-  return { ok: false as const, status: 403 };
+  // Canonical read rule (matches the page): the old inline check leaked
+  // WORKSPACE-visibility projects to any member and 403'd workspace admins.
+  const member = project.members.find((m) => m.userId === userId) ?? null;
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) return { ok: false as const, status: 403 };
+  return { ok: true as const, project, member };
 }
 
 function canEditForms(
@@ -117,7 +107,9 @@ export async function GET(
     }
 
     const forms = await prisma.form.findMany({
-      where: { projectId },
+      // Exclude soft-deleted (closed) forms — "Delete" sets isActive:false to
+      // preserve past submissions while removing the form from the builder.
+      where: { projectId, isActive: true },
       orderBy: { createdAt: "desc" },
       include: {
         _count: { select: { submissions: true } },
@@ -137,6 +129,7 @@ export async function GET(
         confirmationMessage: f.confirmationMessage,
         notifyOnSubmission: f.notifyOnSubmission,
         visibility: f.visibility,
+        settings: f.settings ?? null,
         createdAt: f.createdAt.toISOString(),
         updatedAt: f.updatedAt.toISOString(),
         submissionCount: f._count.submissions,

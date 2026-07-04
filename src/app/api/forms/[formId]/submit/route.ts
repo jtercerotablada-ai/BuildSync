@@ -100,6 +100,11 @@ export async function POST(
 
     // ── Parse body — JSON or multipart ────────────────────────
     let answers: FormSubmissionPayload = {};
+    // Fields whose values came from REAL server-side uploads (multipart path).
+    // Only these may be mirrored into Task attachments — otherwise a JSON
+    // submission could forge {name,url,size} objects that become owner-
+    // attributed attachments pointing at arbitrary URLs.
+    const realUploadFieldIds = new Set<string>();
     const fields = (form.fields as unknown as FormField[]) || [];
     const contentType = req.headers.get("content-type") || "";
 
@@ -161,6 +166,7 @@ export async function POST(
         }
         if (uploaded.length > 0) {
           answers[fieldId] = uploaded;
+          realUploadFieldIds.add(fieldId);
         }
       }
     } else {
@@ -293,6 +299,11 @@ export async function POST(
     if (uploaderForAttachments) {
       for (const f of fields) {
         if (f.type !== "ATTACHMENT") continue;
+        // Only mirror files that were genuinely uploaded this request. A JSON
+        // submission never populates realUploadFieldIds, so forged attachment
+        // objects in the answers payload are ignored (they still live in
+        // FormSubmission.data for the inbox, just not as Task attachments).
+        if (!realUploadFieldIds.has(f.id)) continue;
         const v = answers[f.id];
         const list = Array.isArray(v) ? v : v != null ? [v] : [];
         for (const item of list) {

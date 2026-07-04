@@ -11,7 +11,7 @@
  *   - "Today" is a dashed vertical line drawn across the whole grid so
  *     you can spot any project running long at a glance.
  *   - Three zoom levels (Quarter / Month / Week) with sticky lane labels.
- *   - Overdue projects (endDate < today, status != COMPLETED) glow in
+ *   - Overdue projects (endDate < today, status != COMPLETE) glow in
  *     gold-on-black trim so they pull the eye immediately.
  *   - Pure CSS grid + a few absolutely-positioned bars — no virtualization
  *     library, no dependency on @nivo / vis-timeline / dhtmlx.
@@ -31,6 +31,7 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, MapPin, Diamond } from "lucide-react";
 
 type ProjectType =
@@ -51,7 +52,7 @@ type ProjectStatus =
   | "AT_RISK"
   | "OFF_TRACK"
   | "ON_HOLD"
-  | "COMPLETED";
+  | "COMPLETE";
 
 interface GanttProject {
   id: string;
@@ -455,7 +456,7 @@ function LaneLabel({ project }: { project: GanttProject }) {
   const isOverdue =
     project.endDate !== null &&
     new Date(project.endDate) < new Date() &&
-    project.status !== "COMPLETED";
+    project.status !== "COMPLETE";
 
   return (
     <Link
@@ -502,8 +503,10 @@ function GanttBar({
   rangeEnd: Date;
   dayPx: number;
 }) {
-  const start = new Date(project.startDate!);
-  const end = new Date(project.endDate!);
+  // startDate/endDate are UTC-midnight instants; read them by UTC calendar
+  // day so bars don't land one day-cell early against the local rangeStart.
+  const start = dueDateToLocalMidnight(project.startDate!);
+  const end = dueDateToLocalMidnight(project.endDate!);
   // Clamp to visible window so a bar that extends beyond the visible
   // range gets its edge rendered at the timeline edge (rather than off-
   // screen with no visual feedback).
@@ -537,7 +540,7 @@ function GanttBar({
 
   const isOverdue =
     new Date(project.endDate!) < new Date() &&
-    project.status !== "COMPLETED";
+    project.status !== "COMPLETE";
 
   // Time progress ratio — what % of the project window has elapsed.
   // Shown as a darker "actual" fill stripe inside the bar.
@@ -553,7 +556,7 @@ function GanttBar({
   const milestones = (project.tasks || [])
     .filter((t) => t.taskType === "MILESTONE" && t.dueDate)
     .map((t) => {
-      const d = new Date(t.dueDate!);
+      const d = dueDateToLocalMidnight(t.dueDate!);
       if (d < rangeStart || d > rangeEnd) return null;
       const days = Math.floor(
         (d.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)

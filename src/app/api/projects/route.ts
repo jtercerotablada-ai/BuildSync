@@ -16,6 +16,7 @@ const createProjectSchema = z.object({
   teamId: z.string().optional(),
   templateId: z.string().optional(), // Template to use for project creation
   startDate: z.string().optional(), // For calculating relative due dates
+  endDate: z.string().optional(), // Target completion date
   // Engineering firm extensions
   type: z.enum(["CONSTRUCTION", "DESIGN", "RECERTIFICATION", "PERMIT"]).optional(),
   gate: z.enum(["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION", "CLOSEOUT"]).optional(),
@@ -108,6 +109,9 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const workspaceId = searchParams.get("workspaceId");
     const query = searchParams.get("q") || "";
+    // Archived projects are hidden from the list by default; pass
+    // ?includeArchived=true to surface them (e.g. an "Archived" view).
+    const includeArchived = searchParams.get("includeArchived") === "true";
     // Optional widget knobs. Absent params keep the historical behavior:
     // no row cap and updatedAt-desc ordering.
     const limitParam = searchParams.get("limit");
@@ -172,6 +176,7 @@ export async function GET(req: Request) {
         AND: [
           workspaceId ? { workspaceId } : {},
           query ? { name: { contains: query, mode: "insensitive" } } : {},
+          includeArchived ? {} : { isArchived: false },
           { OR: visibilityClauses },
         ],
       },
@@ -248,6 +253,7 @@ export async function POST(req: Request) {
       teamId,
       templateId,
       startDate,
+      endDate,
       type,
       gate,
       location,
@@ -399,6 +405,7 @@ export async function POST(req: Request) {
             teamId: teamId || null,
             ownerId: userId,
             startDate: startDate ? new Date(startDate) : new Date(),
+            endDate: endDate ? new Date(endDate) : null,
             type: type ?? null,
             gate: gate ?? "PRE_DESIGN",
             location: location ?? null,

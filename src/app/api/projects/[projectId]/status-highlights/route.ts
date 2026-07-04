@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 /**
  * GET /api/projects/:projectId/status-highlights
@@ -34,8 +35,9 @@ export async function GET(
 
     const { projectId } = await params;
 
-    // Same access check as /api/projects/:id/status-updates — owner
-    // OR member OR PUBLIC OR (WORKSPACE + workspace member).
+    // Canonical read access (matches the project page): owner, member,
+    // PUBLIC, or workspace OWNER/ADMIN / L4+. The old inline check leaked
+    // WORKSPACE-visibility projects to any member and 403'd workspace admins.
     const project = await prisma.project.findUnique({
       where: { id: projectId },
       select: {
@@ -43,27 +45,14 @@ export async function GET(
         ownerId: true,
         visibility: true,
         workspaceId: true,
-        members: { select: { userId: true } },
+        members: { select: { userId: true, role: true } },
       },
     });
     if (!project) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    const isOwner = project.ownerId === userId;
-    const isMember = project.members.some((m) => m.userId === userId);
-    let allowed = isOwner || isMember || project.visibility === "PUBLIC";
-    if (!allowed && project.visibility === "WORKSPACE") {
-      const wsm = await prisma.workspaceMember.findUnique({
-        where: {
-          userId_workspaceId: {
-            userId,
-            workspaceId: project.workspaceId,
-          },
-        },
-      });
-      if (wsm) allowed = true;
-    }
-    if (!allowed) {
+    const access = await resolveProjectAccess(project, userId);
+    if (!access.ok) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -77,6 +66,12 @@ export async function GET(
       ? lastUpdate.createdAt
       : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const now = new Date();
+    // Due dates are stored at UTC midnight of the due day. Bucket "overdue"
+    // and "upcoming" by the UTC calendar day so a task/milestone due TODAY
+    // is neither counted overdue nor excluded from upcoming.
+    const startOfTodayUtc = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+    );
 
     // Run the counts in parallel — each one is small + indexed.
     const [
@@ -104,12 +99,13 @@ export async function GET(
           completedAt: { gte: windowStart, lte: now },
         },
       }),
-      // Currently overdue (not just window — what's overdue NOW)
+      // Currently overdue — strictly BEFORE today (UTC day), so a task due
+      // today isn't counted overdue from the moment the day begins.
       prisma.task.count({
         where: {
           projectId,
           completed: false,
-          dueDate: { lt: now },
+          dueDate: { lt: startOfTodayUtc },
         },
       }),
       // New form submissions (RFIs, change orders, inspections) in window
@@ -134,8 +130,8 @@ export async function GET(
           taskType: "MILESTONE",
           completed: false,
           dueDate: {
-            gte: now,
-            lte: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+            gte: startOfTodayUtc,
+            lte: new Date(startOfTodayUtc.getTime() + 14 * 24 * 60 * 60 * 1000),
           },
         },
         orderBy: { dueDate: "asc" },

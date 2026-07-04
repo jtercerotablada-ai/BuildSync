@@ -20,6 +20,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 const FIELD_TYPES = [
   "TEXT",
@@ -68,31 +69,11 @@ async function assertProjectAccess(projectId: string, userId: string) {
   });
   if (!project) return { ok: false as const, status: 404 };
 
-  const member = project.members.find((m) => m.userId === userId);
-  const isOwner = project.ownerId === userId;
-  const isMember = !!member;
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project, member };
-  }
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project, member: null };
-  }
-  return { ok: false as const, status: 403 };
-}
-
-function canEdit(
-  project: { ownerId: string | null },
-  member: { role: string } | null,
-  userId: string
-) {
-  if (project.ownerId === userId) return true;
-  if (!member) return false;
-  return member.role === "ADMIN" || member.role === "EDITOR";
+  // Canonical read rule (matches the page): the old inline check leaked
+  // WORKSPACE-visibility projects to any member and 403'd workspace admins.
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) return { ok: false as const, status: 403 };
+  return { ok: true as const, project, canWrite: access.canWrite };
 }
 
 export async function GET(
@@ -162,7 +143,7 @@ export async function POST(
         { status: access.status }
       );
     }
-    if (!canEdit(access.project, access.member ?? null, userId)) {
+    if (!access.canWrite) {
       return NextResponse.json(
         { error: "You don't have permission to edit fields on this project." },
         { status: 403 }

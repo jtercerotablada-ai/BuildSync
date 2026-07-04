@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 // GET /api/projects/:projectId/objectives
 //
@@ -17,28 +18,17 @@ async function assertProjectAccess(projectId: string, userId: string) {
       ownerId: true,
       visibility: true,
       workspaceId: true,
-      members: { select: { userId: true } },
+      members: { select: { userId: true, role: true } },
     },
   });
 
   if (!project) return { ok: false as const, status: 404 };
 
-  const isOwner = project.ownerId === userId;
-  const isMember = project.members.some((m) => m.userId === userId);
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project };
-  }
-
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project };
-  }
-
-  return { ok: false as const, status: 403 };
+  // Canonical read rule (matches the page): the old inline check leaked
+  // WORKSPACE-visibility projects to any member and 403'd workspace admins.
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) return { ok: false as const, status: 403 };
+  return { ok: true as const, project };
 }
 
 export async function GET(

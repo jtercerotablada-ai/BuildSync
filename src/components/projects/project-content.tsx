@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -47,7 +47,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { isThisWeek, parseISO } from "date-fns";
+import { isThisWeek } from "date-fns";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
 import { ListView } from "@/components/views/list-view";
 import { BoardView } from "@/components/views/board-view";
 import { TimelineView } from "@/components/views/timeline-view";
@@ -191,6 +192,56 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [isStarred, setIsStarred] = useState(false);
+
+  // Persist the star locally so it survives reloads/navigation (the button
+  // was previously a pure no-op that reset on every mount). Keyed per project.
+  const starKey = `buildsync:starred:${project.id}`;
+  useEffect(() => {
+    try {
+      setIsStarred(localStorage.getItem(starKey) === "1");
+    } catch {
+      /* localStorage unavailable — leave unstarred */
+    }
+  }, [starKey]);
+
+  const toggleStar = () => {
+    setIsStarred((prev) => {
+      const next = !prev;
+      try {
+        if (next) localStorage.setItem(starKey, "1");
+        else localStorage.removeItem(starKey);
+      } catch {
+        /* ignore persistence failure */
+      }
+      toast.success(next ? "Added to favorites" : "Removed from favorites");
+      return next;
+    });
+  };
+
+  const currentEmail = session?.user?.email;
+  // Distinct people on the project — the owner is normally also a
+  // ProjectMember row (POST /api/projects adds them as ADMIN), so a plain
+  // `members.length + 1` double-counts them.
+  const memberCount = useMemo(
+    () =>
+      new Set(
+        [project.owner?.id, ...project.members.map((m) => m.userId)].filter(
+          Boolean
+        )
+      ).size,
+    [project.owner, project.members]
+  );
+  // Whether the current user may add/remove members / change roles. The
+  // member-management API gates every mutation to the project owner or an
+  // ADMIN member, so non-admins get a read-only dialog instead of buttons
+  // that always 403.
+  const canManageMembers = useMemo(() => {
+    if (!currentEmail) return false;
+    if (project.owner?.email && project.owner.email === currentEmail) return true;
+    return project.members.some(
+      (m) => m.user.email === currentEmail && m.role === "ADMIN"
+    );
+  }, [currentEmail, project.owner, project.members]);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
@@ -238,7 +289,8 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
     setShowCompleted(true);
   };
 
-  const hasActiveFilters = activeFilters.size > 0 || sortBy || searchQuery || !showCompleted;
+  const hasActiveFilters =
+    activeFilters.size > 0 || !!sortBy || !!searchQuery.trim() || !showCompleted;
 
   // Compute filtered & sorted sections
   const filteredSections = useMemo(() => {
@@ -268,7 +320,10 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           if (activeFilters.has("due_this_week")) {
             if (!task.dueDate) return false;
             try {
-              if (!isThisWeek(parseISO(task.dueDate), { weekStartsOn: 1 })) return false;
+              // Compare the UTC calendar day (dueDates are stored at UTC
+              // midnight); parsing with local time would bucket a task into
+              // the previous week for evening US users.
+              if (!isThisWeek(dueDateToLocalMidnight(task.dueDate), { weekStartsOn: 1 })) return false;
             } catch {
               return false;
             }
@@ -382,51 +437,89 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => {
+                <DropdownMenuItem onClick={async () => {
                   const newName = prompt('Project name:', project.name);
                   if (newName && newName !== project.name) {
-                    fetch(`/api/projects/${project.id}`, {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ name: newName }),
-                    }).then(res => {
-                      if (res.ok) { toast.success('Project renamed'); window.location.reload(); }
-                    }).catch(() => toast.error("Operation failed"));
+                    try {
+                      const res = await fetch(`/api/projects/${project.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: newName }),
+                      });
+                      if (res.ok) {
+                        toast.success('Project renamed');
+                        router.refresh();
+                      } else {
+                        const err = await res.json().catch(() => ({}));
+                        toast.error(err.error || 'Failed to rename project');
+                      }
+                    } catch {
+                      toast.error('Failed to rename project');
+                    }
                   }
                 }}>
                   <Edit2 className="h-4 w-4 mr-2" />
                   Rename
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  fetch(`/api/projects`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: `${project.name} (copy)`, color: project.color, description: project.description }),
-                  }).then(async res => {
-                    if (res.ok) { const data = await res.json(); toast.success('Project duplicated'); router.push(`/projects/${data.id}`); }
-                  }).catch(() => toast.error("Operation failed"));
+                <DropdownMenuItem onClick={async () => {
+                  try {
+                    // Dedicated endpoint deep-copies sections + tasks (the old
+                    // POST /api/projects created an empty shell and 400'd when
+                    // the source had no description).
+                    const res = await fetch(`/api/projects/${project.id}/duplicate`, {
+                      method: 'POST',
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      toast.success('Project duplicated');
+                      router.push(`/projects/${data.id}`);
+                    } else {
+                      const err = await res.json().catch(() => ({}));
+                      toast.error(err.error || 'Failed to duplicate project');
+                    }
+                  } catch {
+                    toast.error('Failed to duplicate project');
+                  }
                 }}>
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicate
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => {
-                  fetch(`/api/projects/${project.id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'ARCHIVED' }),
-                  }).then(res => {
-                    if (res.ok) { toast.success('Project archived'); router.push('/projects/all'); }
-                  }).catch(() => toast.error("Operation failed"));
+                <DropdownMenuItem onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/projects/${project.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ isArchived: true }),
+                    });
+                    if (res.ok) {
+                      toast.success('Project archived');
+                      router.push('/projects/all');
+                    } else {
+                      const err = await res.json().catch(() => ({}));
+                      toast.error(err.error || 'Failed to archive project');
+                    }
+                  } catch {
+                    toast.error('Failed to archive project');
+                  }
                 }}>
                   <Archive className="h-4 w-4 mr-2" />
                   Archive
                 </DropdownMenuItem>
-                <DropdownMenuItem className="text-black" onClick={() => {
+                <DropdownMenuItem className="text-black" onClick={async () => {
                   if (confirm('Delete this project? This cannot be undone.')) {
-                    fetch(`/api/projects/${project.id}`, { method: 'DELETE' }).then(res => {
-                      if (res.ok) { toast.success('Project deleted'); router.push('/projects/all'); }
-                    }).catch(() => toast.error("Operation failed"));
+                    try {
+                      const res = await fetch(`/api/projects/${project.id}`, { method: 'DELETE' });
+                      if (res.ok) {
+                        toast.success('Project deleted');
+                        router.push('/projects/all');
+                      } else {
+                        const err = await res.json().catch(() => ({}));
+                        toast.error(err.error || 'Failed to delete project');
+                      }
+                    } catch {
+                      toast.error('Failed to delete project');
+                    }
                   }
                 }}>
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -440,7 +533,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               variant="ghost"
               size="icon"
               className={cn("h-8 w-8", isStarred && "text-[#a8893a]")}
-              onClick={() => { setIsStarred(!isStarred); toast.success(isStarred ? 'Removed from favorites' : 'Added to favorites'); }}
+              onClick={toggleStar}
             >
               <Star className={cn("h-4 w-4", isStarred && "fill-current")} />
             </Button>
@@ -516,7 +609,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setMembersDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Manage members ({project.members.length + 1})
+                  Manage members ({memberCount})
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -936,6 +1029,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
               projectId={project.id}
+              reorderDisabled={hasActiveFilters}
             />
           )}
           {currentView === "board" && (
@@ -944,6 +1038,10 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
               projectId={project.id}
+              reorderDisabled={hasActiveFilters}
+              rawSectionCounts={Object.fromEntries(
+                project.sections.map((s) => [s.id, s.tasks.length])
+              )}
             />
           )}
           {currentView === "timeline" && (
@@ -958,11 +1056,12 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               sections={filteredSections}
               onTaskClick={handleTaskClick}
               projectId={project.id}
+              onTaskMutated={() => router.refresh()}
             />
           )}
           {currentView === "dashboard" && (
             <DashboardView
-              sections={filteredSections}
+              sections={project.sections}
               projectId={project.id}
             />
           )}
@@ -1022,21 +1121,27 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
         sectionId={selectedSectionId || undefined}
       />
 
-      {/* Project Members Dialog */}
-      {project.owner && (
-        <ProjectMembersDialog
-          open={membersDialogOpen}
-          onOpenChange={setMembersDialogOpen}
-          projectId={project.id}
-          owner={{
-            id: project.owner.id,
-            name: project.owner.name,
-            email: project.owner.email || "",
-            image: project.owner.image,
-          }}
-          onMembersChange={() => router.refresh()}
-        />
-      )}
+      {/* Project Members Dialog — mounted regardless of owner. Project.ownerId
+          is nullable (onDelete: SetNull), and gating the whole dialog on a
+          truthy owner made "Add member"/"Manage all" silent no-ops on any
+          project whose owner was removed. */}
+      <ProjectMembersDialog
+        open={membersDialogOpen}
+        onOpenChange={setMembersDialogOpen}
+        projectId={project.id}
+        owner={
+          project.owner
+            ? {
+                id: project.owner.id,
+                name: project.owner.name,
+                email: project.owner.email || "",
+                image: project.owner.image,
+              }
+            : null
+        }
+        canManage={canManageMembers}
+        onMembersChange={() => router.refresh()}
+      />
 
       {/* Edit Project Dialog — reuses CreateProjectDialog in edit mode */}
       <CreateProjectDialog

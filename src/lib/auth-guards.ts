@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 /**
  * Verify user is a member of the workspace. Returns the membership record.
@@ -137,10 +138,30 @@ export async function assertUserInWorkspace(
 }
 
 /**
- * Verify user has access to a task via its project's workspace.
+ * Verify user has access to a task via its project's ACCESS RULES —
+ * not merely its workspace. This is the security chokepoint for every
+ * /api/tasks/[taskId]/* endpoint.
+ *
+ * A bare workspace-membership check (the previous behaviour) was strictly
+ * weaker than the read gate the project page enforces: any workspace member
+ * could GET/PATCH/DELETE tasks of PRIVATE or WORKSPACE-visibility projects
+ * they cannot even open (audit: critical task leak + timeline-drag write).
+ * We now apply the SAME rule as the page via resolveProjectAccess:
+ *   owner | project member | PUBLIC | ws OWNER/ADMIN | Position level >= 4.
+ *
+ * The task's own creator or assignee always retains access (My Tasks,
+ * assigned-to-me flows) even when they are not a formal ProjectMember.
+ *
+ * @param opts.requireWrite  Also require write capability (project ADMIN/
+ *   EDITOR, owner, or the caller being the task's creator/assignee). Use on
+ *   mutating verbs so COMMENTER/VIEWER can't edit arbitrary tasks.
  * Returns the task with project info.
  */
-export async function verifyTaskAccess(userId: string, taskId: string) {
+export async function verifyTaskAccess(
+  userId: string,
+  taskId: string,
+  opts: { requireWrite?: boolean } = {}
+) {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     select: {
@@ -148,12 +169,17 @@ export async function verifyTaskAccess(userId: string, taskId: string) {
       projectId: true,
       creatorId: true,
       assigneeId: true,
+      // A task's followers (TaskCollaborator) may not be project members —
+      // they're added workspace-wide. They must still be able to READ the
+      // task they follow (and its comments/subtasks/attachments).
+      collaborators: { where: { userId }, select: { userId: true } },
       project: {
         select: {
           id: true,
           workspaceId: true,
           ownerId: true,
           visibility: true,
+          members: { select: { userId: true, role: true } },
         },
       },
     },
@@ -163,23 +189,50 @@ export async function verifyTaskAccess(userId: string, taskId: string) {
     throw new NotFoundError("Task not found");
   }
 
+  const isOwnTask =
+    task.creatorId === userId || task.assigneeId === userId;
+  const isCollaborator = task.collaborators.length > 0;
+  // Creator, assignee, or a follower always keeps READ access to the task.
+  const hasPersonalTie = isOwnTask || isCollaborator;
+
   if (!task.project) {
-    // Task without a project - check if user created it or is assigned
-    if (task.creatorId !== userId && task.assigneeId !== userId) {
+    // Task without a project - check if user created it, is assigned, or follows
+    if (!hasPersonalTie) {
       throw new AuthorizationError("You don't have access to this task");
     }
     return task;
   }
 
-  // Verify user belongs to the task's project workspace
-  await verifyWorkspaceAccess(userId, task.project.workspaceId);
+  const access = await resolveProjectAccess(task.project, userId);
+
+  // Hide existence with a 404 for users who can't read the project,
+  // matching the project page (unless they own/are assigned/follow the task).
+  if (!access.ok && !hasPersonalTie) {
+    throw new NotFoundError("Task not found");
+  }
+
+  // Write requires real edit capability: project owner/ADMIN/EDITOR, or the
+  // caller being the task's creator/assignee. A pure follower can read but
+  // not mutate.
+  if (opts.requireWrite && !access.canWrite && !isOwnTask) {
+    throw new AuthorizationError(
+      "You don't have permission to modify this task"
+    );
+  }
+
   return task;
 }
 
 /**
- * Verify user has access to a project. Returns workspace membership.
+ * Verify user has read access to a project via the canonical page rule.
+ * Returns the project and the resolved access result (so callers can gate
+ * writes on `access.canWrite` / `access.canManage`).
  */
-export async function verifyProjectAccess(userId: string, projectId: string) {
+export async function verifyProjectAccess(
+  userId: string,
+  projectId: string,
+  opts: { requireWrite?: boolean } = {}
+) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
@@ -187,6 +240,7 @@ export async function verifyProjectAccess(userId: string, projectId: string) {
       workspaceId: true,
       ownerId: true,
       visibility: true,
+      members: { select: { userId: true, role: true } },
     },
   });
 
@@ -194,8 +248,17 @@ export async function verifyProjectAccess(userId: string, projectId: string) {
     throw new NotFoundError("Project not found");
   }
 
-  const member = await verifyWorkspaceAccess(userId, project.workspaceId);
-  return { project, member };
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) {
+    throw new NotFoundError("Project not found");
+  }
+  if (opts.requireWrite && !access.canWrite) {
+    throw new AuthorizationError(
+      "You don't have permission to modify this project"
+    );
+  }
+
+  return { project, access };
 }
 
 /**
@@ -212,8 +275,12 @@ export async function verifyTeamAccess(userId: string, teamId: string) {
 }
 
 /**
- * Verify all taskIds belong to user's workspace.
- * Used for bulk operations.
+ * Verify the caller can WRITE all taskIds. Every /api/tasks/bulk and
+ * /api/tasks/reorder action is a mutation, so this enforces write capability
+ * (project owner/ADMIN/EDITOR, or the caller being the task's creator/
+ * assignee) — mirroring the single-task PATCH/DELETE gate. Without this, a
+ * read-only COMMENTER/VIEWER could bulk-delete/complete/reassign tasks the
+ * single-task endpoints deny them.
  */
 export async function verifyBulkTaskAccess(userId: string, taskIds: string[]) {
   const workspaceId = await getUserWorkspaceId(userId);
@@ -222,7 +289,17 @@ export async function verifyBulkTaskAccess(userId: string, taskIds: string[]) {
     where: { id: { in: taskIds } },
     select: {
       id: true,
-      project: { select: { workspaceId: true } },
+      creatorId: true,
+      assigneeId: true,
+      project: {
+        select: {
+          id: true,
+          workspaceId: true,
+          ownerId: true,
+          visibility: true,
+          members: { select: { userId: true, role: true } },
+        },
+      },
     },
   });
 
@@ -230,9 +307,35 @@ export async function verifyBulkTaskAccess(userId: string, taskIds: string[]) {
     throw new NotFoundError("One or more tasks not found");
   }
 
+  // Cache the write decision per project so a bulk of N tasks in the same
+  // project costs one access resolution, not N.
+  const projectDecision = new Map<string, boolean>();
+
   for (const task of tasks) {
-    if (task.project && task.project.workspaceId !== workspaceId) {
-      throw new AuthorizationError("You don't have access to one or more tasks");
+    const isOwnTask =
+      task.creatorId === userId || task.assigneeId === userId;
+
+    if (!task.project) {
+      // Projectless (personal / My Tasks) task: only the creator or
+      // assignee may touch it — never any workspace member.
+      if (!isOwnTask) {
+        throw new AuthorizationError(
+          "You don't have access to one or more tasks"
+        );
+      }
+      continue;
+    }
+
+    let canWrite = projectDecision.get(task.project.id);
+    if (canWrite === undefined) {
+      const access = await resolveProjectAccess(task.project, userId);
+      canWrite = access.canWrite;
+      projectDecision.set(task.project.id, canWrite);
+    }
+    if (!canWrite && !isOwnTask) {
+      throw new AuthorizationError(
+        "You don't have permission to modify one or more tasks"
+      );
     }
   }
 

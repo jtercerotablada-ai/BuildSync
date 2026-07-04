@@ -155,20 +155,31 @@ export async function POST(req: Request) {
     }
     const data = parsed.data;
 
-    // Verify user can edit the target project.
-    const project = await prisma.project.findFirst({
-      where: {
-        id: data.projectId,
-        OR: [
-          { ownerId: userId },
-          { members: { some: { userId } } },
-        ],
+    // Verify user can EDIT the target project. Creating a form is a build
+    // action, so mirror the role gate on POST /api/projects/:id/forms
+    // (owner or ADMIN/EDITOR) — plain COMMENTER/VIEWER members must not be
+    // able to create forms via this endpoint.
+    const project = await prisma.project.findUnique({
+      where: { id: data.projectId },
+      select: {
+        id: true,
+        name: true,
+        ownerId: true,
+        members: { where: { userId }, select: { role: true } },
       },
-      select: { id: true, name: true },
     });
     if (!project) {
       return NextResponse.json(
         { error: "Project not found or you don't have access" },
+        { status: 403 }
+      );
+    }
+    const role = project.members[0]?.role;
+    const canEdit =
+      project.ownerId === userId || role === "ADMIN" || role === "EDITOR";
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: "You don't have permission to create forms in this project" },
         { status: 403 }
       );
     }
@@ -211,14 +222,26 @@ export async function POST(req: Request) {
       },
     });
 
+    // Return the FULL form shape (mirroring the PATCH response) so the client
+    // can immediately re-open the just-created form for editing without a
+    // blank field list — previously the trimmed shape wiped fields on re-save.
     return NextResponse.json(
       {
         id: form.id,
         name: form.name,
+        description: form.description,
+        fields: form.fields,
+        projectId: form.projectId,
         projectName: form.project.name,
-        responsesCount: 0,
-        isActive: form.isActive,
+        defaultSectionId: form.defaultSectionId,
+        defaultAssigneeId: form.defaultAssigneeId,
+        confirmationMessage: form.confirmationMessage,
+        notifyOnSubmission: form.notifyOnSubmission,
         visibility: form.visibility,
+        settings: form.settings ?? null,
+        responsesCount: 0,
+        submissionCount: 0,
+        isActive: form.isActive,
       },
       { status: 201 }
     );

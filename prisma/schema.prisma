@@ -398,6 +398,7 @@ model Project {
   icon        String?
   status      ProjectStatus     @default(ON_TRACK)
   visibility  ProjectVisibility @default(WORKSPACE)
+  isArchived  Boolean           @default(false)
   startDate   DateTime?
   endDate     DateTime?
   createdAt   DateTime          @default(now())

@@ -50,7 +50,11 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
-  owner: ProjectOwner;
+  /** Nullable: Project.ownerId is SetNull, so a project can lose its owner. */
+  owner: ProjectOwner | null;
+  /** Whether the current user may add/remove members and change roles. When
+   *  false the dialog is read-only (the API 403s these mutations anyway). */
+  canManage?: boolean;
   onMembersChange?: () => void;
 }
 
@@ -77,6 +81,7 @@ export function ProjectMembersDialog({
   onOpenChange,
   projectId,
   owner,
+  canManage = false,
   onMembersChange,
 }: Props) {
   const [members, setMembers] = useState<ProjectMember[]>([]);
@@ -121,10 +126,9 @@ export function ProjectMembersDialog({
         if (res.ok) {
           const users: WorkspaceUser[] = await res.json();
           // Exclude users already in the project (and the owner)
-          const memberIds = new Set([
-            owner.id,
-            ...members.map((m) => m.userId),
-          ]);
+          const memberIds = new Set(
+            [owner?.id, ...members.map((m) => m.userId)].filter(Boolean)
+          );
           setSearchResults(users.filter((u) => !memberIds.has(u.id)));
         }
       } catch {
@@ -134,7 +138,7 @@ export function ProjectMembersDialog({
       }
     }, 200);
     return () => clearTimeout(handle);
-  }, [query, open, members, owner.id]);
+  }, [query, open, members, owner?.id]);
 
   async function addMember(user: WorkspaceUser) {
     setAdding(user.id);
@@ -167,12 +171,17 @@ export function ProjectMembersDialog({
         `/api/projects/${projectId}/members?userId=${member.userId}`,
         { method: "DELETE" }
       );
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to remove member");
+      }
       setMembers((prev) => prev.filter((m) => m.id !== member.id));
       toast.success("Member removed");
       onMembersChange?.();
-    } catch {
-      toast.error("Failed to remove member");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to remove member"
+      );
     }
   }
 
@@ -183,13 +192,18 @@ export function ProjectMembersDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: member.userId, role }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update role");
+      }
       setMembers((prev) =>
         prev.map((m) => (m.id === member.id ? { ...m, role } : m))
       );
       toast.success("Role updated");
-    } catch {
-      toast.error("Failed to update role");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update role"
+      );
     }
   }
 
@@ -203,7 +217,10 @@ export function ProjectMembersDialog({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Search */}
+        {/* Search — only project admins/owner can add members. Members
+            without manage rights see a read-only roster (the API 403s every
+            add/remove/role mutation anyway). */}
+        {canManage && (
         <div className="px-4 md:px-6 pb-2 flex-shrink-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -216,9 +233,10 @@ export function ProjectMembersDialog({
             />
           </div>
         </div>
+        )}
 
         {/* Search results */}
-        {(query || searching) && (
+        {canManage && (query || searching) && (
           <div className="px-4 md:px-6 pb-2 flex-shrink-0">
             <p className="text-xs text-gray-500 mb-2">
               {searching ? "Searching…" : "Add to project"}
@@ -263,10 +281,18 @@ export function ProjectMembersDialog({
 
         <div className="border-t flex-1 overflow-y-auto px-4 md:px-6 py-3">
           <p className="text-xs text-gray-500 mb-2">
-            Members ({members.length + 1})
+            Members (
+            {
+              new Set(
+                [owner?.id, ...members.map((m) => m.userId)].filter(Boolean)
+              ).size
+            }
+            )
           </p>
 
-          {/* Owner row (always present) */}
+          {/* Owner row — only when the project still has an owner (ownerId
+              is nullable via SetNull). */}
+          {owner && (
           <div className="flex items-center gap-2 p-2 rounded">
             <Avatar className="h-8 w-8">
               <AvatarImage src={owner.image || ""} />
@@ -285,13 +311,19 @@ export function ProjectMembersDialog({
             </div>
             <span className="text-xs text-gray-500 px-2 py-1">Owner</span>
           </div>
+          )}
 
           {loadingMembers ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
             </div>
           ) : (
-            members.map((m) => (
+            // Exclude the owner — they're already shown in the crown row above
+            // (project creation always inserts the owner as a ProjectMember, so
+            // the fetched list contains them too → previously listed twice).
+            members
+              .filter((m) => m.userId !== owner?.id)
+              .map((m) => (
               <div
                 key={m.id}
                 className={cn(
@@ -314,35 +346,41 @@ export function ProjectMembersDialog({
                     </p>
                   )}
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-gray-600 h-7 px-2"
-                    >
-                      {ROLE_LABELS[m.role]}
-                      <ChevronDown className="h-3 w-3 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {(["ADMIN", "EDITOR", "COMMENTER", "VIEWER"] as const).map((r) => (
-                      <DropdownMenuItem
-                        key={r}
-                        onClick={() => changeRole(m, r)}
+                {canManage ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-gray-600 h-7 px-2"
                       >
-                        {ROLE_LABELS[r]}
+                        {ROLE_LABELS[m.role]}
+                        <ChevronDown className="h-3 w-3 ml-1" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {(["ADMIN", "EDITOR", "COMMENTER", "VIEWER"] as const).map((r) => (
+                        <DropdownMenuItem
+                          key={r}
+                          onClick={() => changeRole(m, r)}
+                        >
+                          {ROLE_LABELS[r]}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuItem
+                        className="text-black"
+                        onClick={() => removeMember(m)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove
                       </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuItem
-                      className="text-black"
-                      onClick={() => removeMember(m)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Remove
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <span className="text-xs text-gray-500 px-2 py-1">
+                    {ROLE_LABELS[m.role]}
+                  </span>
+                )}
               </div>
             ))
           )}

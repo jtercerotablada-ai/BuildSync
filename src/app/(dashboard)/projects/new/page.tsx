@@ -167,7 +167,15 @@ export default function NewProjectPage() {
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [projectColor, setProjectColor] = useState("#c9a84c");
-  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
+  // Default to the LOCAL calendar date. toISOString() would give the UTC
+  // date, which is already "tomorrow" for US-evening users — and this value
+  // seeds every template task's relative due date server-side.
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  });
 
   // Load template if templateId is provided
   useEffect(() => {

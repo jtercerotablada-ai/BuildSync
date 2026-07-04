@@ -64,6 +64,14 @@ export async function GET(req: Request) {
     }
 
     if (projectId) {
+      // Enforce project-level read access, not just workspace scoping:
+      // otherwise any workspace member could list every task (with custom
+      // fields, tags, dependencies) of a PRIVATE/WORKSPACE project they
+      // cannot open. verifyProjectAccess throws NotFound/Authorization,
+      // mapped to 404/403 in the catch below.
+      if (!myTasks) {
+        await verifyProjectAccess(userId, projectId);
+      }
       whereClause.projectId = projectId;
     }
 
@@ -222,16 +230,41 @@ export async function POST(req: Request) {
       await verifyTaskAccess(userId, data.parentTaskId);
     }
 
-    // Auto-assign to current user if no assigneeId provided (for My Tasks)
-    const assigneeId = data.assigneeId ?? userId;
+    // Auto-assign to the creator ONLY for projectless personal tasks (the
+    // My Tasks quick-add). Project tasks stay unassigned unless an assignee
+    // is explicitly provided — otherwise every task typed into a project's
+    // List/Board/Calendar would silently be assigned to whoever created it
+    // (not Asana's behaviour). `undefined` = field omitted; `null` = an
+    // explicit "leave unassigned".
+    const assigneeId =
+      data.assigneeId !== undefined
+        ? data.assigneeId
+        : data.projectId
+        ? null
+        : userId;
 
     // Wrap position calculation and task creation in a transaction to prevent race conditions
     const task = await prisma.$transaction(async (tx) => {
+      // Auto-place a project task into the first section when none was given
+      // (e.g. Calendar day-cell quick-add). The project page loads tasks only
+      // through sections.include.tasks, so a sectionId-null project task would
+      // be invisible everywhere. Subtasks (parentTaskId set) keep their own
+      // placement and are skipped.
+      let resolvedSectionId = data.sectionId ?? null;
+      if (!resolvedSectionId && data.projectId && !data.parentTaskId) {
+        const firstSection = await tx.section.findFirst({
+          where: { projectId: data.projectId },
+          orderBy: { position: "asc" },
+          select: { id: true },
+        });
+        if (firstSection) resolvedSectionId = firstSection.id;
+      }
+
       // Get the next position for the task
       let position = 0;
-      if (data.sectionId) {
+      if (resolvedSectionId) {
         const lastTask = await tx.task.findFirst({
-          where: { sectionId: data.sectionId },
+          where: { sectionId: resolvedSectionId },
           orderBy: { position: "desc" },
           select: { position: true },
         });
@@ -250,7 +283,7 @@ export async function POST(req: Request) {
           name: data.name,
           description: data.description,
           projectId: data.projectId,
-          sectionId: data.sectionId,
+          sectionId: resolvedSectionId,
           assigneeId: assigneeId,
           creatorId: userId,
           dueDate: data.dueDate ? new Date(data.dueDate) : null,

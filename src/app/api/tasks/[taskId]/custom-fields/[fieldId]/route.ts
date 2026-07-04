@@ -19,7 +19,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyTaskAccess } from "@/lib/auth-guards";
+import {
+  verifyTaskAccess,
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+} from "@/lib/auth-guards";
 import { recomputeFormulasForTask } from "@/lib/formula-eval";
 
 const bodySchema = z.object({
@@ -43,7 +48,7 @@ export async function PATCH(
     }
     const { taskId, fieldId } = await params;
 
-    await verifyTaskAccess(userId, taskId);
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -312,6 +317,10 @@ export async function PATCH(
       value: row.value,
     });
   } catch (err) {
+    if (err instanceof AuthorizationError || err instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(err);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("[task custom-field PATCH] error:", err);
     return NextResponse.json(
       { error: "Failed to set custom field value" },

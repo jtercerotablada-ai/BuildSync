@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyProjectAccess, getErrorStatus } from "@/lib/auth-guards";
+import {
+  verifyProjectAccess,
+  getErrorStatus,
+  AuthorizationError,
+  NotFoundError,
+} from "@/lib/auth-guards";
 
 // GET /api/projects/:projectId/attachments - Get all attachments for a project
 export async function GET(
@@ -48,7 +53,7 @@ export async function GET(
     });
     const uploaderMap = new Map(uploaders.map(u => [u.id, u]));
 
-    const result = attachments.map(a => ({
+    const taskResult = attachments.map(a => ({
       id: a.id,
       name: a.name,
       url: a.url,
@@ -57,11 +62,51 @@ export async function GET(
       createdAt: a.createdAt.toISOString(),
       taskId: a.task?.id || null,
       taskName: a.task?.name || null,
+      source: "task" as const,
       uploader: uploaderMap.get(a.uploaderId) || null,
     }));
 
+    // Message attachments — the Files tab explicitly promises "all task AND
+    // message attachments"; these were never collected before.
+    const messageAttachments = await prisma.messageAttachment.findMany({
+      where: { message: { projectId } },
+      include: {
+        message: {
+          select: {
+            id: true,
+            author: {
+              select: { id: true, name: true, email: true, image: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const messageResult = messageAttachments.map((a) => ({
+      id: a.id,
+      name: a.name,
+      url: a.url,
+      size: a.size,
+      mimeType: a.mimeType,
+      createdAt: a.createdAt.toISOString(),
+      taskId: null,
+      taskName: null,
+      source: "message" as const,
+      uploader: a.message?.author ?? null,
+    }));
+
+    // Merge, newest first.
+    const result = [...taskResult, ...messageResult].sort((x, y) =>
+      x.createdAt < y.createdAt ? 1 : x.createdAt > y.createdAt ? -1 : 0
+    );
+
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching project attachments:", error);
     return NextResponse.json(
       { error: "Failed to fetch attachments" },

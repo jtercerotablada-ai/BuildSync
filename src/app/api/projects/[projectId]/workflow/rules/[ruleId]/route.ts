@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { validateRuleTargets } from "../route";
 
 /**
  * PATCH /api/projects/:projectId/workflow/rules/:ruleId
@@ -60,6 +61,8 @@ async function assertRuleAccess(
           projectId: true,
           project: {
             select: {
+              id: true,
+              workspaceId: true,
               ownerId: true,
               members: { select: { userId: true, role: true } },
             },
@@ -82,7 +85,7 @@ async function assertRuleAccess(
     (member && (member.role === "ADMIN" || member.role === "EDITOR"));
 
   if (!canEdit) return { ok: false as const, status: 403 };
-  return { ok: true as const, rule };
+  return { ok: true as const, rule, project };
 }
 
 export async function PATCH(
@@ -112,6 +115,20 @@ export async function PATCH(
         { error: "Invalid payload", details: parsed.error.flatten() },
         { status: 400 }
       );
+    }
+
+    // Validate the RESULTING rule's targets (merging the patched fields with
+    // the stored ones) so a PATCH can't smuggle a foreign section/project/user.
+    const mergedTrigger = parsed.data.trigger ?? access.rule.trigger;
+    const mergedActions = (parsed.data.actions ??
+      access.rule.actions) as unknown[];
+    const targetError = await validateRuleTargets(
+      { trigger: mergedTrigger, actions: mergedActions },
+      access.project,
+      userId
+    );
+    if (targetError) {
+      return NextResponse.json({ error: targetError }, { status: 400 });
     }
 
     const data: Prisma.WorkflowRuleUpdateInput = {};

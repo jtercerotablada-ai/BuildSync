@@ -115,6 +115,9 @@ export function ProjectTeamView({
   projectOwner,
 }: Props) {
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [unaffiliatedMembers, setUnaffiliatedMembers] = useState<
+    ProjectMemberRow[]
+  >([]);
   const [canWrite, setCanWrite] = useState(false);
   const [loading, setLoading] = useState(true);
   const [addCompanyOpen, setAddCompanyOpen] = useState(false);
@@ -132,6 +135,7 @@ export function ProjectTeamView({
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setCompanies(data.companies || []);
+      setUnaffiliatedMembers(data.unaffiliatedMembers || []);
       setCanWrite(!!data.canWrite);
     } catch {
       toast.error("Couldn't load project team");
@@ -227,6 +231,33 @@ export function ProjectTeamView({
                 projectId={projectId}
               />
             ))}
+
+            {/* Members not attached to any firm (e.g. the project creator).
+                Previously invisible — the tab only rendered company groups. */}
+            {unaffiliatedMembers.length > 0 && (
+              <div className="rounded-lg border border-slate-200">
+                <div className="px-3 py-2 border-b border-slate-100">
+                  <h3 className="font-semibold text-slate-900 text-sm">
+                    Unaffiliated
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Members not yet assigned to a firm
+                  </p>
+                </div>
+                <div className="px-2 py-1">
+                  {unaffiliatedMembers.map((m) => (
+                    <MemberRow
+                      key={m.id}
+                      member={m}
+                      canWrite={canWrite}
+                      isProjectOwner={m.userId === projectOwner?.id}
+                      projectId={projectId}
+                      onRefresh={fetchTeam}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
