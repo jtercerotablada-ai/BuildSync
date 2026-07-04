@@ -14,6 +14,7 @@ interface Task {
   id: string;
   name: string;
   completed: boolean;
+  completedAt?: string | null;
   dueDate: string | null;
   projectId?: string | null;
   project?: {
@@ -63,10 +64,31 @@ export function MyTasksWidget() {
   // detail modal *before* the task is saved. We capture the draft
   // due date here and pass it through on POST.
   const [newTaskDueDate, setNewTaskDueDate] = useState<Date | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  // Per-tab so expanding "Completed" doesn't silently expand the
+  // other two tabs as well.
+  const [showAll, setShowAll] = useState<Record<TabType, boolean>>({
+    upcoming: false,
+    overdue: false,
+    completed: false,
+  });
   const [error, setError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // macOS Safari never focuses <button> on mousedown, so the composer
+  // blur's relatedTarget is null when clicking the action buttons and
+  // the [data-composer-action] check alone can't catch it. Flag the
+  // press in onPointerDown (fires before the focus change / blur) and
+  // honor it in the blur guard.
+  const composerActionPressRef = useRef(false);
+  const markComposerActionPress = () => {
+    composerActionPressRef.current = true;
+    // Blur (if any) fires synchronously with the focus change, so a
+    // 0-tick reset is enough and a stale flag can't swallow a later
+    // legitimate blur-create.
+    setTimeout(() => {
+      composerActionPressRef.current = false;
+    }, 0);
+  };
   // Concurrent fetchTasks calls (mount + task-created event + modal
   // update) can resolve out of order; tag each with an incrementing id
   // and ignore any response that isn't the latest request.
@@ -129,11 +151,19 @@ export function MyTasksWidget() {
     if (!task.dueDate) return false;
     return dueDateToLocalMidnight(task.dueDate) < today;
   });
-  const completedTasksAll = allTasks.filter(task => task.completed);
+  // Most-recently-completed first (Asana's order); tasks completed
+  // before completedAt existed sink to the bottom.
+  const completedTasksAll = allTasks
+    .filter(task => task.completed)
+    .sort(
+      (a, b) =>
+        (b.completedAt ? Date.parse(b.completedAt) : 0) -
+        (a.completedAt ? Date.parse(a.completedAt) : 0)
+    );
 
-  const upcomingTasks = showAll ? upcomingTasksAll : upcomingTasksAll.slice(0, VISIBLE_LIMIT);
-  const overdueTasks = showAll ? overdueTasksAll : overdueTasksAll.slice(0, VISIBLE_LIMIT);
-  const completedTasks = showAll ? completedTasksAll : completedTasksAll.slice(0, VISIBLE_LIMIT);
+  const upcomingTasks = showAll.upcoming ? upcomingTasksAll : upcomingTasksAll.slice(0, VISIBLE_LIMIT);
+  const overdueTasks = showAll.overdue ? overdueTasksAll : overdueTasksAll.slice(0, VISIBLE_LIMIT);
+  const completedTasks = showAll.completed ? completedTasksAll : completedTasksAll.slice(0, VISIBLE_LIMIT);
 
   // PATCH the completed flag for one task, with an optimistic local
   // flip and an Undo action on the toast (mirrors Asana's "Deshacer" —
@@ -297,8 +327,10 @@ export function MyTasksWidget() {
               // Don't fire create if the blur came from clicking
               // the inline date / details buttons — they live inside
               // the composer row and would otherwise eat the click.
+              // relatedTarget covers keyboard focus moves; the press
+              // ref covers Safari, where relatedTarget is null.
               const next = e.relatedTarget as HTMLElement | null;
-              if (next?.closest('[data-composer-action]')) return;
+              if (composerActionPressRef.current || next?.closest('[data-composer-action]')) return;
               handleCreateTask();
             }}
           />
@@ -313,6 +345,7 @@ export function MyTasksWidget() {
                 type="button"
                 data-composer-action
                 title="Set due date"
+                onPointerDown={markComposerActionPress}
                 className={cn(
                   'flex items-center gap-1 h-6 px-1.5 text-xs rounded hover:bg-gray-100 flex-shrink-0',
                   newTaskDueDate ? 'text-gray-700' : 'text-gray-400'
@@ -336,6 +369,7 @@ export function MyTasksWidget() {
             type="button"
             data-composer-action
             title="Open task details"
+            onPointerDown={markComposerActionPress}
             onClick={async () => {
               if (newTaskName.trim()) {
                 const created = await handleCreateTask();
@@ -437,7 +471,7 @@ export function MyTasksWidget() {
                 >
                   {/* Circular checkbox with checkmark on hover */}
                   <button
-                    aria-label={task.completed ? 'Mark task as incomplete' : 'Mark task as complete'}
+                    aria-label={task.completed ? `Mark "${task.name}" incomplete` : `Complete "${task.name}"`}
                     aria-pressed={task.completed}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -506,13 +540,15 @@ export function MyTasksWidget() {
             })}
             {/* Asana's "Mostrar más" — surfaces hidden tasks past the
                 default 5. Once expanded, the toggle reads "Show less". */}
-            {(hiddenCount > 0 || showAll) && (
+            {(hiddenCount > 0 || showAll[activeTab]) && (
               <button
                 type="button"
-                onClick={() => setShowAll((v) => !v)}
+                onClick={() =>
+                  setShowAll((prev) => ({ ...prev, [activeTab]: !prev[activeTab] }))
+                }
                 className="text-xs text-gray-500 hover:text-gray-900 hover:underline underline-offset-4 mt-1 px-1 py-1"
               >
-                {showAll ? 'Show less' : `Show more (${hiddenCount})`}
+                {showAll[activeTab] ? 'Show less' : `Show more (${hiddenCount})`}
               </button>
             )}
           </div>

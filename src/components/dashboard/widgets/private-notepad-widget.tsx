@@ -79,7 +79,11 @@ export function PrivateNotepadWidget() {
   const [aiLoading, setAiLoading] = useState<string | null>(null);
   const [selectedText, setSelectedText] = useState('');
   const [aiResult, setAiResult] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mentionsError, setMentionsError] = useState<string | null>(null);
+  const [mentionsLoading, setMentionsLoading] = useState(false);
+  const [showLinkPicker, setShowLinkPicker] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
   const [saveStatus, setSaveStatus] = useState<'saving' | 'saved' | 'error' | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const savedSelectionRef = useRef<Range | null>(null);
@@ -92,28 +96,37 @@ export function PrivateNotepadWidget() {
     { id: 'fix', icon: CheckCircle, label: 'Fix grammar', prompt: 'Fix any grammar and spelling errors in the following text:' },
   ];
 
-  // Real users for mentions
+  // Real users for mentions — lazy-loaded the first time the picker opens,
+  // since most sessions never mention anyone
   const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const usersLoadedRef = useRef(false);
+
+  const loadUsers = useCallback(async () => {
+    if (usersLoadedRef.current) return;
+    usersLoadedRef.current = true;
+    setMentionsLoading(true);
+    try {
+      const res = await fetch('/api/users?limit=20');
+      if (!res.ok) throw new Error(`Failed to fetch users: ${res.status}`);
+      const data = await res.json();
+      setUsers(data.map((u: { id: string; name?: string; email?: string }) => ({
+        id: u.id,
+        name: u.name || '',
+        email: u.email || '',
+      })));
+      setMentionsError(null);
+    } catch (error) {
+      console.error('Failed to fetch users for mentions:', error);
+      usersLoadedRef.current = false; // allow retry
+      setMentionsError("Couldn't load teammates for mentions");
+    } finally {
+      setMentionsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchUsers() {
-      try {
-        const res = await fetch('/api/users?limit=20');
-        if (res.ok) {
-          const data = await res.json();
-          setUsers(data.map((u: { id: string; name?: string; email?: string }) => ({
-            id: u.id,
-            name: u.name || '',
-            email: u.email || '',
-          })));
-        }
-      } catch (error) {
-        console.error('Failed to fetch users for mentions:', error);
-        setError('Failed to load data');
-      }
-    }
-    fetchUsers();
-  }, []);
+    if (showMentionPicker) loadUsers();
+  }, [showMentionPicker, loadUsers]);
 
   // Track the server-side note ID (for the dedicated home notepad note)
   const noteIdRef = useRef<string | null>(null);
@@ -127,8 +140,12 @@ export function PrivateNotepadWidget() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      let apiFailed = false;
       try {
-        const res = await fetch('/api/workspace/notes');
+        // Slim opt-in filter: only the notepad note as id+content, not every
+        // accessible note with author/collaborator objects
+        const res = await fetch(`/api/workspace/notes?title=${encodeURIComponent(NOTEPAD_TITLE)}`);
+        if (!res.ok) apiFailed = true;
         if (res.ok && !cancelled) {
           const notes: { id: string; title: string; content: string; updatedAt?: string }[] = await res.json();
           const notepad = notes.find((n) => n.title === NOTEPAD_TITLE);
@@ -167,6 +184,7 @@ export function PrivateNotepadWidget() {
         }
       } catch {
         // network error — use local fallback
+        apiFailed = true;
       }
 
       if (cancelled) return;
@@ -183,6 +201,13 @@ export function PrivateNotepadWidget() {
           lastSavedContentRef.current = saved;
           setContent(saved);
         }
+      }
+      if (apiFailed) {
+        setLoadError(
+          saved
+            ? "Couldn't load your note from the server — showing the local copy"
+            : "Couldn't load your note from the server"
+        );
       }
       setIsLoaded(true);
     })();
@@ -262,6 +287,7 @@ export function PrivateNotepadWidget() {
       }
       lastSavedContentRef.current = content;
       setSaveStatus('saved');
+      setLoadError(null); // server reachable again — the stale-load warning no longer applies
     } catch {
       // network/API error — the localStorage copy above is the fallback
       setSaveStatus('error');
@@ -309,6 +335,22 @@ export function PrivateNotepadWidget() {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
+
+  // Escape dismisses whichever overlay is open (these are hand-rolled
+  // popovers/modals, not Radix, so they get no dismissal for free)
+  useEffect(() => {
+    if (!showEmojiPicker && !showMentionPicker && !showAIAssist && !showLinkPicker) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setShowEmojiPicker(false);
+      setShowMentionPicker(false);
+      setShowAIAssist(false);
+      setShowLinkPicker(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [showEmojiPicker, showMentionPicker, showAIAssist, showLinkPicker]);
 
   // Save selection
   const saveSelection = useCallback(() => {
@@ -700,11 +742,9 @@ export function PrivateNotepadWidget() {
       return;
     }
     if (button.action === 'link') {
-      const url = prompt('Enter URL:');
-      if (url) {
-        document.execCommand('createLink', false, url);
-        handleContentChange();
-      }
+      // Inline popover instead of the blocking native prompt()
+      setLinkUrl('');
+      setShowLinkPicker(true);
       return;
     }
     if (button.action === 'inlineCode') {
@@ -757,6 +797,18 @@ export function PrivateNotepadWidget() {
       handleContentChange();
     }
   }, [handleContentChange, insertCodeBlock, insertBulletedList, insertNumberedList, insertQuote, openAIAssist]);
+
+  // Apply the link from the inline popover to the saved selection
+  const applyLink = useCallback(() => {
+    const raw = linkUrl.trim();
+    setShowLinkPicker(false);
+    setLinkUrl('');
+    if (!raw) return;
+    const href = /^(https?:|mailto:|tel:)/i.test(raw) ? raw : `https://${raw}`;
+    restoreSelection();
+    document.execCommand('createLink', false, href);
+    handleContentChange();
+  }, [linkUrl, restoreSelection, handleContentChange]);
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -882,7 +934,7 @@ export function PrivateNotepadWidget() {
           above. AVAILABLE_WIDGETS already pairs this widget with
           titleIcon='lock' so the lock badge renders next to the
           container's "Private notepad" title. */}
-      {error && <p className="text-sm text-black mb-2">{error}</p>}
+      {loadError && <p className="text-sm text-amber-600 mb-2">{loadError}</p>}
 
       {/* Editor area */}
       <div className="flex-1 overflow-y-auto relative min-h-[120px] mb-2">
@@ -916,6 +968,7 @@ export function PrivateNotepadWidget() {
           <DropdownMenu open={insertMenuOpen} onOpenChange={setInsertMenuOpen}>
             <DropdownMenuTrigger asChild>
               <button
+                aria-label="Insert"
                 className="p-1.5 hover:bg-gray-100 rounded"
                 onMouseDown={saveSelection}
               >
@@ -963,6 +1016,7 @@ export function PrivateNotepadWidget() {
               <Tooltip key={index}>
                 <TooltipTrigger asChild>
                   <button
+                    aria-label={button.tooltip}
                     onMouseDown={saveSelection}
                     onClick={() => {
                       // Defer action to avoid blocking UI (INP optimization)
@@ -995,6 +1049,8 @@ export function PrivateNotepadWidget() {
       {showEmojiPicker && (
         <div className="fixed inset-0 z-50" onClick={() => setShowEmojiPicker(false)}>
           <div
+            role="dialog"
+            aria-label="Emoji picker"
             className="absolute bg-white border rounded-lg shadow-lg p-3 w-72"
             style={{ bottom: '80px', left: '20px' }}
             onClick={(e) => e.stopPropagation()}
@@ -1007,6 +1063,7 @@ export function PrivateNotepadWidget() {
                     {category.emojis.map((emoji, i) => (
                       <button
                         key={i}
+                        aria-label={`Insert ${emoji}`}
                         onClick={() => insertEmoji(emoji)}
                         className="w-8 h-8 hover:bg-gray-100 rounded flex items-center justify-center text-lg"
                       >
@@ -1025,6 +1082,8 @@ export function PrivateNotepadWidget() {
       {showMentionPicker && (
         <div className="fixed inset-0 z-50" onClick={() => setShowMentionPicker(false)}>
           <div
+            role="dialog"
+            aria-label="Mention a teammate"
             className="absolute bg-white border rounded-lg shadow-lg p-3 w-64"
             style={{ bottom: '80px', left: '20px' }}
             onClick={(e) => e.stopPropagation()}
@@ -1037,7 +1096,25 @@ export function PrivateNotepadWidget() {
               autoFocus
             />
             <div className="max-h-48 overflow-y-auto space-y-1">
-              {filteredUsers.length === 0 ? (
+              {mentionsLoading ? (
+                <div className="flex justify-center py-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                </div>
+              ) : mentionsError ? (
+                <div className="text-center py-2">
+                  <p className="text-xs text-amber-600 mb-1">{mentionsError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMentionsError(null);
+                      loadUsers();
+                    }}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : filteredUsers.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-2">
                   No users found
                 </p>
@@ -1063,10 +1140,57 @@ export function PrivateNotepadWidget() {
         </div>
       )}
 
+      {/* LINK POPOVER */}
+      {showLinkPicker && (
+        <div className="fixed inset-0 z-50" onClick={() => setShowLinkPicker(false)}>
+          <div
+            role="dialog"
+            aria-label="Insert link"
+            className="absolute bg-white border rounded-lg shadow-lg p-3 w-72"
+            style={{ bottom: '80px', left: '20px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                applyLink();
+              }}
+            >
+              <Input
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="Paste or type a link..."
+                className="mb-2"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLinkPicker(false)}
+                  className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!linkUrl.trim()}
+                  className="px-3 py-1.5 text-sm bg-black text-white rounded hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add link
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* AI ASSIST MODAL */}
       {showAIAssist && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setShowAIAssist(false)}>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="AI assist"
             className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1077,6 +1201,7 @@ export function PrivateNotepadWidget() {
                 <h3 className="font-semibold">AI Assist</h3>
               </div>
               <button
+                aria-label="Close AI assist"
                 onClick={() => setShowAIAssist(false)}
                 className="p-1 hover:bg-gray-100 rounded"
               >

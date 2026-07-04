@@ -15,6 +15,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search");
+    const title = searchParams.get("title");
     const showArchived = searchParams.get("archived") === "true";
 
     const workspaceMember = await prisma.workspaceMember.findFirst({
@@ -24,6 +25,35 @@ export async function GET(req: Request) {
 
     if (!workspaceMember) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
+    }
+
+    // Opt-in slim mode: ?title= returns only exact-title matches as
+    // { id, title, content, updatedAt } — the home notepad widget needs one
+    // note, not every accessible note with author + collaborator objects.
+    if (title !== null) {
+      const slimNotes = await prisma.workspaceNote.findMany({
+        where: {
+          workspaceId: workspaceMember.workspaceId,
+          isArchived: showArchived,
+          title,
+          OR: [
+            { authorId: userId },
+            { visibility: "WORKSPACE" },
+            {
+              visibility: "SHARED",
+              collaborators: {
+                some: { userId },
+              },
+            },
+          ],
+        },
+        select: { id: true, title: true, content: true, updatedAt: true },
+        orderBy: [
+          { isPinned: "desc" },
+          { updatedAt: "desc" },
+        ],
+      });
+      return NextResponse.json(slimNotes);
     }
 
     const notes = await prisma.workspaceNote.findMany({

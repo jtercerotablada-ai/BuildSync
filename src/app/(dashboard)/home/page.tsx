@@ -31,6 +31,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -52,7 +53,7 @@ import {
   type WidgetMenuAction,
 } from "@/components/dashboard/widget-container";
 import { CustomizeWidgetsModal } from "@/components/dashboard/customize-widgets-modal";
-import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
+import { openQuickCreateTask } from "@/components/layout/dashboard-shell";
 import type { WidgetType } from "@/types/dashboard";
 import type { CockpitData } from "@/components/cockpit/types";
 import { startOfLocalDay } from "@/lib/date-only";
@@ -130,9 +131,9 @@ export default function HomePage() {
   // self-fetch.
   const [data, setData] = useState<HomeCockpitData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Gmail-compose-style task composer triggered by the Assigned
-  // Tasks widget's "Assign task" CTA (and any future caller).
-  const [showQuickComposer, setShowQuickComposer] = useState(false);
+  // The Gmail-compose-style task composer is mounted ONCE at the
+  // DashboardShell level; CTAs here open it via openQuickCreateTask()
+  // so Home never stacks a second pixel-identical composer over it.
   const { value: period, setValue: setPeriod } = useUiState<HomePeriod>(
     PERIOD_UI_STATE_KEY,
     "week"
@@ -156,6 +157,12 @@ export default function HomePage() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 5 },
+    }),
+    // The drag handles use touch-action:manipulation so touch scrolling
+    // stays native; a long-press (TouchSensor delay) is the only way a
+    // finger can start a drag without the browser stealing the gesture.
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -245,7 +252,7 @@ export default function HomePage() {
         {
           label: "Create task",
           icon: <Plus className="h-4 w-4 mr-2" />,
-          onClick: () => setShowQuickComposer(true),
+          onClick: () => openQuickCreateTask(),
         },
         {
           label: "View all my tasks",
@@ -259,7 +266,7 @@ export default function HomePage() {
         {
           label: "Assign task",
           icon: <Plus className="h-4 w-4 mr-2" />,
-          onClick: () => setShowQuickComposer(true),
+          onClick: () => openQuickCreateTask(),
         },
       ];
     }
@@ -303,12 +310,11 @@ export default function HomePage() {
         );
       case "assigned-tasks":
         // Opens the Gmail-compose-style task composer pinned to the
-        // bottom-right. Replaces the previous router.push("/my-tasks")
-        // bounce — users wanted to actually assign here, not navigate.
+        // bottom-right (the shell's single instance). Replaces the
+        // previous router.push("/my-tasks") bounce — users wanted to
+        // actually assign here, not navigate.
         return (
-          <AssignedTasksWidget
-            onAssignTask={() => setShowQuickComposer(true)}
-          />
+          <AssignedTasksWidget onAssignTask={() => openQuickCreateTask()} />
         );
       case "people":
         return <PeopleWidget />;
@@ -410,14 +416,6 @@ export default function HomePage() {
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      {/* Floating Gmail-compose-style task composer. Mounted at the
-          page root so it stays pinned to bottom-right even when the
-          user scrolls the widget grid. */}
-      <QuickCreateTaskModal
-        open={showQuickComposer}
-        onOpenChange={setShowQuickComposer}
-      />
     </div>
   );
 }

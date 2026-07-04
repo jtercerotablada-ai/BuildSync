@@ -71,6 +71,22 @@ function formatRelativeDate(timestamp: number): string {
   return date.toLocaleDateString();
 }
 
+function writeLocalTopics(topics: PastTopic[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
+  } catch {
+    // ignore
+  }
+}
+
+function patchDbTopics(topics: PastTopic[]) {
+  fetch('/api/users/preferences', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uiState: { aiPastTopics: topics } }),
+  }).catch(() => { /* ignore */ });
+}
+
 // Size / Remove handled by WidgetContainer — no props needed.
 export function AIAssistantWidget() {
   // openPanel was used by the widget's own ⋯ menu (now removed; the
@@ -89,6 +105,11 @@ export function AIAssistantWidget() {
   const [mentionSearch, setMentionSearch] = useState('');
   const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  // The preferences PATCH replaces uiState.aiPastTopics wholesale, so a
+  // save that races the mount-time GET would wipe the DB-stored list.
+  // Saves made before the GET settles are held here and merged in after.
+  const prefsLoadedRef = React.useRef(false);
+  const pendingPreloadSaveRef = React.useRef<PastTopic[] | null>(null);
 
   // Fetch people and projects for @ mentions
   useEffect(() => {
@@ -167,6 +188,24 @@ export function AIAssistantWidget() {
   // Load past topics from API (DB-persisted), fall back to localStorage
   useEffect(() => {
     let cancelled = false;
+    // Merge any save that raced the GET (newest first, dedupe by id) over
+    // the loaded list, then flush the deferred PATCH.
+    const finish = (loaded: PastTopic[]) => {
+      prefsLoadedRef.current = true;
+      const held = pendingPreloadSaveRef.current;
+      if (!held) {
+        setPastTopics(loaded);
+        return;
+      }
+      pendingPreloadSaveRef.current = null;
+      const merged = [
+        ...held,
+        ...loaded.filter((t) => !held.some((h) => h.id === t.id)),
+      ].slice(0, 20);
+      writeLocalTopics(merged);
+      setPastTopics(merged);
+      patchDbTopics(merged);
+    };
     (async () => {
       try {
         const res = await fetch('/api/users/preferences');
@@ -174,7 +213,7 @@ export function AIAssistantWidget() {
           const prefs = await res.json();
           const ui = prefs.uiState as { aiPastTopics?: PastTopic[] } | null;
           if (ui?.aiPastTopics && Array.isArray(ui.aiPastTopics)) {
-            setPastTopics(ui.aiPastTopics);
+            finish(ui.aiPastTopics);
             return;
           }
         }
@@ -184,11 +223,9 @@ export function AIAssistantWidget() {
       if (cancelled) return;
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          setPastTopics(JSON.parse(saved));
-        }
+        finish(saved ? JSON.parse(saved) : []);
       } catch {
-        setPastTopics([]);
+        finish([]);
       }
     })();
     return () => { cancelled = true; };
@@ -196,17 +233,16 @@ export function AIAssistantWidget() {
 
   // Save past topics to API + localStorage
   const savePastTopics = (topics: PastTopic[]) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
-    } catch {
-      // ignore
-    }
+    writeLocalTopics(topics);
     setPastTopics(topics);
-    fetch('/api/users/preferences', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uiState: { aiPastTopics: topics } }),
-    }).catch(() => { /* ignore */ });
+    if (!prefsLoadedRef.current) {
+      // Initial GET hasn't settled — PATCHing now would replace the
+      // DB-stored list with only this session's topics. Hold the save;
+      // the load effect merges and persists it.
+      pendingPreloadSaveRef.current = topics;
+      return;
+    }
+    patchDbTopics(topics);
   };
 
   const handleSubmit = async () => {

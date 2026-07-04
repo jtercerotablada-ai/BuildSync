@@ -15,6 +15,12 @@ export async function GET() {
     // Consumed only by the assigned-tasks widget, so the select is slimmed
     // to exactly the fields it renders (id/name/completed/dueDate + assignee
     // and project stubs).
+    // Completed history is windowed to the last 30 days so old done work
+    // doesn't eat into the 200-row budget; completedAt: null rows are kept
+    // (pending tasks, plus legacy completions from before the column).
+    const completedCutoff = new Date();
+    completedCutoff.setDate(completedCutoff.getDate() - 30);
+
     const tasks = await prisma.task.findMany({
       where: {
         creatorId: userId,
@@ -22,6 +28,11 @@ export async function GET() {
           not: userId,
         },
         parentTaskId: null, // Only top-level tasks
+        OR: [
+          { completed: false },
+          { completedAt: null },
+          { completedAt: { gte: completedCutoff } },
+        ],
       },
       select: {
         id: true,

@@ -142,7 +142,9 @@ export function FormsWidget() {
     setProjectsLoading(true);
     setProjectsError(false);
     try {
-      const res = await fetch('/api/projects');
+      // Slim payload — the picker only needs id/name/color, not
+      // member rosters and root tasks.
+      const res = await fetch('/api/projects?fields=summary');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as Project[];
       setProjects(Array.isArray(data) ? data : []);
@@ -217,7 +219,7 @@ export function FormsWidget() {
         // Educational empty state — most users have never used a Forms
         // feature before. Concrete examples teach what it's for.
         <div className="flex-1 flex flex-col items-center justify-center text-center py-4 px-2">
-          <div className="relative mb-3">
+          <div className="relative mb-2">
             <div className="w-12 h-14 border-2 border-gray-200 rounded-lg flex items-end justify-center pb-1.5">
               <div className="w-6 h-1.5 bg-gray-200 rounded" />
             </div>
@@ -225,16 +227,16 @@ export function FormsWidget() {
           <p className="text-sm font-medium text-gray-900 mb-1">
             Turn requests into tasks
           </p>
-          <p className="text-xs text-gray-500 mb-3 max-w-[280px] leading-snug">
+          <p className="text-xs text-gray-500 mb-2 max-w-[280px] leading-snug">
             Build an intake form, share its public link with clients or
             contractors. Each submission auto-creates a task in the
             project — assigned, scheduled, ready.
           </p>
-          <ul className="text-[11px] text-gray-600 space-y-0.5 mb-3 inline-block text-left">
+          {/* Two examples, not four — the full stack must fit the
+              360px card row without clipping (no scroll here). */}
+          <ul className="text-[11px] text-gray-600 space-y-0.5 mb-2 inline-block text-left">
             <li>· RFI Request</li>
             <li>· Change Order</li>
-            <li>· Inspection Request</li>
-            <li>· Recertification Intake</li>
           </ul>
           <DropdownMenu
             open={showProjectPicker}

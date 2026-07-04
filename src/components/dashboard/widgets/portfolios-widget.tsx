@@ -58,9 +58,9 @@ export function PortfoliosWidget() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-14 bg-gray-100 animate-pulse rounded-lg" />
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="h-[46px] bg-gray-100 animate-pulse rounded-lg" />
           ))}
         </div>
       ) : error ? (

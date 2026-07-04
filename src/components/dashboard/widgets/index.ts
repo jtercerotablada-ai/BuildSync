@@ -1,6 +1,5 @@
 export { MyTasksWidget } from './my-tasks-widget';
 export { ProjectsWidget } from './projects-widget';
-export { QuickOverviewWidget } from './quick-overview-widget';
 export { GoalsWidget } from './goals-widget';
 export { AssignedTasksWidget } from './assigned-tasks-widget';
 export { PeopleWidget } from './people-widget';

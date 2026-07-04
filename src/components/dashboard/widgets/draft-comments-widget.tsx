@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageCircle, ArrowRight, Trash2 } from 'lucide-react';
+import { MessageCircle, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { useUiState } from '@/hooks/use-ui-state';
 
 interface DraftComment {
   id: string;
@@ -13,77 +14,42 @@ interface DraftComment {
   createdAt: string;
 }
 
-const STORAGE_KEY = 'buildsync-draft-comments';
-
 export function DraftCommentsWidget() {
   const router = useRouter();
-  const [drafts, setDrafts] = useState<DraftComment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Shared uiState hook: joins the home page's single deduped
+  // GET /api/users/preferences (instead of issuing its own copy),
+  // handles the localStorage cache, and persists writes through the
+  // debounced key-scoped PATCH.
+  const {
+    value: drafts,
+    setValue: setDrafts,
+    isHydrated,
+  } = useUiState<DraftComment[]>('draftComments', []);
 
-  useEffect(() => {
-    // Load drafts from API (DB-persisted), fall back to localStorage
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/users/preferences');
-        if (res.ok && !cancelled) {
-          const prefs = await res.json();
-          const ui = prefs.uiState as { draftComments?: DraftComment[] } | null;
-          if (ui?.draftComments && Array.isArray(ui.draftComments)) {
-            setDrafts(ui.draftComments);
-            setLoading(false);
-            return;
-          }
-        }
-      } catch {
-        // ignore
-      }
-      if (cancelled) return;
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const data = JSON.parse(saved);
-          setDrafts(data);
-        }
-      } catch {
-        setDrafts([]);
-      }
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const deleteDraft = async (id: string) => {
+  const deleteDraft = async (draft: DraftComment) => {
     const previous = drafts;
-    const updated = drafts.filter(d => d.id !== id);
+    const updated = previous.filter(d => d.id !== draft.id);
     setDrafts(updated);
-    setDeleteError(null);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
-
-    const restore = () => {
-      setDrafts(previous);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(previous));
-      } catch {
-        // ignore
-      }
-      setDeleteError('Could not delete draft. Please try again.');
-    };
-
-    try {
+      // The hook's debounced PATCH swallows transport failures, and the
+      // next load prefers the DB — a silently failed delete would
+      // resurrect the draft. Await one explicit PATCH so failure can
+      // restore the row.
       const res = await fetch('/api/users/preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ uiState: { draftComments: updated } }),
       });
-      if (!res.ok) restore();
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success('Draft deleted', {
+        action: {
+          label: 'Undo',
+          onClick: () => setDrafts(previous),
+        },
+      });
     } catch {
-      restore();
+      setDrafts(previous);
+      toast.error('Could not delete draft. Please try again.');
     }
   };
 
@@ -112,12 +78,8 @@ export function DraftCommentsWidget() {
         )}
       </div>
 
-      {deleteError && (
-        <p className="text-xs text-red-600 mb-2 flex-shrink-0" role="alert">{deleteError}</p>
-      )}
-
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
+        {!isHydrated ? (
           <div className="space-y-3">
             {[1, 2].map(i => (
               <div key={i} className="h-14 bg-slate-100 animate-pulse rounded-lg" />
@@ -151,8 +113,9 @@ export function DraftCommentsWidget() {
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 text-slate-400 hover:text-black"
-                    onClick={() => deleteDraft(draft.id)}
-                    aria-label="Delete draft"
+                    onClick={() => deleteDraft(draft)}
+                    aria-label={`Delete draft on ${draft.taskName}`}
+                    title={`Delete draft on ${draft.taskName}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

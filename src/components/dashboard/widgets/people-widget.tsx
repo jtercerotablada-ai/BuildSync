@@ -189,7 +189,14 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
             </button>
           </div>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          // Subtle dim while a period/filter refetch is in flight —
+          // rows stay mounted so there's no skeleton flash or layout shift.
+          <ul
+            className={cn(
+              'divide-y divide-gray-100 transition-opacity',
+              loading && 'opacity-60'
+            )}
+          >
             {people.map((person) => {
               const initials =
                 (person.name || person.email || '?')

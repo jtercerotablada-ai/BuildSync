@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraduationCap, ChevronRight, X, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useUiState } from '@/hooks/use-ui-state';
 import { cn } from '@/lib/utils';
 
 interface Tutorial {
@@ -14,8 +14,6 @@ interface Tutorial {
   completed: boolean;
   url: string;
 }
-
-const STORAGE_KEY = 'buildsync-completed-tutorials';
 
 const TUTORIALS: Tutorial[] = [
   {
@@ -54,111 +52,38 @@ const TUTORIALS: Tutorial[] = [
 
 export function LearningWidget() {
   const router = useRouter();
-  const [tutorials, setTutorials] = useState<Tutorial[]>(TUTORIALS);
-  const [dismissed, setDismissed] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
-  // Guard the mount fetch from clobbering a toggle made while it is in flight.
-  const hasInteracted = useRef(false);
+  // Shared uiState hook: one deduped GET of /api/users/preferences per
+  // page load (Home already fetches it), debounced key-scoped PATCHes,
+  // and its dirty-key overlay keeps toggles made while the initial
+  // fetch is in flight from being reverted by the server payload.
+  const { value: rawCompletedIds, setValue: setCompletedIds, isHydrated } =
+    useUiState<string[]>('learningCompleted', []);
+  const { value: dismissed, setValue: setDismissed } =
+    useUiState<boolean>('learningDismissed', false);
 
-  useEffect(() => {
-    // Load both completed tutorials and dismissed state from DB
-    (async () => {
-      try {
-        const res = await fetch('/api/users/preferences');
-        if (res.ok) {
-          const prefs = await res.json();
-          const ui = prefs.uiState as {
-            learningDismissed?: boolean;
-            learningCompleted?: string[];
-          } | null;
-          if (!hasInteracted.current && ui?.learningDismissed === true) {
-            setDismissed(true);
-          }
-          if (
-            !hasInteracted.current &&
-            ui?.learningCompleted &&
-            Array.isArray(ui.learningCompleted)
-          ) {
-            setTutorials(TUTORIALS.map(t => ({
-              ...t,
-              completed: ui.learningCompleted!.includes(t.id),
-            })));
-            return;
-          }
-        }
-      } catch {
-        // ignore
-      }
+  // Server value could predate this widget's array shape.
+  const completedIds = Array.isArray(rawCompletedIds) ? rawCompletedIds : [];
 
-      // Local fallback
-      try {
-        if (hasInteracted.current) return;
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const completedIds = JSON.parse(saved);
-          setTutorials(TUTORIALS.map(t => ({
-            ...t,
-            completed: completedIds.includes(t.id),
-          })));
-        }
-        const dismissedKey = localStorage.getItem('buildsync-learning-dismissed');
-        if (dismissedKey === 'true') {
-          setDismissed(true);
-        }
-      } catch {
-        // ignore
-      }
-    })().finally(() => {
-      setIsLoaded(true);
-    });
-  }, []);
+  const tutorials = TUTORIALS.map(t => ({
+    ...t,
+    completed: completedIds.includes(t.id),
+  }));
 
   const toggleCompleted = (id: string) => {
-    hasInteracted.current = true;
-    const updated = tutorials.map(t =>
-      t.id === id ? { ...t, completed: !t.completed } : t
-    );
-    setTutorials(updated);
-    const completedIds = updated.filter(t => t.completed).map(t => t.id);
-
-    // Local fallback
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(completedIds));
-    } catch {
-      // ignore
-    }
-
-    // DB save
-    fetch('/api/users/preferences', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uiState: { learningCompleted: completedIds } }),
-    }).catch(() => { /* ignore */ });
+    setCompletedIds(prev => {
+      const ids = Array.isArray(prev) ? prev : [];
+      return ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id];
+    });
   };
 
   const handleNavigate = (tutorial: Tutorial) => {
     router.push(tutorial.url);
   };
 
-  const dismissWidget = () => {
-    hasInteracted.current = true;
-    setDismissed(true);
-    try {
-      localStorage.setItem('buildsync-learning-dismissed', 'true');
-    } catch {
-      // ignore
-    }
-    fetch('/api/users/preferences', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uiState: { learningDismissed: true } }),
-    }).catch(() => { /* ignore */ });
-  };
-
   const completedCount = tutorials.filter(t => t.completed).length;
   const progress = (completedCount / tutorials.length) * 100;
 
-  if (!isLoaded) {
+  if (!isHydrated) {
     return (
       <div className="h-full flex flex-col space-y-2">
         {[1, 2, 3, 4].map(i => (
@@ -177,19 +102,7 @@ export function LearningWidget() {
           variant="link"
           size="sm"
           className="text-black"
-          onClick={() => {
-            setDismissed(false);
-            try {
-              localStorage.removeItem('buildsync-learning-dismissed');
-            } catch {
-              // ignore
-            }
-            fetch('/api/users/preferences', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ uiState: { learningDismissed: false } }),
-            }).catch(() => { /* ignore */ });
-          }}
+          onClick={() => setDismissed(false)}
         >
           Show tutorials again
         </Button>
@@ -215,7 +128,7 @@ export function LearningWidget() {
           variant="ghost"
           size="sm"
           className="h-7 w-7 p-0 text-slate-400 hover:text-slate-600"
-          onClick={dismissWidget}
+          onClick={() => setDismissed(true)}
           aria-label="Dismiss learning widget"
         >
           <X className="h-4 w-4" />
@@ -227,10 +140,10 @@ export function LearningWidget() {
           <div
             key={tutorial.id}
             className={cn(
-              "w-full p-2.5 rounded-lg border transition-colors text-left flex items-center gap-3",
+              "w-full p-2.5 rounded-lg border transition-colors text-left flex items-center gap-3 hover:bg-slate-50",
               tutorial.completed
                 ? "border-black bg-white"
-                : "border-slate-200 hover:bg-slate-50"
+                : "border-slate-200"
             )}
           >
             {/* Completion checkbox */}

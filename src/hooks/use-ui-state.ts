@@ -23,17 +23,35 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const FETCH_DEBOUNCE_MS = 600;
 
-// localStorage cache key. The DB remains the source of truth; this
+// localStorage cache keys. The DB remains the source of truth; this
 // cache exists ONLY to eliminate the first-paint flash when the user
-// reloads. On every server fetch we mirror the result here, and on
-// every write we mirror the new value here, so the next mount can
-// render the right value synchronously without waiting on the network.
-const CACHE_STORAGE_KEY = "ui-state-cache";
+// reloads. Keys are namespaced by user id so one user's cached UI
+// prefs (background tint, collapsed panels, …) never flash for — or
+// get mirrored into — another account on a shared machine. The legacy
+// unscoped 'ui-state-cache' key is deliberately ignored.
+// LAST_USER_KEY remembers the last server-confirmed user so the seed
+// read below can find its cache synchronously; shared with
+// use-widget-preferences.ts.
+const CACHE_STORAGE_KEY_PREFIX = "ui-state-cache";
+const LAST_USER_KEY = "buildsync-last-user-id";
+const cacheKeyFor = (userId: string) => `${CACHE_STORAGE_KEY_PREFIX}:${userId}`;
 
-function readCachedFromStorage(): Record<string, unknown> | null {
+// Last server-confirmed user id — seeded from the marker at import so
+// the first paint can read that user's cache; re-confirmed (and
+// corrected after a user switch) by every successful server fetch.
+let cachedUserId: string | null = (() => {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(CACHE_STORAGE_KEY);
+    return localStorage.getItem(LAST_USER_KEY);
+  } catch {
+    return null;
+  }
+})();
+
+function readCachedFromStorage(): Record<string, unknown> | null {
+  if (typeof window === "undefined" || !cachedUserId) return null;
+  try {
+    const raw = localStorage.getItem(cacheKeyFor(cachedUserId));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -41,9 +59,9 @@ function readCachedFromStorage(): Record<string, unknown> | null {
 }
 
 function writeCachedToStorage(state: Record<string, unknown>) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !cachedUserId) return;
   try {
-    localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(cacheKeyFor(cachedUserId), JSON.stringify(state));
   } catch {
     // Storage full / private mode — silently fall through; the in-
     // memory cache still works for the rest of the session.
@@ -76,12 +94,28 @@ async function fetchUiState(): Promise<Record<string, unknown>> {
       const res = await fetch("/api/users/preferences");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      const uid =
+        typeof data?.userId === "string" ? (data.userId as string) : null;
       const state = (data?.uiState as Record<string, unknown> | null) || {};
       // Overlay edits made while the fetch was in flight so the
-      // server payload doesn't visibly revert them.
+      // server payload doesn't visibly revert them. Dirty keys were
+      // written by the CURRENT session's user, so they stay valid
+      // even if the seed cache came from a previous user.
       for (const key of locallyDirtyKeys) {
         if (cachedUiState && key in cachedUiState) {
           state[key] = cachedUiState[key];
+        }
+      }
+      // A mismatch means the seed cache belonged to the machine's
+      // previous user — the server payload replacing it here discards
+      // those entries. Update the marker so the next mount seeds from
+      // the right scoped key.
+      if (uid && uid !== cachedUserId) {
+        cachedUserId = uid;
+        try {
+          localStorage.setItem(LAST_USER_KEY, uid);
+        } catch {
+          // ignore — marker is only a seed optimization
         }
       }
       cachedUiState = state;
@@ -106,7 +140,11 @@ function setCachedKey(key: string, value: unknown) {
   if (!cachedUiState) cachedUiState = {};
   cachedUiState[key] = value;
   locallyDirtyKeys.add(key);
-  writeCachedToStorage(cachedUiState);
+  // Only mirror to storage once the server has confirmed whose cache
+  // this is — a pre-confirm write could land in another user's key.
+  // Pre-confirm dirty values still reach storage when the fetch
+  // settles (dirty-key overlay + writeCachedToStorage above).
+  if (serverConfirmed) writeCachedToStorage(cachedUiState);
   subscribers.forEach((cb) => cb());
 }
 

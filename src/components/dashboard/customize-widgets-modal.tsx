@@ -88,6 +88,15 @@ const TITLE_ICON_MAP: Record<string, React.ReactNode> = {
   sparkles: <Sparkles className="h-3.5 w-3.5 text-[#a8893a]" />,
 };
 
+// Amber (#d97706) and teal (#0d9488) are the palette's two
+// mid-luminance swatches: the palette's white check lands near the
+// 3:1 WCAG graphics floor there (~3.2:1 / ~3.7:1). A near-black check
+// clears 4.5:1 on both, so override just those two.
+const DARK_CHECK_SWATCHES: ReadonlySet<HomeBackgroundId> = new Set([
+  'amber',
+  'teal',
+]);
+
 export function CustomizeWidgetsModal({
   preferences,
   onToggleWidget,
@@ -137,7 +146,11 @@ export function CustomizeWidgetsModal({
                         {selected && (
                           <Check
                             className="absolute inset-0 m-auto h-4 w-4"
-                            style={{ color: bg.checkColor }}
+                            style={{
+                              color: DARK_CHECK_SWATCHES.has(bg.id)
+                                ? '#111827'
+                                : bg.checkColor,
+                            }}
                           />
                         )}
                       </button>
@@ -181,7 +194,9 @@ export function CustomizeWidgetsModal({
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 truncate">
+                        {/* Wrap, never truncate — clipping ate notices
+                            like "Coming soon" on the narrow sheet. */}
+                        <p className="text-xs text-gray-500">
                           {widget.description}
                         </p>
                       </div>

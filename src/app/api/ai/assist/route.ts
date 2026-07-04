@@ -8,6 +8,9 @@ import { formatPosition, getLevel } from '@/lib/people-types';
 import { rateLimit } from '@/lib/rate-limit';
 
 const MAX_TEXT_LENGTH = 10000;
+// Every first-party caller sends a short fixed instruction (< 200 chars);
+// the cap only blocks scripted abuse of the relayed prompt field.
+const MAX_PROMPT_LENGTH = 500;
 
 // Caps for the qa-mode context block so a large workspace can't blow up
 // the prompt: task lists, resolved @mentions and the name-candidate scan
@@ -301,6 +304,13 @@ export async function POST(request: NextRequest) {
     if (text.length > MAX_TEXT_LENGTH) {
       return NextResponse.json(
         { error: `Text is too long (max ${MAX_TEXT_LENGTH} characters)` },
+        { status: 413 }
+      );
+    }
+
+    if (prompt.length > MAX_PROMPT_LENGTH) {
+      return NextResponse.json(
+        { error: `Prompt is too long (max ${MAX_PROMPT_LENGTH} characters)` },
         { status: 413 }
       );
     }

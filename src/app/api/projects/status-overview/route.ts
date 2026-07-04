@@ -22,8 +22,11 @@ import { getLevel } from "@/lib/people-types";
  * Access scope: same as the projects list — workspace leadership
  * (OWNER/ADMIN role or L4+ position) sees all workspace projects;
  * everyone else only sees projects they own, are a member of, or
- * that are PUBLIC. Completed projects are filtered OUT because the
- * widget is for "current work" only.
+ * that are PUBLIC. Completed and archived projects are filtered OUT
+ * because the widget is for "current work" only.
+ *
+ * Params: ?limit= (1–30, default 8) · ?workspaceId= (optional; must
+ * be a workspace the caller belongs to, else the default heuristic).
  */
 export async function GET(req: Request) {
   try {
@@ -32,12 +35,25 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = await getUserWorkspaceId(userId);
     const { searchParams } = new URL(req.url);
     const limit = Math.min(
       Math.max(parseInt(searchParams.get("limit") || "8", 10), 1),
       30
     );
+
+    // Optional ?workspaceId= override (additive) — only honored when
+    // the caller is actually a member of that workspace, so the param
+    // can never probe another workspace's PUBLIC projects. Absent or
+    // non-member → the same default-workspace heuristic as before.
+    const requestedWorkspaceId = searchParams.get("workspaceId");
+    const workspaceId =
+      requestedWorkspaceId &&
+      (await prisma.workspaceMember.findFirst({
+        where: { userId, workspaceId: requestedWorkspaceId },
+        select: { userId: true },
+      }))
+        ? requestedWorkspaceId
+        : await getUserWorkspaceId(userId);
 
     // Mirror /api/projects GET's visibility rules: workspace
     // leadership (OWNER/ADMIN role) and L4+ positions see every
@@ -62,6 +78,9 @@ export async function GET(req: Request) {
         // ON_HOLD intentionally stays IN: a paused project still
         // deserves a "why are we paused?" check-in.
         status: { not: "COMPLETE" },
+        // Archived projects are done being tracked — hide them just
+        // like GET /api/projects does by default.
+        isArchived: false,
         OR: seesAllInWorkspace
           ? undefined
           : [
@@ -76,6 +95,7 @@ export async function GET(req: Request) {
         color: true,
         status: true,
         gate: true,
+        workspaceId: true,
         updatedAt: true,
       },
       orderBy: { updatedAt: "desc" },
@@ -136,6 +156,10 @@ export async function GET(req: Request) {
         id: p.id,
         name: p.name,
         color: p.color,
+        // Which workspace this rollup was scoped to — lets the widget
+        // scope its "Post update" picker to the same workspace instead
+        // of the picker spanning every membership (additive field).
+        workspaceId: p.workspaceId,
         // Current project-level status (the pill the user sees on
         // the project header). Independent from the last update's
         // status — they can diverge if status was changed via the

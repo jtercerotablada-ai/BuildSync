@@ -9,7 +9,9 @@
  * tile and the dedicated PMI widgets below.
  */
 
+import { useEffect, useState } from "react";
 import { Calendar, Check, ChevronDown, CheckCircle2, Users } from "lucide-react";
+import { APP_LOCALE } from "@/lib/locale";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,8 +35,8 @@ const PERIOD_LABEL: Record<HomePeriod, string> = {
   quarter: "This quarter",
 };
 
-function greeting(name?: string | null): string {
-  const h = new Date().getHours();
+function greeting(now: Date, name?: string | null): string {
+  const h = now.getHours();
   const greet =
     h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
   return name ? `${greet}, ${name.split(" ")[0]}` : greet;
@@ -61,7 +63,20 @@ export function HomeHeader({
   // separate row below the header).
   actions?: React.ReactNode;
 }) {
-  const dateStr = new Date().toLocaleDateString("en-US", {
+  // Recompute date + greeting when a long-lived tab regains focus so
+  // it doesn't keep saying "Good morning" at 3pm (or show yesterday's
+  // date after midnight). visibilitychange is enough — nobody stares
+  // at a background tab waiting for the greeting to flip.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    function refresh() {
+      if (document.visibilityState === "visible") setNow(new Date());
+    }
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, []);
+
+  const dateStr = now.toLocaleDateString(APP_LOCALE, {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -74,7 +89,7 @@ export function HomeHeader({
       </p>
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 md:gap-4 mt-1">
         <h1 className="text-2xl md:text-3xl font-bold text-black">
-          {greeting(userName)}
+          {greeting(now, userName)}
         </h1>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

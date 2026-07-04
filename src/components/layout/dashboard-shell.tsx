@@ -28,6 +28,19 @@ import { MobileBottomNav } from "./mobile-bottom-nav";
 
 const SIDEBAR_STORAGE_KEY = "buildsync.sidebarCollapsed";
 
+// Global "open quick task composer" event — same pattern as
+// OPEN_CREATE_PROJECT_EVENT (see lib/open-create-project). The floating
+// Gmail-style composer is mounted ONCE here at the shell level; pages
+// (Home widgets, portal dashboard, etc.) call openQuickCreateTask()
+// instead of mounting their own copy, which used to stack a second
+// pixel-identical composer at bottom-right over the shell's.
+export const OPEN_QUICK_CREATE_TASK_EVENT = "buildsync:open-quick-create-task";
+
+export function openQuickCreateTask() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(OPEN_QUICK_CREATE_TASK_EVENT));
+}
+
 interface Project {
   id: string;
   name: string;
@@ -128,7 +141,10 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
 
   const fetchProjects = useCallback(async () => {
     try {
-      const response = await fetch("/api/projects");
+      // Slim shape (id/name/color/icon/status/_count) — the only
+      // consumer here is QuickCreateTaskModal's project picker, so
+      // skip the fully-hydrated owner/members/tasks payload.
+      const response = await fetch("/api/projects?fields=summary");
       if (response.ok) {
         const data = await response.json();
         setProjects(data);
@@ -152,6 +168,17 @@ function DashboardShellContent({ children, variant = "default", basePath = "" }:
     }
     window.addEventListener(OPEN_CREATE_PROJECT_EVENT, handler);
     return () => window.removeEventListener(OPEN_CREATE_PROJECT_EVENT, handler);
+  }, []);
+
+  // Global "open quick task composer" event — see openQuickCreateTask
+  // above. Keeps a single composer instance mounted at the shell.
+  useEffect(() => {
+    function handler() {
+      setShowQuickCreateTask(true);
+    }
+    window.addEventListener(OPEN_QUICK_CREATE_TASK_EVENT, handler);
+    return () =>
+      window.removeEventListener(OPEN_QUICK_CREATE_TASK_EVENT, handler);
   }, []);
 
   async function handleCreatePortfolio() {

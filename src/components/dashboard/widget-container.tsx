@@ -232,7 +232,11 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
           <div
             {...attributes}
             {...listeners}
-            className="flex items-center justify-between px-4 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
+            // touch-manipulation (not touch-none) so a scroll gesture that
+            // starts on a header still scrolls the page on mobile — with
+            // touch-none every header (one per 360px in the single-column
+            // layout) hijacked the swipe into an accidental drag.
+            className="flex items-center justify-between px-4 py-3 flex-shrink-0 cursor-grab active:cursor-grabbing touch-manipulation"
           >
             <div className="flex items-center gap-2">
               {titleHref ? (
@@ -264,7 +268,7 @@ export function WidgetContainer({ id, children, onHide, size = 'half', onSizeCha
           <div
             {...attributes}
             {...listeners}
-            className="absolute top-0 left-0 right-12 h-14 cursor-grab active:cursor-grabbing touch-none z-[5]"
+            className="absolute top-0 left-0 right-12 h-14 cursor-grab active:cursor-grabbing touch-manipulation z-[5]"
           />
           <div className="absolute top-2 right-2 z-10">{menu}</div>
           <div className="flex-1 overflow-hidden">{children}</div>

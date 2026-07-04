@@ -105,6 +105,9 @@ export async function GET(req: Request) {
           id: true,
           name: true,
           completed: true,
+          // Lets widgets sort their Completed views by recency without
+          // paying for the full include.
+          completedAt: true,
           dueDate: true,
           projectId: true,
           project: {

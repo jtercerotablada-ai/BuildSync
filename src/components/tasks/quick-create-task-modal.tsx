@@ -118,9 +118,17 @@ export function QuickCreateTaskModal({
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState(false);
 
+  // Bumping a nonce re-runs the matching fetch effect — powers the
+  // "Retry" affordance on the pickers' error rows.
+  const [usersRetryNonce, setUsersRetryNonce] = useState(0);
+  const [projectsRetryNonce, setProjectsRetryNonce] = useState(0);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedAssignee, setSelectedAssignee] = useState<User | null>(null);
+  // "none" = the user explicitly picked "No assignee" (we send null and
+  // the API leaves the task unassigned); null = untouched picker, which
+  // defaults to self-assign.
+  const [selectedAssignee, setSelectedAssignee] = useState<User | "none" | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   // Asana-style range: start AND due date. Both optional. Default
   // due to Tomorrow as the gentle nudge ("most quick-assigns are
@@ -134,7 +142,7 @@ export function QuickCreateTaskModal({
     return t;
   });
 
-  // ── Load workspace users + (optionally) projects when opening ────
+  // ── Load workspace users when opening (retryable on failure) ─────
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -159,31 +167,41 @@ export function QuickCreateTaskModal({
         if (!cancelled) setUsersLoading(false);
       }
     })();
-    if (!projectsProp || projectsProp.length === 0) {
-      (async () => {
-        setProjectsLoading(true);
-        setProjectsError(false);
-        try {
-          const res = await fetch("/api/projects");
-          if (!cancelled) {
-            if (res.ok) {
-              const data: Project[] = await res.json();
-              setProjects(data);
-            } else {
-              setProjectsError(true);
-            }
-          }
-        } catch {
-          if (!cancelled) setProjectsError(true);
-        } finally {
-          if (!cancelled) setProjectsLoading(false);
-        }
-      })();
-    }
     return () => {
       cancelled = true;
     };
-  }, [open, projectsProp]);
+  }, [open, usersRetryNonce]);
+
+  // ── Load projects when opening, unless the caller provided them ──
+  useEffect(() => {
+    if (!open) return;
+    if (projectsProp && projectsProp.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      setProjectsLoading(true);
+      setProjectsError(false);
+      try {
+        // The picker only renders id/name/color — the slim summary shape
+        // skips owner/members/task hydration entirely.
+        const res = await fetch("/api/projects?fields=summary");
+        if (!cancelled) {
+          if (res.ok) {
+            const data: Project[] = await res.json();
+            setProjects(data);
+          } else {
+            setProjectsError(true);
+          }
+        }
+      } catch {
+        if (!cancelled) setProjectsError(true);
+      } finally {
+        if (!cancelled) setProjectsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectsProp, projectsRetryNonce]);
 
   // Keep external `projects` prop in sync if the caller decides to pass
   // a list after mount.
@@ -252,7 +270,13 @@ export function QuickCreateTaskModal({
         body: JSON.stringify({
           name: title.trim(),
           description: description.trim() || null,
-          assigneeId: selectedAssignee?.id ?? session?.user?.id ?? null,
+          // Explicit "No assignee" sends null, which the API respects for
+          // project tasks (task lands unassigned). An untouched picker
+          // self-assigns via the session user's id.
+          assigneeId:
+            selectedAssignee === "none"
+              ? null
+              : (selectedAssignee?.id ?? session?.user?.id ?? null),
           projectId: selectedProject.id,
           startDate: startDate ? fmtIso(startDate) : null,
           dueDate: dueDate ? fmtIso(dueDate) : null,
@@ -261,12 +285,14 @@ export function QuickCreateTaskModal({
       if (res.ok) {
         // Let Home widgets (My Tasks / Assigned Tasks) refetch.
         window.dispatchEvent(new CustomEvent("buildsync:task-created"));
-        // An empty picker self-assigns (we send the session user's id
-        // above) — say so honestly instead of a vague "Task created".
+        // Say what actually happened to the assignee instead of a vague
+        // "Task created": unassigned / assigned to X / self-assigned.
         toast.success(
-          selectedAssignee
-            ? `Task assigned to ${selectedAssignee.name ?? selectedAssignee.email}`
-            : "Task created and assigned to you"
+          selectedAssignee === "none"
+            ? "Task created (unassigned)"
+            : selectedAssignee
+              ? `Task assigned to ${selectedAssignee.name ?? selectedAssignee.email}`
+              : "Task created and assigned to you"
         );
         handleClose();
       } else {
@@ -382,7 +408,7 @@ export function QuickCreateTaskModal({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] border border-dashed border-slate-300 rounded-md hover:border-slate-500 hover:bg-slate-50 transition-colors text-slate-700">
-                {selectedAssignee ? (
+                {selectedAssignee && selectedAssignee !== "none" ? (
                   <>
                     <Avatar className="h-4 w-4">
                       <AvatarImage src={selectedAssignee.image || ""} />
@@ -394,6 +420,8 @@ export function QuickCreateTaskModal({
                       {selectedAssignee.name || selectedAssignee.email}
                     </span>
                   </>
+                ) : selectedAssignee === "none" ? (
+                  <span>No assignee</span>
                 ) : (
                   <span>Assignee</span>
                 )}
@@ -414,13 +442,29 @@ export function QuickCreateTaskModal({
                   <span className="truncate">Assign to me</span>
                 </DropdownMenuItem>
               )}
+              {/* Explicit escape hatch: without it an untouched picker
+                  self-assigns and a picked teammate can't be un-picked. */}
+              <DropdownMenuItem
+                onClick={() => setSelectedAssignee("none")}
+                className="cursor-pointer"
+              >
+                <span className="h-5 w-5 mr-2 rounded-full border border-dashed border-slate-300 flex-shrink-0" />
+                <span className="truncate">No assignee</span>
+              </DropdownMenuItem>
               {usersLoading ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
                   Loading…
                 </div>
               ) : usersError ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
-                  Teammates unavailable
+                  Couldn&apos;t load teammates{" "}
+                  <button
+                    type="button"
+                    onClick={() => setUsersRetryNonce((n) => n + 1)}
+                    className="font-medium text-slate-600 hover:underline underline-offset-2"
+                  >
+                    Retry
+                  </button>
                 </div>
               ) : users.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
@@ -468,13 +512,31 @@ export function QuickCreateTaskModal({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-y-auto">
+              {/* Project is required to create, so clearing just returns the
+                  pill to its placeholder (and disables Create) — still useful
+                  after a misclick. */}
+              {selectedProject && (
+                <DropdownMenuItem
+                  onClick={() => setSelectedProject(null)}
+                  className="cursor-pointer text-slate-500"
+                >
+                  Clear selection
+                </DropdownMenuItem>
+              )}
               {projectsLoading ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
                   Loading…
                 </div>
               ) : projectsError ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
-                  Projects unavailable
+                  Couldn&apos;t load projects{" "}
+                  <button
+                    type="button"
+                    onClick={() => setProjectsRetryNonce((n) => n + 1)}
+                    className="font-medium text-slate-600 hover:underline underline-offset-2"
+                  >
+                    Retry
+                  </button>
                 </div>
               ) : projects.length === 0 ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">

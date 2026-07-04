@@ -9,7 +9,16 @@ import {
   REMOVED_WIDGET_IDS,
 } from '@/types/dashboard';
 
-const STORAGE_KEY = 'buildsync-widget-preferences';
+// localStorage keys are namespaced by user id so a shared machine can
+// never migrate one user's layout into another user's account. The
+// pre-scoping unscoped 'buildsync-widget-preferences' key is
+// deliberately ignored — it can't be attributed to a user, and pushing
+// it to the server is exactly how a layout leaked across accounts.
+// LAST_USER_KEY remembers the last server-confirmed user so the
+// offline fallback can find its cache; shared with use-ui-state.ts.
+const STORAGE_KEY_PREFIX = 'buildsync-widget-preferences';
+const LAST_USER_KEY = 'buildsync-last-user-id';
+const storageKeyFor = (userId: string) => `${STORAGE_KEY_PREFIX}:${userId}`;
 
 // Set of valid widget IDs known at runtime — used to scrub deleted
 // IDs (e.g. the old PMI tiles) out of any pref payload before we
@@ -30,10 +39,12 @@ const REMOVED_WIDGET_ID_SET: ReadonlySet<string> = new Set(REMOVED_WIDGET_IDS);
 function migratePreferences(
   raw: Partial<UserWidgetPreferences>
 ): UserWidgetPreferences {
-  const visible = (raw.visibleWidgets ?? []).filter(
+  // Dedupe both arrays — a stored payload with a repeated id would
+  // otherwise render duplicate React keys / dnd sortable ids.
+  const visible = [...new Set(raw.visibleWidgets ?? [])].filter(
     (id): id is WidgetType => VALID_WIDGET_IDS.has(id)
   );
-  const order = (raw.widgetOrder ?? []).filter(
+  const order = [...new Set(raw.widgetOrder ?? [])].filter(
     (id): id is WidgetType => VALID_WIDGET_IDS.has(id)
   );
   // Sizes for removed widgets are harmless but waste storage — drop
@@ -104,6 +115,8 @@ export function useWidgetPreferences() {
   const isDirtyRef = useRef(false);
   const preferencesRef = useRef(preferences);
   const pendingSaveRef = useRef(false);
+  // Server-confirmed user id — scopes the localStorage fallback key.
+  const userIdRef = useRef<string | null>(null);
 
   // Load from API on mount, fall back to localStorage migration
   useEffect(() => {
@@ -111,10 +124,16 @@ export function useWidgetPreferences() {
     // Apply a locally-stored layout without persisting it back — used
     // when the server GET fails (non-ok or network error) so an offline
     // user keeps their saved layout instead of seeing defaults. Never
-    // sets the dirty flag, so no PATCH follows a failed load.
+    // sets the dirty flag, so no PATCH follows a failed load. Reads the
+    // last server-confirmed user's scoped key (a user switch requires a
+    // login, which needs the network, which refreshes the marker) —
+    // with no confirmed user there is nothing safe to apply.
     const applyLocalFallback = () => {
       if (typeof window === 'undefined' || cancelled) return;
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const uid = localStorage.getItem(LAST_USER_KEY);
+      if (!uid) return;
+      userIdRef.current = uid;
+      const stored = localStorage.getItem(storageKeyFor(uid));
       if (!stored) return;
       try {
         setPreferences(migratePreferences(JSON.parse(stored)));
@@ -127,6 +146,16 @@ export function useWidgetPreferences() {
         const res = await fetch('/api/users/preferences');
         if (res.ok && !cancelled) {
           const data = await res.json();
+          const uid: string | null =
+            typeof data.userId === 'string' ? data.userId : null;
+          if (uid && typeof window !== 'undefined') {
+            userIdRef.current = uid;
+            try {
+              localStorage.setItem(LAST_USER_KEY, uid);
+            } catch {
+              // ignore
+            }
+          }
           if (data.widgetPreferences) {
             // Run migration — drops PMI/removed widget IDs.
             const migrated = migratePreferences(data.widgetPreferences);
@@ -144,8 +173,14 @@ export function useWidgetPreferences() {
             return;
           }
 
-          // No server data — try migrating from localStorage one time
-          const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+          // No server data — migrate this user's OWN scoped localStorage
+          // copy one time. Never the legacy unscoped key: it can't be
+          // attributed to a user, so migrating it here is how user A's
+          // layout used to leak into user B's fresh account.
+          const stored =
+            uid && typeof window !== 'undefined'
+              ? localStorage.getItem(storageKeyFor(uid))
+              : null;
           if (stored) {
             try {
               const parsed = JSON.parse(stored);
@@ -182,10 +217,14 @@ export function useWidgetPreferences() {
     preferencesRef.current = preferences;
     if (!isLoaded || !isDirtyRef.current) return;
 
-    // Always save locally as offline fallback
-    if (typeof window !== 'undefined') {
+    // Save locally as offline fallback — only under the confirmed
+    // user's scoped key so the copy stays attributable on shared machines
+    if (typeof window !== 'undefined' && userIdRef.current) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+        localStorage.setItem(
+          storageKeyFor(userIdRef.current),
+          JSON.stringify(preferences)
+        );
       } catch {
         // ignore
       }
@@ -242,13 +281,31 @@ export function useWidgetPreferences() {
         };
       }
 
+      // A re-enabled widget slots in at its defaultOrder position
+      // relative to the widgets already in the order — appending at
+      // the very bottom left it invisible behind the Customize sheet.
+      let widgetOrder = prev.widgetOrder;
+      if (!widgetOrder.includes(widgetId)) {
+        const rank = (id: WidgetType) =>
+          AVAILABLE_WIDGETS.find((w) => w.id === id)?.defaultOrder ??
+          Number.MAX_SAFE_INTEGER;
+        const insertAt = widgetOrder.findIndex(
+          (id) => rank(id) > rank(widgetId)
+        );
+        widgetOrder =
+          insertAt === -1
+            ? [...widgetOrder, widgetId]
+            : [
+                ...widgetOrder.slice(0, insertAt),
+                widgetId,
+                ...widgetOrder.slice(insertAt),
+              ];
+      }
       // Sizes are user intent — never recomputed here.
       return {
         ...prev,
         visibleWidgets: [...prev.visibleWidgets, widgetId],
-        widgetOrder: prev.widgetOrder.includes(widgetId)
-          ? prev.widgetOrder
-          : [...prev.widgetOrder, widgetId],
+        widgetOrder,
       };
     });
   }, []);

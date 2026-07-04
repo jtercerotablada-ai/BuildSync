@@ -50,6 +50,7 @@ interface ProjectStatusRow {
   id: string;
   name: string;
   color: string;
+  workspaceId: string;
   status: ProjectStatus;
   gate: string | null;
   lastUpdate: {
@@ -183,14 +184,23 @@ export function StatusUpdatesWidget() {
     };
   }, [refreshKey]);
 
+  // The rollup is scoped to one workspace server-side; scope the
+  // picker to the SAME workspace so a multi-workspace user can't
+  // post to a project the widget list will never show.
+  const workspaceId = rows[0]?.workspaceId ?? null;
+
   // Lazy-load projects only when the user opens the "Post update"
-  // picker — most home loads never need this list.
+  // picker — most home loads never need this list. fields=summary
+  // keeps the payload to id/name/color-ish rows instead of the
+  // fully-hydrated owner/members/tasks shape.
   useEffect(() => {
     if (!pickerOpen || projects !== null || projectsError) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/projects');
+        const params = new URLSearchParams({ fields: 'summary' });
+        if (workspaceId) params.set('workspaceId', workspaceId);
+        const res = await fetch(`/api/projects?${params.toString()}`);
         if (cancelled) return;
         if (res.ok) {
           const data = (await res.json()) as ProjectListItem[];
@@ -205,7 +215,7 @@ export function StatusUpdatesWidget() {
     return () => {
       cancelled = true;
     };
-  }, [pickerOpen, projects, projectsError]);
+  }, [pickerOpen, projects, projectsError, workspaceId]);
 
   function openProjectStatus(projectId: string, compose = false) {
     const qs = compose ? '?view=overview&compose=status' : '?view=overview';
@@ -267,13 +277,15 @@ export function StatusUpdatesWidget() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Loading state — show shimmer rows so the layout doesn't jump. */}
+      {/* Loading state — show shimmer rows so the layout doesn't jump.
+          h-20 ≈ a real row (p-3 + title + summary line + meta line),
+          so the swap to live rows doesn't reflow the tile. */}
       {loading ? (
         <div className="space-y-1.5 flex-1">
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-14 bg-gray-100 animate-pulse rounded-lg"
+              className="h-20 bg-gray-100 animate-pulse rounded-lg"
             />
           ))}
         </div>

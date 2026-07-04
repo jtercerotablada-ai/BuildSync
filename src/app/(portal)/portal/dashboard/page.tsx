@@ -7,6 +7,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -17,7 +18,7 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  rectSortingStrategy,
+  type SortingStrategy,
 } from "@dnd-kit/sortable";
 
 import { useWidgetPreferences } from "@/hooks/use-widget-preferences";
@@ -30,7 +31,7 @@ import { CustomizeWidgetsModal } from "@/components/dashboard/customize-widgets-
 import { Plus, Target } from "lucide-react";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { CreateObjectiveDialog } from "@/components/goals/create-objective-dialog";
-import { QuickCreateTaskModal } from "@/components/tasks/quick-create-task-modal";
+import { openQuickCreateTask } from "@/components/layout/dashboard-shell";
 import {
   MyTasksWidget,
   ProjectsWidget,
@@ -48,6 +49,15 @@ import {
 } from "@/components/dashboard/widgets";
 import { WidgetType } from "@/types/dashboard";
 
+// rectSortingStrategy assumes uniform item sizes, but widgets span 1
+// or 2 grid columns, so its mid-drag previews promised slots the real
+// CSS grid reflow never produced (visible jump on drop). A null
+// strategy keeps neighbors static while dragging — the DragOverlay
+// plus the isOver ring on the hovered card communicate the drop — and
+// the grid settles once, on the card the user actually pointed at.
+// (Same fix as the Home grid in app/(dashboard)/home/page.tsx.)
+const staticGridSortingStrategy: SortingStrategy = () => null;
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -59,7 +69,6 @@ export default function PortalDashboardPage() {
   const { data: session } = useSession();
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateGoal, setShowCreateGoal] = useState(false);
-  const [showQuickCreateTask, setShowQuickCreateTask] = useState(false);
   const [activeId, setActiveId] = useState<WidgetType | null>(null);
 
   const {
@@ -76,6 +85,15 @@ export default function PortalDashboardPage() {
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 5,
+      },
+    }),
+    // The drag handles use touch-action:manipulation so touch scrolling
+    // stays native; a long-press (TouchSensor delay) is the only way a
+    // finger can start a drag without the browser stealing the gesture.
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -143,10 +161,11 @@ export default function PortalDashboardPage() {
       case "learning":
         return <LearningWidget />;
       case "assigned-tasks":
+        // Opens the shell's single quick-composer instance (this page
+        // renders inside DashboardShell via the portal layout) instead
+        // of mounting a second copy that could stack at bottom-right.
         return (
-          <AssignedTasksWidget
-            onAssignTask={() => setShowQuickCreateTask(true)}
-          />
+          <AssignedTasksWidget onAssignTask={() => openQuickCreateTask()} />
         );
       case "people":
         return <PeopleWidget />;
@@ -214,7 +233,7 @@ export default function PortalDashboardPage() {
         >
           <SortableContext
             items={preferences.widgetOrder || []}
-            strategy={rectSortingStrategy}
+            strategy={staticGridSortingStrategy}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {(preferences.widgetOrder || []).map((widgetId) => {
@@ -265,7 +284,9 @@ export default function PortalDashboardPage() {
               easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
             }}
           >
-            {activeId ? <WidgetOverlay id={activeId} size="half" /> : null}
+            {activeId ? (
+              <WidgetOverlay id={activeId} size={getWidgetSize(activeId)} />
+            ) : null}
           </DragOverlay>
         </DndContext>
 
@@ -291,10 +312,6 @@ export default function PortalDashboardPage() {
         <CreateObjectiveDialog
           open={showCreateGoal}
           onOpenChange={setShowCreateGoal}
-        />
-        <QuickCreateTaskModal
-          open={showQuickCreateTask}
-          onOpenChange={setShowQuickCreateTask}
         />
       </div>
     </div>

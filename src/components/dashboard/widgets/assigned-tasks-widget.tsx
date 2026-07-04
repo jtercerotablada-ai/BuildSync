@@ -208,7 +208,10 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
   return (
     <div className="h-full flex flex-col">
       <div className="mb-4">
-        <div role="tablist" className="flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+        {/* overflow-x-auto: four nowrap tabs + counts need ~350px; inside a
+            half-width card on ~1024px viewports the strip gets less than
+            that, so let it scroll instead of clipping the last tab. */}
+        <div role="tablist" className="flex rounded-lg border border-gray-200 p-1 bg-gray-50 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
