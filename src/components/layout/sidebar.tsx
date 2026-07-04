@@ -233,28 +233,31 @@ export function Sidebar({
             </nav>
 
 
-            {/* Collapsed mode: stop here (no Projects/Teams lists) */}
-            {!collapsed && (
-              <>
-                <div className="h-5" />
+            {/* Projects + Teams. In collapsed mode we still render the two
+                icons (as links, with tooltips via NavItem); only the inline
+                "+" add button and the New project/portfolio dropdown are
+                hidden when collapsed, since they don't fit the narrow rail. */}
+            <div className="h-5" />
 
-                {/* Projects — single nav button to the all-projects
-                    page. The previous design had a collapsible list of
-                    every individual project inline; Juan wanted just one
-                    "Projects" button that opens the full overview
-                    (list / grid / gantt). The + still spawns the
-                    New project / New portfolio menu. */}
-                <div className="relative" ref={projectsDropdownRef}>
-                  <NavItem
-                    href={`${basePath || ""}/projects/all`}
-                    label="Projects"
-                    icon={Folder}
-                    isActive={
-                      pathname === `${basePath}/projects/all` ||
-                      pathname.startsWith(`${basePath}/projects/`)
-                    }
-                    collapsed={collapsed}
-                  />
+            {/* Projects — single nav button to the all-projects
+                page. The previous design had a collapsible list of
+                every individual project inline; Juan wanted just one
+                "Projects" button that opens the full overview
+                (list / grid / gantt). The + still spawns the
+                New project / New portfolio menu. */}
+            <div className="relative" ref={projectsDropdownRef}>
+              <NavItem
+                href={`${basePath || ""}/projects/all`}
+                label="Projects"
+                icon={Folder}
+                isActive={
+                  pathname === `${basePath}/projects/all` ||
+                  pathname.startsWith(`${basePath}/projects/`)
+                }
+                collapsed={collapsed}
+              />
+              {!collapsed && (
+                <>
                   <button
                     type="button"
                     aria-label="Add project or portfolio"
@@ -290,34 +293,36 @@ export function Sidebar({
                       </button>
                     </div>
                   )}
-                </div>
+                </>
+              )}
+            </div>
 
-                {/* Teams — same single-button pattern as Projects. */}
-                <div className="relative">
-                  <NavItem
-                    href={`${basePath || ""}/teams`}
-                    label="Teams"
-                    icon={Users}
-                    isActive={
-                      pathname === `${basePath}/teams` ||
-                      pathname.startsWith(`${basePath}/teams/`)
-                    }
-                    collapsed={collapsed}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Create team"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`${basePath || ""}/teams/new`);
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md bg-white border border-gray-300 text-black shadow-sm hover:bg-gray-100 hover:border-gray-400 transition-colors z-10"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-              </>
-            )}
+            {/* Teams — same single-button pattern as Projects. */}
+            <div className="relative">
+              <NavItem
+                href={`${basePath || ""}/teams`}
+                label="Teams"
+                icon={Users}
+                isActive={
+                  pathname === `${basePath}/teams` ||
+                  pathname.startsWith(`${basePath}/teams/`)
+                }
+                collapsed={collapsed}
+              />
+              {!collapsed && (
+                <button
+                  type="button"
+                  aria-label="Create team"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`${basePath || ""}/teams/new`);
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md bg-white border border-gray-300 text-black shadow-sm hover:bg-gray-100 hover:border-gray-400 transition-colors z-10"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
         </ScrollArea>
 
