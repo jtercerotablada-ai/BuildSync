@@ -214,7 +214,7 @@ export function TimelineView({
   // path with forward/backward pass + total float lands in Phase 3.
   const [showDueSoon, setShowDueSoon] = useState(true);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
-  const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week" | "has_deps">("all");
+  const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week" | "has_deps" | "not_ready">("all");
   // Look-ahead window — narrows the visible tasks to those due within
   // the next N weeks. PMI/AEC convention: superintendents run weekly
   // 3-week look-aheads, project controls run 6-week. "all" disables
@@ -249,6 +249,47 @@ export function TimelineView({
     // Re-fetch when the task set changes too: adding/removing a dependency
     // from the task panel triggers router.refresh(), which updates `sections`
     // — keying only on projectId left the arrows/count stale until remount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, sections]);
+
+  // ── Make-ready constraints (Lean / Last Planner) ──────────────
+  // Map of taskId → count of OPEN constraints. A task is "ready" when it has
+  // none. Drives the Ready/Not-ready dot on each row and the "Not ready"
+  // filter. Refetched when the task set changes (a constraint edit in the
+  // task panel calls onUpdate → router.refresh → new `sections`).
+  const [openConstraints, setOpenConstraints] = useState<
+    Record<string, number>
+  >({});
+  const [constraintStats, setConstraintStats] = useState<{
+    open: number;
+    overdue: number;
+  }>({ open: 0, overdue: 0 });
+
+  useEffect(() => {
+    let canceled = false;
+    fetch(`/api/projects/${projectId}/constraints?status=OPEN`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (data: {
+          constraints?: { taskId: string }[];
+          summary?: { open: number; overdue: number };
+        } | null) => {
+          if (canceled || !data) return;
+          const map: Record<string, number> = {};
+          for (const c of data.constraints ?? []) {
+            map[c.taskId] = (map[c.taskId] ?? 0) + 1;
+          }
+          setOpenConstraints(map);
+          setConstraintStats({
+            open: data.summary?.open ?? 0,
+            overdue: data.summary?.overdue ?? 0,
+          });
+        }
+      )
+      .catch(() => {});
+    return () => {
+      canceled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, sections]);
   const [dragState, setDragState] = useState<{
@@ -300,6 +341,7 @@ export function TimelineView({
         // Then the user-selected task filter.
         if (taskFilter === "incomplete") return !task.completed;
         if (taskFilter === "completed") return task.completed;
+        if (taskFilter === "not_ready") return (openConstraints[task.id] ?? 0) > 0;
         if (taskFilter === "due_this_week") {
           if (!task.dueDate) return false;
           const due = dueDateToLocalMidnight(task.dueDate);
@@ -308,7 +350,7 @@ export function TimelineView({
         return true;
       }),
     }));
-  }, [sections, taskFilter, lookAhead]);
+  }, [sections, taskFilter, lookAhead, openConstraints]);
 
   // ============================================
   // ZOOM CONFIGURATION
@@ -916,8 +958,35 @@ export function TimelineView({
               <DropdownMenuItem onClick={() => setTaskFilter("incomplete")}>Incomplete tasks</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTaskFilter("completed")}>Completed tasks</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTaskFilter("due_this_week")}>Due this week</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTaskFilter("not_ready")}>
+                Not ready (open constraints)
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Make-ready summary — total open constraints across the project,
+              with how many are past their need-by date. */}
+          {constraintStats.open > 0 && (
+            <button
+              type="button"
+              onClick={() => setTaskFilter("not_ready")}
+              title="Show only tasks that are not ready (have open constraints)"
+              className={cn(
+                "flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium transition-colors",
+                taskFilter === "not_ready"
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              )}
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {constraintStats.open} not-ready
+              {constraintStats.overdue > 0 && (
+                <span className="text-[10px] font-semibold px-1 rounded bg-[#c9a84c]/20 text-[#a8893a]">
+                  {constraintStats.overdue} overdue
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1030,6 +1099,21 @@ export function TimelineView({
                           >
                             {task.name}
                           </span>
+
+                          {/* Make-ready: "not ready" chip when the task has
+                              open constraints. Absent = ready (no clutter). */}
+                          {!task.completed &&
+                            (openConstraints[task.id] ?? 0) > 0 && (
+                              <span
+                                title={`${openConstraints[task.id]} open constraint${
+                                  openConstraints[task.id] > 1 ? "s" : ""
+                                } — not ready to execute`}
+                                className="flex items-center gap-0.5 flex-shrink-0 text-[10px] font-semibold text-white bg-black/85 rounded px-1 py-0.5"
+                              >
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                {openConstraints[task.id]}
+                              </span>
+                            )}
 
                           {dueSoon && showDueSoon && (
                             <AlertTriangle

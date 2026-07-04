@@ -92,6 +92,8 @@ model User {
   workspaceNotes      WorkspaceNote[]      @relation("NoteAuthor")
   noteCollaborators   NoteCollaborator[]
   preferences         UserPreferences?
+  constraintsResponsibleFor TaskConstraint[] @relation("ConstraintResponsible")
+  constraintsCreated        TaskConstraint[] @relation("ConstraintCreatedBy")
 
   // New relations (2.2)
   portfolioMembers       PortfolioMember[]       @relation("UserPortfolioMembers")
@@ -697,6 +699,7 @@ model Task {
   keyResults        KeyResultTask[]
   clientApprovals   ClientApproval[]   @relation("TaskApprovals")
   taskTags          TaskTag[]
+  constraints       TaskConstraint[]
 
   @@index([projectId])
   @@index([sectionId])
@@ -705,6 +708,52 @@ model Task {
   @@index([parentTaskId])
   @@index([dueDate])
   @@index([completed])
+}
+
+// Lean Construction / Last Planner "make-ready" constraint. A task is
+// "ready" (executable) only when it has no OPEN constraints. Each row is one
+// thing that must be cleared before the task can run — material, permit,
+// labor, design/RFI answer, equipment, etc. — with a responsible party and a
+// need-by date so the lookahead can drive constraint removal.
+model TaskConstraint {
+  id          String           @id @default(cuid())
+  type        ConstraintType   @default(OTHER)
+  description String
+  status      ConstraintStatus @default(OPEN)
+  needBy      DateTime?
+  resolvedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  taskId        String
+  responsibleId String?
+  createdById   String?
+
+  task        Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  responsible User? @relation("ConstraintResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+  createdBy   User? @relation("ConstraintCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([status])
+  @@index([responsibleId])
+}
+
+enum ConstraintType {
+  MATERIAL
+  PERMIT
+  LABOR
+  DESIGN
+  RFI
+  EQUIPMENT
+  INFORMATION
+  SUBMITTAL
+  SAFETY
+  OTHER
+}
+
+enum ConstraintStatus {
+  OPEN
+  RESOLVED
 }
 
 enum TaskType {
