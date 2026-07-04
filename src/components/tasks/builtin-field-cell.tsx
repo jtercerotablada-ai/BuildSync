@@ -14,7 +14,7 @@
  * the plain renderers here.
  */
 
-import { Flag, Ban, ShieldAlert } from "lucide-react";
+import { Flag, Ban, ShieldAlert, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { EditablePriorityCell } from "@/components/tasks/editable-priority-cell";
@@ -29,6 +29,7 @@ interface TaskRefMin {
 interface TaskForBuiltins {
   id: string;
   priority: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+  startDate?: string | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -41,6 +42,7 @@ interface TaskForBuiltins {
   dependencies?: { blockingTask: TaskRefMin }[];
   dependents?: { dependentTask: TaskRefMin }[];
   taskTags?: { tag: { id: string; name: string; color: string } }[];
+  _count?: { likes?: number };
 }
 
 function formatShortDate(iso: string | null | undefined): string | null {
@@ -116,6 +118,25 @@ export function BuiltinFieldCell({
       const s = formatShortDate(task.createdAt);
       if (!s) return null;
       return <span className="text-[13px] text-slate-600">{s}</span>;
+    }
+    case "start_date": {
+      const s = formatShortDate(task.startDate);
+      if (!s) return null;
+      return <span className="text-[13px] text-slate-600">{s}</span>;
+    }
+    case "likes": {
+      const count = task._count?.likes ?? 0;
+      return (
+        <span className="inline-flex items-center gap-1 text-[13px] text-slate-600">
+          <Heart
+            className={cn(
+              "w-3.5 h-3.5",
+              count > 0 ? "text-rose-500 fill-rose-500" : "text-slate-300"
+            )}
+          />
+          {count > 0 ? count : ""}
+        </span>
+      );
     }
     case "creator": {
       if (!task.creator) return null;

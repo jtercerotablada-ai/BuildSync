@@ -96,7 +96,7 @@ import { AddTasksEmailModal } from "@/components/tasks/add-tasks-email-modal";
 import { ManagePrivacyModal } from "@/components/tasks/manage-privacy-modal";
 import { WorkflowPanel } from "@/components/tasks/workflow-panel";
 import { OptionsDrawer } from "@/components/tasks/options-drawer";
-import { FilterPanel, type QuickFilterKey, type ActiveFilter } from "@/components/tasks/filter-panel";
+import { FilterPanel, type QuickFilterKey, type ActiveFilter, type CompletedWindow } from "@/components/tasks/filter-panel";
 import { SortPanel, type SortState } from "@/components/tasks/sort-panel";
 import { GroupPanel, type GroupConfig } from "@/components/tasks/group-panel";
 import { CustomFieldModal, type CreatedFieldInfo } from "@/components/tasks/custom-field-modal";
@@ -138,6 +138,7 @@ import {
 import { kanbanCollisionDetection } from "@/lib/kanban-collision-detection";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
+import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday } from "@/lib/date-only";
 import { toast } from "sonner";
 
 // Types
@@ -198,6 +199,12 @@ interface Task {
   // Created by — built-in column ("Created by" in Asana). The
   // /api/tasks endpoint already includes the creator relation.
   creator?: { id: string; name: string | null; email: string | null; image: string | null } | null;
+  // Collaborators — for the "Collaborators" list column (Asana shows
+  // collaborators here, not the assignee). Shaped from the API's
+  // collaborators.include (each row is { user: {...} }).
+  collaborators?: {
+    user: { id: string; name: string | null; image: string | null };
+  }[];
   project: {
     id: string;
     name: string;
@@ -210,6 +217,9 @@ interface Task {
       | "CONSTRUCTION"
       | "CLOSEOUT"
       | null;
+    // Project privacy → drives the Visibility column (PRIVATE ⇒ Lock /
+    // "Only me"; WORKSPACE ⇒ Globe / "My workspace").
+    visibility?: "PRIVATE" | "WORKSPACE" | null;
   } | null;
   section: { id: string; name: string } | null;
   subtasks?: { id: string; name: string; completed: boolean }[];
@@ -249,7 +259,7 @@ interface Task {
     };
   }[];
   myTaskSection: "RECENTLY_ASSIGNED" | "DO_TODAY" | "DO_NEXT_WEEK" | "DO_LATER" | null;
-  _count: { subtasks: number; comments: number; attachments: number };
+  _count: { subtasks: number; comments: number; attachments: number; likes?: number };
 }
 
 interface SmartSection {
@@ -260,6 +270,162 @@ interface SmartSection {
 }
 
 type ViewType = "list" | "board" | "calendar" | "dashboard" | "files";
+
+/** A user-owned personal section as persisted in uiState.myTasks. */
+interface PersonalSection {
+  id: string;
+  name: string;
+  order: number;
+}
+
+// The 4 Asana-default personal sections. IDs are kept STABLE and match
+// the ids organizeTasks emitted before this change so section-collapse
+// persistence + drag maps keep working, and so the DB `myTaskSection`
+// enum back-compat mapping below still resolves.
+const DEFAULT_PERSONAL_SECTIONS: PersonalSection[] = [
+  { id: "recently-assigned", name: "Recently assigned", order: 0 },
+  { id: "do-today", name: "Do today", order: 1 },
+  { id: "do-next-week", name: "Do next week", order: 2 },
+  { id: "do-later", name: "Do later", order: 3 },
+];
+
+// Bridge between the stable default section ids and the DB
+// `myTaskSection` enum. Used to (a) seed a task's section from its
+// persisted enum value when it has no uiState mapping yet (back-compat)
+// and (b) mirror moves onto the 4 defaults back into the enum column so
+// existing DB-driven state stays coherent.
+const SECTION_ID_TO_ENUM: Record<string, string> = {
+  "recently-assigned": "RECENTLY_ASSIGNED",
+  "do-today": "DO_TODAY",
+  "do-next-week": "DO_NEXT_WEEK",
+  "do-later": "DO_LATER",
+};
+const ENUM_TO_SECTION_ID: Record<string, string> = {
+  RECENTLY_ASSIGNED: "recently-assigned",
+  DO_TODAY: "do-today",
+  DO_NEXT_WEEK: "do-next-week",
+  DO_LATER: "do-later",
+};
+// The 4 default section ids — used to gate delete (defaults can't be
+// deleted, only renamed) in the section header menu.
+const DEFAULT_SECTION_ID_SET = new Set(
+  DEFAULT_PERSONAL_SECTIONS.map((s) => s.id)
+);
+
+// ── Dashboard widget catalog (dsh-01) ───────────────────────────────
+// Fixed set of widgets the user can toggle on the Dashboard view. Every
+// entry maps to a chart/KPI DashboardView already renders from the
+// client-side task set — no new API. `kind` groups KPIs vs. charts so the
+// layout can keep KPIs in the top strip and charts in the 2-col grid.
+type DashboardWidgetId =
+  | "completed"
+  | "incomplete"
+  | "overdue"
+  | "total"
+  | "by-section"
+  | "completion-donut"
+  | "by-project"
+  | "over-time";
+const DASHBOARD_WIDGETS: {
+  id: DashboardWidgetId;
+  label: string;
+  kind: "kpi" | "chart";
+}[] = [
+  { id: "completed", label: "Completed tasks", kind: "kpi" },
+  { id: "incomplete", label: "Incomplete tasks", kind: "kpi" },
+  { id: "overdue", label: "Overdue tasks", kind: "kpi" },
+  { id: "total", label: "Total tasks", kind: "kpi" },
+  { id: "by-section", label: "Tasks by section", kind: "chart" },
+  { id: "completion-donut", label: "Completion status (next month)", kind: "chart" },
+  { id: "by-project", label: "Tasks by project", kind: "chart" },
+  { id: "over-time", label: "Task completion over time", kind: "chart" },
+];
+// Default = every widget enabled (matches the pre-dsh-01 fixed layout), so
+// a returning user with no persisted selection sees no change.
+const DEFAULT_DASHBOARD_WIDGET_IDS: string[] = DASHBOARD_WIDGETS.map(
+  (w) => w.id
+);
+
+// Canonical order of the 4 original built-in list columns (col-02). The
+// stored uiState.myTasks.columnOrder is reconciled against this so a
+// missing / stale entry can never drop or duplicate a column.
+const CANONICAL_COLUMN_ORDER = [
+  "dueDate",
+  "collaborators",
+  "projects",
+  "visibility",
+] as const;
+
+/** Reconcile a persisted column order against the canonical set: keep the
+ *  user's ordering for known ids, drop unknown ids, and append any
+ *  canonical id the stored order is missing (defensive against schema
+ *  drift / partial writes). Always returns exactly the 4 known ids. */
+function reconcileColumnOrder(stored: string[] | undefined): string[] {
+  const known = new Set<string>(CANONICAL_COLUMN_ORDER);
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const id of stored ?? []) {
+    if (known.has(id) && !seen.has(id)) {
+      result.push(id);
+      seen.add(id);
+    }
+  }
+  for (const id of CANONICAL_COLUMN_ORDER) {
+    if (!seen.has(id)) result.push(id);
+  }
+  return result;
+}
+
+// Resolve a dnd-kit `over.id` to a section id during a SECTION-reorder
+// drag. The over target may be a section-header sortable ("section:<id>"),
+// a section droppable (bare "<id>"), or a task row nested in a section —
+// all three map to the containing section.
+function resolveSectionIdFromOver(
+  sections: SmartSection[],
+  overId: string
+): string | null {
+  if (overId.startsWith("section:")) return overId.slice("section:".length);
+  if (sections.some((s) => s.id === overId)) return overId;
+  const owner = sections.find((s) => s.tasks.some((t) => t.id === overId));
+  return owner?.id ?? null;
+}
+
+/**
+ * Extract a comparable value (number or string) from a task's custom
+ * field value for the given fieldId — used by the column-based sort
+ * (col-03). Numbers/currency/percentage compare numerically; dates as
+ * ISO strings (lexicographic order == chronological); option-based
+ * fields (DROPDOWN/MULTI_SELECT) resolve to the option LABEL(s) so the
+ * sort matches what the cell renders; everything else coerces to string.
+ * Returns null/"" when the task has no value for the field.
+ */
+function customFieldSortValue(task: Task, fieldId: string): number | string {
+  const cfv = task.customFieldValues?.find((v) => v.fieldId === fieldId);
+  if (!cfv || cfv.value === null || cfv.value === undefined) return "";
+  const type = cfv.field?.type;
+  const raw = cfv.value;
+
+  if (type === "NUMBER" || type === "CURRENCY" || type === "PERCENTAGE") {
+    const n = typeof raw === "number" ? raw : Number(raw);
+    return Number.isNaN(n) ? "" : n;
+  }
+
+  if (type === "DROPDOWN" || type === "MULTI_SELECT") {
+    // options is a Json array of { id, label }. `raw` is an option id
+    // (DROPDOWN) or an array of ids (MULTI_SELECT). Resolve to labels.
+    const options = Array.isArray(cfv.field?.options)
+      ? (cfv.field!.options as { id: string; label: string }[])
+      : [];
+    const labelFor = (id: unknown) =>
+      options.find((o) => o.id === id)?.label ?? String(id ?? "");
+    if (Array.isArray(raw)) return raw.map(labelFor).join(", ");
+    return labelFor(raw);
+  }
+
+  // DATE / TEXT / others → string coercion (ISO dates sort chronologically).
+  if (typeof raw === "string" || typeof raw === "number") return String(raw);
+  return "";
+}
 
 export default function MyTasksPage() {
   const { data: session } = useSession();
@@ -277,6 +443,9 @@ export default function MyTasksPage() {
   const [attachmentsVersion, setAttachmentsVersion] = useState(0);
   const [sections, setSections] = useState<SmartSection[]>([]);
   const [quickFilters, setQuickFilters] = useState<QuickFilterKey[]>([]);
+  // Sub-select for the "Completed" quick filter (Asana parity). Defaults
+  // to "all"; persisted in uiState alongside the other view controls.
+  const [completedWindow, setCompletedWindow] = useState<CompletedWindow>("all");
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   // Assignee-name filters from the Advanced Search modal (free-text
   // names, matched case-insensitively against task.assignee.name).
@@ -286,7 +455,11 @@ export default function MyTasksPage() {
   const [sortState, setSortState] = useState<SortState>({ field: "none", direction: "asc" });
   const [sortPanelOpen, setSortPanelOpen] = useState(false);
   const sortButtonRef = useRef<HTMLButtonElement>(null);
-  const [groupType, setGroupType] = useState<string>("due_date");
+  // Default primary grouping is the Asana-parity personal "sections"
+  // (user-owned buckets), not the old date-driven "due_date". Sections
+  // now render from the user's own list; due_date remains a separate
+  // selectable grouping for users who prefer auto-bucketing by date.
+  const [groupType, setGroupType] = useState<string>("sections");
   const [groupConfigs, setGroupConfigs] = useState<GroupConfig[]>([
     { id: "group-default", field: "sections", order: "custom", hideEmpty: false },
   ]);
@@ -328,17 +501,45 @@ export default function MyTasksPage() {
   interface MyTasksUiState {
     columnWidths: Record<string, number>;
     hiddenColumns: string[];
+    // Order of the 4 original built-in columns (col-02). Ids:
+    // "dueDate" | "collaborators" | "projects" | "visibility". Missing /
+    // legacy state defaults to the canonical order. Custom columns keep
+    // their own ordering inside `customColumns` (they always render after
+    // these four, as in Asana).
+    columnOrder?: string[];
     viewIcon: string;
     viewName: string;
     customColumns?: ListColumn[];
     // Persisted view controls (Fase — survive reload + follow device).
     quickFilters?: QuickFilterKey[];
+    // Time window for the "Completed" quick filter (Asana sub-select).
+    completedWindow?: CompletedWindow;
     activeFilters?: ActiveFilter[];
     assigneeNameFilters?: string[];
     sortState?: SortState;
     groupType?: string;
     groupConfigs?: GroupConfig[];
     collapsedSectionIds?: string[];
+    // ── User-defined personal sections (Asana "My Tasks" model) ──
+    // The real, user-owned sections list. Seeded on first hydration
+    // with the 4 defaults (ids kept stable: 'recently-assigned',
+    // 'do-today', 'do-next-week', 'do-later') so collapse persistence
+    // and the legacy myTaskSection back-compat mapping keep working.
+    // `order` drives render order (drag-to-reorder writes it).
+    sections?: { id: string; name: string; order: number }[];
+    // taskId → sectionId. Ids only (LEAN — the preferences route caps
+    // the stored payload at ~32KB). A task with no entry here falls
+    // back to its DB `myTaskSection` (back-compat) or 'recently-assigned'.
+    taskSections?: Record<string, string>;
+    // ── Calendar zoom (cal-01) ──
+    // "month" = continuous-scroll month grid (default). "weeks" = one
+    // tall week per viewport with larger bars. One short string.
+    calendarZoom?: "month" | "weeks";
+    // ── Dashboard widgets (dsh-01) ──
+    // Ordered list of widget ids the user has enabled, selecting from the
+    // fixed catalog that already exists (see DASHBOARD_WIDGETS). Undefined
+    // means "all default widgets" so returning users see no change.
+    dashboardWidgets?: string[];
   }
   const DEFAULT_MY_TASKS_UI: MyTasksUiState = {
     columnWidths: {
@@ -388,6 +589,38 @@ export default function MyTasksPage() {
     [setMyTasksUi]
   );
 
+  // ── Built-in column order (col-02) ────────────────────────────────
+  // The 4 original built-ins render in this order in BOTH the grid
+  // templates and the header/row cells, so a Move-left/right swap here
+  // reorders everything in lock-step. Reconciled against the canonical
+  // set so a partial/stale write can't drop or duplicate a column.
+  const columnOrder = useMemo(
+    () => reconcileColumnOrder(myTasksUi.columnOrder),
+    [myTasksUi.columnOrder]
+  );
+  // Swap a built-in column one slot left (-1) or right (+1). No-op at the
+  // ends. Persists through useUiState so it survives reload + device.
+  const moveBuiltinColumn = useCallback(
+    (colId: string, dir: -1 | 1) => {
+      setMyTasksUi((prev) => {
+        const order = reconcileColumnOrder(prev.columnOrder);
+        const idx = order.indexOf(colId);
+        const target = idx + dir;
+        if (idx === -1 || target < 0 || target >= order.length) return prev;
+        const next = [...order];
+        [next[idx], next[target]] = [next[target], next[idx]];
+        return { ...prev, columnOrder: next };
+      });
+    },
+    [setMyTasksUi]
+  );
+  // The built-in columns that are actually visible, in user order. Drives
+  // both the grid templates and the header/row cell render order.
+  const visibleBuiltinOrder = useMemo(() => {
+    const hidden = new Set(myTasksUi.hiddenColumns ?? []);
+    return columnOrder.filter((id) => !hidden.has(id));
+  }, [columnOrder, myTasksUi.hiddenColumns]);
+
   const columnWidths = useMemo(
     () => ({ ...DEFAULT_MY_TASKS_UI.columnWidths, ...(myTasksUi.columnWidths ?? {}) }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -418,6 +651,91 @@ export default function MyTasksPage() {
         if (cur.has(colId)) cur.delete(colId);
         else cur.add(colId);
         return { ...prev, hiddenColumns: Array.from(cur) };
+      });
+    },
+    [setMyTasksUi]
+  );
+
+  // ── Personal sections (user-owned buckets) ─────────────────────
+  // Derived from uiState.myTasks.sections, always seeded with the 4
+  // defaults so a brand-new user (empty uiState) still sees Recently
+  // assigned / Do today / Do next week / Do later. Sorted by `order`
+  // so drag-to-reorder persists. This is the single source of truth
+  // the "sections" grouping, list add-section, board columns, and the
+  // detail-pane dropdown all read from.
+  const personalSections = useMemo<PersonalSection[]>(() => {
+    const stored = myTasksUi.sections;
+    const base =
+      stored && stored.length > 0 ? stored : DEFAULT_PERSONAL_SECTIONS;
+    return [...base].sort((a, b) => a.order - b.order);
+  }, [myTasksUi.sections]);
+
+  // taskId → sectionId overrides (ids only, lean).
+  const taskSectionMap = useMemo<Record<string, string>>(
+    () => myTasksUi.taskSections ?? {},
+    [myTasksUi.taskSections]
+  );
+
+  // Persist the sections array (create / rename / delete / reorder).
+  const setPersonalSections = useCallback(
+    (
+      next:
+        | PersonalSection[]
+        | ((prev: PersonalSection[]) => PersonalSection[])
+    ) => {
+      setMyTasksUi((prev) => {
+        const current =
+          prev.sections && prev.sections.length > 0
+            ? prev.sections
+            : DEFAULT_PERSONAL_SECTIONS;
+        const resolved =
+          typeof next === "function"
+            ? (next as (p: PersonalSection[]) => PersonalSection[])(current)
+            : next;
+        return { ...prev, sections: resolved };
+      });
+    },
+    [setMyTasksUi]
+  );
+
+  // Write a taskId → sectionId mapping (or clear it with null).
+  const setTaskSection = useCallback(
+    (taskId: string, sectionId: string | null) => {
+      setMyTasksUi((prev) => {
+        const cur = { ...(prev.taskSections ?? {}) };
+        if (sectionId === null) delete cur[taskId];
+        else cur[taskId] = sectionId;
+        return { ...prev, taskSections: cur };
+      });
+    },
+    [setMyTasksUi]
+  );
+
+  // ── Calendar zoom (cal-01) ── direct-persist shim, same pattern as
+  // viewIcon: reads from uiState, writes straight through. Defaults to the
+  // continuous-scroll month grid. No hydrate/persist gating needed — there's
+  // no parallel useState mirror to clobber.
+  const calendarZoom: "month" | "weeks" = myTasksUi.calendarZoom ?? "month";
+  const setCalendarZoom = useCallback(
+    (next: "month" | "weeks") =>
+      setMyTasksUi((prev) => ({ ...prev, calendarZoom: next })),
+    [setMyTasksUi]
+  );
+
+  // ── Dashboard widgets (dsh-01) ── ids-only, lean. Undefined means the
+  // full default set (see DASHBOARD_WIDGETS) so returning users are
+  // unaffected. Toggling writes the enabled-id array straight through.
+  const dashboardWidgets: string[] =
+    myTasksUi.dashboardWidgets ?? DEFAULT_DASHBOARD_WIDGET_IDS;
+  const setDashboardWidgets = useCallback(
+    (next: string[] | ((prev: string[]) => string[])) => {
+      setMyTasksUi((prev) => {
+        const current = prev.dashboardWidgets ?? DEFAULT_DASHBOARD_WIDGET_IDS;
+        const resolved =
+          typeof next === "function"
+            ? (next as (p: string[]) => string[])(current)
+            : next;
+        return { ...prev, dashboardWidgets: resolved };
       });
     },
     [setMyTasksUi]
@@ -481,6 +799,13 @@ export default function MyTasksPage() {
     },
     [markViewControlsAdjusted]
   );
+  const setCompletedWindowUser = useCallback(
+    (next: CompletedWindow) => {
+      markViewControlsAdjusted();
+      setCompletedWindow(next);
+    },
+    [markViewControlsAdjusted]
+  );
   const setActiveFiltersUser = useCallback(
     (next: ActiveFilter[] | ((prev: ActiveFilter[]) => ActiveFilter[])) => {
       markViewControlsAdjusted();
@@ -512,12 +837,27 @@ export default function MyTasksPage() {
     if (hasUserAdjustedViewControlsRef.current) return;
     viewControlsHydratedRef.current = true;
     if (myTasksUi.quickFilters) setQuickFilters(myTasksUi.quickFilters);
+    if (myTasksUi.completedWindow) setCompletedWindow(myTasksUi.completedWindow);
     if (myTasksUi.activeFilters) setActiveFilters(myTasksUi.activeFilters);
     if (myTasksUi.assigneeNameFilters)
       setAssigneeNameFilters(myTasksUi.assigneeNameFilters);
     if (myTasksUi.sortState) setSortState(myTasksUi.sortState);
     if (myTasksUi.groupConfigs) setGroupConfigs(myTasksUi.groupConfigs);
-    if (myTasksUi.groupType) setGroupType(myTasksUi.groupType);
+    if (myTasksUi.groupType) {
+      // Migration: before real personal sections existed, the primary
+      // group field "sections" was ALIASED to groupType "due_date". A
+      // returning user therefore has groupConfigs[0].field === "sections"
+      // but a persisted groupType of "due_date". Honor the panel's field
+      // (the real intent) so they land on the new personal-sections view
+      // instead of date-bucketing. Users who explicitly chose Due date
+      // have groupConfigs[0].field === "due_date" and are unaffected.
+      const primaryField = myTasksUi.groupConfigs?.[0]?.field;
+      if (myTasksUi.groupType === "due_date" && primaryField === "sections") {
+        setGroupType("sections");
+      } else {
+        setGroupType(myTasksUi.groupType);
+      }
+    }
     if (myTasksUi.collapsedSectionIds)
       setCollapsedSectionIds(myTasksUi.collapsedSectionIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -531,6 +871,7 @@ export default function MyTasksPage() {
     setMyTasksUi((prev) => ({
       ...prev,
       quickFilters,
+      completedWindow,
       activeFilters,
       assigneeNameFilters,
       sortState,
@@ -541,6 +882,7 @@ export default function MyTasksPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     quickFilters,
+    completedWindow,
     activeFilters,
     assigneeNameFilters,
     sortState,
@@ -553,16 +895,19 @@ export default function MyTasksPage() {
   // grouping change. This keeps the rendered sections in lock-step with
   // `groupType` after: a fetch refresh (tasks change), a hydration that
   // restores a persisted groupType different from the default, and a
-  // user re-group. Without the `tasks` dep the initial fetch's
-  // organizeTasks call (which runs with the mount-render groupType
-  // closure) would leave stale due-date buckets on screen while the
-  // control shows the restored grouping. Guarded on tasks.length so we
-  // don't wipe sections to empty during hydration.
+  // user re-group. Under the "sections" grouping it must ALSO re-run
+  // when the user's personal-section list or the taskId→section map
+  // change (rename / add / delete / reorder / detail-pane move) so the
+  // buckets restructure without a task refetch. Without the `tasks` dep
+  // the initial fetch's organizeTasks call (which runs with the
+  // mount-render groupType closure) would leave stale buckets on screen
+  // while the control shows the restored grouping. Guarded on
+  // tasks.length so we don't wipe sections to empty during hydration.
   useEffect(() => {
     if (tasks.length === 0) return;
     organizeTasks(tasks, groupType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, groupType]);
+  }, [tasks, groupType, groupConfigs, personalSections, taskSectionMap]);
 
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -614,22 +959,13 @@ export default function MyTasksPage() {
   // time, zero React re-renders during the drag.
   const taskGridTemplate = useMemo(() => {
     const cols: string[] = ["1fr"]; // Name (matches flex-1)
-    if (!hiddenColumns.has("dueDate")) {
-      cols.push("var(--col-dueDate)");
-    }
-    if (!hiddenColumns.has("collaborators")) {
-      cols.push("var(--col-collaborators)");
-    }
-    if (!hiddenColumns.has("projects")) {
-      cols.push("var(--col-projects)");
-    }
-    if (!hiddenColumns.has("visibility")) {
-      cols.push("var(--col-visibility)");
-    }
+    // Built-in tracks emitted in the user's column order (col-02).
+    for (const id of visibleBuiltinOrder) cols.push(`var(--col-${id})`);
     for (const c of customColumns) cols.push(`${c.width || 110}px`);
     cols.push("32px"); // "+" column (matches w-8)
     return cols.join(" ");
-  }, [hiddenColumns, customColumns.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleBuiltinOrder, customColumns.length]);
 
   // Row-level grid template — matches what the header + TaskRow use
   // when laid out as CSS Grid (not Flex). Includes the leading
@@ -653,14 +989,13 @@ export default function MyTasksPage() {
     const cols: string[] = [
       "minmax(308px, 1fr)", // 16 + 32 + 260 = 308 min; flexes
     ];
-    if (!hiddenColumns.has("dueDate")) cols.push("var(--col-dueDate)");
-    if (!hiddenColumns.has("collaborators")) cols.push("var(--col-collaborators)");
-    if (!hiddenColumns.has("projects")) cols.push("var(--col-projects)");
-    if (!hiddenColumns.has("visibility")) cols.push("var(--col-visibility)");
+    // Built-in tracks in the user's column order (col-02).
+    for (const id of visibleBuiltinOrder) cols.push(`var(--col-${id})`);
     for (const c of customColumns) cols.push(`${c.width || 110}px`);
     cols.push("32px"); // + Add column spacer
     return cols.join(" ");
-  }, [hiddenColumns, customColumns]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleBuiltinOrder, customColumns]);
 
 
   // Double-click on any resize handle → reset all columns to defaults
@@ -790,35 +1125,45 @@ export default function MyTasksPage() {
     }
   }, [showCalendarSync]);
 
-  // Sync group configs → existing organizeTasks groupType
+  // Sync group configs → organizeTasks groupType. Every GroupField now
+  // has a real bucketing branch in organizeTasks, so the primary field
+  // maps 1:1 to a groupType string (no more silent fall-through to
+  // due_date). `sections`/`project`/`priority` keep their existing drag
+  // semantics; the date/creator fields bucket read-only.
   function handleGroupConfigsChange(newConfigs: GroupConfig[]) {
     markViewControlsAdjusted();
     setGroupConfigs(newConfigs);
     const primary = newConfigs[0];
-    if (!primary || primary.field === "none") {
-      setGroupType("none");
-      organizeTasks(tasks, "none");
-    } else if (primary.field === "sections" || primary.field === "due_date") {
-      setGroupType("due_date");
-      organizeTasks(tasks, "due_date");
-    } else if (primary.field === "project") {
-      setGroupType("project");
-      organizeTasks(tasks, "project");
-    } else if (primary.field === "priority") {
-      setGroupType("priority");
-      organizeTasks(tasks, "priority");
-    } else if (primary.field === "creator") {
-      // The panel labels this "Creator" but on a personal task list the more
-      // useful grouping is by assignee (delegate / owner). Map accordingly.
-      setGroupType("assignee");
-      organizeTasks(tasks, "assignee");
-    } else {
-      setGroupType("due_date");
-      organizeTasks(tasks, "due_date");
-    }
+    const field = !primary ? "none" : primary.field;
+    // GroupField values match the organizeTasks groupType strings 1:1
+    // for: sections, due_date, start_date, created_at, updated_at,
+    // completed_at, creator, project, priority, none.
+    setGroupType(field);
+    organizeTasks(tasks, field);
   }
 
   const initialLoadDoneRef = useRef(false);
+
+  // Drop taskSections mappings for tasks that are no longer present in
+  // the latest fetch, keeping the persisted uiState payload lean (the
+  // preferences route caps stored JSON ~32KB). Only PATCHes when the map
+  // actually shrank. Guarded on hydration so we don't prune a map we
+  // haven't loaded from the server yet.
+  function pruneTaskSections(latest: Task[]) {
+    if (!myTasksUiHydrated) return;
+    const stored = myTasksUi.taskSections;
+    if (!stored) return;
+    const liveIds = new Set(latest.map((t) => t.id));
+    const kept: Record<string, string> = {};
+    let changed = false;
+    for (const [taskId, sectionId] of Object.entries(stored)) {
+      if (liveIds.has(taskId)) kept[taskId] = sectionId;
+      else changed = true;
+    }
+    if (changed) {
+      setMyTasksUi((prev) => ({ ...prev, taskSections: kept }));
+    }
+  }
 
   async function fetchTasks(silent = false) {
     // Only show loading spinner on initial load, not re-fetches
@@ -829,8 +1174,13 @@ export default function MyTasksPage() {
     try {
       const res = await fetch("/api/tasks?myTasks=true");
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as Task[];
         setTasks(data);
+        // Prune taskSections entries whose task is no longer in the fetch
+        // (deleted / no longer assigned) so the stored uiState payload
+        // stays lean under the ~32KB preferences cap. Only writes when
+        // something actually changed to avoid a needless PATCH.
+        pruneTaskSections(data);
         // Always derive sections against the CURRENT grouping — never
         // the mount-render closure. The [tasks, groupType] effect will
         // also re-run, but doing it here keeps the first paint correct.
@@ -847,10 +1197,64 @@ export default function MyTasksPage() {
     }
   }
 
-  function organizeTasks(taskList: Task[], group?: string) {
+  function organizeTasks(
+    taskList: Task[],
+    group?: string,
+    // Optional taskId→sectionId overrides applied ON TOP of the persisted
+    // taskSectionMap. The persisted map lags a tick behind a move (it
+    // flushes through useUiState), so a just-moved task passes its new
+    // mapping here for a correct optimistic re-render.
+    sectionOverrides?: Record<string, string>
+  ) {
     const activeGroup = group || groupType;
     // Don't filter out completed tasks here - let the filter system handle visibility
     const activeTasks = taskList;
+
+    // Position-then-createdAt sort — position is what intra-section
+    // drag-reorder writes, so this makes the dropped order persist.
+    const sortFn = (a: Task, b: Task) => {
+      const pa = a.position ?? 0;
+      const pb = b.position ?? 0;
+      if (pa !== pb) return pa - pb;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    };
+
+    // ── Personal sections (user-owned buckets) — the DEFAULT grouping ──
+    // Bucket each task by its uiState taskSections[id] override. Tasks
+    // without an override seed from their DB myTaskSection enum (so
+    // pre-existing DB state and freshly-created tasks that set the enum
+    // still land correctly); everything else falls to Recently assigned.
+    // Unlike project/priority groupings, EMPTY user sections still render
+    // (Asana always shows the personal sections, even empty ones).
+    if (activeGroup === "sections") {
+      const buckets = new Map<string, Task[]>();
+      const validIds = new Set(personalSections.map((s) => s.id));
+      personalSections.forEach((s) => buckets.set(s.id, []));
+      const fallbackId = personalSections[0]?.id ?? "recently-assigned";
+
+      activeTasks.forEach((task) => {
+        let sid = sectionOverrides?.[task.id] ?? taskSectionMap[task.id];
+        // No explicit uiState mapping → seed from the DB enum for
+        // back-compat with tasks the user placed before this model.
+        if (!sid && task.myTaskSection) {
+          sid = ENUM_TO_SECTION_ID[task.myTaskSection];
+        }
+        // Unmapped or pointing at a section the user has since deleted →
+        // Recently assigned (matches Asana's "newly assigned lands here").
+        if (!sid || !validIds.has(sid)) sid = fallbackId;
+        if (!buckets.has(sid)) buckets.set(sid, []);
+        buckets.get(sid)!.push(task);
+      });
+
+      const result: SmartSection[] = personalSections.map((s) => ({
+        id: s.id,
+        name: s.name,
+        collapsed: false,
+        tasks: (buckets.get(s.id) ?? []).sort(sortFn),
+      }));
+      setSections(result);
+      return;
+    }
 
     if (activeGroup === "project") {
       const byProject = new Map<string, Task[]>();
@@ -905,18 +1309,105 @@ export default function MyTasksPage() {
       return;
     }
 
+    // ── Real "Created by" grouping (tb-02) ────────────────────────
+    // Bucket by the task's CREATOR (distinct from the assignee grouping
+    // above). The creator relation is included by the API.
+    if (activeGroup === "creator") {
+      const primaryCfg = groupConfigs[0];
+      const byCreator = new Map<string, { name: string; tasks: Task[] }>();
+      activeTasks.forEach((task) => {
+        const id = task.creator?.id || "no-creator";
+        const name = task.creator?.name || "Unknown";
+        if (!byCreator.has(id)) byCreator.set(id, { name, tasks: [] });
+        byCreator.get(id)!.tasks.push(task);
+      });
+      let result: SmartSection[] = [];
+      byCreator.forEach(({ name, tasks }, id) => {
+        result.push({ id, name, collapsed: false, tasks: tasks.sort(sortFn) });
+      });
+      // Order: default (custom) keeps insertion order; asc/desc sort by
+      // the creator name.
+      if (primaryCfg?.order === "asc") {
+        result.sort((a, b) => a.name.localeCompare(b.name));
+      } else if (primaryCfg?.order === "desc") {
+        result.sort((a, b) => b.name.localeCompare(a.name));
+      }
+      // hideEmpty is moot here (every bucket has ≥1 task) but honor it
+      // defensively.
+      if (primaryCfg?.hideEmpty) {
+        result = result.filter((s) => s.tasks.length > 0);
+      }
+      setSections(result);
+      return;
+    }
+
+    // ── Date-driven groupings (tb-02): start / creation / last-modified
+    // / completion date. Buckets by calendar proximity using date-only
+    // helpers so a task due "today" is never mis-bucketed by timezone.
+    // Honors the primary GroupConfig's order (asc/desc reverse the bucket
+    // sequence) and hideEmpty (drop empty buckets). The `due_date`
+    // grouping keeps its dedicated myTaskSection-aware branch below.
+    const DATE_FIELD_MAP: Record<string, (t: Task) => string | null> = {
+      start_date: (t) => t.startDate,
+      created_at: (t) => t.createdAt,
+      updated_at: (t) => t.updatedAt,
+      completed_at: (t) => t.completedAt,
+    };
+    if (DATE_FIELD_MAP[activeGroup]) {
+      const getDate = DATE_FIELD_MAP[activeGroup];
+      const primaryCfg = groupConfigs[0];
+      // Bucket definitions in natural (past → future) order. daysFromToday
+      // is negative in the past, 0 today, positive in the future.
+      const overdue: Task[] = [];
+      const today: Task[] = [];
+      const thisWeek: Task[] = [];
+      const nextWeek: Task[] = [];
+      const later: Task[] = [];
+      const noDate: Task[] = [];
+      activeTasks.forEach((task) => {
+        const d = getDate(task);
+        if (!d) {
+          noDate.push(task);
+          return;
+        }
+        const delta = daysFromToday(d);
+        if (delta < 0) overdue.push(task);
+        else if (delta === 0) today.push(task);
+        else if (delta <= 7) thisWeek.push(task);
+        else if (delta <= 14) nextWeek.push(task);
+        else later.push(task);
+      });
+      let buckets: SmartSection[] = [
+        { id: "grp-past", name: "Earlier", collapsed: false, tasks: overdue },
+        { id: "grp-today", name: "Today", collapsed: false, tasks: today },
+        { id: "grp-this-week", name: "This week", collapsed: false, tasks: thisWeek },
+        { id: "grp-next-week", name: "Next week", collapsed: false, tasks: nextWeek },
+        { id: "grp-later", name: "Later", collapsed: false, tasks: later },
+        { id: "grp-none", name: "No date", collapsed: false, tasks: noDate },
+      ].map((b) => ({ ...b, tasks: b.tasks.sort(sortFn) }));
+      // Ascending = natural order (already). Descending = reverse the
+      // time buckets but always keep "No date" last.
+      if (primaryCfg?.order === "desc") {
+        const noneBucket = buckets[buckets.length - 1];
+        buckets = [...buckets.slice(0, -1).reverse(), noneBucket];
+      }
+      if (primaryCfg?.hideEmpty) {
+        buckets = buckets.filter((b) => b.tasks.length > 0);
+      } else {
+        // Even without hideEmpty, drop the "No date" bucket when empty so
+        // it doesn't clutter a fully-dated list.
+        buckets = buckets.filter((b) => b.id !== "grp-none" || b.tasks.length > 0);
+      }
+      setSections(buckets);
+      return;
+    }
+
     if (activeGroup === "none") {
       setSections([{ id: "all", name: "All tasks", collapsed: false, tasks: activeTasks }]);
       return;
     }
 
     // Default: group by myTaskSection (explicit override) or fall back to due date
-    const now = new Date();
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    const nextWeekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
-    nextWeekEnd.setHours(23, 59, 59, 999);
-
     const recentlyAssigned: Task[] = [];
     const doToday: Task[] = [];
     const doNextWeek: Task[] = [];
@@ -934,14 +1425,18 @@ export default function MyTasksPage() {
         else if (task.myTaskSection === "DO_LATER") doLater.push(task);
         return;
       }
-      // Fall back to due date classification for tasks without explicit section
+      // Fall back to due date classification for tasks without explicit
+      // section. daysFromToday normalizes the UTC-midnight due date to the
+      // local calendar day, so a task due tomorrow doesn't leak into "Do
+      // today" (and a task due today never lands in "Do later") the way a
+      // raw `new Date(dueDate) <= todayEnd` comparison did west of UTC.
       if (!task.dueDate) {
         recentlyAssigned.push(task);
       } else {
-        const dueDate = new Date(task.dueDate);
-        if (dueDate <= todayEnd) {
+        const delta = daysFromToday(task.dueDate);
+        if (delta <= 0) {
           doToday.push(task);
-        } else if (dueDate <= nextWeekEnd) {
+        } else if (delta <= 7) {
           doNextWeek.push(task);
         } else {
           doLater.push(task);
@@ -949,18 +1444,8 @@ export default function MyTasksPage() {
       }
     });
 
-    // Sort each bucket by position then createdAt — the position
-    // field is what intra-section drag-reorder writes to, so this
-    // is what makes the new order persist visually after the next
-    // re-render. Falls back to createdAt for ties (default position).
-    const sortFn = (a: Task, b: Task) => {
-      const pa = a.position ?? 0;
-      const pb = b.position ?? 0;
-      if (pa !== pb) return pa - pb;
-      return (
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    };
+    // Sort each bucket by position then createdAt (shared sortFn defined
+    // at the top of organizeTasks).
     recentlyAssigned.sort(sortFn);
     doToday.sort(sortFn);
     doNextWeek.sort(sortFn);
@@ -968,35 +1453,126 @@ export default function MyTasksPage() {
 
     // Keep sections that were empty in previous state (don't collapse them)
     // This prevents sections from disappearing and reappearing during moves
-
-    setSections([
+    let dueBuckets: SmartSection[] = [
       { id: "recently-assigned", name: "Recently assigned", collapsed: false, tasks: recentlyAssigned },
       { id: "do-today", name: "Do today", collapsed: false, tasks: doToday },
       { id: "do-next-week", name: "Do next week", collapsed: false, tasks: doNextWeek },
       { id: "do-later", name: "Do later", collapsed: false, tasks: doLater },
-    ]);
+    ];
+    // Honor the primary GroupConfig's order/hideEmpty only when the user
+    // explicitly picked the Due date grouping (not the sections default,
+    // which shares this block). This keeps drag semantics intact for the
+    // personal-sections path while giving the Due date grouping parity.
+    if (activeGroup === "due_date") {
+      const primaryCfg = groupConfigs[0];
+      if (primaryCfg?.order === "desc") dueBuckets = [...dueBuckets].reverse();
+      if (primaryCfg?.hideEmpty) {
+        dueBuckets = dueBuckets.filter((b) => b.tasks.length > 0);
+      }
+    }
+    setSections(dueBuckets);
+  }
+
+  // Create a persisted user-owned section. Appends to uiState.myTasks.
+  // sections with the next order value so it survives reload + follows
+  // the user across devices. Returns the new section id (used by the
+  // Board add-section which prompts inline).
+  function createPersonalSection(rawName: string): string | null {
+    const name = rawName.trim();
+    if (!name) return null;
+    const id = `custom-${Date.now()}`;
+    setPersonalSections((prev) => {
+      const nextOrder =
+        prev.reduce((max, s) => Math.max(max, s.order), -1) + 1;
+      return [...prev, { id, name, order: nextOrder }];
+    });
+    toast.success(`Section "${name}" added`);
+    return id;
   }
 
   function handleAddSection() {
     if (!newSectionName.trim()) return;
-    const newSection: SmartSection = {
-      id: `custom-${Date.now()}`,
-      name: newSectionName.trim(),
-      collapsed: false,
-      tasks: [],
-    };
-    setSections((prev) => [...prev, newSection]);
+    createPersonalSection(newSectionName);
     setNewSectionName("");
     setIsAddingSection(false);
-    toast.success(`Section "${newSection.name}" added`);
+  }
+
+  // Rename a persisted section in place (id stays stable so collapse
+  // state + task mappings are untouched).
+  function handleRenameSection(sectionId: string, rawName: string) {
+    const name = rawName.trim();
+    if (!name) return;
+    setPersonalSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, name } : s))
+    );
+  }
+
+  // Delete a persisted section: reassign its mapped tasks to Recently
+  // assigned (both in the uiState map AND, for tasks whose enum pointed
+  // at this section, by clearing/reseating the enum via PATCH), then
+  // drop the section from the list. The 4 defaults can't be deleted.
+  async function handleDeleteSection(sectionId: string) {
+    if (sectionId in SECTION_ID_TO_ENUM) {
+      toast.info("Default sections can't be deleted");
+      return;
+    }
+
+    // Drop the section AND every taskSections mapping that pointed at it
+    // in a single uiState write. The affected tasks then have no mapping
+    // and no enum (custom sections never set one), so organizeTasks
+    // seeds them into Recently assigned automatically. One atomic write
+    // keeps the map + list consistent.
+    setMyTasksUi((prev) => {
+      const nextMap = { ...(prev.taskSections ?? {}) };
+      for (const [tid, sid] of Object.entries(nextMap)) {
+        if (sid === sectionId) delete nextMap[tid];
+      }
+      const curSections =
+        prev.sections && prev.sections.length > 0
+          ? prev.sections
+          : DEFAULT_PERSONAL_SECTIONS;
+      return {
+        ...prev,
+        taskSections: nextMap,
+        sections: curSections.filter((s) => s.id !== sectionId),
+      };
+    });
+
+    toast.success("Section deleted");
+  }
+
+  // Persist a reordered section list (drag-to-reorder). Renumbers
+  // `order` from the dropped sequence so it survives reload.
+  function handleReorderSections(orderedIds: string[]) {
+    setPersonalSections((prev) => {
+      const byId = new Map(prev.map((s) => [s.id, s]));
+      const reordered = orderedIds
+        .map((id) => byId.get(id))
+        .filter((s): s is PersonalSection => Boolean(s))
+        .map((s, idx) => ({ ...s, order: idx }));
+      // Preserve any sections not present in orderedIds (defensive)
+      const seen = new Set(orderedIds);
+      const rest = prev
+        .filter((s) => !seen.has(s.id))
+        .map((s, idx) => ({ ...s, order: reordered.length + idx }));
+      return [...reordered, ...rest];
+    });
   }
 
   // Helper: check if a date is within a given range label
-  function isDateInRange(dateStr: string | null, range: string): boolean {
+  function isDateInRange(
+    dateStr: string | null,
+    range: string,
+    // Due/start dates are UTC-midnight, date-only values: normalize them to
+    // the local calendar day so every quick/builder filter buckets by the
+    // day the user sees, not a timezone-shifted one. createdAt/updatedAt/
+    // completedAt are real wall-clock timestamps — pass dateOnly=false to
+    // compare them as-is.
+    dateOnly: boolean = true
+  ): boolean {
     if (!dateStr) return false;
-    const date = new Date(dateStr);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const date = dateOnly ? dueDateToLocalMidnight(dateStr) : new Date(dateStr);
+    const today = startOfLocalDay();
 
     const dayOfWeek = today.getDay(); // 0=Sun
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -1052,10 +1628,15 @@ export default function MyTasksPage() {
   }
 
   // Apply filtering to sections
-  const getFilteredSections = () => {
+  // Apply the filter + sort overlay to ANY section array. Extracted so
+  // the List view (grouped by the active groupType) and the Board/Calendar
+  // views (always grouped by personal sections — see buildPersonalSections)
+  // share one filter/sort implementation. `source` defaults to the
+  // groupType-derived `sections` state for the List path.
+  const applyFiltersAndSort = (source: SmartSection[]) => {
     const hasFilters = quickFilters.length > 0 || activeFilters.length > 0;
 
-    return sections.map((section) => ({
+    return source.map((section) => ({
       ...section,
       // Overlay the persisted collapse state so a collapsed section
       // stays collapsed across re-derivation (organizeTasks) + reload.
@@ -1082,7 +1663,22 @@ export default function MyTasksPage() {
           const passesQuick = quickFilters.some((qf) => {
             switch (qf) {
               case "incomplete": return !task.completed;
-              case "completed": return task.completed;
+              case "completed": {
+                if (!task.completed) return false;
+                // Asana's Completed sub-select: further gate on WHEN the
+                // task was completed. "all" (or a missing completedAt)
+                // passes everything.
+                if (completedWindow === "all" || !task.completedAt) return true;
+                const daysAgo = -daysFromToday(task.completedAt); // >=0 in the past
+                switch (completedWindow) {
+                  case "today": return daysAgo === 0;
+                  case "yesterday": return daysAgo === 1;
+                  case "1w": return daysAgo >= 0 && daysAgo <= 7;
+                  case "2w": return daysAgo >= 0 && daysAgo <= 14;
+                  case "3w": return daysAgo >= 0 && daysAgo <= 21;
+                  default: return true;
+                }
+              }
               case "due_this_week": return isDateInRange(task.dueDate, "this_week");
               case "due_next_week": return isDateInRange(task.dueDate, "next_week");
               default: return true;
@@ -1111,55 +1707,147 @@ export default function MyTasksPage() {
                 if (f.value === "overdue" && task.completed) return false;
               }
               if (f.operator === "is_before" && task.dueDate) {
-                // "is before today" etc — simplified
+                // "is before today" etc — simplified. daysFromToday folds
+                // the UTC-midnight due date onto the local calendar day so
+                // the comparison isn't off by one west of UTC.
                 if (!isDateInRange(task.dueDate, f.value)) {
-                  const targetDate = new Date(task.dueDate);
-                  const now = new Date();
-                  if (f.value === "today" && targetDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) return false;
+                  if (f.value === "today" && daysFromToday(task.dueDate) >= 0) return false;
                 }
               }
               if (f.operator === "is_after" && task.dueDate) {
-                const targetDate = new Date(task.dueDate);
-                const now = new Date();
-                if (f.value === "today" && targetDate <= new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)) return false;
+                if (f.value === "today" && daysFromToday(task.dueDate) <= 0) return false;
               }
               break;
             case "start_date":
-              if (f.operator === "is_set") return false; // start date not in current model — skip
-              if (f.operator === "is_not_set") break; // pass through
+              // startDate IS on the Task model now — honor the operators.
+              if (f.operator === "is_set" && !task.startDate) return false;
+              if (f.operator === "is_not_set" && task.startDate) return false;
+              if (f.operator === "is_within" && !isDateInRange(task.startDate, f.value)) return false;
               break;
             case "creation_date":
-              if (f.operator === "is_within" && !isDateInRange(task.createdAt, f.value)) return false;
+              if (f.operator === "is_within" && !isDateInRange(task.createdAt, f.value, false)) return false;
               break;
             case "task_type":
               if (f.operator === "is" && (task.taskType || "TASK") !== f.value) return false;
               if (f.operator === "is_not" && (task.taskType || "TASK") === f.value) return false;
               break;
-            // creator, last_modified, completion_date — pass through for now
+            case "creator":
+              // Value "me" resolves to the signed-in user; any other value
+              // is treated as a creator id (Advanced Search may supply one).
+              {
+                const targetId = f.value === "me" ? session?.user?.id : f.value;
+                if (!targetId) break;
+                const creatorId = task.creator?.id ?? null;
+                if (f.operator === "is" && creatorId !== targetId) return false;
+                if (f.operator === "is_not" && creatorId === targetId) return false;
+              }
+              break;
+            case "last_modified":
+              if (f.operator === "is_within" && !isDateInRange(task.updatedAt, f.value, false)) return false;
+              break;
+            case "completion_date":
+              if (f.operator === "is_set" && !task.completedAt) return false;
+              if (f.operator === "is_not_set" && task.completedAt) return false;
+              if (f.operator === "is_within" && !isDateInRange(task.completedAt, f.value, false)) return false;
+              break;
           }
         }
 
         return true;
       }).sort((a, b) => {
-        if (sortState.field === "none") return 0;
+        // No active sort: keep the position/section order organizeTasks
+        // established. A columnId (pinned built-in / custom field) sort
+        // overrides the panel `field`.
+        if (sortState.field === "none" && !sortState.columnId) return 0;
         const dir = sortState.direction === "asc" ? 1 : -1;
 
         function cmpDate(dateA: string | null, dateB: string | null): number {
           if (!dateA && !dateB) return 0;
-          if (!dateA) return 1;
+          if (!dateA) return 1; // nulls sort last regardless of direction
           if (!dateB) return -1;
           return (new Date(dateA).getTime() - new Date(dateB).getTime()) * dir;
+        }
+        function cmpStr(x: string, y: string): number {
+          if (!x && !y) return 0;
+          if (!x) return 1;
+          if (!y) return -1;
+          return x.localeCompare(y) * dir;
+        }
+        function cmpNum(x: number | null, y: number | null): number {
+          if (x === null && y === null) return 0;
+          if (x === null) return 1;
+          if (y === null) return -1;
+          return (x - y) * dir;
+        }
+        // HIGH > MEDIUM > LOW > NONE for ascending-by-severity intuition.
+        const PRIORITY_RANK: Record<string, number> = {
+          HIGH: 3,
+          MEDIUM: 2,
+          LOW: 1,
+          NONE: 0,
+        };
+
+        // ── col-03: sort by a pinned column (built-in extra or custom
+        // field). Dispatched before the panel `field` switch. ──────────
+        if (sortState.columnId) {
+          const cid = sortState.columnId;
+          switch (cid) {
+            case "priority":
+              return cmpNum(
+                PRIORITY_RANK[a.priority || "NONE"],
+                PRIORITY_RANK[b.priority || "NONE"]
+              );
+            case "start_date":
+              return cmpDate(a.startDate, b.startDate);
+            case "completed_at":
+              return cmpDate(a.completedAt, b.completedAt);
+            case "updated_at":
+              return cmpDate(a.updatedAt, b.updatedAt);
+            case "created_at":
+              return cmpDate(a.createdAt, b.createdAt);
+            case "creator":
+              return cmpStr(a.creator?.name || "", b.creator?.name || "");
+            case "tags":
+              return cmpStr(
+                (a.taskTags || []).map((t) => t.tag.name).join(", "),
+                (b.taskTags || []).map((t) => t.tag.name).join(", ")
+              );
+            case "likes":
+              return cmpNum(a._count.likes ?? 0, b._count.likes ?? 0);
+            case "blocked_by":
+              return cmpNum(
+                a.dependencies?.length ?? 0,
+                b.dependencies?.length ?? 0
+              );
+            case "blocks":
+              return cmpNum(
+                a.dependents?.length ?? 0,
+                b.dependents?.length ?? 0
+              );
+            default: {
+              // Real custom-field column: compare by the extracted value.
+              const va = customFieldSortValue(a, cid);
+              const vb = customFieldSortValue(b, cid);
+              if (typeof va === "number" || typeof vb === "number") {
+                return cmpNum(
+                  typeof va === "number" ? va : null,
+                  typeof vb === "number" ? vb : null
+                );
+              }
+              return cmpStr(String(va ?? ""), String(vb ?? ""));
+            }
+          }
         }
 
         switch (sortState.field) {
           case "due_date":
             return cmpDate(a.dueDate, b.dueDate);
           case "start_date":
-            return cmpDate(a.dueDate, b.dueDate); // fallback to due date since start date not in Task interface
+            return cmpDate(a.startDate, b.startDate);
           case "created_at":
             return cmpDate(a.createdAt, b.createdAt);
           case "updated_at":
-            return cmpDate(a.createdAt, b.createdAt); // fallback
+            return cmpDate(a.updatedAt, b.updatedAt);
           case "completed_at":
             return cmpDate(a.completedAt, b.completedAt);
           case "alphabetical":
@@ -1167,9 +1855,9 @@ export default function MyTasksPage() {
           case "project":
             return (a.project?.name || "").localeCompare(b.project?.name || "") * dir;
           case "creator":
-            return ((a.assignee?.name || "").localeCompare(b.assignee?.name || "")) * dir;
+            return cmpStr(a.creator?.name || "", b.creator?.name || "");
           case "likes":
-            return 0; // likes not in current model
+            return cmpNum(a._count.likes ?? 0, b._count.likes ?? 0);
           default:
             return 0;
         }
@@ -1177,7 +1865,56 @@ export default function MyTasksPage() {
     }));
   };
 
+  // List view: filter/sort the groupType-derived `sections` state.
+  const getFilteredSections = () => applyFiltersAndSort(sections);
+
+  // Bucket tasks into the user's personal sections, INDEPENDENT of the
+  // active List groupType. This mirrors the `activeGroup === "sections"`
+  // branch of organizeTasks but is pure (no setState), so the Board and
+  // Calendar can always operate on personal sections even when the List
+  // is grouped by project/priority/assignee/due date. Keeping the two in
+  // lock-step is what makes handleMoveTaskToSection's personal-section
+  // branch, the board's Add-section, and the detail-pane section dropdown
+  // all agree on a single source of truth.
+  const buildPersonalSections = (taskList: Task[]): SmartSection[] => {
+    const sortFn = (a: Task, b: Task) => {
+      const pa = a.position ?? 0;
+      const pb = b.position ?? 0;
+      if (pa !== pb) return pa - pb;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    };
+    const buckets = new Map<string, Task[]>();
+    const validIds = new Set(personalSections.map((s) => s.id));
+    personalSections.forEach((s) => buckets.set(s.id, []));
+    const fallbackId = personalSections[0]?.id ?? "recently-assigned";
+    taskList.forEach((task) => {
+      let sid = taskSectionMap[task.id];
+      if (!sid && task.myTaskSection) {
+        sid = ENUM_TO_SECTION_ID[task.myTaskSection];
+      }
+      if (!sid || !validIds.has(sid)) sid = fallbackId;
+      if (!buckets.has(sid)) buckets.set(sid, []);
+      buckets.get(sid)!.push(task);
+    });
+    return personalSections.map((s) => ({
+      id: s.id,
+      name: s.name,
+      collapsed: false,
+      tasks: (buckets.get(s.id) ?? []).sort(sortFn),
+    }));
+  };
+
   const filteredSections = getFilteredSections();
+
+  // Board / Calendar always render personal sections, then apply the same
+  // filter/sort overlay (so filters + sort still take effect on those
+  // views). When the List is already grouped by sections this equals
+  // `filteredSections`; when it isn't, the Board no longer inherits the
+  // List's project/priority/etc. buckets.
+  const personalSectionsForBoard =
+    groupType === "sections"
+      ? filteredSections
+      : applyFiltersAndSort(buildPersonalSections(tasks));
 
   function toggleSection(sectionId: string) {
     markViewControlsAdjusted();
@@ -1268,6 +2005,61 @@ export default function MyTasksPage() {
     }
   }
 
+  // Move a task into a user-owned personal section. Persistence lives in
+  // uiState (taskSections map), NOT the tasks table — except that for the
+  // 4 default sections we ALSO mirror the DB myTaskSection enum (back-
+  // compat with pre-existing state + the enum fallback in organizeTasks),
+  // and for a custom section we clear the enum so a stale value can't
+  // drag the task back to a default bucket on a fresh device. Used by
+  // BOTH the List/Board sections-grouping drag AND the detail-pane
+  // section dropdown (which works regardless of the active grouping).
+  async function moveTaskToPersonalSection(
+    taskId: string,
+    destSectionId: string
+  ) {
+    const destIsValid = personalSections.some((s) => s.id === destSectionId);
+    if (!destIsValid) {
+      toast.info("Can't move to that section");
+      return;
+    }
+    // Persist the mapping to uiState (debounced PATCH via useUiState).
+    setTaskSection(taskId, destSectionId);
+
+    // Optimistic re-render: pass the new mapping as an override so the
+    // card lands in the destination now, before uiState flushes. Also
+    // reflect the enum on the in-memory task for the default sections
+    // so it stays consistent if the grouping recomputes.
+    const enumForDest = SECTION_ID_TO_ENUM[destSectionId] ?? null;
+    const updatedTasks = tasks.map((t) =>
+      t.id === taskId
+        ? {
+            ...t,
+            myTaskSection: enumForDest as Task["myTaskSection"],
+          }
+        : t
+    );
+    setTasks(updatedTasks);
+    // Only re-derive when the sections grouping is on screen; under other
+    // groupings this move has no visible bucket effect.
+    if (groupType === "sections") {
+      organizeTasks(updatedTasks, "sections", { [taskId]: destSectionId });
+    }
+
+    // Back-compat DB write: default sections → set the enum; custom
+    // sections → clear it. Failure here is non-fatal (uiState already
+    // holds the authoritative mapping), so we only log.
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ myTaskSection: enumForDest }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      console.error("Move task (section enum sync) error:", err);
+    }
+  }
+
   // Shared cross-grouping move handler for the List + Board drag-drop.
   // The destination section id means different things depending on the
   // active grouping, so we translate it into the correct PATCH before
@@ -1278,6 +2070,12 @@ export default function MyTasksPage() {
     taskId: string,
     destSectionId: string
   ) {
+    // ── Personal-sections grouping (the default) ──────────────────
+    if (groupType === "sections") {
+      await moveTaskToPersonalSection(taskId, destSectionId);
+      return;
+    }
+
     // Build the PATCH body for the active grouping. `null` body means
     // "don't issue a corrupting PATCH" (e.g. group=none / unknown).
     let patch: Record<string, unknown> | null = null;
@@ -1435,15 +2233,18 @@ export default function MyTasksPage() {
     if (!name.trim()) return false;
 
     try {
-      // Map virtual section IDs to myTaskSection enum values
-      // This creates tasks WITHOUT fake due dates — the section is stored independently
-      const sectionMap: Record<string, string> = {
-        "recently-assigned": "RECENTLY_ASSIGNED",
-        "do-today": "DO_TODAY",
-        "do-next-week": "DO_NEXT_WEEK",
-        "do-later": "DO_LATER",
-      };
-      const myTaskSection = sectionMap[sectionId] ?? null;
+      // Map the DEFAULT personal-section ids to the myTaskSection enum.
+      // Custom user sections have no enum — the created task is mapped
+      // into uiState.taskSections after we learn its id (below). This
+      // creates tasks WITHOUT fake due dates — the section is stored
+      // independently.
+      const myTaskSection = SECTION_ID_TO_ENUM[sectionId] ?? null;
+      // A custom section id (not one of the 4 defaults) — remember it so
+      // we can write the taskId→sectionId mapping once the task exists.
+      const isCustomSection =
+        sectionId &&
+        !(sectionId in SECTION_ID_TO_ENUM) &&
+        personalSections.some((s) => s.id === sectionId);
 
       // API auto-assigns to current user when no assigneeId provided
       const res = await fetch("/api/tasks", {
@@ -1453,6 +2254,18 @@ export default function MyTasksPage() {
       });
 
       if (res.ok) {
+        // Map the new task into a custom section (uiState) so it lands
+        // there instead of falling back to Recently assigned. Default
+        // sections are already covered by the myTaskSection enum above.
+        if (isCustomSection) {
+          try {
+            const created = await res.json();
+            if (created?.id) setTaskSection(created.id, sectionId);
+          } catch {
+            // Response body already consumed / not JSON — the refetch
+            // below still shows the task (in Recently assigned); harmless.
+          }
+        }
         await fetchTasks(true);
         return true;
       }
@@ -1471,27 +2284,32 @@ export default function MyTasksPage() {
   function formatDueDate(dateStr: string | null): { text: string; className: string } {
     if (!dateStr) return { text: "", className: "text-gray-500" };
 
-    const date = new Date(dateStr);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Due dates arrive as UTC-midnight timestamps; normalize to the local
+    // midnight of that calendar day (date-only.ts) so a task due "today"
+    // never reads as overdue for viewers west of UTC.
+    const date = dueDateToLocalMidnight(dateStr);
+    const today = startOfLocalDay();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const thisWeekEnd = new Date(today);
     thisWeekEnd.setDate(thisWeekEnd.getDate() + (7 - today.getDay()));
 
-    if (date < today) {
+    // Whole calendar days from today to the due date (negative = overdue,
+    // 0 = today). Drives the overdue branch so "due today" is never past due.
+    const delta = daysFromToday(dateStr);
+
+    if (delta < 0) {
       // PMI/AEC convention: overdue items get a count of working days
       // overdue, not just the past date. Reads as "Overdue · 3 days"
       // so it surfaces severity at a glance.
-      const dayMs = 86400000;
-      const days = Math.round((today.getTime() - date.getTime()) / dayMs);
+      const days = -delta;
       return {
         text: days === 1 ? "Overdue · 1 day" : `Overdue · ${days} days`,
         className: "text-black font-medium",
       };
-    } else if (date.toDateString() === today.toDateString()) {
+    } else if (delta === 0) {
       return { text: "Today", className: "text-[#a8893a]" };
-    } else if (date.toDateString() === tomorrow.toDateString()) {
+    } else if (delta === 1) {
       return { text: "Tomorrow", className: "text-[#a8893a]" };
     } else if (date <= thisWeekEnd) {
       return { text: date.toLocaleDateString("en-US", { weekday: "long" }), className: "text-gray-700" };
@@ -1505,7 +2323,7 @@ export default function MyTasksPage() {
     tasks.forEach((t) => {
       rows.push([
         t.name,
-        t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-US") : "",
+        t.dueDate ? dueDateToLocalMidnight(t.dueDate).toLocaleDateString("en-US") : "",
         t.priority,
         t.completed ? "Completed" : "Incomplete",
         t.project?.name || "",
@@ -1862,13 +2680,13 @@ export default function MyTasksPage() {
             onClick={() => setSortPanelOpen((v) => !v)}
             className={cn(
               "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
-              sortState.field !== "none"
+              sortState.field !== "none" || sortState.columnId
                 ? "text-[#a8893a] bg-[#c9a84c]/10 hover:bg-[#c9a84c]/15"
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
             )}
           >
             <ArrowUpDown className="w-4 h-4" />
-            Sort{sortState.field !== "none" ? " (1)" : ""}
+            Sort{sortState.field !== "none" || sortState.columnId ? " (1)" : ""}
           </button>
           {/* Group button — toggles floating GroupPanel */}
           <button
@@ -2022,114 +2840,77 @@ export default function MyTasksPage() {
             />
           </div>
 
-          {/* Due date — width from grid template (var(--col-dueDate)).
-              Border comes from row's [&>*+*]:border-l. */}
-          {!hiddenColumns.has("dueDate") && (
-          <div className="relative flex items-center pl-2.5 pr-1">
-            {/* Left border handle: drag to resize Due date */}
-            <div
-              onMouseDown={(e) => handleResizeStart(e, null, "dueDate")}
-              onDoubleClick={handleResizeReset}
-              className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
-            />
-            <ColumnHeader
-              config={{ id: "dueDate", ...COLUMN_CONFIGS.dueDate, width: "100%", minWidth: "100%", isFirst: true }}
-              isDropdownOpen={openColumnDropdown === "dueDate"}
-              onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "dueDate" ? null : "dueDate")}
-              callbacks={{
-                onSortAsc: () => setSortStateUser({ field: "due_date", direction: "asc" }),
-                onSortDesc: () => setSortStateUser({ field: "due_date", direction: "desc" }),
-                onFilter: () => setFilterPanelOpen(true),
-                onGroupBy: (field) => {
-                  handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
-                },
-                onAddColumn: () => setShowCustomFieldModal(true),
-                onMoveLeft: () => toast.success("Column moved left"),
-                onMoveRight: () => toast.success("Column moved right"),
-                onHideColumn: () => toast.success("Column hidden"),
-                onOpenCustomField: () => setShowCustomFieldModal(true),
-              }}
-            />
-          </div>
-          )}
-
-          {/* Collaborators — width from grid template. */}
-          {!hiddenColumns.has("collaborators") && (
-          <div className="relative flex items-center pl-2.5 pr-1">
-            <div
-              onMouseDown={(e) => handleResizeStart(e, "dueDate", "collaborators")}
-              onDoubleClick={handleResizeReset}
-              className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
-            />
-            <ColumnHeader
-              config={{ id: "collaborators", ...COLUMN_CONFIGS.collaborators, width: "100%", minWidth: "100%", isFirst: true }}
-              isDropdownOpen={openColumnDropdown === "collaborators"}
-              onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "collaborators" ? null : "collaborators")}
-              callbacks={{
-                onAddColumn: () => setShowCustomFieldModal(true),
-                onMoveLeft: () => toast.success("Column moved left"),
-                onMoveRight: () => toast.success("Column moved right"),
-                onHideColumn: () => toast.success("Column hidden"),
-              }}
-            />
-          </div>
-          )}
-
-          {/* Projects — width from grid template. */}
-          {!hiddenColumns.has("projects") && (
-          <div className="relative flex items-center pl-2.5 pr-1">
-            <div
-              onMouseDown={(e) => handleResizeStart(e, "collaborators", "projects")}
-              onDoubleClick={handleResizeReset}
-              className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
-            />
-            <ColumnHeader
-              config={{ id: "projects", ...COLUMN_CONFIGS.projects, width: "100%", minWidth: "100%", isFirst: true }}
-              isDropdownOpen={openColumnDropdown === "projects"}
-              onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "projects" ? null : "projects")}
-              callbacks={{
-                onSortAsc: () => setSortStateUser({ field: "project", direction: "asc" }),
-                onSortDesc: () => setSortStateUser({ field: "project", direction: "desc" }),
-                onGroupBy: (field) => {
-                  handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
-                },
-                onAddColumn: () => setShowCustomFieldModal(true),
-                onMoveLeft: () => toast.success("Column moved left"),
-                onMoveRight: () => toast.success("Column moved right"),
-                onHideColumn: () => toast.success("Column hidden"),
-                onOpenCustomField: () => setShowCustomFieldModal(true),
-              }}
-            />
-          </div>
-          )}
-
-          {/* Visibility — width from grid template. */}
-          {!hiddenColumns.has("visibility") && (
-          <div className="relative flex items-center pl-2.5 pr-1">
-            <div
-              onMouseDown={(e) => handleResizeStart(e, "projects", "visibility")}
-              onDoubleClick={handleResizeReset}
-              className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
-            />
-            <ColumnHeader
-              config={{ id: "visibility", ...COLUMN_CONFIGS.visibility, width: "100%", minWidth: "100%", isFirst: true }}
-              isDropdownOpen={openColumnDropdown === "visibility"}
-              onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "visibility" ? null : "visibility")}
-              callbacks={{
-                onAddColumn: () => setShowCustomFieldModal(true),
-                onMoveLeft: () => toast.success("Column moved left"),
-                onMoveRight: () => toast("Already the last column"),
-                onHideColumn: () => toast.success("Column hidden"),
-              }}
-            />
-            {/* Right edge: resize only Visibility */}
-            <div
-              onMouseDown={(e) => handleResizeStart(e, "visibility", null)}
-              onDoubleClick={handleResizeReset}
-              className="absolute right-0 top-0 bottom-0 w-[6px] -mr-[3px] cursor-col-resize z-30"
-            />
-          </div>
-          )}
+          {/* Built-in column headers (Due date / Collaborators /
+              Projects / Visibility) rendered in the user's order (col-02).
+              The resize handle pairs each column with its LEFT neighbor in
+              the current order (null for the first, whose left boundary is
+              the Name column); the last one also gets a right-edge handle.
+              Move-left/right swap ids in columnOrder → grid template +
+              header + row cells all reflow together. */}
+          {visibleBuiltinOrder.map((colId, idx) => {
+            const prevId = idx > 0 ? visibleBuiltinOrder[idx - 1] : null;
+            const isLast = idx === visibleBuiltinOrder.length - 1;
+            const cfg = COLUMN_CONFIGS[colId as keyof typeof COLUMN_CONFIGS];
+            if (!cfg) return null;
+            // Per-column context actions (sort/group) — only the columns
+            // whose COLUMN_CONFIGS declares them sortable/groupable expose
+            // the actions.
+            const contextCallbacks: Record<string, () => void> = {};
+            if (colId === "dueDate") {
+              contextCallbacks.onSortAsc = () => setSortStateUser({ field: "due_date", direction: "asc" });
+              contextCallbacks.onSortDesc = () => setSortStateUser({ field: "due_date", direction: "desc" });
+            } else if (colId === "projects") {
+              contextCallbacks.onSortAsc = () => setSortStateUser({ field: "project", direction: "asc" });
+              contextCallbacks.onSortDesc = () => setSortStateUser({ field: "project", direction: "desc" });
+            }
+            return (
+              <div key={colId} className="relative flex items-center pl-2.5 pr-1">
+                {/* Left-edge resize handle: pairs with the left neighbor. */}
+                <div
+                  onMouseDown={(e) => handleResizeStart(e, prevId, colId)}
+                  onDoubleClick={handleResizeReset}
+                  className="absolute left-0 top-0 bottom-0 w-[6px] -ml-[3px] cursor-col-resize z-30"
+                />
+                <ColumnHeader
+                  config={{ id: colId, ...cfg, width: "100%", minWidth: "100%", isFirst: true }}
+                  isDropdownOpen={openColumnDropdown === colId}
+                  onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === colId ? null : colId)}
+                  callbacks={{
+                    ...contextCallbacks,
+                    onFilter: cfg.filterable ? () => setFilterPanelOpen(true) : undefined,
+                    onGroupBy: cfg.groupable
+                      ? (field) => {
+                          handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
+                        }
+                      : undefined,
+                    onAddColumn: () => setShowCustomFieldModal(true),
+                    // Real reorder now (col-02): swap in columnOrder.
+                    onMoveLeft: () =>
+                      idx === 0
+                        ? toast("Already the first column")
+                        : moveBuiltinColumn(colId, -1),
+                    onMoveRight: () =>
+                      isLast
+                        ? toast("Already the last column")
+                        : moveBuiltinColumn(colId, 1),
+                    onHideColumn: () => {
+                      toggleColumnVisibility(colId);
+                      toast.success("Column hidden");
+                    },
+                    onOpenCustomField: () => setShowCustomFieldModal(true),
+                  }}
+                />
+                {/* Right-edge handle on the last built-in resizes it alone. */}
+                {isLast && (
+                  <div
+                    onMouseDown={(e) => handleResizeStart(e, colId, null)}
+                    onDoubleClick={handleResizeReset}
+                    className="absolute right-0 top-0 bottom-0 w-[6px] -mr-[3px] cursor-col-resize z-30"
+                  />
+                )}
+              </div>
+            );
+          })}
 
           {/* Dynamic custom columns — use the same ColumnHeader
               dropdown the built-in columns use, so every column gets
@@ -2181,18 +2962,22 @@ export default function MyTasksPage() {
                     )
                   }
                   callbacks={{
+                    // Sort by this pinned column. Built-ins use their
+                    // builtin id (e.g. "priority", "start_date"); custom
+                    // fields use the CustomFieldDefinition id (col.id).
+                    // getFilteredSections dispatches on sortState.columnId.
                     onSortAsc: () =>
-                      toast(
-                        isBuiltin
-                          ? `Sort by ${col.name} — coming in next pass`
-                          : "Sort by custom field — coming in next pass"
-                      ),
+                      setSortStateUser({
+                        field: "none",
+                        direction: "asc",
+                        columnId: col.builtin ?? col.id,
+                      }),
                     onSortDesc: () =>
-                      toast(
-                        isBuiltin
-                          ? `Sort by ${col.name} desc — coming in next pass`
-                          : "Sort by custom field desc — coming in next pass"
-                      ),
+                      setSortStateUser({
+                        field: "none",
+                        direction: "desc",
+                        columnId: col.builtin ?? col.id,
+                      }),
                     onFilter: () => setFilterPanelOpen(true),
                     onAddColumn: () => setShowCustomFieldModal(true),
                     onMoveLeft: () => {
@@ -2352,7 +3137,15 @@ export default function MyTasksPage() {
               customColumnCount={customColumns.length}
               customColumns={customColumns}
               hiddenColumns={hiddenColumns}
+              builtinOrder={columnOrder}
               rowGridTemplate={rowGridTemplate}
+              // Section rename/delete/reorder are only meaningful under
+              // the personal-"sections" grouping.
+              manageSections={groupType === "sections"}
+              defaultSectionIds={DEFAULT_SECTION_ID_SET}
+              onRenameSection={handleRenameSection}
+              onDeleteSection={handleDeleteSection}
+              onReorderSections={handleReorderSections}
               onReorderTasks={async (sectionId, orderedTaskIds) => {
                 // Optimistic: re-number positions on the in-memory
                 // tasks so the next re-render keeps the dragged order.
@@ -2423,17 +3216,21 @@ export default function MyTasksPage() {
             </>
           ) : view === "board" ? (
             <BoardView
-              sections={filteredSections}
+              // Board is ALWAYS the personal sections (Asana behavior),
+              // independent of the List view's active groupType. Columns
+              // come from the personal-section bucketing, and a move
+              // always relocates the task between personal sections —
+              // never a project/priority/assignee PATCH.
+              sections={personalSectionsForBoard}
               onToggleComplete={handleToggleComplete}
               onTaskClick={openTaskDetail}
               onAddTask={handleAddTask}
-              onMoveTask={handleMoveTaskToSection}
-              onAddSection={() => {
-                const name = prompt('Section name:', 'New section');
-                if (!name?.trim()) return;
-                const newSection: SmartSection = { id: `custom-${Date.now()}`, name: name.trim(), collapsed: false, tasks: [] };
-                setSections((prev) => [...prev, newSection]);
-                toast.success(`Section "${name.trim()}" added`);
+              onMoveTask={moveTaskToPersonalSection}
+              onAddSection={(name) => {
+                // Persist to uiState.myTasks.sections so the column
+                // survives reload + follows the user across devices.
+                // Name comes from BoardView's inline input (no prompt()).
+                createPersonalSection(name);
               }}
               onReorderTasks={async (sectionId, orderedTaskIds) => {
                 // Same persistence pattern List view uses — re-number
@@ -2473,19 +3270,67 @@ export default function MyTasksPage() {
             />
           ) : view === "calendar" ? (
             <CalendarView
-              tasks={filteredSections.flatMap((s) => s.tasks)}
+              // Same task universe regardless of the List grouping —
+              // derive from personal sections + the shared filter overlay
+              // so the calendar never inherits a project/priority bucketing.
+              tasks={personalSectionsForBoard.flatMap((s) => s.tasks)}
               onTaskCreated={() => fetchTasks(true)}
               onTaskClick={openTaskDetail}
+              zoom={calendarZoom}
+              onZoomChange={setCalendarZoom}
             />
           ) : view === "dashboard" ? (
             <DashboardView
-              tasks={filteredSections.flatMap((s) => s.tasks)}
-              sections={filteredSections}
+              // Dashboard mirrors My Tasks personal sections (its
+              // "tasks by section" chart), not the List's transient
+              // grouping — same source of truth as Board/Calendar.
+              tasks={personalSectionsForBoard.flatMap((s) => s.tasks)}
+              sections={personalSectionsForBoard}
               activeFilterCount={
                 quickFilters.length +
                 activeFilters.length +
                 (searchQuery.trim() ? 1 : 0)
               }
+              widgets={dashboardWidgets}
+              onToggleWidget={(id) =>
+                setDashboardWidgets((prev) =>
+                  prev.includes(id)
+                    ? prev.filter((w) => w !== id)
+                    : [...prev, id]
+                )
+              }
+              onDrillDown={(target) => {
+                // dsh-02: apply the matching filter through the same
+                // user-setters the toolbar uses (so persistence + the
+                // user-adjusted guard behave identically), then jump to
+                // the List view.
+                if (target === "completed") {
+                  setQuickFiltersUser(["completed"]);
+                  setActiveFiltersUser([]);
+                } else if (target === "incomplete") {
+                  setQuickFiltersUser(["incomplete"]);
+                  setActiveFiltersUser([]);
+                } else if (target === "overdue") {
+                  // Overdue has no quick-filter key — express it as a
+                  // builder filter (due_date is_within overdue). The
+                  // filter path already excludes completed tasks for this
+                  // value, matching the KPI count.
+                  setQuickFiltersUser([]);
+                  setActiveFiltersUser([
+                    {
+                      id: `overdue-${Date.now()}`,
+                      field: "due_date",
+                      operator: "is_within",
+                      value: "overdue",
+                    },
+                  ]);
+                } else {
+                  // "all" — clear filters to show the full list.
+                  setQuickFiltersUser([]);
+                  setActiveFiltersUser([]);
+                }
+                setView("list");
+              }}
             />
           ) : (
             <FilesView
@@ -2535,6 +3380,19 @@ export default function MyTasksPage() {
           onUpdate={() => fetchTasks(true)}
           onAttachmentsChange={() => setAttachmentsVersion((v) => v + 1)}
           formatDueDate={formatDueDate}
+          // Personal-section dropdown (Asana parity: sits by Assignee).
+          personalSections={personalSections}
+          currentSectionId={
+            taskSectionMap[selectedTask.id] ??
+            (selectedTask.myTaskSection
+              ? ENUM_TO_SECTION_ID[selectedTask.myTaskSection]
+              : null) ??
+            personalSections[0]?.id ??
+            "recently-assigned"
+          }
+          onMoveToSection={(sectionId) =>
+            moveTaskToPersonalSection(selectedTask.id, sectionId)
+          }
         />
       )}
 
@@ -2564,6 +3422,8 @@ export default function MyTasksPage() {
         anchorRef={filterButtonRef}
         quickFilters={quickFilters}
         onQuickFiltersChange={setQuickFiltersUser}
+        completedWindow={completedWindow}
+        onCompletedWindowChange={setCompletedWindowUser}
         activeFilters={activeFilters}
         onActiveFiltersChange={setActiveFiltersUser}
       />
@@ -2847,7 +3707,12 @@ function TaskSection({
   customColumnCount = 0,
   customColumns = [],
   hiddenColumns = new Set(),
+  builtinOrder = CANONICAL_COLUMN_ORDER as unknown as string[],
   rowGridTemplate,
+  manageable = false,
+  isDefaultSection = false,
+  onRenameSection,
+  onDeleteSection,
 }: {
   section: SmartSection;
   onToggleSection: () => void;
@@ -2858,13 +3723,66 @@ function TaskSection({
   customColumnCount?: number;
   customColumns?: ListColumn[];
   hiddenColumns?: Set<string>;
+  /** Order of the 4 built-in columns (col-02). */
+  builtinOrder?: string[];
   /** CSS grid template the TaskRow uses — same value passed to the
    *  header so every row aligns to the same column tracks. */
   rowGridTemplate?: string;
+  /** True only under the "sections" grouping — enables the hover "…"
+   *  menu (Rename / Delete) + drag-to-reorder handle on the header. */
+  manageable?: boolean;
+  /** One of the 4 Asana defaults — rename allowed, delete blocked. */
+  isDefaultSection?: boolean;
+  onRenameSection?: (sectionId: string, name: string) => void;
+  onDeleteSection?: (sectionId: string) => void;
 }) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  // Section-header management (rename inline / delete) + reorder handle.
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(section.name);
+  const [showSectionMenu, setShowSectionMenu] = useState(false);
+  const sectionMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const sectionMenuRef = useRef<HTMLDivElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Close the section "…" menu on outside click.
+  useEffect(() => {
+    if (!showSectionMenu) return;
+    function handleClick(e: MouseEvent) {
+      if (
+        sectionMenuRef.current && !sectionMenuRef.current.contains(e.target as Node) &&
+        sectionMenuBtnRef.current && !sectionMenuBtnRef.current.contains(e.target as Node)
+      ) {
+        setShowSectionMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showSectionMenu]);
+
+  // Focus + select the rename input when it opens.
+  useEffect(() => {
+    if (isRenaming) {
+      setRenameValue(section.name);
+      requestAnimationFrame(() => renameInputRef.current?.select());
+    }
+  }, [isRenaming, section.name]);
+
+  // Make the section header a sortable item so it can be dragged to
+  // reorder (only wired when `manageable`). Uses a distinct id namespace
+  // ("section:<id>") so the parent DndContext can tell a section drag
+  // from a task-row drag in its handlers.
+  const sortableId = `section:${section.id}`;
+  const {
+    attributes: sectionDragAttributes,
+    listeners: sectionDragListeners,
+    setNodeRef: setSectionSortableRef,
+    transform: sectionTransform,
+    transition: sectionTransition,
+    isDragging: sectionIsDragging,
+  } = useSortable({ id: sortableId, disabled: !manageable });
   const [activeTaskType, setActiveTaskType] = useState<"TASK" | "MILESTONE" | "APPROVAL">("TASK");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -2931,7 +3849,26 @@ function TaskSection({
     id: section.id,
   });
 
+  const commitRename = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== section.name) {
+      onRenameSection?.(section.id, trimmed);
+    }
+    setIsRenaming(false);
+  };
+
   return (
+    <div
+      // Sortable ref carries the section-reorder transform; the droppable
+      // ref (nested) keeps task-into-section drops working. Both refs are
+      // needed, so compose them onto adjacent elements.
+      ref={setSectionSortableRef}
+      style={{
+        transform: CSS.Transform.toString(sectionTransform),
+        transition: sectionTransition,
+      }}
+      className={cn(sectionIsDragging && "relative z-10 opacity-90")}
+    >
     <div
       ref={setSectionDroppableRef}
       className={cn(
@@ -2944,46 +3881,120 @@ function TaskSection({
           (Juan's "unified grid" rule, May 2026). Combined first cell
           holds the chevron + section name + count; remaining cells
           are empty grid items that exist only so the grid generates
-          their column tracks (and therefore the verticals). */}
-      <button
-        onClick={onToggleSection}
-        className="tt-grid-divider-row hidden md:grid items-center px-4 md:px-6 w-full text-left hover:bg-[var(--surface-hover)]"
-        style={{ height: "var(--row-h)", gridTemplateColumns: rowGridTemplate }}
-      >
-        {/* Combined first cell — chevron + section name + count.
-            Mirrors the data row's combined Grip + Checkbox + Task
-            name slot so the chevron lines up with the row checkbox. */}
-        <div className="flex items-center min-w-0">
-          <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
-          <div className="w-8 flex-shrink-0 flex items-center">
-            {section.collapsed ? (
-              <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+          their column tracks (and therefore the verticals).
+          Wrapped in a group so the drag handle + "…" menu fade in on
+          hover without disturbing the grid track alignment. */}
+      <div className="group relative">
+        <button
+          onClick={onToggleSection}
+          className="tt-grid-divider-row hidden md:grid items-center px-4 md:px-6 w-full text-left hover:bg-[var(--surface-hover)]"
+          style={{ height: "var(--row-h)", gridTemplateColumns: rowGridTemplate }}
+        >
+          {/* Combined first cell — chevron + section name + count.
+              Mirrors the data row's combined Grip + Checkbox + Task
+              name slot so the chevron lines up with the row checkbox. */}
+          <div className="flex items-center min-w-0">
+            <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
+            <div className="w-8 flex-shrink-0 flex items-center">
+              {section.collapsed ? (
+                <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+              )}
+            </div>
+            {isRenaming ? (
+              <input
+                ref={renameInputRef}
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); commitRename(); }
+                  if (e.key === "Escape") { e.preventDefault(); setIsRenaming(false); }
+                }}
+                onBlur={commitRename}
+                className="text-[13px] font-semibold text-gray-900 bg-white border border-[#c9a84c] rounded px-1 py-0 outline-none min-w-0"
+                autoFocus
+              />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+              <span className="text-[13px] font-semibold text-gray-900 truncate">{section.name}</span>
+            )}
+            {!isRenaming && section.tasks.length > 0 && (
+              <span className="text-gray-400 text-[11px] ml-2 flex-shrink-0">{section.tasks.length}</span>
             )}
           </div>
-          <span className="text-[13px] font-semibold text-gray-900 truncate">{section.name}</span>
-          {section.tasks.length > 0 && (
-            <span className="text-gray-400 text-[11px] ml-2 flex-shrink-0">{section.tasks.length}</span>
-          )}
-        </div>
-        {/* Empty grid cells — one per visible column. They exist
-            ONLY so the grid renders their tracks and the verticals
-            from tt-grid-divider-row > * + * are drawn through this
-            row, matching the data rows above/below. */}
-        {!hiddenColumns.has("dueDate") && <div />}
-        {!hiddenColumns.has("collaborators") && <div />}
-        {!hiddenColumns.has("projects") && <div />}
-        {!hiddenColumns.has("visibility") && <div />}
-        {(customColumns.length > 0
-          ? customColumns
-          : Array.from({ length: customColumnCount }, (_, i) => ({ id: `phc-${i}` } as { id: string })))
-          .map((col, i) => (
-            <div key={(col as { id?: string }).id ?? `phc-${i}`} />
-          ))}
-        {/* + spacer cell to match the 32px tail in rowGridTemplate */}
-        <div />
-      </button>
+          {/* Empty grid cells — one per visible column. They exist
+              ONLY so the grid renders their tracks and the verticals
+              from tt-grid-divider-row > * + * are drawn through this
+              row, matching the data rows above/below. */}
+          {!hiddenColumns.has("dueDate") && <div />}
+          {!hiddenColumns.has("collaborators") && <div />}
+          {!hiddenColumns.has("projects") && <div />}
+          {!hiddenColumns.has("visibility") && <div />}
+          {(customColumns.length > 0
+            ? customColumns
+            : Array.from({ length: customColumnCount }, (_, i) => ({ id: `phc-${i}` } as { id: string })))
+            .map((col, i) => (
+              <div key={(col as { id?: string }).id ?? `phc-${i}`} />
+            ))}
+          {/* + spacer cell to match the 32px tail in rowGridTemplate */}
+          <div />
+        </button>
+
+        {/* Manage affordances (sections grouping only): drag handle on
+            the far left, "…" menu on the right. Absolutely positioned so
+            they don't add grid tracks that would break divider alignment. */}
+        {manageable && !isRenaming && (
+          <>
+            <button
+              type="button"
+              aria-label="Reorder section"
+              {...sectionDragAttributes}
+              {...sectionDragListeners}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute left-1 top-1/2 -translate-y-1/2 hidden md:flex items-center justify-center w-4 h-6 cursor-grab text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <GripVertical className="w-3.5 h-3.5" />
+            </button>
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:block">
+              <button
+                ref={sectionMenuBtnRef}
+                type="button"
+                aria-label="Section options"
+                onClick={(e) => { e.stopPropagation(); setShowSectionMenu((v) => !v); }}
+                className="flex items-center justify-center w-6 h-6 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+              {showSectionMenu && (
+                <div
+                  ref={sectionMenuRef}
+                  className="absolute right-0 top-[calc(100%+4px)] bg-white rounded-lg shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100 py-1 z-50 min-w-[160px]"
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setShowSectionMenu(false); setIsRenaming(true); }}
+                    className="w-full flex items-center gap-2.5 px-3 h-8 text-[13px] text-gray-700 hover:bg-black/[0.04] cursor-pointer text-left"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-gray-400" />
+                    Rename section
+                  </button>
+                  {!isDefaultSection && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setShowSectionMenu(false); onDeleteSection?.(section.id); }}
+                      className="w-full flex items-center gap-2.5 px-3 h-8 text-[13px] text-[#b3261e] hover:bg-black/[0.04] cursor-pointer text-left"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete section
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Tasks */}
       {!section.collapsed && (
@@ -3053,6 +4064,7 @@ function TaskSection({
               customColumnCount={customColumnCount}
               customColumns={customColumns}
               hiddenColumns={hiddenColumns}
+              builtinOrder={builtinOrder}
               rowGridTemplate={rowGridTemplate}
             />
           ))}
@@ -3091,6 +4103,7 @@ function TaskSection({
         </SortableContext>
       )}
     </div>
+    </div>
   );
 }
 
@@ -3121,7 +4134,13 @@ function ListDndProvider({
   customColumnCount,
   customColumns,
   hiddenColumns,
+  builtinOrder,
   rowGridTemplate,
+  manageSections = false,
+  defaultSectionIds,
+  onRenameSection,
+  onDeleteSection,
+  onReorderSections,
 }: {
   sections: SmartSection[];
   onMoveTask: (taskId: string, destSectionId: string) => Promise<void> | void;
@@ -3143,9 +4162,21 @@ function ListDndProvider({
   customColumnCount: number;
   customColumns?: ListColumn[];
   hiddenColumns?: Set<string>;
+  /** Order of the 4 built-in columns (col-02) — forwarded to every row
+   *  so the data cells render in the same order as the header/grid. */
+  builtinOrder?: string[];
   /** CSS grid template the TaskSection forwards to each TaskRow so
    *  every data row uses the same column tracks as the header. */
   rowGridTemplate?: string;
+  /** True under the "sections" grouping — enables section rename/delete
+   *  menus + drag-to-reorder handles on section headers. */
+  manageSections?: boolean;
+  /** Ids of the 4 Asana defaults (rename allowed, delete blocked). */
+  defaultSectionIds?: Set<string>;
+  onRenameSection?: (sectionId: string, name: string) => void;
+  onDeleteSection?: (sectionId: string) => void;
+  /** Persist a reordered section sequence (section ids in new order). */
+  onReorderSections?: (orderedSectionIds: string[]) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -3163,6 +4194,9 @@ function ListDndProvider({
   // TaskRow node having to translate.
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const dragSourceRef = useRef<string | null>(null);
+  // True while a SECTION header (id "section:<id>") is being dragged, so
+  // the task-move handlers stay out of the way and we reorder sections.
+  const draggingSectionRef = useRef(false);
 
   useEffect(() => {
     setLocalSections(sections);
@@ -3175,6 +4209,12 @@ function ListDndProvider({
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const id = String(event.active.id);
+      // Section-reorder drag — don't set an activeTask (no row ghost).
+      if (id.startsWith("section:")) {
+        draggingSectionRef.current = true;
+        return;
+      }
+      draggingSectionRef.current = false;
       for (const s of localSections) {
         const task = s.tasks.find((t) => t.id === id);
         if (task) {
@@ -3200,15 +4240,40 @@ function ListDndProvider({
     const overId = String(over.id);
     if (activeId === overId) return;
 
+    // Section-reorder drag: arrayMove the sections themselves so the
+    // headers reflow live under the cursor. The active id is always
+    // "section:<id>"; the over id may be another header sortable
+    // ("section:<id>"), a section droppable (bare "<id>"), or a task row
+    // inside a section — resolve all three to the destination section.
+    if (activeId.startsWith("section:")) {
+      const srcId = activeId.slice("section:".length);
+      setLocalSections((prev) => {
+        const dstId = resolveSectionIdFromOver(prev, overId);
+        if (!dstId) return prev;
+        const oldIdx = prev.findIndex((s) => s.id === srcId);
+        const newIdx = prev.findIndex((s) => s.id === dstId);
+        if (oldIdx === -1 || newIdx === -1 || oldIdx === newIdx) return prev;
+        return arrayMove(prev, oldIdx, newIdx);
+      });
+      return;
+    }
+
+    // A task dragged over a SECTION HEADER resolves to that header's
+    // sortable id ("section:<id>"); normalize it to the bare section id
+    // so the destination lookup below still finds the section.
+    const overSectionId = overId.startsWith("section:")
+      ? overId.slice("section:".length)
+      : overId;
+
     setLocalSections((prev) => {
       const srcSection = prev.find((s) =>
         s.tasks.some((t) => t.id === activeId)
       );
       if (!srcSection) return prev;
 
-      let destSection = prev.find((s) => s.id === overId);
+      let destSection = prev.find((s) => s.id === overSectionId);
       if (!destSection) {
-        destSection = prev.find((s) => s.tasks.some((t) => t.id === overId));
+        destSection = prev.find((s) => s.tasks.some((t) => t.id === overSectionId));
       }
       if (!destSection) return prev;
 
@@ -3249,12 +4314,27 @@ function ListDndProvider({
     async (event: DragEndEvent) => {
       const { active, over } = event;
       const src = dragSourceRef.current;
+      const wasSectionDrag = draggingSectionRef.current;
       setActiveTask(null);
       dragSourceRef.current = null;
+      draggingSectionRef.current = false;
+
+      // Section-reorder drag: persist the new section order. localSections
+      // already reflects the live arrayMove from handleDragOver.
+      if (wasSectionDrag) {
+        onReorderSections?.(localSections.map((s) => s.id));
+        return;
+      }
+
       if (!over) return;
 
       const activeId = String(active.id);
-      const overId = String(over.id);
+      const rawOverId = String(over.id);
+      // A drop onto a section header resolves to "section:<id>" — strip
+      // the prefix so the destination lookup matches the bare section id.
+      const overId = rawOverId.startsWith("section:")
+        ? rawOverId.slice("section:".length)
+        : rawOverId;
 
       // Resolve destination from CLOSURE localSections — recreated
       // by useCallback when localSections changes, so by the time
@@ -3295,7 +4375,7 @@ function ListDndProvider({
         await onReorderTasks(destSectionId, orderedIds);
       }
     },
-    [localSections, onMoveTask, onReorderTasks]
+    [localSections, onMoveTask, onReorderTasks, onReorderSections]
   );
 
   return (
@@ -3307,6 +4387,13 @@ function ListDndProvider({
       onDragEnd={handleDragEnd}
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
+      {/* Section headers are sortable so they can be dragged to reorder.
+          The context is keyed by "section:<id>" ids so it never collides
+          with the per-section task SortableContexts nested inside. */}
+      <SortableContext
+        items={localSections.map((s) => `section:${s.id}`)}
+        strategy={verticalListSortingStrategy}
+      >
       {localSections.map((section) => (
         <TaskSection
           key={section.id}
@@ -3319,9 +4406,15 @@ function ListDndProvider({
           customColumnCount={customColumnCount}
           customColumns={customColumns}
           hiddenColumns={hiddenColumns}
+          builtinOrder={builtinOrder}
           rowGridTemplate={rowGridTemplate}
+          manageable={manageSections}
+          isDefaultSection={defaultSectionIds?.has(section.id) ?? false}
+          onRenameSection={onRenameSection}
+          onDeleteSection={onDeleteSection}
         />
       ))}
+      </SortableContext>
       {/* DragOverlay — rendered via portal to document.body. The
           parent /my-tasks tree wraps everything in flex-1
           overflow-hidden containers, which would otherwise clip the
@@ -3419,6 +4512,7 @@ function TaskRow({
   customColumnCount = 0,
   customColumns = [],
   hiddenColumns = new Set(),
+  builtinOrder = CANONICAL_COLUMN_ORDER as unknown as string[],
   rowGridTemplate,
 }: {
   task: Task;
@@ -3428,6 +4522,8 @@ function TaskRow({
   customColumnCount?: number;
   customColumns?: ListColumn[];
   hiddenColumns?: Set<string>;
+  /** Order of the 4 built-in columns (col-02). */
+  builtinOrder?: string[];
   /** CSS grid-template-columns string computed once by the parent so
    *  every row + the sticky header all align to the SAME track widths.
    *  Required for the inherited [&>*+*]:border-l pattern to render
@@ -3704,64 +4800,98 @@ function TaskRow({
           </div>
         </div>
 
-      {/* Built-in column cells. Border + width now come from the row's
-       * CSS Grid template + the inherited [&>*+*]:border-l class on the
-       * row parent — no per-cell border-l, no flex-shrink-0, no
-       * self-stretch (grid auto-stretches), no explicit width (grid
-       * tracks define width). Just padding + content. */}
-      {!hiddenColumns.has("dueDate") && (
-      <div className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
-        <span className={cn("text-[13px]", dueDateInfo.className)}>
-          {dueDateInfo.text}
-        </span>
-      </div>
-      )}
-
-      {!hiddenColumns.has("collaborators") && (
-      <div className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
-        {task.assignee && (
-          <Avatar className="w-5 h-5">
-            <AvatarImage src={task.assignee.image || undefined} />
-            <AvatarFallback className="text-[10px] bg-gray-100 text-gray-600">
-              {task.assignee.name?.charAt(0) || "?"}
-            </AvatarFallback>
-          </Avatar>
-        )}
-      </div>
-      )}
-
-      {!hiddenColumns.has("projects") && (
-      <div className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
-        {task.project && (
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div
-              className="w-2 h-2 rounded-sm flex-shrink-0"
-              style={{ backgroundColor: task.project.color }}
-            />
-            <span className="text-[13px] text-gray-600 truncate">
-              {task.project.name}
-            </span>
-            {task.project.type && (
-              <span
-                className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1 py-px rounded bg-gray-100 text-gray-600 flex-shrink-0"
-                title={`Project type: ${task.project.type}`}
-              >
-                {projectTypeShort(task.project.type)}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-      )}
-
-      {!hiddenColumns.has("visibility") && (
-      <div className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
-        <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
-          <Globe className="w-3 h-3 flex-shrink-0" />
-          My workspace
-        </span>
-      </div>
-      )}
+      {/* Built-in column cells, rendered in the user's column order
+       * (col-02). Border + width come from the row's CSS Grid template +
+       * the inherited [&>*+*]:border-l class on the row parent — each
+       * cell is just padding + content. The order here matches the header
+       * + grid template because all three read from the same builtinOrder
+       * / visibleBuiltinOrder derived from columnOrder. */}
+      {builtinOrder
+        .filter((colId) => !hiddenColumns.has(colId))
+        .map((colId) => {
+          if (colId === "dueDate") {
+            return (
+              <div key="dueDate" className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
+                <span className={cn("text-[13px] truncate", dueDateInfo.className)}>
+                  {formatDueColumnLabel(task.startDate, task.dueDate, dueDateInfo.text)}
+                </span>
+              </div>
+            );
+          }
+          if (colId === "collaborators") {
+            // Asana parity: shows COLLABORATORS, not the assignee. Up to 3
+            // stacked avatars + a +N overflow.
+            const collabs = task.collaborators ?? [];
+            return (
+              <div key="collaborators" className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
+                {collabs.length > 0 && (
+                  <div className="flex items-center">
+                    <div className="flex -space-x-1.5">
+                      {collabs.slice(0, 3).map((c) => (
+                        <Avatar key={c.user.id} className="w-5 h-5 ring-1 ring-white">
+                          <AvatarImage src={c.user.image || undefined} />
+                          <AvatarFallback className="text-[10px] bg-gray-100 text-gray-600">
+                            {c.user.name?.charAt(0) || "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                      ))}
+                    </div>
+                    {collabs.length > 3 && (
+                      <span className="ml-1 text-[11px] text-gray-400">
+                        +{collabs.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
+          if (colId === "projects") {
+            return (
+              <div key="projects" className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
+                {task.project && (
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div
+                      className="w-2 h-2 rounded-sm flex-shrink-0"
+                      style={{ backgroundColor: task.project.color }}
+                    />
+                    <span className="text-[13px] text-gray-600 truncate">
+                      {task.project.name}
+                    </span>
+                    {task.project.type && (
+                      <span
+                        className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1 py-px rounded bg-gray-100 text-gray-600 flex-shrink-0"
+                        title={`Project type: ${task.project.type}`}
+                      >
+                        {projectTypeShort(task.project.type)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
+          if (colId === "visibility") {
+            const isPrivate =
+              !task.project || task.project.visibility === "PRIVATE";
+            return (
+              <div key="visibility" className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
+                {isPrivate ? (
+                  <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
+                    <Lock className="w-3 h-3 flex-shrink-0" />
+                    Only me
+                  </span>
+                ) : (
+                  <span className="text-[13px] text-gray-400 flex items-center gap-1 whitespace-nowrap">
+                    <Globe className="w-3 h-3 flex-shrink-0" />
+                    My workspace
+                  </span>
+                )}
+              </div>
+            );
+          }
+          return null;
+        })}
 
       {/* Custom column cells — render real data for built-ins; for
           regular custom fields we still show a dash for now (Fase 2
@@ -3866,14 +4996,26 @@ function BoardView({
   onMoveTask: (taskId: string, destSectionId: string) => Promise<void>;
   /** Persist a new in-section order. Same contract as List view. */
   onReorderTasks: (sectionId: string, orderedTaskIds: string[]) => Promise<void> | void;
-  onAddSection: () => void;
+  /** Create a persisted personal section from an inline-typed name. */
+  onAddSection: (name: string) => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
 }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [localSections, setLocalSections] = useState(sections);
   const [addingInSection, setAddingInSection] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState("");
+  // Inline "Add section" — mirrors the List view's isAddingSection input
+  // instead of a blocking window.prompt(). Enter/blur commits, Escape cancels.
+  const [isAddingSection, setIsAddingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState("");
   const dragSourceSectionRef = useRef<string | null>(null);
+
+  const commitAddSection = () => {
+    const name = newSectionName.trim();
+    if (name) onAddSection(name);
+    setNewSectionName("");
+    setIsAddingSection(false);
+  };
 
   // Sync from props
   useEffect(() => {
@@ -4026,15 +5168,36 @@ function BoardView({
           />
         ))}
 
-        {/* + Add section */}
+        {/* + Add section — inline input column (no window.prompt). Matches
+            the List view's add-section affordance and persists through the
+            same createPersonalSection path so the new column survives
+            reload + follows the user across devices. */}
         <div className="flex-shrink-0">
-          <button
-            onClick={onAddSection}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" />
-            Add section
-          </button>
+          {isAddingSection ? (
+            <div className="w-[280px] rounded-xl bg-slate-100/80 px-3 py-3">
+              <input
+                type="text"
+                value={newSectionName}
+                onChange={(e) => setNewSectionName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitAddSection();
+                  if (e.key === "Escape") { setIsAddingSection(false); setNewSectionName(""); }
+                }}
+                onBlur={commitAddSection}
+                placeholder="Section name..."
+                className="w-full bg-transparent text-sm font-medium text-slate-900 outline-none border-b border-slate-300 pb-1 placeholder:text-slate-400"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => { setIsAddingSection(true); setNewSectionName(""); }}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" />
+              Add section
+            </button>
+          )}
         </div>
       </div>
 
@@ -4251,9 +5414,9 @@ function SortableBoardCard({
       {/* Bottom: date + meta */}
       {(dueDateInfo.text || task._count.subtasks > 0 || task._count.comments > 0 || task._count.attachments > 0 || task.assignee) && (
         <div className="flex items-center justify-between mt-2 pt-1.5">
-          {/* Due date */}
+          {/* Due date — first-class start–due range ("Today - Jul 8"). */}
           <span className={cn("text-[11px]", dueDateInfo.className)}>
-            {dueDateInfo.text}
+            {formatDueColumnLabel(task.startDate, task.dueDate, dueDateInfo.text)}
           </span>
 
           {/* Right side: meta + avatar */}
@@ -4332,10 +5495,16 @@ function CalendarView({
   tasks,
   onTaskCreated,
   onTaskClick,
+  zoom,
+  onZoomChange,
 }: {
   tasks: Task[];
   onTaskCreated?: () => void;
   onTaskClick?: (task: Task) => void;
+  /** cal-01: "month" = continuous month grid; "weeks" = one tall week
+   *  per viewport with larger bars. Persisted in the parent's uiState. */
+  zoom: "month" | "weeks";
+  onZoomChange: (z: "month" | "weeks") => void;
 }) {
   // ── State driving the "infinite" calendar ─────────────────────
   // `windowStart` is the very first Monday rendered. We seed it at
@@ -4565,24 +5734,13 @@ function CalendarView({
 
     for (const task of tasks) {
       if (!task.dueDate && !task.startDate) continue;
-      const dueRaw = task.dueDate
-        ? new Date(task.dueDate)
-        : new Date(task.startDate!);
-      const startRaw = task.startDate
-        ? new Date(task.startDate)
-        : dueRaw;
-      // Normalize to local midnight so day arithmetic stays correct
-      // across DST boundaries and timezones.
-      const start = new Date(
-        startRaw.getFullYear(),
-        startRaw.getMonth(),
-        startRaw.getDate()
-      );
-      const due = new Date(
-        dueRaw.getFullYear(),
-        dueRaw.getMonth(),
-        dueRaw.getDate()
-      );
+      // Fold each UTC-midnight due/start date onto the LOCAL midnight of its
+      // own calendar day (date-only.ts). Using local getters on a raw
+      // `new Date(task.dueDate)` shifted the day west of UTC, rendering bars
+      // one column early; dueDateToLocalMidnight keeps the bar on the day
+      // the user picked regardless of timezone or DST.
+      const due = dueDateToLocalMidnight(task.dueDate ?? task.startDate!);
+      const start = dueDateToLocalMidnight(task.startDate ?? task.dueDate!);
 
       // Cheap skip: if the range falls entirely outside the rendered
       // window, no segments at all.
@@ -4665,22 +5823,28 @@ function CalendarView({
     return out;
   }, [tasks, weeks, allDays]);
 
+  const isWeeksZoom = zoom === "weeks";
+
   /** Hard cap on how many lanes a single week can show before
    *  overflow collapses to the "+N more" popover. Bumped from 4 to
    *  6 now that rows can grow tall to fit them — most weeks will
-   *  use 0-3 lanes anyway, and busy weeks no longer get clipped. */
-  const MAX_LANES = 6;
+   *  use 0-3 lanes anyway, and busy weeks no longer get clipped.
+   *  cal-01: Weeks zoom gives each week a full viewport, so it can
+   *  afford far more lanes before overflowing. */
+  const MAX_LANES = isWeeksZoom ? 20 : 6;
 
   // Pixel constants for the per-week layout. Used by the dynamic
   // height calc AND by the scroll math below — keep them in sync.
   // LANE_PX = actual bar height (text + padding) + gap-y-0.5 (2px).
   // A bar is text[11px] × leading-snug ≈ 15 + py-[3px]×2 = 21px,
   // plus 2px gap, so 22 is the safe lane stride. ROW_BOTTOM gives a
-  // bit of breathing room beneath the last item.
-  const DAY_HEADER_PX = 28; // height of the day-number row (bumped pt)
-  const LANE_PX = 22;
+  // bit of breathing room beneath the last item. Weeks zoom uses a
+  // taller lane stride (bigger bars) and a tall ROW_MIN so one week
+  // fills the viewport.
+  const DAY_HEADER_PX = isWeeksZoom ? 36 : 28; // day-number row height
+  const LANE_PX = isWeeksZoom ? 30 : 22;
   const ROW_BOTTOM_PX = 10;
-  const ROW_MIN_PX = 92;
+  const ROW_MIN_PX = isWeeksZoom ? 560 : 92;
 
   /**
    * Per-week height — grows with how many lanes that week actually
@@ -4725,7 +5889,9 @@ function CalendarView({
       const content = DAY_HEADER_PX + (maxRow + 1) * LANE_PX + ROW_BOTTOM_PX;
       return Math.max(ROW_MIN_PX, content);
     });
-  }, [weeks, segmentsByWeek]);
+    // MAX_LANES/DAY_HEADER_PX/LANE_PX/ROW_MIN_PX all derive from `zoom`, so
+    // the heights must recompute when the user flips Weeks ↔ Month.
+  }, [weeks, segmentsByWeek, MAX_LANES, DAY_HEADER_PX, LANE_PX, ROW_BOTTOM_PX, ROW_MIN_PX]);
 
   /** Cumulative offset of each week from the top of the grid — used
    *  by the visible-month scroll listener and goToToday to navigate
@@ -4741,6 +5907,18 @@ function CalendarView({
   }, [weekHeights]);
 
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  // Weekend compression (Asana parity — spec item 6): the 5 weekday
+  // tracks (Mon–Fri) are full width, the 2 weekend tracks (Sat, Sun) are
+  // compressed to ~half width. Shared by the sticky weekday header, the
+  // background day-cell grid, and the absolutely-positioned bar overlay
+  // so all three stay column-aligned. Because bar placement uses grid
+  // LINE numbers (`gridColumn: colStart+1 / span colSpan`), not track
+  // widths, the existing colStart/colSpan math needs no change — a bar
+  // over Sat/Sun simply renders narrower. Order is Mon→Sun to match the
+  // 0=Mon..6=Sun column indexing used throughout the calendar.
+  const WEEKEND_GRID_COLUMNS =
+    "repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, 0.55fr))";
 
   // ── Bottom-sentinel observer: append more weeks on near-bottom ─
   useEffect(() => {
@@ -4814,6 +5992,48 @@ function CalendarView({
     }
   };
 
+  // cal-03: prev/next month chevrons around Today. Find the first week
+  // index whose middle day (Thursday) lands in the target month, then
+  // scroll to that week's offset. Forward navigation naturally extends the
+  // window via the bottom-sentinel observer as we scroll; back-navigation
+  // is clamped to the rendered window (windowStart is a fixed 4 weeks back)
+  // — an accepted v1 limitation noted in the plan.
+  const scrollToWeek = (idx: number) => {
+    if (!scrollRef.current || idx < 0) return;
+    const HEADER_PX = 32;
+    scrollRef.current.scrollTo({
+      top: (weekOffsets[idx] ?? 0) - HEADER_PX,
+      behavior: "smooth",
+    });
+  };
+  const firstWeekIndexOfMonth = (year: number, month: number): number => {
+    // Normalize the (year, month) pair so month over/underflow rolls the year.
+    const target = new Date(year, month, 1);
+    const ty = target.getFullYear();
+    const tm = target.getMonth();
+    for (let w = 0; w < weeks.length; w++) {
+      const mid = allDays[w * 7 + 3];
+      if (mid && mid.getFullYear() === ty && mid.getMonth() === tm) return w;
+    }
+    return -1;
+  };
+  const goToPrevMonth = () => {
+    const idx = firstWeekIndexOfMonth(visibleMonth.year, visibleMonth.month - 1);
+    if (idx >= 0) scrollToWeek(idx);
+    else scrollToWeek(0); // clamp to the top of the rendered window
+  };
+  const goToNextMonth = () => {
+    const idx = firstWeekIndexOfMonth(visibleMonth.year, visibleMonth.month + 1);
+    if (idx >= 0) {
+      scrollToWeek(idx);
+    } else {
+      // Not rendered yet — grow the window; the scroll listener will catch
+      // up as more weeks mount. Jump to the current bottom meanwhile.
+      setWeekCount((c) => c + 8);
+      scrollToWeek(weeks.length - 1);
+    }
+  };
+
   const formatMonthYear = (year: number, month: number) =>
     new Date(year, month, 1).toLocaleDateString("en-US", {
       month: "long",
@@ -4822,22 +6042,69 @@ function CalendarView({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Navigation toolbar — Today button + live month label.
-          No prev/next buttons in continuous-scroll mode: the user
-          drives navigation by scrolling, the label tracks what
-          they're looking at. */}
-      <div className="flex items-center justify-center gap-3 px-4 py-3 border-b">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={goToToday}
-          className="px-3"
-        >
-          Today
-        </Button>
-        <span className="font-medium text-black ml-2 tabular-nums">
-          {formatMonthYear(visibleMonth.year, visibleMonth.month)}
-        </span>
+      {/* Navigation toolbar — "< Today >" cluster + live month label
+          (cal-03), and a Weeks|Month zoom toggle on the right (cal-01).
+          The label still tracks whatever week the user scrolls to. */}
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b">
+        <div className="flex-1" />
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={goToPrevMonth}
+            aria-label="Previous month"
+            className="h-8 w-8 flex items-center justify-center rounded-md border border-input text-gray-600 hover:bg-gray-100"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={goToToday}
+            className="px-3"
+          >
+            Today
+          </Button>
+          <button
+            type="button"
+            onClick={goToNextMonth}
+            aria-label="Next month"
+            className="h-8 w-8 flex items-center justify-center rounded-md border border-input text-gray-600 hover:bg-gray-100"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          <span className="font-medium text-black ml-2 tabular-nums">
+            {formatMonthYear(visibleMonth.year, visibleMonth.month)}
+          </span>
+        </div>
+        <div className="flex-1 flex items-center justify-end">
+          {/* Weeks | Month segmented toggle (cal-01) — persisted zoom. */}
+          <div className="inline-flex items-center rounded-md border border-input p-0.5 bg-white">
+            <button
+              type="button"
+              onClick={() => onZoomChange("weeks")}
+              className={cn(
+                "px-2.5 py-1 text-[12px] rounded-[5px] transition-colors",
+                zoom === "weeks"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-600 hover:bg-gray-100"
+              )}
+            >
+              Weeks
+            </button>
+            <button
+              type="button"
+              onClick={() => onZoomChange("month")}
+              className={cn(
+                "px-2.5 py-1 text-[12px] rounded-[5px] transition-colors",
+                zoom === "month"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-600 hover:bg-gray-100"
+              )}
+            >
+              Month
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Single scroll container with sticky weekday header.
@@ -4845,7 +6112,10 @@ function CalendarView({
           an IntersectionObserver on the bottom sentinel — same UX
           as Notion / Apple Calendar's continuous month view. */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-7 border-b border-gray-200 bg-white sticky top-0 z-10">
+        <div
+          className="grid border-b border-gray-200 bg-white sticky top-0 z-10"
+          style={{ gridTemplateColumns: WEEKEND_GRID_COLUMNS }}
+        >
           {weekDays.map((day, index) => (
             <div
               key={day}
@@ -4924,7 +6194,10 @@ function CalendarView({
               data-week-index={weekIdx}
             >
               {/* Background cells — borders, tint, today, add-mode */}
-              <div className="grid grid-cols-7 h-full">
+              <div
+                className="grid h-full"
+                style={{ gridTemplateColumns: WEEKEND_GRID_COLUMNS }}
+              >
                 {week.map((date, dayOfWeek) => {
                   const dateStr = date.toDateString();
                   const isToday = dateStr === todayStr;
@@ -4992,8 +6265,14 @@ function CalendarView({
                   in as "the next bar" instead of floating at the cell
                   bottom — Asana behavior. */}
               <div
-                className="absolute inset-x-0 grid grid-cols-7 gap-y-0.5 pointer-events-none"
-                style={{ top: 28, paddingLeft: 2, paddingRight: 2 }}
+                className="absolute inset-x-0 grid gap-y-0.5 pointer-events-none"
+                // top matches the day-number row; gridAutoRows pins each
+                // lane to LANE_PX-minus-gap so the bar stride equals the
+                // stride weekHeights assumes (keeps overlay + cell heights
+                // in lock-step across both zoom levels). gridTemplateColumns
+                // MUST match the background grid (compressed weekends) so a
+                // bar over a weekend column lands exactly over its day cell.
+                style={{ top: DAY_HEADER_PX, paddingLeft: 2, paddingRight: 2, gridAutoRows: `${LANE_PX - 2}px`, gridTemplateColumns: WEEKEND_GRID_COLUMNS }}
               >
                 {visibleSegments.map((seg) => {
                   const isBeingDragged = draggingTaskId === seg.task.id;
@@ -5017,8 +6296,10 @@ function CalendarView({
                       title={seg.task.name}
                       className={cn(
                         // Compact, slightly rounded — bar feel, not
-                        // pill feel. Matches Asana density.
-                        "w-full block text-left text-[11px] leading-snug px-1.5 py-[3px] truncate cursor-grab active:cursor-grabbing pointer-events-auto font-medium transition-colors",
+                        // pill feel. Matches Asana density. Weeks zoom
+                        // uses a slightly larger bar to fill the taller lane.
+                        "w-full block text-left leading-snug truncate cursor-grab active:cursor-grabbing pointer-events-auto font-medium transition-colors",
+                        isWeeksZoom ? "text-[13px] px-2 py-[5px]" : "text-[11px] px-1.5 py-[3px]",
                         // Rounded corners trim on the side that's
                         // clipped (visual continuation hint).
                         !seg.clipsLeft && "rounded-l-sm",
@@ -5185,6 +6466,9 @@ function DashboardView({
   tasks,
   sections,
   activeFilterCount = 0,
+  widgets,
+  onToggleWidget,
+  onDrillDown,
 }: {
   tasks: Task[];
   sections: SmartSection[];
@@ -5192,10 +6476,24 @@ function DashboardView({
    *  the parent page. The dashboard reflects them in every widget
    *  footer so the user knows the numbers are filtered. */
   activeFilterCount?: number;
+  /** Ids of the enabled widgets (dsh-01), in catalog order. */
+  widgets: string[];
+  /** Toggle a widget id on/off (persists in the parent's uiState). */
+  onToggleWidget: (id: string) => void;
+  /** Apply a quick filter (or "overdue") and jump to the List view
+   *  (dsh-02 "View all"). */
+  onDrillDown: (target: "completed" | "incomplete" | "overdue" | "all") => void;
 }) {
+  const [widgetGalleryOpen, setWidgetGalleryOpen] = useState(false);
+  const enabled = useMemo(() => new Set(widgets), [widgets]);
+
   const completed = tasks.filter((t) => t.completed).length;
   const incomplete = tasks.filter((t) => !t.completed).length;
-  const overdue = tasks.filter((t) => !t.completed && t.dueDate && new Date(t.dueDate) < new Date()).length;
+  // Overdue = incomplete AND its due calendar day is strictly before today.
+  // daysFromToday folds the UTC-midnight due date onto the local day so a
+  // task due TODAY is never counted overdue (violated the date-only rule
+  // before, when `new Date(t.dueDate) < new Date()` flagged it west of UTC).
+  const overdue = tasks.filter((t) => !t.completed && t.dueDate && daysFromToday(t.dueDate) < 0).length;
   const total = tasks.length;
 
   // Data for bar chart - tasks by section
@@ -5205,10 +6503,19 @@ function DashboardView({
     count: section.tasks.length,
   }));
 
-  // Data for donut chart - completion status
+  // Data for donut chart — completion status for the UPCOMING MONTH
+  // (dsh-03). Scope to tasks whose due day is today..+30 days
+  // (daysFromToday, date-only) so the donut mirrors Asana's "completion
+  // status for the upcoming month" rather than the all-time split.
+  // Undated incomplete tasks are excluded (they have no upcoming due day).
+  const nextMonthTasks = tasks.filter(
+    (t) => t.dueDate && daysFromToday(t.dueDate) >= 0 && daysFromToday(t.dueDate) <= 30
+  );
+  const nextMonthCompleted = nextMonthTasks.filter((t) => t.completed).length;
+  const nextMonthIncomplete = nextMonthTasks.filter((t) => !t.completed).length;
   const completionData = [
-    { name: "Incomplete", value: incomplete, color: "#8B8FA3" },
-    { name: "Completed", value: completed, color: "#D1D5DB" },
+    { name: "Incomplete", value: nextMonthIncomplete, color: "#8B8FA3" },
+    { name: "Completed", value: nextMonthCompleted, color: "#D1D5DB" },
   ].filter((item) => item.value > 0);
 
   // Data for projects chart
@@ -5258,35 +6565,127 @@ function DashboardView({
     });
   }
 
-  // Widget footer component (Asana-style). The "View all" trigger
-  // was a dead toast — replaced with a quiet indicator of how many
-  // tasks rolled up into this widget so the user can sanity-check
-  // the chart against the filter set.
-  const WidgetFooter = ({ filterCount, filterLabel }: { filterCount: number; filterLabel?: string }) => (
+  // Widget footer (Asana-style): the active-filter readout on the left,
+  // and a real "View all" link on the right (dsh-02) that applies the
+  // matching filter and jumps to the List view. `drill` picks which
+  // filter to apply; omit it for a plain readout footer.
+  const WidgetFooter = ({
+    filterCount,
+    filterLabel,
+    drill,
+  }: {
+    filterCount: number;
+    filterLabel?: string;
+    drill?: "completed" | "incomplete" | "overdue" | "all";
+  }) => (
     <div className="flex items-center justify-between pt-3 mt-auto border-t border-gray-100">
       <span className="flex items-center gap-1 text-[11px] text-gray-400">
         <Filter className="w-3 h-3" />
         {filterLabel || (filterCount === 0 ? "No filters" : `${filterCount} filter${filterCount > 1 ? "s" : ""}`)}
       </span>
-      <span className="text-[11px] text-gray-400 font-mono tabular-nums">
-        {total} task{total === 1 ? "" : "s"}
-      </span>
+      {drill ? (
+        <button
+          type="button"
+          onClick={() => onDrillDown(drill)}
+          className="text-[11px] text-[#6f7782] hover:text-black hover:underline"
+        >
+          View all
+        </button>
+      ) : (
+        <span className="text-[11px] text-gray-400 font-mono tabular-nums">
+          {total} task{total === 1 ? "" : "s"}
+        </span>
+      )}
     </div>
   );
 
+  // KPI card catalog keyed by widget id — value, and the drill-down
+  // target its "View all" applies (dsh-02). Rendered only when enabled.
+  const kpiCards: {
+    id: string;
+    label: string;
+    value: number;
+    drill: "completed" | "incomplete" | "overdue" | "all";
+  }[] = [
+    { id: "completed", label: "Completed tasks", value: completed, drill: "completed" },
+    { id: "incomplete", label: "Incomplete tasks", value: incomplete, drill: "incomplete" },
+    { id: "overdue", label: "Overdue tasks", value: overdue, drill: "overdue" },
+    { id: "total", label: "Total tasks", value: total, drill: "all" },
+  ];
+  const visibleKpis = kpiCards.filter((c) => enabled.has(c.id));
+  // Which chart widgets are on — drives whether each chart row renders and
+  // whether a whole row collapses (so we don't leave an empty grid gap).
+  const showBySection = enabled.has("by-section");
+  const showDonut = enabled.has("completion-donut");
+  const showByProject = enabled.has("by-project");
+  const showOverTime = enabled.has("over-time");
+  const anyWidgetOn = visibleKpis.length > 0 || showBySection || showDonut || showByProject || showOverTime;
+
   return (
     <div className="px-4 md:px-8 py-5 overflow-auto h-full" style={{ backgroundColor: "#F9FAFB" }}>
-      {/* KPI Metric Cards — Asana style */}
+      {/* Dashboard header — Add widget gallery (dsh-01). Toggling an id
+          persists in the parent's uiState.myTasks.dashboardWidgets. */}
+      <div className="flex items-center justify-end mb-4">
+        <Popover open={widgetGalleryOpen} onOpenChange={setWidgetGalleryOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              Add widget
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-64 p-0">
+            <div className="px-3 py-2 border-b">
+              <p className="text-xs font-semibold text-black">Widgets</p>
+              <p className="text-[10px] text-gray-500">Toggle what appears on your dashboard</p>
+            </div>
+            <ul className="max-h-72 overflow-y-auto py-1">
+              {DASHBOARD_WIDGETS.map((w) => {
+                const on = enabled.has(w.id);
+                return (
+                  <li key={w.id}>
+                    <button
+                      type="button"
+                      onClick={() => onToggleWidget(w.id)}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-gray-50"
+                    >
+                      <span
+                        className={cn(
+                          "w-4 h-4 rounded border flex items-center justify-center flex-shrink-0",
+                          on ? "bg-black border-black" : "border-gray-300"
+                        )}
+                      >
+                        {on && <Check className="w-3 h-3 text-white" />}
+                      </span>
+                      <span className="text-[12px] text-gray-800 flex-1">{w.label}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-gray-400">{w.kind}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      {/* Empty state — every widget turned off. */}
+      {!anyWidgetOn && (
+        <div className="bg-white rounded-lg border border-gray-200/80 py-16 flex flex-col items-center text-center text-gray-400">
+          <BarChart3 className="w-8 h-8 mb-3 text-gray-300" />
+          <p className="text-[13px]">No widgets yet</p>
+          <p className="text-[11px] mt-1">Use “Add widget” to build your dashboard</p>
+        </div>
+      )}
+
+      {/* KPI Metric Cards — Asana style. Clickable: a click applies the
+          matching filter and jumps to the List view (dsh-02). */}
+      {visibleKpis.length > 0 && (
       <div className="grid grid-cols-4 gap-3 mb-5">
-        {[
-          { label: "Completed tasks", value: completed },
-          { label: "Incomplete tasks", value: incomplete },
-          { label: "Overdue tasks", value: overdue },
-          { label: "Total tasks", value: total },
-        ].map((card) => (
-          <div
-            key={card.label}
-            className="bg-white rounded-lg border border-gray-200/80 py-5 px-4 flex flex-col items-center text-center"
+        {visibleKpis.map((card) => (
+          <button
+            key={card.id}
+            type="button"
+            onClick={() => onDrillDown(card.drill)}
+            className="bg-white rounded-lg border border-gray-200/80 py-5 px-4 flex flex-col items-center text-center hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer"
           >
             <span className="text-[13px] text-gray-900 font-normal">{card.label}</span>
             <span className="text-[40px] font-light text-gray-900 leading-tight mt-1.5 mb-2 font-mono tabular-nums">{card.value}</span>
@@ -5296,13 +6695,16 @@ function DashboardView({
                 ? "No filters"
                 : `${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""}`}
             </span>
-          </div>
+          </button>
         ))}
       </div>
+      )}
 
       {/* Charts Row 1 */}
+      {(showBySection || showDonut) && (
       <div className="grid grid-cols-2 gap-3 mb-5">
         {/* Tasks by Section — Bar Chart */}
+        {showBySection && (
         <div className="bg-white rounded-lg border border-gray-200/80 flex flex-col">
           <div className="px-5 pt-5 pb-0">
             <h3 className="text-[13px] font-medium text-gray-900">Tasks by section</h3>
@@ -5335,14 +6737,17 @@ function DashboardView({
             </ResponsiveContainer>
           </div>
           <div className="px-5 pb-4">
-            <WidgetFooter filterCount={activeFilterCount} />
+            <WidgetFooter filterCount={activeFilterCount} drill="all" />
           </div>
         </div>
+        )}
 
-        {/* Tasks by Completion Status — Donut */}
+        {/* Completion Status (next month) — Donut (dsh-03). Scoped to the
+            upcoming 30 days so it mirrors Asana's upcoming-month widget. */}
+        {showDonut && (
         <div className="bg-white rounded-lg border border-gray-200/80 flex flex-col">
           <div className="px-5 pt-5 pb-0">
-            <h3 className="text-[13px] font-medium text-gray-900">Tasks by completion status</h3>
+            <h3 className="text-[13px] font-medium text-gray-900">Completion status (next month)</h3>
           </div>
           <div className="flex-1 flex items-center justify-center px-5 py-4">
             <div className="relative">
@@ -5365,19 +6770,23 @@ function DashboardView({
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span className="text-[28px] font-semibold text-gray-900">{incomplete}</span>
+                <span className="text-[28px] font-semibold text-gray-900">{nextMonthIncomplete}</span>
               </div>
             </div>
           </div>
           <div className="px-5 pb-4">
-            <WidgetFooter filterCount={activeFilterCount} />
+            <WidgetFooter filterCount={activeFilterCount} filterLabel="Due in the next 30 days" />
           </div>
         </div>
+        )}
       </div>
+      )}
 
       {/* Charts Row 2 */}
+      {(showByProject || showOverTime) && (
       <div className="grid grid-cols-2 gap-3">
         {/* Tasks by Project — Bar Chart */}
+        {showByProject && (
         <div className="bg-white rounded-lg border border-gray-200/80 flex flex-col">
           <div className="px-5 pt-5 pb-0">
             <h3 className="text-[13px] font-medium text-gray-900">Tasks by project</h3>
@@ -5416,11 +6825,13 @@ function DashboardView({
             )}
           </div>
           <div className="px-5 pb-4">
-            <WidgetFooter filterCount={activeFilterCount} />
+            <WidgetFooter filterCount={activeFilterCount} drill="all" />
           </div>
         </div>
+        )}
 
         {/* Task Completion Over Time — Area/Line Chart */}
+        {showOverTime && (
         <div className="bg-white rounded-lg border border-gray-200/80 flex flex-col">
           <div className="px-5 pt-5 pb-0">
             <h3 className="text-[13px] font-medium text-gray-900">Task completion over time</h3>
@@ -5453,10 +6864,12 @@ function DashboardView({
             </ResponsiveContainer>
           </div>
           <div className="px-5 pb-4">
-            <WidgetFooter filterCount={activeFilterCount} />
+            <WidgetFooter filterCount={activeFilterCount} drill="all" />
           </div>
         </div>
+        )}
       </div>
+      )}
     </div>
   );
 }
@@ -5905,6 +7318,41 @@ function formatRangeLabel(
   return "";
 }
 
+/**
+ * List-column variant of the range label matching Asana's "Today - Jul 8"
+ * pattern: the DUE end keeps the relative phrasing already computed by
+ * formatDueDate ("Today", "Tomorrow", "Overdue · N days", a weekday, or
+ * "Mon DD"), while the START is shown as an absolute "Mon DD" — unless it
+ * is today/tomorrow/yesterday, in which case it uses the relative word.
+ * Falls back to just the due label when no start date is present, so
+ * single-date tasks render exactly as before.
+ */
+function formatDueColumnLabel(
+  startStr: string | null,
+  dueStr: string | null,
+  dueRelative: string
+): string {
+  if (!startStr) return dueRelative;
+  const start = dueDateToLocalMidnight(startStr);
+  // Relative word for the start, if within ±1 day of today.
+  const startDelta = daysFromToday(startStr);
+  let startLabel: string;
+  if (startDelta === 0) startLabel = "Today";
+  else if (startDelta === 1) startLabel = "Tomorrow";
+  else if (startDelta === -1) startLabel = "Yesterday";
+  else
+    startLabel = start.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  // No due date → "From <start>".
+  if (!dueStr) return `From ${startLabel}`;
+  const due = dueDateToLocalMidnight(dueStr);
+  // Same calendar day → collapse to the single due label.
+  if (start.toDateString() === due.toDateString()) return dueRelative;
+  return `${startLabel} – ${dueRelative}`;
+}
+
 // ─── TaskDetailPanel helpers ──────────────────────────────
 
 /**
@@ -6135,6 +7583,9 @@ function TaskDetailPanel({
   onUpdate,
   onAttachmentsChange,
   formatDueDate,
+  personalSections = [],
+  currentSectionId = null,
+  onMoveToSection,
 }: {
   task: Task;
   onClose: () => void;
@@ -6143,7 +7594,19 @@ function TaskDetailPanel({
    *  invalidate any cached attachment view (e.g. the Files tab). */
   onAttachmentsChange?: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
+  /** User-owned personal sections for the My Tasks section dropdown
+   *  (Asana parity: sits right beside the Assignee row). */
+  personalSections?: PersonalSection[];
+  /** The section this task currently sits in (id). */
+  currentSectionId?: string | null;
+  /** Move this task to another personal section (persists via uiState). */
+  onMoveToSection?: (sectionId: string) => void | Promise<void>;
 }) {
+  // Project-section dropdown state (det-03): the linked project's own
+  // sections, fetched lazily when the pane shows a project.
+  const [projectSections, setProjectSections] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [taskDetail, setTaskDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState(false);
@@ -6321,6 +7784,39 @@ function TaskDetailPanel({
   useEffect(() => {
     fetchTaskDetail();
   }, [task.id]);
+
+  // det-03: fetch the linked project's sections so the Projects row can
+  // offer a project-section dropdown (Asana shows this inline). Cleared
+  // when the task has no project. The project detail endpoint already
+  // returns its sections ordered by position.
+  const linkedProjectId: string | null = taskDetail?.project?.id ?? null;
+  useEffect(() => {
+    if (!linkedProjectId) {
+      setProjectSections([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${linkedProjectId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const secs = Array.isArray(data?.sections)
+          ? data.sections.map((s: { id: string; name: string }) => ({
+              id: s.id,
+              name: s.name,
+            }))
+          : [];
+        setProjectSections(secs);
+      } catch {
+        // Non-fatal — the dropdown just won't render its options.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedProjectId]);
 
   async function fetchTaskDetail() {
     setLoading(true);
@@ -6660,27 +8156,42 @@ function TaskDetailPanel({
               registers as a flag rather than decoration. */}
           {taskDetail?.dueDate &&
             !taskDetail.completed &&
-            new Date(taskDetail.dueDate).getTime() <
-              new Date(new Date().toDateString()).getTime() && (
+            // daysFromToday folds the UTC-midnight due date onto the local
+            // calendar day: strictly-negative means past due. A task due
+            // TODAY (0) is never flagged overdue here (date-only rule).
+            daysFromToday(taskDetail.dueDate) < 0 && (
               <div className="px-4 py-2 bg-black text-white text-[12px] font-medium flex items-center gap-2 border-b border-black">
                 <Flag className="h-3.5 w-3.5 text-[#c9a84c] flex-shrink-0" />
                 {(() => {
-                  const dayMs = 86400000;
-                  const today = new Date(new Date().toDateString());
-                  const due = new Date(taskDetail.dueDate);
-                  const days = Math.round(
-                    (today.getTime() - due.getTime()) / dayMs
-                  );
+                  const days = -daysFromToday(taskDetail.dueDate);
                   return `Overdue · ${days} day${days === 1 ? "" : "s"} past due`;
                 })()}
               </div>
             )}
 
           {/* ── Visibility bar (full-width gray) ─────────────── */}
-          <div className="px-5 h-9 bg-[#f6f7f8] text-[12px] text-[#6f7782] flex items-center gap-1.5">
-            <Globe className="h-3 w-3" />
-            This task is visible to everyone in My workspace
-          </div>
+          {(() => {
+            // Prefer the freshly-fetched detail project, fall back to the
+            // list task's project. Projectless / PRIVATE-project tasks are
+            // "Only me"; WORKSPACE-project tasks are workspace-visible.
+            const proj = taskDetail?.project ?? task.project;
+            const isPrivate = !proj || proj.visibility === "PRIVATE";
+            return (
+              <div className="px-5 h-9 bg-[#f6f7f8] text-[12px] text-[#6f7782] flex items-center gap-1.5">
+                {isPrivate ? (
+                  <>
+                    <Lock className="h-3 w-3" />
+                    This task is visible only to you
+                  </>
+                ) : (
+                  <>
+                    <Globe className="h-3 w-3" />
+                    This task is visible to everyone in My workspace
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ── Task title (below visibility bar) ────────────── */}
           <div className="px-5 pt-4 pb-3 flex items-start gap-2">
@@ -6765,6 +8276,46 @@ function TaskDetailPanel({
               />
             </PropertyRow>
 
+            {/* Personal-section dropdown (Asana parity: sits right by the
+                Assignee row). Moves this task between the user's My Tasks
+                sections; persistence + optimistic bucketing are handled
+                by the parent's onMoveToSection. */}
+            {personalSections.length > 0 && onMoveToSection && (
+              <PropertyRow label="Section">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#1e1f21] hover:bg-[#f3f4f6] cursor-pointer"
+                    >
+                      <Layers className="h-3.5 w-3.5 text-[#6f7782]" />
+                      {personalSections.find((s) => s.id === currentSectionId)
+                        ?.name ?? "Recently assigned"}
+                      <ChevronDown className="h-3 w-3 text-[#9aa0a6]" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[200px]">
+                    {personalSections.map((s) => (
+                      <DropdownMenuItem
+                        key={s.id}
+                        onClick={() => {
+                          if (s.id !== currentSectionId) onMoveToSection(s.id);
+                        }}
+                        className="text-[13px]"
+                      >
+                        {s.id === currentSectionId && (
+                          <Check className="h-3.5 w-3.5 text-[#6f7782]" />
+                        )}
+                        <span className={s.id === currentSectionId ? "font-medium" : ""}>
+                          {s.name}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </PropertyRow>
+            )}
+
             <PropertyRow label="Due date">
               <DueDatePicker
                 startDate={taskDetail?.startDate ? new Date(taskDetail.startDate) : null}
@@ -6820,8 +8371,10 @@ function TaskDetailPanel({
                     )}
                     {taskDetail?.dueDate || taskDetail?.startDate
                       ? formatRangeLabel(
-                          taskDetail?.startDate ? new Date(taskDetail.startDate) : null,
-                          taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null,
+                          // Fold onto the local calendar day so the label
+                          // matches the day the user picked west of UTC.
+                          taskDetail?.startDate ? dueDateToLocalMidnight(taskDetail.startDate) : null,
+                          taskDetail?.dueDate ? dueDateToLocalMidnight(taskDetail.dueDate) : null,
                           dueDateInfo.text
                         )
                       : "No due date"}
@@ -6957,6 +8510,46 @@ function TaskDetailPanel({
                         {formatGateShort(taskDetail.project.gate)}
                       </span>
                     )}
+                  </div>
+                )}
+                {/* det-03: project-section dropdown — which SECTION of the
+                    linked project this task sits in. Asana shows this
+                    inline on the project row. PATCHes { sectionId } via
+                    handleUpdate (already accepted by /api/tasks/:id). */}
+                {taskDetail?.project && projectSections.length > 0 && (
+                  <div className="mt-1.5">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[12px] text-[#6f7782] hover:bg-[#f3f4f6] hover:text-[#1e1f21] cursor-pointer"
+                        >
+                          <Layers className="h-3 w-3" />
+                          {taskDetail?.section?.name ?? "No section"}
+                          <ChevronDown className="h-3 w-3 text-[#9aa0a6]" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="min-w-[180px]">
+                        {projectSections.map((s) => (
+                          <DropdownMenuItem
+                            key={s.id}
+                            onClick={() => {
+                              if (s.id !== taskDetail?.section?.id) {
+                                handleUpdate("sectionId", s.id);
+                              }
+                            }}
+                            className="text-[13px]"
+                          >
+                            {s.id === taskDetail?.section?.id && (
+                              <Check className="h-3.5 w-3.5 text-[#6f7782]" />
+                            )}
+                            <span className={s.id === taskDetail?.section?.id ? "font-medium" : ""}>
+                              {s.name}
+                            </span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 )}
               </div>

@@ -18,6 +18,7 @@ import {
   Tag,
   Ban,
   ShieldAlert,
+  Heart,
   type LucideIcon,
 } from "lucide-react";
 
@@ -59,11 +60,13 @@ export interface BuiltinFieldConfig {
   /** Source field on the Task object to render. */
   taskField:
     | "priority"
+    | "startDate"
     | "completedAt"
     | "updatedAt"
     | "createdAt"
     | "creator"
     | "tags"
+    | "likes"
     | "dependencies"
     | "dependents";
   /** Default column width in px. */
@@ -75,11 +78,10 @@ export const BUILTIN_FIELDS: BuiltinFieldConfig[] = [
   { id: "tags", label: "Tags", icon: Tag, taskField: "tags", defaultWidth: 140 },
   { id: "blocked_by", label: "Blocked by", icon: Ban, taskField: "dependencies", defaultWidth: 160 },
   { id: "blocks", label: "Blocks", icon: ShieldAlert, taskField: "dependents", defaultWidth: 160 },
+  { id: "start_date", label: "Start date", icon: CalendarClock, taskField: "startDate", defaultWidth: 130 },
   { id: "completed_at", label: "Completion date", icon: CalendarCheck, taskField: "completedAt", defaultWidth: 130 },
   { id: "updated_at", label: "Last modified", icon: Pencil, taskField: "updatedAt", defaultWidth: 130 },
   { id: "created_at", label: "Creation date", icon: CalendarPlus, taskField: "createdAt", defaultWidth: 130 },
   { id: "creator", label: "Created by", icon: UserCircle, taskField: "creator", defaultWidth: 140 },
+  { id: "likes", label: "Likes", icon: Heart, taskField: "likes", defaultWidth: 90 },
 ];
-// Kept for future: CalendarClock is unused right now but reserved for a
-// "Time since due" column in Fase 2.
-void CalendarClock;

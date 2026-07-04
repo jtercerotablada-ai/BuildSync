@@ -150,6 +150,11 @@ export async function GET(req: Request) {
             color: true,
             type: true,
             gate: true,
+            // Project privacy → drives the My Tasks "Visibility" column
+            // (Lock/"Only me" for PRIVATE projects vs Globe/"My
+            // workspace" for WORKSPACE). Projectless personal tasks are
+            // treated as private client-side.
+            visibility: true,
           },
         },
         section: {
@@ -163,6 +168,16 @@ export async function GET(req: Request) {
             id: true,
             name: true,
             completed: true,
+          },
+        },
+        // Collaborators — for the "Collaborators" built-in column in My
+        // Tasks (Asana shows collaborators here, NOT the assignee). Up to
+        // a handful of stacked avatars + a +N overflow render from this.
+        collaborators: {
+          select: {
+            user: {
+              select: { id: true, name: true, image: true },
+            },
           },
         },
         // Dependencies for the "Blocked by" / "Blocks" built-in
@@ -214,6 +229,10 @@ export async function GET(req: Request) {
             subtasks: true,
             comments: true,
             attachments: true,
+            // Likes count — for the optional "Likes" built-in column and
+            // the Likes sort. The relation is `likes` on the Task model
+            // (TaskLike[]), verified against prisma/schema.prisma.
+            likes: true,
           },
         },
       },

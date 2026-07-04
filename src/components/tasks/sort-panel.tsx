@@ -34,6 +34,13 @@ export type SortDirection = "asc" | "desc";
 export interface SortState {
   field: SortField;
   direction: SortDirection;
+  /** When set, sort by a pinned column instead of one of the built-in
+   *  `field` options. Either a built-in extra id ("priority", "tags",
+   *  "creator", "start_date", "completed_at", "updated_at", "created_at",
+   *  "likes", "blocked_by", "blocks") or a real CustomFieldDefinition id.
+   *  `field` stays "none" (the panel has no entry for these) but the
+   *  comparator in getFilteredSections dispatches on columnId first. */
+  columnId?: string;
 }
 
 interface SortPanelProps {
@@ -121,7 +128,8 @@ export function SortPanel({ open, onClose, anchorRef, sort, onSortChange }: Sort
   if (!open) return null;
 
   function handleSelect(field: SortField, defaultDirection: SortDirection) {
-    if (sort.field === field) {
+    // Selecting a panel field always clears any column-based sort.
+    if (sort.field === field && !sort.columnId) {
       // Toggle direction
       onSortChange({ field, direction: sort.direction === "asc" ? "desc" : "asc" });
     } else {
@@ -143,7 +151,7 @@ export function SortPanel({ open, onClose, anchorRef, sort, onSortChange }: Sort
     >
       <div className="w-[240px] bg-white rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100/60 py-2">
         {/* Header with Clear */}
-        {sort.field !== "none" && (
+        {(sort.field !== "none" || sort.columnId) && (
           <div className="flex items-center justify-between px-3 pb-1.5 mb-1 border-b border-gray-100">
             <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Sorted by</span>
             <button
@@ -158,7 +166,7 @@ export function SortPanel({ open, onClose, anchorRef, sort, onSortChange }: Sort
         {/* Sort options */}
         {SORT_OPTIONS.map((opt) => {
           const Icon = opt.icon;
-          const isSelected = sort.field === opt.field;
+          const isSelected = sort.field === opt.field && !sort.columnId;
           return (
             <button
               key={opt.field}

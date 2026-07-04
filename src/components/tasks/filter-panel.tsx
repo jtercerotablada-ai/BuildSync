@@ -50,6 +50,11 @@ export type QuickFilterKey =
   | "due_this_week"
   | "due_next_week";
 
+// Time window for the "Completed" quick filter (Asana's sub-select).
+// "all" (or undefined) means every completed task; the others gate on
+// how many days ago the task was completed.
+export type CompletedWindow = "all" | "today" | "yesterday" | "1w" | "2w" | "3w";
+
 interface FilterPanelProps {
   open: boolean;
   onClose: () => void;
@@ -58,6 +63,9 @@ interface FilterPanelProps {
   onQuickFiltersChange: (filters: QuickFilterKey[]) => void;
   activeFilters: ActiveFilter[];
   onActiveFiltersChange: (filters: ActiveFilter[]) => void;
+  /** Sub-select value for the "Completed" quick filter. */
+  completedWindow?: CompletedWindow;
+  onCompletedWindowChange?: (window: CompletedWindow) => void;
 }
 
 // ─── Constants ───────────────────────────────────────────
@@ -67,6 +75,15 @@ const QUICK_FILTER_OPTIONS: { key: QuickFilterKey; label: string; icon: typeof C
   { key: "completed", label: "Completed tasks", icon: Check },
   { key: "due_this_week", label: "Due this week", icon: CalendarDays },
   { key: "due_next_week", label: "Due next week", icon: CalendarRange },
+];
+
+const COMPLETED_WINDOW_OPTIONS: { value: CompletedWindow; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "1w", label: "Within 1 week" },
+  { value: "2w", label: "Within 2 weeks" },
+  { value: "3w", label: "Within 3 weeks" },
 ];
 
 const ADD_FILTER_OPTIONS: { field: FilterField; label: string; icon: typeof Check }[] = [
@@ -140,6 +157,7 @@ const VALUES_BY_FIELD: Record<FilterField, { value: string; label: string }[]> =
     { value: "last_month", label: "Last month" },
   ],
   due_date: [
+    { value: "overdue", label: "Overdue" },
     { value: "today", label: "Today" },
     { value: "tomorrow", label: "Tomorrow" },
     { value: "this_week", label: "This week" },
@@ -416,6 +434,8 @@ export function FilterPanel({
   onQuickFiltersChange,
   activeFilters,
   onActiveFiltersChange,
+  completedWindow = "all",
+  onCompletedWindowChange,
 }: FilterPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -533,24 +553,43 @@ export function FilterPanel({
         {/* Quick filters */}
         <div className="px-5 pb-4">
           <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider mb-2.5">Quick filters</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {QUICK_FILTER_OPTIONS.map((opt) => {
               const Icon = opt.icon;
               const active = quickFilters.includes(opt.key);
               return (
-                <button
-                  key={opt.key}
-                  onClick={() => toggleQuickFilter(opt.key)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 h-[30px] px-3 rounded-full text-[13px] border transition-colors",
-                    active
-                      ? "bg-black/[0.06] border-gray-300 text-gray-900 font-medium"
-                      : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
+                <div key={opt.key} className="inline-flex items-center gap-1.5">
+                  <button
+                    onClick={() => toggleQuickFilter(opt.key)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 h-[30px] px-3 rounded-full text-[13px] border transition-colors",
+                      active
+                        ? "bg-black/[0.06] border-gray-300 text-gray-900 font-medium"
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300"
+                    )}
+                  >
+                    <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                    {opt.label}
+                  </button>
+                  {/* Asana's Completed sub-select: choose a time window
+                      (All / Today / Yesterday / 1–3 weeks). Only shown
+                      when the Completed quick filter is active. */}
+                  {opt.key === "completed" && active && onCompletedWindowChange && (
+                    <select
+                      value={completedWindow}
+                      onChange={(e) =>
+                        onCompletedWindowChange(e.target.value as CompletedWindow)
+                      }
+                      className="h-[30px] pl-2 pr-6 rounded-full text-[13px] border border-gray-200 bg-white text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-black/10 cursor-pointer"
+                    >
+                      {COMPLETED_WINDOW_OPTIONS.map((w) => (
+                        <option key={w.value} value={w.value}>
+                          {w.label}
+                        </option>
+                      ))}
+                    </select>
                   )}
-                >
-                  <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-                  {opt.label}
-                </button>
+                </div>
               );
             })}
           </div>
