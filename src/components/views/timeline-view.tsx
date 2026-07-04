@@ -933,9 +933,12 @@ export function TimelineView({
             className="flex-shrink-0 bg-white border-r sticky left-0 z-30"
             style={{ width: sidebarWidth }}
           >
-            {/* Sidebar Header */}
+            {/* Sidebar Header — frozen in the top-left CORNER: sticky both
+                top and left (z above the date header z-20 and the sidebar
+                column z-30) so it stays put on vertical scroll, aligned with
+                the date header row instead of scrolling away. */}
             <div
-              className="border-b bg-slate-50 px-2 md:px-4 flex items-center font-medium text-xs md:text-sm text-slate-700"
+              className="border-b bg-slate-50 px-2 md:px-4 flex items-center font-medium text-xs md:text-sm text-slate-700 sticky top-0 z-40"
               style={{ height: headerHeight }}
             >
               Task Name
