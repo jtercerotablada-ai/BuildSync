@@ -7,6 +7,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
   X,
   Search,
   ChevronDown,
@@ -455,49 +460,56 @@ function CreateTab({
         <label className="block text-[12px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
           Field type
         </label>
-        <div className="relative">
-          <button
-            onClick={() => onShowTypeDropdownChange(!showTypeDropdown)}
-            className="w-full flex items-center justify-between h-9 px-3 text-[13px] border border-gray-200 rounded-lg bg-white hover:bg-gray-50 transition-colors"
+        <Popover open={showTypeDropdown} onOpenChange={onShowTypeDropdownChange}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="w-full flex items-center justify-between h-9 px-3 text-[13px] border border-gray-200 rounded-lg bg-white hover:bg-gray-50 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <SelectedIcon className="w-4 h-4 text-gray-500" />
+                {selectedType.label}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          </PopoverTrigger>
+          {/* Portaled + collision-aware so the list is never clipped by the
+              modal's overflow-hidden and flips up near the viewport bottom;
+              scrolls internally when the type list is taller than the popover. */}
+          <PopoverContent
+            align="start"
+            sideOffset={4}
+            className="w-[var(--radix-popover-trigger-width)] p-1.5 rounded-xl border border-gray-100/60 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] max-h-[min(260px,var(--radix-popover-content-available-height))] overflow-y-auto"
           >
-            <span className="flex items-center gap-2">
-              <SelectedIcon className="w-4 h-4 text-gray-500" />
-              {selectedType.label}
-            </span>
-            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-          </button>
-
-          {showTypeDropdown && (
-            <div className="absolute left-0 top-[calc(100%+4px)] w-full bg-white rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-gray-100/60 py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-              {FIELD_TYPES.map((type) => {
-                const Icon = type.icon;
-                const isSelected = type.id === fieldType;
-                return (
-                  <button
-                    key={type.id}
-                    onClick={() => {
-                      onFieldTypeChange(type.id);
-                      onShowTypeDropdownChange(false);
-                    }}
-                    className={cn(
-                      "w-full flex items-center gap-2.5 px-3 h-9 text-[13px] transition-colors text-left",
-                      isSelected
-                        ? "text-gray-900 font-medium bg-black/[0.03]"
-                        : "text-gray-700 hover:bg-black/[0.04]"
-                    )}
-                  >
-                    <Icon className={cn("w-4 h-4 flex-shrink-0", isSelected ? "text-gray-700" : "text-gray-400")} />
-                    <div className="flex-1">
-                      <span>{type.label}</span>
-                      <span className="text-[11px] text-gray-400 ml-2">{type.description}</span>
-                    </div>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+            {FIELD_TYPES.map((type) => {
+              const Icon = type.icon;
+              const isSelected = type.id === fieldType;
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => {
+                    onFieldTypeChange(type.id);
+                    onShowTypeDropdownChange(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-[13px] transition-colors text-left",
+                    isSelected
+                      ? "text-gray-900 font-medium bg-black/[0.03]"
+                      : "text-gray-700 hover:bg-black/[0.04]"
+                  )}
+                >
+                  <Icon className={cn("w-4 h-4 flex-shrink-0", isSelected ? "text-gray-700" : "text-gray-400")} />
+                  <div className="flex-1">
+                    <span>{type.label}</span>
+                    <span className="text-[11px] text-gray-400 ml-2">{type.description}</span>
+                  </div>
+                  {isSelected && <Check className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Color */}
