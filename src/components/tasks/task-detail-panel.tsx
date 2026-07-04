@@ -66,7 +66,6 @@ import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import { ProjectSelector } from "@/components/tasks/project-selector";
 import { DependenciesPicker } from "@/components/tasks/dependencies-picker";
 import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
-import { TaskConstraintsSection } from "@/components/tasks/task-constraints-section";
 import { FileViewerModal } from "@/components/files/file-viewer-modal";
 import { downloadFile } from "@/lib/download";
 import {
@@ -1099,13 +1098,6 @@ export function TaskDetailPanel({
               }}
             />
           </div>
-
-          {/* Lean make-ready constraints (Ready / Not ready) */}
-          <TaskConstraintsSection
-            taskId={taskId}
-            projectId={taskDetail?.project?.id ?? null}
-            onChanged={() => onUpdate?.()}
-          />
 
           {/* Description */}
           <div className="px-5 pt-3 pb-4">

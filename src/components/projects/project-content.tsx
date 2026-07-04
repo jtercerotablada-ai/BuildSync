@@ -1109,7 +1109,6 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           <TaskDetailPanel
             taskId={selectedTaskId}
             onClose={() => setSelectedTaskId(null)}
-            onUpdate={() => router.refresh()}
           />
         )}
       </div>
