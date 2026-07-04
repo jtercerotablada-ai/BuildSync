@@ -196,7 +196,11 @@ export function QuickCreateTaskModal({
   useEffect(() => {
     if (!open || minimized) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMinimized(true);
+      // Skip minimizing when an inner Radix dismissable layer (dropdown /
+      // date-picker) already consumed the Escape — those call
+      // preventDefault() on the event, so `defaultPrevented` tells us the
+      // keypress was meant to close the popover, not the whole composer.
+      if (e.key === "Escape" && !e.defaultPrevented) setMinimized(true);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -236,7 +240,10 @@ export function QuickCreateTaskModal({
     ).padStart(2, "0")}`;
 
   const handleCreateTask = async () => {
-    if (!title.trim() || !selectedProject) return;
+    // Guard against a second POST while one is already in flight — held or
+    // repeated Enter would otherwise fire duplicate creates (the button is
+    // disabled while `creating`, but the Enter handler is not).
+    if (creating || !title.trim() || !selectedProject) return;
     setCreating(true);
     try {
       const res = await fetch("/api/tasks", {
@@ -344,11 +351,14 @@ export function QuickCreateTaskModal({
           type="text"
           placeholder="Task name"
           value={title}
+          disabled={creating}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
             // Enter commits when the required fields are set; handleCreateTask
             // is itself a no-op if title/project are missing, so this is safe.
-            if (e.key === "Enter" && !e.shiftKey) {
+            // Gate on !creating too so a held/repeated Enter can't fire a
+            // second POST while one is already in flight.
+            if (e.key === "Enter" && !e.shiftKey && !creating) {
               e.preventDefault();
               handleCreateTask();
             }

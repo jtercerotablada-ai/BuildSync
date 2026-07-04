@@ -453,12 +453,63 @@ export default function MyTasksPage() {
   // re-derivation and reload.
   const [collapsedSectionIds, setCollapsedSectionIds] = useState<string[]>([]);
 
-  // One-time hydration: when useUiState finishes loading, seed the
-  // local view-control state from the persisted payload. Guarded so a
-  // later server sync doesn't clobber in-flight local edits.
+  // Set the moment the user touches ANY view control this session. Once
+  // set, we stop re-applying the persisted payload so we never clobber
+  // an in-session edit — even when the authoritative server value lands
+  // after the (possibly stale) localStorage cache. Wrapped setters below
+  // flip this; hydration itself does NOT.
+  const hasUserAdjustedViewControlsRef = useRef(false);
+  const markViewControlsAdjusted = useCallback(() => {
+    hasUserAdjustedViewControlsRef.current = true;
+  }, []);
+
+  // User-action wrappers around the raw view-control setters. Every
+  // USER-initiated change flows through one of these so it marks the
+  // session as "adjusted" (stops the server-value re-apply from
+  // clobbering the edit). Hydration keeps using the raw setters.
+  const setSortStateUser = useCallback(
+    (next: SortState | ((prev: SortState) => SortState)) => {
+      markViewControlsAdjusted();
+      setSortState(next);
+    },
+    [markViewControlsAdjusted]
+  );
+  const setQuickFiltersUser = useCallback(
+    (next: QuickFilterKey[] | ((prev: QuickFilterKey[]) => QuickFilterKey[])) => {
+      markViewControlsAdjusted();
+      setQuickFilters(next);
+    },
+    [markViewControlsAdjusted]
+  );
+  const setActiveFiltersUser = useCallback(
+    (next: ActiveFilter[] | ((prev: ActiveFilter[]) => ActiveFilter[])) => {
+      markViewControlsAdjusted();
+      setActiveFilters(next);
+    },
+    [markViewControlsAdjusted]
+  );
+  const setAssigneeNameFiltersUser = useCallback(
+    (next: string[] | ((prev: string[]) => string[])) => {
+      markViewControlsAdjusted();
+      setAssigneeNameFilters(next);
+    },
+    [markViewControlsAdjusted]
+  );
+
+  // Tracks that we've applied the persisted payload at least once, which
+  // gates the persist-write effect below so we don't write defaults over
+  // the freshly-loaded values before hydration has run.
   const viewControlsHydratedRef = useRef(false);
+
+  // Re-apply persisted view controls whenever the underlying useUiState
+  // value changes — this covers BOTH the initial localStorage-cache
+  // hydration AND the later cache→server transition (new device /
+  // cleared cache, where the authoritative DB value only arrives after
+  // the GET resolves). We stop as soon as the user has manually changed
+  // a control this session so in-session edits are never clobbered.
   useEffect(() => {
-    if (!myTasksUiHydrated || viewControlsHydratedRef.current) return;
+    if (!myTasksUiHydrated) return;
+    if (hasUserAdjustedViewControlsRef.current) return;
     viewControlsHydratedRef.current = true;
     if (myTasksUi.quickFilters) setQuickFilters(myTasksUi.quickFilters);
     if (myTasksUi.activeFilters) setActiveFilters(myTasksUi.activeFilters);
@@ -470,7 +521,7 @@ export default function MyTasksPage() {
     if (myTasksUi.collapsedSectionIds)
       setCollapsedSectionIds(myTasksUi.collapsedSectionIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myTasksUiHydrated]);
+  }, [myTasksUiHydrated, myTasksUi]);
 
   // Persist view-control changes back to the store. Gated on hydration
   // so we don't write the defaults over the freshly-loaded values
@@ -498,16 +549,20 @@ export default function MyTasksPage() {
     collapsedSectionIds,
   ]);
 
-  // Re-derive sections whenever the active grouping changes (e.g. after
-  // hydration restores a persisted groupType different from the default,
-  // or the user re-groups). organizeTasks reads groupType via closure,
-  // so an explicit re-run keeps sections in sync with the grouping.
+  // Re-derive sections whenever the underlying tasks OR the active
+  // grouping change. This keeps the rendered sections in lock-step with
+  // `groupType` after: a fetch refresh (tasks change), a hydration that
+  // restores a persisted groupType different from the default, and a
+  // user re-group. Without the `tasks` dep the initial fetch's
+  // organizeTasks call (which runs with the mount-render groupType
+  // closure) would leave stale due-date buckets on screen while the
+  // control shows the restored grouping. Guarded on tasks.length so we
+  // don't wipe sections to empty during hydration.
   useEffect(() => {
-    if (!viewControlsHydratedRef.current) return;
     if (tasks.length === 0) return;
     organizeTasks(tasks, groupType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupType]);
+  }, [tasks, groupType]);
 
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -737,6 +792,7 @@ export default function MyTasksPage() {
 
   // Sync group configs → existing organizeTasks groupType
   function handleGroupConfigsChange(newConfigs: GroupConfig[]) {
+    markViewControlsAdjusted();
     setGroupConfigs(newConfigs);
     const primary = newConfigs[0];
     if (!primary || primary.field === "none") {
@@ -775,7 +831,10 @@ export default function MyTasksPage() {
       if (res.ok) {
         const data = await res.json();
         setTasks(data);
-        organizeTasks(data);
+        // Always derive sections against the CURRENT grouping — never
+        // the mount-render closure. The [tasks, groupType] effect will
+        // also re-run, but doing it here keeps the first paint correct.
+        organizeTasks(data, groupType);
         initialLoadDoneRef.current = true;
       } else {
         setError(`Couldn't load your tasks (HTTP ${res.status})`);
@@ -1121,6 +1180,7 @@ export default function MyTasksPage() {
   const filteredSections = getFilteredSections();
 
   function toggleSection(sectionId: string) {
+    markViewControlsAdjusted();
     // Toggle in the persisted collapsed-id set (drives the `collapsed`
     // overlay in getFilteredSections + survives reload).
     setCollapsedSectionIds((prev) =>
@@ -1227,14 +1287,30 @@ export default function MyTasksPage() {
     if (groupType === "project") {
       const projectId = destSectionId === "no-project" ? null : destSectionId;
       patch = { projectId };
+      // organizeTasks buckets by task.project?.id, so the optimistic
+      // task MUST carry the destination project id (not the old
+      // relation) or the card re-renders in its old bucket until the
+      // refetch. Reuse an existing task's project relation for name/
+      // color when available; otherwise stub minimally — the silent
+      // refetch fills in the real metadata moments later.
+      const existingProject = projectId
+        ? tasks.find((t) => t.project?.id === projectId)?.project
+        : null;
+      const destName =
+        sections.find((s) => s.id === destSectionId)?.name ?? "Unknown";
       applyOptimistic = (t) =>
         t.id === taskId
           ? {
               ...t,
-              // Optimistically clear the project relation when moving to
-              // "No project"; otherwise leave the id and let the silent
-              // refetch fill in the project name.
-              project: projectId ? t.project : null,
+              // Clear the relation when moving to "No project"; otherwise
+              // carry a stub with the new id so it buckets correctly now.
+              project: projectId
+                ? existingProject ?? {
+                    id: projectId,
+                    name: destName,
+                    color: "#94a3b8",
+                  }
+                : null,
             }
           : t;
     } else if (groupType === "priority") {
@@ -1248,9 +1324,29 @@ export default function MyTasksPage() {
       const assigneeId =
         destSectionId === "unassigned" ? null : destSectionId;
       patch = { assigneeId };
+      // organizeTasks buckets by task.assignee?.id, so carry the
+      // destination assignee id on the optimistic task or it renders in
+      // its old bucket until the refetch. Reuse an existing task's
+      // assignee relation for name/email/image when we have one; else
+      // stub with the destination section name.
+      const existingAssignee = assigneeId
+        ? tasks.find((t) => t.assignee?.id === assigneeId)?.assignee
+        : null;
+      const destName =
+        sections.find((s) => s.id === destSectionId)?.name ?? null;
       applyOptimistic = (t) =>
         t.id === taskId
-          ? { ...t, assignee: assigneeId ? t.assignee : null }
+          ? {
+              ...t,
+              assignee: assigneeId
+                ? existingAssignee ?? {
+                    id: assigneeId,
+                    name: destName,
+                    email: null,
+                    image: null,
+                  }
+                : null,
+            }
           : t;
     } else if (groupType === "due_date") {
       // Default My-tasks grouping: map the 4 due-date section ids to
@@ -1282,7 +1378,7 @@ export default function MyTasksPage() {
 
     const updatedTasks = tasks.map(applyOptimistic);
     setTasks(updatedTasks);
-    organizeTasks(updatedTasks);
+    organizeTasks(updatedTasks, groupType);
 
     try {
       const res = await fetch(`/api/tasks/${taskId}`, {
@@ -1911,8 +2007,8 @@ export default function MyTasksPage() {
               isDropdownOpen={openColumnDropdown === "name"}
               onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "name" ? null : "name")}
               callbacks={{
-                onSortAsc: () => setSortState({ field: "alphabetical", direction: "asc" }),
-                onSortDesc: () => setSortState({ field: "alphabetical", direction: "desc" }),
+                onSortAsc: () => setSortStateUser({ field: "alphabetical", direction: "asc" }),
+                onSortDesc: () => setSortStateUser({ field: "alphabetical", direction: "desc" }),
                 onFilter: () => setFilterPanelOpen(true),
                 onGroupBy: (field) => {
                   handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
@@ -1941,8 +2037,8 @@ export default function MyTasksPage() {
               isDropdownOpen={openColumnDropdown === "dueDate"}
               onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "dueDate" ? null : "dueDate")}
               callbacks={{
-                onSortAsc: () => setSortState({ field: "due_date", direction: "asc" }),
-                onSortDesc: () => setSortState({ field: "due_date", direction: "desc" }),
+                onSortAsc: () => setSortStateUser({ field: "due_date", direction: "asc" }),
+                onSortDesc: () => setSortStateUser({ field: "due_date", direction: "desc" }),
                 onFilter: () => setFilterPanelOpen(true),
                 onGroupBy: (field) => {
                   handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
@@ -1992,8 +2088,8 @@ export default function MyTasksPage() {
               isDropdownOpen={openColumnDropdown === "projects"}
               onDropdownToggle={() => setOpenColumnDropdown(openColumnDropdown === "projects" ? null : "projects")}
               callbacks={{
-                onSortAsc: () => setSortState({ field: "project", direction: "asc" }),
-                onSortDesc: () => setSortState({ field: "project", direction: "desc" }),
+                onSortAsc: () => setSortStateUser({ field: "project", direction: "asc" }),
+                onSortDesc: () => setSortStateUser({ field: "project", direction: "desc" }),
                 onGroupBy: (field) => {
                   handleGroupConfigsChange([{ id: "group-default", field: field as GroupConfig["field"], order: "custom", hideEmpty: false }]);
                 },
@@ -2272,7 +2368,7 @@ export default function MyTasksPage() {
                     : t
                 );
                 setTasks(updatedTasks);
-                organizeTasks(updatedTasks);
+                organizeTasks(updatedTasks, groupType);
                 try {
                   // Persist via parallel per-task PATCH. Cheap for
                   // typical section sizes; if this grows we'll add a
@@ -2354,7 +2450,7 @@ export default function MyTasksPage() {
                     : t
                 );
                 setTasks(updatedTasks);
-                organizeTasks(updatedTasks);
+                organizeTasks(updatedTasks, groupType);
                 try {
                   await Promise.all(
                     orderedTaskIds.map((id, idx) =>
@@ -2420,9 +2516,9 @@ export default function MyTasksPage() {
           hiddenColumns={hiddenColumns}
           onToggleColumn={toggleColumnVisibility}
           activeFilters={activeFilters}
-          onActiveFiltersChange={setActiveFilters}
+          onActiveFiltersChange={setActiveFiltersUser}
           sort={sortState}
-          onSortChange={setSortState}
+          onSortChange={setSortStateUser}
           groups={groupConfigs}
           onGroupsChange={handleGroupConfigsChange}
         />
@@ -2467,9 +2563,9 @@ export default function MyTasksPage() {
         onClose={() => setFilterPanelOpen(false)}
         anchorRef={filterButtonRef}
         quickFilters={quickFilters}
-        onQuickFiltersChange={setQuickFilters}
+        onQuickFiltersChange={setQuickFiltersUser}
         activeFilters={activeFilters}
-        onActiveFiltersChange={setActiveFilters}
+        onActiveFiltersChange={setActiveFiltersUser}
       />
 
       {/* Sort Panel (floating) */}
@@ -2478,7 +2574,7 @@ export default function MyTasksPage() {
         onClose={() => setSortPanelOpen(false)}
         anchorRef={sortButtonRef}
         sort={sortState}
-        onSortChange={setSortState}
+        onSortChange={setSortStateUser}
       />
 
       {/* Group Panel (floating) */}
@@ -2515,14 +2611,14 @@ export default function MyTasksPage() {
           }
           // Assignees: apply the entered names as an assignee-name
           // filter (empty array clears it).
-          setAssigneeNameFilters(criteria.assignees ?? []);
+          setAssigneeNameFiltersUser(criteria.assignees ?? []);
           if (criteria.status === "incomplete") {
-            setActiveFilters((prev) => [
+            setActiveFiltersUser((prev) => [
               ...prev.filter((f) => f.field !== "completion"),
               { id: `filter-${Date.now()}`, field: "completion", operator: "is", value: "incomplete" },
             ]);
           } else if (criteria.status === "complete") {
-            setActiveFilters((prev) => [
+            setActiveFiltersUser((prev) => [
               ...prev.filter((f) => f.field !== "completion"),
               { id: `filter-${Date.now()}`, field: "completion", operator: "is", value: "complete" },
             ]);
@@ -2536,12 +2632,12 @@ export default function MyTasksPage() {
               no_date: "",
             };
             if (criteria.dueDate === "no_date") {
-              setActiveFilters((prev) => [
+              setActiveFiltersUser((prev) => [
                 ...prev.filter((f) => f.field !== "due_date"),
                 { id: `filter-${Date.now()}`, field: "due_date", operator: "is_not_set", value: "" },
               ]);
             } else {
-              setActiveFilters((prev) => [
+              setActiveFiltersUser((prev) => [
                 ...prev.filter((f) => f.field !== "due_date"),
                 { id: `filter-${Date.now()}`, field: "due_date", operator: "is_within", value: dueDateMap[criteria.dueDate] || "" },
               ]);

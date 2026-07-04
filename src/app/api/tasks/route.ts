@@ -84,7 +84,7 @@ export async function GET(req: Request) {
     // Otherwise keep the position/createdAt ordering used everywhere else.
     const orderBy: Prisma.TaskOrderByWithRelationInput[] =
       completed === "true"
-        ? [{ completedAt: "desc" }, { createdAt: "desc" }]
+        ? [{ completedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }]
         : [{ position: "asc" }, { createdAt: "desc" }];
 
     const tasks = await prisma.task.findMany({

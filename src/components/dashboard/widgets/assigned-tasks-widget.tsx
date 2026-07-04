@@ -239,7 +239,7 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
               <div key={i} className="h-12 bg-gray-100 animate-pulse rounded" />
             ))}
           </div>
-        ) : error ? (
+        ) : error && allTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-8">
             <p className="text-sm text-red-600 mb-3">{error}</p>
             <Button
@@ -267,6 +267,21 @@ export function AssignedTasksWidget({ onAssignTask }: AssignedTasksWidgetProps) 
           </div>
         ) : (
           <div className="space-y-1 overflow-y-auto h-full max-h-[280px]">
+            {/* A silent refetch (task-created event) failed but we still
+                have tasks — keep the stale list and surface the failure
+                as a subtle inline banner instead of blanking the widget. */}
+            {error && (
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-red-50 text-xs text-red-600">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={() => fetchTasks()}
+                  className="font-medium hover:underline underline-offset-4 flex-shrink-0"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
             {filteredTasks.map((task) => (
               <div
                 key={task.id}

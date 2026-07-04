@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
+// Thrown inside the uiState merge transaction when the MERGED payload exceeds
+// the size cap. Caught below to return a 400 instead of a generic 500.
+class UiStateTooLargeError extends Error {}
+
 // GET /api/users/preferences
 export async function GET() {
   try {
@@ -128,6 +132,12 @@ export async function PATCH(req: Request) {
             merged[key] = value;
           }
         }
+        // The incoming-body cap above only bounds a single request; the merge
+        // accumulates distinct keys across requests, so re-check the MERGED
+        // size to keep the stored row bounded.
+        if (JSON.stringify(merged).length > MAX_JSON_BYTES) {
+          throw new UiStateTooLargeError();
+        }
         updateData.uiState = merged;
         return tx.userPreferences.upsert({
           where: { userId },
@@ -146,6 +156,12 @@ export async function PATCH(req: Request) {
 
     return NextResponse.json(preferences);
   } catch (error) {
+    if (error instanceof UiStateTooLargeError) {
+      return NextResponse.json(
+        { error: "uiState exceeds maximum size" },
+        { status: 400 }
+      );
+    }
     console.error("Error updating preferences:", error);
     return NextResponse.json(
       { error: "Failed to update preferences" },

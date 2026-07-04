@@ -9,12 +9,22 @@ export async function GET(request: NextRequest) {
   const isVercelCron = request.headers.get("x-vercel-cron") !== null;
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
-  const hasValidSecret = cronSecret
-    ? authHeader === `Bearer ${cronSecret}`
-    : false;
 
-  if (!isVercelCron && !hasValidSecret) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (cronSecret) {
+    // When a secret is configured it is the sole authority — the
+    // x-vercel-cron header is client-spoofable, so don't accept it alone.
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } else {
+    // No secret configured — fall back to the Vercel Cron header, but flag
+    // that this endpoint is effectively unauthenticated.
+    if (!isVercelCron) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.warn(
+      "[cron/due-dates] CRON_SECRET is unset — endpoint authorized by x-vercel-cron header only (unauthenticated)."
+    );
   }
 
   const now = new Date();

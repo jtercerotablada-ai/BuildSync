@@ -130,12 +130,37 @@ export function PrivateNotepadWidget() {
       try {
         const res = await fetch('/api/workspace/notes');
         if (res.ok && !cancelled) {
-          const notes: { id: string; title: string; content: string }[] = await res.json();
+          const notes: { id: string; title: string; content: string; updatedAt?: string }[] = await res.json();
           const notepad = notes.find((n) => n.title === NOTEPAD_TITLE);
           if (notepad) {
             noteIdRef.current = notepad.id;
-            lastSavedContentRef.current = notepad.content || '';
-            setContent(notepad.content || '');
+            const serverContent = notepad.content || '';
+            lastSavedContentRef.current = serverContent;
+
+            // A per-keystroke localStorage copy may hold unsaved edits made
+            // right before a refresh (inside the 2s debounce). Prefer it when
+            // it's newer than the server note so those keystrokes survive.
+            let content = serverContent;
+            const cached = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+            if (cached) {
+              try {
+                const data = JSON.parse(cached);
+                const cachedContent: string = data.content ?? '';
+                const cachedAt = data.savedAt ? Date.parse(data.savedAt) : NaN;
+                const serverAt = notepad.updatedAt ? Date.parse(notepad.updatedAt) : NaN;
+                if (
+                  cachedContent &&
+                  cachedContent !== serverContent &&
+                  !Number.isNaN(cachedAt) &&
+                  (Number.isNaN(serverAt) || cachedAt > serverAt)
+                ) {
+                  content = cachedContent;
+                }
+              } catch {
+                // malformed cache — ignore, keep server content
+              }
+            }
+            setContent(content);
             setIsLoaded(true);
             return;
           }
@@ -250,6 +275,40 @@ export function PrivateNotepadWidget() {
     const timer = setTimeout(saveNote, 2000);
     return () => clearTimeout(timer);
   }, [content, saveNote, isLoaded]);
+
+  // Flush in-flight edits to the server on navigation/refresh, so keystrokes
+  // still inside the 2s debounce aren't lost. keepalive lets the request
+  // outlive the page. Only fires for an existing note (needs a noteId; the
+  // localStorage copy covers a never-saved note).
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  useEffect(() => {
+    const flush = () => {
+      const current = contentRef.current;
+      if (!noteIdRef.current) return;
+      if (current === lastSavedContentRef.current) return;
+      try {
+        fetch('/api/workspace/notes', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: noteIdRef.current, content: current }),
+          keepalive: true,
+        });
+        lastSavedContentRef.current = current;
+      } catch {
+        // best-effort — the localStorage copy is the fallback
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   // Save selection
   const saveSelection = useCallback(() => {
@@ -474,6 +533,23 @@ export function PrivateNotepadWidget() {
   // 7. MENTION
   const insertMention = useCallback((user: { id: string; name: string }) => {
     restoreSelection();
+    // Remove the trigger '@' immediately before the caret (typed to open the
+    // picker) so the inserted mention doesn't leave a stray '@' behind.
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (
+        range.collapsed &&
+        range.startContainer.nodeType === Node.TEXT_NODE &&
+        range.startOffset > 0 &&
+        range.startContainer.textContent?.[range.startOffset - 1] === '@'
+      ) {
+        range.setStart(range.startContainer, range.startOffset - 1);
+        range.deleteContents();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
     const span = document.createElement('span');
     span.contentEditable = 'false';
     span.setAttribute('data-user-id', user.id);
@@ -773,11 +849,16 @@ export function PrivateNotepadWidget() {
       }
     }
 
-    // @ for mentions — prevent the literal '@' (the picker inserts the mention)
+    // @ for mentions — let the literal '@' insert (so emails like user@x.com
+    // still work), then open the picker. Picking a mention deletes the '@'
+    // trigger; dismissing the picker leaves the '@' in place.
     if (e.key === '@') {
-      e.preventDefault();
-      saveSelection();
-      setShowMentionPicker(true);
+      // Open the picker on the next tick so the '@' is already inserted and
+      // the selection sits right after it (insertMention removes it).
+      setTimeout(() => {
+        saveSelection();
+        setShowMentionPicker(true);
+      }, 0);
     }
   }, [handleContentChange, saveSelection]);
 

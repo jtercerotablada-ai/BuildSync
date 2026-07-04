@@ -139,6 +139,15 @@ export default function InboxPage() {
   // Opaque cursor for the next (older) page; null when no more.
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  // True once the user has pulled in extra pages via "Load more". While
+  // true, the 30s poll must NOT replace the list (that would discard the
+  // loaded pages and jump back to page 1) — it only refreshes the count.
+  const [hasLoadedMore, setHasLoadedMore] = useState(false);
+  // Monotonic request generation. Bumped on every scope change (tab
+  // switch) so an in-flight loadMore/fetch that resolves late can detect
+  // its scope is stale and drop its result instead of appending rows
+  // from the wrong tab.
+  const scopeGenRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<"all" | "unread" | "mentions" | "assignments">("all");
   const [sortOrder, setSortOrder] = useState<"recent" | "oldest" | "unread">("recent");
@@ -174,12 +183,16 @@ export default function InboxPage() {
   const isArchivedScope = activeTab === "archive";
 
   const fetchNotifications = useCallback(async () => {
+    // Snapshot the generation for this scope; if the user switches tabs
+    // before this resolves, gen won't match and we drop the (stale) result.
+    const gen = scopeGenRef.current;
     try {
       const res = await fetch(
         `/api/notifications?archived=${isArchivedScope}`
       );
       if (res.ok) {
         const data = await res.json();
+        if (gen !== scopeGenRef.current) return;
         // New GET shape: { notifications, nextCursor, unreadCount }.
         // Stay tolerant of the legacy bare-array shape during rollout.
         const rows: (Notification & { createdAt: string })[] = Array.isArray(
@@ -193,6 +206,8 @@ export default function InboxPage() {
         }));
         setNotifications(formattedData);
         setNextCursor(Array.isArray(data) ? null : data.nextCursor ?? null);
+        // Replacing the list resets pagination back to the first page.
+        setHasLoadedMore(false);
         if (!Array.isArray(data) && typeof data.unreadCount === "number") {
           setServerUnreadCount(data.unreadCount);
         }
@@ -200,13 +215,36 @@ export default function InboxPage() {
     } catch (error) {
       console.error("Error fetching notifications:", error);
     } finally {
-      setLoading(false);
+      if (gen === scopeGenRef.current) setLoading(false);
     }
   }, [isArchivedScope]);
+
+  // Lightweight count-only refresh — used by the poll while the user has
+  // paginated, so we keep the Activity badge fresh without replacing the
+  // list (which would discard loaded pages). unreadCount is independent
+  // of limit, so limit=1 fetches a single row.
+  const refreshUnreadCount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications?archived=false&limit=1", {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data) && typeof data.unreadCount === "number") {
+        setServerUnreadCount(data.unreadCount);
+      }
+    } catch (error) {
+      console.error("Error refreshing unread count:", error);
+    }
+  }, []);
 
   // Fetch the next (older) page and append it to the current list.
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
+    // Capture the scope generation at click time; if the user switches
+    // tabs before this resolves, gen won't match and we drop the result
+    // instead of appending rows from the wrong (e.g. archived) scope.
+    const gen = scopeGenRef.current;
     setLoadingMore(true);
     try {
       const res = await fetch(
@@ -216,6 +254,7 @@ export default function InboxPage() {
       );
       if (res.ok) {
         const data = await res.json();
+        if (gen !== scopeGenRef.current) return;
         const rows: (Notification & { createdAt: string })[] = Array.isArray(
           data
         )
@@ -227,6 +266,9 @@ export default function InboxPage() {
         }));
         setNotifications((prev) => [...prev, ...formattedData]);
         setNextCursor(Array.isArray(data) ? null : data.nextCursor ?? null);
+        // Mark that the list now holds more than the first page, so the
+        // poll won't replace (and discard) these appended rows.
+        setHasLoadedMore(true);
         if (!Array.isArray(data) && typeof data.unreadCount === "number") {
           setServerUnreadCount(data.unreadCount);
         }
@@ -234,7 +276,7 @@ export default function InboxPage() {
     } catch (error) {
       console.error("Error loading more notifications:", error);
     } finally {
-      setLoadingMore(false);
+      if (gen === scopeGenRef.current) setLoadingMore(false);
     }
   }, [nextCursor, loadingMore, isArchivedScope]);
 
@@ -249,6 +291,15 @@ export default function InboxPage() {
     }
   }, [defaultTabHydrated, persistedDefaultTab]);
 
+  // On scope change (tab switch that flips archived), invalidate any
+  // in-flight requests and reset pagination so a late loadMore can't
+  // append rows from the previous scope, and the poll starts fresh.
+  useEffect(() => {
+    scopeGenRef.current += 1;
+    setNextCursor(null);
+    setHasLoadedMore(false);
+  }, [isArchivedScope]);
+
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
@@ -261,7 +312,13 @@ export default function InboxPage() {
     let timer: ReturnType<typeof setInterval> | null = null;
     const tick = () => {
       if (document.hidden) return;
-      void fetchNotifications();
+      // If the user has loaded extra pages, replacing the list would
+      // discard them and jump back to page 1. Only refresh the count.
+      if (hasLoadedMore) {
+        void refreshUnreadCount();
+      } else {
+        void fetchNotifications();
+      }
     };
     const start = () => {
       if (timer) return;
@@ -287,7 +344,7 @@ export default function InboxPage() {
       stop();
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [fetchNotifications]);
+  }, [fetchNotifications, hasLoadedMore, refreshUnreadCount]);
 
   const tabs = [
     { id: "activity", label: "Activity", icon: Bell },
@@ -333,9 +390,15 @@ export default function InboxPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: [id], read: true }),
       });
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-      );
+      setNotifications((prev) => {
+        // Only decrement the server unread badge if this row was actually
+        // unread (and non-archived) — otherwise the count would drift.
+        const target = prev.find((n) => n.id === id);
+        if (target && !target.read) {
+          setServerUnreadCount((c) => Math.max(0, c - 1));
+        }
+        return prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+      });
     } catch (error) {
       console.error("Error marking notification as read:", error);
     }
@@ -351,6 +414,8 @@ export default function InboxPage() {
         body: JSON.stringify({ markAllRead: true }),
       });
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      // Server marks every non-archived row read, so the unread badge is 0.
+      setServerUnreadCount(0);
     } catch (error) {
       console.error("Error marking all as read:", error);
     }
@@ -359,7 +424,12 @@ export default function InboxPage() {
   // Optimistic single-archive — remove from the list immediately, restore on error.
   const archiveOne = async (id: string) => {
     const prev = notifications;
+    // Archiving an unread row removes it from the (unread AND non-archived)
+    // set the badge counts, so decrement optimistically; restore on error.
+    const target = prev.find((n) => n.id === id);
+    const wasUnread = !!target && !target.read;
     setNotifications((cur) => cur.filter((n) => n.id !== id));
+    if (wasUnread) setServerUnreadCount((c) => Math.max(0, c - 1));
     try {
       const res = await fetch("/api/notifications", {
         method: "PATCH",
@@ -370,6 +440,7 @@ export default function InboxPage() {
     } catch (error) {
       console.error("Error archiving notification:", error);
       setNotifications(prev);
+      if (wasUnread) setServerUnreadCount((c) => c + 1);
     }
   };
 

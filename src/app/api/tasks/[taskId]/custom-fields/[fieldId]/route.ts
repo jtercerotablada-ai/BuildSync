@@ -47,27 +47,51 @@ export async function PATCH(
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      select: { projectId: true },
+      select: { projectId: true, project: { select: { workspaceId: true } } },
     });
 
     const field = await prisma.customFieldDefinition.findUnique({
       where: { id: fieldId },
-      select: { id: true, type: true, options: true },
+      select: { id: true, type: true, options: true, workspaceId: true },
     });
     if (!field) {
       return NextResponse.json({ error: "Field not found" }, { status: 404 });
     }
 
     // A PERSONAL field has ZERO ProjectCustomField links. Such fields hold
-    // private per-task values and work even on projectless tasks — the
-    // verifyTaskAccess check above is sufficient authorization. PROJECT
+    // private per-task values and work even on projectless tasks. PROJECT
     // fields (>=1 link) keep the original security rule below.
     const linkCount = await prisma.projectCustomField.count({
       where: { fieldId },
     });
     const isPersonal = linkCount === 0;
 
-    if (!isPersonal) {
+    if (isPersonal) {
+      // Personal (unlinked) field: there's no per-user owner column, so the
+      // minimum defense against cross-tenant IDOR is same-workspace
+      // enforcement. The caller must be a member of the FIELD's workspace,
+      // and — when the task lives in a project — the task must be in that
+      // same workspace. This blocks writing values to another workspace's
+      // personal field even if the attacker knows its id.
+      const membership = await prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: { userId, workspaceId: field.workspaceId },
+        },
+        select: { userId: true },
+      });
+      if (!membership) {
+        return NextResponse.json(
+          { error: "Field is not in your workspace" },
+          { status: 404 }
+        );
+      }
+      if (task?.projectId && task.project?.workspaceId !== field.workspaceId) {
+        return NextResponse.json(
+          { error: "Field is not in this task's workspace" },
+          { status: 404 }
+        );
+      }
+    } else {
       // Project field: it must be linked to THIS task's project — we can't
       // let a user write values for arbitrary shared fields they don't own.
       if (!task?.projectId) {

@@ -38,6 +38,11 @@ export async function GET(req: Request) {
             { createdAt: cursorRow.createdAt, id: { lt: cursorRow.id } },
           ],
         };
+      } else {
+        // A cursor was supplied but no matching row exists for this user
+        // (deleted or out of scope). Returning the unfiltered first page here
+        // would make load-more duplicate/loop, so signal end-of-list instead.
+        return NextResponse.json({ notifications: [], nextCursor: null });
       }
     }
 

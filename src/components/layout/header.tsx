@@ -39,7 +39,9 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
     const fetchUnread = async () => {
       if (typeof document !== "undefined" && document.hidden) return;
       try {
-        const res = await fetch("/api/notifications?archived=false", {
+        // unreadCount is independent of limit, so fetch a single row
+        // instead of the default page of 30 just to read the count.
+        const res = await fetch("/api/notifications?archived=false&limit=1", {
           cache: "no-store",
         });
         if (!res.ok) return;

@@ -238,6 +238,11 @@ export async function POST(
       // A bad mention id (or any createMany failure) must never sink
       // a successfully-saved comment.
       console.error("[task comment MENTIONED fan-out] failed:", err);
+      // The MENTIONED notifications did NOT actually get created, so these
+      // users must not be treated as "already notified". Clear the exclusion
+      // set so the COMMENT_ADDED fallback below can still ping an assignee/
+      // creator who happened to be @-mentioned.
+      mentionedUserIds = [];
     }
 
     // ── COMMENT_ADDED fan-out ───────────────────────────────────

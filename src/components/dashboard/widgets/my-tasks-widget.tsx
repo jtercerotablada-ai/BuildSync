@@ -361,7 +361,7 @@ export function MyTasksWidget() {
               <div key={i} className="h-10 bg-gray-100 animate-pulse rounded" />
             ))}
           </div>
-        ) : error ? (
+        ) : error && allTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-4 gap-2">
             <p className="text-sm text-red-600">{error}</p>
             <button
@@ -394,6 +394,22 @@ export function MyTasksWidget() {
         ) : (
           /* Task list */
           <div className="space-y-0.5">
+            {/* A silent refetch (task-created event / modal update)
+                failed but tasks are still loaded — keep the stale list
+                and surface the failure as a subtle inline banner
+                instead of blanking the widget. */}
+            {error && (
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-red-50 text-xs text-red-600">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={() => fetchTasks()}
+                  className="font-medium hover:underline underline-offset-4 flex-shrink-0"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
             {currentTasks.map((task) => {
               const dueInfo = task.dueDate ? formatDueDate(task.dueDate) : null;
 
