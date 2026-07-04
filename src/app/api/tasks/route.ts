@@ -36,6 +36,9 @@ export async function GET(req: Request) {
     const assigneeId = searchParams.get("assigneeId");
     const completed = searchParams.get("completed");
     const myTasks = searchParams.get("myTasks") === "true";
+    // Opt-in slim mode (?fields=summary): dashboard widgets only need a
+    // handful of fields, so skip the heavy include below entirely.
+    const fields = searchParams.get("fields");
     // Safety bound so a single request can't pull an unbounded result set
     // with the heavy include below (audit DB-02). Default 1000 is well above
     // realistic per-view task counts; callers can raise it up to 2000.
@@ -94,6 +97,29 @@ export async function GET(req: Request) {
       completed === "true"
         ? [{ completedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }]
         : [{ position: "asc" }, { createdAt: "desc" }];
+
+    if (fields === "summary") {
+      const tasks = await prisma.task.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          name: true,
+          completed: true,
+          dueDate: true,
+          projectId: true,
+          project: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
+          },
+        },
+        orderBy,
+        take,
+      });
+      return NextResponse.json(tasks);
+    }
 
     const tasks = await prisma.task.findMany({
       where: whereClause,

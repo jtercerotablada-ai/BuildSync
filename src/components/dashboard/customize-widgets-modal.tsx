@@ -199,7 +199,17 @@ export function CustomizeWidgetsModal({
         </div>
 
         <SheetFooter className="px-6 py-4 border-t bg-background flex-row justify-between gap-0">
-          <Button variant="ghost" size="sm" onClick={onReset} className="gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              onReset();
+              // The sheet presents Background as part of "Customize
+              // your Home", so a factory reset clears the tint too.
+              onBackgroundChange?.('default');
+            }}
+            className="gap-2"
+          >
             <RotateCcw className="h-4 w-4" />
             Reset to defaults
           </Button>

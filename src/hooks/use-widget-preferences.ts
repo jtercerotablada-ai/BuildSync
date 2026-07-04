@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   WidgetType,
   WidgetSize,
@@ -277,9 +277,37 @@ export function useWidgetPreferences() {
     }));
   }, []);
 
+  // Display sizes are derived at render, never persisted: widgetSizes
+  // holds only explicit user choices, and a widget with no recorded
+  // choice that would otherwise sit alone in a 2-col row (last in the
+  // order, or followed by a full-size card) renders full so the grid
+  // shows no hole. Explicit 'half'/'full' always wins.
+  const effectiveSizes = useMemo(() => {
+    const sizes: Partial<Record<WidgetType, WidgetSize>> = {};
+    const visible = preferences.widgetOrder.filter((id) =>
+      preferences.visibleWidgets.includes(id)
+    );
+    let column = 0;
+    for (let i = 0; i < visible.length; i++) {
+      const id = visible[i];
+      const manual = preferences.widgetSizes?.[id];
+      let size: WidgetSize = manual || 'half';
+      if (!manual && column === 0) {
+        const next = visible[i + 1];
+        const nextSize = next
+          ? preferences.widgetSizes?.[next] || 'half'
+          : null;
+        if (!next || nextSize === 'full') size = 'full';
+      }
+      sizes[id] = size;
+      column = size === 'full' ? 0 : (column + 1) % 2;
+    }
+    return sizes;
+  }, [preferences]);
+
   const getWidgetSize = useCallback((widgetId: WidgetType): WidgetSize => {
-    return preferences.widgetSizes?.[widgetId] || 'half';
-  }, [preferences.widgetSizes]);
+    return effectiveSizes[widgetId] || preferences.widgetSizes?.[widgetId] || 'half';
+  }, [effectiveSizes, preferences.widgetSizes]);
 
   return {
     preferences,

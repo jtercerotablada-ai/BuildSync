@@ -144,7 +144,7 @@ export function QuickCreateTaskModal({
       try {
         // The API defaults to limit=20, which silently truncates the
         // picker in larger workspaces — ask for more explicitly.
-        const res = await fetch("/api/users?limit=100");
+        const res = await fetch("/api/users?limit=200");
         if (!cancelled) {
           if (res.ok) {
             const data: User[] = await res.json();
@@ -252,7 +252,7 @@ export function QuickCreateTaskModal({
         body: JSON.stringify({
           name: title.trim(),
           description: description.trim() || null,
-          assigneeId: selectedAssignee?.id ?? null,
+          assigneeId: selectedAssignee?.id ?? session?.user?.id ?? null,
           projectId: selectedProject.id,
           startDate: startDate ? fmtIso(startDate) : null,
           dueDate: dueDate ? fmtIso(dueDate) : null,
@@ -261,9 +261,8 @@ export function QuickCreateTaskModal({
       if (res.ok) {
         // Let Home widgets (My Tasks / Assigned Tasks) refetch.
         window.dispatchEvent(new CustomEvent("buildsync:task-created"));
-        // The API coerces a null assignee to the creator, so an empty
-        // picker self-assigns — say so honestly instead of a vague
-        // "Task created".
+        // An empty picker self-assigns (we send the session user's id
+        // above) — say so honestly instead of a vague "Task created".
         toast.success(
           selectedAssignee
             ? `Task assigned to ${selectedAssignee.name ?? selectedAssignee.email}`
@@ -290,6 +289,17 @@ export function QuickCreateTaskModal({
       .join("")
       .toUpperCase()
       .slice(0, 2) || "U";
+
+  // /api/users always excludes the caller, so without this entry there
+  // is no way to pick yourself once another assignee is selected.
+  const me: User | null = session?.user?.id
+    ? {
+        id: session.user.id,
+        name: session.user.name ?? null,
+        email: session.user.email ?? "",
+        image: session.user.image ?? null,
+      }
+    : null;
 
   // Minimized rail — Gmail behavior. Single line, click to expand.
   if (minimized) {
@@ -390,6 +400,20 @@ export function QuickCreateTaskModal({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56 max-h-64 overflow-y-auto">
+              {me && (
+                <DropdownMenuItem
+                  onClick={() => setSelectedAssignee(me)}
+                  className="cursor-pointer"
+                >
+                  <Avatar className="h-5 w-5 mr-2">
+                    <AvatarImage src={me.image || ""} />
+                    <AvatarFallback className="text-[10px] bg-[#c9a84c] text-white">
+                      {me.name?.charAt(0) || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="truncate">Assign to me</span>
+                </DropdownMenuItem>
+              )}
               {usersLoading ? (
                 <div className="px-2 py-3 text-xs text-slate-400 text-center">
                   Loading…

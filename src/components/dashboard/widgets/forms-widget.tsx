@@ -83,7 +83,12 @@ export function FormsWidget() {
       const res = await fetch('/api/forms?limit=20');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as FormRow[];
-      setForms(Array.isArray(data) ? data : []);
+      // Deleting a form soft-deletes it (isActive: false) — keep
+      // deactivated forms out of the widget so a delete doesn't
+      // resurrect the row on the next refetch/poll.
+      setForms(
+        Array.isArray(data) ? data.filter((f) => f.isActive !== false) : []
+      );
     } catch (err) {
       console.error('Failed to fetch forms:', err);
       setError("Couldn't load forms.");
@@ -167,6 +172,12 @@ export function FormsWidget() {
     setEditingFetching(form.id);
     try {
       const res = await fetch(`/api/forms/${form.id}?settings=1`);
+      if (res.status === 403) {
+        // Read-only members (VIEWER/COMMENTER) can't open the editor
+        // — show the public form view instead of a dead-end toast.
+        router.push(`/forms/${form.id}`);
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const full = (await res.json()) as FullFormRow;
       setEditingForm(full);
@@ -403,6 +414,11 @@ export function FormsWidget() {
               )
             );
             setEditingForm(null);
+          }}
+          onDeleted={(formId) => {
+            // Drop the row immediately — the refetch on close keeps
+            // it gone because loadForms filters inactive forms.
+            setForms((prev) => prev.filter((f) => f.id !== formId));
           }}
         />
       )}

@@ -42,6 +42,7 @@ import {
   Eye,
   Share2,
   Link2,
+  Inbox,
   MoreHorizontal,
   Star,
 } from "lucide-react";
@@ -66,6 +67,7 @@ import {
   findFormTemplate,
   type FormTemplate,
 } from "@/lib/form-templates";
+import { FormSubmissionsDialog } from "@/components/views/form-submissions-dialog";
 import {
   HelpCircle,
   FilePenLine,
@@ -197,6 +199,7 @@ export function FormBuilderDialog({
   // user, per-form. Mirrors Asana's ⭐ star on the form editor.
   const [isFavorite, setIsFavorite] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [submissionsOpen, setSubmissionsOpen] = useState(false);
 
   // ── Picker options (lazy-loaded when needed) ───────────────────
   const [sections, setSections] = useState<ProjectSection[]>([]);
@@ -267,6 +270,7 @@ export function FormBuilderDialog({
     }
     setTab("build");
     setActiveFieldId(null);
+    setSubmissionsOpen(false);
   }, [open, initial]);
 
   const pickTemplate = useCallback((template: FormTemplate) => {
@@ -545,16 +549,14 @@ export function FormBuilderDialog({
     }
   }
 
-  // ── Submissions: open the admin submissions view in a new tab.
-  //    The portal admin route at /portal/admin/forms/[id]/submissions
-  //    already exists and lists every submission with filters. ─────
+  // ── Submissions: open the dashboard-side submissions inbox
+  //    inline. Backed by /api/forms/:id/submissions, which grants
+  //    access to project members — unlike the portal admin route,
+  //    which is gated to workspace OWNER/ADMIN and dead-ends every
+  //    other editor on a redirect. ─────────────────────────────────
   function openSubmissions() {
     if (!initial?.id) return;
-    window.open(
-      `/portal/admin/forms/${initial.id}/submissions`,
-      "_blank",
-      "noopener,noreferrer"
-    );
+    setSubmissionsOpen(true);
   }
 
   // ── Render ─────────────────────────────────────────────────────
@@ -635,7 +637,7 @@ export function FormBuilderDialog({
                       {isFavorite ? "Remove from favorites" : "Add to favorites"}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={openSubmissions}>
-                      <ExternalLink className="h-4 w-4 mr-2 text-gray-500" />
+                      <Inbox className="h-4 w-4 mr-2 text-gray-500" />
                       View submissions
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -864,6 +866,19 @@ export function FormBuilderDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Submissions inbox — same dialog the Workflow tab uses,
+          fed by the project-member-authorized submissions API. */}
+      {initial && (
+        <FormSubmissionsDialog
+          open={submissionsOpen}
+          onOpenChange={setSubmissionsOpen}
+          form={initial}
+          onOpenTask={(taskId) => {
+            window.open(`/tasks/${taskId}`, "_blank");
+          }}
+        />
+      )}
     </Dialog>
   );
 }

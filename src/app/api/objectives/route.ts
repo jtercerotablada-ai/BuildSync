@@ -45,7 +45,10 @@ export async function GET(req: Request) {
     // Absent = unchanged (no take).
     const limitParam = searchParams.get("limit");
     const limit = limitParam ? parseInt(limitParam, 10) : null;
-    const take = limit && limit > 0 ? limit : undefined;
+    const take = limit && limit > 0 ? Math.min(limit, 100) : undefined;
+    // Optional: openOnly=1 excludes closed goals server-side so `take`
+    // counts against open goals only. Absent = unchanged.
+    const openOnly = searchParams.get("openOnly") === "1";
 
     // Get user's workspace
     const workspaceMember = await prisma.workspaceMember.findFirst({
@@ -80,6 +83,9 @@ export async function GET(req: Request) {
       where.parentId = null;
     } else if (parentId) {
       where.parentId = parentId;
+    }
+    if (openOnly) {
+      where.status = { notIn: ["ACHIEVED", "MISSED", "DROPPED"] };
     }
 
     const objectives = await prisma.objective.findMany({

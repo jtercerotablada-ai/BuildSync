@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
+const HOME_NOTEPAD_TITLE = "__home_private_notepad__";
+
 // GET /api/workspace/notes - Get workspace notes
 export async function GET(req: Request) {
   try {
@@ -109,6 +111,37 @@ export async function POST(req: Request) {
 
     if (!workspaceMember) {
       return NextResponse.json({ error: "No workspace found" }, { status: 404 });
+    }
+
+    if (title === HOME_NOTEPAD_TITLE) {
+      const existing = await prisma.workspaceNote.findFirst({
+        where: {
+          workspaceId: workspaceMember.workspaceId,
+          authorId: userId,
+          title: HOME_NOTEPAD_TITLE,
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+
+      if (existing) {
+        const updated = await prisma.workspaceNote.update({
+          where: { id: existing.id },
+          data: { content: content || "" },
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+            collaborators: true,
+          },
+        });
+
+        return NextResponse.json(updated);
+      }
     }
 
     const note = await prisma.workspaceNote.create({

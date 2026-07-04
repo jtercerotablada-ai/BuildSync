@@ -63,6 +63,11 @@ const subscribers = new Set<() => void>();
 // switched devices), so the first DB fetch is authoritative.
 let serverConfirmed = false;
 
+// Keys the user wrote this session. Their PATCH may still be pending
+// when the initial GET lands, so for exactly these keys the local
+// value is newer than the server payload and must not be reverted.
+const locallyDirtyKeys = new Set<string>();
+
 async function fetchUiState(): Promise<Record<string, unknown>> {
   if (serverConfirmed && cachedUiState) return cachedUiState;
   if (inflightFetch) return inflightFetch;
@@ -72,6 +77,13 @@ async function fetchUiState(): Promise<Record<string, unknown>> {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const state = (data?.uiState as Record<string, unknown> | null) || {};
+      // Overlay edits made while the fetch was in flight so the
+      // server payload doesn't visibly revert them.
+      for (const key of locallyDirtyKeys) {
+        if (cachedUiState && key in cachedUiState) {
+          state[key] = cachedUiState[key];
+        }
+      }
       cachedUiState = state;
       serverConfirmed = true;
       writeCachedToStorage(state);
@@ -93,6 +105,7 @@ async function fetchUiState(): Promise<Record<string, unknown>> {
 function setCachedKey(key: string, value: unknown) {
   if (!cachedUiState) cachedUiState = {};
   cachedUiState[key] = value;
+  locallyDirtyKeys.add(key);
   writeCachedToStorage(cachedUiState);
   subscribers.forEach((cb) => cb());
 }

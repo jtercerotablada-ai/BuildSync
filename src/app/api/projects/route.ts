@@ -126,6 +126,11 @@ export async function GET(req: Request) {
         : sort === "status"
           ? [{ status: "asc" }, { updatedAt: "desc" }]
           : { updatedAt: "desc" };
+    // ?fields=summary returns a slim row (id/name/color/icon/status +
+    // task count) for lightweight consumers like the home projects
+    // widget and @mention pickers — no owner, members or task rows.
+    // Absent param keeps the historical fully-hydrated shape.
+    const fields = searchParams.get("fields");
 
     // ── Per-workspace access resolution ────────────────────────
     // Critical: a user may belong to MULTIPLE workspaces (e.g.
@@ -171,15 +176,38 @@ export async function GET(req: Request) {
       };
     });
 
+    const where: Prisma.ProjectWhereInput = {
+      AND: [
+        workspaceId ? { workspaceId } : {},
+        query ? { name: { contains: query, mode: "insensitive" } } : {},
+        includeArchived ? {} : { isArchived: false },
+        { OR: visibilityClauses },
+      ],
+    };
+
+    if (fields === "summary") {
+      const projects = await prisma.project.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          icon: true,
+          status: true,
+          _count: {
+            select: {
+              tasks: true,
+            },
+          },
+        },
+        orderBy,
+        ...(take ? { take } : {}),
+      });
+      return NextResponse.json(projects);
+    }
+
     const projects = await prisma.project.findMany({
-      where: {
-        AND: [
-          workspaceId ? { workspaceId } : {},
-          query ? { name: { contains: query, mode: "insensitive" } } : {},
-          includeArchived ? {} : { isArchived: false },
-          { OR: visibilityClauses },
-        ],
-      },
+      where,
       include: {
         owner: {
           select: {

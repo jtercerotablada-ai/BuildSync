@@ -33,10 +33,13 @@ interface MentionItem {
   type: 'person' | 'project';
 }
 
+// /api/ai/assist (mode: 'qa') injects the caller's real overdue/upcoming
+// tasks and resolves @project/@people mentions server-side, so these
+// data-aware suggestions get answered from actual workspace data.
 const defaultSuggestions: Suggestion[] = [
-  { id: '1', icon: 'docs', text: 'Draft a status update for a client' },
-  { id: '2', icon: 'docs', text: 'Improve the wording of an email' },
-  { id: '3', icon: 'docs', text: 'Summarize a block of text' },
+  { id: '1', icon: 'search', text: 'Find my recently overdue tasks' },
+  { id: '2', icon: 'search', text: 'What\'s due in the next week?' },
+  { id: '3', icon: 'docs', text: 'Draft a status update for a client' },
 ];
 
 // Helper to format relative date like BuildSync
@@ -93,7 +96,7 @@ export function AIAssistantWidget() {
       try {
         const [usersRes, projectsRes] = await Promise.all([
           fetch('/api/users?limit=20'),
-          fetch('/api/projects?limit=20'),
+          fetch('/api/projects?limit=20&fields=summary'),
         ]);
         const items: MentionItem[] = [];
         if (usersRes.ok) {
@@ -227,17 +230,23 @@ export function AIAssistantWidget() {
 
       if (res.ok) {
         const data = await res.json();
-        setResponse(data.result);
-        setQuestion('');
+        if (typeof data.result === 'string' && data.result.trim()) {
+          setResponse(data.result);
+          setQuestion('');
 
-        // Record only questions that actually got an answer
-        const newTopic: PastTopic = {
-          id: Date.now().toString(),
-          question: currentQuestion,
-          date: 'Just now',
-          timestamp: Date.now(),
-        };
-        savePastTopics([newTopic, ...pastTopics.slice(0, 19)]); // Keep max 20
+          // Record only questions that actually got an answer
+          const newTopic: PastTopic = {
+            id: Date.now().toString(),
+            question: currentQuestion,
+            date: 'Just now',
+            timestamp: Date.now(),
+          };
+          savePastTopics([newTopic, ...pastTopics.slice(0, 19)]); // Keep max 20
+        } else {
+          // Empty result (e.g. non-text model content) is falsy — without
+          // this branch the UI would silently fall back to suggestions.
+          setError('Sorry, I couldn\'t get an answer. Please try again.');
+        }
       } else if (res.status === 503) {
         setError('AI features aren\'t configured for this workspace');
       } else {
@@ -460,7 +469,7 @@ export function AIAssistantWidget() {
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder="Ask a question or draft some text"
+            placeholder="Ask about your tasks, @projects or @people"
             className="flex-1 text-sm outline-none bg-transparent"
             disabled={isLoading}
           />

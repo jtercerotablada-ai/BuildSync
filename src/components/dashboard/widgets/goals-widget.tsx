@@ -83,16 +83,21 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
     fetchTeams();
   }, []);
 
+  // Derived so my/company tabs don't refetch when the teams request
+  // settles — only the Team tab depends on it.
+  const teamId = activeTab === 'team' ? selectedTeam?.id ?? null : null;
+  const teamsSettled = activeTab !== 'team' || teamsLoaded;
+
   const fetchGoals = useCallback(async (signal?: AbortSignal) => {
     setError(null);
     if (activeTab === 'team') {
       // Wait for the teams request to settle — an unfiltered query here
       // would show every accessible goal mislabeled as team goals.
-      if (!teamsLoaded) {
+      if (!teamsSettled) {
         setLoading(true);
         return;
       }
-      if (!selectedTeam) {
+      if (!teamId) {
         setGoals([]);
         setLoading(false);
         return;
@@ -104,17 +109,22 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
 
       if (activeTab === 'my') {
         params.append('ownerId', 'me');
-      } else if (activeTab === 'team' && selectedTeam) {
-        params.append('teamId', selectedTeam.id);
+      } else if (activeTab === 'team' && teamId) {
+        params.append('teamId', teamId);
       }
       // For 'company' tab, fetch all goals (no filter)
 
+      // Top-level open goals only, filtered server-side so limit
+      // counts against the rows that actually render.
+      params.append('parentId', 'null');
+      params.append('openOnly', '1');
       params.append('limit', '4');
 
       const res = await fetch('/api/objectives?' + params.toString(), { signal });
       if (res.ok) {
         const data = await res.json();
-        // Filter to open goals only
+        // Filter to open goals only (server already excludes closed
+        // via openOnly=1; kept as a guard).
         const openGoals = data.filter((g: Objective) =>
           !['ACHIEVED', 'MISSED', 'DROPPED'].includes(g.status)
         );
@@ -131,7 +141,7 @@ export function GoalsWidget({ onCreateGoal }: GoalsWidgetProps) {
       // An aborted request means a newer fetch owns the loading state.
       if (!signal?.aborted) setLoading(false);
     }
-  }, [activeTab, selectedTeam, teamsLoaded]);
+  }, [activeTab, teamId, teamsSettled]);
 
   useEffect(() => {
     const controller = new AbortController();

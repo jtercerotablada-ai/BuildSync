@@ -16,10 +16,10 @@
  * visualization went with them.
  *
  * The header (greeting + period selector + two summary chips) stays.
- * The chips ("X tasks completed", "Y collaborators") still consume
- * /api/dashboard/ceo because that's the cheapest way to compute them
- * portfolio-wide; everything else on this page is per-widget self-
- * fetching.
+ * The chips ("X tasks completed", "Y collaborators") consume
+ * /api/dashboard/ceo?slim=1, which skips the heavy cockpit pipeline
+ * and returns just the two counts; everything else on this page is
+ * per-widget self-fetching.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -40,8 +40,8 @@ import {
 import {
   SortableContext,
   sortableKeyboardCoordinates,
-  rectSortingStrategy,
   arrayMove,
+  type SortingStrategy,
 } from "@dnd-kit/sortable";
 import { Loader2, Plus, Eye } from "lucide-react";
 import { useWidgetPreferences } from "@/hooks/use-widget-preferences";
@@ -87,6 +87,14 @@ import {
 // the DB so it follows the user across devices instead of dying in
 // localStorage. Default "week" matches the original behavior.
 const PERIOD_UI_STATE_KEY = "home.period";
+
+// rectSortingStrategy assumes uniform item sizes, but widgets span 1
+// or 2 grid columns, so its mid-drag previews promised slots the real
+// CSS grid reflow never produced (visible jump on drop). A null
+// strategy keeps neighbors static while dragging — the DragOverlay
+// plus the isOver ring on the hovered card communicate the drop — and
+// the grid settles once, on the card the user actually pointed at.
+const staticGridSortingStrategy: SortingStrategy = () => null;
 
 // /api/dashboard/ceo now also returns explicit header-chip counts.
 // Typed locally (optional) so older cached payloads without it don't
@@ -166,7 +174,7 @@ export default function HomePage() {
       try {
         const periodStart = periodStartFor(period).toISOString();
         const res = await fetch(
-          `/api/dashboard/ceo?periodStart=${encodeURIComponent(periodStart)}`,
+          `/api/dashboard/ceo?slim=1&periodStart=${encodeURIComponent(periodStart)}`,
           { cache: "no-store" }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -376,7 +384,7 @@ export default function HomePage() {
           items={preferences.widgetOrder.filter((w) =>
             preferences.visibleWidgets.includes(w)
           )}
-          strategy={rectSortingStrategy}
+          strategy={staticGridSortingStrategy}
         >
           <div className="px-4 md:px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 auto-rows-[360px] pb-12">
             {preferences.widgetOrder

@@ -31,11 +31,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const searchParams = new URL(request.url).searchParams;
     // Floor for `summary.tasksCompleted` — the home header passes the
     // selected period's start as an ISO string; default last 7 days.
-    const periodStartParam = new URL(request.url).searchParams.get(
-      "periodStart"
-    );
+    const periodStartParam = searchParams.get("periodStart");
     const parsedPeriodStart = periodStartParam
       ? new Date(periodStartParam)
       : null;
@@ -43,6 +42,11 @@ export async function GET(request: Request) {
       parsedPeriodStart && !Number.isNaN(parsedPeriodStart.getTime())
         ? parsedPeriodStart
         : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // slim=1 → header-chips mode: skip the heavy cockpit pipeline and
+    // run only the two counts the /home summary chips need. The full
+    // payload stays the default for any other caller.
+    const slim = searchParams.get("slim") === "1";
 
     const access = await getEffectiveAccess(userId);
     if (!access) {
@@ -98,6 +102,48 @@ export async function GET(request: Request) {
       scopedProjectIds === null
         ? { project: { workspaceId } }
         : { projectId: { in: scopedProjectIds } };
+
+    if (slim) {
+      const [tasksCompleted, teamCount] = await Promise.all([
+        prisma.task.count({
+          where: { ...taskWhere, completedAt: { gte: periodStart } },
+        }),
+        // Same visibility as the full path's team list: management
+        // counts the whole firm, lower levels count only people they
+        // share a project with.
+        isManagement
+          ? prisma.workspaceMember.count({ where: { workspaceId } })
+          : prisma.projectMember
+              .findMany({
+                where:
+                  scopedProjectIds === null
+                    ? { project: { workspaceId } }
+                    : { projectId: { in: scopedProjectIds } },
+                select: { userId: true },
+                distinct: ["userId"],
+              })
+              .then((rows) =>
+                prisma.workspaceMember.count({
+                  where: {
+                    workspaceId,
+                    userId: { in: rows.map((r) => r.userId) },
+                  },
+                })
+              ),
+      ]);
+      return NextResponse.json({
+        projects: [],
+        countsByType: { CONSTRUCTION: 0, DESIGN: 0, RECERTIFICATION: 0, PERMIT: 0 },
+        countsByGate: { PRE_DESIGN: 0, DESIGN: 0, PERMITTING: 0, CONSTRUCTION: 0, CLOSEOUT: 0 },
+        kpis: { activeProjects: 0, totalBudget: 0, currency: "USD", pendingSignatures: 0, teamUtilization: 0 },
+        team: [],
+        criticalPath: [],
+        compliance: [],
+        revenuePipeline: [],
+        activity: [],
+        summary: { tasksCompleted, teamCount },
+      });
+    }
 
     const [
       projects,

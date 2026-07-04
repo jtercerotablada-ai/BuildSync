@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
@@ -41,15 +42,38 @@ export async function GET(req: Request) {
     // explicit member, or it's marked PUBLIC. PRIVATE and the
     // default WORKSPACE visibility no longer auto-grant access —
     // sharing requires explicit membership.
+    const where: Prisma.PortfolioWhereInput = {
+      workspaceId: workspaceMember.workspaceId,
+      OR: [
+        { ownerId: userId },
+        { members: { some: { userId } } },
+        { privacy: "PUBLIC" },
+      ],
+    };
+
+    // Lightweight mode (?fields=summary): the home widget only needs
+    // id/name/color and the project count — skip the task/stats join.
+    if (searchParams.get("fields") === "summary") {
+      const summaries = await prisma.portfolio.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          color: true,
+          _count: {
+            select: {
+              projects: true,
+            },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+        take,
+      });
+      return NextResponse.json(summaries);
+    }
+
     const portfolios = await prisma.portfolio.findMany({
-      where: {
-        workspaceId: workspaceMember.workspaceId,
-        OR: [
-          { ownerId: userId },
-          { members: { some: { userId } } },
-          { privacy: "PUBLIC" },
-        ],
-      },
+      where,
       include: {
         owner: {
           select: {

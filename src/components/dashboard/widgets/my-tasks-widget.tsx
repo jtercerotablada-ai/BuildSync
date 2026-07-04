@@ -76,7 +76,7 @@ export function MyTasksWidget() {
     const requestId = ++fetchIdRef.current;
     setError(null);
     try {
-      const res = await fetch('/api/tasks?myTasks=true');
+      const res = await fetch('/api/tasks?myTasks=true&fields=summary&limit=500');
       if (fetchIdRef.current !== requestId) return;
       if (res.ok) {
         const data = await res.json();
@@ -186,7 +186,7 @@ export function MyTasksWidget() {
     }
   };
 
-  const handleCreateTask = async () => {
+  const handleCreateTask = async (): Promise<Task | null> => {
     if (newTaskName.trim()) {
       try {
         const response = await fetch('/api/tasks', {
@@ -199,12 +199,14 @@ export function MyTasksWidget() {
         });
 
         if (response.ok) {
+          const created: Task = await response.json();
           toast.success('Task created!');
           // Our own listener refetches, and sibling widgets stay in sync.
           window.dispatchEvent(new CustomEvent('buildsync:task-created'));
           setNewTaskName('');
           setNewTaskDueDate(null);
           setIsCreating(false);
+          return created;
         } else {
           toast.error('Failed to create task');
         }
@@ -214,6 +216,7 @@ export function MyTasksWidget() {
     } else {
       setIsCreating(false);
     }
+    return null;
   };
 
   const handleTaskClick = (task: Task) => {
@@ -326,15 +329,20 @@ export function MyTasksWidget() {
           />
           {/* "Detalles" — Asana opens the task detail with the
               draft pre-filled. We persist first (if there's a
-              name), then route to /my-tasks where the saved task
-              opens automatically. */}
+              name) and open the detail modal on the saved task;
+              on failure the draft stays put, and with nothing to
+              save we fall back to /my-tasks. */}
           <button
             type="button"
             data-composer-action
             title="Open task details"
             onClick={async () => {
               if (newTaskName.trim()) {
-                await handleCreateTask();
+                const created = await handleCreateTask();
+                if (created) {
+                  setSelectedTaskId(created.id);
+                }
+                return;
               }
               router.push('/my-tasks');
             }}

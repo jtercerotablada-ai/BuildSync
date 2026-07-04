@@ -22,7 +22,7 @@ export function PortfoliosWidget() {
   const fetchPortfolios = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch('/api/portfolios?limit=5');
+      const res = await fetch('/api/portfolios?limit=5&fields=summary');
       if (res.ok) {
         const data = await res.json();
         setPortfolios(data);
