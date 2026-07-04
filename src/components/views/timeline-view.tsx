@@ -106,6 +106,94 @@ const PRIORITY_COLORS: Record<string, string> = {
 const COMPLETED_BAR_FILL = "#94a3b8"; // slate-400
 
 // ============================================
+// DEPENDENCY CONNECTOR GEOMETRY (MS Project / Asana style)
+// ============================================
+// Renders a rounded ORTHOGONAL "elbow" between two Gantt bar endpoints
+// instead of a diagonal curve: the line leaves the predecessor's edge with a
+// short horizontal stub, turns at rounded right angles, and enters the
+// successor's edge horizontally so the arrowhead points cleanly into the bar.
+
+/** Convert a polyline into an SVG path with rounded corners of radius `r`. */
+function roundedPolyline(pts: { x: number; y: number }[], r: number): string {
+  if (pts.length < 2) return "";
+  if (pts.length === 2) {
+    return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`;
+  }
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const d1 = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
+    const d2 = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+    const rr = Math.min(r, d1 / 2, d2 / 2);
+    const ax = p1.x - ((p1.x - p0.x) / d1) * rr;
+    const ay = p1.y - ((p1.y - p0.y) / d1) * rr;
+    const bx = p1.x + ((p2.x - p1.x) / d2) * rr;
+    const by = p1.y + ((p2.y - p1.y) / d2) * rr;
+    d += ` L ${ax.toFixed(1)} ${ay.toFixed(1)} Q ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} ${bx.toFixed(1)} ${by.toFixed(1)}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+  return d;
+}
+
+/**
+ * Build the elbow path between a source endpoint (sx,sy) and a target endpoint
+ * (ex,ey). sxOutDir/exInDir are +1 (right) or -1 (left) — the direction the
+ * line leaves the source and approaches the target, chosen per dependency
+ * type (FS/SS/FF/SF). Routes straight with one vertical when the target is
+ * reachable forward, or wraps through a mid-row corridor for overlapping /
+ * backward links.
+ */
+function dependencyElbowPath(
+  sx: number,
+  sy: number,
+  ex: number,
+  ey: number,
+  sxOutDir: number,
+  exInDir: number
+): string {
+  const STUB = 14;
+  const R = 7;
+  const sOutX = sx + sxOutDir * STUB;
+  const eInX = ex + exInDir * STUB;
+
+  if (Math.abs(sy - ey) < 1) {
+    // Same row (rare) — a flat segment; the arrowhead still reads.
+    return `M ${sx} ${sy} L ${ex} ${ey}`;
+  }
+
+  const needWrap =
+    (sxOutDir > 0 && eInX < sOutX) || (sxOutDir < 0 && eInX > sOutX);
+
+  let pts: { x: number; y: number }[];
+  if (!needWrap) {
+    // Forward: leave the source, drop/climb to the target row at a midpoint,
+    // then run into the target edge. Two clean right angles.
+    const midX = (sOutX + eInX) / 2;
+    pts = [
+      { x: sx, y: sy },
+      { x: midX, y: sy },
+      { x: midX, y: ey },
+      { x: ex, y: ey },
+    ];
+  } else {
+    // Overlap / backward: wrap through a corridor halfway between the rows.
+    const midY = (sy + ey) / 2;
+    pts = [
+      { x: sx, y: sy },
+      { x: sOutX, y: sy },
+      { x: sOutX, y: midY },
+      { x: eInX, y: midY },
+      { x: eInX, y: ey },
+      { x: ex, y: ey },
+    ];
+  }
+  return roundedPolyline(pts, R);
+}
+
+// ============================================
 // MAIN COMPONENT
 // ============================================
 
@@ -1050,23 +1138,23 @@ export function TimelineView({
                   <defs>
                     <marker
                       id="dep-arrow-default"
-                      markerWidth="7"
-                      markerHeight="7"
-                      refX="6"
-                      refY="3.5"
+                      markerWidth="8"
+                      markerHeight="8"
+                      refX="6.5"
+                      refY="4"
                       orient="auto"
                     >
-                      <polygon points="0 0, 6 3.5, 0 7" fill="#94a3b8" />
+                      <polygon points="0 0.5, 7 4, 0 7.5" fill="#94a3b8" />
                     </marker>
                     <marker
                       id="dep-arrow-active"
-                      markerWidth="7"
-                      markerHeight="7"
-                      refX="6"
-                      refY="3.5"
+                      markerWidth="8"
+                      markerHeight="8"
+                      refX="6.5"
+                      refY="4"
                       orient="auto"
                     >
-                      <polygon points="0 0, 6 3.5, 0 7" fill="#f87171" />
+                      <polygon points="0 0.5, 7 4, 0 7.5" fill="#a8893a" />
                     </marker>
                   </defs>
                   {dependencies.map((dep) => {
@@ -1116,21 +1204,17 @@ export function TimelineView({
                       exInDir = 1;
                     }
 
-                    // Cubic Bezier with horizontal control handles —
-                    // the curve leaves and enters its endpoints with
-                    // the same direction the bar extends in, which
-                    // gives the smooth S-shape Asana uses. Handle
-                    // length scales with the horizontal gap so close
-                    // bars get gentle curves and distant bars don't
-                    // explode into wild loops.
-                    const dx = ex - sx;
-                    const handle = Math.max(
-                      24,
-                      Math.min(Math.abs(dx) * 0.4, 120)
+                    // Rounded orthogonal elbow — the MS Project / Asana look:
+                    // horizontal stub out of the predecessor, right-angle
+                    // turns, horizontal into the successor's edge.
+                    const path = dependencyElbowPath(
+                      sx,
+                      sy,
+                      ex,
+                      ey,
+                      sxOutDir,
+                      exInDir
                     );
-                    const c1x = sx + sxOutDir * handle;
-                    const c2x = ex + exInDir * handle;
-                    const path = `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ey}, ${ex} ${ey}`;
 
                     // Highlight any arrow whose blocker OR dependent
                     // is the task the user is currently hovering or
@@ -1146,17 +1230,17 @@ export function TimelineView({
                       <path
                         key={dep.id}
                         d={path}
-                        stroke={isActive ? "#f87171" : "#94a3b8"}
+                        stroke={isActive ? "#a8893a" : "#94a3b8"}
                         strokeWidth={isActive ? 2 : 1.5}
-                        strokeDasharray={isActive ? "5 3" : "4 4"}
                         strokeLinecap="round"
+                        strokeLinejoin="round"
                         fill="none"
                         markerEnd={
                           isActive
                             ? "url(#dep-arrow-active)"
                             : "url(#dep-arrow-default)"
                         }
-                        opacity={isActive ? 1 : 0.75}
+                        opacity={isActive ? 1 : 0.9}
                       />
                     );
                   })}
