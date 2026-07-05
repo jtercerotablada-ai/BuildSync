@@ -60,6 +60,7 @@ import { FilesView } from "@/components/views/files-view";
 import { ProjectTeamView } from "@/components/views/project-team-view";
 import { ProjectOverview } from "@/components/projects/project-overview";
 import { ProjectMembersDialog } from "@/components/projects/project-members-dialog";
+import { ProjectShareDialog } from "@/components/projects/project-share-dialog";
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
@@ -102,6 +103,10 @@ interface Project {
   description: string | null;
   color: string;
   status: string;
+  // Workspace-access level exposed in the Share dialog. Full project rows
+  // always carry it (schema default WORKSPACE); optional here for callers
+  // that construct partial project shapes.
+  visibility?: "PRIVATE" | "WORKSPACE" | "PUBLIC";
   sections: Section[];
   views: { id: string; name: string; type: string; isDefault: boolean }[];
   owner: {
@@ -242,9 +247,22 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
       (m) => m.user.email === currentEmail && m.role === "ADMIN"
     );
   }, [currentEmail, project.owner, project.members]);
+  // Whether the current user may edit project content (visibility / settings).
+  // Owner or an ADMIN/EDITOR member — mirrors the project PATCH gate, which
+  // is broader than canManageMembers (that's owner/ADMIN only).
+  const canEditProject = useMemo(() => {
+    if (!currentEmail) return false;
+    if (project.owner?.email && project.owner.email === currentEmail) return true;
+    return project.members.some(
+      (m) =>
+        m.user.email === currentEmail &&
+        (m.role === "ADMIN" || m.role === "EDITOR")
+    );
+  }, [currentEmail, project.owner, project.members]);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   // Filter/Sort state
@@ -579,10 +597,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             </button>
 
             {/* Share Button — hidden on mobile, lives in overflow menu */}
-            <Button className="hidden md:inline-flex bg-black hover:bg-black text-white" size="sm" onClick={() => {
-              navigator.clipboard.writeText(window.location.href);
-              toast.success('Project link copied to clipboard');
-            }}>
+            <Button className="hidden md:inline-flex bg-black hover:bg-black text-white" size="sm" onClick={() => setShareDialogOpen(true)}>
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
@@ -595,10 +610,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
-                  toast.success('Project link copied to clipboard');
-                }}>
+                <DropdownMenuItem onClick={() => setShareDialogOpen(true)}>
                   <Share2 className="h-4 w-4 mr-2" />
                   Share
                 </DropdownMenuItem>
@@ -1141,6 +1153,21 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
         }
         canManage={canManageMembers}
         onMembersChange={() => router.refresh()}
+      />
+
+      {/* Project Share Dialog — Asana-parity "Share {project}" modal. The
+          header Share buttons open this (they used to just copy the link;
+          that action now lives in the dialog's "Copy project link" button). */}
+      <ProjectShareDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        projectId={project.id}
+        projectName={project.name}
+        visibility={project.visibility ?? "WORKSPACE"}
+        ownerId={project.owner?.id ?? null}
+        canEdit={canEditProject}
+        canManageMembers={canManageMembers}
+        onVisibilityChange={() => router.refresh()}
       />
 
       {/* Edit Project Dialog — reuses CreateProjectDialog in edit mode */}

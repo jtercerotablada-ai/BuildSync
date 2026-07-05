@@ -1,29 +1,28 @@
 "use client";
 
 /**
- * PortfolioShareDialog — the real "Share {portfolio}" modal.
+ * ProjectShareDialog — the real "Share {project}" modal (Asana parity).
  *
- * Wired end-to-end to the members + portfolio APIs (no placeholders):
+ * Mirrors PortfolioShareDialog, adapted to the project's four NATIVE
+ * ProjectRole values (ADMIN / EDITOR / COMMENTER / VIEWER) so there's
+ * NO lossy role mapping. Wired end-to-end to the members + project APIs
+ * (no placeholders):
  *   • Invite by email OR pick a workspace user from a typeahead, with a
- *     role Select (Portfolio admin / Editor / Commenter / Viewer). An
- *     email that isn't a workspace member yet gets a real emailed
- *     invitation that binds this portfolio on accept ("Invitation sent
- *     to {email}"). Roles
- *     map onto the PortfolioRole enum (OWNER / EDITOR / VIEWER):
- *        Portfolio admin → OWNER
- *        Editor          → EDITOR
- *        Commenter       → VIEWER   (read-only; no comment-only role)
- *        Viewer          → VIEWER
- *     → POST /api/portfolios/:id/members
- *   • "Grant access to all projects where I'm project admin" → passes
- *     grantProjectAccess to the POST (server gates per-project).
- *   • "Notify when work is added" → per-user preference persisted via
- *     useUiState('portfolioNotifyOnWork') (no backing server column).
- *   • Workspace-access row ("My workspace") → PATCH /api/portfolios/:id
- *     { privacy } (Private / Workspace / Public).
- *   • "Who has access" list → per-row role dropdown + Remove access,
+ *     role Select (Admin / Editor / Commenter / Viewer) that shows the
+ *     one-line description under each option (matches the observed Asana
+ *     dialog). An email that isn't a workspace member yet gets a real
+ *     emailed invitation that binds this project on accept ("Invitation
+ *     sent to {email}"). → POST /api/projects/:id/members
+ *   • "Notify when tasks are added to this project" → per-user preference
+ *     persisted via useUiState('projectNotifyOnTasks') keyed by project
+ *     id (no backing server column — memory forbids schema changes).
+ *   • Workspace-access row ("My workspace") → PATCH /api/projects/:id
+ *     { visibility } (Private / Workspace / Public). Gated on canEdit.
+ *   • "Who has access" list → per-row role dropdown (4 roles + Remove),
  *     PATCH { userId, role } / DELETE ?userId=. The owner row is locked.
- *   • "Copy portfolio link" → navigator.clipboard.writeText.
+ *   • "This project is connected to N portfolio(s)." line, sourced from
+ *     GET /api/projects/:id (connectedPortfolios).
+ *   • "Copy project link" → navigator.clipboard.writeText.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -59,29 +58,25 @@ import {
   Lock,
   Check,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useUiState } from "@/hooks/use-ui-state";
+import { PROJECT_ROLE_META, type ProjectRole } from "@/lib/people-types";
 
 // ── Types ───────────────────────────────────────────────────
 
-type PortfolioPrivacy = "PRIVATE" | "WORKSPACE" | "PUBLIC";
-type PortfolioRole = "OWNER" | "EDITOR" | "VIEWER";
+type ProjectVisibility = "PRIVATE" | "WORKSPACE" | "PUBLIC";
 
 interface MemberUser {
   id: string;
   name: string | null;
   email: string | null;
   image: string | null;
-  jobTitle: string | null;
-  position: string | null;
-  customTitle: string | null;
 }
 
 interface MemberRow {
   id: string;
-  role: string; // OWNER | EDITOR | VIEWER | WORKSPACE
-  joinedAt: string;
+  role: ProjectRole;
+  userId: string;
   user: MemberUser;
 }
 
@@ -92,57 +87,40 @@ interface WorkspaceUser {
   image: string | null;
 }
 
+interface ConnectedPortfolio {
+  id: string;
+  name: string;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  portfolioId: string;
-  portfolioName: string;
-  privacy: PortfolioPrivacy;
-  /** The Portfolio.ownerId — its row is locked in the access list. */
+  projectId: string;
+  projectName: string;
+  visibility: ProjectVisibility;
+  /** The Project.ownerId — its row is locked in the access list. */
   ownerId: string | null;
-  /** Whether the current viewer may edit content (privacy / copy link). */
+  /** Whether the current viewer may edit content (visibility / copy link).
+   *  Owner or an ADMIN/EDITOR member — mirrors the project PATCH gate. */
   canEdit: boolean;
   /**
    * Whether the current viewer may MANAGE MEMBERS (invite / change role /
-   * remove): portfolio owner or a member whose role is OWNER. Editors are
-   * excluded — this mirrors the members API's `canManageMembers` gate, so
-   * the invite box / role dropdowns / Remove access stay hidden from them
-   * instead of showing controls the API will 403.
+   * remove): project owner or a member whose role is ADMIN. This mirrors
+   * the members API's admin gate so the invite box / role dropdowns /
+   * Remove stay hidden from non-admins instead of showing controls the
+   * API will 403.
    */
   canManageMembers: boolean;
-  /** Whether the current viewer is the portfolio owner (can grant OWNER). */
-  isOwner: boolean;
-  /** Push a privacy change back to the page so its state stays in sync. */
-  onPrivacyChange: (privacy: PortfolioPrivacy) => void;
+  /** Push a visibility change back to the page so its state stays in sync. */
+  onVisibilityChange: (visibility: ProjectVisibility) => void;
 }
 
-// Invite-role options (Asana labels → PortfolioRole). Portfolios have three
-// access levels (admin / editor / viewer) — no comment-only role — so we list
-// exactly those, each with a one-line description like Asana.
-const ROLE_ADMIN_DESC = "Full access to change settings, edit, or delete the portfolio.";
-const ROLE_EDITOR_DESC = "Can add, edit, and remove projects and content.";
-const ROLE_VIEWER_DESC = "Can view the portfolio, but can't edit it.";
+// All four native ProjectRole values, in Asana's display order. Used for
+// both the invite Select and the per-row dropdown — no lossy mapping.
+const ROLE_ORDER: ProjectRole[] = ["ADMIN", "EDITOR", "COMMENTER", "VIEWER"];
 
-const INVITE_ROLES: {
-  value: string;
-  role: PortfolioRole;
-  label: string;
-  desc: string;
-}[] = [
-  { value: "admin", role: "OWNER", label: "Portfolio admin", desc: ROLE_ADMIN_DESC },
-  { value: "editor", role: "EDITOR", label: "Editor", desc: ROLE_EDITOR_DESC },
-  { value: "viewer", role: "VIEWER", label: "Viewer", desc: ROLE_VIEWER_DESC },
-];
-
-// Per-row role options for the "Who has access" dropdown.
-const ROW_ROLES: { role: PortfolioRole; label: string; desc: string }[] = [
-  { role: "OWNER", label: "Portfolio admin", desc: ROLE_ADMIN_DESC },
-  { role: "EDITOR", label: "Editor", desc: ROLE_EDITOR_DESC },
-  { role: "VIEWER", label: "Viewer", desc: ROLE_VIEWER_DESC },
-];
-
-const PRIVACY_META: Record<
-  PortfolioPrivacy,
+const VISIBILITY_META: Record<
+  ProjectVisibility,
   { label: string; hint: string; icon: React.ReactNode }
 > = {
   PRIVATE: {
@@ -162,62 +140,59 @@ const PRIVACY_META: Record<
   },
 };
 
-function roleLabel(role: string): string {
-  if (role === "OWNER") return "Portfolio admin";
-  if (role === "EDITOR") return "Editor";
-  if (role === "VIEWER") return "Viewer";
-  if (role === "WORKSPACE") return "Workspace";
-  return role;
+function roleLabel(role: ProjectRole): string {
+  return PROJECT_ROLE_META[role]?.label ?? role;
 }
 
 function displayName(u: { name: string | null; email: string | null }): string {
   return u.name || u.email || "Unknown";
 }
 
-export function PortfolioShareDialog({
+export function ProjectShareDialog({
   open,
   onOpenChange,
-  portfolioId,
-  portfolioName,
-  privacy,
+  projectId,
+  projectName,
+  visibility,
   ownerId,
   canEdit,
   canManageMembers,
-  isOwner,
-  onPrivacyChange,
+  onVisibilityChange,
 }: Props) {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [workspaceUsers, setWorkspaceUsers] = useState<WorkspaceUser[]>([]);
+  const [connectedPortfolios, setConnectedPortfolios] = useState<
+    ConnectedPortfolio[]
+  >([]);
 
   // Invite form state.
   const [inviteQuery, setInviteQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [inviteRole, setInviteRole] = useState<string>("editor");
-  const [grantProjectAccess, setGrantProjectAccess] = useState(false);
+  const [inviteRole, setInviteRole] = useState<ProjectRole>("EDITOR");
   const [inviting, setInviting] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // "Notify when work is added" — per-user pref keyed by portfolio.
+  // "Notify when tasks are added" — per-user pref keyed by project.
   const { value: notifyPrefs, setValue: setNotifyPrefs } = useUiState<
     Record<string, boolean>
-  >("portfolioNotifyOnWork", {});
-  const notifyOnWork = notifyPrefs[portfolioId] ?? false;
+  >("projectNotifyOnTasks", {});
+  const notifyOnTasks = notifyPrefs[projectId] ?? false;
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/portfolios/${portfolioId}/members`);
+      const res = await fetch(`/api/projects/${projectId}/members`);
       if (res.ok) {
         const data = (await res.json()) as MemberRow[];
         setMembers(data);
       }
     } catch (err) {
-      console.error("Error fetching portfolio members:", err);
+      console.error("Error fetching project members:", err);
     } finally {
       setLoading(false);
     }
-  }, [portfolioId]);
+  }, [projectId]);
 
   const fetchWorkspaceUsers = useCallback(async () => {
     try {
@@ -235,12 +210,31 @@ export function PortfolioShareDialog({
     }
   }, []);
 
+  const fetchConnectedPortfolios = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (res.ok) {
+        const data = (await res.json()) as {
+          connectedPortfolios?: ConnectedPortfolio[];
+        };
+        setConnectedPortfolios(
+          Array.isArray(data.connectedPortfolios)
+            ? data.connectedPortfolios
+            : []
+        );
+      }
+    } catch (err) {
+      console.error("Error fetching connected portfolios:", err);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     if (open) {
       fetchMembers();
       fetchWorkspaceUsers();
+      fetchConnectedPortfolios();
     }
-  }, [open, fetchMembers, fetchWorkspaceUsers]);
+  }, [open, fetchMembers, fetchWorkspaceUsers, fetchConnectedPortfolios]);
 
   // Ids already in the access list (members + owner) — hidden from the
   // invite typeahead so you can't double-invite.
@@ -257,20 +251,13 @@ export function PortfolioShareDialog({
   });
 
   async function handleInvite() {
-    const roleDef = INVITE_ROLES.find((r) => r.value === inviteRole);
-    if (!roleDef) return;
-
     // Prefer an explicitly picked user; otherwise treat the query as an
     // email (the server resolves it against workspace membership).
     const payload: {
       userId?: string;
       email?: string;
-      role: PortfolioRole;
-      grantProjectAccess: boolean;
-    } = {
-      role: roleDef.role,
-      grantProjectAccess,
-    };
+      role: ProjectRole;
+    } = { role: inviteRole };
     if (selectedUserId) {
       payload.userId = selectedUserId;
     } else {
@@ -284,26 +271,26 @@ export function PortfolioShareDialog({
 
     setInviting(true);
     try {
-      const res = await fetch(`/api/portfolios/${portfolioId}/members`, {
+      const res = await fetch(`/api/projects/${projectId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
         // Persist the notify preference alongside the invite.
-        setNotifyPrefs((prev) => ({ ...prev, [portfolioId]: notifyOnWork }));
+        setNotifyPrefs((prev) => ({ ...prev, [projectId]: notifyOnTasks }));
         // Two shapes come back: an existing member is added immediately
         // (MemberRow), while a non-member email gets a pending emailed
-        // invitation ({ invited: true, email, message }).
+        // invitation ({ invited: true, ... }).
         const result = (await res.json().catch(() => ({}))) as {
           invited?: boolean;
-          email?: string;
-          message?: string;
+          warning?: string;
         };
         if (result.invited) {
           toast.success(
-            result.message ||
-              `Invitation sent to ${result.email || "that email"}`
+            result.warning
+              ? `Invitation saved for ${payload.email}, but the email couldn't be sent.`
+              : `Invitation sent to ${payload.email}`
           );
         } else {
           toast.success("Access granted");
@@ -324,9 +311,9 @@ export function PortfolioShareDialog({
     }
   }
 
-  async function handleRoleChange(userId: string, role: PortfolioRole) {
+  async function handleRoleChange(userId: string, role: ProjectRole) {
     try {
-      const res = await fetch(`/api/portfolios/${portfolioId}/members`, {
+      const res = await fetch(`/api/projects/${projectId}/members`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, role }),
@@ -347,7 +334,7 @@ export function PortfolioShareDialog({
   async function handleRemove(userId: string) {
     try {
       const res = await fetch(
-        `/api/portfolios/${portfolioId}/members?userId=${encodeURIComponent(
+        `/api/projects/${projectId}/members?userId=${encodeURIComponent(
           userId
         )}`,
         { method: "DELETE" }
@@ -365,56 +352,52 @@ export function PortfolioShareDialog({
     }
   }
 
-  async function handlePrivacyChange(next: PortfolioPrivacy) {
-    if (next === privacy) return;
+  async function handleVisibilityChange(next: ProjectVisibility) {
+    if (next === visibility) return;
     try {
-      const res = await fetch(`/api/portfolios/${portfolioId}`, {
+      const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ privacy: next }),
+        body: JSON.stringify({ visibility: next }),
       });
       if (res.ok) {
-        onPrivacyChange(next);
+        onVisibilityChange(next);
         toast.success("Workspace access updated");
-        // PUBLIC vs. others changes the synthesized workspace rows.
-        await fetchMembers();
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error || "Failed to update access");
       }
     } catch (err) {
-      console.error("Error updating privacy:", err);
+      console.error("Error updating visibility:", err);
       toast.error("Failed to update access");
     }
   }
 
   async function handleCopyLink() {
     try {
-      const url =
-        typeof window !== "undefined" ? window.location.href : "";
+      const url = typeof window !== "undefined" ? window.location.href : "";
       await navigator.clipboard.writeText(url);
-      toast.success("Portfolio link copied");
+      toast.success("Project link copied");
     } catch {
       toast.error("Couldn't copy the link");
     }
   }
 
-  // Owner + explicit members only (exclude synthesized WORKSPACE rows
-  // from the "who has access" list — those aren't members).
-  const accessRows = members.filter((m) => m.role !== "WORKSPACE");
+  // De-dupe the owner from the members list — project creation inserts the
+  // owner as an ADMIN ProjectMember, so the fetched list contains them too.
+  // We still show them, but only once (the owner row renders locked).
+  const accessRows = members;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="truncate">
-            Share {portfolioName}
-          </DialogTitle>
+          <DialogTitle className="truncate">Share {projectName}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 pt-1">
           {/* Invite by email / person — member management is admin-only
-              (portfolio owner or member role OWNER), matching the API. */}
+              (project owner or member role ADMIN), matching the API. */}
           {canManageMembers && (
             <div className="space-y-2">
               <div className="flex flex-col sm:flex-row gap-2">
@@ -470,25 +453,35 @@ export function PortfolioShareDialog({
                     </div>
                   )}
                 </div>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger className="h-9 w-full sm:w-36">
+                <Select
+                  value={inviteRole}
+                  onValueChange={(v) => setInviteRole(v as ProjectRole)}
+                >
+                  {/* Render the selected label ourselves (not via SelectValue)
+                      so the trigger stays a clean single line while each option
+                      below carries the Asana one-line role description. */}
+                  <SelectTrigger className="h-9 w-full sm:w-40">
                     <span className="truncate">
-                      {INVITE_ROLES.find((r) => r.value === inviteRole)?.label ??
-                        "Role"}
+                      {PROJECT_ROLE_META[inviteRole].label}
                     </span>
                   </SelectTrigger>
-                  <SelectContent className="max-w-[280px]">
-                    {INVITE_ROLES.map((r) => (
+                  <SelectContent className="max-w-[16rem]">
+                    {ROLE_ORDER.map((role) => (
                       <SelectItem
-                        key={r.value}
-                        value={r.value}
-                        textValue={r.label}
-                        disabled={r.role === "OWNER" && !isOwner}
+                        key={role}
+                        value={role}
+                        textValue={PROJECT_ROLE_META[role].label}
                       >
-                        <span className="block text-sm">{r.label}</span>
-                        <span className="block text-xs text-gray-500 whitespace-normal">
-                          {r.desc}
-                        </span>
+                        {/* div (not span) so shadcn's `*:[span]:last:flex
+                            items-center` rule doesn't flip this to a row. */}
+                        <div className="flex flex-col">
+                          <span className="text-sm">
+                            {PROJECT_ROLE_META[role].label}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {PROJECT_ROLE_META[role].description}
+                          </span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -508,28 +501,17 @@ export function PortfolioShareDialog({
 
               <label className="flex items-start gap-2 cursor-pointer select-none pt-1">
                 <Checkbox
-                  checked={grantProjectAccess}
-                  onCheckedChange={(v) => setGrantProjectAccess(v === true)}
-                  className="mt-0.5"
-                />
-                <span className="text-sm text-gray-700">
-                  Grant access to all projects in this portfolio where I&apos;m
-                  project admin
-                </span>
-              </label>
-              <label className="flex items-start gap-2 cursor-pointer select-none">
-                <Checkbox
-                  checked={notifyOnWork}
+                  checked={notifyOnTasks}
                   onCheckedChange={(v) =>
                     setNotifyPrefs((prev) => ({
                       ...prev,
-                      [portfolioId]: v === true,
+                      [projectId]: v === true,
                     }))
                   }
                   className="mt-0.5"
                 />
                 <span className="text-sm text-gray-700">
-                  Notify me when work is added to the portfolio
+                  Notify me when tasks are added to this project
                 </span>
               </label>
             </div>
@@ -540,14 +522,14 @@ export function PortfolioShareDialog({
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-md bg-gray-100 flex items-center justify-center text-gray-500 flex-shrink-0">
-                  {PRIVACY_META[privacy].icon}
+                  {VISIBILITY_META[visibility].icon}
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-900">
                     My workspace
                   </div>
                   <div className="text-xs text-gray-500 truncate">
-                    {PRIVACY_META[privacy].hint}
+                    {VISIBILITY_META[visibility].hint}
                   </div>
                 </div>
               </div>
@@ -555,31 +537,31 @@ export function PortfolioShareDialog({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="inline-flex items-center gap-1 text-sm text-gray-700 hover:bg-gray-100 rounded-md px-2 py-1 flex-shrink-0">
-                      {PRIVACY_META[privacy].label}
+                      {VISIBILITY_META[visibility].label}
                       <ChevronDown className="h-3.5 w-3.5" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64">
                     {(
-                      ["PRIVATE", "WORKSPACE", "PUBLIC"] as PortfolioPrivacy[]
-                    ).map((p) => (
+                      ["PRIVATE", "WORKSPACE", "PUBLIC"] as ProjectVisibility[]
+                    ).map((v) => (
                       <DropdownMenuItem
-                        key={p}
-                        onClick={() => handlePrivacyChange(p)}
+                        key={v}
+                        onClick={() => handleVisibilityChange(v)}
                         className="flex items-start gap-2"
                       >
                         <span className="text-gray-500 mt-0.5">
-                          {PRIVACY_META[p].icon}
+                          {VISIBILITY_META[v].icon}
                         </span>
                         <span className="flex-1">
                           <span className="block text-sm">
-                            {PRIVACY_META[p].label}
+                            {VISIBILITY_META[v].label}
                           </span>
                           <span className="block text-xs text-gray-500">
-                            {PRIVACY_META[p].hint}
+                            {VISIBILITY_META[v].hint}
                           </span>
                         </span>
-                        {p === privacy && (
+                        {v === visibility && (
                           <Check className="h-4 w-4 text-[#a8893a] mt-0.5" />
                         )}
                       </DropdownMenuItem>
@@ -588,7 +570,7 @@ export function PortfolioShareDialog({
                 </DropdownMenu>
               ) : (
                 <span className="text-sm text-gray-500 flex-shrink-0">
-                  {PRIVACY_META[privacy].label}
+                  {VISIBILITY_META[visibility].label}
                 </span>
               )}
             </div>
@@ -639,7 +621,7 @@ export function PortfolioShareDialog({
                       </div>
                       {isRowOwner || !canManageMembers ? (
                         <span className="text-sm text-gray-500 flex-shrink-0 px-2">
-                          {roleLabel(m.role)}
+                          {isRowOwner ? "Admin" : roleLabel(m.role)}
                         </span>
                       ) : (
                         <DropdownMenu>
@@ -650,23 +632,24 @@ export function PortfolioShareDialog({
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-64">
-                            {ROW_ROLES.map((r) => (
+                            {ROLE_ORDER.map((role) => (
                               <DropdownMenuItem
-                                key={r.role}
-                                disabled={r.role === "OWNER" && !isOwner}
+                                key={role}
                                 onClick={() =>
-                                  handleRoleChange(m.user.id, r.role)
+                                  handleRoleChange(m.user.id, role)
                                 }
-                                className="items-start gap-2"
+                                className="flex items-start gap-2"
                               >
-                                <div className="flex-1 min-w-0">
-                                  <span className="block text-sm">{r.label}</span>
-                                  <span className="block text-xs text-gray-500 whitespace-normal">
-                                    {r.desc}
+                                <span className="flex-1">
+                                  <span className="block text-sm">
+                                    {PROJECT_ROLE_META[role].label}
                                   </span>
-                                </div>
-                                {m.role === r.role && (
-                                  <Check className="h-4 w-4 text-[#a8893a] flex-shrink-0 mt-0.5" />
+                                  <span className="block text-xs text-gray-500">
+                                    {PROJECT_ROLE_META[role].description}
+                                  </span>
+                                </span>
+                                {m.role === role && (
+                                  <Check className="h-4 w-4 text-[#a8893a] mt-0.5" />
                                 )}
                               </DropdownMenuItem>
                             ))}
@@ -675,7 +658,7 @@ export function PortfolioShareDialog({
                               className="text-black"
                               onClick={() => handleRemove(m.user.id)}
                             >
-                              Remove access
+                              Remove from project
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -687,6 +670,27 @@ export function PortfolioShareDialog({
             )}
           </div>
 
+          {/* Connected portfolios */}
+          {connectedPortfolios.length > 0 && (
+            <div className="text-xs text-gray-500">
+              This project is connected to {connectedPortfolios.length}{" "}
+              {connectedPortfolios.length === 1 ? "portfolio" : "portfolios"}
+              {": "}
+              {connectedPortfolios.map((p, i) => (
+                <span key={p.id}>
+                  {i > 0 && ", "}
+                  <a
+                    href={`/portfolios/${p.id}`}
+                    className="text-gray-700 hover:text-[#a8893a] underline decoration-dotted"
+                  >
+                    {p.name}
+                  </a>
+                </span>
+              ))}
+              .
+            </div>
+          )}
+
           {/* Copy link */}
           <div className="border-t pt-3">
             <Button
@@ -695,7 +699,7 @@ export function PortfolioShareDialog({
               onClick={handleCopyLink}
             >
               <LinkIcon className="h-4 w-4 mr-2" />
-              Copy portfolio link
+              Copy project link
             </Button>
           </div>
         </div>

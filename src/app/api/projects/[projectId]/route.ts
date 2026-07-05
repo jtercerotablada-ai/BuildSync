@@ -64,6 +64,14 @@ export async function GET(
           orderBy: { position: "asc" },
         },
         views: true,
+        // Portfolios this project is connected to — powers the Share
+        // dialog's "This project is connected to N portfolio(s)" line.
+        // Cheap select on the already-loaded payload; no extra round-trip.
+        portfolios: {
+          select: {
+            portfolio: { select: { id: true, name: true } },
+          },
+        },
         _count: {
           select: {
             tasks: true,
@@ -111,7 +119,14 @@ export async function GET(
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    return NextResponse.json(project);
+    // Flatten the portfolio join into a plain [{ id, name }] list the
+    // Share dialog can render directly ("connected to N portfolio(s)")
+    // without walking the nested `portfolios[].portfolio` relation. The
+    // raw `portfolios` relation is left on the payload for backward
+    // compatibility.
+    const connectedPortfolios = project.portfolios.map((p) => p.portfolio);
+
+    return NextResponse.json({ ...project, connectedPortfolios });
   } catch (error) {
     console.error("Error fetching project:", error);
     return NextResponse.json(
