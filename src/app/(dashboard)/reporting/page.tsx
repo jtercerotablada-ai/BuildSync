@@ -42,6 +42,8 @@ interface Dashboard {
   ownerColor: string;
   isDefault?: boolean;
   createdAt: string;
+  /** Widget count from _count.widgets — custom dashboards only. */
+  widgetCount?: number;
 }
 
 const DEFAULT_DASHBOARDS: Dashboard[] = [
@@ -106,6 +108,7 @@ function ReportingPageInner() {
             iconColor: string;
             createdAt: string;
             owner: { name: string | null; email: string };
+            _count?: { widgets: number };
           }) => ({
             id: d.id,
             name: d.name,
@@ -114,6 +117,7 @@ function ReportingPageInner() {
             ownerName: d.owner.name || d.owner.email || ownerName,
             ownerColor: d.iconColor || "#000000",
             createdAt: d.createdAt,
+            widgetCount: d._count?.widgets,
           }));
           setDashboards([...DEFAULT_DASHBOARDS, ...remote]);
         }
@@ -352,6 +356,12 @@ function ReportingPageInner() {
                           <span className="text-xs text-slate-500 truncate">
                             Owned by {dashboard.ownerName}
                           </span>
+                          {dashboard.widgetCount != null && (
+                            <span className="ml-auto text-[11px] text-slate-400 flex-shrink-0">
+                              {dashboard.widgetCount}{" "}
+                              {dashboard.widgetCount === 1 ? "widget" : "widgets"}
+                            </span>
+                          )}
                         </div>
                       </Link>
                       {!dashboard.isDefault && (
