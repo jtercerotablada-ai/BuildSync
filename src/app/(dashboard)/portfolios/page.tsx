@@ -519,10 +519,10 @@ function PortfoliosPageInner() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
           <Card
-            className="p-4 md:p-5 pt-3 border-2 border-dashed border-gray-200 hover:border-gray-400 hover:bg-gray-50 cursor-pointer transition-colors flex flex-col items-center text-center justify-center min-h-[240px] group"
+            className="p-4 md:p-5 pt-3 border-2 border-dashed border-gray-200 hover:border-gray-400 hover:bg-gray-50 cursor-pointer transition-colors flex flex-col items-center text-center justify-center min-h-[200px] group"
             onClick={() => setCreateOpen(true)}
           >
-            <div className="w-16 h-16 rounded-full bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center mb-3 transition-colors">
+            <div className="w-16 h-16 rounded-2xl bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center mb-3 transition-colors">
               <Plus className="h-6 w-6 text-gray-500" />
             </div>
             <span className="text-sm font-semibold text-black">
@@ -1540,36 +1540,26 @@ function PortfolioCard({
   onClick: () => void;
 }) {
   const meta = STATUS_META[portfolio.status];
-  const { stats, _count } = portfolio;
-  const health = stats.health;
-  const totalHealth =
-    health.onTrack +
-    health.atRisk +
-    health.offTrack +
-    health.onHold +
-    health.complete;
-  const riskCount = health.atRisk + health.offTrack;
-
+  const { _count } = portfolio;
   const accentColor = portfolio.color || "#a8893a";
-  const ownerInitial =
-    portfolio.owner?.name?.charAt(0).toUpperCase() || "?";
+  const ownerInitial = portfolio.owner?.name?.charAt(0).toUpperCase() || "?";
 
   return (
     <Card
-      className="relative p-4 md:p-5 pt-3 hover:shadow-md cursor-pointer transition-all min-h-[240px] flex flex-col group bg-white border-gray-200"
+      className="relative p-4 pt-3 pb-5 hover:shadow-md hover:border-gray-300 cursor-pointer transition-all min-h-[200px] flex flex-col items-center text-center justify-center group bg-white border-gray-200"
       onClick={onClick}
     >
-      {/* Top row: small color swatch + favorite */}
-      <div className="w-full flex items-center justify-between mb-2 h-6">
+      {/* Top row: status dot + favorite (absolute so the folder stays centered) */}
+      <div className="absolute top-3 inset-x-3 flex items-center justify-between h-5">
         <span
-          className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-          style={{ backgroundColor: accentColor }}
+          className={cn("w-2 h-2 rounded-full flex-shrink-0", meta.dot)}
+          title={meta.label}
           aria-hidden="true"
         />
         <button
           onClick={onToggleFavorite}
           className={cn(
-            "p-1 rounded hover:bg-gray-100 transition-opacity",
+            "p-1 -mr-1 rounded hover:bg-gray-100 transition-opacity",
             isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           )}
           aria-label={isFavorite ? "Unfavorite" : "Favorite"}
@@ -1577,130 +1567,53 @@ function PortfolioCard({
           <Star
             className={cn(
               "h-4 w-4",
-              isFavorite
-                ? "fill-[#c9a84c] text-[#c9a84c]"
-                : "text-gray-400"
+              isFavorite ? "fill-[#c9a84c] text-[#c9a84c]" : "text-gray-400"
             )}
           />
         </button>
       </div>
 
-      {/* Avatar as visual anchor with status dot adjacent */}
-      <div className="flex flex-col items-center text-center">
-        <div className="relative mb-3">
-          <Avatar className="h-16 w-16">
-            <AvatarImage src={portfolio.owner?.image || ""} />
-            <AvatarFallback
-              className="text-lg font-medium text-white"
-              style={{ backgroundColor: accentColor }}
-            >
-              {ownerInitial}
-            </AvatarFallback>
-          </Avatar>
-          <span
-            className={cn(
-              "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ring-2 ring-white",
-              meta.dot
-            )}
-            title={meta.label}
+      {/* Folder graphic tinted with the portfolio color + owner avatar badge */}
+      <div className="relative mb-3">
+        <svg
+          width="94"
+          height="76"
+          viewBox="0 0 94 76"
+          fill="none"
+          className="drop-shadow-sm transition-transform duration-150 group-hover:-translate-y-0.5"
+          aria-hidden="true"
+        >
+          {/* back flap (lighter) */}
+          <path
+            d="M6 17a7 7 0 0 1 7-7h20.6a7 7 0 0 1 4.95 2.05L43.4 18a4 4 0 0 0 2.83 1.17H81a7 7 0 0 1 7 7v4H6V17z"
+            fill={accentColor}
+            fillOpacity="0.42"
           />
-        </div>
-
-        {/* Subtle folder icon + name */}
-        <div className="flex items-center gap-1.5 min-w-0 w-full justify-center px-2">
-          <Folder
-            className="h-3.5 w-3.5 text-gray-400 flex-shrink-0"
-            strokeWidth={1.5}
+          {/* front body */}
+          <path
+            d="M2 27a7 7 0 0 1 7-7h76a7 7 0 0 1 7 7v35a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7V27z"
+            fill={accentColor}
+            fillOpacity="0.9"
           />
-          <h3 className="font-semibold text-black text-sm md:text-base truncate">
-            {portfolio.name}
-          </h3>
-        </div>
-        <p className="text-xs text-gray-500 mt-0.5">
-          {_count.projects}{" "}
-          {_count.projects === 1 ? "project" : "projects"}
-        </p>
+        </svg>
+        <Avatar className="absolute -bottom-1.5 right-1 h-8 w-8 ring-[3px] ring-white shadow-sm">
+          <AvatarImage src={portfolio.owner?.image || ""} />
+          <AvatarFallback
+            className="text-xs font-semibold text-white"
+            style={{ backgroundColor: accentColor }}
+          >
+            {ownerInitial}
+          </AvatarFallback>
+        </Avatar>
       </div>
 
-      {/* Health bar */}
-      {totalHealth > 0 && (
-        <div className="w-full mt-3">
-          <div className="flex h-1.5 rounded-full overflow-hidden bg-gray-100">
-            {health.onTrack > 0 && (
-              <div
-                className="bg-[#c9a84c]"
-                style={{ width: `${(health.onTrack / totalHealth) * 100}%` }}
-              />
-            )}
-            {health.complete > 0 && (
-              <div
-                className="bg-[#a8893a]"
-                style={{ width: `${(health.complete / totalHealth) * 100}%` }}
-              />
-            )}
-            {health.atRisk > 0 && (
-              <div
-                className="bg-amber-500"
-                style={{ width: `${(health.atRisk / totalHealth) * 100}%` }}
-              />
-            )}
-            {health.offTrack > 0 && (
-              <div
-                className="bg-black"
-                style={{ width: `${(health.offTrack / totalHealth) * 100}%` }}
-              />
-            )}
-            {health.onHold > 0 && (
-              <div
-                className="bg-gray-400"
-                style={{ width: `${(health.onHold / totalHealth) * 100}%` }}
-              />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Compact metric strip */}
-      <div className="w-full mt-auto pt-3 flex items-center justify-between text-[11px] gap-2">
-        <MiniMetric label="Progress" value={`${stats.avgProgress}%`} />
-        <span className="text-gray-200">·</span>
-        <MiniMetric
-          label="Budget"
-          value={formatBudget(stats.totalBudget, stats.currency)}
-        />
-        <span className="text-gray-200">·</span>
-        <MiniMetric
-          label="At risk"
-          value={riskCount.toString()}
-          accent={riskCount > 0}
-        />
-      </div>
+      {/* Name + project count */}
+      <h3 className="font-semibold text-black text-sm md:text-[15px] truncate max-w-full px-1">
+        {portfolio.name}
+      </h3>
+      <p className="text-xs text-gray-500 mt-0.5">
+        {_count.projects} {_count.projects === 1 ? "project" : "projects"}
+      </p>
     </Card>
-  );
-}
-
-function MiniMetric({
-  label,
-  value,
-  accent = false,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="flex flex-col items-center min-w-0">
-      <span className="text-[10px] text-gray-400 uppercase tracking-wide truncate">
-        {label}
-      </span>
-      <span
-        className={cn(
-          "font-semibold tabular-nums text-xs truncate",
-          accent ? "text-[#a8893a]" : "text-black"
-        )}
-      >
-        {value}
-      </span>
-    </div>
   );
 }
