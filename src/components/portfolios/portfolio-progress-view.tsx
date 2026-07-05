@@ -1,11 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Send, Folder, Calendar, Target, Lightbulb } from "lucide-react";
+import {
+  Loader2,
+  Send,
+  Folder,
+  Calendar,
+  Target,
+  Lightbulb,
+  Sparkles,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -14,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useUiState } from "@/hooks/use-ui-state";
 
 type PortfolioStatus =
   | "ON_TRACK"
@@ -36,6 +46,7 @@ interface StatusUpdate {
 }
 
 interface Props {
+  portfolioId: string;
   status: PortfolioStatus;
   portfolioName: string;
   description: string | null;
@@ -133,6 +144,7 @@ function formatDueDate(iso: string | null) {
 }
 
 export function PortfolioProgressView({
+  portfolioId,
   status,
   portfolioName,
   description,
@@ -198,8 +210,17 @@ export function PortfolioProgressView({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left main (2 cols) */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Portfolio summary placeholder card */}
-          <SummaryCard portfolioName={portfolioName} />
+          {/* Portfolio summary (rule-based) card */}
+          <SummaryCard
+            portfolioId={portfolioId}
+            portfolioName={portfolioName}
+            status={status}
+            inProgress={inProgress}
+            atRisk={atRisk}
+            offTrack={offTrack}
+            total={total}
+            latest={latest}
+          />
 
           {/* Status composer */}
           <div className="bg-white rounded-lg border">
@@ -378,25 +399,151 @@ function StatusCard({
   );
 }
 
-function SummaryCard({ portfolioName }: { portfolioName: string }) {
+// Build a concise, rule-based portfolio summary from the aggregate
+// stats. This ships parity today without an AI dependency; if an
+// assistant endpoint is added later it can replace this generator.
+function buildSummary(args: {
+  portfolioName: string;
+  status: PortfolioStatus;
+  inProgress: number;
+  atRisk: number;
+  offTrack: number;
+  total: number;
+  latest: StatusUpdate | null;
+}): string[] {
+  const { portfolioName, status, inProgress, atRisk, offTrack, total, latest } =
+    args;
+  const name = portfolioName || "This portfolio";
+  const lines: string[] = [];
+
+  if (total === 0) {
+    lines.push(
+      `${name} has no projects yet. Add projects to start tracking health and progress.`
+    );
+    return lines;
+  }
+
+  const healthy = Math.max(total - atRisk - offTrack, 0);
+  const headline =
+    status === "ON_TRACK"
+      ? `${name} is on track.`
+      : status === "AT_RISK"
+        ? `${name} is at risk and needs attention.`
+        : status === "OFF_TRACK"
+          ? `${name} is off track.`
+          : status === "COMPLETE"
+            ? `${name} is complete.`
+            : `${name} is on hold.`;
+  lines.push(headline);
+
+  lines.push(
+    `${total} ${total === 1 ? "project" : "projects"} in total — ` +
+      `${healthy} healthy, ${atRisk} at risk, and ${offTrack} off track. ` +
+      `${inProgress} ${inProgress === 1 ? "is" : "are"} actively in progress.`
+  );
+
+  if (atRisk + offTrack > 0) {
+    lines.push(
+      `Focus this period: the ${atRisk + offTrack} ${
+        atRisk + offTrack === 1 ? "project" : "projects"
+      } flagged at risk or off track. Review blockers and reset expectations where needed.`
+    );
+  } else {
+    lines.push(
+      `No projects are currently flagged. Keep momentum and watch upcoming due dates.`
+    );
+  }
+
+  if (latest) {
+    const excerpt =
+      latest.summary.length > 160
+        ? latest.summary.slice(0, 157).trimEnd() + "…"
+        : latest.summary;
+    lines.push(
+      `Latest update${latest.author?.name ? ` from ${latest.author.name}` : ""}: “${excerpt}”`
+    );
+  }
+
+  return lines;
+}
+
+function SummaryCard({
+  portfolioId,
+  portfolioName,
+  status,
+  inProgress,
+  atRisk,
+  offTrack,
+  total,
+  latest,
+}: {
+  portfolioId: string;
+  portfolioName: string;
+  status: PortfolioStatus;
+  inProgress: number;
+  atRisk: number;
+  offTrack: number;
+  total: number;
+  latest: StatusUpdate | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  // Per-user, per-portfolio "receive periodic updates" preference.
+  const { value: periodicMap, setValue: setPeriodicMap } = useUiState<
+    Record<string, boolean>
+  >("portfolioPeriodicSummary", {});
+  const periodic = !!periodicMap[portfolioId];
+
+  const lines = buildSummary({
+    portfolioName,
+    status,
+    inProgress,
+    atRisk,
+    offTrack,
+    total,
+    latest,
+  });
+  const preview = lines[0];
+  const rest = lines.slice(1);
+
   return (
     <div className="bg-white rounded-lg border p-4">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-black">Portfolio summary</h3>
+        <h3 className="text-sm font-medium text-black inline-flex items-center gap-1.5">
+          <Sparkles className="h-4 w-4 text-[#a8893a]" />
+          Portfolio summary
+        </h3>
+        <span className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">
+          Auto-generated
+        </span>
       </div>
-      <p className="text-sm text-gray-600 leading-relaxed">
-        Use this section to summarize recent progress, blockers, and next steps
-        for {portfolioName || "this portfolio"}. AI-assisted summaries land
-        here once you connect the assistant.
-      </p>
+      <div className="text-sm text-gray-700 leading-relaxed space-y-2">
+        <p className="font-medium text-black">{preview}</p>
+        {expanded &&
+          rest.map((line, i) => (
+            <p key={i} className="text-gray-600">
+              {line}
+            </p>
+          ))}
+      </div>
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-        <label className="inline-flex items-center gap-2 text-xs text-gray-500">
-          <input type="checkbox" className="accent-[#a8893a]" disabled />
+        <label className="inline-flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+          <Switch
+            checked={periodic}
+            onCheckedChange={(v) =>
+              setPeriodicMap((prev) => ({ ...prev, [portfolioId]: v }))
+            }
+          />
           Receive periodic updates
         </label>
-        <Button variant="outline" size="sm" disabled>
-          View summary
-        </Button>
+        {rest.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Hide summary" : "View summary"}
+          </Button>
+        )}
       </div>
     </div>
   );

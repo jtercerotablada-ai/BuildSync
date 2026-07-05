@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyWorkspaceAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { daysFromToday } from "@/lib/date-only";
 
 const updatePortfolioSchema = z.object({
   name: z.string().min(1).optional(),
@@ -116,8 +117,11 @@ export async function GET(
       const project = pp.project;
       const totalTasks = project.tasks.length;
       const completedTasks = project.tasks.filter((t) => t.completed).length;
+      // date-only overdue: a task due TODAY is NEVER overdue. daysFromToday
+      // buckets by the UTC calendar day, so viewers west of UTC don't see
+      // today's tasks flip to overdue (see src/lib/date-only.ts).
       const overdueTasks = project.tasks.filter(
-        (t) => !t.completed && t.dueDate && new Date(t.dueDate) < new Date()
+        (t) => !t.completed && t.dueDate && daysFromToday(t.dueDate) < 0
       ).length;
       const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 

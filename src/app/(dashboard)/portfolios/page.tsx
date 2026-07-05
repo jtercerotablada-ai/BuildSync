@@ -36,10 +36,13 @@ import {
   Lock,
   Globe,
   X,
+  LayoutGrid,
+  Rows3,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SectionGuard } from "@/components/access/section-guard";
 import { cn } from "@/lib/utils";
+import { useUiState } from "@/hooks/use-ui-state";
 
 type PortfolioStatus =
   | "ON_TRACK"
@@ -203,6 +206,11 @@ function PortfoliosPageInner() {
   const [tab, setTab] = useState<Tab>("recent");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  // "Browse all" layout: cards (default) vs. a table of portfolios with
+  // their portfolio-level fields (Status / Owner / Budget / Progress).
+  const { value: browseLayout, setValue: setBrowseLayout } = useUiState<
+    "cards" | "table"
+  >("portfoliosBrowseLayout", "cards");
 
   useEffect(() => {
     fetchPortfolios();
@@ -448,6 +456,35 @@ function PortfoliosPageInner() {
               On hold
             </FilterChip>
           </div>
+          {/* Layout toggle: cards vs. table */}
+          <div className="md:ml-auto inline-flex rounded-md border border-gray-200 bg-white p-0.5">
+            <button
+              onClick={() => setBrowseLayout("cards")}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-sm transition-colors",
+                browseLayout === "cards"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-500 hover:text-gray-900"
+              )}
+              aria-label="Card layout"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Cards</span>
+            </button>
+            <button
+              onClick={() => setBrowseLayout("table")}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-sm transition-colors",
+                browseLayout === "table"
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-500 hover:text-gray-900"
+              )}
+              aria-label="Table layout"
+            >
+              <Rows3 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Table</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -472,6 +509,13 @@ function PortfoliosPageInner() {
             Create your first portfolio
           </Button>
         </div>
+      ) : tab === "all" && browseLayout === "table" ? (
+        <PortfolioTable
+          portfolios={filtered}
+          favorites={favorites}
+          onToggleFavorite={toggleFavorite}
+          onOpen={(id) => router.push(`/portfolios/${id}`)}
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
           <Card
@@ -1351,6 +1395,134 @@ function CreateStepOnboarding({
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Table layout ────────────────────────────────────────────
+// Asana's landing renders a portfolio as a row with its portfolio-level
+// fields. Here each ROW is a portfolio, with Status / Owner / Budget /
+// Progress columns aggregated from its projects (already on each item's
+// `stats`), matching the card metrics but in a denser, scannable table.
+
+function PortfolioTable({
+  portfolios,
+  favorites,
+  onToggleFavorite,
+  onOpen,
+}: {
+  portfolios: Portfolio[];
+  favorites: Set<string>;
+  onToggleFavorite: (id: string) => void;
+  onOpen: (id: string) => void;
+}) {
+  if (portfolios.length === 0) {
+    return (
+      <div className="text-center py-12 text-sm text-gray-500 border rounded-lg bg-white">
+        No portfolios match your filters.
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white border rounded-lg overflow-x-auto">
+      <div className="min-w-[720px]">
+        {/* Header */}
+        <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,0.8fr)] gap-4 px-4 py-2.5 border-b bg-gray-50 text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+          <div>Name</div>
+          <div>Status</div>
+          <div>Owner</div>
+          <div>Budget</div>
+          <div>Progress</div>
+          <div className="text-right">Projects</div>
+        </div>
+        {portfolios.map((p) => {
+          const meta = STATUS_META[p.status];
+          const isFav = favorites.has(p.id);
+          const ownerInitial =
+            p.owner?.name?.charAt(0).toUpperCase() || "?";
+          return (
+            <div
+              key={p.id}
+              onClick={() => onOpen(p.id)}
+              className="grid grid-cols-[minmax(0,3fr)_minmax(0,1.4fr)_minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,0.8fr)] gap-4 px-4 py-3 border-b last:border-0 items-center hover:bg-gray-50 cursor-pointer group"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFavorite(p.id);
+                  }}
+                  className={cn(
+                    "p-0.5 rounded hover:bg-gray-100 transition-opacity",
+                    isFav
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-100"
+                  )}
+                  aria-label={isFav ? "Unfavorite" : "Favorite"}
+                >
+                  <Star
+                    className={cn(
+                      "h-3.5 w-3.5",
+                      isFav
+                        ? "fill-[#c9a84c] text-[#c9a84c]"
+                        : "text-gray-400"
+                    )}
+                  />
+                </button>
+                <span
+                  className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                  style={{ backgroundColor: p.color || "#a8893a" }}
+                />
+                <span className="font-medium text-black truncate">
+                  {p.name}
+                </span>
+              </div>
+              <div>
+                <span
+                  className={cn(
+                    "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border",
+                    meta.chip
+                  )}
+                >
+                  <span className={cn("w-2 h-2 rounded-full mr-1.5", meta.dot)} />
+                  {meta.label}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar className="h-6 w-6 flex-shrink-0">
+                  <AvatarImage src={p.owner?.image || ""} />
+                  <AvatarFallback
+                    className="text-[10px] font-medium text-white"
+                    style={{ backgroundColor: p.color || "#a8893a" }}
+                  >
+                    {ownerInitial}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm text-gray-700 truncate">
+                  {p.owner?.name || "—"}
+                </span>
+              </div>
+              <div className="text-sm text-gray-700 tabular-nums truncate">
+                {formatBudget(p.stats.totalBudget, p.stats.currency)}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden max-w-[120px]">
+                  <div
+                    className="h-full bg-[#a8893a]"
+                    style={{ width: `${p.stats.avgProgress}%` }}
+                  />
+                </div>
+                <span className="text-xs text-gray-500 tabular-nums w-9">
+                  {p.stats.avgProgress}%
+                </span>
+              </div>
+              <div className="text-right text-sm text-gray-700 tabular-nums">
+                {p._count.projects}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

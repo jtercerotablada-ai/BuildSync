@@ -4,7 +4,12 @@ import prisma from "@/lib/prisma";
 import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
 import { canAccessSection } from "@/lib/access-control";
 import { chartConfigSchema, type ChartConfig } from "@/lib/report-config";
-import { runChartQuery, buildMeta, type EngineContext } from "@/lib/report-query";
+import {
+  runChartQuery,
+  buildMeta,
+  portfolioProjectIds,
+  type EngineContext,
+} from "@/lib/report-query";
 
 /**
  * POST /api/reports/query — the custom-chart aggregation engine.
@@ -47,28 +52,69 @@ export async function POST(req: Request) {
     }
     const config = parsed.data as ChartConfig;
 
-    // Access gate: personal scope is always allowed; workspace/project
-    // (organization-wide) reporting requires L3+.
-    const isPersonal = config.scope.kind === "my";
-    if (!isPersonal && !canAccessSection(access, "reporting")) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    // For project scope, confirm the project is in the caller's workspace so
-    // a foreign projectId can't leak cross-workspace data.
-    if (config.scope.kind === "project") {
-      const project = await prisma.project.findUnique({
-        where: { id: config.scope.projectId },
-        select: { workspaceId: true },
+    // ── Portfolio scope: its OWN view-gate replaces the reporting gate. ──
+    // A portfolio's Panel is a shared dashboard: any viewer of the portfolio
+    // (owner | member | PUBLIC) must be able to see its charts, even without
+    // L3 reporting access. We resolve the portfolio's project ids ONCE here,
+    // after the view-check passes, and thread them onto EngineContext so the
+    // sub-queries stay pure.
+    let portfolioIds: string[] | undefined;
+    if (config.scope.kind === "portfolio") {
+      const portfolio = await prisma.portfolio.findUnique({
+        where: { id: config.scope.portfolioId },
+        select: {
+          workspaceId: true,
+          ownerId: true,
+          privacy: true,
+          members: { select: { userId: true } },
+        },
       });
-      if (!project || project.workspaceId !== access.workspaceId) {
-        return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      // Mask a missing / cross-workspace portfolio as 404.
+      if (!portfolio || portfolio.workspaceId !== access.workspaceId) {
+        return NextResponse.json(
+          { error: "Portfolio not found" },
+          { status: 404 }
+        );
+      }
+      // SAME view gate as GET /api/portfolios/[portfolioId]: owner, explicit
+      // member, or PUBLIC. Workspace membership alone does not auto-grant.
+      const isOwner = portfolio.ownerId === userId;
+      const isMember = portfolio.members.some((m) => m.userId === userId);
+      const isPublic = portfolio.privacy === "PUBLIC";
+      if (!isOwner && !isMember && !isPublic) {
+        return NextResponse.json(
+          { error: "Portfolio not found" },
+          { status: 404 }
+        );
+      }
+      // View-gate passed → resolve the project ids. Only now do we SKIP the
+      // canAccessSection('reporting') check for this scope.
+      portfolioIds = await portfolioProjectIds(config.scope.portfolioId);
+    } else {
+      // Access gate: personal scope is always allowed; workspace/project
+      // (organization-wide) reporting requires L3+.
+      const isPersonal = config.scope.kind === "my";
+      if (!isPersonal && !canAccessSection(access, "reporting")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      // For project scope, confirm the project is in the caller's workspace so
+      // a foreign projectId can't leak cross-workspace data.
+      if (config.scope.kind === "project") {
+        const project = await prisma.project.findUnique({
+          where: { id: config.scope.projectId },
+          select: { workspaceId: true },
+        });
+        if (!project || project.workspaceId !== access.workspaceId) {
+          return NextResponse.json({ error: "Project not found" }, { status: 404 });
+        }
       }
     }
 
     const ctx: EngineContext = {
       userId,
       workspaceId: access.workspaceId,
+      portfolioProjectIds: portfolioIds,
     };
 
     const result = await runChartQuery(config, ctx);

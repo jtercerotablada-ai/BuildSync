@@ -100,6 +100,30 @@ const COMPLETION_STATUS_COLORS: Record<string, string> = {
 export interface EngineContext {
   userId: string;
   workspaceId: string;
+  /**
+   * The project ids belonging to a portfolio, resolved ONCE (by the route,
+   * post view-gate) when config.scope.kind === 'portfolio'. The sub-queries
+   * read this instead of re-resolving the link table. An empty array means
+   * the portfolio has no projects → the aggregation matches nothing (a sound,
+   * honest empty result), never the whole workspace.
+   */
+  portfolioProjectIds?: string[];
+}
+
+/**
+ * Resolve a portfolio's project ids via the PortfolioProject join. Callers
+ * that already gated portfolio view-access should use this once and place the
+ * result on EngineContext.portfolioProjectIds so the entity sub-queries stay
+ * pure. Exported so the query route can resolve + gate in the same request.
+ */
+export async function portfolioProjectIds(
+  portfolioId: string
+): Promise<string[]> {
+  const links = await prisma.portfolioProject.findMany({
+    where: { portfolioId },
+    select: { projectId: true },
+  });
+  return links.map((l) => l.projectId);
 }
 
 // A resolved task row we pull once and reduce in JS.
@@ -160,6 +184,11 @@ function buildTaskWhere(
     // The route validates the project belongs to the workspace before
     // calling the engine.
     and.push({ projectId: config.scope.projectId });
+  } else if (config.scope.kind === "portfolio") {
+    // Tasks of the portfolio's projects. The route resolves + gates the ids
+    // (post portfolio view-check) onto ctx.portfolioProjectIds. An empty list
+    // matches nothing — a sound, honest empty result (never the workspace).
+    and.push({ projectId: { in: ctx.portfolioProjectIds ?? [] } });
   } else {
     // 'my' — tasks assigned to the caller, still workspace-scoped.
     and.push({ project: { workspaceId: ctx.workspaceId }, assigneeId: ctx.userId });
@@ -1178,6 +1207,12 @@ async function runProjectQuery(
 ): Promise<{ data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number }> {
   const where: Prisma.ProjectWhereInput = { workspaceId: ctx.workspaceId };
   if (config.scope.kind === "my") where.ownerId = ctx.userId;
+  else if (config.scope.kind === "portfolio") {
+    // Restrict to the portfolio's projects (resolved + view-gated by the
+    // route). workspaceId stays in the where as a defense-in-depth guard.
+    // Empty id list → matches nothing (sound empty).
+    where.id = { in: ctx.portfolioProjectIds ?? [] };
+  }
 
   // Fold SQL-expressible filters (status, owner) into the where.
   const and: Prisma.ProjectWhereInput[] = [];
@@ -1249,6 +1284,20 @@ async function runGoalQuery(
   config: ChartConfig,
   ctx: EngineContext
 ): Promise<{ data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number }> {
+  // Portfolio scope + goals: goals have NO portfolio link in the schema
+  // (Portfolio has no goals relation; RecordRow.portfolioIds is always []
+  // for goals — see applyRecordPostFilters). Rather than silently widening
+  // to the whole workspace, a portfolio-scoped goals query returns an empty
+  // result set. This mirrors the documented goal-portfolio-filter no-op:
+  // there is simply nothing to aggregate across a portfolio's (absent) goals.
+  if (config.scope.kind === "portfolio") {
+    return runRecordQuery([], config, {
+      users: new Map(),
+      portfolios: new Map(),
+      statusColors: GOAL_STATUS_COLORS,
+    });
+  }
+
   const where: Prisma.ObjectiveWhereInput = { workspaceId: ctx.workspaceId };
   if (config.scope.kind === "my") where.ownerId = ctx.userId;
 
@@ -1434,6 +1483,7 @@ const SCOPE_LABEL: Record<ChartConfig["scope"]["kind"], string> = {
   workspace: "My workspace",
   project: "a project",
   my: "assigned to me",
+  portfolio: "a portfolio",
 };
 
 export function buildMeta(config: ChartConfig): {
@@ -1448,8 +1498,7 @@ export function buildMeta(config: ChartConfig): {
       : "Goals";
   const n = config.filters.length;
   const filterPart = n === 0 ? "No filters" : `${n} filter${n === 1 ? "" : "s"}`;
-  const scopeLabel =
-    config.scope.kind === "project" ? "a project" : SCOPE_LABEL[config.scope.kind];
+  const scopeLabel = SCOPE_LABEL[config.scope.kind];
   const filterSummary = `${filterPart} · ${entityLabel} in ${scopeLabel}`;
 
   // drilldownBase: a querystring the task-list view can replay. We encode
@@ -1458,6 +1507,8 @@ export function buildMeta(config: ChartConfig): {
   params.set("entity", config.entity);
   params.set("scope", config.scope.kind);
   if (config.scope.kind === "project") params.set("projectId", config.scope.projectId);
+  if (config.scope.kind === "portfolio")
+    params.set("portfolioId", config.scope.portfolioId);
   if (config.filters.length) params.set("filters", JSON.stringify(config.filters));
   const drilldownBase = params.toString();
 

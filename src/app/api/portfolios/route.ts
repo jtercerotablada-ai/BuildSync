@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { daysFromToday } from "@/lib/date-only";
 
 const createPortfolioSchema = z.object({
   name: z.string().min(1),
@@ -125,7 +126,6 @@ export async function GET(req: Request) {
       let onTrackCount = 0;
       let onHoldCount = 0;
       let completeCount = 0;
-      const now = Date.now();
       let currency: string | null = null;
 
       for (const pp of p.projects) {
@@ -137,7 +137,10 @@ export async function GET(req: Request) {
         for (const t of proj.tasks) {
           totalTasks += 1;
           if (t.completed) completedTasks += 1;
-          else if (t.dueDate && new Date(t.dueDate).getTime() < now) {
+          // date-only overdue: a task due TODAY is NEVER overdue (a raw
+          // dueDate < now flips today's tasks for viewers west of UTC).
+          // daysFromToday buckets by the UTC calendar day — see date-only.ts.
+          else if (t.dueDate && daysFromToday(t.dueDate) < 0) {
             overdueTasks += 1;
           }
         }

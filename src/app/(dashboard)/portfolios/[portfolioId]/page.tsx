@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   ArrowLeft,
   Plus,
   MoreHorizontal,
@@ -52,6 +58,10 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  X,
+  Check,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -77,6 +87,7 @@ import { PortfolioPanelView } from "@/components/portfolios/portfolio-panel-view
 import { PortfolioProgressView } from "@/components/portfolios/portfolio-progress-view";
 import { PortfolioWorkloadView } from "@/components/portfolios/portfolio-workload-view";
 import { MessagesView } from "@/components/views/messages-view";
+import { useUiState } from "@/hooks/use-ui-state";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -231,6 +242,174 @@ function formatDate(date: string | null): string {
   });
 }
 
+function formatBudget(value: number | null, currency: string | null): string {
+  if (!value || value <= 0) return "—";
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency || "USD",
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(value);
+  } catch {
+    return `${currency || "USD"} ${value.toLocaleString("en-US")}`;
+  }
+}
+
+// ── List view: columns, filter, sort, group ─────────────────
+
+// Favorites live in localStorage under the same key the Portfolios
+// landing page uses so the detail-header star and the list cards stay
+// in sync (see src/app/(dashboard)/portfolios/page.tsx).
+const FAVORITES_KEY = "buildsync.portfolios.favorites";
+
+function loadFavorites(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(FAVORITES_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as unknown;
+    return Array.isArray(arr)
+      ? new Set(arr.filter((v): v is string => typeof v === "string"))
+      : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveFavorites(ids: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(FAVORITES_KEY, JSON.stringify([...ids]));
+  } catch {
+    // localStorage full / blocked — ignore.
+  }
+}
+
+type ColumnKey =
+  | "type"
+  | "gate"
+  | "status"
+  | "progress"
+  | "due"
+  | "budget"
+  | "owner";
+
+const COLUMN_DEFS: {
+  key: ColumnKey;
+  label: string;
+  // Grid span at md+ (Name is always 4; the remaining columns share
+  // the rest of a 14-col grid, so spans are recomputed per active set).
+  span: number;
+}[] = [
+  { key: "type", label: "Type", span: 1 },
+  { key: "gate", label: "Gate", span: 1 },
+  { key: "status", label: "Status", span: 2 },
+  { key: "progress", label: "Progress", span: 2 },
+  { key: "due", label: "Due date", span: 2 },
+  { key: "budget", label: "Budget", span: 2 },
+  { key: "owner", label: "Owner", span: 1 },
+];
+
+const DEFAULT_COLUMNS: ColumnKey[] = [
+  "type",
+  "gate",
+  "status",
+  "progress",
+  "due",
+  "owner",
+];
+
+type SortKey =
+  | "manual"
+  | "name"
+  | "status"
+  | "progress"
+  | "due"
+  | "budget";
+type SortDir = "asc" | "desc";
+type GroupKey = "none" | "status" | "owner" | "type" | "gate";
+
+interface ListViewState {
+  columns: ColumnKey[];
+  filter: {
+    status: PortfolioStatus[];
+    type: ProjectType[];
+    gate: ProjectGate[];
+    ownerId: string[];
+  };
+  sort: { key: SortKey; dir: SortDir };
+  group: GroupKey;
+}
+
+const DEFAULT_LIST_VIEW: ListViewState = {
+  columns: DEFAULT_COLUMNS,
+  filter: { status: [], type: [], gate: [], ownerId: [] },
+  sort: { key: "manual", dir: "asc" },
+  group: "none",
+};
+
+// Order used when sorting/grouping by status so "worse" health floats
+// to the top (Asana-like: off track before at risk before on track).
+const STATUS_SORT_ORDER: Record<PortfolioStatus, number> = {
+  OFF_TRACK: 0,
+  AT_RISK: 1,
+  ON_TRACK: 2,
+  ON_HOLD: 3,
+  COMPLETE: 4,
+};
+
+const SORT_LABELS: Record<Exclude<SortKey, "manual">, string> = {
+  name: "name",
+  status: "status",
+  progress: "progress",
+  due: "due date",
+  budget: "budget",
+};
+
+const GROUP_LABELS: Record<Exclude<GroupKey, "none">, string> = {
+  status: "status",
+  owner: "owner",
+  type: "type",
+  gate: "gate",
+};
+
+// Build the md+ grid template for the active column set. Name always
+// takes 4 fractional columns; the trailing actions cell takes 1; the
+// active data columns share the remaining tracks per COLUMN_DEFS.span.
+function gridTemplateFor(columns: ColumnKey[]): string {
+  const parts = ["4fr"]; // Name
+  for (const key of columns) {
+    const def = COLUMN_DEFS.find((c) => c.key === key);
+    parts.push(`${def ? def.span : 1}fr`);
+  }
+  parts.push("1fr"); // actions
+  return parts.join(" ");
+}
+
+function normalizeListView(raw: unknown): ListViewState {
+  if (!raw || typeof raw !== "object") return DEFAULT_LIST_VIEW;
+  const r = raw as Partial<ListViewState>;
+  const validCols = new Set<ColumnKey>(COLUMN_DEFS.map((c) => c.key));
+  const columns = Array.isArray(r.columns)
+    ? r.columns.filter((c): c is ColumnKey => validCols.has(c as ColumnKey))
+    : DEFAULT_COLUMNS;
+  return {
+    columns: columns.length ? columns : DEFAULT_COLUMNS,
+    filter: {
+      status: Array.isArray(r.filter?.status) ? r.filter!.status : [],
+      type: Array.isArray(r.filter?.type) ? r.filter!.type : [],
+      gate: Array.isArray(r.filter?.gate) ? r.filter!.gate : [],
+      ownerId: Array.isArray(r.filter?.ownerId) ? r.filter!.ownerId : [],
+    },
+    sort: {
+      key: (r.sort?.key as SortKey) || "manual",
+      dir: r.sort?.dir === "desc" ? "desc" : "asc",
+    },
+    group: (r.group as GroupKey) || "none",
+  };
+}
+
 // ── Page ────────────────────────────────────────────────────
 
 export default function PortfolioDetailPage() {
@@ -251,10 +430,41 @@ export default function PortfolioDetailPage() {
   const [updatesLoading, setUpdatesLoading] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
+  // Favorite star (shared localStorage key with the Portfolios landing).
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const isFavorite = favorites.has(portfolioId);
+
+  // List-view preferences (columns / filter / sort / group) persisted
+  // per-portfolio, per-user in uiState so they survive reloads & devices.
+  const { value: rawListView, setValue: setRawListView } = useUiState<
+    Record<string, ListViewState>
+  >("portfolioListView", {});
+  const listView = normalizeListView(rawListView[portfolioId]);
+  const setListView = (next: ListViewState) =>
+    setRawListView((prev) => ({ ...prev, [portfolioId]: next }));
+
+  // Client-side text search over project names (ephemeral, not persisted).
+  const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+
   useEffect(() => {
     fetchPortfolio();
     fetchUpdates();
   }, [portfolioId]);
+
+  useEffect(() => {
+    setFavorites(loadFavorites());
+  }, []);
+
+  function toggleFavorite() {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(portfolioId)) next.delete(portfolioId);
+      else next.add(portfolioId);
+      saveFavorites(next);
+      return next;
+    });
+  }
 
   async function fetchPortfolio() {
     try {
@@ -567,6 +777,138 @@ export default function PortfolioDetailPage() {
     };
   }, [portfolio]);
 
+  // ── List view: derived rows ───────────────────────────────
+  // Unique owners across the portfolio's projects, for the Filter popover.
+  const ownerOptions = useMemo(() => {
+    if (!portfolio) return [] as { id: string; name: string }[];
+    const map = new Map<string, string>();
+    for (const pp of portfolio.projects) {
+      const o = pp.project.owner;
+      if (o) map.set(o.id, o.name || "Unknown");
+    }
+    return [...map.entries()].map(([id, name]) => ({ id, name }));
+  }, [portfolio]);
+
+  const activeFilterCount =
+    listView.filter.status.length +
+    listView.filter.type.length +
+    listView.filter.gate.length +
+    listView.filter.ownerId.length;
+
+  // A manual drag reorder only makes sense on the unmodified list:
+  // when a filter/sort/group/search is active, rows no longer map 1:1
+  // to stored positions, so dnd is disabled (Asana does the same).
+  const listModified =
+    activeFilterCount > 0 ||
+    listView.sort.key !== "manual" ||
+    listView.group !== "none" ||
+    search.trim().length > 0;
+
+  const visibleRows = useMemo(() => {
+    if (!portfolio) return [] as PortfolioProject[];
+    const q = search.trim().toLowerCase();
+    let rows = portfolio.projects.slice();
+
+    // Filter
+    const f = listView.filter;
+    rows = rows.filter((pp) => {
+      const p = pp.project;
+      if (f.status.length && !f.status.includes(p.status)) return false;
+      if (f.type.length && (!p.type || !f.type.includes(p.type))) return false;
+      if (f.gate.length && (!p.gate || !f.gate.includes(p.gate))) return false;
+      if (
+        f.ownerId.length &&
+        (!p.owner || !f.ownerId.includes(p.owner.id))
+      )
+        return false;
+      if (q && !p.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    // Sort (manual keeps the stored position order)
+    if (listView.sort.key !== "manual") {
+      const dir = listView.sort.dir === "desc" ? -1 : 1;
+      rows.sort((a, b) => {
+        const pa = a.project;
+        const pb = b.project;
+        let cmp = 0;
+        switch (listView.sort.key) {
+          case "name":
+            cmp = pa.name.localeCompare(pb.name);
+            break;
+          case "status":
+            cmp =
+              STATUS_SORT_ORDER[pa.status] - STATUS_SORT_ORDER[pb.status];
+            break;
+          case "progress":
+            cmp = pa.stats.progress - pb.stats.progress;
+            break;
+          case "budget":
+            cmp = (pa.budget || 0) - (pb.budget || 0);
+            break;
+          case "due": {
+            const da = pa.endDate ? new Date(pa.endDate).getTime() : Infinity;
+            const db = pb.endDate ? new Date(pb.endDate).getTime() : Infinity;
+            cmp = da - db;
+            break;
+          }
+        }
+        return cmp * dir;
+      });
+    }
+
+    return rows;
+  }, [portfolio, listView.filter, listView.sort, search]);
+
+  // Group the visible rows into ordered sections. "none" yields a single
+  // untitled section so the render path stays uniform.
+  const groupedRows = useMemo(() => {
+    if (listView.group === "none") {
+      return [{ key: "all", label: "", rows: visibleRows }];
+    }
+    const buckets = new Map<string, { label: string; rows: PortfolioProject[] }>();
+    const order: string[] = [];
+    const ensure = (key: string, label: string) => {
+      if (!buckets.has(key)) {
+        buckets.set(key, { label, rows: [] });
+        order.push(key);
+      }
+      return buckets.get(key)!;
+    };
+    for (const pp of visibleRows) {
+      const p = pp.project;
+      let key = "—";
+      let label = "None";
+      if (listView.group === "status") {
+        key = p.status;
+        label = statusMeta(p.status).label;
+      } else if (listView.group === "owner") {
+        key = p.owner?.id || "_none";
+        label = p.owner?.name || "No owner";
+      } else if (listView.group === "type") {
+        key = p.type || "_none";
+        label = p.type ? TYPE_META[p.type].label : "No type";
+      } else if (listView.group === "gate") {
+        key = p.gate || "_none";
+        label = p.gate ? GATE_META[p.gate].label : "No gate";
+      }
+      ensure(key, label).rows.push(pp);
+    }
+    // Sort status groups by health order for a stable, meaningful order.
+    if (listView.group === "status") {
+      order.sort(
+        (a, b) =>
+          (STATUS_SORT_ORDER[a as PortfolioStatus] ?? 99) -
+          (STATUS_SORT_ORDER[b as PortfolioStatus] ?? 99)
+      );
+    }
+    return order.map((key) => ({
+      key,
+      label: buckets.get(key)!.label,
+      rows: buckets.get(key)!.rows,
+    }));
+  }, [visibleRows, listView.group]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -650,14 +992,19 @@ export default function PortfolioDetailPage() {
             )}
           </button>
           <button
-            onClick={() =>
-              /* placeholder favorite toggle — list-scoped favorites for now */
-              toast.message("Favorite portfolios from the Portfolios list")
-            }
+            onClick={toggleFavorite}
             className="p-1.5 hover:bg-gray-100 rounded flex-shrink-0"
-            aria-label="Favorite"
+            aria-label={isFavorite ? "Unfavorite" : "Favorite"}
+            title={isFavorite ? "Remove from favorites" : "Add to favorites"}
           >
-            <Star className="h-4 w-4 text-gray-400" />
+            <Star
+              className={cn(
+                "h-4 w-4",
+                isFavorite
+                  ? "fill-[#c9a84c] text-[#c9a84c]"
+                  : "text-gray-400"
+              )}
+            />
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -815,20 +1162,117 @@ export default function PortfolioDetailPage() {
                     <span className="hidden sm:inline">Add project</span>
                   </Button>
                   <div className="hidden lg:block w-px h-5 bg-gray-200 mx-1" />
-                  <ToolbarChip icon={<Filter className="h-3.5 w-3.5" />} label="Filter" />
-                  <ToolbarChip icon={<ArrowUpDown className="h-3.5 w-3.5" />} label="Sort" />
-                  <ToolbarChip icon={<Layers className="h-3.5 w-3.5" />} label="Group" />
-                  <ToolbarChip icon={<SlidersHorizontal className="h-3.5 w-3.5" />} label="Options" />
-                  <div className="ml-auto flex items-center">
-                    <button
-                      className="p-1.5 hover:bg-gray-100 rounded-md"
-                      onClick={() => toast.message("Search coming soon")}
-                      aria-label="Search"
-                    >
-                      <Search className="h-4 w-4 text-gray-500" />
-                    </button>
+                  <ListFilterPopover
+                    listView={listView}
+                    setListView={setListView}
+                    ownerOptions={ownerOptions}
+                    activeCount={activeFilterCount}
+                  />
+                  <ListSortPopover
+                    listView={listView}
+                    setListView={setListView}
+                  />
+                  <ListGroupPopover
+                    listView={listView}
+                    setListView={setListView}
+                  />
+                  <ListOptionsPopover
+                    listView={listView}
+                    setListView={setListView}
+                  />
+                  <div className="ml-auto flex items-center gap-1">
+                    {searchOpen ? (
+                      <div className="relative">
+                        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <Input
+                          value={search}
+                          autoFocus
+                          onChange={(e) => setSearch(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setSearch("");
+                              setSearchOpen(false);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (!search) setSearchOpen(false);
+                          }}
+                          placeholder="Search projects..."
+                          className="h-8 w-40 md:w-56 pl-8 text-sm"
+                        />
+                        {search && (
+                          <button
+                            onClick={() => {
+                              setSearch("");
+                              setSearchOpen(false);
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                            aria-label="Clear search"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        className="p-1.5 hover:bg-gray-100 rounded-md"
+                        onClick={() => setSearchOpen(true)}
+                        aria-label="Search"
+                      >
+                        <Search className="h-4 w-4 text-gray-500" />
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {/* Active-filter summary bar */}
+                {(activeFilterCount > 0 ||
+                  listView.sort.key !== "manual" ||
+                  listView.group !== "none") && (
+                  <div className="flex flex-wrap items-center gap-2 px-3 md:px-4 py-2 border-b bg-gray-50/60 text-xs text-gray-600">
+                    {activeFilterCount > 0 && (
+                      <span className="inline-flex items-center gap-1">
+                        <Filter className="h-3 w-3" />
+                        {activeFilterCount}{" "}
+                        {activeFilterCount === 1 ? "filter" : "filters"}
+                      </span>
+                    )}
+                    {listView.sort.key !== "manual" && (
+                      <span className="inline-flex items-center gap-1">
+                        <ArrowUpDown className="h-3 w-3" />
+                        Sorted by {SORT_LABELS[listView.sort.key]}
+                      </span>
+                    )}
+                    {listView.group !== "none" && (
+                      <span className="inline-flex items-center gap-1">
+                        <Layers className="h-3 w-3" />
+                        Grouped by {GROUP_LABELS[listView.group]}
+                      </span>
+                    )}
+                    <span className="text-gray-400">·</span>
+                    <span className="tabular-nums">
+                      {visibleRows.length} of {portfolio.projects.length}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setListView({
+                          ...listView,
+                          filter: {
+                            status: [],
+                            type: [],
+                            gate: [],
+                            ownerId: [],
+                          },
+                          sort: { key: "manual", dir: "asc" },
+                          group: "none",
+                        })
+                      }
+                      className="text-[#a8893a] hover:underline ml-1"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
 
                 {portfolio.projects.length === 0 ? (
                   <EmptyProjects
@@ -837,40 +1281,71 @@ export default function PortfolioDetailPage() {
                       fetchAvailableProjects();
                     }}
                   />
+                ) : visibleRows.length === 0 ? (
+                  <div className="py-16 text-center text-sm text-gray-500">
+                    No projects match your filters or search.
+                  </div>
                 ) : (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={portfolio.projects.map((p) => p.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div>
-                        <div className="hidden md:grid grid-cols-[repeat(14,minmax(0,1fr))] gap-4 px-4 py-2 border-b text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
-                          <div className="col-span-4">Name</div>
-                          <div className="col-span-1">Type</div>
-                          <div className="col-span-1">Gate</div>
-                          <div className="col-span-2">Status</div>
-                          <div className="col-span-2">Progress</div>
-                          <div className="col-span-2">Due date</div>
-                          <div className="col-span-1">Owner</div>
-                          <div className="col-span-1"></div>
-                        </div>
-                        {portfolio.projects.map((pp) => (
-                          <SortableProjectRow
-                            key={pp.id}
-                            pp={pp}
-                            onClick={() =>
-                              router.push(`/projects/${pp.project.id}`)
-                            }
-                            onRemove={() => handleRemoveProject(pp.project.id)}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
+                  <div>
+                    {/* Column header */}
+                    <ListColumnHeader columns={listView.columns} />
+
+                    {/* Grouped, non-draggable render when list is modified */}
+                    {listModified
+                      ? groupedRows.map((g) => (
+                          <div key={g.key}>
+                            {g.label && (
+                              <div className="hidden md:flex items-center gap-2 px-4 py-1.5 bg-gray-50/80 border-b text-xs font-medium text-gray-600">
+                                {g.label}
+                                <span className="text-gray-400 tabular-nums">
+                                  {g.rows.length}
+                                </span>
+                              </div>
+                            )}
+                            {g.rows.map((pp) => (
+                              <ProjectRow
+                                key={pp.id}
+                                pp={pp}
+                                columns={listView.columns}
+                                onClick={() =>
+                                  router.push(`/projects/${pp.project.id}`)
+                                }
+                                onRemove={() =>
+                                  handleRemoveProject(pp.project.id)
+                                }
+                              />
+                            ))}
+                          </div>
+                        ))
+                      : (
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <SortableContext
+                            items={portfolio.projects.map((p) => p.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div>
+                              {portfolio.projects.map((pp) => (
+                                <SortableProjectRow
+                                  key={pp.id}
+                                  pp={pp}
+                                  columns={listView.columns}
+                                  onClick={() =>
+                                    router.push(`/projects/${pp.project.id}`)
+                                  }
+                                  onRemove={() =>
+                                    handleRemoveProject(pp.project.id)
+                                  }
+                                />
+                              ))}
+                            </div>
+                          </SortableContext>
+                        </DndContext>
+                      )}
+                  </div>
                 )}
               </div>
             </TabsContent>
@@ -909,6 +1384,7 @@ export default function PortfolioDetailPage() {
 
             <TabsContent value="progress" className="mt-4">
               <PortfolioProgressView
+                portfolioId={portfolioId}
                 status={portfolio.status}
                 portfolioName={portfolio.name}
                 description={portfolio.description}
@@ -1008,26 +1484,50 @@ export default function PortfolioDetailPage() {
 
 // ── Subcomponents ───────────────────────────────────────────
 
-function ToolbarChip({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick?: () => void;
-}) {
+// Small trigger button for the list toolbar popovers. Mirrors the
+// old ToolbarChip look but exposes an active state + optional count.
+// Forwards ref + props so it can be a Radix PopoverTrigger `asChild`
+// target directly (no wrapper div → no nested-button).
+const ToolbarChipTrigger = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<"button"> & {
+    icon: React.ReactNode;
+    label: string;
+    active?: boolean;
+    count?: number;
+  }
+>(function ToolbarChipTrigger(
+  { icon, label, active, count, className, ...props },
+  ref
+) {
   return (
     <button
+      ref={ref}
       type="button"
-      onClick={onClick || (() => toast.message(`${label} coming soon`))}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors",
+        active
+          ? "bg-gray-900 text-white hover:bg-gray-800"
+          : "text-gray-700 hover:bg-gray-100",
+        className
+      )}
+      {...props}
     >
       {icon}
       <span className="hidden sm:inline">{label}</span>
+      {count ? (
+        <span
+          className={cn(
+            "ml-0.5 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[10px] tabular-nums",
+            active ? "bg-white/25 text-white" : "bg-gray-200 text-gray-700"
+          )}
+        >
+          {count}
+        </span>
+      ) : null}
     </button>
   );
-}
+});
 
 function EmptyProjects({ onAdd }: { onAdd: () => void }) {
   return (
@@ -1070,85 +1570,63 @@ function EmptyState({
   );
 }
 
-function SortableProjectRow({
-  pp,
-  onClick,
-  onRemove,
-}: {
-  pp: PortfolioProject;
-  onClick: () => void;
-  onRemove: () => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: pp.id });
+// ── List column header ──────────────────────────────────────
 
-  const p = pp.project;
-  const m = statusMeta(p.status);
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : "auto",
-  };
-
+function ListColumnHeader({ columns }: { columns: ColumnKey[] }) {
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "border-b last:border-0 hover:bg-gray-50 cursor-pointer group bg-white",
-        isDragging && "shadow-lg"
-      )}
-      onClick={onClick}
+      className="hidden md:grid gap-4 px-4 py-2 border-b text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50"
+      style={{ gridTemplateColumns: gridTemplateFor(columns) }}
     >
-      <div className="hidden md:grid grid-cols-[repeat(14,minmax(0,1fr))] gap-4 px-4 py-3 items-center">
-        <div className="col-span-4 flex items-center gap-2 min-w-0">
-          <button
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-            className="touch-none cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity p-1 -ml-1 text-gray-400 hover:text-gray-700"
-            aria-label="Drag to reorder"
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
-          <div
-            className="w-3 h-3 rounded flex-shrink-0"
-            style={{ backgroundColor: p.color }}
-          />
-          <span className="font-medium text-black truncate">{p.name}</span>
-        </div>
-        <div className="col-span-1">
-          {p.type ? (
-            <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-medium">
-              {TYPE_META[p.type].short}
-            </span>
-          ) : (
-            <span className="text-gray-300 text-xs">—</span>
-          )}
-        </div>
-        <div className="col-span-1 text-xs text-gray-700 truncate">
+      <div>Name</div>
+      {columns.map((key) => {
+        const def = COLUMN_DEFS.find((c) => c.key === key)!;
+        return <div key={key}>{def.label}</div>;
+      })}
+      <div />
+    </div>
+  );
+}
+
+// Render a single data cell for the given column key.
+function ProjectDataCell({
+  columnKey,
+  p,
+}: {
+  columnKey: ColumnKey;
+  p: Project;
+}) {
+  switch (columnKey) {
+    case "type":
+      return p.type ? (
+        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-medium">
+          {TYPE_META[p.type].short}
+        </span>
+      ) : (
+        <span className="text-gray-300 text-xs">—</span>
+      );
+    case "gate":
+      return (
+        <div className="text-xs text-gray-700 truncate">
           {p.gate ? GATE_META[p.gate].label : "—"}
         </div>
-        <div className="col-span-2">
-          <Badge className={cn(m.chip, "text-xs")}>{m.label}</Badge>
+      );
+    case "status": {
+      const m = statusMeta(p.status);
+      return <Badge className={cn(m.chip, "text-xs")}>{m.label}</Badge>;
+    }
+    case "progress":
+      return (
+        <div className="flex items-center gap-2">
+          <Progress value={p.stats.progress} className="h-1.5 flex-1" />
+          <span className="text-xs text-gray-600 w-9 tabular-nums">
+            {p.stats.progress}%
+          </span>
         </div>
-        <div className="col-span-2">
-          <div className="flex items-center gap-2">
-            <Progress value={p.stats.progress} className="h-1.5 flex-1" />
-            <span className="text-xs text-gray-600 w-9 tabular-nums">
-              {p.stats.progress}%
-            </span>
-          </div>
-        </div>
-        <div className="col-span-2 text-xs text-gray-700 truncate flex items-center gap-1.5">
+      );
+    case "due":
+      return (
+        <div className="text-xs text-gray-700 truncate flex items-center gap-1.5">
           {p.startDate || p.endDate ? (
             <>
               <Calendar className="h-3 w-3 text-gray-400 flex-shrink-0" />
@@ -1160,15 +1638,61 @@ function SortableProjectRow({
             <span className="text-gray-300">—</span>
           )}
         </div>
-        <div className="col-span-1">
-          <Avatar className="h-6 w-6">
-            <AvatarImage src={p.owner?.image || ""} />
-            <AvatarFallback className="text-xs bg-gray-200">
-              {p.owner?.name?.charAt(0) || "?"}
-            </AvatarFallback>
-          </Avatar>
+      );
+    case "budget":
+      return (
+        <div className="text-xs text-gray-700 tabular-nums truncate">
+          {formatBudget(p.budget, p.currency)}
         </div>
-        <div className="col-span-1 flex justify-end">
+      );
+    case "owner":
+      return (
+        <Avatar className="h-6 w-6">
+          <AvatarImage src={p.owner?.image || ""} />
+          <AvatarFallback className="text-xs bg-gray-200">
+            {p.owner?.name?.charAt(0) || "?"}
+          </AvatarFallback>
+        </Avatar>
+      );
+  }
+}
+
+// Shared row body used by both the draggable and the static (grouped /
+// sorted) rows. `dragHandle` is injected only in the sortable variant.
+function ProjectRowBody({
+  pp,
+  columns,
+  onRemove,
+  dragHandle,
+}: {
+  pp: PortfolioProject;
+  columns: ColumnKey[];
+  onRemove: () => void;
+  dragHandle?: React.ReactNode;
+}) {
+  const p = pp.project;
+  const m = statusMeta(p.status);
+  return (
+    <>
+      {/* Desktop grid */}
+      <div
+        className="hidden md:grid gap-4 px-4 py-3 items-center"
+        style={{ gridTemplateColumns: gridTemplateFor(columns) }}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {dragHandle}
+          <div
+            className="w-3 h-3 rounded flex-shrink-0"
+            style={{ backgroundColor: p.color }}
+          />
+          <span className="font-medium text-black truncate">{p.name}</span>
+        </div>
+        {columns.map((key) => (
+          <div key={key} className="min-w-0">
+            <ProjectDataCell columnKey={key} p={p} />
+          </div>
+        ))}
+        <div className="flex justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -1191,16 +1715,9 @@ function SortableProjectRow({
         </div>
       </div>
 
+      {/* Mobile compact row */}
       <div className="md:hidden px-3 py-3 flex items-center gap-3">
-        <button
-          {...attributes}
-          {...listeners}
-          onClick={(e) => e.stopPropagation()}
-          className="touch-none cursor-grab text-gray-400"
-          aria-label="Drag to reorder"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        {dragHandle}
         <div
           className="w-3 h-3 rounded flex-shrink-0"
           style={{ backgroundColor: p.color }}
@@ -1252,6 +1769,430 @@ function SortableProjectRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+    </>
+  );
+}
+
+// Static (non-draggable) row — used when the list is filtered / sorted
+// / grouped / searched, where manual reorder is disabled.
+function ProjectRow({
+  pp,
+  columns,
+  onClick,
+  onRemove,
+}: {
+  pp: PortfolioProject;
+  columns: ColumnKey[];
+  onClick: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div
+      className="border-b last:border-0 hover:bg-gray-50 cursor-pointer group bg-white"
+      onClick={onClick}
+    >
+      <ProjectRowBody pp={pp} columns={columns} onRemove={onRemove} />
     </div>
+  );
+}
+
+function SortableProjectRow({
+  pp,
+  columns,
+  onClick,
+  onRemove,
+}: {
+  pp: PortfolioProject;
+  columns: ColumnKey[];
+  onClick: () => void;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: pp.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : "auto",
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "border-b last:border-0 hover:bg-gray-50 cursor-pointer group bg-white",
+        isDragging && "shadow-lg"
+      )}
+      onClick={onClick}
+    >
+      <ProjectRowBody
+        pp={pp}
+        columns={columns}
+        onRemove={onRemove}
+        dragHandle={
+          <button
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+            className="touch-none cursor-grab active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1 -ml-1 text-gray-400 hover:text-gray-700"
+            aria-label="Drag to reorder"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        }
+      />
+    </div>
+  );
+}
+
+// ── List toolbar popovers ───────────────────────────────────
+
+function CheckRow({
+  checked,
+  label,
+  onToggle,
+  dot,
+}: {
+  checked: boolean;
+  label: string;
+  onToggle: () => void;
+  dot?: string;
+}) {
+  // Presentational checkbox (not a Radix control) so the row's own
+  // button owns the click and there's no controlled-input warning.
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      role="checkbox"
+      aria-checked={checked}
+      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-100 text-left"
+    >
+      <span
+        className={cn(
+          "flex items-center justify-center size-4 shrink-0 rounded-[4px] border transition-colors",
+          checked
+            ? "bg-gray-900 border-gray-900 text-white"
+            : "border-gray-300 bg-white"
+        )}
+      >
+        {checked && <Check className="size-3" />}
+      </span>
+      {dot && <span className={cn("w-2 h-2 rounded-full", dot)} />}
+      <span className="text-sm text-gray-800 flex-1">{label}</span>
+    </button>
+  );
+}
+
+function ListFilterPopover({
+  listView,
+  setListView,
+  ownerOptions,
+  activeCount,
+}: {
+  listView: ListViewState;
+  setListView: (v: ListViewState) => void;
+  ownerOptions: { id: string; name: string }[];
+  activeCount: number;
+}) {
+  const f = listView.filter;
+  const toggle = <K extends keyof ListViewState["filter"]>(
+    key: K,
+    value: ListViewState["filter"][K][number]
+  ) => {
+    const arr = f[key] as string[];
+    const next = arr.includes(value as string)
+      ? arr.filter((v) => v !== value)
+      : [...arr, value as string];
+    setListView({ ...listView, filter: { ...f, [key]: next } });
+  };
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <ToolbarChipTrigger
+          icon={<Filter className="h-3.5 w-3.5" />}
+          label="Filter"
+          active={activeCount > 0}
+          count={activeCount || undefined}
+        />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-3 max-h-[70vh] overflow-y-auto">
+        <div className="space-y-3">
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+              Status
+            </div>
+            {STATUS_OPTIONS.map((o) => (
+              <CheckRow
+                key={o.value}
+                checked={f.status.includes(o.value)}
+                label={o.label}
+                dot={o.dot}
+                onToggle={() => toggle("status", o.value)}
+              />
+            ))}
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+              Type
+            </div>
+            {(Object.keys(TYPE_META) as ProjectType[]).map((t) => (
+              <CheckRow
+                key={t}
+                checked={f.type.includes(t)}
+                label={TYPE_META[t].label}
+                onToggle={() => toggle("type", t)}
+              />
+            ))}
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+              Gate
+            </div>
+            {(Object.keys(GATE_META) as ProjectGate[]).map((g) => (
+              <CheckRow
+                key={g}
+                checked={f.gate.includes(g)}
+                label={GATE_META[g].label}
+                onToggle={() => toggle("gate", g)}
+              />
+            ))}
+          </div>
+          {ownerOptions.length > 0 && (
+            <div>
+              <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                Owner
+              </div>
+              {ownerOptions.map((o) => (
+                <CheckRow
+                  key={o.id}
+                  checked={f.ownerId.includes(o.id)}
+                  label={o.name}
+                  onToggle={() => toggle("ownerId", o.id)}
+                />
+              ))}
+            </div>
+          )}
+          {activeCount > 0 && (
+            <button
+              onClick={() =>
+                setListView({
+                  ...listView,
+                  filter: { status: [], type: [], gate: [], ownerId: [] },
+                })
+              }
+              className="w-full text-center text-xs text-[#a8893a] hover:underline pt-1"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ListSortPopover({
+  listView,
+  setListView,
+}: {
+  listView: ListViewState;
+  setListView: (v: ListViewState) => void;
+}) {
+  const options: { key: SortKey; label: string }[] = [
+    { key: "manual", label: "Manual (drag order)" },
+    { key: "name", label: "Name" },
+    { key: "status", label: "Status" },
+    { key: "progress", label: "Progress" },
+    { key: "due", label: "Due date" },
+    { key: "budget", label: "Budget" },
+  ];
+  const active = listView.sort.key !== "manual";
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <ToolbarChipTrigger
+          icon={<ArrowUpDown className="h-3.5 w-3.5" />}
+          label="Sort"
+          active={active}
+        />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-2">
+        <div className="space-y-0.5">
+          {options.map((o) => {
+            const isActive = listView.sort.key === o.key;
+            return (
+              <button
+                key={o.key}
+                onClick={() =>
+                  setListView({
+                    ...listView,
+                    sort: {
+                      key: o.key,
+                      dir: isActive ? listView.sort.dir : "asc",
+                    },
+                  })
+                }
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-sm hover:bg-gray-100",
+                  isActive && "bg-gray-50 font-medium"
+                )}
+              >
+                {isActive ? (
+                  <Check className="h-3.5 w-3.5 text-[#a8893a]" />
+                ) : (
+                  <span className="w-3.5" />
+                )}
+                {o.label}
+              </button>
+            );
+          })}
+          {active && (
+            <div className="border-t mt-1 pt-1 flex gap-1">
+              <button
+                onClick={() =>
+                  setListView({
+                    ...listView,
+                    sort: { ...listView.sort, dir: "asc" },
+                  })
+                }
+                className={cn(
+                  "flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs hover:bg-gray-100",
+                  listView.sort.dir === "asc" && "bg-gray-100 font-medium"
+                )}
+              >
+                <ArrowUp className="h-3.5 w-3.5" /> Ascending
+              </button>
+              <button
+                onClick={() =>
+                  setListView({
+                    ...listView,
+                    sort: { ...listView.sort, dir: "desc" },
+                  })
+                }
+                className={cn(
+                  "flex-1 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs hover:bg-gray-100",
+                  listView.sort.dir === "desc" && "bg-gray-100 font-medium"
+                )}
+              >
+                <ArrowDown className="h-3.5 w-3.5" /> Descending
+              </button>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ListGroupPopover({
+  listView,
+  setListView,
+}: {
+  listView: ListViewState;
+  setListView: (v: ListViewState) => void;
+}) {
+  const options: { key: GroupKey; label: string }[] = [
+    { key: "none", label: "None" },
+    { key: "status", label: "Status" },
+    { key: "owner", label: "Owner" },
+    { key: "type", label: "Type" },
+    { key: "gate", label: "Gate" },
+  ];
+  const active = listView.group !== "none";
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <ToolbarChipTrigger
+          icon={<Layers className="h-3.5 w-3.5" />}
+          label="Group"
+          active={active}
+        />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-48 p-2">
+        <div className="space-y-0.5">
+          {options.map((o) => {
+            const isActive = listView.group === o.key;
+            return (
+              <button
+                key={o.key}
+                onClick={() => setListView({ ...listView, group: o.key })}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-sm hover:bg-gray-100",
+                  isActive && "bg-gray-50 font-medium"
+                )}
+              >
+                {isActive ? (
+                  <Check className="h-3.5 w-3.5 text-[#a8893a]" />
+                ) : (
+                  <span className="w-3.5" />
+                )}
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ListOptionsPopover({
+  listView,
+  setListView,
+}: {
+  listView: ListViewState;
+  setListView: (v: ListViewState) => void;
+}) {
+  const isVisible = (key: ColumnKey) => listView.columns.includes(key);
+  const toggleColumn = (key: ColumnKey) => {
+    const next = isVisible(key)
+      ? listView.columns.filter((c) => c !== key)
+      : // Preserve the canonical COLUMN_DEFS order when re-adding.
+        COLUMN_DEFS.filter(
+          (c) => listView.columns.includes(c.key) || c.key === key
+        ).map((c) => c.key);
+    setListView({ ...listView, columns: next });
+  };
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <ToolbarChipTrigger
+          icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
+          label="Options"
+        />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-3">
+        <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+          Columns
+        </div>
+        <div className="space-y-0.5">
+          {COLUMN_DEFS.map((def) => (
+            <CheckRow
+              key={def.key}
+              checked={isVisible(def.key)}
+              label={def.label}
+              onToggle={() => toggleColumn(def.key)}
+            />
+          ))}
+        </div>
+        <button
+          onClick={() =>
+            setListView({ ...listView, columns: DEFAULT_COLUMNS })
+          }
+          className="w-full text-center text-xs text-[#a8893a] hover:underline pt-2"
+        >
+          Reset columns
+        </button>
+      </PopoverContent>
+    </Popover>
   );
 }

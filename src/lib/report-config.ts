@@ -68,7 +68,8 @@ export const MULTI_SERIES_CHART_TYPES: ChartType[] = [
 export type ChartScope =
   | { kind: "workspace" }
   | { kind: "project"; projectId: string }
-  | { kind: "my" }; // assignee (tasks) / owner (projects, goals) = caller
+  | { kind: "my" } // assignee (tasks) / owner (projects, goals) = caller
+  | { kind: "portfolio"; portfolioId: string }; // aggregate across the portfolio's projects
 
 // ─── Dimension fields ─────────────────────────────────────────────
 
@@ -224,6 +225,7 @@ const scopeSchema = z.union([
   z.object({ kind: z.literal("workspace") }),
   z.object({ kind: z.literal("project"), projectId: z.string().min(1) }),
   z.object({ kind: z.literal("my") }),
+  z.object({ kind: z.literal("portfolio"), portfolioId: z.string().min(1) }),
 ]);
 
 const dimFieldSchema = z.string().min(1); // refined per-entity in the engine

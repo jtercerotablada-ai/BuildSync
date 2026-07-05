@@ -23,7 +23,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Plus, X, Loader2, Trash2 } from "lucide-react";
+import { Plus, X, Loader2, Trash2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -277,14 +277,25 @@ export interface ChartBuilderProps {
     benchmark?: number;
   } | null;
   onSubmit: (result: ChartBuilderResult) => void;
+  /**
+   * When provided, the "Include from" scope is PRESET to this scope and
+   * LOCKED (the scope selector is replaced by a read-only pill). The Portfolio
+   * Panel passes { kind:'portfolio', portfolioId } so every chart it produces
+   * aggregates across the portfolio's projects and can never target a foreign
+   * scope. Optional — the Reporting dashboards omit it and keep the full
+   * workspace/project/my selector.
+   */
+  lockedScope?: ChartScope;
+  /** Human label for the locked scope pill (e.g. the portfolio name). */
+  lockedScopeLabel?: string;
 }
 
 // ── Default config factory ───────────────────────────────────────────
 
-function defaultConfig(): ChartConfig {
+function defaultConfig(scope?: ChartScope): ChartConfig {
   return {
     entity: "tasks",
-    scope: { kind: "workspace" },
+    scope: scope ?? { kind: "workspace" },
     chartType: "column",
     dimension: { field: "assignee" },
     measures: [defaultMeasure("tasks")],
@@ -293,7 +304,14 @@ function defaultConfig(): ChartConfig {
   };
 }
 
-export function ChartBuilder({ open, onOpenChange, initial, onSubmit }: ChartBuilderProps) {
+export function ChartBuilder({
+  open,
+  onOpenChange,
+  initial,
+  onSubmit,
+  lockedScope,
+  lockedScopeLabel,
+}: ChartBuilderProps) {
   const [title, setTitle] = useState("Untitled chart");
   const [config, setConfig] = useState<ChartConfig>(defaultConfig());
   const [showDataLabels, setShowDataLabels] = useState(true);
@@ -314,8 +332,12 @@ export function ChartBuilder({ open, onOpenChange, initial, onSubmit }: ChartBui
   useEffect(() => {
     if (!open) return;
     if (initial) {
+      // When a lockedScope is set, force the seeded config onto it so an edit
+      // can never carry a stale foreign scope.
+      const seeded = structuredClone(initial.chartConfig);
+      if (lockedScope) seeded.scope = lockedScope;
       setTitle(initial.title || "Untitled chart");
-      setConfig(structuredClone(initial.chartConfig));
+      setConfig(seeded);
       setShowDataLabels(
         initial.showDataLabels ?? initial.chartConfig.options?.showDataLabels ?? true
       );
@@ -328,7 +350,7 @@ export function ChartBuilder({ open, onOpenChange, initial, onSubmit }: ChartBui
       );
     } else {
       setTitle("Untitled chart");
-      setConfig(defaultConfig());
+      setConfig(defaultConfig(lockedScope));
       setShowDataLabels(true);
       setBenchmark("");
     }
@@ -404,13 +426,17 @@ export function ChartBuilder({ open, onOpenChange, initial, onSubmit }: ChartBui
     const b = benchmark.trim() === "" ? undefined : Number(benchmark);
     return {
       ...config,
+      // Re-assert the locked scope on every derived config so it can never
+      // drift from a state update elsewhere (defense in depth alongside the
+      // hidden selector). No-op when lockedScope is undefined.
+      scope: lockedScope ?? config.scope,
       options: {
         ...config.options,
         showDataLabels,
         benchmark: b != null && !isNaN(b) ? b : undefined,
       },
     };
-  }, [config, showDataLabels, benchmark]);
+  }, [config, showDataLabels, benchmark, lockedScope]);
 
   // ── Debounced live preview ──
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -673,29 +699,44 @@ export function ChartBuilder({ open, onOpenChange, initial, onSubmit }: ChartBui
             {/* Scope */}
             <div className="space-y-1.5">
               <Label>Include {config.entity} from</Label>
-              <Select
-                value={
-                  config.scope.kind === "project"
-                    ? config.scope.projectId
-                    : config.scope.kind
-                }
-                onValueChange={onScopeChange}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="workspace">My workspace</SelectItem>
-                  <SelectItem value="my">
-                    {config.entity === "tasks" ? "Assigned to me" : "Owned by me"}
-                  </SelectItem>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
+              {lockedScope ? (
+                // Preset + locked scope (e.g. the Portfolio Panel). Rendered as
+                // a read-only pill so the user can see — but not change — that
+                // this chart aggregates across the current portfolio.
+                <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-slate-200 bg-slate-50 text-sm text-slate-600">
+                  <Lock className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                  <span className="truncate">
+                    {lockedScopeLabel ??
+                      (lockedScope.kind === "portfolio"
+                        ? "This portfolio"
+                        : "Locked scope")}
+                  </span>
+                </div>
+              ) : (
+                <Select
+                  value={
+                    config.scope.kind === "project"
+                      ? config.scope.projectId
+                      : config.scope.kind
+                  }
+                  onValueChange={onScopeChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="workspace">My workspace</SelectItem>
+                    <SelectItem value="my">
+                      {config.entity === "tasks" ? "Assigned to me" : "Owned by me"}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             {/* Chart type gallery */}
