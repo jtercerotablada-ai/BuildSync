@@ -1528,6 +1528,18 @@ function PortfolioTable({
   );
 }
 
+/** Slightly darken a #rrggbb color so the owner badge lifts off the
+ *  same-colored folder instead of blending into it. */
+function shadeColor(hex: string, amount = 0.26): string {
+  const h = hex.replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(h)) return hex;
+  const n = parseInt(h, 16);
+  const r = Math.round(((n >> 16) & 255) * (1 - amount));
+  const g = Math.round(((n >> 8) & 255) * (1 - amount));
+  const b = Math.round((n & 255) * (1 - amount));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 function PortfolioCard({
   portfolio,
   isFavorite,
@@ -1543,6 +1555,7 @@ function PortfolioCard({
   const { _count } = portfolio;
   const accentColor = portfolio.color || "#a8893a";
   const ownerInitial = portfolio.owner?.name?.charAt(0).toUpperCase() || "?";
+  const gid = `pf-folder-${portfolio.id}`;
 
   return (
     <Card
@@ -1576,31 +1589,49 @@ function PortfolioCard({
       {/* Folder graphic tinted with the portfolio color + owner avatar badge */}
       <div className="relative mb-3">
         <svg
-          width="94"
-          height="76"
-          viewBox="0 0 94 76"
+          width="102"
+          height="82"
+          viewBox="0 0 102 82"
           fill="none"
-          className="drop-shadow-sm transition-transform duration-150 group-hover:-translate-y-0.5"
+          className="drop-shadow-[0_5px_12px_rgba(0,0,0,0.13)] transition-transform duration-150 group-hover:-translate-y-0.5"
           aria-hidden="true"
         >
-          {/* back flap (lighter) */}
+          <defs>
+            <linearGradient
+              id={gid}
+              x1="51"
+              y1="22"
+              x2="51"
+              y2="76"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0" stopColor={accentColor} stopOpacity="0.97" />
+              <stop offset="1" stopColor={accentColor} stopOpacity="0.78" />
+            </linearGradient>
+          </defs>
+          {/* back panel + tab peeking above the front */}
           <path
-            d="M6 17a7 7 0 0 1 7-7h20.6a7 7 0 0 1 4.95 2.05L43.4 18a4 4 0 0 0 2.83 1.17H81a7 7 0 0 1 7 7v4H6V17z"
+            d="M9 20a9 9 0 0 1 9-9h20a7 7 0 0 1 4.95 2.05l3.7 3.7A5 5 0 0 0 50.4 20.2H84a9 9 0 0 1 9 9v5H9V20z"
             fill={accentColor}
-            fillOpacity="0.42"
+            fillOpacity="0.5"
           />
-          {/* front body */}
+          {/* front body with a vertical gradient for depth */}
           <path
-            d="M2 27a7 7 0 0 1 7-7h76a7 7 0 0 1 7 7v35a7 7 0 0 1-7 7H9a7 7 0 0 1-7-7V27z"
-            fill={accentColor}
-            fillOpacity="0.9"
+            d="M4 30a8 8 0 0 1 8-8h78a8 8 0 0 1 8 8v34a8 8 0 0 1-8 8H12a8 8 0 0 1-8-8V30z"
+            fill={`url(#${gid})`}
+          />
+          {/* soft highlight along the front's top edge */}
+          <path
+            d="M12 22h78a8 8 0 0 1 6.9 4H5.1A8 8 0 0 1 12 22z"
+            fill="#ffffff"
+            fillOpacity="0.22"
           />
         </svg>
-        <Avatar className="absolute -bottom-1.5 right-1 h-8 w-8 ring-[3px] ring-white shadow-sm">
+        <Avatar className="absolute -bottom-2 right-1.5 h-9 w-9 ring-[3px] ring-white shadow-md">
           <AvatarImage src={portfolio.owner?.image || ""} />
           <AvatarFallback
-            className="text-xs font-semibold text-white"
-            style={{ backgroundColor: accentColor }}
+            className="text-[13px] font-semibold text-white"
+            style={{ backgroundColor: shadeColor(accentColor) }}
           >
             {ownerInitial}
           </AvatarFallback>
