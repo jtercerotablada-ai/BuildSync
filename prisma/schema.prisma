@@ -229,6 +229,12 @@ model WorkspaceInvitation {
   companyId   String?
   projectRole ProjectRole?
 
+  // Optional auto-bind to a portfolio on accept — the non-member
+  // path of the portfolio Share dialog. Scalar (no FK), mirroring
+  // the project bind above.
+  portfolioId   String?
+  portfolioRole PortfolioRole?
+
   // Bookkeeping — who actually accepted (might differ from the
   // invitee's pre-existing User row if they signed up new) and
   // when. Status flips to ACCEPTED at the same moment.
@@ -1018,6 +1024,9 @@ enum NotificationType {
   MENTIONED
   DUE_DATE_APPROACHING
   PROJECT_INVITATION
+  PORTFOLIO_INVITATION
+  WORKSPACE_INVITATION
+  TEAM_INVITATION
   STATUS_UPDATE
   OBJECTIVE_SHARED
   FORM_SUBMITTED // Someone submitted a form — fan out to assignee + owner

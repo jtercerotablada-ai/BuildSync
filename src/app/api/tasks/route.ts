@@ -266,9 +266,11 @@ export async function POST(req: Request) {
     const body = await readJson(req);
     const data = createTaskSchema.parse(body);
 
-    // Verify user has access to the target project
+    // Verify user has WRITE access to the target project — a read-only
+    // VIEWER/COMMENTER must not be able to create tasks. Projectless
+    // personal tasks (My Tasks quick-add) skip this branch entirely.
     if (data.projectId) {
-      await verifyProjectAccess(userId, data.projectId);
+      await verifyProjectAccess(userId, data.projectId, { requireWrite: true });
     }
 
     // When creating a subtask, the caller must have access to the parent —

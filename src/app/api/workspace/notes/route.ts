@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { requireWorkspaceContributor, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 const HOME_NOTEPAD_TITLE = "__home_private_notepad__";
 
@@ -128,6 +129,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    await requireWorkspaceContributor(userId);
+
     const { title, content, icon, color, visibility } = await req.json();
 
     if (!title?.trim()) {
@@ -199,6 +202,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json(note, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error creating note:", error);
     return NextResponse.json(
       { error: "Failed to create note" },
@@ -215,6 +222,8 @@ export async function PUT(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await requireWorkspaceContributor(userId);
 
     const { id, title, content, icon, color, visibility, isPinned, isArchived } = await req.json();
 
@@ -279,6 +288,10 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(updatedNote);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error updating note:", error);
     return NextResponse.json(
       { error: "Failed to update note" },
@@ -295,6 +308,8 @@ export async function DELETE(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await requireWorkspaceContributor(userId);
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -322,6 +337,10 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting note:", error);
     return NextResponse.json(
       { error: "Failed to delete note" },

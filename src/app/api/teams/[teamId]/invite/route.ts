@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
+import { sendInvitationEmail } from "@/lib/email";
+import { notifyMembershipGranted } from "@/lib/membership-notifications";
+import { WORKSPACE_ROLE_META } from "@/lib/people-types";
 
 const inviteSchema = z.object({
   email: z.string().email(),
@@ -53,17 +57,85 @@ export async function POST(
       }
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Find the user by email
     const invitedUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email: normalizedEmail },
     });
 
     if (!invitedUser) {
-      // User doesn't exist in the system
-      // In a real app, you might send an email invitation here
+      // Non-member email → don't dead-end with a 404. Create/refresh a
+      // workspace-level invitation so they can join the workspace (and,
+      // once in, be added to the team) and email them the magic link.
+      // Upsert on the (email, workspaceId) unique key so re-inviting a
+      // previously ACCEPTED/DECLINED/EXPIRED address doesn't 500.
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const invitation = await prisma.workspaceInvitation.upsert({
+        where: {
+          email_workspaceId: {
+            email: normalizedEmail,
+            workspaceId: team.workspaceId,
+          },
+        },
+        create: {
+          email: normalizedEmail,
+          role: "MEMBER",
+          token,
+          expiresAt,
+          workspaceId: team.workspaceId,
+          inviterId: userId,
+        },
+        update: {
+          role: "MEMBER",
+          status: "PENDING",
+          token,
+          expiresAt,
+          inviterId: userId,
+          acceptedAt: null,
+          acceptedUserId: null,
+        },
+      });
+
+      // Best-effort email — keep the row even if delivery fails so the
+      // admin can resend from the People/Settings invitation list.
+      const inviter = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true },
+      });
+      const inviterName = inviter?.name || inviter?.email || "A teammate";
+      try {
+        await sendInvitationEmail({
+          email: normalizedEmail,
+          token: invitation.token,
+          inviterName,
+          workspaceName: team.workspace.name,
+          roleLabel: WORKSPACE_ROLE_META.MEMBER?.label || "Member",
+          personalMessage: null,
+          projectName: null,
+        });
+      } catch (mailErr) {
+        console.error(
+          "[team invite] email send failed — invitation kept:",
+          mailErr
+        );
+        return NextResponse.json(
+          {
+            invited: true,
+            email: normalizedEmail,
+            warning:
+              "Invitation saved but email delivery failed. Resend from Settings.",
+          },
+          { status: 201 }
+        );
+      }
+
       return NextResponse.json(
-        { error: "User not found. They need to register first." },
-        { status: 404 }
+        { invited: true, email: normalizedEmail },
+        { status: 201 }
       );
     }
 
@@ -122,6 +194,15 @@ export async function POST(
         },
       });
     }
+
+    // Let the added member know via their Inbox that they're now on the
+    // team (they didn't request it). Best-effort; never blocks the response.
+    await notifyMembershipGranted({
+      userId: invitedUser.id,
+      type: "TEAM_INVITATION",
+      title: `You were added to ${team.name}`,
+      data: { teamId },
+    });
 
     return NextResponse.json({
       success: true,

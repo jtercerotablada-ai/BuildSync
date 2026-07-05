@@ -124,6 +124,20 @@ export async function POST(
       );
     }
 
+    // Any status-update insert is an editing action — require EDIT
+    // capability (owner or member OWNER/EDITOR) BEFORE we create the row,
+    // regardless of whether it also syncs the portfolio's header status.
+    // VIEWER/public callers are read-only here.
+    if (!canEditPortfolio(access.portfolio, access.member, userId)) {
+      return NextResponse.json(
+        {
+          error:
+            "You don't have permission to post a status update. Ask an editor or owner.",
+        },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
@@ -134,16 +148,6 @@ export async function POST(
     }
 
     const wantsSync = parsed.data.syncPortfolioStatus;
-    const canSync = canEditPortfolio(access.portfolio, access.member, userId);
-    if (wantsSync && !canSync) {
-      return NextResponse.json(
-        {
-          error:
-            "You don't have permission to change this portfolio's status. Ask an editor or owner.",
-        },
-        { status: 403 }
-      );
-    }
 
     const created = await prisma.portfolioStatusUpdate.create({
       data: {

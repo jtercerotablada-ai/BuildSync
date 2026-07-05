@@ -3,6 +3,7 @@ import { z } from "zod";
 import { hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId, validatePassword } from "@/lib/auth-utils";
+import { notifyMembershipGranted } from "@/lib/membership-notifications";
 
 /**
  * POST /api/invite/:token/accept
@@ -161,6 +162,25 @@ export async function POST(
       }
     }
 
+    // ── Pre-validate the optional portfolio bind ────────────────
+    // Mirror of the project bind: when the invitation carries a
+    // portfolioId (the non-member path of the portfolio Share dialog),
+    // confirm it exists in the SAME workspace before we attach. We skip
+    // the bind entirely when the accepter is already the portfolio owner
+    // (owner outranks any member role — no PortfolioMember needed).
+    let portfolioIdToBind: string | null = null;
+    let portfolioOwnerId: string | null = null;
+    if (invitation.portfolioId) {
+      const portfolio = await prisma.portfolio.findUnique({
+        where: { id: invitation.portfolioId },
+        select: { id: true, workspaceId: true, ownerId: true },
+      });
+      if (portfolio && portfolio.workspaceId === invitation.workspaceId) {
+        portfolioIdToBind = portfolio.id;
+        portfolioOwnerId = portfolio.ownerId;
+      }
+    }
+
     // ── Atomic acceptance transaction ───────────────────────────
     // Wraps:  user creation (Path C2 only)  +  workspace member  +
     // optional project member  +  invitation status flip.
@@ -257,6 +277,34 @@ export async function POST(
         redirect = `/projects/${projectIdToBind}`;
       }
 
+      // 3b. Optional portfolio membership — completes the non-member
+      //     portfolio invite contract. Skip when the accepter is the
+      //     portfolio owner (owner already outranks any member row).
+      let boundPortfolioId: string | null = null;
+      if (portfolioIdToBind && portfolioOwnerId !== userId) {
+        await tx.portfolioMember.upsert({
+          where: {
+            portfolioId_userId: { portfolioId: portfolioIdToBind, userId },
+          },
+          update: {
+            ...(invitation.portfolioRole !== null && {
+              role: invitation.portfolioRole,
+            }),
+          },
+          create: {
+            userId,
+            portfolioId: portfolioIdToBind,
+            role: invitation.portfolioRole || "EDITOR",
+          },
+        });
+        boundPortfolioId = portfolioIdToBind;
+        // Only land the accepter on the portfolio when no project bind
+        // already claimed the redirect target.
+        if (!projectIdToBind) {
+          redirect = `/portfolios/${portfolioIdToBind}`;
+        }
+      }
+
       // 4. Flip invitation status. Done inside the tx so a partial
       //    failure also rolls the status back — Resend can retry
       //    the same row later.
@@ -285,7 +333,7 @@ export async function POST(
         throw new Error("Workspace member row missing after upsert");
       }
 
-      return { userId, redirect };
+      return { userId, redirect, boundPortfolioId, boundProjectId: projectIdToBind };
     });
 
     // ── Side effects (best-effort, outside the transaction) ─────
@@ -309,6 +357,42 @@ export async function POST(
       });
     } catch (err) {
       console.error("[invite accept] notify failed:", err);
+    }
+
+    // Notify the ACCEPTER too — so the resource they just joined is
+    // discoverable from their Inbox, not only their sidebar. Best-effort
+    // (notifyMembershipGranted never throws); the user is already in.
+    const workspace = await prisma.workspace
+      .findUnique({
+        where: { id: invitation.workspaceId },
+        select: { name: true },
+      })
+      .catch(() => null);
+    const workspaceName = workspace?.name ?? "the workspace";
+
+    await notifyMembershipGranted({
+      userId: txResult.userId,
+      type: "WORKSPACE_INVITATION",
+      title: `You joined ${workspaceName}`,
+      data: { workspaceId: invitation.workspaceId },
+    });
+
+    if (txResult.boundProjectId) {
+      await notifyMembershipGranted({
+        userId: txResult.userId,
+        type: "PROJECT_INVITATION",
+        title: "You were added to a project",
+        data: { projectId: txResult.boundProjectId },
+      });
+    }
+
+    if (txResult.boundPortfolioId) {
+      await notifyMembershipGranted({
+        userId: txResult.userId,
+        type: "PORTFOLIO_INVITATION",
+        title: "You were added to a portfolio",
+        data: { portfolioId: txResult.boundPortfolioId },
+      });
     }
 
     return NextResponse.json({

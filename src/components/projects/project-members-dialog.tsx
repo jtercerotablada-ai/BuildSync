@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, Search, Trash2, ChevronDown, UserPlus, Crown } from "lucide-react";
+import { Loader2, Search, Trash2, ChevronDown, UserPlus, Crown, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +90,23 @@ export function ProjectMembersDialog({
   const [searchResults, setSearchResults] = useState<WorkspaceUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
+
+  // A trimmed query that looks like an email → offer to invite it as a
+  // non-member. Matches the workspace invite flow: a typed email with no
+  // matching workspace user sends a real invitation that binds this project
+  // on accept.
+  const trimmedQuery = query.trim();
+  const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedQuery);
+  const emailAlreadyListed =
+    looksLikeEmail &&
+    (owner?.email?.toLowerCase() === trimmedQuery.toLowerCase() ||
+      members.some(
+        (m) => m.user.email?.toLowerCase() === trimmedQuery.toLowerCase()
+      ) ||
+      searchResults.some(
+        (u) => u.email?.toLowerCase() === trimmedQuery.toLowerCase()
+      ));
 
   // Load current members when opened
   useEffect(() => {
@@ -161,6 +178,43 @@ export function ProjectMembersDialog({
       toast.error(error instanceof Error ? error.message : "Failed to add member");
     } finally {
       setAdding(null);
+    }
+  }
+
+  async function inviteByEmail(email: string) {
+    setInviting(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, role: "EDITOR" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to send invitation");
+      }
+      const result = await res.json();
+      // An email that turned out to belong to an existing workspace member
+      // is added directly (returns a ProjectMember with a `user`); a true
+      // non-member gets a pending invitation (returns `{ invited: true }`).
+      if (result?.invited) {
+        toast.success(
+          result.warning
+            ? `Invitation saved for ${email}, but the email couldn't be sent.`
+            : `Invitation sent to ${email}`
+        );
+      } else if (result?.user) {
+        setMembers((prev) => [...prev, result as ProjectMember]);
+        toast.success(`${result.user.name || result.user.email} added`);
+      }
+      setQuery("");
+      onMembersChange?.();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to send invitation"
+      );
+    } finally {
+      setInviting(false);
     }
   }
 
@@ -241,10 +295,38 @@ export function ProjectMembersDialog({
             <p className="text-xs text-gray-500 mb-2">
               {searching ? "Searching…" : "Add to project"}
             </p>
-            {searchResults.length === 0 && !searching && (
+            {searchResults.length === 0 && !searching && !looksLikeEmail && (
               <p className="text-xs text-gray-400 py-2 px-3 bg-gray-50 rounded">
                 No matching workspace users.
+                {trimmedQuery && " Type a full email to invite someone new."}
               </p>
+            )}
+            {/* Invite-by-email — a typed email that isn't already an existing
+                workspace member / listed person. Sends a real invitation that
+                binds this project on accept. */}
+            {looksLikeEmail && !emailAlreadyListed && (
+              <button
+                onClick={() => inviteByEmail(trimmedQuery)}
+                disabled={inviting}
+                className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-50 text-left disabled:opacity-50 border border-dashed border-gray-200"
+              >
+                <span className="h-7 w-7 rounded-full bg-[#a8893a]/15 flex items-center justify-center flex-shrink-0">
+                  <Mail className="h-4 w-4 text-[#a8893a]" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-900 truncate">
+                    Invite {trimmedQuery}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    Send an email invitation to the project
+                  </p>
+                </div>
+                {inviting ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                ) : (
+                  <UserPlus className="h-4 w-4 text-gray-400" />
+                )}
+              </button>
             )}
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {searchResults.map((u) => (

@@ -5,6 +5,20 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 import { resolveAllowedPortfolioMentionUserIds } from "@/lib/mentions";
 
 /**
+ * Edit capability for a portfolio: the owner or a member whose role is
+ * OWNER/EDITOR. VIEWERs (and public read-only viewers) cannot post.
+ */
+function canEditPortfolio(
+  portfolio: { ownerId: string | null },
+  member: { role: string } | null,
+  userId: string
+): boolean {
+  if (portfolio.ownerId === userId) return true;
+  if (!member) return false;
+  return member.role === "OWNER" || member.role === "EDITOR";
+}
+
+/**
  * GET /api/portfolios/:portfolioId/messages
  * POST /api/portfolios/:portfolioId/messages
  *
@@ -14,8 +28,8 @@ import { resolveAllowedPortfolioMentionUserIds } from "@/lib/mentions";
 
 const createSchema = z.object({
   content: z.string().min(1).max(10000),
-  // Reserved for future @-mention fan-out (notifications). Portfolio
-  // mentions persist content but don't currently spawn notifications.
+  // @-mention targets — persisted as MessageMention rows AND fanned out
+  // as MENTIONED notifications (gated to the portfolio's audience).
   mentionUserIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
@@ -192,6 +206,14 @@ export async function POST(
       );
     }
 
+    // Only editors and above may post — VIEWER/public access is read-only.
+    if (!canEditPortfolio(access.portfolio, access.member, userId)) {
+      return NextResponse.json(
+        { error: "You don't have permission to post in this portfolio" },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
@@ -215,9 +237,10 @@ export async function POST(
       },
     });
 
-    // Mentions: we persist the rows so display works, but skip the
-    // notification fan-out for now (portfolio mentions don't generate
-    // inbox notifications yet).
+    // Mentions: persist the rows so display works AND fan out a
+    // MENTIONED notification to each mentioned user (mirroring project +
+    // team message mentions). Best-effort — a failure here never blocks
+    // the posted message.
     let resolvedMentions: {
       userId: string;
       name: string | null;
@@ -252,6 +275,30 @@ export async function POST(
             name: mn.user.name,
             image: mn.user.image,
           }));
+
+          // Notify everyone mentioned except the author (pinging
+          // yourself is noise). Type MENTIONED so it lands in the inbox.
+          const recipients = allowed.filter((mid) => mid !== userId);
+          if (recipients.length > 0) {
+            const authorName =
+              created.author?.name || created.author?.email || "Someone";
+            const preview = created.content.slice(0, 140);
+            await prisma.notification.createMany({
+              data: recipients.map((mid) => ({
+                userId: mid,
+                type: "MENTIONED" as const,
+                title: `${authorName} mentioned you`,
+                message: preview,
+                data: {
+                  messageId: created.id,
+                  portfolioId,
+                  rootMessageId: created.id,
+                  authorName,
+                  authorImage: created.author?.image ?? null,
+                },
+              })),
+            });
+          }
         }
       } catch (err) {
         console.error("[portfolio messages POST] mention persist failed:", err);

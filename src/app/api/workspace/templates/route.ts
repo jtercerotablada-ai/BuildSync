@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus, requireWorkspaceContributor } from "@/lib/auth-guards";
 
 // GET /api/workspace/templates - Get project templates
 export async function GET() {
@@ -50,6 +50,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    await requireWorkspaceContributor(userId);
+
     const { name, description, icon, color, isPublic, structure } = await req.json();
 
     if (!name?.trim()) {
@@ -80,6 +82,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json(template, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error creating template:", error);
     return NextResponse.json(
       { error: "Failed to create template" },
@@ -96,6 +102,8 @@ export async function PUT(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await requireWorkspaceContributor(userId);
 
     const { id, name, description, icon, color, isPublic, structure } = await req.json();
 
@@ -150,6 +158,8 @@ export async function DELETE(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await requireWorkspaceContributor(userId);
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");

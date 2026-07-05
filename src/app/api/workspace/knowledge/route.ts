@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus, requireWorkspaceContributor } from "@/lib/auth-guards";
 
 // GET /api/workspace/knowledge - Get knowledge entries
 export async function GET(req: Request) {
@@ -74,6 +74,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    await requireWorkspaceContributor(userId);
+
     const { term, definition, category, tags } = await req.json();
 
     if (!term?.trim() || !definition?.trim()) {
@@ -105,6 +107,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json(entry, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error creating knowledge entry:", error);
     return NextResponse.json(
       { error: "Failed to create knowledge entry" },
@@ -121,6 +127,8 @@ export async function PUT(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await requireWorkspaceContributor(userId);
 
     const { id, term, definition, category, tags, incrementView } = await req.json();
 
@@ -189,6 +197,8 @@ export async function DELETE(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await requireWorkspaceContributor(userId);
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");

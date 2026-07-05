@@ -16,7 +16,7 @@ import type { WorkspaceRole } from "@prisma/client";
  */
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -26,14 +26,32 @@ export async function POST(
     }
     const { id } = await params;
 
-    const currentMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: {
-        workspaceId: true,
-        role: true,
-        user: { select: { name: true, email: true } },
-      },
-    });
+    // Prefer an explicit workspaceId (multi-workspace admins) via findUnique;
+    // fall back to the first membership only when none is supplied.
+    const { searchParams } = new URL(req.url);
+    const requestedWorkspaceId = searchParams.get("workspaceId");
+    const currentMember = requestedWorkspaceId
+      ? await prisma.workspaceMember.findUnique({
+          where: {
+            userId_workspaceId: {
+              userId,
+              workspaceId: requestedWorkspaceId,
+            },
+          },
+          select: {
+            workspaceId: true,
+            role: true,
+            user: { select: { name: true, email: true } },
+          },
+        })
+      : await prisma.workspaceMember.findFirst({
+          where: { userId },
+          select: {
+            workspaceId: true,
+            role: true,
+            user: { select: { name: true, email: true } },
+          },
+        });
     if (
       !currentMember ||
       !["OWNER", "ADMIN"].includes(currentMember.role)

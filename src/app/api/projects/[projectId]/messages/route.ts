@@ -205,16 +205,16 @@ export async function POST(
         { status: access.status }
       );
     }
-    // Posting requires actual membership (owner / project member) or workspace
-    // leadership — a plain workspace member who merely can't be denied READ
-    // must not be able to write into a channel they aren't part of.
+    // Posting a message is a comment-level action: owner / project
+    // ADMIN / EDITOR / COMMENTER, or workspace leadership. A read-only
+    // VIEWER (or a plain workspace member who merely can't be denied
+    // READ) must NOT be able to write into the channel. canComment is
+    // the superset of canWrite that also admits the COMMENTER role.
     const canPost =
-      access.access.isOwner ||
-      access.access.isMember ||
-      access.access.isWorkspaceManager;
+      access.access.canComment || access.access.isWorkspaceManager;
     if (!canPost) {
       return NextResponse.json(
-        { error: "You must be a member of this project to post messages." },
+        { error: "You don't have permission to post messages in this project." },
         { status: 403 }
       );
     }

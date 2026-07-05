@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import crypto from "crypto";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { sendInvitationEmail } from "@/lib/email";
+import { notifyMembershipGranted } from "@/lib/membership-notifications";
+import { WORKSPACE_ROLE_META } from "@/lib/people-types";
+import type { PortfolioRole } from "@prisma/client";
 import {
   verifyWorkspaceAccess,
   AuthorizationError,
@@ -16,14 +21,17 @@ import {
  *   • GET    — directory: explicit members + owner + (PUBLIC) the rest of
  *              the workspace, used by the @-mention typeahead AND the
  *              "Who has access" list. (unchanged shape)
- *   • POST   — invite a workspace user as OWNER/EDITOR/VIEWER.
+ *   • POST   — invite a workspace user as OWNER/EDITOR/VIEWER, OR — when
+ *              the email isn't a workspace member yet — create a pending
+ *              WorkspaceInvitation that binds this portfolio on accept
+ *              and email the invitee.
  *   • PATCH  — change an existing member's role.
  *   • DELETE — remove a member's access (?userId=).
  *
- * Mutations require EDIT capability (portfolio owner or member role
- * OWNER/EDITOR), mirroring PATCH /api/portfolios/[portfolioId] and the
- * widgets route gate. Only the portfolio OWNER may grant/revoke the OWNER
- * role, mirroring the DELETE gate in the portfolio route.
+ * Membership management (POST / PATCH / DELETE) requires ADMIN capability
+ * — the portfolio owner or a member whose role is OWNER. Editors can edit
+ * portfolio CONTENT elsewhere but cannot manage the member list. Only the
+ * portfolio owner (or an OWNER member) may grant/revoke the OWNER role.
  */
 
 // ─── Shared user select + row shape ───────────────────────────────
@@ -58,17 +66,27 @@ interface MemberRow {
 interface PortfolioGate {
   workspaceId: string;
   ownerId: string | null;
+  /** The portfolio's own name — used in invite emails / notifications. */
+  portfolioName: string;
+  /** The workspace's display name — used in the invite email. */
+  workspaceName: string;
   /** Caller is the Portfolio.ownerId (the ultimate owner). */
   isPortfolioOwner: boolean;
-  /** Caller may mutate: portfolio owner or member role OWNER/EDITOR. */
+  /** Caller may edit CONTENT: portfolio owner or member role OWNER/EDITOR. */
   canEdit: boolean;
+  /**
+   * Caller may MANAGE MEMBERS (invite / change role / remove): portfolio
+   * owner or a member whose role is OWNER. Editors cannot — membership
+   * management is admin-only (Asana parity).
+   */
+  canManageMembers: boolean;
 }
 
 /**
- * Load a portfolio and resolve the caller's view + edit capability.
- * Returns null when the portfolio is missing, cross-workspace, or the
- * caller cannot VIEW it (owner | member | PUBLIC) — the caller maps null
- * to 404 to mask existence.
+ * Load a portfolio and resolve the caller's view + edit + manage
+ * capability. Returns null when the portfolio is missing, cross-workspace,
+ * or the caller cannot VIEW it (owner | member | PUBLIC) — the caller maps
+ * null to 404 to mask existence.
  */
 async function resolvePortfolioGate(
   userId: string,
@@ -77,10 +95,12 @@ async function resolvePortfolioGate(
   const portfolio = await prisma.portfolio.findUnique({
     where: { id: portfolioId },
     select: {
+      name: true,
       workspaceId: true,
       ownerId: true,
       privacy: true,
       members: { select: { userId: true, role: true } },
+      workspace: { select: { name: true } },
     },
   });
   if (!portfolio) return null;
@@ -97,12 +117,16 @@ async function resolvePortfolioGate(
   const memberRole = membership?.role;
   const canEdit =
     isPortfolioOwner || memberRole === "OWNER" || memberRole === "EDITOR";
+  const canManageMembers = isPortfolioOwner || memberRole === "OWNER";
 
   return {
     workspaceId: portfolio.workspaceId,
     ownerId: portfolio.ownerId,
+    portfolioName: portfolio.name,
+    workspaceName: portfolio.workspace.name,
     isPortfolioOwner,
     canEdit,
+    canManageMembers,
   };
 }
 
@@ -246,9 +270,9 @@ export async function POST(
     if (!gate) {
       return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
     }
-    if (!gate.canEdit) {
+    if (!gate.canManageMembers) {
       return NextResponse.json(
-        { error: "Only the portfolio owner or an Editor can invite people" },
+        { error: "Only the portfolio owner or an admin can invite people" },
         { status: 403 }
       );
     }
@@ -256,16 +280,11 @@ export async function POST(
     const body = await req.json();
     const data = inviteSchema.parse(body);
 
-    // Only the portfolio owner may grant the OWNER role.
-    if (data.role === "OWNER" && !gate.isPortfolioOwner) {
-      return NextResponse.json(
-        { error: "Only the portfolio owner can grant admin access" },
-        { status: 403 }
-      );
-    }
+    // Only the portfolio owner (or an OWNER member) may grant the OWNER
+    // role — canManageMembers already guarantees the caller is one of
+    // those, so no extra check is needed for the OWNER grant here.
 
-    // Resolve the target user, requiring workspace membership. We never
-    // invent external/pending invites — there's no schema for them.
+    // Resolve the target user, requiring workspace membership.
     let target: { id: string } | null = null;
     if (data.userId) {
       const wm = await prisma.workspaceMember.findFirst({
@@ -280,17 +299,78 @@ export async function POST(
       }
       target = { id: data.userId };
     } else if (data.email) {
+      const email = data.email.toLowerCase().trim();
       const user = await prisma.user.findFirst({
         where: {
-          email: data.email,
+          email,
           workspaceMembers: { some: { workspaceId: gate.workspaceId } },
         },
         select: { id: true },
       });
       if (!user) {
+        // Non-member email → create/refresh a pending WorkspaceInvitation
+        // that binds this portfolio on accept, then email the invitee.
+        // Batch C's accept route reads portfolioId/portfolioRole and adds
+        // the PortfolioMember when they accept.
+        const inviter = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true, email: true },
+        });
+        const token = crypto.randomBytes(32).toString("hex");
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+
+        await prisma.workspaceInvitation.upsert({
+          where: {
+            email_workspaceId: { email, workspaceId: gate.workspaceId },
+          },
+          create: {
+            email,
+            role: "MEMBER",
+            token,
+            expiresAt,
+            workspaceId: gate.workspaceId,
+            inviterId: userId,
+            portfolioId,
+            portfolioRole: data.role as PortfolioRole,
+          },
+          update: {
+            // Refresh a still-pending invite so the newest link works and
+            // the portfolio bind reflects this latest invite.
+            status: "PENDING",
+            token,
+            expiresAt,
+            inviterId: userId,
+            portfolioId,
+            portfolioRole: data.role as PortfolioRole,
+            acceptedAt: null,
+            acceptedUserId: null,
+          },
+        });
+
+        // Best-effort email — mirror the workspace invite send. Reuse the
+        // same accept URL (built from the token inside sendInvitationEmail).
+        const inviterName = inviter?.name || inviter?.email || "A teammate";
+        try {
+          await sendInvitationEmail({
+            email,
+            token,
+            inviterName,
+            workspaceName: gate.workspaceName,
+            roleLabel: WORKSPACE_ROLE_META.MEMBER?.label || "Member",
+            personalMessage: null,
+            projectName: gate.portfolioName,
+          });
+        } catch (mailErr) {
+          console.error(
+            "[portfolio members POST] invite email failed — row kept:",
+            mailErr
+          );
+        }
+
         return NextResponse.json(
-          { error: "No workspace member found with that email" },
-          { status: 404 }
+          { invited: true, email, message: `Invitation sent to ${email}` },
+          { status: 201 }
         );
       }
       target = { id: user.id };
@@ -311,6 +391,16 @@ export async function POST(
       );
     }
 
+    // Look up the prior membership so we can tell a NEW add / real role
+    // change (→ notify) apart from a re-grant of the same role (→ skip,
+    // to avoid notification spam).
+    const priorMembership = await prisma.portfolioMember.findUnique({
+      where: {
+        portfolioId_userId: { portfolioId, userId: target.id },
+      },
+      select: { role: true },
+    });
+
     // Upsert on the @@unique([portfolioId, userId]) so re-inviting an
     // existing member updates their role instead of erroring.
     const member = await prisma.portfolioMember.upsert({
@@ -326,6 +416,20 @@ export async function POST(
         user: { select: memberUserSelect },
       },
     });
+
+    // Best-effort in-app notification — only for a fresh add or a real
+    // role change (never throws; skipped when re-granting the same role).
+    const isNewMember = priorMembership == null;
+    const roleChanged =
+      priorMembership != null && priorMembership.role !== data.role;
+    if (isNewMember || roleChanged) {
+      await notifyMembershipGranted({
+        userId: target.id,
+        type: "PORTFOLIO_INVITATION",
+        title: `You were added to the portfolio "${gate.portfolioName}"`,
+        data: { portfolioId },
+      });
+    }
 
     // Optional: grant the invitee EDITOR access to every project in this
     // portfolio that the CALLER administers (owner or ProjectMember
@@ -408,9 +512,9 @@ export async function PATCH(
     if (!gate) {
       return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
     }
-    if (!gate.canEdit) {
+    if (!gate.canManageMembers) {
       return NextResponse.json(
-        { error: "Only the portfolio owner or an Editor can change roles" },
+        { error: "Only the portfolio owner or an admin can change roles" },
         { status: 403 }
       );
     }
@@ -499,9 +603,9 @@ export async function DELETE(
     if (!gate) {
       return NextResponse.json({ error: "Portfolio not found" }, { status: 404 });
     }
-    if (!gate.canEdit) {
+    if (!gate.canManageMembers) {
       return NextResponse.json(
-        { error: "Only the portfolio owner or an Editor can remove people" },
+        { error: "Only the portfolio owner or an admin can remove people" },
         { status: 403 }
       );
     }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
+import { requireWorkspaceContributor, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 
 // GET /api/workspace/messages - Get workspace messages
 export async function GET(req: Request) {
@@ -71,6 +72,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    await requireWorkspaceContributor(userId);
+
     const { content } = await req.json();
 
     if (!content?.trim()) {
@@ -108,6 +111,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json(message, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error creating message:", error);
     return NextResponse.json(
       { error: "Failed to create message" },
@@ -124,6 +131,8 @@ export async function PUT(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await requireWorkspaceContributor(userId);
 
     const { messageId, content, isPinned } = await req.json();
 
@@ -182,6 +191,10 @@ export async function PUT(req: Request) {
 
     return NextResponse.json(updatedMessage);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error updating message:", error);
     return NextResponse.json(
       { error: "Failed to update message" },
@@ -198,6 +211,8 @@ export async function DELETE(req: Request) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await requireWorkspaceContributor(userId);
 
     const { searchParams } = new URL(req.url);
     const messageId = searchParams.get("id");
@@ -236,6 +251,10 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error deleting message:", error);
     return NextResponse.json(
       { error: "Failed to delete message" },

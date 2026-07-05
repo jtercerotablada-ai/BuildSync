@@ -52,6 +52,10 @@ const POSITION_VALUES = [
 const createSchema = z.object({
   email: z.string().email().max(255),
   role: z.enum(["ADMIN", "MEMBER", "WORKER", "GUEST"]).optional(),
+  // Optional explicit target workspace — the Invite dialog sends the workspace
+  // the admin is currently viewing so multi-workspace callers don't get their
+  // invite mis-scoped by an unordered findFirst (audit: wrong-workspace invite).
+  workspaceId: z.string().min(1).optional().nullable(),
   position: z.enum(POSITION_VALUES).optional().nullable(),
   customTitle: z.string().max(120).optional().nullable(),
   department: z.string().max(80).optional().nullable(),
@@ -64,6 +68,58 @@ const createSchema = z.object({
     .nullable(),
 });
 
+/**
+ * Resolve the workspace the caller is acting in. Prefer an explicit client-
+ * supplied workspaceId (verified against the caller's memberships) so multi-
+ * workspace admins invite into the workspace they're actually looking at.
+ * Falls back to the existing multi-member heuristic (first workspace with >1
+ * member, else the oldest) when no id is given. Returns null when the caller
+ * has no eligible membership.
+ */
+async function resolveCallerWorkspace(
+  userId: string,
+  requestedWorkspaceId: string | null | undefined
+) {
+  if (requestedWorkspaceId) {
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: { userId, workspaceId: requestedWorkspaceId },
+      },
+      select: {
+        workspaceId: true,
+        role: true,
+        user: { select: { id: true, name: true, email: true } },
+        workspace: { select: { id: true, name: true } },
+      },
+    });
+    if (member) return member;
+    // An explicit but non-member workspaceId is a caller error, not a reason
+    // to silently fall back onto some other workspace — signal not-found.
+    return null;
+  }
+  const memberships = await prisma.workspaceMember.findMany({
+    where: { userId },
+    select: {
+      workspaceId: true,
+      role: true,
+      user: { select: { id: true, name: true, email: true } },
+      workspace: {
+        select: { id: true, name: true, _count: { select: { members: true } } },
+      },
+    },
+    orderBy: { joinedAt: "asc" },
+  });
+  if (memberships.length === 0) return null;
+  const chosen =
+    memberships.find((m) => m.workspace._count.members > 1) ?? memberships[0];
+  return {
+    workspaceId: chosen.workspaceId,
+    role: chosen.role,
+    user: chosen.user,
+    workspace: { id: chosen.workspace.id, name: chosen.workspace.name },
+  };
+}
+
 // GET /api/workspace/invitations - Pending invitations for current workspace
 export async function GET() {
   try {
@@ -72,10 +128,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true, role: true },
-    });
+    const workspaceMember = await resolveCallerWorkspace(userId, null);
 
     if (!workspaceMember) {
       return NextResponse.json(
@@ -100,6 +153,10 @@ export async function GET() {
         id: i.id,
         email: i.email,
         role: i.role,
+        // Echo the resolved workspaceId so the Invite dialog can send it
+        // back on POST/resend/revoke — pins multi-workspace admins to the
+        // workspace they're actually viewing (audit: wrong-workspace invite).
+        workspaceId: i.workspaceId,
         position: i.position,
         customTitle: i.customTitle,
         department: i.department,
@@ -141,27 +198,24 @@ export async function POST(req: Request) {
     const data = parsed.data;
     const email = data.email.toLowerCase().trim();
 
-    // Caller must be ADMIN or OWNER of their workspace.
-    const currentMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: {
-        workspaceId: true,
-        role: true,
-        user: { select: { id: true, name: true, email: true } },
-        workspace: { select: { id: true, name: true } },
-      },
-    });
-    if (
-      !currentMember ||
-      !["OWNER", "ADMIN"].includes(currentMember.role)
-    ) {
+    // Resolve the target workspace (explicit id preferred, else heuristic).
+    const currentMember = await resolveCallerWorkspace(userId, data.workspaceId);
+    // Caller must be ADMIN or OWNER of the target workspace.
+    if (!currentMember) {
+      return NextResponse.json(
+        { error: "No workspace found" },
+        { status: 404 }
+      );
+    }
+    if (!["OWNER", "ADMIN"].includes(currentMember.role)) {
       return NextResponse.json(
         { error: "Only Owner / Admin can invite people" },
         { status: 403 }
       );
     }
 
-    // Already a member?
+    // Already a member? Treat as a conflict (409), not a validation error —
+    // the caller sent a well-formed request, the target simply already belongs.
     const existingUser = await prisma.user.findUnique({
       where: { email },
       select: { id: true },
@@ -179,7 +233,7 @@ export async function POST(req: Request) {
       if (existingMember) {
         return NextResponse.json(
           { error: "This user is already a member of this workspace" },
-          { status: 400 }
+          { status: 409 }
         );
       }
     }
@@ -199,7 +253,7 @@ export async function POST(req: Request) {
           error:
             "An invitation is already pending for this email — use Resend instead",
         },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
@@ -261,21 +315,61 @@ export async function POST(req: Request) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    const invitation = await prisma.workspaceInvitation.create({
-      data: {
+    // Upsert on the (email, workspaceId) unique key. A prior ACCEPTED /
+    // DECLINED / EXPIRED row for this pair would otherwise collide with the
+    // @@unique constraint and throw a 500 on re-invite. We reset it back to a
+    // fresh PENDING invite: new token + expiry + inviter + all bind fields, and
+    // clear the previous acceptance bookkeeping.
+    const role = (data.role || "MEMBER") as WorkspaceRole;
+    const position = (data.position as Position | null) ?? null;
+    const customTitle = data.customTitle ?? null;
+    const department = data.department ?? null;
+    const personalMessage = data.personalMessage ?? null;
+    const projectId = data.projectId ?? null;
+    const companyId = data.companyId ?? null;
+    const projectRole = (data.projectRole as ProjectRole | null) ?? null;
+
+    const invitation = await prisma.workspaceInvitation.upsert({
+      where: {
+        email_workspaceId: {
+          email,
+          workspaceId: currentMember.workspaceId,
+        },
+      },
+      create: {
         email,
-        role: (data.role || "MEMBER") as WorkspaceRole,
+        role,
         token,
         expiresAt,
         workspaceId: currentMember.workspaceId,
         inviterId: userId,
-        position: (data.position as Position | null) ?? null,
-        customTitle: data.customTitle ?? null,
-        department: data.department ?? null,
-        personalMessage: data.personalMessage ?? null,
-        projectId: data.projectId ?? null,
-        companyId: data.companyId ?? null,
-        projectRole: (data.projectRole as ProjectRole | null) ?? null,
+        position,
+        customTitle,
+        department,
+        personalMessage,
+        projectId,
+        companyId,
+        projectRole,
+      },
+      update: {
+        role,
+        status: "PENDING",
+        token,
+        expiresAt,
+        inviterId: userId,
+        position,
+        customTitle,
+        department,
+        personalMessage,
+        projectId,
+        companyId,
+        projectRole,
+        // This dialog never binds a portfolio; clear any stale bind from a
+        // prior invite so a re-invite here doesn't silently resurrect it.
+        portfolioId: null,
+        portfolioRole: null,
+        acceptedAt: null,
+        acceptedUserId: null,
       },
     });
 
@@ -357,31 +451,34 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const currentMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true, role: true },
-    });
-    if (
-      !currentMember ||
-      !["OWNER", "ADMIN"].includes(currentMember.role)
-    ) {
+    const currentMember = await resolveCallerWorkspace(
+      userId,
+      searchParams.get("workspaceId")
+    );
+    if (!currentMember || !["OWNER", "ADMIN"].includes(currentMember.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Scope the delete to the caller's workspace.
+    // Scope the delete to the caller's workspace AND to PENDING invites only —
+    // revoking an already-ACCEPTED invitation must not silently drop the audit
+    // row for someone who is now a real member (matches the resend gate).
     const invitation = await prisma.workspaceInvitation.findFirst({
       where: {
         id: invitationId,
         workspaceId: currentMember.workspaceId,
+        status: "PENDING",
       },
       select: { id: true },
     });
     if (!invitation) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Pending invitation not found" },
+        { status: 404 }
+      );
     }
 
     await prisma.workspaceInvitation.delete({
-      where: { id: invitationId },
+      where: { id: invitation.id },
     });
 
     return NextResponse.json({ success: true });

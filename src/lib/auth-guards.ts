@@ -386,6 +386,58 @@ export async function getUserRole(userId: string): Promise<string> {
 }
 
 /**
+ * Workspace roles that are read-only by design (Asana parity: a "guest" or
+ * external "client" can view what they're shared but never author content).
+ * GUEST is our viewer role; CLIENT is the external-portal role. Both must be
+ * blocked from write verbs on core workspace-content routes.
+ */
+const NON_CONTRIBUTOR_ROLES = new Set(["GUEST", "CLIENT"]);
+
+/**
+ * Assert the caller may CREATE / UPDATE / DELETE workspace content. Contributors
+ * are OWNER / ADMIN / MEMBER / WORKER; GUEST and CLIENT are read-only and must
+ * be rejected on every mutating verb (POST/PATCH/PUT/DELETE) of the core
+ * content routes — projects, tasks, sections, portfolios, teams, etc.
+ *
+ * Resolves the role via the same multi-member heuristic as getUserWorkspaceId /
+ * getPrimaryWorkspaceRole so it agrees with the workspace the rest of the app
+ * scopes to, rather than an arbitrary findFirst membership.
+ *
+ * Throws AuthorizationError (→ 403) for a read-only role and when the user has
+ * no membership at all. Returns the resolved { workspaceId, role } on success so
+ * callers can reuse it without a second lookup.
+ *
+ * NOTE: the content routes themselves are not in this batch's file ownership —
+ * they must adopt this guard on their write handlers as a follow-up (see the
+ * concern noted for Batch C). The accept route already stamps GUEST/WORKER
+ * invitations with the correct role, so the data is ready for enforcement.
+ */
+export async function requireWorkspaceContributor(
+  userId: string
+): Promise<{ workspaceId: string; role: string }> {
+  const memberships = await prisma.workspaceMember.findMany({
+    where: { userId },
+    select: {
+      workspaceId: true,
+      role: true,
+      workspace: { select: { _count: { select: { members: true } } } },
+    },
+    orderBy: { joinedAt: "asc" },
+  });
+  if (memberships.length === 0) {
+    throw new AuthorizationError("No workspace found");
+  }
+  const effective =
+    memberships.find((m) => m.workspace._count.members > 1) ?? memberships[0];
+  if (NON_CONTRIBUTOR_ROLES.has(effective.role)) {
+    throw new AuthorizationError(
+      "Your role is view-only and can't modify workspace content"
+    );
+  }
+  return { workspaceId: effective.workspaceId, role: effective.role };
+}
+
+/**
  * Map error to appropriate HTTP response.
  */
 export function getErrorStatus(error: unknown): { status: number; message: string } {

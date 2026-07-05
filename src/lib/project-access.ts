@@ -17,9 +17,10 @@
  * centralizes the canonical rule so every route agrees with the page.
  *
  * Roles (ProjectRole): ADMIN > EDITOR > COMMENTER > VIEWER.
- *   - read:   owner | member | PUBLIC | ws OWNER/ADMIN | level >= 4
- *   - write:  owner | member role ADMIN or EDITOR
- *   - manage: owner | member role ADMIN   (add/remove members, delete)
+ *   - read:    owner | member | PUBLIC | ws OWNER/ADMIN | level >= 4
+ *   - write:   owner | member role ADMIN or EDITOR
+ *   - comment: owner | member role ADMIN, EDITOR or COMMENTER
+ *   - manage:  owner | member role ADMIN   (add/remove members, delete)
  */
 
 import prisma from "@/lib/prisma";
@@ -42,8 +43,10 @@ export interface ProjectAccessResult {
   memberRole: ProjectRole | null;
   /** OWNER/ADMIN of the project's workspace, or Position level >= 4. */
   isWorkspaceManager: boolean;
-  /** Can create/edit content (tasks, messages, status): owner | ADMIN | EDITOR. */
+  /** Can create/edit content (tasks, status): owner | ADMIN | EDITOR. */
   canWrite: boolean;
+  /** Can post messages/comments: owner | ADMIN | EDITOR | COMMENTER. Superset of canWrite. */
+  canComment: boolean;
   /** Can manage the project (members, settings, delete): owner | project ADMIN | ws OWNER/ADMIN. */
   canManage: boolean;
 }
@@ -94,6 +97,9 @@ export async function resolveProjectAccess(
 
   const canWrite =
     isOwner || memberRole === "ADMIN" || memberRole === "EDITOR";
+  // Commenters can post messages/comments but NOT edit project content —
+  // a superset of canWrite that also admits the COMMENTER role.
+  const canComment = canWrite || memberRole === "COMMENTER";
   const canManage = isOwner || memberRole === "ADMIN" || isWorkspaceManager;
 
   return {
@@ -109,6 +115,7 @@ export async function resolveProjectAccess(
     memberRole,
     isWorkspaceManager,
     canWrite,
+    canComment,
     canManage,
   };
 }
@@ -148,6 +155,7 @@ export async function getProjectAccess(
       memberRole: null,
       isWorkspaceManager: false,
       canWrite: false,
+      canComment: false,
       canManage: false,
     };
   }

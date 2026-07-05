@@ -428,6 +428,12 @@ export default function PortfolioDetailPage() {
     isPortfolioOwner ||
     callerMemberRole === "OWNER" ||
     callerMemberRole === "EDITOR";
+  // Member management (invite / change role / remove) is admin-only:
+  // the portfolio owner or a member whose role is OWNER — EDITORs are
+  // excluded. Mirrors the members API's `canManageMembers` gate so the
+  // Share dialog doesn't offer controls the API will 403.
+  const canManagePortfolioMembers =
+    isPortfolioOwner || callerMemberRole === "OWNER";
 
   // Favorite star (shared localStorage key with the Portfolios landing).
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -969,7 +975,7 @@ export default function PortfolioDetailPage() {
               style={{ color: portfolio.color || "#a8893a" }}
             />
           </div>
-          {editingName ? (
+          {editingName && canEditPortfolio ? (
             <Input
               value={nameDraft}
               onChange={(e) => setNameDraft(e.target.value)}
@@ -986,9 +992,14 @@ export default function PortfolioDetailPage() {
             />
           ) : (
             <h1
-              className="text-lg md:text-xl font-semibold text-black truncate cursor-text hover:bg-gray-50 rounded px-1 min-w-0"
-              onClick={() => setEditingName(true)}
-              title="Click to edit"
+              className={cn(
+                "text-lg md:text-xl font-semibold text-black truncate rounded px-1 min-w-0",
+                canEditPortfolio && "cursor-text hover:bg-gray-50"
+              )}
+              onClick={
+                canEditPortfolio ? () => setEditingName(true) : undefined
+              }
+              title={canEditPortfolio ? "Click to edit" : undefined}
             >
               {portfolio.name}
             </h1>
@@ -1019,29 +1030,36 @@ export default function PortfolioDetailPage() {
               )}
             />
           </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="inline-flex flex-shrink-0">
-                <Badge className={cn(meta.chip, "cursor-pointer")}>
-                  <span
-                    className={cn("w-2 h-2 rounded-full mr-1.5", meta.dot)}
-                  />
-                  {meta.label}
-                </Badge>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {STATUS_OPTIONS.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.value}
-                  onClick={() => handleStatusChange(opt.value)}
-                >
-                  <div className={cn("h-3 w-3 rounded-full mr-2", opt.dot)} />
-                  {opt.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {canEditPortfolio ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="inline-flex flex-shrink-0">
+                  <Badge className={cn(meta.chip, "cursor-pointer")}>
+                    <span
+                      className={cn("w-2 h-2 rounded-full mr-1.5", meta.dot)}
+                    />
+                    {meta.label}
+                  </Badge>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {STATUS_OPTIONS.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => handleStatusChange(opt.value)}
+                  >
+                    <div className={cn("h-3 w-3 rounded-full mr-2", opt.dot)} />
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Badge className={cn(meta.chip, "flex-shrink-0")}>
+              <span className={cn("w-2 h-2 rounded-full mr-1.5", meta.dot)} />
+              {meta.label}
+            </Badge>
+          )}
           <span className="text-xs text-gray-500 hidden md:inline-block flex-shrink-0">
             {portfolio._count.projects}{" "}
             {portfolio._count.projects === 1 ? "project" : "projects"}
@@ -1065,62 +1083,85 @@ export default function PortfolioDetailPage() {
               <SlidersHorizontal className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Customize</span>
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setEditingName(true)}>
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-black"
-                  onClick={handleDeletePortfolio}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete portfolio
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {canEditPortfolio && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setEditingName(true)}>
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-black"
+                    onClick={handleDeletePortfolio}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete portfolio
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
-        {/* Collapsible details (description + dates) */}
+        {/* Collapsible details (description + dates) — editable only for
+            callers with edit capability; viewers get a read-only view. */}
         {detailsOpen && (
           <div className="px-4 md:px-6 pb-3 space-y-3 border-t bg-gray-50/40 pt-3">
-            <Textarea
-              value={descriptionDraft}
-              onChange={(e) => setDescriptionDraft(e.target.value)}
-              onBlur={handleDescriptionSave}
-              placeholder="Add a description..."
-              rows={2}
-              className="text-sm resize-none border-dashed bg-white"
-            />
+            {canEditPortfolio ? (
+              <Textarea
+                value={descriptionDraft}
+                onChange={(e) => setDescriptionDraft(e.target.value)}
+                onBlur={handleDescriptionSave}
+                placeholder="Add a description..."
+                rows={2}
+                className="text-sm resize-none border-dashed bg-white"
+              />
+            ) : portfolio.description ? (
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                {portfolio.description}
+              </p>
+            ) : (
+              <p className="text-sm text-gray-400 italic">No description</p>
+            )}
             <div className="flex flex-wrap items-center gap-3 md:gap-5 text-xs md:text-sm text-gray-600">
               <label className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-gray-400" />
                 <span className="text-gray-500">Start:</span>
-                <input
-                  type="date"
-                  value={dateInputValue(portfolio.startDate)}
-                  onChange={(e) =>
-                    handleDateChange("startDate", e.target.value)
-                  }
-                  className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
-                />
+                {canEditPortfolio ? (
+                  <input
+                    type="date"
+                    value={dateInputValue(portfolio.startDate)}
+                    onChange={(e) =>
+                      handleDateChange("startDate", e.target.value)
+                    }
+                    className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
+                  />
+                ) : (
+                  <span className="text-gray-700">
+                    {formatDate(portfolio.startDate)}
+                  </span>
+                )}
               </label>
               <label className="flex items-center gap-2">
                 <span className="text-gray-500">End:</span>
-                <input
-                  type="date"
-                  value={dateInputValue(portfolio.endDate)}
-                  onChange={(e) =>
-                    handleDateChange("endDate", e.target.value)
-                  }
-                  className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
-                />
+                {canEditPortfolio ? (
+                  <input
+                    type="date"
+                    value={dateInputValue(portfolio.endDate)}
+                    onChange={(e) =>
+                      handleDateChange("endDate", e.target.value)
+                    }
+                    className="bg-transparent border-b border-dashed border-gray-300 focus:border-gray-600 outline-none px-1"
+                  />
+                ) : (
+                  <span className="text-gray-700">
+                    {formatDate(portfolio.endDate)}
+                  </span>
+                )}
               </label>
             </div>
           </div>
@@ -1163,18 +1204,22 @@ export default function PortfolioDetailPage() {
               <div className="bg-white rounded-lg border">
                 {/* Toolbar (Asana-style: Add work + Filter/Sort/Group + Search) */}
                 <div className="flex flex-wrap items-center gap-2 px-3 md:px-4 py-2.5 border-b">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setAddProjectOpen(true);
-                      fetchAvailableProjects();
-                    }}
-                    className="bg-black hover:bg-gray-800"
-                  >
-                    <Plus className="h-4 w-4 sm:mr-1.5" />
-                    <span className="hidden sm:inline">Add project</span>
-                  </Button>
-                  <div className="hidden lg:block w-px h-5 bg-gray-200 mx-1" />
+                  {canEditPortfolio && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setAddProjectOpen(true);
+                          fetchAvailableProjects();
+                        }}
+                        className="bg-black hover:bg-gray-800"
+                      >
+                        <Plus className="h-4 w-4 sm:mr-1.5" />
+                        <span className="hidden sm:inline">Add project</span>
+                      </Button>
+                      <div className="hidden lg:block w-px h-5 bg-gray-200 mx-1" />
+                    </>
+                  )}
                   <ListFilterPopover
                     listView={listView}
                     setListView={setListView}
@@ -1290,6 +1335,7 @@ export default function PortfolioDetailPage() {
 
                 {portfolio.projects.length === 0 ? (
                   <EmptyProjects
+                    canAdd={canEditPortfolio}
                     onAdd={() => {
                       setAddProjectOpen(true);
                       fetchAvailableProjects();
@@ -1321,6 +1367,7 @@ export default function PortfolioDetailPage() {
                                 key={pp.id}
                                 pp={pp}
                                 columns={listView.columns}
+                                canEdit={canEditPortfolio}
                                 onClick={() =>
                                   router.push(`/projects/${pp.project.id}`)
                                 }
@@ -1347,6 +1394,7 @@ export default function PortfolioDetailPage() {
                                   key={pp.id}
                                   pp={pp}
                                   columns={listView.columns}
+                                  canEdit={canEditPortfolio}
                                   onClick={() =>
                                     router.push(`/projects/${pp.project.id}`)
                                   }
@@ -1369,6 +1417,7 @@ export default function PortfolioDetailPage() {
                 <EmptyState
                   title="No projects to plot"
                   message="Add projects with start and end dates to see them on the timeline."
+                  canAdd={canEditPortfolio}
                   onAdd={() => {
                     setAddProjectOpen(true);
                     fetchAvailableProjects();
@@ -1419,6 +1468,7 @@ export default function PortfolioDetailPage() {
                 <EmptyState
                   title="No workload to show"
                   message="Add projects to see assignee workload across this portfolio."
+                  canAdd={canEditPortfolio}
                   onAdd={() => {
                     setAddProjectOpen(true);
                     fetchAvailableProjects();
@@ -1508,6 +1558,7 @@ export default function PortfolioDetailPage() {
         privacy={portfolio.privacy}
         ownerId={portfolio.ownerId}
         canEdit={canEditPortfolio}
+        canManageMembers={canManagePortfolioMembers}
         isOwner={isPortfolioOwner}
         onPrivacyChange={(privacy) =>
           setPortfolio((prev) => (prev ? { ...prev, privacy } : prev))
@@ -1580,7 +1631,13 @@ const ToolbarChipTrigger = React.forwardRef<
   );
 });
 
-function EmptyProjects({ onAdd }: { onAdd: () => void }) {
+function EmptyProjects({
+  onAdd,
+  canAdd = true,
+}: {
+  onAdd: () => void;
+  canAdd?: boolean;
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -1592,10 +1649,12 @@ function EmptyProjects({ onAdd }: { onAdd: () => void }) {
       <p className="text-sm text-gray-500 max-w-md mb-4">
         Add projects to track their progress, budget, and health together.
       </p>
-      <Button onClick={onAdd} className="bg-black hover:bg-gray-800">
-        <Plus className="h-4 w-4 mr-2" />
-        Add project
-      </Button>
+      {canAdd && (
+        <Button onClick={onAdd} className="bg-black hover:bg-gray-800">
+          <Plus className="h-4 w-4 mr-2" />
+          Add project
+        </Button>
+      )}
     </div>
   );
 }
@@ -1604,19 +1663,23 @@ function EmptyState({
   title,
   message,
   onAdd,
+  canAdd = true,
 }: {
   title: string;
   message: string;
   onAdd: () => void;
+  canAdd?: boolean;
 }) {
   return (
     <div className="bg-white rounded-lg border p-12 text-center">
       <h3 className="text-base font-medium text-black mb-1">{title}</h3>
       <p className="text-sm text-gray-500 mb-4">{message}</p>
-      <Button onClick={onAdd} className="bg-black hover:bg-gray-800" size="sm">
-        <Plus className="h-4 w-4 mr-2" />
-        Add project
-      </Button>
+      {canAdd && (
+        <Button onClick={onAdd} className="bg-black hover:bg-gray-800" size="sm">
+          <Plus className="h-4 w-4 mr-2" />
+          Add project
+        </Button>
+      )}
     </div>
   );
 }
@@ -1715,11 +1778,13 @@ function ProjectRowBody({
   columns,
   onRemove,
   dragHandle,
+  canEdit = true,
 }: {
   pp: PortfolioProject;
   columns: ColumnKey[];
   onRemove: () => void;
   dragHandle?: React.ReactNode;
+  canEdit?: boolean;
 }) {
   const p = pp.project;
   const m = statusMeta(p.status);
@@ -1744,25 +1809,27 @@ function ProjectRowBody({
           </div>
         ))}
         <div className="flex justify-end">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="icon" className="h-7 w-7">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className="text-black"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove();
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Remove from portfolio
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {canEdit && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="text-black"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove();
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remove from portfolio
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -1796,29 +1863,31 @@ function ProjectRowBody({
             {p.owner?.name?.charAt(0) || "?"}
           </AvatarFallback>
         </Avatar>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 flex-shrink-0"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              className="text-black"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove from portfolio
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {canEdit && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 flex-shrink-0"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-black"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove();
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remove from portfolio
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </>
   );
@@ -1831,18 +1900,25 @@ function ProjectRow({
   columns,
   onClick,
   onRemove,
+  canEdit = true,
 }: {
   pp: PortfolioProject;
   columns: ColumnKey[];
   onClick: () => void;
   onRemove: () => void;
+  canEdit?: boolean;
 }) {
   return (
     <div
       className="border-b last:border-0 hover:bg-gray-50 cursor-pointer group bg-white"
       onClick={onClick}
     >
-      <ProjectRowBody pp={pp} columns={columns} onRemove={onRemove} />
+      <ProjectRowBody
+        pp={pp}
+        columns={columns}
+        onRemove={onRemove}
+        canEdit={canEdit}
+      />
     </div>
   );
 }
@@ -1852,11 +1928,13 @@ function SortableProjectRow({
   columns,
   onClick,
   onRemove,
+  canEdit = true,
 }: {
   pp: PortfolioProject;
   columns: ColumnKey[];
   onClick: () => void;
   onRemove: () => void;
+  canEdit?: boolean;
 }) {
   const {
     attributes,
@@ -1888,16 +1966,19 @@ function SortableProjectRow({
         pp={pp}
         columns={columns}
         onRemove={onRemove}
+        canEdit={canEdit}
         dragHandle={
-          <button
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-            className="touch-none cursor-grab active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1 -ml-1 text-gray-400 hover:text-gray-700"
-            aria-label="Drag to reorder"
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
+          canEdit ? (
+            <button
+              {...attributes}
+              {...listeners}
+              onClick={(e) => e.stopPropagation()}
+              className="touch-none cursor-grab active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1 -ml-1 text-gray-400 hover:text-gray-700"
+              aria-label="Drag to reorder"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          ) : undefined
         }
       />
     </div>

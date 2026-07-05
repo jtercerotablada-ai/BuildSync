@@ -5,7 +5,10 @@
  *
  * Wired end-to-end to the members + portfolio APIs (no placeholders):
  *   • Invite by email OR pick a workspace user from a typeahead, with a
- *     role Select (Portfolio admin / Editor / Commenter / Viewer). Roles
+ *     role Select (Portfolio admin / Editor / Commenter / Viewer). An
+ *     email that isn't a workspace member yet gets a real emailed
+ *     invitation that binds this portfolio on accept ("Invitation sent
+ *     to {email}"). Roles
  *     map onto the PortfolioRole enum (OWNER / EDITOR / VIEWER):
  *        Portfolio admin → OWNER
  *        Editor          → EDITOR
@@ -98,8 +101,16 @@ interface Props {
   privacy: PortfolioPrivacy;
   /** The Portfolio.ownerId — its row is locked in the access list. */
   ownerId: string | null;
-  /** Whether the current viewer may edit (invite/change roles/privacy). */
+  /** Whether the current viewer may edit content (privacy / copy link). */
   canEdit: boolean;
+  /**
+   * Whether the current viewer may MANAGE MEMBERS (invite / change role /
+   * remove): portfolio owner or a member whose role is OWNER. Editors are
+   * excluded — this mirrors the members API's `canManageMembers` gate, so
+   * the invite box / role dropdowns / Remove access stay hidden from them
+   * instead of showing controls the API will 403.
+   */
+  canManageMembers: boolean;
   /** Whether the current viewer is the portfolio owner (can grant OWNER). */
   isOwner: boolean;
   /** Push a privacy change back to the page so its state stays in sync. */
@@ -162,6 +173,7 @@ export function PortfolioShareDialog({
   privacy,
   ownerId,
   canEdit,
+  canManageMembers,
   isOwner,
   onPrivacyChange,
 }: Props) {
@@ -271,7 +283,22 @@ export function PortfolioShareDialog({
       if (res.ok) {
         // Persist the notify preference alongside the invite.
         setNotifyPrefs((prev) => ({ ...prev, [portfolioId]: notifyOnWork }));
-        toast.success("Access granted");
+        // Two shapes come back: an existing member is added immediately
+        // (MemberRow), while a non-member email gets a pending emailed
+        // invitation ({ invited: true, email, message }).
+        const result = (await res.json().catch(() => ({}))) as {
+          invited?: boolean;
+          email?: string;
+          message?: string;
+        };
+        if (result.invited) {
+          toast.success(
+            result.message ||
+              `Invitation sent to ${result.email || "that email"}`
+          );
+        } else {
+          toast.success("Access granted");
+        }
         setInviteQuery("");
         setSelectedUserId(null);
         setShowSuggestions(false);
@@ -377,8 +404,9 @@ export function PortfolioShareDialog({
         </DialogHeader>
 
         <div className="space-y-5 pt-1">
-          {/* Invite by email / person */}
-          {canEdit && (
+          {/* Invite by email / person — member management is admin-only
+              (portfolio owner or member role OWNER), matching the API. */}
+          {canManageMembers && (
             <div className="space-y-2">
               <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
@@ -593,7 +621,7 @@ export function PortfolioShareDialog({
                           </div>
                         )}
                       </div>
-                      {isRowOwner || !canEdit ? (
+                      {isRowOwner || !canManageMembers ? (
                         <span className="text-sm text-gray-500 flex-shrink-0 px-2">
                           {roleLabel(m.role)}
                         </span>

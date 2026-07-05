@@ -51,6 +51,7 @@ interface InvitationRow {
   id: string;
   email: string;
   role: Role;
+  workspaceId?: string;
   expiresAt: string;
   createdAt: string;
 }
@@ -78,6 +79,11 @@ export function WorkspaceSection() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("MEMBER");
   const [inviting, setInviting] = useState(false);
+  // The workspace the admin is currently viewing — pinned from the invitation
+  // list so a multi-workspace admin's actions target the right workspace and
+  // not an arbitrary findFirst membership. Undefined until the list loads;
+  // the API falls back to its own heuristic when we send nothing.
+  const [workspaceId, setWorkspaceId] = useState<string | undefined>();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -102,6 +108,8 @@ export function WorkspaceSection() {
       if (iRes.ok) {
         const data: InvitationRow[] = await iRes.json();
         setInvitations(data);
+        const wsId = data.find((i) => i.workspaceId)?.workspaceId;
+        if (wsId) setWorkspaceId(wsId);
       }
     } catch {
       toast.error("Failed to load workspace");
@@ -134,7 +142,7 @@ export function WorkspaceSection() {
       const res = await fetch("/api/workspace/invitations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, role: inviteRole }),
+        body: JSON.stringify({ email, role: inviteRole, workspaceId }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -153,7 +161,9 @@ export function WorkspaceSection() {
 
   async function handleRevoke(id: string) {
     if (!confirm("Revoke this invitation?")) return;
-    const res = await fetch(`/api/workspace/invitations?id=${id}`, {
+    const qs = new URLSearchParams({ id });
+    if (workspaceId) qs.set("workspaceId", workspaceId);
+    const res = await fetch(`/api/workspace/invitations?${qs.toString()}`, {
       method: "DELETE",
     });
     if (res.ok) {
@@ -165,7 +175,10 @@ export function WorkspaceSection() {
   }
 
   async function handleResend(id: string) {
-    const res = await fetch(`/api/workspace/invitations/${id}/resend`, {
+    const qs = workspaceId
+      ? `?${new URLSearchParams({ workspaceId }).toString()}`
+      : "";
+    const res = await fetch(`/api/workspace/invitations/${id}/resend${qs}`, {
       method: "POST",
     });
     if (res.ok) {
