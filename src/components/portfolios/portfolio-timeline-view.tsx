@@ -1156,14 +1156,18 @@ export function PortfolioTimelineView({ projects }: Props) {
                   left: leftColPx + todayPx,
                   top: 0,
                   bottom: 0,
-                  width: 1,
-                  background: "rgba(59, 130, 246, 0.4)",
-                  zIndex: 15,
+                  width: 2,
+                  // Solid enough to stay visible ON TOP of dark status bars
+                  // (e.g. Off-track navy) — a faint 0.4 line vanished into
+                  // them and read as if it went behind. zIndex sits above the
+                  // bars (auto/z-[5]) but below the sticky headers (z-[18]/20).
+                  background: "rgba(37, 99, 235, 0.9)",
+                  zIndex: 16,
                 }}
               >
                 <div
-                  className="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full"
-                  style={{ background: "rgba(59, 130, 246, 0.85)" }}
+                  className="absolute -top-1 -left-[3px] w-2.5 h-2.5 rounded-full"
+                  style={{ background: "rgb(37, 99, 235)" }}
                 />
               </div>
             )}
