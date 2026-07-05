@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -86,8 +87,16 @@ import { PortfolioTimelineView } from "@/components/portfolios/portfolio-timelin
 import { PortfolioPanelView } from "@/components/portfolios/portfolio-panel-view";
 import { PortfolioProgressView } from "@/components/portfolios/portfolio-progress-view";
 import { PortfolioWorkloadView } from "@/components/portfolios/portfolio-workload-view";
+import { PortfolioShareDialog } from "@/components/portfolios/portfolio-share-dialog";
+import { PortfolioCustomizeDrawer } from "@/components/portfolios/portfolio-customize-drawer";
 import { MessagesView } from "@/components/views/messages-view";
 import { useUiState } from "@/hooks/use-ui-state";
+import {
+  COLUMN_DEFS,
+  DEFAULT_COLUMNS,
+  type ColumnKey,
+  type PortfolioPrivacy as PortfolioPrivacyType,
+} from "./customize-shared";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -142,19 +151,27 @@ interface Portfolio {
   name: string;
   description: string | null;
   color: string | null;
+  icon: string | null;
   status: PortfolioStatus;
+  privacy: PortfolioPrivacyType;
   startDate: string | null;
   endDate: string | null;
+  ownerId: string | null;
   owner: {
     id: string;
     name: string | null;
     image: string | null;
   } | null;
+  // Raw membership rows (from the GET include) so the client can resolve
+  // the caller's edit capability for the Share / Customize gates.
+  members: { userId: string; role: PortfolioRole }[];
   projects: PortfolioProject[];
   _count: {
     projects: number;
   };
 }
+
+type PortfolioRole = "OWNER" | "EDITOR" | "VIEWER";
 
 interface AvailableProject {
   id: string;
@@ -286,40 +303,6 @@ function saveFavorites(ids: Set<string>) {
   }
 }
 
-type ColumnKey =
-  | "type"
-  | "gate"
-  | "status"
-  | "progress"
-  | "due"
-  | "budget"
-  | "owner";
-
-const COLUMN_DEFS: {
-  key: ColumnKey;
-  label: string;
-  // Grid span at md+ (Name is always 4; the remaining columns share
-  // the rest of a 14-col grid, so spans are recomputed per active set).
-  span: number;
-}[] = [
-  { key: "type", label: "Type", span: 1 },
-  { key: "gate", label: "Gate", span: 1 },
-  { key: "status", label: "Status", span: 2 },
-  { key: "progress", label: "Progress", span: 2 },
-  { key: "due", label: "Due date", span: 2 },
-  { key: "budget", label: "Budget", span: 2 },
-  { key: "owner", label: "Owner", span: 1 },
-];
-
-const DEFAULT_COLUMNS: ColumnKey[] = [
-  "type",
-  "gate",
-  "status",
-  "progress",
-  "due",
-  "owner",
-];
-
 type SortKey =
   | "manual"
   | "name"
@@ -429,6 +412,22 @@ export default function PortfolioDetailPage() {
   const [updates, setUpdates] = useState<StatusUpdate[]>([]);
   const [updatesLoading, setUpdatesLoading] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+
+  // Current user + the caller's edit capability (owner or member
+  // OWNER/EDITOR), used to gate the Share / Customize controls.
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as { id?: string } | undefined)?.id;
+  const isPortfolioOwner =
+    !!currentUserId && portfolio?.ownerId === currentUserId;
+  const callerMemberRole = portfolio?.members?.find(
+    (m) => m.userId === currentUserId
+  )?.role;
+  const canEditPortfolio =
+    isPortfolioOwner ||
+    callerMemberRole === "OWNER" ||
+    callerMemberRole === "EDITOR";
 
   // Favorite star (shared localStorage key with the Portfolios landing).
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -442,6 +441,20 @@ export default function PortfolioDetailPage() {
   const listView = normalizeListView(rawListView[portfolioId]);
   const setListView = (next: ListViewState) =>
     setRawListView((prev) => ({ ...prev, [portfolioId]: next }));
+
+  // Shared column show/hide used by BOTH the List "Options" popover and
+  // the Customize drawer's Fields section — a single source of truth so
+  // toggling in one place reflects in the other and in the List columns.
+  const toggleColumn = (key: ColumnKey) => {
+    const isVisible = listView.columns.includes(key);
+    const next = isVisible
+      ? listView.columns.filter((c) => c !== key)
+      : // Preserve the canonical COLUMN_DEFS order when re-adding.
+        COLUMN_DEFS.filter(
+          (c) => listView.columns.includes(c.key) || c.key === key
+        ).map((c) => c.key);
+    setListView({ ...listView, columns: next });
+  };
 
   // Client-side text search over project names (ephemeral, not persisted).
   const [search, setSearch] = useState("");
@@ -1038,7 +1051,7 @@ export default function PortfolioDetailPage() {
               variant="outline"
               size="sm"
               className="hidden md:inline-flex"
-              onClick={() => toast.message("Sharing coming soon")}
+              onClick={() => setShareOpen(true)}
             >
               <UserPlus className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Share</span>
@@ -1047,7 +1060,7 @@ export default function PortfolioDetailPage() {
               variant="outline"
               size="sm"
               className="hidden md:inline-flex"
-              onClick={() => toast.message("Customize coming soon")}
+              onClick={() => setCustomizeOpen(true)}
             >
               <SlidersHorizontal className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Customize</span>
@@ -1179,6 +1192,7 @@ export default function PortfolioDetailPage() {
                   <ListOptionsPopover
                     listView={listView}
                     setListView={setListView}
+                    toggleColumn={toggleColumn}
                   />
                   <div className="ml-auto flex items-center gap-1">
                     {searchOpen ? (
@@ -1419,9 +1433,15 @@ export default function PortfolioDetailPage() {
             </TabsContent>
 
             <TabsContent value="messages" className="mt-4">
-              <MessagesView
-                scope={{ type: "portfolio", portfolioId }}
-              />
+              {/* Bounded, full-height flex box so MessagesView's flex-1
+                  layout fills the viewport and its composer pins to the
+                  bottom (without a bounded parent, flex-1 collapses to
+                  content height and the composer floats mid-screen). */}
+              <div className="h-[calc(100vh-13rem)] min-h-[440px] flex flex-col overflow-hidden rounded-lg border bg-white">
+                <MessagesView
+                  scope={{ type: "portfolio", portfolioId }}
+                />
+              </div>
             </TabsContent>
           </Tabs>
         </div>
@@ -1478,6 +1498,37 @@ export default function PortfolioDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Share modal */}
+      <PortfolioShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        portfolioId={portfolioId}
+        portfolioName={portfolio.name}
+        privacy={portfolio.privacy}
+        ownerId={portfolio.ownerId}
+        canEdit={canEditPortfolio}
+        isOwner={isPortfolioOwner}
+        onPrivacyChange={(privacy) =>
+          setPortfolio((prev) => (prev ? { ...prev, privacy } : prev))
+        }
+      />
+
+      {/* Customize drawer */}
+      <PortfolioCustomizeDrawer
+        open={customizeOpen}
+        onOpenChange={setCustomizeOpen}
+        canEdit={canEditPortfolio}
+        columns={listView.columns}
+        columnDefs={COLUMN_DEFS}
+        onToggleColumn={toggleColumn}
+        name={portfolio.name}
+        description={portfolio.description}
+        color={portfolio.color}
+        icon={portfolio.icon}
+        privacy={portfolio.privacy}
+        onSave={savePortfolio}
+      />
     </div>
   );
 }
@@ -2148,20 +2199,13 @@ function ListGroupPopover({
 function ListOptionsPopover({
   listView,
   setListView,
+  toggleColumn,
 }: {
   listView: ListViewState;
   setListView: (v: ListViewState) => void;
+  toggleColumn: (key: ColumnKey) => void;
 }) {
   const isVisible = (key: ColumnKey) => listView.columns.includes(key);
-  const toggleColumn = (key: ColumnKey) => {
-    const next = isVisible(key)
-      ? listView.columns.filter((c) => c !== key)
-      : // Preserve the canonical COLUMN_DEFS order when re-adding.
-        COLUMN_DEFS.filter(
-          (c) => listView.columns.includes(c.key) || c.key === key
-        ).map((c) => c.key);
-    setListView({ ...listView, columns: next });
-  };
   return (
     <Popover>
       <PopoverTrigger asChild>

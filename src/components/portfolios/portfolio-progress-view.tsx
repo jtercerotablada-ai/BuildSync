@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Loader2,
   Send,
@@ -9,7 +10,11 @@ import {
   Target,
   Lightbulb,
   Sparkles,
+  Plus,
+  X,
+  Check,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +27,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { useUiState } from "@/hooks/use-ui-state";
 
@@ -44,6 +62,78 @@ interface StatusUpdate {
     image: string | null;
   } | null;
 }
+
+// Goals ("Objectives") linked to a portfolio. ObjectiveStatus is a distinct
+// enum from PortfolioStatus — it adds ACHIEVED/PARTIAL/MISSED/DROPPED.
+type ObjectiveStatus =
+  | "ON_TRACK"
+  | "AT_RISK"
+  | "OFF_TRACK"
+  | "ACHIEVED"
+  | "PARTIAL"
+  | "MISSED"
+  | "DROPPED";
+
+interface PortfolioGoal {
+  /** PortfolioObjective join-row id (present on linked rows; absent in picker). */
+  linkId?: string;
+  id: string;
+  name: string;
+  status: ObjectiveStatus;
+  progress: number;
+  ownerId: string | null;
+  owner: { id: string; name: string | null; image: string | null } | null;
+  team: { id: string; name: string; color: string | null } | null;
+  period: string | null;
+}
+
+const GOAL_STATUS_META: Record<
+  ObjectiveStatus,
+  { label: string; dot: string; chip: string; bar: string }
+> = {
+  ON_TRACK: {
+    label: "On track",
+    dot: "bg-green-500",
+    chip: "bg-green-100 text-green-800",
+    bar: "bg-green-500",
+  },
+  AT_RISK: {
+    label: "At risk",
+    dot: "bg-amber-500",
+    chip: "bg-amber-100 text-amber-800",
+    bar: "bg-amber-500",
+  },
+  OFF_TRACK: {
+    label: "Off track",
+    dot: "bg-red-500",
+    chip: "bg-red-100 text-red-800",
+    bar: "bg-red-500",
+  },
+  ACHIEVED: {
+    label: "Achieved",
+    dot: "bg-blue-500",
+    chip: "bg-blue-100 text-blue-800",
+    bar: "bg-blue-500",
+  },
+  PARTIAL: {
+    label: "Partial",
+    dot: "bg-violet-500",
+    chip: "bg-violet-100 text-violet-800",
+    bar: "bg-violet-500",
+  },
+  MISSED: {
+    label: "Missed",
+    dot: "bg-gray-500",
+    chip: "bg-gray-200 text-gray-700",
+    bar: "bg-gray-500",
+  },
+  DROPPED: {
+    label: "Dropped",
+    dot: "bg-gray-400",
+    chip: "bg-gray-100 text-gray-600",
+    bar: "bg-gray-400",
+  },
+};
 
 interface Props {
   portfolioId: string;
@@ -366,6 +456,7 @@ export function PortfolioProgressView({
             status={status}
             total={total}
           />
+          <GoalsCard portfolioId={portfolioId} />
           <TipCard />
         </div>
       </div>
@@ -661,17 +752,258 @@ function AboutCard({
             )}
           </dd>
         </div>
-        <div>
-          <dt className="text-xs text-gray-500 mb-1 inline-flex items-center gap-1.5">
-            <Target className="h-3.5 w-3.5" /> Goals
-          </dt>
-          <dd className="text-sm text-gray-600">
-            <button className="text-[#a8893a] text-xs hover:underline">
-              Link this portfolio to company or team goals
-            </button>
-          </dd>
-        </div>
       </dl>
+    </div>
+  );
+}
+
+// ── Goals card ──────────────────────────────────────────────
+//
+// "Goals this portfolio works toward" (Asana parity). Fetches the linked
+// objectives from GET /api/portfolios/[id]/goals on mount, renders each with
+// its ObjectiveStatus pill + progress bar, links each row to /goals/[id], and
+// (for editors) offers an "Add goal" picker (?available=1 → POST) and per-row
+// unlink (DELETE). Persisted through PortfolioObjective.
+
+function GoalsCard({ portfolioId }: { portfolioId: string }) {
+  const router = useRouter();
+  const [goals, setGoals] = useState<PortfolioGoal[]>([]);
+  const [canEdit, setCanEdit] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [available, setAvailable] = useState<PortfolioGoal[]>([]);
+  const [availableLoading, setAvailableLoading] = useState(false);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/portfolios/${portfolioId}/goals`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data: { goals: PortfolioGoal[]; canEdit: boolean }) => {
+        if (cancelled) return;
+        setGoals(data.goals ?? []);
+        setCanEdit(!!data.canEdit);
+      })
+      .catch(() => {
+        if (!cancelled) setGoals([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [portfolioId]);
+
+  const loadAvailable = useCallback(async () => {
+    setAvailableLoading(true);
+    try {
+      const res = await fetch(
+        `/api/portfolios/${portfolioId}/goals?available=1`
+      );
+      if (!res.ok) throw new Error();
+      const data: PortfolioGoal[] = await res.json();
+      setAvailable(data);
+    } catch {
+      setAvailable([]);
+      toast.error("Failed to load goals");
+    } finally {
+      setAvailableLoading(false);
+    }
+  }, [portfolioId]);
+
+  function handlePickerOpenChange(open: boolean) {
+    setPickerOpen(open);
+    if (open) loadAvailable();
+  }
+
+  async function handleLink(objective: PortfolioGoal) {
+    setLinkingId(objective.id);
+    try {
+      const res = await fetch(`/api/portfolios/${portfolioId}/goals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objectiveId: objective.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to add goal");
+      }
+      const linked: PortfolioGoal = await res.json();
+      setGoals((prev) =>
+        prev.some((g) => g.id === linked.id) ? prev : [...prev, linked]
+      );
+      setAvailable((prev) => prev.filter((g) => g.id !== objective.id));
+      toast.success("Goal added");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add goal");
+    } finally {
+      setLinkingId(null);
+    }
+  }
+
+  async function handleUnlink(goal: PortfolioGoal) {
+    setRemovingId(goal.id);
+    try {
+      const res = await fetch(
+        `/api/portfolios/${portfolioId}/goals?objectiveId=${encodeURIComponent(
+          goal.id
+        )}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to remove goal");
+      }
+      setGoals((prev) => prev.filter((g) => g.id !== goal.id));
+      toast.success("Goal removed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove goal");
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg border p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-black inline-flex items-center gap-1.5">
+          <Target className="h-4 w-4 text-[#a8893a]" />
+          Goals this portfolio works toward
+        </h3>
+        {canEdit && (
+          <Popover open={pickerOpen} onOpenChange={handlePickerOpenChange}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add goal
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-0" align="end">
+              <Command>
+                <CommandInput placeholder="Search goals..." />
+                <CommandList>
+                  {availableLoading ? (
+                    <div className="py-6 flex justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                    </div>
+                  ) : (
+                    <>
+                      <CommandEmpty>No goals available to link.</CommandEmpty>
+                      <CommandGroup>
+                        {available.map((obj) => {
+                          const m = GOAL_STATUS_META[obj.status];
+                          const isLinking = linkingId === obj.id;
+                          return (
+                            <CommandItem
+                              key={obj.id}
+                              value={`${obj.name} ${obj.id}`}
+                              onSelect={() => handleLink(obj)}
+                              disabled={isLinking}
+                              className="flex items-center gap-2"
+                            >
+                              <span
+                                className={cn(
+                                  "w-2 h-2 rounded-full flex-shrink-0",
+                                  m?.dot
+                                )}
+                              />
+                              <span className="flex-1 truncate">
+                                {obj.name}
+                              </span>
+                              {isLinking ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
+                              ) : (
+                                <Check className="h-3.5 w-3.5 opacity-0" />
+                              )}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="py-6 flex justify-center">
+          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+        </div>
+      ) : goals.length === 0 ? (
+        <p className="text-xs text-gray-500">
+          {canEdit
+            ? "No goals linked yet. Use “Add goal” to connect this portfolio to company or team goals."
+            : "No goals are linked to this portfolio yet."}
+        </p>
+      ) : (
+        <ul className="space-y-2.5">
+          {goals.map((goal) => {
+            const m = GOAL_STATUS_META[goal.status];
+            const isRemoving = removingId === goal.id;
+            return (
+              <li key={goal.id} className="group">
+                <div className="flex items-start gap-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/goals/${goal.id}`)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-black truncate hover:underline">
+                        {goal.name}
+                      </span>
+                      <Badge className={cn(m?.chip, "text-[10px]")}>
+                        {m?.label ?? goal.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div
+                          className={cn("h-full rounded-full", m?.bar)}
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(0, goal.progress)
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-gray-500 tabular-nums w-8 text-right">
+                        {Math.round(goal.progress)}%
+                      </span>
+                    </div>
+                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => handleUnlink(goal)}
+                      disabled={isRemoving}
+                      aria-label={`Remove ${goal.name}`}
+                      className="mt-0.5 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-50"
+                    >
+                      {isRemoving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <X className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

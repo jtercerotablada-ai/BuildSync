@@ -10,6 +10,11 @@ const updateSchema = z.object({
   iconColor: z.string().optional(),
 });
 
+// Hidden per-portfolio backing Reports use this name prefix ("__portfolio:{id}")
+// to store portfolio Panel widgets. They must never be reachable from the
+// Reporting UI, so the Reporting-owned endpoints treat them as non-existent.
+const SENTINEL_PREFIX = "__portfolio:";
+
 // GET /api/dashboards/:dashboardId - get one dashboard with widgets
 export async function GET(
   req: Request,
@@ -38,11 +43,13 @@ export async function GET(
 
     // Privacy gate: workspace match AND user owns it. We treat
     // foreign dashboards as 404 (not 403) so we don't leak that a
-    // dashboard with this id exists at all.
+    // dashboard with this id exists at all. Sentinel-named portfolio
+    // backing Reports are also masked as 404 here.
     if (
       !dashboard ||
       dashboard.workspaceId !== workspaceId ||
-      dashboard.ownerId !== userId
+      dashboard.ownerId !== userId ||
+      dashboard.name.startsWith(SENTINEL_PREFIX)
     ) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -70,14 +77,15 @@ export async function PATCH(
 
     const existing = await prisma.report.findUnique({
       where: { id: dashboardId },
-      select: { workspaceId: true, ownerId: true },
+      select: { workspaceId: true, ownerId: true, name: true },
     });
-    // Owner-only gate. Foreign dashboards return 404 to avoid
-    // leaking the id-exists fact.
+    // Owner-only gate. Foreign dashboards (and sentinel-named portfolio
+    // backing Reports) return 404 to avoid leaking the id-exists fact.
     if (
       !existing ||
       existing.workspaceId !== workspaceId ||
-      existing.ownerId !== userId
+      existing.ownerId !== userId ||
+      existing.name.startsWith(SENTINEL_PREFIX)
     ) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -119,13 +127,14 @@ export async function DELETE(
 
     const existing = await prisma.report.findUnique({
       where: { id: dashboardId },
-      select: { workspaceId: true, ownerId: true },
+      select: { workspaceId: true, ownerId: true, name: true },
     });
-    // Owner-only gate, same shape as PATCH.
+    // Owner-only gate, same shape as PATCH (incl. sentinel masking).
     if (
       !existing ||
       existing.workspaceId !== workspaceId ||
-      existing.ownerId !== userId
+      existing.ownerId !== userId ||
+      existing.name.startsWith(SENTINEL_PREFIX)
     ) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

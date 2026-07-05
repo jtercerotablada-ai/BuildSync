@@ -323,6 +323,7 @@ model Portfolio {
   members       PortfolioMember[]
   statusUpdates PortfolioStatusUpdate[]
   messages      Message[]
+  objectives    PortfolioObjective[]
 
   @@index([workspaceId])
 }
@@ -373,6 +374,22 @@ enum PortfolioRole {
   OWNER
   EDITOR
   VIEWER
+}
+
+/// Portfolio <-> Objective join (Asana "Goals this portfolio works toward").
+/// Mirrors ObjectiveProject. Table created additively via db execute.
+model PortfolioObjective {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  portfolioId String
+  objectiveId String
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, objectiveId])
+  @@index([objectiveId])
 }
 
 model PortfolioStatusUpdate {
@@ -1170,6 +1187,7 @@ model Objective {
   statusUpdates ObjectiveStatusUpdate[]
   likes         ObjectiveLike[]
   members       ObjectiveMember[]
+  portfolios    PortfolioObjective[]
 
   @@index([workspaceId])
   @@index([ownerId])

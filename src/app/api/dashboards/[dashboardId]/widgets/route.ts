@@ -101,14 +101,17 @@ async function assertOwnedDashboard(userId: string, dashboardId: string) {
   const workspaceId = await getUserWorkspaceId(userId);
   const dashboard = await prisma.report.findUnique({
     where: { id: dashboardId },
-    select: { workspaceId: true, ownerId: true },
+    select: { workspaceId: true, ownerId: true, name: true },
   });
   // Owner-only gate. Foreign dashboards return 404 to mask existence —
-  // same pattern as the parent dashboard endpoint.
+  // same pattern as the parent dashboard endpoint. Hidden per-portfolio
+  // backing Reports ("__portfolio:{id}") are also masked here so their
+  // widgets can only be managed through the portfolio Panel route.
   if (
     !dashboard ||
     dashboard.workspaceId !== workspaceId ||
-    dashboard.ownerId !== userId
+    dashboard.ownerId !== userId ||
+    dashboard.name.startsWith("__portfolio:")
   ) {
     return null;
   }

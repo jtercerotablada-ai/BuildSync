@@ -30,6 +30,10 @@ export async function GET() {
         workspaceId,
         type: "CUSTOM",
         ownerId: userId, // ← privacy gate: scope to caller
+        // Exclude the hidden per-portfolio backing Reports (sentinel name
+        // "__portfolio:{id}") that store portfolio Panel widgets — they are
+        // not user-facing Reporting dashboards.
+        name: { not: { startsWith: "__portfolio:" } },
       },
       include: {
         owner: {

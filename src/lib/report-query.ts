@@ -108,6 +108,16 @@ export interface EngineContext {
    * honest empty result), never the whole workspace.
    */
   portfolioProjectIds?: string[];
+  /**
+   * The objective (goal) ids linked to a portfolio via PortfolioObjective,
+   * resolved ONCE (by the route, post view-gate) when config.scope.kind ===
+   * 'portfolio'. runGoalQuery reads this instead of re-resolving the link
+   * table. When left undefined, runGoalQuery resolves it itself (portfolio
+   * goals live off PortfolioObjective, not PortfolioProject). An empty array
+   * means no goals are linked → the aggregation matches nothing (a sound,
+   * honest empty result), never the whole workspace.
+   */
+  portfolioObjectiveIds?: string[];
 }
 
 /**
@@ -124,6 +134,23 @@ export async function portfolioProjectIds(
     select: { projectId: true },
   });
   return links.map((l) => l.projectId);
+}
+
+/**
+ * Resolve a portfolio's linked objective (goal) ids via the PortfolioObjective
+ * join. The mirror of portfolioProjectIds for the goals entity — portfolio
+ * goals live off PortfolioObjective, not PortfolioProject. Exported so the
+ * query route can resolve + gate in the same request; runGoalQuery also calls
+ * it lazily when ctx.portfolioObjectiveIds is not pre-populated.
+ */
+export async function portfolioObjectiveIds(
+  portfolioId: string
+): Promise<string[]> {
+  const links = await prisma.portfolioObjective.findMany({
+    where: { portfolioId },
+    select: { objectiveId: true },
+  });
+  return links.map((l) => l.objectiveId);
 }
 
 // A resolved task row we pull once and reduce in JS.
@@ -556,10 +583,11 @@ function measureValue(
   if (measure.aggregation === "count" || measure.field === "task") return 1;
 
   if (measure.field === "time.estimated" || measure.field === "time.actual") {
-    // Estimated/Actual time live in a TIME_TRACKING custom field
-    // ({ estimated, actual }). Pull the first TIME_TRACKING value for this
-    // task, if any.
-    const key = measure.field === "time.estimated" ? "estimated" : "actual";
+    // Estimated/Actual time live in a TIME_TRACKING custom field, persisted
+    // as { estimatedMin, actualMin } in minutes (see the custom-field value
+    // route + the workload endpoint). Pull the first TIME_TRACKING value for
+    // this task, if any.
+    const key = measure.field === "time.estimated" ? "estimatedMin" : "actualMin";
     for (const [mapKey, def] of maps.cfDefs) {
       if (def.type === "TIME_TRACKING") {
         const raw = maps.cfValues.get(`${row.id}:${mapKey}`);
@@ -1284,22 +1312,21 @@ async function runGoalQuery(
   config: ChartConfig,
   ctx: EngineContext
 ): Promise<{ data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number }> {
-  // Portfolio scope + goals: goals have NO portfolio link in the schema
-  // (Portfolio has no goals relation; RecordRow.portfolioIds is always []
-  // for goals — see applyRecordPostFilters). Rather than silently widening
-  // to the whole workspace, a portfolio-scoped goals query returns an empty
-  // result set. This mirrors the documented goal-portfolio-filter no-op:
-  // there is simply nothing to aggregate across a portfolio's (absent) goals.
-  if (config.scope.kind === "portfolio") {
-    return runRecordQuery([], config, {
-      users: new Map(),
-      portfolios: new Map(),
-      statusColors: GOAL_STATUS_COLORS,
-    });
-  }
-
   const where: Prisma.ObjectiveWhereInput = { workspaceId: ctx.workspaceId };
   if (config.scope.kind === "my") where.ownerId = ctx.userId;
+
+  // Portfolio scope + goals: goals ARE linked to a portfolio via the
+  // PortfolioObjective join. Resolve the linked ids (from ctx when the route
+  // pre-populated them, else lazily here) and restrict the query to those
+  // objectives. The workspaceId stays in the where as defense-in-depth.
+  // An empty id list → matches nothing (a sound, honest empty result), never
+  // the whole workspace.
+  if (config.scope.kind === "portfolio") {
+    const linkedIds =
+      ctx.portfolioObjectiveIds ??
+      (await portfolioObjectiveIds(config.scope.portfolioId));
+    where.id = { in: linkedIds };
+  }
 
   const and: Prisma.ObjectiveWhereInput[] = [];
   for (const f of config.filters) {

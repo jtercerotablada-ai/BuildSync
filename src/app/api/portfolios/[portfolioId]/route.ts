@@ -9,6 +9,7 @@ const updatePortfolioSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional().nullable(),
   color: z.string().optional(),
+  icon: z.string().min(1).optional(),
   status: z.enum(["ON_TRACK", "AT_RISK", "OFF_TRACK", "ON_HOLD", "COMPLETE"]).optional(),
   privacy: z.enum(["PRIVATE", "WORKSPACE", "PUBLIC"]).optional(),
   startDate: z.string().optional().nullable(),
@@ -217,6 +218,7 @@ export async function PATCH(
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.color !== undefined) updateData.color = data.color;
+    if (data.icon !== undefined) updateData.icon = data.icon;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.privacy !== undefined) updateData.privacy = data.privacy;
     if (data.startDate !== undefined) {
