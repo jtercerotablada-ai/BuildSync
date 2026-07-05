@@ -584,7 +584,7 @@ export function ChartBuilder({ open, onOpenChange, initial, onSubmit }: ChartBui
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-[980px] max-h-[92vh] p-0 overflow-hidden flex flex-col gap-0">
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-[1040px] max-h-[92vh] p-0 overflow-hidden flex flex-col gap-0">
         <DialogHeader className="px-4 md:px-6 py-3 border-b">
           <DialogTitle>{initial ? "Edit chart" : "Add chart"}</DialogTitle>
         </DialogHeader>
@@ -636,7 +636,7 @@ export function ChartBuilder({ open, onOpenChange, initial, onSubmit }: ChartBui
           </div>
 
           {/* ── CONFIG FORM ── */}
-          <div className="md:w-1/2 p-4 md:p-6 overflow-auto space-y-5">
+          <div className="md:w-1/2 p-4 md:p-6 overflow-y-auto overflow-x-hidden space-y-5">
             {/* Title */}
             <div className="space-y-1.5">
               <Label htmlFor="chart-title">Chart title</Label>
