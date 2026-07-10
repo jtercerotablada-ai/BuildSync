@@ -4,17 +4,17 @@ import React from 'react';
 import { useTranslation } from './language-provider';
 
 const Ico = {
-  globe: (
+  clock: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18" />
-      <path d="M12 3c2.6 2.7 2.6 15.3 0 18M12 3c-2.6 2.7-2.6 15.3 0 18" />
+      <path d="M12 7v5l3.5 2" />
     </svg>
   ),
-  save: (
+  report: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v10M14.5 9.2c0-1.2-1.1-1.9-2.5-1.9s-2.5.7-2.5 1.9 1.1 1.7 2.5 1.7 2.5.6 2.5 1.9-1.1 1.9-2.5 1.9-2.5-.7-2.5-1.9" />
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v4h4" />
+      <path d="M9 12h6M9 16h6M9 8h2" />
     </svg>
   ),
   shield: (
@@ -33,17 +33,17 @@ const Ico = {
 };
 
 const EN = [
-  { i: Ico.globe, t: 'Borderless by design', d: 'An international, fully bilingual team — structural engineering delivered seamlessly across borders and building codes.' },
-  { i: Ico.save, t: 'Engineered to save you money', d: 'We optimize the structure from day one to cut material and construction cost — without ever compromising safety.' },
-  { i: Ico.shield, t: 'No surprises in the field', d: 'Clashes are caught and resolved in the 3D model before construction — protecting your schedule and your budget.' },
-  { i: Ico.stamp, t: 'Permit-ready, code-compliant', d: 'Every design is stamped by a Registered P.E. and built to current codes — ready to build.' },
+  { i: Ico.shield, t: 'Resident safety first', d: 'Independent, evidence-based assessments that put life-safety ahead of everything — because that is exactly what these inspections exist to protect.' },
+  { i: Ico.stamp, t: 'Signed by a Registered P.E.', d: 'Every recertification and milestone report is engineered and stamped by a licensed Professional Engineer — and accepted by building departments.' },
+  { i: Ico.clock, t: 'Ahead of your deadline', d: 'We track your 40-year and SB-4-D deadlines and deliver on time, so your association never slips into non-compliance.' },
+  { i: Ico.report, t: 'Reports you can defend', d: 'Clear, thorough documentation that holds up with owners, boards, insurers, and the county — no ambiguity, no filler.' },
 ];
 
 const ES = [
-  { i: Ico.globe, t: 'Ingeniería sin fronteras', d: 'Un equipo internacional y totalmente bilingüe — ingeniería estructural entregada sin fricción a través de fronteras y códigos.' },
-  { i: Ico.save, t: 'Diseñado para ahorrarte dinero', d: 'Optimizamos la estructura desde el día uno para reducir el costo de material y construcción — sin comprometer la seguridad.' },
-  { i: Ico.shield, t: 'Sin sorpresas en la obra', d: 'Detectamos y resolvemos conflictos en el modelo 3D antes de construir — protegiendo tu plazo y tu presupuesto.' },
-  { i: Ico.stamp, t: 'Lista para permiso y según código', d: 'Cada diseño lleva el sello de un Ingeniero P.E. registrado y cumple los códigos vigentes — lista para construir.' },
+  { i: Ico.shield, t: 'La seguridad primero', d: 'Evaluaciones independientes y basadas en evidencia que ponen la seguridad de vida por encima de todo — que es justo lo que estas inspecciones existen para proteger.' },
+  { i: Ico.stamp, t: 'Firmado por un P.E. registrado', d: 'Cada informe de recertificación e inspección milestone es diseñado y sellado por un Ingeniero Profesional licenciado — y aceptado por los departamentos de construcción.' },
+  { i: Ico.clock, t: 'Adelantados a tu plazo', d: 'Damos seguimiento a tus plazos de 40 años y SB-4-D y entregamos a tiempo, para que tu asociación nunca caiga en incumplimiento.' },
+  { i: Ico.report, t: 'Informes que puedes defender', d: 'Documentación clara y completa que se sostiene ante propietarios, juntas, aseguradoras y el condado — sin ambigüedad, sin relleno.' },
 ];
 
 export function WhyUs() {
@@ -51,10 +51,10 @@ export function WhyUs() {
   const es = language === 'es';
   const items = es ? ES : EN;
   const label = es ? 'Por qué Tercero Tablada' : 'Why Tercero Tablada';
-  const title = es ? 'Por qué trabajar con nosotros' : 'Why work with us';
+  const title = es ? 'Por qué confían en nosotros' : 'Why owners and associations trust us';
   const sub = es
-    ? 'Somos un equipo estructural enfocado — esto es lo que tu proyecto gana al trabajar con nosotros.'
-    : "We're a focused structural engineering team — here's what your project gains by working with us.";
+    ? 'Las recertificaciones e inspecciones milestone son de alto riesgo y con plazos estrictos. Esto es lo que obtienes al trabajar con nosotros.'
+    : 'Recertification and milestone inspections are high-stakes and deadline-bound. Here is what you get by working with us.';
 
   return (
     <section className="why-us" id="why-us">

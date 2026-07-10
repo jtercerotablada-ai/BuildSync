@@ -4,11 +4,13 @@ import { LanguageProvider } from '@/components/ttc/language-provider';
 import { TTCHeader } from '@/components/ttc/ttc-header';
 import { TTCFooter } from '@/components/ttc/ttc-footer';
 import { FxElements } from '@/components/ttc/fx-elements';
+import { SmoothScroll } from '@/components/ttc/smooth-scroll';
 import 'leaflet/dist/leaflet.css';
 import './ttc-globals.css';
 import './ttc-fx-pro.css';
 import './ttc-sections-pro.css';
 import './ttc-pop.css';
+import './ttc-refresh-2026.css';
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
@@ -29,7 +31,7 @@ export const metadata: Metadata = {
     template: '%s · Tercero Tablada',
   },
   description:
-    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — International structural engineering firm. Registered P.E. Residential, commercial, industrial, and public works.',
+    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Structural safety engineering firm. 40-year building recertification, milestone / building safety inspection (Florida SB-4-D), and reinforced-concrete restoration. Registered P.E.',
   metadataBase: new URL('https://ttcivilstructural.com'),
   openGraph: {
     siteName: 'Tercero Tablada',
@@ -52,18 +54,24 @@ const organizationSchema = {
   logo: 'https://ttcivilstructural.com/ttc/img/logo-white.png',
   email: 'info@tercerotablada.com',
   description:
-    'International structural engineering firm. Registered P.E. Specializes in residential, vertical, commercial, industrial, and public works projects with BIM LOD 300 and post-tensioned concrete.',
+    'Structural safety engineering firm. Registered P.E. Specializes in 40-year building recertification (Miami-Dade & Broward), milestone / building safety inspections under Florida SB-4-D, and reinforced-concrete restoration.',
   knowsAbout: [
+    'Building Recertification',
+    '40-Year Recertification',
+    'Milestone Inspection',
+    'Building Safety Inspection',
+    'Florida SB-4-D',
+    'Reinforced Concrete Restoration',
+    'Concrete Repair',
+    'Structural Strengthening',
     'Structural Engineering',
-    'BIM LOD 300',
-    'Post-Tensioned Concrete',
-    'Reinforced Concrete',
-    'Steel Structures',
-    'Wood Framing',
-    'Masonry',
-    'Clash Detection',
-    'Value Engineering',
-    'Digital Construction',
+    'Structural Integrity Reserve Study',
+  ],
+  areaServed: 'Florida, United States',
+  serviceType: [
+    '40-Year Building Recertification',
+    'Milestone Inspection',
+    'Reinforced Concrete Restoration',
   ],
 };
 
@@ -79,6 +87,7 @@ export default function PublicLayout({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
       />
       <LanguageProvider>
+        <SmoothScroll />
         <FxElements />
         <TTCHeader />
         <main>{children}</main>

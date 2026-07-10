@@ -4,6 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslation } from './language-provider';
+import { SERVICES } from './services-data';
 
 // Placeholder "#" hrefs so the icons render now — swap in the real profile
 // URLs when you have them.
@@ -16,7 +17,8 @@ const SOCIAL = {
 };
 
 export function TTCFooter() {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const es = language === 'es';
   const hasSocial = SOCIAL.instagram || SOCIAL.linkedin || SOCIAL.facebook;
 
   return (
@@ -52,17 +54,18 @@ export function TTCFooter() {
             <h4>{t('footer.navigation')}</h4>
             <Link href="/projects">{t('nav.projects')}</Link>
             <Link href="/services">{t('nav.services')}</Link>
+            <Link href="/resources">{t('nav.resources')}</Link>
             <Link href="/about">{t('nav.about')}</Link>
             <Link href="/contact">{t('nav.contact')}</Link>
           </div>
 
           <div className="footer__links">
             <h4>{t('footer.services')}</h4>
-            <Link href="/services">{t('footer.structuralEng')}</Link>
-            <Link href="/services">{t('footer.bim')}</Link>
-            <Link href="/services">{t('footer.postTension')}</Link>
-            <Link href="/services">{t('footer.digitalConstruction')}</Link>
-            <Link href="/services">{t('footer.clashDetection')}</Link>
+            {SERVICES.map((s) => (
+              <Link key={s.slug} href={`/contact?service=${s.slug}`}>
+                {(es ? s.es : s.en).short}
+              </Link>
+            ))}
           </div>
 
           <div className="footer__social">

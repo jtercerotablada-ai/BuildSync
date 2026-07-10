@@ -4,57 +4,17 @@ import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useTranslation } from '@/components/ttc/language-provider';
-import { ProjectCard } from '@/components/ttc/project-card';
-import { ServiceCard } from '@/components/ttc/service-card';
-import { ValueItem } from '@/components/ttc/value-item';
-import { WhyUs } from '@/components/ttc/why-us';
+import { ServicesShowcase } from '@/components/ttc/services-showcase';
+import { TrustBar } from '@/components/ttc/trust-bar';
 import { CounterStat } from '@/components/ttc/counter-stat';
 import { ContactForm } from '@/components/ttc/contact-form';
 import { CtaBand } from '@/components/ttc/cta-band';
 import { ProcessSection } from '@/components/ttc/process-section';
-import { serviceIcons } from '@/components/ttc/service-icons';
-import type { TranslationKey } from '@/lib/i18n';
+import { WhyUs } from '@/components/ttc/why-us';
+import HeroCanvas from '@/components/ttc/hero-canvas';
 
 export default function HomePage() {
   const { t } = useTranslation();
-
-  const featuredProjects: {
-    image: string;
-    categoryKey: TranslationKey;
-    titleKey: TranslationKey;
-    descKey: TranslationKey;
-  }[] = [
-    { image: '/ttc/img/projects/project-01.jpg', categoryKey: 'category.residential', titleKey: 'project.residentialTower', descKey: 'project.residentialTower.desc' },
-    { image: '/ttc/img/projects/project-02.jpg', categoryKey: 'category.commercial', titleKey: 'project.commercialComplex', descKey: 'project.commercialComplex.desc' },
-    { image: '/ttc/img/projects/project-03.jpg', categoryKey: 'category.industrial', titleKey: 'project.industrialWarehouse', descKey: 'project.industrialWarehouse.desc' },
-    { image: '/ttc/img/projects/project-04.jpg', categoryKey: 'category.luxury', titleKey: 'project.luxuryResidence', descKey: 'project.luxuryResidence.desc' },
-    { image: '/ttc/img/projects/project-05.jpg', categoryKey: 'category.multifamily', titleKey: 'project.multiFamilyHousing', descKey: 'project.multiFamilyHousing.desc' },
-    { image: '/ttc/img/projects/project-06.jpg', categoryKey: 'category.publicWorks', titleKey: 'project.publicInfrastructure', descKey: 'project.publicInfrastructure.desc' },
-    { image: '/ttc/img/projects/project-07.jpg', categoryKey: 'category.parking', titleKey: 'project.parkingStructure', descKey: 'project.parkingStructure.desc' },
-    { image: '/ttc/img/projects/project-08.jpg', categoryKey: 'category.mixedUse', titleKey: 'project.mixedUse', descKey: 'project.mixedUse.desc' },
-    { image: '/ttc/img/projects/project-09.jpg', categoryKey: 'category.healthcare', titleKey: 'project.healthcare', descKey: 'project.healthcare.desc' },
-    { image: '/ttc/img/projects/project-10.jpg', categoryKey: 'category.hospitality', titleKey: 'project.hospitality', descKey: 'project.hospitality.desc' },
-  ];
-
-  const services: { icon: React.ReactNode; titleKey: TranslationKey; descKey: TranslationKey }[] = [
-    { icon: serviceIcons.predesign, titleKey: 'service.predesign', descKey: 'service.predesign.desc' },
-    { icon: serviceIcons.structural, titleKey: 'service.structural', descKey: 'service.structural.desc' },
-    { icon: serviceIcons.review, titleKey: 'service.review', descKey: 'service.review.desc' },
-    { icon: serviceIcons.postTension, titleKey: 'service.postTension', descKey: 'service.postTension.desc' },
-    { icon: serviceIcons.bimDev, titleKey: 'service.bimDev', descKey: 'service.bimDev.desc' },
-    { icon: serviceIcons.digital, titleKey: 'service.digital', descKey: 'service.digital.desc' },
-    { icon: serviceIcons.coordination, titleKey: 'service.coordination', descKey: 'service.coordination.desc' },
-    { icon: serviceIcons.clash, titleKey: 'service.clash', descKey: 'service.clash.desc' },
-    { icon: serviceIcons.bimAudit, titleKey: 'service.bimAudit', descKey: 'service.bimAudit.desc' },
-  ];
-
-  const values: { number: string; titleKey: TranslationKey; descKey: TranslationKey }[] = [
-    { number: '01', titleKey: 'value.adaptability', descKey: 'value.adaptability.desc' },
-    { number: '02', titleKey: 'value.efficiency', descKey: 'value.efficiency.desc' },
-    { number: '03', titleKey: 'value.trust', descKey: 'value.trust.desc' },
-    { number: '04', titleKey: 'value.accompaniment', descKey: 'value.accompaniment.desc' },
-    { number: '05', titleKey: 'value.personalized', descKey: 'value.personalized.desc' },
-  ];
 
   return (
     <>
@@ -66,6 +26,9 @@ export default function HomePage() {
           </video>
         </div>
         <div className="hero__overlay"></div>
+        <div className="hero-canvas-wrap" aria-hidden="true">
+          <HeroCanvas />
+        </div>
         <div className="hero-bp" aria-hidden="true"></div>
         <div className="hero__side-lines" aria-hidden="true"></div>
         <div className="hero__content">
@@ -77,12 +40,12 @@ export default function HomePage() {
           <p className="hero__materials">{t('hero.materials')}</p>
           <p className="hero__desc">{t('hero.desc')}</p>
           <div className="hero__cta">
-            <Link href="/projects" className="btn btn--primary" data-magnetic>
-              <span>{t('hero.viewProjects')}</span>
+            <Link href="/contact" className="btn btn--primary" data-magnetic>
+              <span>{t('hero.contactUs')}</span>
               <span className="btn__arrow">→</span>
             </Link>
-            <Link href="/contact" className="btn btn--outline" data-magnetic>
-              <span>{t('hero.contactUs')}</span>
+            <Link href="/services" className="btn btn--outline" data-magnetic>
+              <span>{t('hero.viewProjects')}</span>
             </Link>
           </div>
           <p className="hero__credential">{t('hero.credential')}</p>
@@ -93,80 +56,17 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* PROJECTS */}
-      <section className="section projects" id="projects">
-        <div className="container">
-          <div className="section__header">
-            <span className="section__label">{t('section.portfolio')}</span>
-            <h2 className="section__title">{t('section.featuredProjects')}</h2>
-          </div>
-          <div className="projects__grid">
-            {featuredProjects.map((p, i) => (
-              <ProjectCard
-                key={i}
-                image={p.image}
-                category={t(p.categoryKey)}
-                title={t(p.titleKey)}
-                description={t(p.descKey)}
-                index={i + 1}
-                total={featuredProjects.length}
-                delay={(i % 4) * 100}
-              />
-            ))}
-          </div>
-          <div className="projects__cta">
-            <Link href="/projects" className="btn btn--dark" data-magnetic>
-              <span>{t('projects.viewAll')}</span>
-              <span className="btn__arrow">→</span>
-            </Link>
-          </div>
-        </div>
-      </section>
+      {/* TRUST / CREDENTIALS */}
+      <TrustBar />
 
-      {/* SERVICES */}
-      <section className="section services" id="services">
-        <div className="container">
-          <div className="section__header">
-            <span className="section__label">{t('section.whatWeDo')}</span>
-            <h2 className="section__title">{t('section.ourServices')}</h2>
-            <p className="section__subtitle">{t('section.servicesSubtitle')}</p>
-          </div>
-          <div className="services__grid">
-            {services.map((s, i) => (
-              <ServiceCard
-                key={i}
-                icon={s.icon}
-                title={t(s.titleKey)}
-                description={t(s.descKey)}
-                delay={(i % 3) * 100}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* SERVICES (3 core) */}
+      <ServicesShowcase />
 
+      {/* HOW WE WORK */}
       <ProcessSection />
 
-      {/* VALUES */}
-      <section className="section values" id="values">
-        <div className="container">
-          <div className="section__header">
-            <span className="section__label">{t('section.ourPrinciples')}</span>
-            <h2 className="section__title">{t('section.ourValues')}</h2>
-          </div>
-          <div className="values__grid">
-            {values.map((v, i) => (
-              <ValueItem
-                key={v.number}
-                number={v.number}
-                title={t(v.titleKey)}
-                description={t(v.descKey)}
-                delay={i * 80}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* WHY US */}
+      <WhyUs />
 
       {/* ABOUT */}
       <section className="section about about--light" id="about">
@@ -189,17 +89,14 @@ export default function HomePage() {
               <p>{t('about.p1')}</p>
               <p>{t('about.p2')}</p>
               <div className="about__stats">
-                <CounterStat target={150} suffix="+" label={t('stat.projects')} delay={0} />
+                <CounterStat target={100} suffix="%" label={t('stat.projects')} delay={0} />
                 <CounterStat target={30} suffix="+" label={t('stat.yearsShort')} delay={100} />
-                <CounterStat target={50} suffix="+" label={t('stat.clients')} delay={200} />
+                <CounterStat target={3} label={t('stat.services')} delay={200} />
               </div>
             </div>
           </div>
         </div>
       </section>
-
-      {/* WHY WORK WITH US (replaces clients/partners) */}
-      <WhyUs />
 
       <CtaBand />
 

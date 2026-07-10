@@ -1,6 +1,32 @@
 import React from 'react';
 
 export const serviceIcons: Record<string, React.ReactNode> = {
+  // Reinforced concrete restoration — rebar cage inside a concrete member
+  concrete: (
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="8" y="5" width="32" height="38" rx="1.5" />
+      <path d="M16 5v38M24 5v38M32 5v38" />
+      <path d="M8 15h32M8 24h32M8 33h32" />
+    </svg>
+  ),
+  // 40-year recertification — certificate page with seal + check
+  recert: (
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 5h16l9 9v25a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
+      <path d="M27 5v9h9" />
+      <path d="M15 20h13M15 26h9" />
+      <circle cx="29" cy="31" r="6" />
+      <path d="m26.4 31 2 2 3.2-3.4" />
+    </svg>
+  ),
+  // Building safety / milestone inspection — shield protecting a building
+  inspection: (
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M24 4l16 6v10c0 11.5-7 18.6-16 22C15 38.6 8 31.5 8 20V10l16-6z" />
+      <rect x="17.5" y="16" width="13" height="18" />
+      <path d="M21 21.5h2.2M25 21.5h2.2M21 26.5h2.2M25 26.5h2.2" />
+    </svg>
+  ),
   predesign: (
     <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
       <path d="M6 42h36M10 42V22l14-10 14 10v20" />

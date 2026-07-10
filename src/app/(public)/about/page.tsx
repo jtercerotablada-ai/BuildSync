@@ -56,10 +56,10 @@ export default function AboutPage() {
       <section className="section stats-section">
         <div className="container">
           <div className="stats-grid">
-            <CounterStat target={150} suffix="+" label={t('stat.projects')} delay={0} />
+            <CounterStat target={100} suffix="%" label={t('stat.projects')} delay={0} />
             <CounterStat target={30} suffix="+" label={t('stat.years')} delay={100} />
-            <CounterStat target={50} suffix="+" label={t('stat.clients')} delay={200} />
-            <CounterStat target={9} label={t('stat.services')} delay={300} />
+            <CounterStat target={3} label={t('stat.services')} delay={200} />
+            <CounterStat target={2} label={t('stat.clients')} delay={300} />
           </div>
         </div>
       </section>

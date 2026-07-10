@@ -1,48 +1,58 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from '@/components/ttc/language-provider';
 import { ProjectCard } from '@/components/ttc/project-card';
-import type { TranslationKey } from '@/lib/i18n';
 
-type Category = 'all' | 'residential' | 'commercial' | 'industrial' | 'public';
+/**
+ * "Our Work" — capability gallery. These are the areas of work the firm
+ * takes on (recertification, milestone inspection, concrete restoration),
+ * illustrated with representative imagery — not claimed, named case studies
+ * (we don't fabricate client work). Swap in real project photos when available.
+ */
 
-interface ProjectItem {
+interface Capability {
   image: string;
-  category: Exclude<Category, 'all'>;
-  categoryKey: TranslationKey;
-  titleKey: TranslationKey;
-  descKey: TranslationKey;
+  en: { category: string; title: string; desc: string };
+  es: { category: string; title: string; desc: string };
 }
 
+const CAPABILITIES: Capability[] = [
+  {
+    image: '/ttc/img/projects/project-02.jpg',
+    en: { category: 'Recertification', title: '40-Year Recertification', desc: 'Structural & electrical reports for Miami-Dade and Broward.' },
+    es: { category: 'Recertificacion', title: 'Recertificacion de 40 Años', desc: 'Informes estructurales y electricos para Miami-Dade y Broward.' },
+  },
+  {
+    image: '/ttc/img/projects/project-09.jpg',
+    en: { category: 'Building Safety', title: 'Milestone Inspection', desc: 'Phase 1 & 2 assessments under Florida SB-4-D (553.899).' },
+    es: { category: 'Seguridad', title: 'Inspeccion Milestone', desc: 'Evaluaciones Fase 1 y 2 bajo la ley SB-4-D de Florida (553.899).' },
+  },
+  {
+    image: '/ttc/img/projects/project-05.jpg',
+    en: { category: 'Reinforced Concrete', title: 'Concrete Restoration', desc: 'Spalling, corrosion, and structural strengthening of slabs & columns.' },
+    es: { category: 'Concreto Reforzado', title: 'Restauracion de Concreto', desc: 'Desprendimiento, corrosion y refuerzo estructural de losas y columnas.' },
+  },
+  {
+    image: '/ttc/img/projects/project-01.jpg',
+    en: { category: 'Building Safety', title: 'Balcony & Railing Review', desc: 'Life-safety inspection of balconies, walkways, and guardrails.' },
+    es: { category: 'Seguridad', title: 'Balcones y Barandales', desc: 'Inspeccion de seguridad de balcones, pasillos y barandales.' },
+  },
+  {
+    image: '/ttc/img/projects/project-10.jpg',
+    en: { category: 'Reinforced Concrete', title: 'Façade & Spall Repair', desc: 'Diagnosis and repair of façade deterioration and concrete spalling.' },
+    es: { category: 'Concreto Reforzado', title: 'Fachadas y Desprendimientos', desc: 'Diagnostico y reparacion de deterioro de fachadas y desprendimientos.' },
+  },
+  {
+    image: '/ttc/img/projects/project-07.jpg',
+    en: { category: 'Reinforced Concrete', title: 'Parking Structure Repair', desc: 'Restoration of post-tensioned and reinforced parking decks.' },
+    es: { category: 'Concreto Reforzado', title: 'Estacionamientos', desc: 'Restauracion de losas de estacionamiento postensadas y reforzadas.' },
+  },
+];
+
 export default function ProjectsPage() {
-  const { t } = useTranslation();
-  const [filter, setFilter] = useState<Category>('all');
-
-  const allProjects: ProjectItem[] = [
-    { image: '/ttc/img/projects/project-01.jpg', category: 'residential', categoryKey: 'category.residential', titleKey: 'project.residentialTower', descKey: 'project.residentialTower.desc' },
-    { image: '/ttc/img/projects/project-02.jpg', category: 'commercial', categoryKey: 'category.commercial', titleKey: 'project.commercialComplex', descKey: 'project.commercialComplex.desc' },
-    { image: '/ttc/img/projects/project-03.jpg', category: 'industrial', categoryKey: 'category.industrial', titleKey: 'project.industrialWarehouse', descKey: 'project.industrialWarehouse.desc' },
-    { image: '/ttc/img/projects/project-04.jpg', category: 'residential', categoryKey: 'category.luxury', titleKey: 'project.luxuryResidence', descKey: 'project.luxuryResidence.desc' },
-    { image: '/ttc/img/projects/project-05.jpg', category: 'residential', categoryKey: 'category.multifamily', titleKey: 'project.multiFamilyHousing', descKey: 'project.multiFamilyHousing.desc' },
-    { image: '/ttc/img/projects/project-06.jpg', category: 'public', categoryKey: 'category.publicWorks', titleKey: 'project.publicInfrastructure', descKey: 'project.publicInfrastructure.desc' },
-    { image: '/ttc/img/projects/project-07.jpg', category: 'commercial', categoryKey: 'category.parking', titleKey: 'project.parkingStructure', descKey: 'project.parkingStructure.desc' },
-    { image: '/ttc/img/projects/project-08.jpg', category: 'commercial', categoryKey: 'category.mixedUse', titleKey: 'project.mixedUse', descKey: 'project.mixedUse.desc' },
-    { image: '/ttc/img/projects/project-09.jpg', category: 'public', categoryKey: 'category.healthcare', titleKey: 'project.healthcare', descKey: 'project.healthcare.desc' },
-    { image: '/ttc/img/projects/project-10.jpg', category: 'commercial', categoryKey: 'category.hospitality', titleKey: 'project.hospitality', descKey: 'project.hospitality.desc' },
-    { image: '/ttc/img/projects/project-11.jpg', category: 'industrial', categoryKey: 'category.industrial', titleKey: 'project.distributionCenter', descKey: 'project.distributionCenter.desc' },
-    { image: '/ttc/img/projects/project-12.jpg', category: 'commercial', categoryKey: 'category.office', titleKey: 'project.officeBuilding', descKey: 'project.officeBuilding.desc' },
-  ];
-
-  const filtered = filter === 'all' ? allProjects : allProjects.filter((p) => p.category === filter);
-
-  const filterBtns: { key: Category; labelKey: TranslationKey }[] = [
-    { key: 'all', labelKey: 'projects.filterAll' },
-    { key: 'residential', labelKey: 'projects.filterResidential' },
-    { key: 'commercial', labelKey: 'projects.filterCommercial' },
-    { key: 'industrial', labelKey: 'projects.filterIndustrial' },
-    { key: 'public', labelKey: 'projects.filterPublic' },
-  ];
+  const { t, language } = useTranslation();
+  const es = language === 'es';
 
   return (
     <>
@@ -56,31 +66,22 @@ export default function ProjectsPage() {
 
       <section className="section projects-page">
         <div className="container">
-          <div className="projects-filter">
-            {filterBtns.map((b) => (
-              <button
-                key={b.key}
-                className={`filter-btn${filter === b.key ? ' active' : ''}`}
-                onClick={() => setFilter(b.key)}
-              >
-                {t(b.labelKey)}
-              </button>
-            ))}
-          </div>
-
           <div className="projects__grid projects__grid--full">
-            {filtered.map((p, i) => (
-              <ProjectCard
-                key={p.image}
-                image={p.image}
-                category={t(p.categoryKey)}
-                title={t(p.titleKey)}
-                description={t(p.descKey)}
-                index={i + 1}
-                total={filtered.length}
-                delay={(i % 4) * 100}
-              />
-            ))}
+            {CAPABILITIES.map((c, i) => {
+              const copy = es ? c.es : c.en;
+              return (
+                <ProjectCard
+                  key={c.image}
+                  image={c.image}
+                  category={copy.category}
+                  title={copy.title}
+                  description={copy.desc}
+                  index={i + 1}
+                  total={CAPABILITIES.length}
+                  delay={(i % 4) * 100}
+                />
+              );
+            })}
           </div>
         </div>
       </section>
