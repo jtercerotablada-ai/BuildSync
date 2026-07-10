@@ -13,8 +13,8 @@ export const dictionaries = {
 
     // Hero
     'hero.badge': 'Reinforced Concrete Design & Building Safety',
-    'hero.titleLine1': 'STRUCTURAL',
-    'hero.titleLine2': 'DESIGN & SAFETY',
+    'hero.titleLine1': 'Structural engineering',
+    'hero.titleLine2': 'for buildings that endure.',
     'hero.materials': 'REINFORCED CONCRETE DESIGN \u00b7 RECERTIFICATION \u00b7 BUILDING SAFETY INSPECTION',
     'hero.desc': 'We design reinforced-concrete buildings and keep existing ones safe and compliant \u2014 from structural design to 30-year recertification and Building Safety Inspections across South Florida. Registered P.E.',
     'hero.credential': 'Registered P.E.',
@@ -266,8 +266,8 @@ export const dictionaries = {
 
     // Hero
     'hero.badge': 'Dise\u00f1o de Concreto Reforzado y Seguridad de Edificios',
-    'hero.titleLine1': 'DISE\u00d1O',
-    'hero.titleLine2': 'Y SEGURIDAD',
+    'hero.titleLine1': 'Ingenier\u00eda estructural',
+    'hero.titleLine2': 'para edificios que perduran.',
     'hero.materials': 'DISE\u00d1O DE CONCRETO REFORZADO \u00b7 RECERTIFICACION \u00b7 INSPECCION DE SEGURIDAD',
     'hero.desc': 'Dise\u00f1amos edificios de concreto reforzado y mantenemos los existentes seguros y en cumplimiento \u2014 desde el dise\u00f1o estructural hasta la recertificacion de 30 a\u00f1os e inspecciones de seguridad en el sur de Florida. P.E. registrado.',
     'hero.credential': 'P.E. Registrado',

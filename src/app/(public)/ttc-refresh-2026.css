@@ -133,8 +133,10 @@
   filter: none;
 }
 .hero__title-line {
-  font-size: clamp(2.9rem, 6.6vw, 5.4rem);
-  letter-spacing: 0.005em;
+  font-size: clamp(2.6rem, 5.6vw, 4.8rem);
+  letter-spacing: -0.012em;
+  line-height: 1.12;
+  text-transform: none !important;
   background: none !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
@@ -253,69 +255,91 @@
 }
 
 /* =====================================================================
-   4) TRUST BAR — quiet dark strip extending the hero
+   4) TRUST BAR — four credential columns on the dark strip
    ===================================================================== */
 .trustbar {
   background: var(--lux-dark);
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   border-bottom: none;
-  padding: clamp(1.6rem, 3.5vw, 2.2rem) 0;
+  padding: clamp(2.4rem, 5vw, 3.6rem) 0;
 }
-.trustbar .container {
+.trustbar__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+.trustbar__col {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.25rem 2.5rem;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.4rem clamp(1.2rem, 2.4vw, 2.4rem);
 }
-.trustbar__creds {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.9rem 2.2rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.trustbar__col + .trustbar__col {
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
 }
-.trustbar__cred {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.68rem;
+.trustbar__value {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-size: clamp(1.15rem, 1.8vw, 1.6rem);
+  font-weight: 500;
+  line-height: 1.15;
+  color: #ffffff;
+  letter-spacing: 0;
+}
+.trustbar__label {
+  font-size: 0.64rem;
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.6;
 }
-.trustbar__dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--lux-gold);
-  flex: none;
+@media (max-width: 980px) {
+  .trustbar__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem 0;
+  }
+  .trustbar__col:nth-child(3) {
+    border-left: none;
+  }
 }
-.trustbar__audience {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem 1.1rem;
-  flex-wrap: wrap;
+@media (max-width: 560px) {
+  .trustbar__grid {
+    grid-template-columns: 1fr;
+    gap: 1.75rem 0;
+  }
+  .trustbar__col + .trustbar__col {
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 1.75rem;
+  }
 }
-.trustbar__audience-label {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: rgba(255, 255, 255, 0.38);
+
+/* =====================================================================
+   4b) ESSENCE — single large serif statement
+   ===================================================================== */
+.essence {
+  padding: clamp(6rem, 11vw, 10rem) 0;
+  border-bottom: 1px solid var(--lux-line-soft);
 }
-.trustbar__audience-list {
-  display: flex;
-  gap: 0 1rem;
-  flex-wrap: wrap;
+.essence__inner {
+  max-width: 880px;
+  margin: 0 auto;
+  text-align: center;
 }
-.trustbar__pill {
-  font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.6);
-  border: none;
-  border-radius: 0;
-  padding: 0;
+.essence__statement {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-size: clamp(1.55rem, 3.1vw, 2.5rem);
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+  color: var(--lux-ink);
+  margin: 1.5rem 0 0;
+}
+.essence__statement em,
+.section__title em,
+.svc2__head em {
+  font-style: italic;
+  color: var(--lux-gold-deep);
 }
 
 /* =====================================================================

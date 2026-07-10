@@ -17,7 +17,11 @@ export function ServicesShowcase({ withHeader = true }: { withHeader?: boolean }
   const reduce = useReducedMotion();
 
   const label = es ? 'Lo Que Hacemos' : 'What We Do';
-  const title = es ? 'Tres especialidades. Cero improvisación.' : 'Three specialties. Zero guesswork.';
+  const title = es ? (
+    <>Tres especialidades. Cero <em>improvisación</em>.</>
+  ) : (
+    <>Three specialties. Zero <em>guesswork</em>.</>
+  );
   const sub = es
     ? 'Nos enfocamos en lo que mantiene los edificios seguros y en cumplimiento — y lo hacemos con la profundidad de un especialista, no de un generalista.'
     : 'We focus on what keeps buildings safe and compliant — and we do it with a specialist’s depth, not a generalist’s spread.';
