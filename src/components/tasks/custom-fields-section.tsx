@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { parseDaysInput, readTimeTracking } from "@/lib/duration";
 
 type FieldType =
   | "TEXT"
@@ -293,14 +294,7 @@ function CustomFieldRow({
     case "TIME_TRACKING":
       return (
         <FieldRow label={def.name} required={def.isRequired} saving={saving}>
-          <TimeTrackingEditor
-            value={
-              value && typeof value === "object" && !Array.isArray(value)
-                ? (value as { estimatedMin?: number | null; actualMin?: number | null })
-                : null
-            }
-            onCommit={onChange}
-          />
+          <TimeTrackingEditor value={value} onCommit={onChange} />
         </FieldRow>
       );
     case "TIMER":
@@ -606,32 +600,46 @@ function MultiSelectEditor({
   );
 }
 
-// ─── Time tracking (Estimated / Actual minutes) ──────────────────
+// ─── Time tracking (Estimated / Actual — in working DAYS) ─────────
+//
+// Estimates are entered in days like Microsoft Project: "3", "0.5",
+// "0.1". You can also type a unit — "4h" (→ 0.5d) or "2w" (→ 10d) —
+// and it normalizes to days (1 day = 8h, 1 week = 5 days). See
+// src/lib/duration.ts.
 
 function TimeTrackingEditor({
   value,
   onCommit,
 }: {
-  value: { estimatedMin?: number | null; actualMin?: number | null } | null;
-  onCommit: (next: { estimatedMin: number | null; actualMin: number | null } | null) => void;
+  value: unknown;
+  onCommit: (
+    next: { estimatedDays: number | null; actualDays: number | null } | null
+  ) => void;
 }) {
-  const est = value?.estimatedMin ?? null;
-  const act = value?.actualMin ?? null;
-  const [localEst, setLocalEst] = useState(est === null ? "" : String(est));
-  const [localAct, setLocalAct] = useState(act === null ? "" : String(act));
-  useEffect(() => setLocalEst(est === null ? "" : String(est)), [est]);
-  useEffect(() => setLocalAct(act === null ? "" : String(act)), [act]);
+  const { estimatedDays: est, actualDays: act } = readTimeTracking(value);
+  const [localEst, setLocalEst] = useState(est == null ? "" : String(est));
+  const [localAct, setLocalAct] = useState(act == null ? "" : String(act));
+  useEffect(() => setLocalEst(est == null ? "" : String(est)), [est]);
+  useEffect(() => setLocalAct(act == null ? "" : String(act)), [act]);
 
   function commit(estStr: string, actStr: string) {
-    const e = estStr.trim() === "" ? null : Number(estStr);
-    const a = actStr.trim() === "" ? null : Number(actStr);
-    if ((e !== null && !Number.isFinite(e)) || (a !== null && !Number.isFinite(a)))
-      return;
-    if (e === null && a === null) {
-      if (est !== null || act !== null) onCommit(null);
+    const e = estStr.trim() === "" ? null : parseDaysInput(estStr);
+    const a = actStr.trim() === "" ? null : parseDaysInput(actStr);
+    // Reject unparseable input (e.g. "abc") — revert the box to the
+    // stored value instead of saving garbage.
+    if ((estStr.trim() !== "" && e === null) || (actStr.trim() !== "" && a === null)) {
+      setLocalEst(est == null ? "" : String(est));
+      setLocalAct(act == null ? "" : String(act));
       return;
     }
-    if (e !== est || a !== act) onCommit({ estimatedMin: e, actualMin: a });
+    // Normalize the visible boxes to the parsed day value ("4h" → "0.5").
+    setLocalEst(e == null ? "" : String(e));
+    setLocalAct(a == null ? "" : String(a));
+    if (e == null && a == null) {
+      if (est != null || act != null) onCommit(null);
+      return;
+    }
+    if (e !== est || a !== act) onCommit({ estimatedDays: e, actualDays: a });
   }
 
   return (
@@ -643,11 +651,12 @@ function TimeTrackingEditor({
           <label
             key={label}
             className="flex items-center gap-1 text-[12px] text-[#6f7782] px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] focus-within:bg-[#f3f4f6]"
+            title="Enter days (e.g. 3, 0.5). You can also type 4h or 2w."
           >
             <span>{label}</span>
             <input
               type="text"
-              inputMode="numeric"
+              inputMode="decimal"
               value={local}
               onChange={(e) => setLocal(e.target.value)}
               onBlur={() => commit(localEst, localAct)}
@@ -655,9 +664,9 @@ function TimeTrackingEditor({
                 if (e.key === "Enter") e.currentTarget.blur();
               }}
               placeholder="0"
-              className="w-10 text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] text-[#1e1f21] tabular-nums text-right"
+              className="w-12 text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] text-[#1e1f21] tabular-nums text-right"
             />
-            <span className="text-[#9aa0a6]">m</span>
+            <span className="text-[#9aa0a6]">d</span>
           </label>
         );
       })}

@@ -19,6 +19,7 @@
 
 import { cn } from "@/lib/utils";
 import { Check, Link2, FunctionSquare, Timer as TimerIcon, Clock } from "lucide-react";
+import { readTimeTracking, formatDays } from "@/lib/duration";
 
 type FieldType =
   | "TEXT"
@@ -223,25 +224,20 @@ export function CustomFieldCell({
       );
     }
     case "TIME_TRACKING": {
-      // Compound value: { estimatedMin: number, actualMin: number }
-      // Render "estimated / actual" so the list view shows both at a glance.
-      const v = value as { estimatedMin?: number; actualMin?: number } | null;
-      if (!v) return null;
-      const est = v.estimatedMin ?? 0;
-      const act = v.actualMin ?? 0;
+      // Value in working days: { estimatedDays, actualDays } (legacy
+      // minutes are converted). Render "actual / estimated" so the list
+      // shows both at a glance, e.g. "2d / 3d".
+      const { estimatedDays, actualDays } = readTimeTracking(value);
+      const est = estimatedDays ?? 0;
+      const act = actualDays ?? 0;
       if (est === 0 && act === 0) return null;
-      const fmt = (mins: number) => {
-        const h = Math.floor(mins / 60);
-        const m = mins % 60;
-        return h > 0 ? `${h}h ${m}m` : `${m}m`;
-      };
       const over = act > est && est > 0;
       return (
         <span className="inline-flex items-center gap-1 text-[12px] tabular-nums">
           <Clock className="w-3 h-3 text-slate-400" />
-          <span className={cn(over && "text-rose-600 font-medium")}>{fmt(act)}</span>
+          <span className={cn(over && "text-rose-600 font-medium")}>{formatDays(act)}</span>
           <span className="text-slate-300">/</span>
-          <span className="text-slate-500">{fmt(est)}</span>
+          <span className="text-slate-500">{formatDays(est)}</span>
         </span>
       );
     }

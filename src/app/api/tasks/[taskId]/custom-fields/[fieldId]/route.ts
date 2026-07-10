@@ -275,29 +275,48 @@ export async function PATCH(
         break;
       }
       case "TIME_TRACKING": {
-        // { estimatedMin, actualMin } — both optional numbers.
+        // Estimates are in working DAYS (MS-Project style): value is
+        // { estimatedDays, actualDays } — both optional non-negative
+        // numbers. Legacy { estimatedMin, actualMin } is still accepted
+        // and converted (8h/day) for any pre-switch clients.
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
           return NextResponse.json(
-            { error: "Time tracking value must be { estimatedMin, actualMin }" },
+            { error: "Time tracking value must be { estimatedDays, actualDays }" },
             { status: 400 }
           );
         }
         const tt = raw as Record<string, unknown>;
-        for (const k of ["estimatedMin", "actualMin"] as const) {
+        const num = (v: unknown): number | null | undefined =>
+          v === undefined || v === null ? (v as null | undefined) : (v as number);
+        const readOne = (
+          daysKey: string,
+          minKey: string
+        ): number | null | undefined => {
+          if (tt[daysKey] !== undefined) return num(tt[daysKey]);
+          if (typeof tt[minKey] === "number")
+            return (tt[minKey] as number) / (8 * 60); // legacy min → days
+          return undefined;
+        };
+        const est = readOne("estimatedDays", "estimatedMin");
+        const act = readOne("actualDays", "actualMin");
+        for (const [label, val] of [
+          ["estimatedDays", est],
+          ["actualDays", act],
+        ] as const) {
           if (
-            tt[k] !== undefined &&
-            tt[k] !== null &&
-            (typeof tt[k] !== "number" || !Number.isFinite(tt[k] as number))
+            val !== undefined &&
+            val !== null &&
+            (typeof val !== "number" || !Number.isFinite(val) || val < 0)
           ) {
             return NextResponse.json(
-              { error: `${k} must be a number of minutes` },
+              { error: `${label} must be a non-negative number of days` },
               { status: 400 }
             );
           }
         }
         coerced = {
-          estimatedMin: (tt.estimatedMin as number | null | undefined) ?? null,
-          actualMin: (tt.actualMin as number | null | undefined) ?? null,
+          estimatedDays: (est as number | null | undefined) ?? null,
+          actualDays: (act as number | null | undefined) ?? null,
         };
         break;
       }

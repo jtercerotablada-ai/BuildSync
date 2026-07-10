@@ -28,6 +28,7 @@ import {
   AlertTriangle,
   Zap,
   Star,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -109,7 +110,7 @@ const FIELD_TYPES: FieldType[] = [
   { id: "reference", label: "Reference", icon: List, description: "Link to a task / project / portfolio / objective" },
   { id: "formula", label: "Formula", icon: Hash, description: "Computed value from other fields" },
   { id: "timer", label: "Timer", icon: Calendar, description: "Countdown to a target time" },
-  { id: "time_tracking", label: "Time tracking", icon: Calendar, description: "Estimated + actual minutes" },
+  { id: "time_tracking", label: "Time tracking", icon: Clock, description: "Estimated + actual, in days (e.g. 3, 0.5)" },
   { id: "rollup", label: "Roll-up", icon: Hash, description: "Aggregate subtask values" },
 ];
 
