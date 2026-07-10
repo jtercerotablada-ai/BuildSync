@@ -24,14 +24,17 @@ export function TTCHeader() {
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    document.body.classList.toggle('menu-open', mobileOpen);
     return () => {
       document.body.style.overflow = '';
+      document.body.classList.remove('menu-open');
     };
   }, [mobileOpen]);
 
   const navLinks = [
     { href: '/projects', label: t('nav.projects') },
     { href: '/services', label: t('nav.services') },
+    { href: '/resources', label: t('nav.resources') },
     { href: '/about', label: t('nav.about') },
     { href: '/contact', label: t('nav.contact') },
   ];
@@ -99,12 +102,38 @@ export function TTCHeader() {
             <Link
               key={link.href}
               href={link.href}
+              className={isActive(link.href) ? 'nav-active' : ''}
               onClick={() => setMobileOpen(false)}
             >
               {link.label}
             </Link>
           ))}
         </nav>
+
+        <div className="mobile-menu__footer">
+          <Link
+            href="/contact"
+            className="btn btn--primary mobile-menu__cta"
+            onClick={() => setMobileOpen(false)}
+          >
+            <span>{t('cta.contact')}</span>
+            <span className="btn__arrow">→</span>
+          </Link>
+
+          <button
+            className="lang-toggle mobile-menu__lang"
+            onClick={toggleLanguage}
+            aria-label="Toggle language"
+          >
+            <span className={language === 'en' ? 'lang-active' : 'lang-inactive'}>EN</span>
+            {' / '}
+            <span className={language === 'es' ? 'lang-active' : 'lang-inactive'}>ES</span>
+          </button>
+
+          <a href="mailto:info@tercerotablada.com" className="mobile-menu__email">
+            info@tercerotablada.com
+          </a>
+        </div>
       </div>
     </>
   );
