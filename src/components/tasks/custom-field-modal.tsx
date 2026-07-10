@@ -202,6 +202,14 @@ export function CustomFieldModal({
   const [addToAllNewTasks, setAddToAllNewTasks] = useState(true);
   const [librarySearch, setLibrarySearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // User-defined options for Single/Multi select fields (Asana lets you
+  // name + color them at creation instead of generic "Option 1/2/3").
+  const [optionDrafts, setOptionDrafts] = useState<
+    { label: string; colorId: string }[]
+  >([
+    { label: "", colorId: "blue" },
+    { label: "", colorId: "green" },
+  ]);
 
   // Pre-fill from props when the modal opens
   useEffect(() => {
@@ -239,18 +247,26 @@ export function CustomFieldModal({
       return;
     }
 
-    // DROPDOWN / MULTI_SELECT need at least one option. The current
-    // modal doesn't have an option editor (Phase 2), so seed a few
-    // placeholder options the user can rename via the column header
-    // dropdown later.
-    const options =
-      prismaType === "DROPDOWN" || prismaType === "MULTI_SELECT"
-        ? [
-            { id: "opt-1", label: "Option 1", color: fieldColor },
-            { id: "opt-2", label: "Option 2", color: fieldColor },
-            { id: "opt-3", label: "Option 3", color: fieldColor },
-          ]
-        : undefined;
+    // DROPDOWN / MULTI_SELECT: use the user-named options (stored with a
+    // real hex color so the pill tint renders). At least one is required.
+    let options: { id: string; label: string; color?: string }[] | undefined;
+    if (prismaType === "DROPDOWN" || prismaType === "MULTI_SELECT") {
+      const valid = optionDrafts.filter((o) => o.label.trim());
+      if (valid.length === 0) {
+        toast.error("Add at least one option");
+        return;
+      }
+      options = valid.map((o, i) => {
+        const hex = FIELD_COLORS.find(
+          (c) => c.id === o.colorId && c.id !== "none"
+        )?.color;
+        return {
+          id: `opt-${i + 1}`,
+          label: o.label.trim(),
+          ...(hex ? { color: hex } : {}),
+        };
+      });
+    }
 
     setSubmitting(true);
     try {
@@ -312,6 +328,10 @@ export function CustomFieldModal({
     setOnlyForThisProject(false);
     setAddToAllNewTasks(true);
     setLibrarySearch("");
+    setOptionDrafts([
+      { label: "", colorId: "blue" },
+      { label: "", colorId: "green" },
+    ]);
     setActiveTab("create");
     onOpenChange(false);
   }
@@ -369,6 +389,8 @@ export function CustomFieldModal({
               addToAllNewTasks={addToAllNewTasks}
               onAddToAllNewTasksChange={setAddToAllNewTasks}
               selectedType={selectedType}
+              optionDrafts={optionDrafts}
+              onOptionDraftsChange={setOptionDrafts}
             />
           )}
           {activeTab === "library" && (
@@ -422,6 +444,8 @@ function CreateTab({
   addToAllNewTasks,
   onAddToAllNewTasksChange,
   selectedType,
+  optionDrafts,
+  onOptionDraftsChange,
 }: {
   fieldTitle: string;
   onFieldTitleChange: (v: string) => void;
@@ -436,8 +460,12 @@ function CreateTab({
   addToAllNewTasks: boolean;
   onAddToAllNewTasksChange: (v: boolean) => void;
   selectedType: FieldType;
+  optionDrafts: { label: string; colorId: string }[];
+  onOptionDraftsChange: (v: { label: string; colorId: string }[]) => void;
 }) {
   const SelectedIcon = selectedType.icon;
+  const isSelectType =
+    fieldType === "single_select" || fieldType === "multi_select";
 
   return (
     <div className="space-y-4">
@@ -512,6 +540,81 @@ function CreateTab({
           </PopoverContent>
         </Popover>
       </div>
+
+      {/* Options — only for Single/Multi select. Name + color each one. */}
+      {isSelectType && (
+        <div>
+          <label className="block text-[12px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Options
+          </label>
+          <div className="space-y-1.5">
+            {optionDrafts.map((opt, i) => {
+              const swatch =
+                FIELD_COLORS.find((c) => c.id === opt.colorId)?.color ||
+                "#e5e7eb";
+              return (
+                <div key={i} className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    title="Change color"
+                    onClick={() => {
+                      const palette = FIELD_COLORS.filter(
+                        (c) => c.id !== "none"
+                      );
+                      const idx = palette.findIndex(
+                        (c) => c.id === opt.colorId
+                      );
+                      const next = palette[(idx + 1) % palette.length];
+                      const copy = [...optionDrafts];
+                      copy[i] = { ...opt, colorId: next.id };
+                      onOptionDraftsChange(copy);
+                    }}
+                    className="w-6 h-6 rounded-full border border-gray-200 flex-shrink-0"
+                    style={{ backgroundColor: swatch }}
+                  />
+                  <input
+                    type="text"
+                    value={opt.label}
+                    onChange={(e) => {
+                      const copy = [...optionDrafts];
+                      copy[i] = { ...opt, label: e.target.value };
+                      onOptionDraftsChange(copy);
+                    }}
+                    placeholder={`Option ${i + 1}`}
+                    className="flex-1 h-8 px-2.5 text-[13px] border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-black/10 placeholder:text-gray-400"
+                  />
+                  {optionDrafts.length > 1 && (
+                    <button
+                      type="button"
+                      title="Remove option"
+                      onClick={() =>
+                        onOptionDraftsChange(
+                          optionDrafts.filter((_, j) => j !== i)
+                        )
+                      }
+                      className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-700 rounded"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              onOptionDraftsChange([
+                ...optionDrafts,
+                { label: "", colorId: "blue" },
+              ])
+            }
+            className="mt-1.5 text-[12px] text-gray-500 hover:text-gray-700"
+          >
+            + Add option
+          </button>
+        </div>
+      )}
 
       {/* Color */}
       <div>

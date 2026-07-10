@@ -20,6 +20,7 @@
 import { cn } from "@/lib/utils";
 import { Check, Link2, FunctionSquare, Timer as TimerIcon, Clock } from "lucide-react";
 import { readTimeTracking, formatDays } from "@/lib/duration";
+import { dueDateToLocalMidnight } from "@/lib/date-only";
 
 type FieldType =
   | "TEXT"
@@ -87,7 +88,9 @@ export function CustomFieldCell({
         </span>
       );
     case "DATE": {
-      const d = new Date(String(value));
+      // Stored as a UTC-midnight ISO string; read by UTC calendar day so
+      // the list cell doesn't show the day-before for negative-UTC viewers.
+      const d = dueDateToLocalMidnight(String(value));
       if (Number.isNaN(d.getTime())) return null;
       return (
         <span className="text-[13px] text-[#1e1f21]">
