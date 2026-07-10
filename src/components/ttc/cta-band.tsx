@@ -7,7 +7,7 @@ import { useTranslation } from './language-provider';
 export function CtaBand() {
   const { language } = useTranslation();
   const es = language === 'es';
-  const title = es ? '¿Listo para diseñar o certificar tu edificio?' : 'Ready to design or certify your building?';
+  const title = es ? 'Construyamos juntos.' : 'Let’s build together.';
   const sub = es
     ? 'Habla con un P.E. registrado sobre el diseño de concreto reforzado, tu recertificación o una inspección de seguridad — sin compromiso.'
     : 'Talk to a Registered P.E. about reinforced-concrete design, your recertification, or a building safety inspection — no obligation.';

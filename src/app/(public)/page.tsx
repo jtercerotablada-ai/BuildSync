@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useTranslation } from '@/components/ttc/language-provider';
 import { ServicesShowcase } from '@/components/ttc/services-showcase';
 import { TrustBar } from '@/components/ttc/trust-bar';
+import { EssenceSection } from '@/components/ttc/essence';
 import { CounterStat } from '@/components/ttc/counter-stat';
 import { ContactForm } from '@/components/ttc/contact-form';
 import { CtaBand } from '@/components/ttc/cta-band';
@@ -58,6 +59,9 @@ export default function HomePage() {
 
       {/* TRUST / CREDENTIALS */}
       <TrustBar />
+
+      {/* ESSENCE — single philosophy statement */}
+      <EssenceSection />
 
       {/* SERVICES (3 core) */}
       <ServicesShowcase />
