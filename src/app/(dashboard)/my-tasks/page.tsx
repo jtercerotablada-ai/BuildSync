@@ -139,6 +139,7 @@ import { kanbanCollisionDetection } from "@/lib/kanban-collision-detection";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday } from "@/lib/date-only";
+import { readTimeTracking, formatDays } from "@/lib/duration";
 import { toast } from "sonner";
 
 // Types
@@ -254,7 +255,12 @@ interface Task {
         | "PEOPLE"
         | "CHECKBOX"
         | "CURRENCY"
-        | "PERCENTAGE";
+        | "PERCENTAGE"
+        | "REFERENCE"
+        | "FORMULA"
+        | "TIMER"
+        | "TIME_TRACKING"
+        | "ROLLUP";
       options: unknown;
     };
   }[];
@@ -4915,6 +4921,27 @@ function TaskRow({
         // correct type + options without an extra fetch.
         // Border + width come from the row's grid template + the
         // inherited [&>*+*]:border-l class.
+        // My-Tasks "Estimated time" / "Actual time" columns mirror the
+        // task's real Time-tracking custom field (from whatever project
+        // it lives in), showing just the estimated or actual side in days.
+        if (col.id === "tt-estimated" || col.id === "tt-actual") {
+          const ttv = task.customFieldValues?.find(
+            (v) => v.field?.type === "TIME_TRACKING"
+          );
+          const parsed = ttv ? readTimeTracking(ttv.value) : null;
+          const days =
+            col.id === "tt-estimated"
+              ? parsed?.estimatedDays
+              : parsed?.actualDays;
+          return (
+            <div
+              key={col.id}
+              className="hidden md:flex items-center pl-2.5 pr-1 overflow-hidden text-[13px] text-slate-600 tabular-nums"
+            >
+              {days != null ? formatDays(days) : ""}
+            </div>
+          );
+        }
         const cfv = !col.builtin
           ? task.customFieldValues?.find((v) => v.fieldId === col.id)
           : undefined;
