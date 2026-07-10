@@ -7,18 +7,20 @@ interface ResourceCardProps {
   icon: React.ReactNode;
   title: string;
   description: string;
-  delay?: number;
+  code?: string;
   status: 'available' | 'coming-soon';
   statusLabel: string;
   href?: string;
   openLabel?: string;
+  /** Accepted for backward compatibility (older callers pass a stagger delay). */
+  delay?: number;
 }
 
 export function ResourceCard({
   icon,
   title,
   description,
-  delay,
+  code,
   status,
   statusLabel,
   href,
@@ -33,6 +35,7 @@ export function ResourceCard({
       </div>
       <div className="service-card__icon">{icon}</div>
       <h3>{title}</h3>
+      {code && code !== '—' && <span className="resource-card__code">{code}</span>}
       <p>{description}</p>
       {isAvailable && openLabel && (
         <span className="resource-card__action">
@@ -48,8 +51,6 @@ export function ResourceCard({
       <Link
         href={href}
         className="service-card resource-card resource-card--available"
-        data-aos="fade-up"
-        data-aos-delay={delay}
         data-tilt
       >
         {body}
@@ -60,8 +61,6 @@ export function ResourceCard({
   return (
     <div
       className="service-card resource-card resource-card--coming-soon"
-      data-aos="fade-up"
-      data-aos-delay={delay}
       data-tilt
     >
       {body}
