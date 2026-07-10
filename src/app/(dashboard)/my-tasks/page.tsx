@@ -8010,6 +8010,8 @@ function TaskDetailPanel({
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setLiked(Boolean(data.liked));
+      // Refresh the list so the "Likes" column count reflects the change.
+      onUpdate();
     } catch {
       setLiked(prev);
       toast.error("Failed to update like");
