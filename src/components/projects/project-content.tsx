@@ -233,14 +233,6 @@ const PROJECT_TYPE_COLOR: Record<string, string> = {
   RECERTIFICATION: "#a8893a", // deep gold / bronze
   PERMIT: "#1a1a1a",       // black (outlined badge treatment)
 };
-const GATES_ORDER = ["PRE_DESIGN", "DESIGN", "PERMITTING", "CONSTRUCTION", "CLOSEOUT"] as const;
-const GATE_LABEL: Record<string, string> = {
-  PRE_DESIGN: "Pre-Design",
-  DESIGN: "Design",
-  PERMITTING: "Permitting",
-  CONSTRUCTION: "Construction",
-  CLOSEOUT: "Closeout",
-};
 
 interface ProjectContentProps {
   project: Project;
@@ -832,33 +824,6 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           </div>
         )}
 
-        {/* Gate progress bar — 5 segments representing the engineering
-            lifecycle. Visible only when the project has a gate set. */}
-        {project.gate && (
-          <div className="hidden md:flex items-center gap-2 mt-1 mb-1.5">
-            <div className="flex items-center gap-0.5 flex-1 max-w-[420px]">
-              {GATES_ORDER.map((g, i) => {
-                const activeIdx = GATES_ORDER.indexOf(project.gate as typeof GATES_ORDER[number]);
-                const reached = i <= activeIdx;
-                return (
-                  <div
-                    key={g}
-                    className="flex-1 h-1.5 rounded-full transition-colors"
-                    style={{
-                      background: reached
-                        ? PROJECT_TYPE_COLOR[project.type ?? "DESIGN"] ?? "#c9a84c"
-                        : "#e5e7eb",
-                    }}
-                    title={GATE_LABEL[g]}
-                  />
-                );
-              })}
-            </div>
-            <span className="text-[11px] text-slate-500 uppercase tracking-[1.5px] font-medium">
-              {GATE_LABEL[project.gate] ?? project.gate}
-            </span>
-          </div>
-        )}
 
         {/* View Tabs — Asana layout: tabs on their own top row,
             Filter/Sort/Options on a separate row below. Keeps the
