@@ -41,6 +41,26 @@ export function isFormulaSpec(v: unknown): v is FormulaSpec {
   );
 }
 
+export type RollupFn = "sum" | "avg" | "min" | "max" | "count";
+
+export interface RollupSpec {
+  /** The custom field on the SUBTASKS whose values are aggregated. */
+  sourceFieldId: string;
+  fn: RollupFn;
+}
+
+/** True if a value object is a roll-up spec (aggregate a subtask field). */
+export function isRollupSpec(v: unknown): v is RollupSpec {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    typeof (v as { sourceFieldId?: unknown }).sourceFieldId === "string" &&
+    ["sum", "avg", "min", "max", "count"].includes(
+      String((v as { fn?: unknown }).fn)
+    )
+  );
+}
+
 /** Coerce any stored CustomFieldValue.value into a number for compute. */
 function toNumber(raw: unknown): number | null {
   if (raw == null) return null;
@@ -85,8 +105,20 @@ export async function recomputeFormulasForTask(
   });
   if (formulas.length === 0) return;
 
-  // Two passes — formulas that reference other formulas pick up the
-  // updated upstream result on the second pass.
+  // ROLLUP fields aggregate the SUBTASKS' values, so load subtask ids
+  // once up front (only if there's at least one roll-up to compute).
+  const hasRollup = formulas.some((f) => f.type === "ROLLUP");
+  let subtaskIds: string[] = [];
+  if (hasRollup) {
+    const subs = await prisma.task.findMany({
+      where: { parentTaskId: taskId },
+      select: { id: true },
+    });
+    subtaskIds = subs.map((s) => s.id);
+  }
+
+  // Two passes — formulas that reference other formulas/roll-ups pick up
+  // the updated upstream result on the second pass.
   for (let pass = 0; pass < 2; pass++) {
     // Load every value on this task (refreshes between passes so the
     // first pass's writes are visible to the second).
@@ -99,13 +131,70 @@ export async function recomputeFormulasForTask(
 
     for (const f of formulas) {
       const spec = f.options as unknown;
-      if (!isFormulaSpec(spec)) continue;
-      const left = toNumber(valueByField.get(spec.leftFieldId));
-      const right = toNumber(valueByField.get(spec.rightFieldId));
       let result: { result: number } | { error: string } | null = null;
-      if (left == null || right == null) {
-        // One or both operands missing — clear the formula's value
-        // so the cell renders empty rather than stale.
+      let clear = false;
+
+      if (f.type === "ROLLUP" && isRollupSpec(spec)) {
+        // Aggregate the source field across this task's subtasks.
+        let nums: number[] = [];
+        if (subtaskIds.length > 0) {
+          const subVals = await prisma.customFieldValue.findMany({
+            where: { taskId: { in: subtaskIds }, fieldId: spec.sourceFieldId },
+            select: { value: true },
+          });
+          nums = subVals
+            .map((v) => toNumber(v.value))
+            .filter((n): n is number => n != null);
+        }
+        switch (spec.fn) {
+          case "sum":
+            result = { result: nums.reduce((a, b) => a + b, 0) };
+            break;
+          case "count":
+            result = { result: nums.length };
+            break;
+          case "avg":
+            if (nums.length)
+              result = { result: nums.reduce((a, b) => a + b, 0) / nums.length };
+            else clear = true;
+            break;
+          case "min":
+            if (nums.length) result = { result: Math.min(...nums) };
+            else clear = true;
+            break;
+          case "max":
+            if (nums.length) result = { result: Math.max(...nums) };
+            else clear = true;
+            break;
+        }
+      } else if (f.type === "FORMULA" && isFormulaSpec(spec)) {
+        const left = toNumber(valueByField.get(spec.leftFieldId));
+        const right = toNumber(valueByField.get(spec.rightFieldId));
+        if (left == null || right == null) {
+          clear = true;
+        } else {
+          switch (spec.op) {
+            case "+":
+              result = { result: left + right };
+              break;
+            case "-":
+              result = { result: left - right };
+              break;
+            case "*":
+              result = { result: left * right };
+              break;
+            case "/":
+              result =
+                right === 0 ? { error: "Div/0" } : { result: left / right };
+              break;
+          }
+        }
+      } else {
+        // No valid spec (unconfigured field) — nothing to compute.
+        continue;
+      }
+
+      if (clear || !result) {
         await prisma.customFieldValue
           .delete({ where: { taskId_fieldId: { taskId, fieldId: f.id } } })
           .catch(() => {
@@ -113,21 +202,6 @@ export async function recomputeFormulasForTask(
           });
         continue;
       }
-      switch (spec.op) {
-        case "+":
-          result = { result: left + right };
-          break;
-        case "-":
-          result = { result: left - right };
-          break;
-        case "*":
-          result = { result: left * right };
-          break;
-        case "/":
-          result = right === 0 ? { error: "Div/0" } : { result: left / right };
-          break;
-      }
-      if (!result) continue;
       await prisma.customFieldValue.upsert({
         where: { taskId_fieldId: { taskId, fieldId: f.id } },
         create: { taskId, fieldId: f.id, value: result },

@@ -210,6 +210,48 @@ export function CustomFieldModal({
     { label: "", colorId: "blue" },
     { label: "", colorId: "green" },
   ]);
+  // FORMULA / ROLLUP config. Operands come from the project's numeric fields.
+  const [projectFields, setProjectFields] = useState<
+    { id: string; name: string; type: string }[]
+  >([]);
+  const [formula, setFormula] = useState<{
+    left: string;
+    op: string;
+    right: string;
+  }>({ left: "", op: "+", right: "" });
+  const [rollup, setRollup] = useState<{ source: string; fn: string }>({
+    source: "",
+    fn: "sum",
+  });
+
+  // Load the project's numeric fields when building a Formula/Roll-up.
+  useEffect(() => {
+    if (!open || !projectId) return;
+    if (fieldType !== "formula" && fieldType !== "rollup") return;
+    let cancelled = false;
+    fetch(`/api/projects/${projectId}/custom-fields`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((defs) => {
+        if (cancelled) return;
+        const numeric = (Array.isArray(defs) ? defs : []).filter(
+          (d: { type: string }) =>
+            ["NUMBER", "CURRENCY", "PERCENTAGE", "FORMULA", "ROLLUP"].includes(
+              d.type
+            )
+        );
+        setProjectFields(
+          numeric.map((d: { id: string; name: string; type: string }) => ({
+            id: d.id,
+            name: d.name,
+            type: d.type,
+          }))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId, fieldType]);
 
   // Pre-fill from props when the modal opens
   useEffect(() => {
@@ -247,9 +289,11 @@ export function CustomFieldModal({
       return;
     }
 
-    // DROPDOWN / MULTI_SELECT: use the user-named options (stored with a
-    // real hex color so the pill tint renders). At least one is required.
-    let options: { id: string; label: string; color?: string }[] | undefined;
+    // Build the `options` payload per type:
+    //  - DROPDOWN/MULTI_SELECT → user-named option array (hex colors)
+    //  - FORMULA → { leftFieldId, op, rightFieldId }
+    //  - ROLLUP  → { sourceFieldId, fn }
+    let options: unknown;
     if (prismaType === "DROPDOWN" || prismaType === "MULTI_SELECT") {
       const valid = optionDrafts.filter((o) => o.label.trim());
       if (valid.length === 0) {
@@ -266,6 +310,22 @@ export function CustomFieldModal({
           ...(hex ? { color: hex } : {}),
         };
       });
+    } else if (prismaType === "FORMULA") {
+      if (!formula.left || !formula.right) {
+        toast.error("Pick both fields for the formula");
+        return;
+      }
+      options = {
+        leftFieldId: formula.left,
+        op: formula.op,
+        rightFieldId: formula.right,
+      };
+    } else if (prismaType === "ROLLUP") {
+      if (!rollup.source) {
+        toast.error("Pick a field to roll up");
+        return;
+      }
+      options = { sourceFieldId: rollup.source, fn: rollup.fn };
     }
 
     setSubmitting(true);
@@ -332,6 +392,9 @@ export function CustomFieldModal({
       { label: "", colorId: "blue" },
       { label: "", colorId: "green" },
     ]);
+    setFormula({ left: "", op: "+", right: "" });
+    setRollup({ source: "", fn: "sum" });
+    setProjectFields([]);
     setActiveTab("create");
     onOpenChange(false);
   }
@@ -391,6 +454,11 @@ export function CustomFieldModal({
               selectedType={selectedType}
               optionDrafts={optionDrafts}
               onOptionDraftsChange={setOptionDrafts}
+              projectFields={projectFields}
+              formula={formula}
+              onFormulaChange={setFormula}
+              rollup={rollup}
+              onRollupChange={setRollup}
             />
           )}
           {activeTab === "library" && (
@@ -446,6 +514,11 @@ function CreateTab({
   selectedType,
   optionDrafts,
   onOptionDraftsChange,
+  projectFields,
+  formula,
+  onFormulaChange,
+  rollup,
+  onRollupChange,
 }: {
   fieldTitle: string;
   onFieldTitleChange: (v: string) => void;
@@ -462,10 +535,17 @@ function CreateTab({
   selectedType: FieldType;
   optionDrafts: { label: string; colorId: string }[];
   onOptionDraftsChange: (v: { label: string; colorId: string }[]) => void;
+  projectFields: { id: string; name: string; type: string }[];
+  formula: { left: string; op: string; right: string };
+  onFormulaChange: (v: { left: string; op: string; right: string }) => void;
+  rollup: { source: string; fn: string };
+  onRollupChange: (v: { source: string; fn: string }) => void;
 }) {
   const SelectedIcon = selectedType.icon;
   const isSelectType =
     fieldType === "single_select" || fieldType === "multi_select";
+  const selectClass =
+    "h-9 px-2 text-[13px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/10";
 
   return (
     <div className="space-y-4">
@@ -613,6 +693,111 @@ function CreateTab({
           >
             + Add option
           </button>
+        </div>
+      )}
+
+      {/* Formula — [field A] [op] [field B], operands = project numbers. */}
+      {fieldType === "formula" && (
+        <div>
+          <label className="block text-[12px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Formula
+          </label>
+          {projectFields.length < 2 ? (
+            <p className="text-[12px] text-gray-400">
+              Add at least two Number fields to this project first, then
+              create the formula.
+            </p>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <select
+                className={cn(selectClass, "flex-1 min-w-0")}
+                value={formula.left}
+                onChange={(e) =>
+                  onFormulaChange({ ...formula, left: e.target.value })
+                }
+              >
+                <option value="">Field A…</option>
+                {projectFields.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={selectClass}
+                value={formula.op}
+                onChange={(e) =>
+                  onFormulaChange({ ...formula, op: e.target.value })
+                }
+              >
+                {["+", "-", "*", "/"].map((op) => (
+                  <option key={op} value={op}>
+                    {op}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={cn(selectClass, "flex-1 min-w-0")}
+                value={formula.right}
+                onChange={(e) =>
+                  onFormulaChange({ ...formula, right: e.target.value })
+                }
+              >
+                <option value="">Field B…</option>
+                {projectFields.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Roll-up — aggregate a field across the task's subtasks. */}
+      {fieldType === "rollup" && (
+        <div>
+          <label className="block text-[12px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+            Roll-up (from subtasks)
+          </label>
+          {projectFields.length === 0 ? (
+            <p className="text-[12px] text-gray-400">
+              Add a Number field to this project first, then create the
+              roll-up.
+            </p>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <select
+                className={selectClass}
+                value={rollup.fn}
+                onChange={(e) =>
+                  onRollupChange({ ...rollup, fn: e.target.value })
+                }
+              >
+                {["sum", "avg", "min", "max", "count"].map((fn) => (
+                  <option key={fn} value={fn}>
+                    {fn}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[12px] text-gray-500">of</span>
+              <select
+                className={cn(selectClass, "flex-1 min-w-0")}
+                value={rollup.source}
+                onChange={(e) =>
+                  onRollupChange({ ...rollup, source: e.target.value })
+                }
+              >
+                <option value="">Field…</option>
+                {projectFields.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 

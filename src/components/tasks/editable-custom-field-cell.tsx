@@ -34,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { CustomFieldCell } from "@/components/tasks/custom-field-cell";
 import { PeopleFieldEditor } from "@/components/tasks/people-field-editor";
+import { ReferenceFieldEditor } from "@/components/tasks/reference-field-editor";
 
 type FieldType =
   | "TEXT"
@@ -58,7 +59,6 @@ interface FieldOption {
 }
 
 const READ_ONLY_TYPES: FieldType[] = [
-  "REFERENCE",
   "FORMULA",
   "TIMER",
   "TIME_TRACKING",
@@ -133,6 +133,16 @@ export function EditableCustomFieldCell({
   if (type === "PEOPLE") {
     return (
       <PeopleFieldEditor
+        value={optimistic}
+        onChange={(next) => void commit(next)}
+      />
+    );
+  }
+
+  // REFERENCE — task/project link picker.
+  if (type === "REFERENCE") {
+    return (
+      <ReferenceFieldEditor
         value={optimistic}
         onChange={(next) => void commit(next)}
       />

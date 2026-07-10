@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { parseDaysInput, readTimeTracking } from "@/lib/duration";
 import { PeopleFieldEditor } from "@/components/tasks/people-field-editor";
+import { ReferenceFieldEditor } from "@/components/tasks/reference-field-editor";
 
 type FieldType =
   | "TEXT"
@@ -310,13 +311,7 @@ function CustomFieldRow({
     case "REFERENCE":
       return (
         <FieldRow label={def.name} required={def.isRequired} saving={saving}>
-          <span className="text-[13px] text-[#1e1f21]">
-            {Array.isArray(value) && value.length > 0
-              ? (value as { name?: string }[])
-                  .map((r) => r?.name || "Untitled")
-                  .join(", ")
-              : <span className="text-[#9aa0a6]">Empty</span>}
-          </span>
+          <ReferenceFieldEditor value={value} onChange={onChange} />
         </FieldRow>
       );
     case "FORMULA":

@@ -43,15 +43,20 @@ const FIELD_TYPES = [
 const createSchema = z.object({
   name: z.string().min(1).max(80),
   type: z.enum(FIELD_TYPES),
-  // For DROPDOWN / MULTI_SELECT, options is an array of { id, label, color? }
+  // For DROPDOWN / MULTI_SELECT this is an array of { id, label, color? }.
+  // For FORMULA / ROLLUP it's the spec object ({leftFieldId,op,rightFieldId}
+  // or {sourceFieldId,fn}). Validated per-type below.
   options: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        label: z.string().min(1).max(80),
-        color: z.string().optional(),
-      })
-    )
+    .union([
+      z.array(
+        z.object({
+          id: z.string().min(1),
+          label: z.string().min(1).max(80),
+          color: z.string().optional(),
+        })
+      ),
+      z.record(z.string(), z.any()),
+    ])
     .optional(),
   isRequired: z.boolean().optional().default(false),
 });
@@ -163,22 +168,29 @@ export async function POST(
 
     // Validate options vs type
     const needsOptions = type === "DROPDOWN" || type === "MULTI_SELECT";
-    if (needsOptions && (!options || options.length === 0)) {
+    if (needsOptions && (!Array.isArray(options) || options.length === 0)) {
       return NextResponse.json(
         { error: "Dropdown fields need at least one option" },
         { status: 400 }
       );
     }
+    // FORMULA / ROLLUP carry a spec OBJECT in options (not an array).
+    const isComputed = type === "FORMULA" || type === "ROLLUP";
+    const storeOptions =
+      (needsOptions && Array.isArray(options)) ||
+      (isComputed &&
+        options &&
+        typeof options === "object" &&
+        !Array.isArray(options))
+        ? JSON.parse(JSON.stringify(options))
+        : null;
 
     const result = await prisma.$transaction(async (tx) => {
       const def = await tx.customFieldDefinition.create({
         data: {
           name,
           type,
-          options:
-            needsOptions && options
-              ? JSON.parse(JSON.stringify(options))
-              : null,
+          options: storeOptions,
           isRequired,
           workspaceId: access.project.workspaceId,
         },

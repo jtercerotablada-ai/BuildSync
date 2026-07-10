@@ -52,7 +52,11 @@ export async function PATCH(
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      select: { projectId: true, project: { select: { workspaceId: true } } },
+      select: {
+        projectId: true,
+        parentTaskId: true,
+        project: { select: { workspaceId: true } },
+      },
     });
 
     const field = await prisma.customFieldDefinition.findUnique({
@@ -252,14 +256,27 @@ export async function PATCH(
       // after a structural sanity check; full domain validation can
       // tighten as edit UIs ship in follow-up passes.
       case "REFERENCE": {
-        // Array of { kind, id, name } refs.
+        // Array of { kind, id, name } refs — keep only well-formed ones.
         if (!Array.isArray(raw)) {
           return NextResponse.json(
             { error: "Reference value must be an array of refs" },
             { status: 400 }
           );
         }
-        coerced = raw;
+        coerced = raw
+          .filter(
+            (v): v is { kind?: unknown; id: string; name: string } =>
+              !!v &&
+              typeof v === "object" &&
+              typeof (v as { id?: unknown }).id === "string" &&
+              typeof (v as { name?: unknown }).name === "string"
+          )
+          .map((v) => ({
+            kind:
+              v.kind === "project" || v.kind === "task" ? v.kind : "task",
+            id: v.id,
+            name: v.name,
+          }));
         break;
       }
       case "FORMULA":
@@ -367,6 +384,15 @@ export async function PATCH(
         // Non-fatal — the source write succeeded; formulas can be
         // recomputed on the next edit if this one threw.
         console.error("[formula recompute] error:", e);
+      }
+      // If this task is a subtask, its parent's ROLL-UP fields aggregate
+      // this value — recompute the parent too so the roll-up updates.
+      if (task.parentTaskId) {
+        try {
+          await recomputeFormulasForTask(task.parentTaskId, task.projectId);
+        } catch (e) {
+          console.error("[rollup parent recompute] error:", e);
+        }
       }
     }
 
