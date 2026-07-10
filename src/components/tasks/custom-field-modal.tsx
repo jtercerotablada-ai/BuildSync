@@ -32,6 +32,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  FormulaBuilder,
+  isExprComplete,
+  type Token,
+} from "@/components/tasks/formula-builder";
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -214,11 +219,9 @@ export function CustomFieldModal({
   const [projectFields, setProjectFields] = useState<
     { id: string; name: string; type: string }[]
   >([]);
-  const [formula, setFormula] = useState<{
-    left: string;
-    op: string;
-    right: string;
-  }>({ left: "", op: "+", right: "" });
+  const [formulaTokens, setFormulaTokens] = useState<Token[]>([
+    { t: "field", id: "" },
+  ]);
   const [rollup, setRollup] = useState<{ source: string; fn: string }>({
     source: "",
     fn: "sum",
@@ -235,9 +238,14 @@ export function CustomFieldModal({
         if (cancelled) return;
         const numeric = (Array.isArray(defs) ? defs : []).filter(
           (d: { type: string }) =>
-            ["NUMBER", "CURRENCY", "PERCENTAGE", "FORMULA", "ROLLUP"].includes(
-              d.type
-            )
+            [
+              "NUMBER",
+              "CURRENCY",
+              "PERCENTAGE",
+              "FORMULA",
+              "ROLLUP",
+              "DATE",
+            ].includes(d.type)
         );
         setProjectFields(
           numeric.map((d: { id: string; name: string; type: string }) => ({
@@ -311,15 +319,11 @@ export function CustomFieldModal({
         };
       });
     } else if (prismaType === "FORMULA") {
-      if (!formula.left || !formula.right) {
-        toast.error("Pick both fields for the formula");
+      if (!isExprComplete(formulaTokens)) {
+        toast.error("Complete the formula (fill every field or number)");
         return;
       }
-      options = {
-        leftFieldId: formula.left,
-        op: formula.op,
-        rightFieldId: formula.right,
-      };
+      options = { expr: formulaTokens };
     } else if (prismaType === "ROLLUP") {
       if (!rollup.source) {
         toast.error("Pick a field to roll up");
@@ -392,7 +396,7 @@ export function CustomFieldModal({
       { label: "", colorId: "blue" },
       { label: "", colorId: "green" },
     ]);
-    setFormula({ left: "", op: "+", right: "" });
+    setFormulaTokens([{ t: "field", id: "" }]);
     setRollup({ source: "", fn: "sum" });
     setProjectFields([]);
     setActiveTab("create");
@@ -406,7 +410,7 @@ export function CustomFieldModal({
   const canSubmit = (() => {
     if (!fieldTitle.trim() || submitting) return false;
     if (fieldType === "formula")
-      return projectFields.length >= 2 && !!formula.left && !!formula.right;
+      return projectFields.length >= 1 && isExprComplete(formulaTokens);
     if (fieldType === "rollup")
       return projectFields.length >= 1 && !!rollup.source;
     return true;
@@ -466,8 +470,8 @@ export function CustomFieldModal({
               optionDrafts={optionDrafts}
               onOptionDraftsChange={setOptionDrafts}
               projectFields={projectFields}
-              formula={formula}
-              onFormulaChange={setFormula}
+              formulaTokens={formulaTokens}
+              onFormulaTokensChange={setFormulaTokens}
               rollup={rollup}
               onRollupChange={setRollup}
             />
@@ -526,8 +530,8 @@ function CreateTab({
   optionDrafts,
   onOptionDraftsChange,
   projectFields,
-  formula,
-  onFormulaChange,
+  formulaTokens,
+  onFormulaTokensChange,
   rollup,
   onRollupChange,
 }: {
@@ -547,8 +551,8 @@ function CreateTab({
   optionDrafts: { label: string; colorId: string }[];
   onOptionDraftsChange: (v: { label: string; colorId: string }[]) => void;
   projectFields: { id: string; name: string; type: string }[];
-  formula: { left: string; op: string; right: string };
-  onFormulaChange: (v: { left: string; op: string; right: string }) => void;
+  formulaTokens: Token[];
+  onFormulaTokensChange: (v: Token[]) => void;
   rollup: { source: string; fn: string };
   onRollupChange: (v: { source: string; fn: string }) => void;
 }) {
@@ -713,55 +717,23 @@ function CreateTab({
           <label className="block text-[12px] font-medium text-gray-500 uppercase tracking-wide mb-1.5">
             Formula
           </label>
-          {projectFields.length < 2 ? (
+          {projectFields.length < 1 ? (
             <p className="text-[12px] text-gray-400">
-              Add at least two Number fields to this project first, then
-              create the formula.
+              Add at least one Number field to this project first, then build
+              the formula.
             </p>
           ) : (
-            <div className="flex items-center gap-1.5">
-              <select
-                className={cn(selectClass, "flex-1 min-w-0")}
-                value={formula.left}
-                onChange={(e) =>
-                  onFormulaChange({ ...formula, left: e.target.value })
-                }
-              >
-                <option value="">Field A…</option>
-                {projectFields.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={selectClass}
-                value={formula.op}
-                onChange={(e) =>
-                  onFormulaChange({ ...formula, op: e.target.value })
-                }
-              >
-                {["+", "-", "*", "/"].map((op) => (
-                  <option key={op} value={op}>
-                    {op}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={cn(selectClass, "flex-1 min-w-0")}
-                value={formula.right}
-                onChange={(e) =>
-                  onFormulaChange({ ...formula, right: e.target.value })
-                }
-              >
-                <option value="">Field B…</option>
-                {projectFields.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <FormulaBuilder
+                fields={projectFields}
+                tokens={formulaTokens}
+                onChange={onFormulaTokensChange}
+              />
+              <p className="mt-1.5 text-[11px] text-gray-400">
+                Combine fields and numbers, e.g. Hours × Rate + 50. × ÷ run
+                before + −. Two date fields subtract to a number of days.
+              </p>
+            </>
           )}
         </div>
       )}

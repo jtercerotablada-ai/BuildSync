@@ -61,7 +61,9 @@ export function isRollupSpec(v: unknown): v is RollupSpec {
   );
 }
 
-/** Coerce any stored CustomFieldValue.value into a number for compute. */
+/** Coerce any stored CustomFieldValue.value into a number for compute.
+ *  DATE values (ISO strings) convert to a whole-day number so dates can
+ *  be subtracted (date − date = days), matching Asana. */
 function toNumber(raw: unknown): number | null {
   if (raw == null) return null;
   if (typeof raw === "number") return raw;
@@ -74,8 +76,83 @@ function toNumber(raw: unknown): number | null {
   ) {
     return (raw as { result: number }).result;
   }
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+  if (typeof raw === "string") {
+    // A date-like string → whole days since epoch (enables date math).
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+      const t = Date.parse(raw);
+      if (!Number.isNaN(t)) return Math.floor(t / 86400000);
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+// ─── Multi-term expression (Asana "advanced" formula) ────────────
+export type ExprToken =
+  | { t: "field"; id: string }
+  | { t: "num"; n: number }
+  | { t: "op"; op: "+" | "-" | "*" | "/" };
+
+/** New expression spec: { expr: ExprToken[] } — operand, op, operand, … */
+export function isExprSpec(v: unknown): v is { expr: ExprToken[] } {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    Array.isArray((v as { expr?: unknown }).expr) &&
+    (v as { expr: unknown[] }).expr.length > 0
+  );
+}
+
+/**
+ * Evaluate a token expression with standard precedence (× ÷ before + −),
+ * left-to-right within a precedence level. Any missing operand → null
+ * (clears the field). Division by zero → { error: "Div/0" }.
+ */
+export function evalExpr(
+  tokens: ExprToken[],
+  valueByField: Map<string, unknown>
+): { result: number } | { error: string } | null {
+  // Split into operand values + operators (tokens must alternate).
+  const values: number[] = [];
+  const ops: ("+" | "-" | "*" | "/")[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const tk = tokens[i];
+    if (i % 2 === 0) {
+      // operand
+      let v: number | null;
+      if (tk.t === "num") v = Number.isFinite(tk.n) ? tk.n : null;
+      else if (tk.t === "field") v = toNumber(valueByField.get(tk.id));
+      else return null; // malformed
+      if (v == null) return null; // missing operand → clear
+      values.push(v);
+    } else {
+      if (tk.t !== "op") return null; // malformed
+      ops.push(tk.op);
+    }
+  }
+  if (values.length === 0) return null;
+  // Pass 1 — × and ÷.
+  const v1: number[] = [values[0]];
+  const o1: ("+" | "-")[] = [];
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i];
+    const rhs = values[i + 1];
+    if (op === "*") v1[v1.length - 1] = v1[v1.length - 1] * rhs;
+    else if (op === "/") {
+      if (rhs === 0) return { error: "Div/0" };
+      v1[v1.length - 1] = v1[v1.length - 1] / rhs;
+    } else {
+      o1.push(op);
+      v1.push(rhs);
+    }
+  }
+  // Pass 2 — + and −.
+  let acc = v1[0];
+  for (let i = 0; i < o1.length; i++) {
+    acc = o1[i] === "+" ? acc + v1[i + 1] : acc - v1[i + 1];
+  }
+  return { result: acc };
 }
 
 /**
@@ -167,7 +244,13 @@ export async function recomputeFormulasForTask(
             else clear = true;
             break;
         }
+      } else if (f.type === "FORMULA" && isExprSpec(spec)) {
+        // Multi-term expression (fields + numbers + operators, precedence).
+        const r = evalExpr(spec.expr, valueByField);
+        if (r == null) clear = true;
+        else result = r;
       } else if (f.type === "FORMULA" && isFormulaSpec(spec)) {
+        // Legacy binary spec { leftFieldId, op, rightFieldId }.
         const left = toNumber(valueByField.get(spec.leftFieldId));
         const right = toNumber(valueByField.get(spec.rightFieldId));
         if (left == null || right == null) {
