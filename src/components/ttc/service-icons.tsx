@@ -1,7 +1,7 @@
 import React from 'react';
 
 export const serviceIcons: Record<string, React.ReactNode> = {
-  // Reinforced concrete restoration — rebar cage inside a concrete member
+  // Reinforced concrete design — rebar cage inside a concrete member
   concrete: (
     <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48" strokeLinecap="round" strokeLinejoin="round">
       <rect x="8" y="5" width="32" height="38" rx="1.5" />
@@ -9,7 +9,7 @@ export const serviceIcons: Record<string, React.ReactNode> = {
       <path d="M8 15h32M8 24h32M8 33h32" />
     </svg>
   ),
-  // 40-year recertification — certificate page with seal + check
+  // Building recertification — certificate page with seal + check
   recert: (
     <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48" strokeLinecap="round" strokeLinejoin="round">
       <path d="M11 5h16l9 9v25a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />

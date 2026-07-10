@@ -6,14 +6,15 @@ import { serviceIcons } from './service-icons';
  * Used by the Services showcase (home + /services), the footer service
  * links, and the contact-form service dropdown so they never drift.
  *
- * Bilingual data lives inline (same pattern as WhyUs / ProcessSection)
- * because these are long, structured marketing strings — not simple
- * UI labels — and keeping them together makes the offering easy to edit.
+ * Facts verified 2026-07 against Miami-Dade Code §8-11(f), Broward BSIP,
+ * and Florida Statute 553.899 (milestone inspections):
+ *  - Recertification: 30 yrs (25 for coastal, within 3 mi), then every 10.
+ *  - BSIP (Broward): buildings 3 stories+, 25 yrs then every 10.
  */
 
 export interface ServiceDef {
-  slug: 'recertification' | 'inspection' | 'concrete';
-  iconKey: 'recert' | 'inspection' | 'concrete';
+  slug: 'concrete' | 'recertification' | 'inspection';
+  iconKey: 'concrete' | 'recert' | 'inspection';
   icon: React.ReactNode;
   en: { title: string; short: string; desc: string; tags: string[] };
   es: { title: string; short: string; desc: string; tags: string[] };
@@ -21,20 +22,37 @@ export interface ServiceDef {
 
 export const SERVICES: ServiceDef[] = [
   {
+    slug: 'concrete',
+    iconKey: 'concrete',
+    icon: serviceIcons.concrete,
+    en: {
+      title: 'Reinforced Concrete Design',
+      short: 'Reinforced Concrete Design',
+      desc: 'Complete structural design of reinforced-concrete buildings — foundations, columns, beams, slabs, and shear walls — engineered for safety, efficiency, and code compliance under ACI 318 and the Florida Building Code. Permit-ready, P.E.-stamped drawings.',
+      tags: ['ACI 318 & Florida Building Code', 'Foundations to slabs', 'Permit-ready, P.E.-stamped'],
+    },
+    es: {
+      title: 'Diseño de Concreto Reforzado',
+      short: 'Diseño de Concreto Reforzado',
+      desc: 'Diseño estructural completo de edificios de concreto reforzado — cimentaciones, columnas, vigas, losas y muros de cortante — para seguridad, eficiencia y cumplimiento según ACI 318 y el Código de Construcción de Florida. Planos listos para permiso y sellados por P.E.',
+      tags: ['ACI 318 y Código de Florida', 'De cimentación a losas', 'Listo para permiso, sellado P.E.'],
+    },
+  },
+  {
     slug: 'recertification',
     iconKey: 'recert',
     icon: serviceIcons.recert,
     en: {
-      title: '40-Year Building Recertification',
+      title: 'Building Recertification',
       short: 'Recertification',
-      desc: 'Structural and electrical recertification reports for Miami-Dade and Broward. We inspect, document, and certify your building at 40 years — and every 10 years after — so your property stays compliant and clear of unsafe-structure violations.',
-      tags: ['Miami-Dade & Broward', 'Structural + Electrical', 'Every 10 years'],
+      desc: 'Structural and electrical recertification for Miami-Dade. Buildings are recertified at 30 years — 25 years for coastal buildings — and every 10 years after. We inspect, document, and certify so your property stays compliant and clear of unsafe-structure violations.',
+      tags: ['Miami-Dade', '30 yrs · 25 coastal → every 10', 'Structural + Electrical'],
     },
     es: {
-      title: 'Recertificación de 40 Años',
+      title: 'Recertificación de Edificios',
       short: 'Recertificación',
-      desc: 'Informes de recertificación estructural y eléctrica para Miami-Dade y Broward. Inspeccionamos, documentamos y certificamos tu edificio a los 40 años — y cada 10 años después — para mantener tu propiedad en cumplimiento y libre de violaciones por estructura insegura.',
-      tags: ['Miami-Dade y Broward', 'Estructural + Eléctrico', 'Cada 10 años'],
+      desc: 'Recertificación estructural y eléctrica para Miami-Dade. Los edificios se recertifican a los 30 años — 25 años en zona costera — y cada 10 años después. Inspeccionamos, documentamos y certificamos para mantener tu propiedad en cumplimiento y sin violaciones por estructura insegura.',
+      tags: ['Miami-Dade', '30 años · 25 costero → cada 10', 'Estructural + Eléctrico'],
     },
   },
   {
@@ -42,33 +60,16 @@ export const SERVICES: ServiceDef[] = [
     iconKey: 'inspection',
     icon: serviceIcons.inspection,
     en: {
-      title: 'Building Safety & Milestone Inspection',
+      title: 'Building Safety Inspection (BSIP)',
       short: 'Building Safety Inspection',
-      desc: 'Milestone Inspections (Phase 1 & 2) under Florida Statute 553.899 for condominiums and cooperatives three stories and taller. Independent, P.E.-stamped structural assessments that protect residents and meet your association’s legal deadlines.',
-      tags: ['Florida SB-4-D', 'Phase 1 & 2', 'Condos 3+ stories'],
+      desc: 'Broward’s Building Safety Inspection Program and statewide milestone inspections under Florida Statute 553.899 — mandatory for buildings three stories and taller. Independent, P.E.-stamped Phase 1 & 2 structural assessments that protect residents and meet your legal deadlines.',
+      tags: ['Broward BSIP · FL 553.899', '3+ stories', 'Phase 1 & 2'],
     },
     es: {
-      title: 'Seguridad e Inspección Milestone',
+      title: 'Inspección de Seguridad (BSIP)',
       short: 'Inspección de Seguridad',
-      desc: 'Inspecciones Milestone (Fase 1 y 2) bajo el Estatuto de Florida 553.899 para condominios y cooperativas de tres pisos o más. Evaluaciones estructurales independientes y selladas por P.E. que protegen a los residentes y cumplen los plazos legales de tu asociación.',
-      tags: ['Florida SB-4-D', 'Fase 1 y 2', 'Condos de 3+ pisos'],
-    },
-  },
-  {
-    slug: 'concrete',
-    iconKey: 'concrete',
-    icon: serviceIcons.concrete,
-    en: {
-      title: 'Reinforced Concrete Restoration',
-      short: 'Reinforced Concrete',
-      desc: 'Repair and strengthening of deteriorated reinforced concrete — spalling, corrosion, cracking, and structural strengthening. We find the root cause, engineer the fix, and restore capacity and durability to slabs, columns, beams, balconies, and façades.',
-      tags: ['Spalling & corrosion', 'Structural strengthening', 'Balconies & façades'],
-    },
-    es: {
-      title: 'Restauración de Concreto Reforzado',
-      short: 'Concreto Reforzado',
-      desc: 'Reparación y refuerzo de concreto reforzado deteriorado — desprendimientos, corrosión, fisuras y refuerzo estructural. Encontramos la causa raíz, diseñamos la reparación y devolvemos capacidad y durabilidad a losas, columnas, vigas, balcones y fachadas.',
-      tags: ['Desprendimiento y corrosión', 'Refuerzo estructural', 'Balcones y fachadas'],
+      desc: 'El Programa de Inspección de Seguridad de Edificios (BSIP) de Broward y las inspecciones milestone estatales bajo el Estatuto de Florida 553.899 — obligatorias para edificios de tres pisos o más. Evaluaciones estructurales independientes Fase 1 y 2, selladas por P.E., que protegen a los residentes y cumplen tus plazos legales.',
+      tags: ['BSIP Broward · FL 553.899', '3+ pisos', 'Fase 1 y 2'],
     },
   },
 ];

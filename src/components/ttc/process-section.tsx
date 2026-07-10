@@ -4,17 +4,17 @@ import React from 'react';
 import { useTranslation } from './language-provider';
 
 const STEPS_EN = [
-  { n: '01', t: 'Assessment & Inspection', d: 'We visit the building, inspect the structure, and document existing conditions — a Phase 1 milestone walkthrough or a full recertification survey.' },
-  { n: '02', t: 'Engineering Evaluation', d: 'We analyze the findings against the Florida Building Code and county requirements, then determine whether a Phase 2, testing, or repairs are needed.' },
-  { n: '03', t: 'Report & Certification', d: 'We deliver a clear, defensible, P.E.-stamped report your association and the building department can rely on — on time.' },
-  { n: '04', t: 'Restoration & Sign-Off', d: 'When repairs are required, we design the reinforced-concrete restoration and guide you through permitting to final compliance.' },
+  { n: '01', t: 'Scope & Site Review', d: 'We review your project or building, gather the documents, and define the scope — a design brief or a Phase 1 inspection walkthrough.' },
+  { n: '02', t: 'Engineering & Analysis', d: 'We design or evaluate the structure against ACI 318 and the Florida Building Code, sizing every member with margin.' },
+  { n: '03', t: 'Documentation & P.E. Seal', d: 'We deliver clear, code-compliant, P.E.-stamped drawings or reports your building department can rely on — on time.' },
+  { n: '04', t: 'Permitting & Sign-Off', d: 'We support you through permitting and approvals — from a design permit to final recertification sign-off.' },
 ];
 
 const STEPS_ES = [
-  { n: '01', t: 'Evaluación e Inspección', d: 'Visitamos el edificio, inspeccionamos la estructura y documentamos las condiciones existentes — un recorrido milestone Fase 1 o un levantamiento completo de recertificación.' },
-  { n: '02', t: 'Evaluación de Ingeniería', d: 'Analizamos los hallazgos según el Código de Construcción de Florida y los requisitos del condado, y determinamos si se necesita una Fase 2, pruebas o reparaciones.' },
-  { n: '03', t: 'Informe y Certificación', d: 'Entregamos un informe claro, defendible y sellado por P.E. en el que tu asociación y el departamento de construcción pueden confiar — a tiempo.' },
-  { n: '04', t: 'Restauración y Certificación Final', d: 'Cuando se requieren reparaciones, diseñamos la restauración de concreto reforzado y te guiamos por el permiso hasta el cumplimiento final.' },
+  { n: '01', t: 'Alcance y Revisión de Sitio', d: 'Revisamos tu proyecto o edificio, reunimos los documentos y definimos el alcance — un brief de diseño o un recorrido de inspección Fase 1.' },
+  { n: '02', t: 'Ingeniería y Análisis', d: 'Diseñamos o evaluamos la estructura según ACI 318 y el Código de Construcción de Florida, dimensionando cada elemento con margen.' },
+  { n: '03', t: 'Documentación y Sello P.E.', d: 'Entregamos planos o informes claros, en cumplimiento y sellados por P.E. en los que tu departamento de construcción puede confiar — a tiempo.' },
+  { n: '04', t: 'Permiso y Certificación', d: 'Te acompañamos en permisos y aprobaciones — desde un permiso de diseño hasta la certificación final de recertificación.' },
 ];
 
 export function ProcessSection() {
@@ -22,10 +22,10 @@ export function ProcessSection() {
   const es = language === 'es';
   const steps = es ? STEPS_ES : STEPS_EN;
   const label = es ? 'Cómo Trabajamos' : 'How We Work';
-  const title = es ? 'De la inspección a la certificación' : 'From inspection to sign-off';
+  const title = es ? 'De la primera revisión a la certificación final' : 'From first review to final sign-off';
   const sub = es
-    ? 'Un proceso claro y orientado a plazos que mantiene tu edificio seguro, en cumplimiento y sin violaciones.'
-    : 'A clear, deadline-driven process that keeps your building safe, compliant, and clear of violations.';
+    ? 'Un proceso claro y orientado a plazos — ya sea que diseñemos tu edificio o certifiquemos su seguridad.'
+    : 'A clear, deadline-driven process — whether we are designing your building or certifying its safety.';
 
   return (
     <section className="pop-process" id="process">
