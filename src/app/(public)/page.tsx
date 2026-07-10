@@ -11,6 +11,7 @@ import { CounterStat } from '@/components/ttc/counter-stat';
 import { ContactForm } from '@/components/ttc/contact-form';
 import { CtaBand } from '@/components/ttc/cta-band';
 import { ProcessSection } from '@/components/ttc/process-section';
+import { SoftwareSection } from '@/components/ttc/software-section';
 import { WhyUs } from '@/components/ttc/why-us';
 import HeroCanvas from '@/components/ttc/hero-canvas';
 
@@ -68,6 +69,9 @@ export default function HomePage() {
 
       {/* HOW WE WORK */}
       <ProcessSection />
+
+      {/* INTEGRATED SOFTWARE (BIM tooling) */}
+      <SoftwareSection />
 
       {/* WHY US */}
       <WhyUs />
