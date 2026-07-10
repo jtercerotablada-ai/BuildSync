@@ -338,7 +338,6 @@ function ConfirmTemplateDialog({
           name: trimmed,
           color: template.defaults.color ?? "#c9a84c",
           type: template.defaults.type,
-          gate: template.defaults.gate,
           sections: template.sections,
           customFields: template.customFields,
           tasks: template.tasks,

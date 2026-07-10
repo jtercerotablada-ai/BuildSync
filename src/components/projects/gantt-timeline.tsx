@@ -79,33 +79,6 @@ interface GanttProject {
 
 type ZoomLevel = "week" | "month" | "quarter";
 
-const GATE_LABEL: Record<ProjectGate, string> = {
-  PRE_DESIGN: "Pre-design",
-  DESIGN: "Design",
-  PERMITTING: "Permitting",
-  CONSTRUCTION: "Construction",
-  CLOSEOUT: "Closeout",
-};
-
-const GATE_ORDER: ProjectGate[] = [
-  "PRE_DESIGN",
-  "DESIGN",
-  "PERMITTING",
-  "CONSTRUCTION",
-  "CLOSEOUT",
-];
-
-// Gate colors — every gate gets a distinct shade on the monochrome+gold
-// palette. Pre-design is light, Closeout is dark. Construction is the
-// most saturated gold because that's where the most $ is moving.
-const GATE_COLOR: Record<ProjectGate, string> = {
-  PRE_DESIGN: "#e8d99a",
-  DESIGN: "#d4b870",
-  PERMITTING: "#a8893a",
-  CONSTRUCTION: "#c9a84c",
-  CLOSEOUT: "#666666",
-};
-
 /**
  * Pixels per day, by zoom level. Keep these multiples-of-7 so weekly
  * gridlines line up exactly with day positions.
@@ -123,7 +96,7 @@ export function GanttTimeline({
 }) {
   const [zoom, setZoom] = useState<ZoomLevel>("month");
   const [centerDate, setCenterDate] = useState<Date>(() => new Date());
-  const [groupBy, setGroupBy] = useState<"none" | "type" | "gate" | "owner">(
+  const [groupBy, setGroupBy] = useState<"none" | "type" | "owner">(
     "none"
   );
 
@@ -203,7 +176,6 @@ export function GanttTimeline({
     for (const p of dated) {
       let key = "";
       if (groupBy === "type") key = p.type || "Unspecified";
-      else if (groupBy === "gate") key = p.gate || "Unspecified";
       else if (groupBy === "owner") key = p.owner?.name || "Unassigned";
       const list = groups.get(key) ?? [];
       list.push(p);
@@ -285,7 +257,6 @@ export function GanttTimeline({
             [
               { id: "none", label: "Flat" },
               { id: "type", label: "Type" },
-              { id: "gate", label: "Gate" },
               { id: "owner", label: "Owner" },
             ] as const
           ).map((opt) => (
@@ -531,13 +502,6 @@ function GanttBar({
       )
     ) * dayPx;
 
-  // Compute the gate progress ratio — what % of the bar is already
-  // past based on the project's current gate. Gates are equally
-  // weighted segments along the bar; "Closeout" = 100%.
-  const gateIdx = project.gate ? GATE_ORDER.indexOf(project.gate) : -1;
-  const gateRatio = gateIdx >= 0 ? (gateIdx + 1) / GATE_ORDER.length : 0;
-  const gateColor = project.gate ? GATE_COLOR[project.gate] : project.color;
-
   const isOverdue =
     new Date(project.endDate!) < new Date() &&
     project.status !== "COMPLETE";
@@ -577,33 +541,19 @@ function GanttBar({
             ? "border-[#c9a84c] ring-1 ring-[#c9a84c]/40"
             : "border-gray-300"
         )}
-        style={{ left, width, backgroundColor: "#f5f5f5" }}
-        title={`${project.name} — ${start.toLocaleDateString()} → ${end.toLocaleDateString()}${project.gate ? " · " + GATE_LABEL[project.gate] : ""}`}
+        style={{ left, width, backgroundColor: project.color }}
+        title={`${project.name} — ${start.toLocaleDateString()} → ${end.toLocaleDateString()}`}
       >
-        {/* Gate fill (gradient from start to current gate position) */}
-        <div
-          className="absolute inset-y-0 left-0 transition-all"
-          style={{
-            width: `${gateRatio * 100}%`,
-            backgroundColor: gateColor,
-            opacity: 0.85,
-          }}
-        />
-        {/* Time elapsed indicator — thin stripe over the gate fill */}
+        {/* Time-elapsed progress stripe along the bottom of the bar. */}
         <div
           className="absolute bottom-0 left-0 h-0.5 bg-black/80"
           style={{ width: `${timeRatio * 100}%` }}
         />
-        {/* Label overlay — only when there's enough room */}
+        {/* Project name label — only when there's enough room. */}
         {width > 80 && (
           <div className="relative h-full flex items-center px-2 z-10">
-            <span
-              className={cn(
-                "text-[10px] font-semibold truncate",
-                gateRatio > 0.3 ? "text-white" : "text-gray-700"
-              )}
-            >
-              {project.gate ? GATE_LABEL[project.gate] : "—"}
+            <span className="text-[10px] font-semibold truncate text-white">
+              {project.name}
             </span>
           </div>
         )}
@@ -632,7 +582,7 @@ function GanttBar({
 
 function humanizeGroupLabel(
   raw: string,
-  groupBy: "type" | "gate" | "owner" | "none"
+  groupBy: "type" | "owner" | "none"
 ): string {
   if (groupBy === "type") {
     const map: Record<string, string> = {
@@ -642,9 +592,6 @@ function humanizeGroupLabel(
       PERMIT: "Permit",
     };
     return map[raw] || raw;
-  }
-  if (groupBy === "gate") {
-    return (GATE_LABEL as Record<string, string>)[raw] || raw;
   }
   return raw;
 }

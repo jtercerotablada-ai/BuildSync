@@ -119,14 +119,6 @@ const TYPE_META: Record<ProjectType, { label: string }> = {
   PERMIT: { label: "Permit" },
 };
 
-const GATE_META: Record<ProjectGate, { label: string }> = {
-  PRE_DESIGN: { label: "Pre-design" },
-  DESIGN: { label: "Design" },
-  PERMITTING: { label: "Permitting" },
-  CONSTRUCTION: { label: "Construction" },
-  CLOSEOUT: { label: "Closeout" },
-};
-
 // Health order so "worse" statuses float to the top (Asana parity).
 const STATUS_SORT_ORDER: Record<ProjectStatus, number> = {
   OFF_TRACK: 0,
@@ -217,14 +209,13 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 type TimelineSortKey = "manual" | "name" | "status" | "progress" | "due";
 type SortDir = "asc" | "desc";
-type TimelineGroupKey = "none" | "status" | "owner" | "type" | "gate";
+type TimelineGroupKey = "none" | "status" | "owner" | "type";
 
 interface TimelineViewState {
   columns: LeftColumnKey[];
   filter: {
     status: ProjectStatus[];
     type: ProjectType[];
-    gate: ProjectGate[];
     ownerId: string[];
   };
   sort: { key: TimelineSortKey; dir: SortDir };
@@ -236,7 +227,7 @@ const DEFAULT_COLUMNS: LeftColumnKey[] = ["owner", "status"];
 
 const DEFAULT_TIMELINE_VIEW: TimelineViewState = {
   columns: DEFAULT_COLUMNS,
-  filter: { status: [], type: [], gate: [], ownerId: [] },
+  filter: { status: [], type: [], ownerId: [] },
   sort: { key: "manual", dir: "asc" },
   group: "none",
   showProgressOnBar: true,
@@ -253,7 +244,6 @@ const GROUP_LABELS: Record<Exclude<TimelineGroupKey, "none">, string> = {
   status: "status",
   owner: "owner",
   type: "type",
-  gate: "gate",
 };
 
 function normalizeTimelineView(raw: unknown): TimelineViewState {
@@ -268,7 +258,6 @@ function normalizeTimelineView(raw: unknown): TimelineViewState {
     filter: {
       status: Array.isArray(r.filter?.status) ? r.filter!.status : [],
       type: Array.isArray(r.filter?.type) ? r.filter!.type : [],
-      gate: Array.isArray(r.filter?.gate) ? r.filter!.gate : [],
       ownerId: Array.isArray(r.filter?.ownerId) ? r.filter!.ownerId : [],
     },
     sort: {
@@ -379,7 +368,6 @@ export function PortfolioTimelineView({ projects }: Props) {
   const activeFilterCount =
     view.filter.status.length +
     view.filter.type.length +
-    view.filter.gate.length +
     view.filter.ownerId.length;
 
   const listModified =
@@ -419,7 +407,6 @@ export function PortfolioTimelineView({ projects }: Props) {
       const p = pp.project;
       if (f.status.length && !f.status.includes(p.status)) return false;
       if (f.type.length && (!p.type || !f.type.includes(p.type))) return false;
-      if (f.gate.length && (!p.gate || !f.gate.includes(p.gate))) return false;
       if (f.ownerId.length && (!p.owner || !f.ownerId.includes(p.owner.id)))
         return false;
       if (q && !p.name.toLowerCase().includes(q)) return false;
@@ -487,9 +474,6 @@ export function PortfolioTimelineView({ projects }: Props) {
       } else if (view.group === "type") {
         key = p.type || "_none";
         label = p.type ? TYPE_META[p.type].label : "No type";
-      } else if (view.group === "gate") {
-        key = p.gate || "_none";
-        label = p.gate ? GATE_META[p.gate].label : "No gate";
       }
       ensure(key, label).rows.push(pp);
     }
@@ -877,7 +861,7 @@ export function PortfolioTimelineView({ projects }: Props) {
             onClick={() => {
               setView({
                 ...view,
-                filter: { status: [], type: [], gate: [], ownerId: [] },
+                filter: { status: [], type: [], ownerId: [] },
                 sort: { key: "manual", dir: "asc" },
                 group: "none",
               });
@@ -1340,19 +1324,6 @@ function TimelineFilterPopover({
               />
             ))}
           </div>
-          <div>
-            <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
-              Gate
-            </div>
-            {(Object.keys(GATE_META) as ProjectGate[]).map((g) => (
-              <CheckRow
-                key={g}
-                checked={f.gate.includes(g)}
-                label={GATE_META[g].label}
-                onToggle={() => toggle("gate", g)}
-              />
-            ))}
-          </div>
           {ownerOptions.length > 0 && (
             <div>
               <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
@@ -1373,7 +1344,7 @@ function TimelineFilterPopover({
               onClick={() =>
                 setView({
                   ...view,
-                  filter: { status: [], type: [], gate: [], ownerId: [] },
+                  filter: { status: [], type: [], ownerId: [] },
                 })
               }
               className="w-full text-center text-xs text-[#a8893a] hover:underline pt-1"
@@ -1485,7 +1456,6 @@ function TimelineGroupPopover({
     { key: "status", label: "Status" },
     { key: "owner", label: "Owner" },
     { key: "type", label: "Type" },
-    { key: "gate", label: "Gate" },
   ];
   const active = view.group !== "none";
   return (

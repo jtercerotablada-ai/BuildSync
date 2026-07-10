@@ -1307,7 +1307,6 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           projectNumber: project.projectNumber ?? null,
           name: project.name,
           type: project.type ?? null,
-          gate: project.gate ?? null,
           color: project.color,
           clientName: project.clientName ?? null,
           location: project.location ?? null,

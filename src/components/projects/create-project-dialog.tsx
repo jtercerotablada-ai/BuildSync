@@ -72,14 +72,6 @@ const PROJECT_TYPES = [
   { value: "PERMIT", label: "Permit" },
 ];
 
-const PROJECT_GATES = [
-  { value: "PRE_DESIGN", label: "Pre-Design" },
-  { value: "DESIGN", label: "Design" },
-  { value: "PERMITTING", label: "Permitting" },
-  { value: "CONSTRUCTION", label: "Construction" },
-  { value: "CLOSEOUT", label: "Closeout" },
-];
-
 const CURRENCIES = [
   { value: "USD", label: "USD — US Dollar" },
   { value: "MXN", label: "MXN — Mexican Peso" },
@@ -112,7 +104,6 @@ export function CreateProjectDialog({
   // Basics
   const [name, setName] = useState("");
   const [type, setType] = useState<string>("");
-  const [gate, setGate] = useState<string>("PRE_DESIGN");
   const [color, setColor] = useState("#c9a84c");
 
   // Client & location
@@ -135,7 +126,6 @@ export function CreateProjectDialog({
   const resetForm = () => {
     setName("");
     setType("");
-    setGate("PRE_DESIGN");
     setColor("#c9a84c");
     setClientName("");
     setLocation("");
@@ -155,7 +145,6 @@ export function CreateProjectDialog({
     if (initialProject) {
       setName(initialProject.name ?? "");
       setType(initialProject.type ?? "");
-      setGate(initialProject.gate ?? "PRE_DESIGN");
       setColor(initialProject.color ?? "#c9a84c");
       setClientName(initialProject.clientName ?? "");
       setLocation(initialProject.location ?? "");
@@ -225,7 +214,6 @@ export function CreateProjectDialog({
         };
         setField("description", description.trim() || null, true);
         setField("type", type || null, true);
-        if (gate) p.gate = gate; // gate has a server default
         setField("clientName", clientName.trim() || null, true);
         setField("location", location.trim() || null, true);
         setField("latitude", latitude, true);
@@ -326,21 +314,6 @@ export function CreateProjectDialog({
                       {PROJECT_TYPES.map((t) => (
                         <SelectItem key={t.value} value={t.value}>
                           {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="gate">Stage</Label>
-                  <Select value={gate} onValueChange={setGate}>
-                    <SelectTrigger id="gate">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PROJECT_GATES.map((g) => (
-                        <SelectItem key={g.value} value={g.value}>
-                          {g.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

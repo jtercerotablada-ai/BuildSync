@@ -76,7 +76,6 @@ import {
   formatRangeLabel,
   formatDueDateLabel,
   projectTypeShort,
-  formatGateShort,
 } from "@/lib/task-helpers";
 import {
   daysFromToday,
@@ -1250,27 +1249,16 @@ export function TaskDetailPanel({
                     taskDetail?.taskProjects?.map((tp) => tp.projectId) ?? []
                   }
                 />
-                {taskDetail?.project &&
-                  (taskDetail.project.type || taskDetail.project.gate) && (
-                    <div className="mt-1 flex items-center gap-1.5">
-                      {taskDetail.project.type && (
-                        <span
-                          className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#f3f4f6] text-[#6f7782]"
-                          title={`Project type: ${taskDetail.project.type}`}
-                        >
-                          {projectTypeShort(taskDetail.project.type)}
-                        </span>
-                      )}
-                      {taskDetail.project.gate && (
-                        <span
-                          className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#c9a84c]/15 text-[#a8893a]"
-                          title={`Lifecycle gate: ${taskDetail.project.gate}`}
-                        >
-                          {formatGateShort(taskDetail.project.gate)}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                {taskDetail?.project && taskDetail.project.type && (
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span
+                      className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#f3f4f6] text-[#6f7782]"
+                      title={`Project type: ${taskDetail.project.type}`}
+                    >
+                      {projectTypeShort(taskDetail.project.type)}
+                    </span>
+                  </div>
+                )}
 
                 {/* Additional projects (multi-homing) */}
                 {taskDetail?.taskProjects &&

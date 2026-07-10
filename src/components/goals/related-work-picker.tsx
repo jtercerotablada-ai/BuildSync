@@ -215,9 +215,9 @@ export function RelatedWorkPicker({
                         <p className="text-sm font-medium text-black truncate">
                           {p.name}
                         </p>
-                        {(p.type || p.gate) && (
+                        {p.type && (
                           <p className="text-[11px] text-gray-500 uppercase tracking-wider">
-                            {[p.type, p.gate].filter(Boolean).join(" · ")}
+                            {p.type}
                           </p>
                         )}
                       </div>
