@@ -14,13 +14,13 @@ const COLS_EN = [
   { v: 'P.E.', l: 'Registered Professional Engineer' },
   { v: '30+', l: 'Years combined experience' },
   { v: 'ACI 318 · FBC', l: 'The codes we engineer to' },
-  { v: 'Miami-Dade · Broward', l: 'Recertification & BSIP coverage' },
+  { v: 'Miami-Dade · Broward', l: 'Recertification in every municipality · BSIP' },
 ];
 const COLS_ES = [
   { v: 'P.E.', l: 'Ingeniero Profesional Registrado' },
   { v: '30+', l: 'Años de experiencia combinada' },
   { v: 'ACI 318 · FBC', l: 'Los códigos con los que diseñamos' },
-  { v: 'Miami-Dade · Broward', l: 'Cobertura de recertificación y BSIP' },
+  { v: 'Miami-Dade · Broward', l: 'Recertificación en todos los municipios · BSIP' },
 ];
 
 export function TrustBar() {

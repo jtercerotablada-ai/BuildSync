@@ -45,14 +45,14 @@ export const SERVICES: ServiceDef[] = [
     en: {
       title: 'Building Recertification',
       short: 'Recertification',
-      desc: 'Structural and electrical recertification for Miami-Dade. Buildings are recertified at 30 years — 25 years for coastal buildings — and every 10 years after. We inspect, document, and certify so your property stays compliant and clear of unsafe-structure violations.',
-      tags: ['Miami-Dade', '30 yrs · 25 coastal → every 10', 'Structural + Electrical'],
+      desc: 'Structural and electrical recertification in every Miami-Dade municipality. Buildings are recertified at 30 years — 25 years for coastal buildings — and every 10 years after. We inspect, document, and certify so your property stays compliant and clear of unsafe-structure violations.',
+      tags: ['Every Miami-Dade municipality', '30 yrs · 25 coastal → every 10', 'Structural + Electrical'],
     },
     es: {
       title: 'Recertificación de Edificios',
       short: 'Recertificación',
-      desc: 'Recertificación estructural y eléctrica para Miami-Dade. Los edificios se recertifican a los 30 años — 25 años en zona costera — y cada 10 años después. Inspeccionamos, documentamos y certificamos para mantener tu propiedad en cumplimiento y sin violaciones por estructura insegura.',
-      tags: ['Miami-Dade', '30 años · 25 costero → cada 10', 'Estructural + Eléctrico'],
+      desc: 'Recertificación estructural y eléctrica en todos los municipios de Miami-Dade. Los edificios se recertifican a los 30 años — 25 años en zona costera — y cada 10 años después. Inspeccionamos, documentamos y certificamos para mantener tu propiedad en cumplimiento y sin violaciones por estructura insegura.',
+      tags: ['Todos los municipios de Miami-Dade', '30 años · 25 costero → cada 10', 'Estructural + Eléctrico'],
     },
   },
   {

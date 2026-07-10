@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useTranslation } from '@/components/ttc/language-provider';
 import { ServicesShowcase } from '@/components/ttc/services-showcase';
+import { CoverageSection } from '@/components/ttc/coverage-section';
 import { ValueItem } from '@/components/ttc/value-item';
 import type { TranslationKey } from '@/lib/i18n';
 
@@ -29,6 +30,8 @@ export default function ServicesPage() {
       </section>
 
       <ServicesShowcase withHeader={false} />
+
+      <CoverageSection />
 
       <section className="section values">
         <div className="container">
