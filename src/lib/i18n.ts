@@ -265,11 +265,11 @@ export const dictionaries = {
     'nav.clientPortal': 'Portal de Cliente',
 
     // Hero
-    'hero.badge': 'Dise\u00f1o de Concreto Reforzado y Seguridad de Edificios',
+    'hero.badge': 'Dise\u00f1o de Concreto Armado y Seguridad de Edificios',
     'hero.titleLine1': 'Ingenier\u00eda estructural',
     'hero.titleLine2': 'para edificios que perduran.',
     'hero.materials': 'DISE\u00d1O DE CONCRETO REFORZADO \u00b7 RECERTIFICACION \u00b7 INSPECCION DE SEGURIDAD',
-    'hero.desc': 'Dise\u00f1amos edificios de concreto reforzado y mantenemos los existentes seguros y en cumplimiento \u2014 desde el dise\u00f1o estructural hasta la recertificacion de 30 a\u00f1os e inspecciones de seguridad en el sur de Florida. P.E. registrado.',
+    'hero.desc': 'Dise\u00f1amos edificios de concreto armado y mantenemos los existentes seguros y en cumplimiento \u2014 desde el dise\u00f1o estructural hasta la recertificacion de 30 a\u00f1os e inspecciones de seguridad en el sur de Florida. P.E. registrado.',
     'hero.credential': 'P.E. Registrado',
     'hero.viewProjects': 'Nuestros Servicios',
     'hero.contactUs': 'Solicitar Consulta',
@@ -301,7 +301,7 @@ export const dictionaries = {
     'section.featuredProjects': 'Proyectos Destacados',
     'section.whatWeDo': 'Lo Que Hacemos',
     'section.ourServices': 'Nuestros Servicios',
-    'section.servicesSubtitle': 'Tres servicios estructurales enfocados — diseño de edificios de concreto reforzado, recertificacion e inspeccion de seguridad — entregados y sellados por un P.E. registrado.',
+    'section.servicesSubtitle': 'Tres servicios estructurales enfocados — diseño de edificios de concreto armado, recertificacion e inspeccion de seguridad — entregados y sellados por un P.E. registrado.',
     'section.ourPrinciples': 'Nuestros Principios',
     'section.ourValues': 'Nuestros Valores',
     'section.aboutUs': 'Sobre Nosotros',
@@ -314,7 +314,7 @@ export const dictionaries = {
 
     // Projects
     'projects.title': 'Nuestro Trabajo',
-    'projects.subtitle': 'El trabajo estructural que realizamos — diseño de edificios de concreto reforzado, recertificacion e inspecciones de seguridad en el sur de Florida.',
+    'projects.subtitle': 'El trabajo estructural que realizamos — diseño de edificios de concreto armado, recertificacion e inspecciones de seguridad en el sur de Florida.',
     'projects.viewAll': 'Ver Todos los Proyectos',
     'projects.filterAll': 'Todos',
     'projects.filterResidential': 'Residencial',
@@ -336,8 +336,8 @@ export const dictionaries = {
     'project.luxuryResidence.desc': 'Estructura de Madera',
     'project.luxuryResidence.full': 'Estructura de Madera \u00b7 Residencial',
     'project.multiFamilyHousing': 'Vivienda Multifamiliar',
-    'project.multiFamilyHousing.desc': 'Concreto Reforzado',
-    'project.multiFamilyHousing.full': 'Concreto Reforzado \u00b7 Residencial',
+    'project.multiFamilyHousing.desc': 'Concreto Armado',
+    'project.multiFamilyHousing.full': 'Concreto Armado \u00b7 Residencial',
     'project.publicInfrastructure': 'Infraestructura Publica',
     'project.publicInfrastructure.desc': 'Mamposteria y Concreto',
     'project.publicInfrastructure.full': 'Mamposteria y Concreto \u00b7 Obras Publicas',
@@ -348,7 +348,7 @@ export const dictionaries = {
     'project.mixedUse.desc': 'Sistema Hibrido',
     'project.mixedUse.full': 'Sistema Hibrido \u00b7 Comercial',
     'project.oceanfront': 'Residencia Frente al Mar',
-    'project.oceanfront.full': 'Concreto Reforzado \u00b7 Residencial',
+    'project.oceanfront.full': 'Concreto Armado \u00b7 Residencial',
     'project.customHome': 'Casa Personalizada',
     'project.customHome.full': 'Madera y Acero \u00b7 Residencial',
     'project.distributionCenter': 'Centro de Distribucion',
@@ -392,9 +392,9 @@ export const dictionaries = {
 
     // About
     'about.title': 'Sobre Nosotros',
-    'about.subtitle': 'Una firma de ingenieria estructural — diseñamos edificios de concreto reforzado y mantenemos los existentes seguros y en cumplimiento.',
+    'about.subtitle': 'Una firma de ingenieria estructural — diseñamos edificios de concreto armado y mantenemos los existentes seguros y en cumplimiento.',
     'about.heading': 'Diseñado para la Seguridad, Construido para Durar',
-    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. es una firma de ingenieria estructural enfocada en edificios de concreto reforzado — desde el diseño estructural nuevo hasta la recertificacion e inspeccion de seguridad de estructuras existentes. Cada plano e informe es diseñado y sellado por un P.E. registrado.',
+    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. es una firma de ingenieria estructural enfocada en edificios de concreto armado — desde el diseño estructural nuevo hasta la recertificacion e inspeccion de seguridad de estructuras existentes. Cada plano e informe es diseñado y sellado por un P.E. registrado.',
     'about.p2': 'Nuestro equipo cuenta con mas de 30 años de experiencia combinada en estructuras de gran altura, comerciales y residenciales. Conocemos ACI 318, el Codigo de Construccion de Florida, el programa de recertificacion de Miami-Dade, el Programa de Inspeccion de Seguridad de Edificios (BSIP) de Broward y los requisitos de inspeccion milestone SB-4-D — y guiamos a propietarios y asociaciones a traves de ellos con claridad.',
     'about.p3': 'Damos a propietarios, desarrolladores, asociaciones de condominios y administradores respuestas claras, diseños listos para permiso e informes defendibles que protegen tanto el activo como a las personas que lo habitan.',
 
@@ -483,7 +483,7 @@ export const dictionaries = {
     'tool.matFoundation': 'Losa de cimentacion',
     'tool.matFoundation.desc': 'Losa de cimentacion (raft) rectangular por ACI 318-25 §13.3.4. Metodo rigido convencional: presion bilineal + punzonamiento por columna con αs auto-detectado (interior/borde/esquina).',
     'tool.rcDesign': 'Diseno RC',
-    'tool.rcDesign.desc': 'Diseno de vigas y columnas de concreto reforzado segun ACI 318 y codigos equivalentes.',
+    'tool.rcDesign.desc': 'Diseno de vigas y columnas de concreto armado segun ACI 318 y codigos equivalentes.',
     'tool.memberDesign': 'Diseno de Miembros',
     'tool.memberDesign.desc': 'Chequeos de diseno para miembros de acero, madera y formados en frio por axial, flexion y combinados.',
     'tool.composite': 'Diseno Compuesto',
@@ -494,7 +494,7 @@ export const dictionaries = {
     'tool.slab.desc': 'Diseno de losas RC en una y dos direcciones segun ACI 318-25, ACI 318-19 y EN 1992-1-1: coeficientes Method 3 (9 casos), refuerzo editable con verificacion phi-Mn en vivo (incluyendo reduccion de phi por strain epsilon-t segun §21.2.2), deflexion (Ie de Branson + momento de servicio segun apoyos + fraccion sostenida psi de LL + selector Tabla 24.2.2 + multiplicador xi de Tabla 24.2.4.1.3), punzonamiento (con factor de tamano lambda_s, factor lambda de hormigon ligero, pernos ACI 421.1), control de fisuras. Modelo 3D en vivo con refuerzo superior sobre la columna. 105 tests unitarios.',
 
     // Footer
-    'footer.tagline': 'Diseño de Concreto Reforzado · Recertificacion · Inspeccion de Seguridad',
+    'footer.tagline': 'Diseño de Concreto Armado · Recertificacion · Inspeccion de Seguridad',
     'footer.credential': 'P.E. Registrado',
     'footer.mainOffice': 'Oficina Principal',
     'footer.navigation': 'Navegacion',

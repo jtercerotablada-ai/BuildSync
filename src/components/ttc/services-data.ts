@@ -32,9 +32,9 @@ export const SERVICES: ServiceDef[] = [
       tags: ['ACI 318 & Florida Building Code', 'Foundations to slabs', 'Permit-ready, P.E.-stamped'],
     },
     es: {
-      title: 'Diseño de Concreto Reforzado',
-      short: 'Diseño de Concreto Reforzado',
-      desc: 'Diseño estructural completo de edificios de concreto reforzado — cimentaciones, columnas, vigas, losas y muros de cortante — para seguridad, eficiencia y cumplimiento según ACI 318 y el Código de Construcción de Florida. Planos listos para permiso y sellados por P.E.',
+      title: 'Diseño de Concreto Armado',
+      short: 'Diseño de Concreto Armado',
+      desc: 'Diseño estructural completo de edificios de concreto armado — cimentaciones, columnas, vigas, losas y muros de cortante — para seguridad, eficiencia y cumplimiento según ACI 318 y el Código de Construcción de Florida. Planos listos para permiso y sellados por P.E.',
       tags: ['ACI 318 y Código de Florida', 'De cimentación a losas', 'Listo para permiso, sellado P.E.'],
     },
   },

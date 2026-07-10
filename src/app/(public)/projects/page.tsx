@@ -21,12 +21,12 @@ const CAPABILITIES: Capability[] = [
   {
     image: '/ttc/img/projects/project-02.jpg',
     en: { category: 'Reinforced Concrete', title: 'Concrete Building Design', desc: 'Foundations, columns, beams, slabs, and shear walls per ACI 318 & the Florida Building Code.' },
-    es: { category: 'Concreto Reforzado', title: 'Diseño de Edificios de Concreto', desc: 'Cimentaciones, columnas, vigas, losas y muros según ACI 318 y el Código de Florida.' },
+    es: { category: 'Concreto Armado', title: 'Diseño de Edificios de Concreto', desc: 'Cimentaciones, columnas, vigas, losas y muros según ACI 318 y el Código de Florida.' },
   },
   {
     image: '/ttc/img/projects/project-05.jpg',
     en: { category: 'Reinforced Concrete', title: 'Foundation & Slab Design', desc: 'Shallow and deep foundations, mat foundations, and reinforced or post-tensioned slabs.' },
-    es: { category: 'Concreto Reforzado', title: 'Cimentaciones y Losas', desc: 'Cimentaciones superficiales y profundas, losas de cimentación y losas reforzadas o postensadas.' },
+    es: { category: 'Concreto Armado', title: 'Cimentaciones y Losas', desc: 'Cimentaciones superficiales y profundas, losas de cimentación y losas armadas o postensadas.' },
   },
   {
     image: '/ttc/img/projects/project-01.jpg',

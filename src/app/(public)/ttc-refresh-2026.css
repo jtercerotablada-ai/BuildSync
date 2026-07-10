@@ -661,10 +661,38 @@
   line-height: 1.8;
   margin-top: 1rem;
 }
+.coverage__counties {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(3rem, 6vw, 5rem);
+}
+.coverage__county-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: clamp(1.5rem, 3vw, 2.25rem);
+}
+.coverage__county-name {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-weight: 400;
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  color: var(--lux-ink);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.coverage__county-note {
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--lux-gold-deep);
+}
 .coverage__grid {
   list-style: none;
   margin: 0;
-  padding: clamp(2rem, 4vw, 3rem) 0 0;
+  padding: clamp(1.75rem, 3.5vw, 2.5rem) 0 0;
   border-top: 1px solid var(--lux-line);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
