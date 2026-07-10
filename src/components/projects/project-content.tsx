@@ -1280,6 +1280,10 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           <TaskDetailPanel
             taskId={selectedTaskId}
             onClose={() => setSelectedTaskId(null)}
+            // Re-run the server component after any panel edit so the
+            // List/Board columns (incl. custom fields like Est/Act time)
+            // pick up the change live instead of only after a manual reload.
+            onUpdate={() => router.refresh()}
           />
         )}
       </div>
