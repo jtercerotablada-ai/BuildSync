@@ -165,48 +165,8 @@ export function FxElements() {
       if (cursorRing) cursorRing.style.display = 'none';
     }
 
-    // Magnetic buttons
-    const magnetics: { el: HTMLElement; move: (e: MouseEvent) => void; leave: () => void }[] = [];
-    if (isDesktop) {
-      document.querySelectorAll<HTMLElement>('[data-magnetic]').forEach((el) => {
-        const move = (e: MouseEvent) => {
-          const rect = el.getBoundingClientRect();
-          const x = e.clientX - rect.left - rect.width / 2;
-          const y = e.clientY - rect.top - rect.height / 2;
-          el.style.transform = `translate(${x * 0.25}px, ${y * 0.4}px)`;
-        };
-        const leave = () => {
-          el.style.transform = '';
-        };
-        el.addEventListener('mousemove', move);
-        el.addEventListener('mouseleave', leave);
-        magnetics.push({ el, move, leave });
-      });
-    }
-
-    // Tilt effect
-    const tilts: { el: HTMLElement; move: (e: MouseEvent) => void; leave: () => void }[] = [];
-    if (isDesktop) {
-      document.querySelectorAll<HTMLElement>('[data-tilt]').forEach((el) => {
-        el.style.transformStyle = 'preserve-3d';
-        el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
-
-        const move = (e: MouseEvent) => {
-          const rect = el.getBoundingClientRect();
-          const x = (e.clientX - rect.left) / rect.width - 0.5;
-          const y = (e.clientY - rect.top) / rect.height - 0.5;
-          const rotateX = y * -8;
-          const rotateY = x * 8;
-          el.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-6px)`;
-        };
-        const leave = () => {
-          el.style.transform = '';
-        };
-        el.addEventListener('mousemove', move);
-        el.addEventListener('mouseleave', leave);
-        tilts.push({ el, move, leave });
-      });
-    }
+    // Magnetic-button and 3D-tilt effects intentionally removed (2026-07):
+    // the site's design language is now editorial/minimal — no gimmicks.
 
     return () => {
       window.removeEventListener('scroll', updateScrollProgress);
@@ -220,14 +180,6 @@ export function FxElements() {
       hoverables.forEach((el) => {
         el.removeEventListener('mouseenter', onEnter);
         el.removeEventListener('mouseleave', onLeave);
-      });
-      magnetics.forEach(({ el, move, leave }) => {
-        el.removeEventListener('mousemove', move);
-        el.removeEventListener('mouseleave', leave);
-      });
-      tilts.forEach(({ el, move, leave }) => {
-        el.removeEventListener('mousemove', move);
-        el.removeEventListener('mouseleave', leave);
       });
       document.body.classList.remove('cursor-active');
     };

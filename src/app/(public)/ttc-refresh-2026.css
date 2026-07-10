@@ -1,88 +1,205 @@
 /* =====================================================================
-   TTC Refresh 2026 — repositioning + contrast/polish overrides.
+   TTC Refresh 2026 — "Editorial Luxury Minimal" design layer.
    Loaded LAST so it wins over ttc-globals / fx-pro / sections-pro / pop.
 
-   Design system after this file:
-   • HERO      → dark dramatic "anchor" (fixes the washed-out light hero,
-                 lets the gold WebGL rebar cage + white/gold type pop).
-   • TRUST BAR → dark credential strip that extends the anchor.
-   • BODY      → keeps the cohesive LIGHT "pop" theme (cream + gold),
-                 so the new service cards are styled light to match.
-   ttc-pop.css themes the hero light with !important, so the hero
-   overrides here must also be !important to win.
+   Design language:
+   • Playfair Display for ALL display type (incl. hero) at light weights.
+   • Hairlines (1px) instead of shadows. Sharp corners (radius 0).
+   • Gold used sparingly: labels, thin rules, hover accents.
+   • Generous whitespace; no boxes — columns divided by hairlines.
+   • No gimmicks: blueprint grids, watermark numbers, tilt and magnetic
+     effects are removed for a calm, high-trust presence.
+   • HERO + CTA band = dark bookends; body = warm ivory.
    ===================================================================== */
 
+:root {
+  --lux-ink: #16150f;
+  --lux-muted: #6d6a60;
+  --lux-faint: #98948a;
+  --lux-line: rgba(22, 21, 15, 0.12);
+  --lux-line-soft: rgba(22, 21, 15, 0.07);
+  --lux-ivory: #f7f6f3;
+  --lux-dark: #121110;
+  --lux-gold: #c9a84c;
+  --lux-gold-deep: #a5842f;
+}
+
 /* =====================================================================
-   HERO — dark anchor. Beat ttc-pop.css's light hero (!important).
+   0) REMOVE NOISE — grids, watermarks, decorations
+   ===================================================================== */
+.hero-bp,
+.hero__side-lines,
+.pop-grid-lines,
+.svc2__grid-lines,
+.page-hero::before,
+.contact__form-wrap::before,
+.hero__badge::before {
+  display: none !important;
+}
+.projects .section__header::before,
+.services .section__header::before,
+.values .section__header::before,
+.clients .section__header::before {
+  content: none !important;
+}
+
+/* =====================================================================
+   1) TYPE SYSTEM — editorial serif display, quiet labels
+   ===================================================================== */
+.section__label,
+.pop-label {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  color: var(--lux-gold-deep);
+}
+.pop-label::before,
+.pop-label::after {
+  width: 22px;
+  background: rgba(201, 168, 76, 0.55);
+}
+.section__title,
+.pop-process__title {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.svc2__sub,
+.pop-process__sub {
+  color: var(--lux-muted);
+}
+
+/* =====================================================================
+   2) BUTTONS — sharp, letterspaced, no glow
+   ===================================================================== */
+.btn {
+  border-radius: 0;
+  padding: 1.05rem 2.4rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  box-shadow: none;
+}
+.btn--primary {
+  background: var(--lux-ink);
+  color: #ffffff;
+  box-shadow: none;
+}
+.btn--primary:hover {
+  background: var(--lux-gold);
+  color: var(--lux-ink);
+  transform: none;
+  box-shadow: none;
+}
+.btn--dark:hover,
+.btn--outline:hover {
+  transform: none;
+  box-shadow: none;
+}
+/* dark bookends (hero + CTA band): primary = gold */
+.hero .btn--primary,
+.cta-band .btn--primary,
+.cta-section .btn--primary {
+  background: var(--lux-gold);
+  color: var(--lux-ink);
+}
+.hero .btn--primary:hover,
+.cta-band .btn--primary:hover,
+.cta-section .btn--primary:hover {
+  background: #ffffff;
+  color: var(--lux-ink);
+}
+
+/* =====================================================================
+   3) HERO — dark, calm, serif. Beats ttc-pop's light hero (!important).
    ===================================================================== */
 .hero__overlay {
   background:
     linear-gradient(to bottom,
-      rgba(8, 8, 10, 0.74) 0%,
-      rgba(8, 8, 10, 0.42) 30%,
-      rgba(8, 8, 10, 0.72) 74%,
-      #111110 100%),
-    radial-gradient(ellipse 82% 72% at 50% 42%,
-      rgba(8, 8, 10, 0.34) 0%,
-      rgba(8, 8, 10, 0.74) 100%) !important;
+      rgba(10, 10, 9, 0.78) 0%,
+      rgba(10, 10, 9, 0.5) 32%,
+      rgba(10, 10, 9, 0.76) 74%,
+      #121110 100%),
+    radial-gradient(ellipse 85% 75% at 50% 42%,
+      rgba(10, 10, 9, 0.3) 0%,
+      rgba(10, 10, 9, 0.72) 100%) !important;
 }
 
 .hero__title {
-  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.55));
+  font-family: var(--font-display, 'Playfair Display', serif) !important;
+  font-weight: 400 !important;
+  line-height: 1.04 !important;
+  margin-bottom: 2rem;
+  filter: none;
 }
 .hero__title-line {
+  font-size: clamp(2.9rem, 6.6vw, 5.4rem);
+  letter-spacing: 0.005em;
   background: none !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
-  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5) !important;
+  text-shadow: 0 2px 34px rgba(0, 0, 0, 0.45) !important;
 }
 .hero__title-line.accent {
+  font-style: italic;
+  font-weight: 400;
   color: var(--color-accent-light) !important;
   -webkit-text-fill-color: var(--color-accent-light) !important;
 }
+
 .hero__badge {
   color: var(--color-accent-light) !important;
-  background: rgba(201, 168, 76, 0.12) !important;
-  border: 1px solid rgba(201, 168, 76, 0.4) !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  font-size: 0.66rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.34em !important;
   text-shadow: none !important;
-  backdrop-filter: blur(4px);
+  backdrop-filter: none;
 }
 .hero__materials {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: rgba(255, 255, 255, 0.82) !important;
+  font-size: 0.7rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.24em !important;
   text-shadow: 0 1px 14px rgba(0, 0, 0, 0.6) !important;
 }
 .hero__desc {
-  color: rgba(255, 255, 255, 0.84) !important;
+  color: rgba(255, 255, 255, 0.78) !important;
+  font-weight: 300;
+  line-height: 1.85 !important;
+  max-width: 620px;
   text-shadow: 0 1px 16px rgba(0, 0, 0, 0.55) !important;
 }
 .hero__credential {
-  color: rgba(255, 255, 255, 0.68) !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  letter-spacing: 0.28em !important;
+  font-size: 0.64rem !important;
   text-shadow: none !important;
 }
 .hero__scroll-text {
-  color: rgba(255, 255, 255, 0.72) !important;
+  color: rgba(255, 255, 255, 0.6) !important;
   text-shadow: none !important;
 }
 
-/* Hero buttons on the dark anchor */
 .hero .btn--outline {
   color: #ffffff !important;
-  border-color: rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.38) !important;
+  background: transparent !important;
 }
 .hero .btn--outline:hover {
-  color: #14140f !important;
-  background: var(--color-accent-light) !important;
-  border-color: var(--color-accent-light) !important;
+  color: var(--lux-ink) !important;
+  background: #ffffff !important;
+  border-color: #ffffff !important;
 }
 
-/* Header sits over the dark hero at the top of the home page — ttc-pop.css
-   made the logo/nav dark for the (old) light hero, which would vanish on
-   dark. Re-light them ONLY while transparent over the hero (home + top). */
+/* Header over the dark hero (top of home, before scroll) */
 .header:not(.scrolled):not(.header--solid) .header__logo-img {
   content: url('/ttc/img/logo-white.png') !important;
 }
 .header:not(.scrolled):not(.header--solid) .header__nav a {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: rgba(255, 255, 255, 0.88) !important;
 }
 .header:not(.scrolled):not(.header--solid) .header__nav a:hover,
 .header:not(.scrolled):not(.header--solid) .header__nav a.nav-active {
@@ -90,7 +207,7 @@
 }
 .header:not(.scrolled):not(.header--solid) .lang-toggle,
 .header:not(.scrolled):not(.header--solid) .lang-inactive {
-  color: rgba(255, 255, 255, 0.9) !important;
+  color: rgba(255, 255, 255, 0.88) !important;
 }
 .header:not(.scrolled):not(.header--solid) .lang-active {
   color: var(--color-accent-light) !important;
@@ -98,22 +215,30 @@
 .header:not(.scrolled):not(.header--solid) .hamburger span {
   background: #ffffff !important;
 }
+/* Scrolled header: quiet ivory glass + hairline */
+.header.scrolled,
+.header--solid {
+  background: rgba(247, 246, 243, 0.88) !important;
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--lux-line-soft) !important;
+}
+.header__nav a {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+}
 
-/* =====================================================================
-   HERO — WebGL rebar-cage accent. Above the overlay, below the text,
-   offset right and masked so it blends. Gold cage pops on the dark hero.
-   ===================================================================== */
+/* WebGL rebar cage — quieter */
 .hero-canvas-wrap {
   position: absolute;
   top: 0;
   right: -4%;
-  width: min(72vw, 900px);
+  width: min(70vw, 880px);
   height: 100%;
   z-index: 1;
   pointer-events: none;
-  opacity: 0.85;
-  -webkit-mask-image: radial-gradient(closest-side at 62% 46%, #000 46%, transparent 100%);
-  mask-image: radial-gradient(closest-side at 62% 46%, #000 46%, transparent 100%);
+  opacity: 0.5;
+  -webkit-mask-image: radial-gradient(closest-side at 62% 46%, #000 44%, transparent 100%);
+  mask-image: radial-gradient(closest-side at 62% 46%, #000 44%, transparent 100%);
 }
 .hero-canvas-wrap canvas,
 .hero-canvas {
@@ -128,14 +253,13 @@
 }
 
 /* =====================================================================
-   TRUST BAR — dark credential strip (extends the hero anchor).
-   :root is light here, so dark values are hardcoded.
+   4) TRUST BAR — quiet dark strip extending the hero
    ===================================================================== */
 .trustbar {
-  background: #111110;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  padding: clamp(1.4rem, 3.5vw, 2rem) 0;
+  background: var(--lux-dark);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: none;
+  padding: clamp(1.6rem, 3.5vw, 2.2rem) 0;
 }
 .trustbar .container {
   display: flex;
@@ -147,7 +271,7 @@
 .trustbar__creds {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.9rem 1.75rem;
+  gap: 0.9rem 2.2rem;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -155,113 +279,84 @@
 .trustbar__cred {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  gap: 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.82);
 }
 .trustbar__dot {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  background: var(--color-accent);
-  box-shadow: 0 0 12px rgba(201, 168, 76, 0.6);
+  background: var(--lux-gold);
   flex: none;
 }
 .trustbar__audience {
   display: flex;
-  align-items: center;
-  gap: 0.6rem 0.9rem;
+  align-items: baseline;
+  gap: 0.6rem 1.1rem;
   flex-wrap: wrap;
 }
 .trustbar__audience-label {
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.38);
 }
 .trustbar__audience-list {
   display: flex;
-  gap: 0.45rem;
+  gap: 0 1rem;
   flex-wrap: wrap;
 }
 .trustbar__pill {
-  font-size: 0.76rem;
-  color: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 999px;
-  padding: 0.3rem 0.7rem;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.6);
+  border: none;
+  border-radius: 0;
+  padding: 0;
 }
 
 /* =====================================================================
-   SERVICES SHOWCASE (.svc2) — LIGHT "pop" cards to match the body
-   (mirrors .pop-step / .why-card: white card, cream section, gold).
+   5) SERVICES — hairline columns, no boxes
    ===================================================================== */
 .svc2 {
   position: relative;
-  background: #f6f5f2;
+  background: transparent;
   overflow: hidden;
-}
-.svc2__grid-lines {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to right,
-    transparent 0,
-    transparent calc(12.5% - 1px),
-    rgba(201, 168, 76, 0.14) calc(12.5% - 1px),
-    rgba(201, 168, 76, 0.14) 12.5%
-  );
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
-  mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
-}
-.svc2 .container {
-  position: relative;
-  z-index: 1;
+  padding: clamp(6rem, 10vw, 9rem) 0;
 }
 .svc2__head {
-  max-width: 760px;
-  margin: 0 auto clamp(2.5rem, 5vw, 3.5rem);
+  max-width: 720px;
+  margin: 0 auto clamp(3rem, 6vw, 4.5rem);
   text-align: center;
 }
-.svc2__head .section__label {
-  color: #b88a2e;
-}
-.svc2__head .section__title {
-  color: #14140f;
-}
 .svc2__sub {
-  color: #5b5b54;
-  font-size: 1.05rem;
-  line-height: 1.7;
+  font-size: 1rem;
+  line-height: 1.8;
   margin-top: 1rem;
 }
 .svc2__grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
-}
-@media (max-width: 980px) {
-  .svc2__grid {
-    grid-template-columns: 1fr;
-    max-width: 560px;
-    margin: 0 auto;
-  }
+  gap: 0;
+  border-top: 1px solid var(--lux-line);
+  border-bottom: 1px solid var(--lux-line);
 }
 .svc2-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
-  border: 1px solid rgba(20, 20, 15, 0.08);
-  border-radius: 14px;
-  padding: clamp(1.75rem, 3vw, 2.4rem);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: clamp(2.6rem, 4vw, 3.6rem) clamp(1.6rem, 2.6vw, 2.6rem);
   overflow: hidden;
-  transition: border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s ease;
+  transition: background 0.5s var(--ease-out);
+}
+.svc2-card + .svc2-card {
+  border-left: 1px solid var(--lux-line);
 }
 .svc2-card::before {
   content: '';
@@ -269,97 +364,378 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--color-accent), transparent);
+  height: 2px;
+  background: var(--lux-gold);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.6s var(--ease-out);
 }
 .svc2-card:hover {
-  border-color: rgba(201, 168, 76, 0.5);
-  transform: translateY(-8px);
-  box-shadow: 0 22px 50px rgba(20, 20, 15, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  border-color: var(--lux-line);
+  transform: none;
+  box-shadow: none;
 }
 .svc2-card:hover::before {
   transform: scaleX(1);
 }
 .svc2-card__top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 1.4rem;
+  margin-bottom: 2rem;
 }
 .svc2-card__num {
   font-family: var(--font-display, 'Playfair Display', serif);
-  font-size: 2.4rem;
-  font-weight: 600;
-  line-height: 1;
-  color: #c9a84c;
+  font-style: italic;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--lux-gold-deep);
+  letter-spacing: 0.08em;
 }
 .svc2-card__icon {
-  color: #c9a84c;
+  width: auto;
+  height: auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--lux-gold);
   display: inline-flex;
-  width: 56px;
-  height: 56px;
-  align-items: center;
-  justify-content: center;
-  background: rgba(201, 168, 76, 0.1);
-  border: 1px solid rgba(201, 168, 76, 0.3);
-  border-radius: 12px;
 }
 .svc2-card__icon svg {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
+  stroke-width: 1.2;
 }
 .svc2-card__title {
   font-family: var(--font-display, 'Playfair Display', serif);
-  font-size: clamp(1.25rem, 2vw, 1.45rem);
-  font-weight: 500;
-  line-height: 1.25;
-  margin: 0 0 0.85rem;
-  color: #14140f;
+  font-size: clamp(1.3rem, 1.9vw, 1.55rem);
+  font-weight: 400;
+  line-height: 1.28;
+  margin: 0 0 1rem;
+  color: var(--lux-ink);
 }
 .svc2-card__desc {
-  color: #5b5b54;
-  line-height: 1.7;
-  font-size: 0.96rem;
-  margin: 0 0 1.35rem;
+  color: var(--lux-muted);
+  line-height: 1.8;
+  font-size: 0.93rem;
+  margin: 0 0 1.75rem;
   flex: 1 1 auto;
 }
 .svc2-card__tags {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0 0 1.6rem;
+  gap: 0.35rem 0.6rem;
+  margin: 0 0 2rem;
   padding: 0;
 }
 .svc2-chip {
-  font-size: 0.72rem;
-  letter-spacing: 0.02em;
-  color: #8a6d24;
-  background: rgba(201, 168, 76, 0.1);
-  border: 1px solid rgba(201, 168, 76, 0.28);
-  border-radius: 999px;
-  padding: 0.32rem 0.7rem;
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lux-faint);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+.svc2-chip:not(:last-child)::after {
+  content: '·';
+  margin-left: 0.6rem;
+  color: rgba(201, 168, 76, 0.7);
 }
 .svc2-card__link {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
   margin-top: auto;
-  color: #14140f;
-  font-weight: 600;
-  font-size: 0.9rem;
+  color: var(--lux-ink);
+  font-weight: 500;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   text-decoration: none;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s var(--ease-out);
+  align-self: flex-start;
 }
 .svc2-card__arrow {
-  color: #c9a84c;
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--lux-gold);
+  transition: transform 0.3s var(--ease-out);
 }
 .svc2-card__link:hover {
-  color: #b88a2e;
+  color: var(--lux-ink);
+  border-bottom-color: var(--lux-gold);
 }
 .svc2-card__link:hover .svc2-card__arrow {
-  transform: translateX(5px);
+  transform: translateX(4px);
+}
+@media (max-width: 980px) {
+  .svc2__grid {
+    grid-template-columns: 1fr;
+  }
+  .svc2-card + .svc2-card {
+    border-left: none;
+    border-top: 1px solid var(--lux-line);
+  }
+}
+
+/* =====================================================================
+   6) PROCESS + WHY-US — numbered hairline rows, no boxes
+   ===================================================================== */
+.pop-process,
+.why-us {
+  background: transparent;
+  padding: clamp(6rem, 10vw, 9rem) 0;
+}
+.pop-steps,
+.why-grid {
+  gap: 0 clamp(1.75rem, 3.5vw, 3rem);
+}
+.pop-step,
+.why-card {
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--lux-line);
+  border-radius: 0;
+  padding: 2.2rem 0 0.5rem;
+  transition: border-color 0.4s var(--ease-out);
+}
+.pop-step:hover,
+.why-card:hover {
+  transform: none;
+  box-shadow: none;
+  background: transparent;
+  border-top-color: var(--lux-gold);
+}
+.pop-step__num {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-style: italic;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--lux-gold-deep);
+  letter-spacing: 0.08em;
+}
+.pop-step__bar {
+  display: none;
+}
+.pop-step__title,
+.why-card__title {
+  font-weight: 400;
+  color: var(--lux-ink);
+  margin-top: 0.9rem;
+}
+.pop-step__desc,
+.why-card__desc {
+  color: var(--lux-muted);
+  line-height: 1.75;
+}
+.why-card__icon {
+  width: auto;
+  height: auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--lux-gold);
+  margin-bottom: 1rem;
+}
+.why-card__icon svg {
+  width: 26px;
+  height: 26px;
+}
+@media (max-width: 980px) {
+  .pop-steps,
+  .why-grid {
+    gap: 2.25rem 1.75rem;
+  }
+}
+
+/* =====================================================================
+   7) STATS — serif ink numbers, hairline top
+   ===================================================================== */
+.stat__number {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-size: 3rem;
+  font-weight: 500;
+  color: var(--lux-ink);
+  letter-spacing: 0;
+}
+.stat__suffix {
+  color: var(--lux-gold-deep);
+}
+.stat__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--lux-muted) !important;
+}
+
+/* Values — quiet hover */
+.value-item:hover {
+  background: transparent;
+  border-color: transparent;
+  transform: none;
+}
+
+/* =====================================================================
+   8) CTA BANDS — dark bookends
+   ===================================================================== */
+.cta-band {
+  background: var(--lux-dark) !important;
+  border-top: none !important;
+  padding: clamp(5rem, 8vw, 7rem) 0;
+}
+.cta-band__inner {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+.cta-band__title {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-weight: 400;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+}
+.cta-band__sub {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 300;
+  line-height: 1.8;
+}
+.cta-section {
+  background: var(--lux-dark);
+  padding: clamp(5rem, 8vw, 7rem) 0;
+}
+.cta-section h2 {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-weight: 400;
+  color: #ffffff;
+}
+
+/* =====================================================================
+   9) PAGE HEROES (subpages) — airy, serif, hairline
+   ===================================================================== */
+.page-hero {
+  padding: clamp(10rem, 16vw, 13rem) 0 clamp(4rem, 7vw, 5.5rem);
+  background: transparent;
+  border-bottom: 1px solid var(--lux-line-soft);
+}
+.page-hero__title {
+  font-weight: 400;
+}
+.page-hero__subtitle {
+  color: var(--lux-muted) !important;
+  font-weight: 300;
+  line-height: 1.8;
+}
+
+/* =====================================================================
+   10) CONTACT — underline form, no box
+   ===================================================================== */
+.contact__form-wrap {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+.form__group input,
+.form__group select,
+.form__group textarea {
+  background: transparent !important;
+  border: none;
+  border-bottom: 1px solid rgba(22, 21, 15, 0.25);
+  border-radius: 0;
+  padding: 1.2rem 0 0.65rem;
+}
+.form__group input:focus,
+.form__group select:focus,
+.form__group textarea:focus {
+  border-bottom-color: var(--lux-gold);
+  box-shadow: none;
+  background: transparent !important;
+}
+.form__group label {
+  left: 0 !important;
+}
+.file-upload {
+  border-radius: 0;
+  border: 1px dashed rgba(22, 21, 15, 0.22);
+  background: transparent;
+}
+.contact__item-icon {
+  background: transparent;
+  border: 1px solid var(--lux-line);
+  border-radius: 0;
+  color: var(--lux-gold-deep);
+}
+
+/* =====================================================================
+   11) FOOTER — spacious, quiet
+   ===================================================================== */
+.footer {
+  background: transparent;
+  border-top: 1px solid var(--lux-line);
+  padding: clamp(5rem, 8vw, 6.5rem) 0 2.5rem;
+}
+.footer__tagline {
+  font-size: 0.68rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--lux-muted);
+}
+.footer__credential {
+  color: var(--lux-faint);
+  font-size: 0.66rem;
+  letter-spacing: 0.2em;
+}
+.footer__grid h4 {
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--lux-gold-deep);
+}
+.footer__links a,
+.footer__office p,
+.footer__office a,
+.footer__email {
+  color: var(--lux-muted);
+  font-size: 0.88rem;
+}
+.footer__links a:hover,
+.footer__office a:hover,
+.footer__email:hover {
+  color: var(--lux-ink);
+}
+.footer__social-icons a {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--lux-line);
+  border-radius: 0;
+  color: var(--lux-muted);
+}
+.footer__social-icons a:hover {
+  background: transparent;
+  border-color: var(--lux-gold);
+  color: var(--lux-gold-deep);
+  transform: none;
+  box-shadow: none;
+}
+.footer__bottom p {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  color: var(--lux-faint);
+}
+
+/* =====================================================================
+   12) PROJECT / WORK CARDS — sharp, calm
+   ===================================================================== */
+.project-card {
+  border-radius: 0 !important;
+}
+.project-card__img {
+  border-radius: 0 !important;
 }
