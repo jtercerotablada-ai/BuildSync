@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { CustomFieldCell } from "@/components/tasks/custom-field-cell";
+import { PeopleFieldEditor } from "@/components/tasks/people-field-editor";
 
 type FieldType =
   | "TEXT"
@@ -57,7 +58,6 @@ interface FieldOption {
 }
 
 const READ_ONLY_TYPES: FieldType[] = [
-  "PEOPLE",
   "REFERENCE",
   "FORMULA",
   "TIMER",
@@ -126,6 +126,16 @@ export function EditableCustomFieldCell({
   if (READ_ONLY_TYPES.includes(type)) {
     return (
       <CustomFieldCell type={type} options={options} value={optimistic} />
+    );
+  }
+
+  // PEOPLE — multi-user picker (chips + search popover).
+  if (type === "PEOPLE") {
+    return (
+      <PeopleFieldEditor
+        value={optimistic}
+        onChange={(next) => void commit(next)}
+      />
     );
   }
 

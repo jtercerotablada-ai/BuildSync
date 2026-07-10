@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { Check, Link2, FunctionSquare, Timer as TimerIcon, Clock } from "lucide-react";
 import { readTimeTracking, formatDays } from "@/lib/duration";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { readPeople } from "@/components/tasks/people-field-editor";
 
 type FieldType =
   | "TEXT"
@@ -152,13 +154,33 @@ export function CustomFieldCell({
         </div>
       );
     }
-    case "PEOPLE":
-      if (!Array.isArray(value) || value.length === 0) return null;
+    case "PEOPLE": {
+      const people = readPeople(value);
+      if (people.length === 0) return null;
+      const visible = people.slice(0, 3);
+      const overflow = people.length - visible.length;
       return (
-        <span className="text-[12px] text-[#6f7782]">
-          {value.length} {value.length === 1 ? "person" : "people"}
+        <span className="inline-flex items-center">
+          {visible.map((p) => (
+            <Avatar
+              key={p.id}
+              className="h-5 w-5 -ml-1 first:ml-0 ring-1 ring-white"
+              title={p.name || undefined}
+            >
+              <AvatarImage src={p.image || undefined} />
+              <AvatarFallback className="text-[9px] bg-[#c9a84c] text-white">
+                {(p.name || "U").charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          ))}
+          {overflow > 0 && (
+            <span className="text-[11px] text-[#6f7782] ml-1 tabular-nums">
+              +{overflow}
+            </span>
+          )}
         </span>
       );
+    }
     case "REFERENCE": {
       // Reference value shape: { kind: 'task'|'project'|'portfolio'|'objective', id, name }
       // Multiple refs come as an array. Render the first as a chip with

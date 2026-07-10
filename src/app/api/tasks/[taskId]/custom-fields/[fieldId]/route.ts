@@ -219,16 +219,29 @@ export async function PATCH(
         break;
       }
       case "PEOPLE": {
-        if (
-          !Array.isArray(raw) ||
-          raw.some((v) => typeof v !== "string")
-        ) {
+        if (!Array.isArray(raw)) {
           return NextResponse.json(
-            { error: "People value must be an array of user ids" },
+            { error: "People value must be an array" },
             { status: 400 }
           );
         }
-        coerced = raw;
+        // Accept legacy string ids OR { id, name, image } objects and
+        // normalize to the denormalized shape the cell renders.
+        coerced = raw
+          .map((v) =>
+            typeof v === "string" ? { id: v, name: null, image: null } : v
+          )
+          .filter(
+            (v): v is { id: string; name?: unknown; image?: unknown } =>
+              !!v &&
+              typeof v === "object" &&
+              typeof (v as { id?: unknown }).id === "string"
+          )
+          .map((o) => ({
+            id: o.id,
+            name: typeof o.name === "string" ? o.name : null,
+            image: typeof o.image === "string" ? o.image : null,
+          }));
         break;
       }
       case "TEXT": {

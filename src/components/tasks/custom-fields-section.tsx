@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { parseDaysInput, readTimeTracking } from "@/lib/duration";
+import { PeopleFieldEditor } from "@/components/tasks/people-field-editor";
 
 type FieldType =
   | "TEXT"
@@ -284,11 +285,7 @@ function CustomFieldRow({
     case "PEOPLE":
       return (
         <FieldRow label={def.name} required={def.isRequired} saving={saving}>
-          <span className="text-[13px] text-[#9aa0a6]">
-            {Array.isArray(value) && value.length > 0
-              ? `${value.length} assigned`
-              : "Empty"}
-          </span>
+          <PeopleFieldEditor value={value} onChange={onChange} />
         </FieldRow>
       );
     case "TIME_TRACKING":
