@@ -1,0 +1,365 @@
+/* =====================================================================
+   TTC Refresh 2026 — repositioning + contrast/polish overrides.
+   Loaded LAST so it wins over ttc-globals / fx-pro / sections-pro / pop.
+
+   Design system after this file:
+   • HERO      → dark dramatic "anchor" (fixes the washed-out light hero,
+                 lets the gold WebGL rebar cage + white/gold type pop).
+   • TRUST BAR → dark credential strip that extends the anchor.
+   • BODY      → keeps the cohesive LIGHT "pop" theme (cream + gold),
+                 so the new service cards are styled light to match.
+   ttc-pop.css themes the hero light with !important, so the hero
+   overrides here must also be !important to win.
+   ===================================================================== */
+
+/* =====================================================================
+   HERO — dark anchor. Beat ttc-pop.css's light hero (!important).
+   ===================================================================== */
+.hero__overlay {
+  background:
+    linear-gradient(to bottom,
+      rgba(8, 8, 10, 0.74) 0%,
+      rgba(8, 8, 10, 0.42) 30%,
+      rgba(8, 8, 10, 0.72) 74%,
+      #111110 100%),
+    radial-gradient(ellipse 82% 72% at 50% 42%,
+      rgba(8, 8, 10, 0.34) 0%,
+      rgba(8, 8, 10, 0.74) 100%) !important;
+}
+
+.hero__title {
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.55));
+}
+.hero__title-line {
+  background: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5) !important;
+}
+.hero__title-line.accent {
+  color: var(--color-accent-light) !important;
+  -webkit-text-fill-color: var(--color-accent-light) !important;
+}
+.hero__badge {
+  color: var(--color-accent-light) !important;
+  background: rgba(201, 168, 76, 0.12) !important;
+  border: 1px solid rgba(201, 168, 76, 0.4) !important;
+  text-shadow: none !important;
+  backdrop-filter: blur(4px);
+}
+.hero__materials {
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.6) !important;
+}
+.hero__desc {
+  color: rgba(255, 255, 255, 0.84) !important;
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.55) !important;
+}
+.hero__credential {
+  color: rgba(255, 255, 255, 0.68) !important;
+  text-shadow: none !important;
+}
+.hero__scroll-text {
+  color: rgba(255, 255, 255, 0.72) !important;
+  text-shadow: none !important;
+}
+
+/* Hero buttons on the dark anchor */
+.hero .btn--outline {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+}
+.hero .btn--outline:hover {
+  color: #14140f !important;
+  background: var(--color-accent-light) !important;
+  border-color: var(--color-accent-light) !important;
+}
+
+/* Header sits over the dark hero at the top of the home page — ttc-pop.css
+   made the logo/nav dark for the (old) light hero, which would vanish on
+   dark. Re-light them ONLY while transparent over the hero (home + top). */
+.header:not(.scrolled):not(.header--solid) .header__logo-img {
+  content: url('/ttc/img/logo-white.png') !important;
+}
+.header:not(.scrolled):not(.header--solid) .header__nav a {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+.header:not(.scrolled):not(.header--solid) .header__nav a:hover,
+.header:not(.scrolled):not(.header--solid) .header__nav a.nav-active {
+  color: var(--color-accent-light) !important;
+}
+.header:not(.scrolled):not(.header--solid) .lang-toggle,
+.header:not(.scrolled):not(.header--solid) .lang-inactive {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+.header:not(.scrolled):not(.header--solid) .lang-active {
+  color: var(--color-accent-light) !important;
+}
+.header:not(.scrolled):not(.header--solid) .hamburger span {
+  background: #ffffff !important;
+}
+
+/* =====================================================================
+   HERO — WebGL rebar-cage accent. Above the overlay, below the text,
+   offset right and masked so it blends. Gold cage pops on the dark hero.
+   ===================================================================== */
+.hero-canvas-wrap {
+  position: absolute;
+  top: 0;
+  right: -4%;
+  width: min(72vw, 900px);
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.85;
+  -webkit-mask-image: radial-gradient(closest-side at 62% 46%, #000 46%, transparent 100%);
+  mask-image: radial-gradient(closest-side at 62% 46%, #000 46%, transparent 100%);
+}
+.hero-canvas-wrap canvas,
+.hero-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+@media (max-width: 768px) {
+  .hero-canvas-wrap {
+    display: none;
+  }
+}
+
+/* =====================================================================
+   TRUST BAR — dark credential strip (extends the hero anchor).
+   :root is light here, so dark values are hardcoded.
+   ===================================================================== */
+.trustbar {
+  background: #111110;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: clamp(1.4rem, 3.5vw, 2rem) 0;
+}
+.trustbar .container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem 2.5rem;
+}
+.trustbar__creds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.trustbar__cred {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+}
+.trustbar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 12px rgba(201, 168, 76, 0.6);
+  flex: none;
+}
+.trustbar__audience {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+  flex-wrap: wrap;
+}
+.trustbar__audience-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.5);
+}
+.trustbar__audience-list {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+.trustbar__pill {
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+}
+
+/* =====================================================================
+   SERVICES SHOWCASE (.svc2) — LIGHT "pop" cards to match the body
+   (mirrors .pop-step / .why-card: white card, cream section, gold).
+   ===================================================================== */
+.svc2 {
+  position: relative;
+  background: #f6f5f2;
+  overflow: hidden;
+}
+.svc2__grid-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(12.5% - 1px),
+    rgba(201, 168, 76, 0.14) calc(12.5% - 1px),
+    rgba(201, 168, 76, 0.14) 12.5%
+  );
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent);
+}
+.svc2 .container {
+  position: relative;
+  z-index: 1;
+}
+.svc2__head {
+  max-width: 760px;
+  margin: 0 auto clamp(2.5rem, 5vw, 3.5rem);
+  text-align: center;
+}
+.svc2__head .section__label {
+  color: #b88a2e;
+}
+.svc2__head .section__title {
+  color: #14140f;
+}
+.svc2__sub {
+  color: #5b5b54;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin-top: 1rem;
+}
+.svc2__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+@media (max-width: 980px) {
+  .svc2__grid {
+    grid-template-columns: 1fr;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+}
+.svc2-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid rgba(20, 20, 15, 0.08);
+  border-radius: 14px;
+  padding: clamp(1.75rem, 3vw, 2.4rem);
+  overflow: hidden;
+  transition: border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s ease;
+}
+.svc2-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-accent), transparent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.svc2-card:hover {
+  border-color: rgba(201, 168, 76, 0.5);
+  transform: translateY(-8px);
+  box-shadow: 0 22px 50px rgba(20, 20, 15, 0.12);
+}
+.svc2-card:hover::before {
+  transform: scaleX(1);
+}
+.svc2-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.4rem;
+}
+.svc2-card__num {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-size: 2.4rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #c9a84c;
+}
+.svc2-card__icon {
+  color: #c9a84c;
+  display: inline-flex;
+  width: 56px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+  background: rgba(201, 168, 76, 0.1);
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  border-radius: 12px;
+}
+.svc2-card__icon svg {
+  width: 30px;
+  height: 30px;
+}
+.svc2-card__title {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-size: clamp(1.25rem, 2vw, 1.45rem);
+  font-weight: 500;
+  line-height: 1.25;
+  margin: 0 0 0.85rem;
+  color: #14140f;
+}
+.svc2-card__desc {
+  color: #5b5b54;
+  line-height: 1.7;
+  font-size: 0.96rem;
+  margin: 0 0 1.35rem;
+  flex: 1 1 auto;
+}
+.svc2-card__tags {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.6rem;
+  padding: 0;
+}
+.svc2-chip {
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: #8a6d24;
+  background: rgba(201, 168, 76, 0.1);
+  border: 1px solid rgba(201, 168, 76, 0.28);
+  border-radius: 999px;
+  padding: 0.32rem 0.7rem;
+}
+.svc2-card__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  color: #14140f;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+.svc2-card__arrow {
+  color: #c9a84c;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.svc2-card__link:hover {
+  color: #b88a2e;
+}
+.svc2-card__link:hover .svc2-card__arrow {
+  transform: translateX(5px);
+}

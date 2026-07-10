@@ -4,17 +4,17 @@ import React from 'react';
 import { useTranslation } from './language-provider';
 
 const STEPS_EN = [
-  { n: '01', t: 'Consultation & Value Engineering', d: 'We align the engineering with your budget from day one — cutting cost and risk before a single line is drawn.' },
-  { n: '02', t: 'Design + BIM Modeling', d: 'Complete structural design in BIM (LOD 300), coordinated precisely with architecture and MEP.' },
-  { n: '03', t: 'Coordination & Clash Detection', d: 'We catch and resolve conflicts between trades inside the model — never in the field.' },
-  { n: '04', t: 'Delivery & Site Support', d: 'Construction documents, post-tension stressing, and on-site support through to completion.' },
+  { n: '01', t: 'Assessment & Inspection', d: 'We visit the building, inspect the structure, and document existing conditions — a Phase 1 milestone walkthrough or a full recertification survey.' },
+  { n: '02', t: 'Engineering Evaluation', d: 'We analyze the findings against the Florida Building Code and county requirements, then determine whether a Phase 2, testing, or repairs are needed.' },
+  { n: '03', t: 'Report & Certification', d: 'We deliver a clear, defensible, P.E.-stamped report your association and the building department can rely on — on time.' },
+  { n: '04', t: 'Restoration & Sign-Off', d: 'When repairs are required, we design the reinforced-concrete restoration and guide you through permitting to final compliance.' },
 ];
 
 const STEPS_ES = [
-  { n: '01', t: 'Consultoría e Ingeniería de Valor', d: 'Alineamos la ingeniería con tu presupuesto desde el día uno — reduciendo costo y riesgo antes de dibujar una sola línea.' },
-  { n: '02', t: 'Diseño + Modelado BIM', d: 'Diseño estructural completo en BIM (LOD 300), coordinado con precisión con arquitectura y MEP.' },
-  { n: '03', t: 'Coordinación y Detección de Conflictos', d: 'Detectamos y resolvemos conflictos entre disciplinas dentro del modelo — nunca en la obra.' },
-  { n: '04', t: 'Entrega y Soporte en Obra', d: 'Documentación de construcción, tensado de postensado y soporte en sitio hasta la finalización.' },
+  { n: '01', t: 'Evaluación e Inspección', d: 'Visitamos el edificio, inspeccionamos la estructura y documentamos las condiciones existentes — un recorrido milestone Fase 1 o un levantamiento completo de recertificación.' },
+  { n: '02', t: 'Evaluación de Ingeniería', d: 'Analizamos los hallazgos según el Código de Construcción de Florida y los requisitos del condado, y determinamos si se necesita una Fase 2, pruebas o reparaciones.' },
+  { n: '03', t: 'Informe y Certificación', d: 'Entregamos un informe claro, defendible y sellado por P.E. en el que tu asociación y el departamento de construcción pueden confiar — a tiempo.' },
+  { n: '04', t: 'Restauración y Certificación Final', d: 'Cuando se requieren reparaciones, diseñamos la restauración de concreto reforzado y te guiamos por el permiso hasta el cumplimiento final.' },
 ];
 
 export function ProcessSection() {
@@ -22,10 +22,10 @@ export function ProcessSection() {
   const es = language === 'es';
   const steps = es ? STEPS_ES : STEPS_EN;
   const label = es ? 'Cómo Trabajamos' : 'How We Work';
-  const title = es ? 'Del concepto a la entrega' : 'From concept to completion';
+  const title = es ? 'De la inspección a la certificación' : 'From inspection to sign-off';
   const sub = es
-    ? 'Un proceso disciplinado y transparente que mantiene tu proyecto en presupuesto, en plazo y sin conflictos en obra.'
-    : 'A disciplined, transparent process that keeps your project on budget, on schedule, and conflict-free on site.';
+    ? 'Un proceso claro y orientado a plazos que mantiene tu edificio seguro, en cumplimiento y sin violaciones.'
+    : 'A clear, deadline-driven process that keeps your building safe, compliant, and clear of violations.';
 
   return (
     <section className="pop-process" id="process">

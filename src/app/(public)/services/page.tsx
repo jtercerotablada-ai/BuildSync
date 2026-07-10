@@ -3,25 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { useTranslation } from '@/components/ttc/language-provider';
-import { ServiceCard } from '@/components/ttc/service-card';
+import { ServicesShowcase } from '@/components/ttc/services-showcase';
 import { ValueItem } from '@/components/ttc/value-item';
-import { serviceIcons } from '@/components/ttc/service-icons';
 import type { TranslationKey } from '@/lib/i18n';
 
 export default function ServicesPage() {
   const { t } = useTranslation();
-
-  const services: { icon: React.ReactNode; titleKey: TranslationKey; descKey: TranslationKey }[] = [
-    { icon: serviceIcons.predesign, titleKey: 'service.predesign', descKey: 'service.predesign.desc' },
-    { icon: serviceIcons.structural, titleKey: 'service.structural', descKey: 'service.structural.desc' },
-    { icon: serviceIcons.review, titleKey: 'service.review', descKey: 'service.review.desc' },
-    { icon: serviceIcons.postTension, titleKey: 'service.postTension', descKey: 'service.postTension.desc' },
-    { icon: serviceIcons.bimDev, titleKey: 'service.bimDev', descKey: 'service.bimDev.desc' },
-    { icon: serviceIcons.digital, titleKey: 'service.digital', descKey: 'service.digital.desc' },
-    { icon: serviceIcons.coordination, titleKey: 'service.coordination', descKey: 'service.coordination.desc' },
-    { icon: serviceIcons.clash, titleKey: 'service.clash', descKey: 'service.clash.desc' },
-    { icon: serviceIcons.bimAudit, titleKey: 'service.bimAudit', descKey: 'service.bimAudit.desc' },
-  ];
 
   const values: { number: string; titleKey: TranslationKey; descKey: TranslationKey }[] = [
     { number: '01', titleKey: 'value.adaptability', descKey: 'value.adaptability.desc' },
@@ -41,15 +28,7 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      <section className="section services-page">
-        <div className="container">
-          <div className="services__grid">
-            {services.map((s, i) => (
-              <ServiceCard key={i} icon={s.icon} title={t(s.titleKey)} description={t(s.descKey)} delay={(i % 3) * 100} />
-            ))}
-          </div>
-        </div>
-      </section>
+      <ServicesShowcase withHeader={false} />
 
       <section className="section values">
         <div className="container">

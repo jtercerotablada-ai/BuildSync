@@ -4,7 +4,7 @@ export const dictionaries = {
   en: {
     // Nav
     'nav.home': 'Home',
-    'nav.projects': 'Projects',
+    'nav.projects': 'Our Work',
     'nav.services': 'Services',
     'nav.resources': 'Resources',
     'nav.about': 'About Us',
@@ -12,14 +12,14 @@ export const dictionaries = {
     'nav.clientPortal': 'Client Portal',
 
     // Hero
-    'hero.badge': 'International Structural Engineering Firm',
+    'hero.badge': 'Structural Safety & Restoration Specialists',
     'hero.titleLine1': 'STRUCTURAL',
-    'hero.titleLine2': 'ENGINEERING + BIM',
-    'hero.materials': 'REINFORCED & POST-TENSIONED CONCRETE \u00b7 STEEL \u00b7 WOOD \u00b7 MASONRY',
-    'hero.desc': 'We are an international structural engineering firm specializing in residential, vertical, commercial, industrial, and public works projects. We offer first-class services adapted to the specific needs of each project at highly competitive rates.',
+    'hero.titleLine2': 'SAFETY & RESTORATION',
+    'hero.materials': '40-YEAR RECERTIFICATION \u00b7 MILESTONE INSPECTION \u00b7 CONCRETE RESTORATION',
+    'hero.desc': 'We keep aging buildings safe, compliant, and standing. From 40-year recertification and Florida milestone inspections to reinforced-concrete restoration \u2014 a Registered P.E. team that protects your property, your residents, and your deadlines.',
     'hero.credential': 'Registered P.E.',
-    'hero.viewProjects': 'View Projects',
-    'hero.contactUs': 'Contact Us',
+    'hero.viewProjects': 'Our Services',
+    'hero.contactUs': 'Request an Inspection',
     'hero.scroll': 'Scroll',
 
     // Project categories (badges)
@@ -48,7 +48,7 @@ export const dictionaries = {
     'section.featuredProjects': 'Featured Projects',
     'section.whatWeDo': 'What We Do',
     'section.ourServices': 'Our Services',
-    'section.servicesSubtitle': 'Since we began, we have been at the forefront of all the latest techniques and technologies, offering a wide variety of services to handle the needs of our clients.',
+    'section.servicesSubtitle': 'Focused structural services for existing buildings — recertification, safety inspection, and reinforced-concrete restoration, delivered and stamped by a Registered P.E.',
     'section.ourPrinciples': 'Our Principles',
     'section.ourValues': 'Our Values',
     'section.aboutUs': 'About Us',
@@ -60,8 +60,8 @@ export const dictionaries = {
     'section.getInTouch': 'Get In Touch',
 
     // Projects
-    'projects.title': 'Our Projects',
-    'projects.subtitle': 'Residential, vertical, commercial, industrial, and public works projects designed with precision and built to last.',
+    'projects.title': 'Our Work',
+    'projects.subtitle': 'The building-safety and restoration work we take on — recertification, milestone inspections, and reinforced-concrete repair across South Florida.',
     'projects.viewAll': 'View All Projects',
     'projects.filterAll': 'All',
     'projects.filterResidential': 'Residential',
@@ -139,18 +139,18 @@ export const dictionaries = {
 
     // About
     'about.title': 'About Us',
-    'about.subtitle': 'An international structural engineering firm committed to innovation, safety, and excellence.',
-    'about.heading': 'Building with Precision, Designing with Purpose',
-    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. is an international structural engineering firm with projects spanning residential, vertical, commercial, industrial, and public works sectors. Our success is driven by the academic preparation of our team, cutting-edge technology, commitment to excellence in quality, and collaboration with top-tier architecture firms.',
-    'about.p2': 'Our team brings combined experience of more than 30 years in high-rise, commercial, and residential projects constructed in different cities. We remain at the forefront of technology, techniques, and products to deliver the best results for our clients.',
-    'about.p3': 'We offer our clients first-class services adapted to the specific needs of their projects and management requirements at highly competitive rates.',
+    'about.subtitle': 'A structural safety engineering firm committed to keeping buildings safe, compliant, and standing.',
+    'about.heading': 'Protecting Buildings, Protecting People',
+    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. is a structural engineering firm focused on the safety of existing buildings — 40-year recertification, milestone / building safety inspections, and reinforced-concrete restoration. Every report and repair is engineered and stamped by a Registered P.E.',
+    'about.p2': 'Our team brings combined experience of more than 30 years across high-rise, commercial, and residential structures. We know the Florida building code, the Miami-Dade and Broward recertification programs, and the SB-4-D milestone-inspection requirements — and we guide owners and associations through them with clarity.',
+    'about.p3': 'We give building owners, condominium associations, and property managers straight answers, defensible reports, and restoration solutions that protect both the asset and the people inside it.',
 
     // Stats
-    'stat.projects': 'Projects Completed',
+    'stat.projects': 'P.E.-Stamped Reports',
     'stat.years': 'Years Combined Experience',
     'stat.yearsShort': 'Years Combined Exp.',
-    'stat.clients': 'Active Clients',
-    'stat.services': 'Specialized Services',
+    'stat.clients': 'Counties Served',
+    'stat.services': 'Core Specialties',
 
     // Contact
     'contact.title': 'Contact Us',
@@ -179,8 +179,8 @@ export const dictionaries = {
     'option.other': 'Other',
 
     // CTA
-    'cta.ready': 'Ready to start your project?',
-    'cta.contact': 'Contact Us',
+    'cta.ready': 'Is your building due for recertification or an inspection?',
+    'cta.contact': 'Request an Inspection',
 
     // Engineering tools (live inside the Knowledge hub)
     'resources.title': 'Engineering Tools',
@@ -189,11 +189,20 @@ export const dictionaries = {
     'resources.section.analysis': 'Analysis Software',
     'resources.section.design': 'Design Software',
     'resources.section.apps': 'Apps and Plugins',
-    'resources.comingSoon': 'Coming Soon',
+    'resources.comingSoon': 'In Development',
     'resources.available': 'Available',
     'resources.openTool': 'Open Tool',
     'resources.cta.heading': 'Need a specific calculator?',
     'resources.cta.desc': 'Tell us which tool you need and we will prioritize it in the roadmap.',
+    'resources.stats.live': 'Tools live',
+    'resources.stats.coming': 'In development',
+    'resources.stats.free': 'Free, in-browser',
+    'resources.search.placeholder': 'Search calculators\u2026',
+    'resources.filter.all': 'All',
+    'resources.filter.available': 'Available now',
+    'resources.filter.soon': 'Coming soon',
+    'resources.featured.title': 'Most used',
+    'resources.empty': 'No tools match your search. Try a different keyword.',
 
     // Resources \u2014 Analysis tools
     'tool.s3d': 'Structural 3D',
@@ -232,7 +241,7 @@ export const dictionaries = {
     'tool.slab.desc': 'One-way and two-way RC slab design per ACI 318-25, ACI 318-19 and EN 1992-1-1: Method 3 coefficients (9 cases), reinforcement with user-editable bar+spacing override and live φMn capacity verification (with tension-controlled εt-based φ reduction per §21.2.2), deflection (Branson Ie + edge-aware service moment + sustained-LL ψ + selectable Tabla 24.2.2 limit + Tabla 24.2.4.1.3 ξ multiplier), punching shear (with λ_s size factor, lightweight λ, stud rails per ACI 421.1), crack control. Live 3D model with column top reinforcement. 105 unit tests.',
 
     // Footer
-    'footer.tagline': 'International Structural Engineering Firm',
+    'footer.tagline': 'Structural Safety, Recertification & Concrete Restoration',
     'footer.credential': 'Registered P.E.',
     'footer.mainOffice': 'Main Office',
     'footer.navigation': 'Navigation',
@@ -248,7 +257,7 @@ export const dictionaries = {
   es: {
     // Nav
     'nav.home': 'Inicio',
-    'nav.projects': 'Proyectos',
+    'nav.projects': 'Nuestro Trabajo',
     'nav.services': 'Servicios',
     'nav.resources': 'Recursos',
     'nav.about': 'Nosotros',
@@ -256,14 +265,14 @@ export const dictionaries = {
     'nav.clientPortal': 'Portal de Cliente',
 
     // Hero
-    'hero.badge': 'Despacho Internacional de Ingenieria Estructural',
-    'hero.titleLine1': 'INGENIERIA',
-    'hero.titleLine2': 'ESTRUCTURAL + BIM',
-    'hero.materials': 'CONCRETO REFORZADO Y POSTENSADO \u00b7 ACERO \u00b7 MADERA \u00b7 MAMPOSTERIA',
-    'hero.desc': 'Somos un despacho internacional de ingenieria estructural especializado en proyectos residenciales, verticales, comerciales, industriales y de obras publicas. Ofrecemos servicios de primera linea adaptados a las necesidades especificas de cada proyecto a tarifas muy competitivas.',
+    'hero.badge': 'Especialistas en Seguridad y Restauracion Estructural',
+    'hero.titleLine1': 'SEGURIDAD',
+    'hero.titleLine2': 'ESTRUCTURAL',
+    'hero.materials': 'RECERTIFICACION 40 A\u00d1OS \u00b7 INSPECCION MILESTONE \u00b7 RESTAURACION DE CONCRETO',
+    'hero.desc': 'Mantenemos los edificios seguros, en cumplimiento y en pie. Desde la recertificacion de 40 a\u00f1os e inspecciones milestone en Florida hasta la restauracion de concreto reforzado \u2014 un equipo con P.E. registrado que protege tu propiedad, tus residentes y tus plazos.',
     'hero.credential': 'P.E. Registrado',
-    'hero.viewProjects': 'Ver Proyectos',
-    'hero.contactUs': 'Contactenos',
+    'hero.viewProjects': 'Nuestros Servicios',
+    'hero.contactUs': 'Solicitar Inspeccion',
     'hero.scroll': 'Desliza',
 
     // Project categories (badges)
@@ -292,7 +301,7 @@ export const dictionaries = {
     'section.featuredProjects': 'Proyectos Destacados',
     'section.whatWeDo': 'Lo Que Hacemos',
     'section.ourServices': 'Nuestros Servicios',
-    'section.servicesSubtitle': 'Desde que comenzamos, hemos estado a la vanguardia de las ultimas tecnicas y tecnologias, ofreciendo una amplia variedad de servicios para manejar las necesidades de nuestros clientes.',
+    'section.servicesSubtitle': 'Servicios estructurales enfocados en edificios existentes — recertificacion, inspeccion de seguridad y restauracion de concreto reforzado, entregados y sellados por un P.E. registrado.',
     'section.ourPrinciples': 'Nuestros Principios',
     'section.ourValues': 'Nuestros Valores',
     'section.aboutUs': 'Sobre Nosotros',
@@ -304,8 +313,8 @@ export const dictionaries = {
     'section.getInTouch': 'Contactenos',
 
     // Projects
-    'projects.title': 'Nuestros Proyectos',
-    'projects.subtitle': 'Proyectos residenciales, verticales, comerciales, industriales y de obras publicas disenados con precision y construidos para perdurar.',
+    'projects.title': 'Nuestro Trabajo',
+    'projects.subtitle': 'El trabajo de seguridad estructural y restauracion que realizamos — recertificacion, inspecciones milestone y reparacion de concreto reforzado en el sur de Florida.',
     'projects.viewAll': 'Ver Todos los Proyectos',
     'projects.filterAll': 'Todos',
     'projects.filterResidential': 'Residencial',
@@ -383,18 +392,18 @@ export const dictionaries = {
 
     // About
     'about.title': 'Sobre Nosotros',
-    'about.subtitle': 'Un despacho internacional de ingenieria estructural comprometido con la innovacion, seguridad y excelencia.',
-    'about.heading': 'Construyendo con Precision, Disenando con Proposito',
-    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. es un despacho internacional de ingenieria estructural con proyectos en los sectores residencial, vertical, comercial, industrial y de obras publicas. Nuestro exito se basa en la preparacion academica de nuestro equipo, tecnologia de punta, compromiso con la excelencia en calidad y colaboracion con firmas de arquitectura de primer nivel.',
-    'about.p2': 'Nuestro equipo cuenta con una experiencia combinada de mas de 30 anos en proyectos de gran altura, comerciales y residenciales construidos en diferentes ciudades. Nos mantenemos a la vanguardia de la tecnologia, tecnicas y productos para entregar los mejores resultados a nuestros clientes.',
-    'about.p3': 'Ofrecemos a nuestros clientes servicios de primera linea adaptados a las necesidades especificas de sus proyectos y requisitos de gestion a tarifas muy competitivas.',
+    'about.subtitle': 'Una firma de ingenieria estructural comprometida con mantener los edificios seguros, en cumplimiento y en pie.',
+    'about.heading': 'Protegemos Edificios, Protegemos Personas',
+    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. es una firma de ingenieria estructural enfocada en la seguridad de los edificios existentes — recertificacion de 40 años, inspecciones milestone / de seguridad y restauracion de concreto reforzado. Cada informe y reparacion es disenado y sellado por un P.E. registrado.',
+    'about.p2': 'Nuestro equipo cuenta con mas de 30 años de experiencia combinada en estructuras de gran altura, comerciales y residenciales. Conocemos el codigo de construccion de Florida, los programas de recertificacion de Miami-Dade y Broward, y los requisitos de inspeccion milestone SB-4-D — y guiamos a propietarios y asociaciones a traves de ellos con claridad.',
+    'about.p3': 'Damos a propietarios, asociaciones de condominios y administradores respuestas claras, informes defendibles y soluciones de restauracion que protegen tanto el activo como a las personas que lo habitan.',
 
     // Stats
-    'stat.projects': 'Proyectos Completados',
-    'stat.years': 'Anos de Experiencia Combinada',
-    'stat.yearsShort': 'Anos de Exp. Combinada',
-    'stat.clients': 'Clientes Activos',
-    'stat.services': 'Servicios Especializados',
+    'stat.projects': 'Informes Sellados por P.E.',
+    'stat.years': 'Años de Experiencia Combinada',
+    'stat.yearsShort': 'Años de Exp. Combinada',
+    'stat.clients': 'Condados Atendidos',
+    'stat.services': 'Especialidades Clave',
 
     // Contact
     'contact.title': 'Contacto',
@@ -423,8 +432,8 @@ export const dictionaries = {
     'option.other': 'Otro',
 
     // CTA
-    'cta.ready': 'Listo para comenzar su proyecto?',
-    'cta.contact': 'Contactenos',
+    'cta.ready': '¿Tu edificio necesita recertificacion o una inspeccion?',
+    'cta.contact': 'Solicitar Inspeccion',
 
     // Engineering tools (product UI stays in English per workspace rule)
     'resources.title': 'Engineering Tools',
@@ -433,11 +442,20 @@ export const dictionaries = {
     'resources.section.analysis': 'Analysis Software',
     'resources.section.design': 'Design Software',
     'resources.section.apps': 'Apps and Plugins',
-    'resources.comingSoon': 'Coming Soon',
+    'resources.comingSoon': 'In Development',
     'resources.available': 'Available',
     'resources.openTool': 'Open Tool',
     'resources.cta.heading': 'Need a specific calculator?',
     'resources.cta.desc': 'Tell us which tool you need and we will prioritize it in the roadmap.',
+    'resources.stats.live': 'Herramientas activas',
+    'resources.stats.coming': 'En desarrollo',
+    'resources.stats.free': 'Gratis, en el navegador',
+    'resources.search.placeholder': 'Buscar calculadoras\u2026',
+    'resources.filter.all': 'Todas',
+    'resources.filter.available': 'Disponibles',
+    'resources.filter.soon': 'Por llegar',
+    'resources.featured.title': 'M\u00e1s usadas',
+    'resources.empty': 'Ning\u00fan resultado. Prob\u00e1 otra b\u00fasqueda.',
 
     // Resources \u2014 Analysis tools
     'tool.s3d': 'Estructural 3D',
@@ -476,8 +494,8 @@ export const dictionaries = {
     'tool.slab.desc': 'Diseno de losas RC en una y dos direcciones segun ACI 318-25, ACI 318-19 y EN 1992-1-1: coeficientes Method 3 (9 casos), refuerzo editable con verificacion phi-Mn en vivo (incluyendo reduccion de phi por strain epsilon-t segun §21.2.2), deflexion (Ie de Branson + momento de servicio segun apoyos + fraccion sostenida psi de LL + selector Tabla 24.2.2 + multiplicador xi de Tabla 24.2.4.1.3), punzonamiento (con factor de tamano lambda_s, factor lambda de hormigon ligero, pernos ACI 421.1), control de fisuras. Modelo 3D en vivo con refuerzo superior sobre la columna. 105 tests unitarios.',
 
     // Footer
-    'footer.tagline': 'Despacho Internacional de Ingenieria Estructural',
-    'footer.credential': 'Registered P.E.',
+    'footer.tagline': 'Seguridad Estructural, Recertificacion y Restauracion de Concreto',
+    'footer.credential': 'P.E. Registrado',
     'footer.mainOffice': 'Oficina Principal',
     'footer.navigation': 'Navegacion',
     'footer.services': 'Servicios',

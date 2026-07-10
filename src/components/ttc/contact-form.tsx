@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from './language-provider';
+import { SERVICES } from './services-data';
 
 export function ContactForm() {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+  const es = language === 'es';
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -12,6 +14,16 @@ export function ContactForm() {
     service: '',
     message: '',
   });
+
+  // Prefill the service when arriving from a "Request this service" link
+  // (/contact?service=recertification). Client-only read avoids the
+  // useSearchParams Suspense requirement.
+  useEffect(() => {
+    const slug = new URLSearchParams(window.location.search).get('service');
+    if (slug && SERVICES.some((s) => s.slug === slug)) {
+      setFormData((prev) => (prev.service ? prev : { ...prev, service: slug }));
+    }
+  }, []);
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -115,12 +127,11 @@ export function ContactForm() {
             aria-label={t('contact.serviceNeeded')}
           >
             <option value="" disabled></option>
-            <option value="predesign">{t('option.predesign')}</option>
-            <option value="structural">{t('option.structural')}</option>
-            <option value="review">{t('option.review')}</option>
-            <option value="post-tension">{t('option.postTension')}</option>
-            <option value="bim">{t('option.bim')}</option>
-            <option value="digital">{t('option.digital')}</option>
+            {SERVICES.map((s) => (
+              <option key={s.slug} value={s.slug}>
+                {(es ? s.es : s.en).short}
+              </option>
+            ))}
             <option value="other">{t('option.other')}</option>
           </select>
           <label htmlFor="contact-service">{t('contact.serviceNeeded')}</label>
