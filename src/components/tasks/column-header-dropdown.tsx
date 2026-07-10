@@ -318,29 +318,33 @@ const ColumnDropdown = forwardRef<
         <div className="my-1.5 mx-3 border-t border-gray-200" />
       )}
 
-      {/* Agregar columna */}
-      <DropdownItem
-        icon={<Plus className="w-4 h-4" />}
-        label="Add column"
-        onClick={() => { callbacks.onAddColumn?.(); onClose(); }}
-      />
+      {/* Agregar columna — only when wired. */}
+      {callbacks.onAddColumn && (
+        <DropdownItem
+          icon={<Plus className="w-4 h-4" />}
+          label="Add column"
+          onClick={() => { callbacks.onAddColumn?.(); onClose(); }}
+        />
+      )}
 
-      {/* Mover columna > submenu */}
-      <DropdownSubmenu
-        label="Move column"
-        icon={<ArrowLeftRight className="w-4 h-4" />}
-        isOpen={openSub === "move"}
-        onToggle={() => setOpenSub(openSub === "move" ? null : "move")}
-      >
-        <DropdownItem
-          label="Move left"
-          onClick={() => { callbacks.onMoveLeft?.(); onClose(); }}
-        />
-        <DropdownItem
-          label="Move right"
-          onClick={() => { callbacks.onMoveRight?.(); onClose(); }}
-        />
-      </DropdownSubmenu>
+      {/* Mover columna > submenu — only when reordering is supported. */}
+      {(callbacks.onMoveLeft || callbacks.onMoveRight) && (
+        <DropdownSubmenu
+          label="Move column"
+          icon={<ArrowLeftRight className="w-4 h-4" />}
+          isOpen={openSub === "move"}
+          onToggle={() => setOpenSub(openSub === "move" ? null : "move")}
+        >
+          <DropdownItem
+            label="Move left"
+            onClick={() => { callbacks.onMoveLeft?.(); onClose(); }}
+          />
+          <DropdownItem
+            label="Move right"
+            onClick={() => { callbacks.onMoveRight?.(); onClose(); }}
+          />
+        </DropdownSubmenu>
+      )}
 
       {/* Ocultar columna */}
       <DropdownItem

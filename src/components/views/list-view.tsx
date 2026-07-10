@@ -39,6 +39,7 @@ import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
 import { toast } from "sonner";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
+import { ColumnHeader } from "@/components/tasks/column-header-dropdown";
 import { CustomFieldModal } from "@/components/tasks/custom-field-modal";
 import { EditableCustomFieldCell } from "@/components/tasks/editable-custom-field-cell";
 import { BuiltinFieldCell } from "@/components/tasks/builtin-field-cell";
@@ -256,6 +257,8 @@ export function ListView({
     () => customFieldDefs.filter((f) => hiddenCustomFieldIds.includes(f.id)),
     [customFieldDefs, hiddenCustomFieldIds]
   );
+  // Which column header dropdown is open (id-keyed, single-open).
+  const [openColHeaderId, setOpenColHeaderId] = useState<string | null>(null);
 
   const reloadCustomFields = useCallback(async () => {
     try {
@@ -282,6 +285,32 @@ export function ListView({
       // Silent — empty values just render empty cells.
     }
   }, [projectId]);
+
+  // "Delete field" from a column header dropdown — unlinks the custom
+  // field from the project (removes the column + its values everywhere).
+  const handleDeleteCustomField = useCallback(
+    async (field: CustomFieldDef) => {
+      if (
+        !confirm(
+          `Delete the "${field.name}" field from this project? This removes the column and its values for every task.`
+        )
+      )
+        return;
+      try {
+        const res = await fetch(
+          `/api/projects/${projectId}/custom-fields/${field.linkId}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setHiddenCustomFieldIds((prev) => prev.filter((id) => id !== field.id));
+        reloadCustomFields();
+        toast.success("Field deleted");
+      } catch {
+        toast.error("Couldn't delete the field");
+      }
+    },
+    [projectId, reloadCustomFields, setHiddenCustomFieldIds]
+  );
 
   // Optimistically reflect an inline custom-field edit in the local value
   // map so the per-section SUMA footer updates immediately (before the
@@ -815,56 +844,60 @@ export function ListView({
           <div className="flex items-center gap-1">Due date</div>
           <div className="flex items-center gap-1">Priority</div>
           <div className="flex items-center gap-1">Status</div>
-          {/* Custom field columns — one header per project-linked
-              CustomFieldDefinition, each with a hover-X to hide it (the
-              field/values stay; it's re-addable from the "+" menu). */}
+          {/* Custom field columns — Asana-style header dropdown (⌄) with
+              Hide column / Delete field, same as the My Tasks list. */}
           {visibleCustomFieldDefs.map((field) => (
-            <div
+            <ColumnHeader
               key={field.id}
-              className="group/cfhdr flex items-center gap-1 truncate"
-              title={field.name}
-            >
-              <span className="truncate flex-1">{field.name}</span>
-              <button
-                type="button"
-                onClick={() =>
+              config={{
+                id: field.id,
+                label: field.name,
+                sortable: false,
+                filterable: false,
+                groupable: false,
+                isFirst: true,
+              }}
+              isDropdownOpen={openColHeaderId === field.id}
+              onDropdownToggle={() =>
+                setOpenColHeaderId(
+                  openColHeaderId === field.id ? null : field.id
+                )
+              }
+              callbacks={{
+                onAddColumn: () => setCustomFieldModalOpen(true),
+                onHideColumn: () =>
                   setHiddenCustomFieldIds((prev) =>
                     prev.includes(field.id) ? prev : [...prev, field.id]
-                  )
-                }
-                className="opacity-0 group-hover/cfhdr:opacity-100 transition-opacity flex items-center justify-center w-4 h-4 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded"
-                title="Hide column"
-                aria-label="Hide column"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
+                  ),
+                onDeleteField: () => handleDeleteCustomField(field),
+              }}
+            />
           ))}
-          {/* Built-in extra columns headers — Asana's "Show more"
-              picks (Tags, Blocked by, Blocks, Completion date,
-              Last modified, Creation date, Created by). Each carries
-              a hover X to unpin. */}
+          {/* Built-in extra columns — same header dropdown; built-ins can
+              be hidden but not deleted (no onDeleteField). */}
           {pinnedBuiltins.map((b) => (
-            <div
+            <ColumnHeader
               key={b.id}
-              className="group/bhdr flex items-center gap-1 truncate"
-              title={b.label}
-            >
-              <span className="truncate flex-1">{b.label}</span>
-              <button
-                type="button"
-                onClick={() =>
+              config={{
+                id: b.id,
+                label: b.label,
+                sortable: false,
+                filterable: false,
+                groupable: false,
+                isFirst: true,
+              }}
+              isDropdownOpen={openColHeaderId === b.id}
+              onDropdownToggle={() =>
+                setOpenColHeaderId(openColHeaderId === b.id ? null : b.id)
+              }
+              callbacks={{
+                onAddColumn: () => setCustomFieldModalOpen(true),
+                onHideColumn: () =>
                   setPinnedBuiltinIds((prev) =>
                     prev.filter((id) => id !== b.id)
-                  )
-                }
-                className="opacity-0 group-hover/bhdr:opacity-100 transition-opacity flex items-center justify-center w-4 h-4 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded"
-                title="Hide column"
-                aria-label="Hide column"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
+                  ),
+              }}
+            />
           ))}
           {/* Add column button — now supports both custom field types
               AND Asana's built-in extras ("Show more" in the dropdown).
