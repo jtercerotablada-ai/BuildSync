@@ -915,3 +915,142 @@
 .project-card__img {
   border-radius: 0 !important;
 }
+
+/* =====================================================================
+   13) MOBILE POLISH — premium phone experience (≤768px)
+   ===================================================================== */
+@media (max-width: 768px) {
+  /* Header bar: logo left, hamburger right — hide the bar language toggle
+     (it lives inside the menu now). */
+  .header__inner {
+    padding: 0 1.25rem;
+  }
+  .header .header__actions .lang-toggle {
+    display: none;
+  }
+  .header__logo-img {
+    height: 44px;
+  }
+
+  /* Hamburger — a proper 44×44 tap target */
+  .hamburger {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+  }
+  .hamburger span {
+    width: 26px;
+    height: 2px;
+  }
+  /* The open "X" must read on the cream menu (was white over the dark hero) */
+  .hamburger.active span {
+    background: var(--lux-ink) !important;
+  }
+  /* Dark logo while the (cream) menu is open (beats the white-hero rule) */
+  body.menu-open .header:not(.scrolled):not(.header--solid) .header__logo-img {
+    content: url('/ttc/img/logo-square.png') !important;
+  }
+
+  /* ---- Mobile menu — full screen, nav centered, actions pinned bottom --- */
+  .mobile-menu {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    padding: 6rem 1.75rem 2.5rem;
+  }
+  .mobile-menu__nav {
+    flex: 1 1 auto;
+    justify-content: center;
+    gap: 1.4rem;
+    width: 100%;
+  }
+  .mobile-menu__nav a {
+    font-size: 2rem;
+    padding: 0.35rem 0;
+    color: var(--lux-ink) !important;
+    transition: color 0.25s var(--ease-out);
+  }
+  .mobile-menu__nav a.nav-active,
+  .mobile-menu__nav a:hover {
+    color: var(--lux-gold-deep) !important;
+  }
+  .mobile-menu__footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(22, 21, 15, 0.1);
+  }
+  .mobile-menu__cta {
+    width: 100%;
+    max-width: 340px;
+  }
+  .mobile-menu__lang {
+    font-size: 0.85rem;
+    letter-spacing: 0.16em;
+    color: var(--lux-ink) !important;
+  }
+  .mobile-menu__lang .lang-active {
+    color: var(--lux-gold-deep) !important;
+  }
+  .mobile-menu__email {
+    font-size: 0.85rem;
+    letter-spacing: 0.03em;
+    color: var(--lux-muted);
+  }
+
+  /* ---- Tighter vertical rhythm — no cavernous gaps on a phone ---- */
+  .svc2,
+  .essence,
+  .coverage,
+  .soft,
+  .cta-band,
+  .cta-section {
+    padding-top: clamp(3.5rem, 12vw, 4.5rem);
+    padding-bottom: clamp(3.5rem, 12vw, 4.5rem);
+  }
+  .pop-process,
+  .why-us {
+    padding: clamp(3.5rem, 12vw, 4.5rem) 0 !important;
+  }
+  .section.about,
+  .section.contact,
+  .section.values,
+  .section.services-page,
+  .section.projects-page {
+    padding-top: clamp(3.5rem, 12vw, 4.5rem);
+    padding-bottom: clamp(3.5rem, 12vw, 4.5rem);
+  }
+  .page-hero {
+    padding: 7rem 0 clamp(2.5rem, 8vw, 3.5rem);
+  }
+  .footer {
+    padding: clamp(3.5rem, 10vw, 4.5rem) 0 2rem;
+  }
+  .essence__inner {
+    text-align: left;
+  }
+
+  /* Hero — a touch tighter, left-aligned reads cleaner on phones */
+  .hero__desc {
+    font-size: 0.9rem !important;
+  }
+}
+
+/* Coverage municipality lists: two columns on phones (short names fit) */
+@media (max-width: 560px) {
+  .coverage__grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.8rem 1rem !important;
+  }
+  .coverage__name {
+    font-size: 0.8rem;
+  }
+  .soft__grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
