@@ -139,7 +139,7 @@ import { kanbanCollisionDetection } from "@/lib/kanban-collision-detection";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday } from "@/lib/date-only";
-import { readTimeTracking, formatDays } from "@/lib/duration";
+import { readTimeTracking, formatDays, parseDaysInput } from "@/lib/duration";
 import { toast } from "sonner";
 
 // Types
@@ -4510,6 +4510,141 @@ function TaskRowOverlay({
 }
 
 // Task Row Component
+// Inline-editable cell for the My-Tasks "Estimated time" / "Actual time"
+// columns. Both columns write to the SAME Time-tracking custom field on
+// the task (estimatedDays / actualDays), preserving the other side. For a
+// task whose value doesn't exist yet, the field id is resolved lazily from
+// the task's project on first edit.
+function MyTasksTimeCell({
+  task,
+  side,
+}: {
+  task: Task;
+  side: "estimated" | "actual";
+}) {
+  const ttv = task.customFieldValues?.find(
+    (v) => v.field?.type === "TIME_TRACKING"
+  );
+  const parsed = readTimeTracking(ttv?.value);
+  const current = side === "estimated" ? parsed.estimatedDays : parsed.actualDays;
+  const other = side === "estimated" ? parsed.actualDays : parsed.estimatedDays;
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(current == null ? "" : String(current));
+  const [optimistic, setOptimistic] = useState<number | null | undefined>(
+    undefined
+  );
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setOptimistic(undefined);
+    setDraft(current == null ? "" : String(current));
+  }, [current]);
+
+  const shown = optimistic !== undefined ? optimistic : current;
+
+  async function resolveFieldId(): Promise<string | null> {
+    if (ttv?.fieldId) return ttv.fieldId;
+    const pid = task.project?.id;
+    if (!pid) return null;
+    try {
+      const res = await fetch(`/api/projects/${pid}/custom-fields`);
+      if (!res.ok) return null;
+      const defs: { id: string; type: string }[] = await res.json();
+      return (
+        (Array.isArray(defs)
+          ? defs.find((d) => d.type === "TIME_TRACKING")
+          : null
+        )?.id ?? null
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async function commit() {
+    setEditing(false);
+    const trimmed = draft.trim();
+    const next = trimmed === "" ? null : parseDaysInput(trimmed);
+    if (trimmed !== "" && next === null) {
+      setDraft(shown == null ? "" : String(shown));
+      return;
+    }
+    if (next === (shown ?? null)) return;
+    setBusy(true);
+    const fieldId = await resolveFieldId();
+    if (!fieldId) {
+      toast.error("This task's project has no time-tracking field");
+      setBusy(false);
+      setDraft(shown == null ? "" : String(shown));
+      return;
+    }
+    const value =
+      side === "estimated"
+        ? { estimatedDays: next, actualDays: other }
+        : { estimatedDays: other, actualDays: next };
+    try {
+      const res = await fetch(
+        `/api/tasks/${task.id}/custom-fields/${fieldId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value }),
+        }
+      );
+      if (!res.ok) throw new Error();
+      setOptimistic(next);
+    } catch {
+      toast.error("Couldn't save time");
+      setDraft(shown == null ? "" : String(shown));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        inputMode="decimal"
+        value={draft}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          else if (e.key === "Escape") {
+            setDraft(shown == null ? "" : String(shown));
+            setEditing(false);
+          }
+        }}
+        placeholder="0"
+        className="w-full bg-transparent outline-none text-[13px] text-slate-700 tabular-nums px-1 py-0.5 rounded focus:bg-slate-50"
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setDraft(shown == null ? "" : String(shown));
+        setEditing(true);
+      }}
+      className="w-full text-left text-[13px] text-slate-600 tabular-nums hover:bg-slate-50 rounded px-1 py-0.5"
+      title="Enter days (e.g. 3, 0.5) — or 4h / 2w"
+    >
+      {busy ? (
+        "…"
+      ) : shown != null ? (
+        formatDays(shown)
+      ) : (
+        <span className="text-slate-300">—</span>
+      )}
+    </button>
+  );
+}
+
 function TaskRow({
   task,
   onToggleComplete,
@@ -4921,24 +5056,20 @@ function TaskRow({
         // correct type + options without an extra fetch.
         // Border + width come from the row's grid template + the
         // inherited [&>*+*]:border-l class.
-        // My-Tasks "Estimated time" / "Actual time" columns mirror the
-        // task's real Time-tracking custom field (from whatever project
-        // it lives in), showing just the estimated or actual side in days.
+        // My-Tasks "Estimated time" / "Actual time" columns are backed by
+        // the task's real Time-tracking custom field (from whatever project
+        // it lives in). Inline-editable: edits one side, preserves the other.
         if (col.id === "tt-estimated" || col.id === "tt-actual") {
-          const ttv = task.customFieldValues?.find(
-            (v) => v.field?.type === "TIME_TRACKING"
-          );
-          const parsed = ttv ? readTimeTracking(ttv.value) : null;
-          const days =
-            col.id === "tt-estimated"
-              ? parsed?.estimatedDays
-              : parsed?.actualDays;
           return (
             <div
               key={col.id}
-              className="hidden md:flex items-center pl-2.5 pr-1 overflow-hidden text-[13px] text-slate-600 tabular-nums"
+              className="hidden md:flex items-center pl-2.5 pr-1 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
             >
-              {days != null ? formatDays(days) : ""}
+              <MyTasksTimeCell
+                task={task}
+                side={col.id === "tt-estimated" ? "estimated" : "actual"}
+              />
             </div>
           );
         }
