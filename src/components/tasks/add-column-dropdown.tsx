@@ -17,6 +17,10 @@ interface AddColumnDropdownProps {
   /** Built-in field ids already shown in the list (so we can disable them
    *  in the dropdown — Asana grays them out when already pinned). */
   activeBuiltinIds?: string[];
+  /** Custom fields currently hidden from the view — listed at the top so
+   *  the user can un-hide (re-add) them, mirroring Asana's field menu. */
+  hiddenFields?: { id: string; label: string }[];
+  onReshowField?: (fieldId: string) => void;
 }
 
 export function AddColumnDropdown({
@@ -24,6 +28,8 @@ export function AddColumnDropdown({
   onSelectBuiltin,
   onFromLibrary,
   activeBuiltinIds = [],
+  hiddenFields = [],
+  onReshowField,
 }: AddColumnDropdownProps) {
   const [open, setOpen] = useState(false);
   const [fieldName, setFieldName] = useState("");
@@ -129,6 +135,33 @@ export function AddColumnDropdown({
               className="w-full h-8 px-3 text-[13px] border-2 border-black rounded-md bg-white focus:outline-none placeholder:text-gray-400"
             />
           </div>
+
+          {/* Hidden fields — click to un-hide (re-add to the view). */}
+          {hiddenFields.length > 0 && (
+            <>
+              <div className="px-3 pb-1.5">
+                <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">
+                  Hidden fields
+                </span>
+              </div>
+              {hiddenFields.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => {
+                    setOpen(false);
+                    setShowBuiltins(false);
+                    onReshowField?.(f.id);
+                    setFieldName("");
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 h-9 text-[13px] text-gray-700 hover:bg-black/[0.04] transition-colors text-left cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <span className="truncate">{f.label}</span>
+                </button>
+              ))}
+              <div className="mx-3 my-1 border-t border-gray-200" />
+            </>
+          )}
 
           {/* Section title */}
           <div className="px-3 pb-1.5">

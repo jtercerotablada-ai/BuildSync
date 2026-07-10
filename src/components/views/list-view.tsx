@@ -243,6 +243,20 @@ export function ListView({
     [pinnedBuiltinIds]
   );
 
+  // Hidden custom-field columns (per-user + per-project). Hiding a column
+  // is non-destructive — the field + its values stay; it just drops out of
+  // this view and can be re-added from the "+" (Add column) menu.
+  const { value: hiddenCustomFieldIds, setValue: setHiddenCustomFieldIds } =
+    useUiState<string[]>(`projectListHiddenFields:${projectId}`, []);
+  const visibleCustomFieldDefs = useMemo(
+    () => customFieldDefs.filter((f) => !hiddenCustomFieldIds.includes(f.id)),
+    [customFieldDefs, hiddenCustomFieldIds]
+  );
+  const hiddenCustomFieldDefs = useMemo(
+    () => customFieldDefs.filter((f) => hiddenCustomFieldIds.includes(f.id)),
+    [customFieldDefs, hiddenCustomFieldIds]
+  );
+
   const reloadCustomFields = useCallback(async () => {
     try {
       const res = await fetch(`/api/projects/${projectId}/custom-fields`);
@@ -303,14 +317,14 @@ export function ListView({
   // inside the column. With the old 32px, content overflowed into
   // the Name column and the task title visually touched the circle.
   const gridTemplate = useMemo(() => {
-    const customCols = customFieldDefs.map(() => "140px").join(" ");
+    const customCols = visibleCustomFieldDefs.map(() => "140px").join(" ");
     const builtinCols = pinnedBuiltins
       .map((b) => `${b.defaultWidth}px`)
       .join(" ");
     return `48px 1fr 140px 130px 90px 90px${customCols ? ` ${customCols}` : ""}${
       builtinCols ? ` ${builtinCols}` : ""
     } 40px`;
-  }, [customFieldDefs, pinnedBuiltins]);
+  }, [visibleCustomFieldDefs, pinnedBuiltins]);
 
   // Drag & drop state — same pattern as my-tasks ListDndProvider.
   // localSections is the optimistic source of truth during a drag so
@@ -802,15 +816,28 @@ export function ListView({
           <div className="flex items-center gap-1">Priority</div>
           <div className="flex items-center gap-1">Status</div>
           {/* Custom field columns — one header per project-linked
-              CustomFieldDefinition. Header label only; clicking the
-              header could open a config dropdown in a future iteration. */}
-          {customFieldDefs.map((field) => (
+              CustomFieldDefinition, each with a hover-X to hide it (the
+              field/values stay; it's re-addable from the "+" menu). */}
+          {visibleCustomFieldDefs.map((field) => (
             <div
               key={field.id}
-              className="flex items-center gap-1 truncate"
+              className="group/cfhdr flex items-center gap-1 truncate"
               title={field.name}
             >
-              <span className="truncate">{field.name}</span>
+              <span className="truncate flex-1">{field.name}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setHiddenCustomFieldIds((prev) =>
+                    prev.includes(field.id) ? prev : [...prev, field.id]
+                  )
+                }
+                className="opacity-0 group-hover/cfhdr:opacity-100 transition-opacity flex items-center justify-center w-4 h-4 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded"
+                title="Hide column"
+                aria-label="Hide column"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </div>
           ))}
           {/* Built-in extra columns headers — Asana's "Show more"
@@ -848,6 +875,13 @@ export function ListView({
               "priority", // suppress — already a column
               ...pinnedBuiltins.map((b) => b.id),
             ]}
+            hiddenFields={hiddenCustomFieldDefs.map((f) => ({
+              id: f.id,
+              label: f.name,
+            }))}
+            onReshowField={(id) =>
+              setHiddenCustomFieldIds((prev) => prev.filter((x) => x !== id))
+            }
             onSelectType={(ft: FieldTypeConfig, name: string) => {
               setPreselectedFieldType(ft.id);
               setPreselectedFieldName(name);
@@ -976,7 +1010,7 @@ export function ListView({
                     startEditing={startEditing}
                     cancelEditing={cancelEditing}
                     saveInlineEdit={saveInlineEdit}
-                    customFieldDefs={customFieldDefs}
+                    customFieldDefs={visibleCustomFieldDefs}
                     customFieldValuesForTask={customFieldValues[task.id] ?? {}}
                     pinnedBuiltins={pinnedBuiltins}
                     gridTemplate={gridTemplate}
@@ -1038,7 +1072,7 @@ export function ListView({
                       the column header. Empty/non-numeric columns
                       render a blank placeholder so the grid stays
                       aligned. */}
-                  {customFieldDefs.map((f) => {
+                  {visibleCustomFieldDefs.map((f) => {
                     // Time tracking: total estimated vs actual DAYS for the
                     // section — the PM's phase-level "Σ actual / estimated".
                     if (f.type === "TIME_TRACKING") {
