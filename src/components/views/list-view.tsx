@@ -47,6 +47,7 @@ import { formatRangeLabel } from "@/lib/task-helpers";
 import type { FieldTypeConfig, BuiltinFieldConfig } from "@/lib/field-types";
 import { BUILTIN_FIELDS } from "@/lib/field-types";
 import { useUiState } from "@/hooks/use-ui-state";
+import { readTimeTracking, formatDays } from "@/lib/duration";
 
 // Per-project custom field metadata returned by
 // GET /api/projects/:id/custom-fields.
@@ -69,7 +70,13 @@ interface CustomFieldDef {
     | "PEOPLE"
     | "CHECKBOX"
     | "CURRENCY"
-    | "PERCENTAGE";
+    | "PERCENTAGE"
+    // Fase 3 — Asana-parity types.
+    | "REFERENCE"
+    | "FORMULA"
+    | "TIMER"
+    | "TIME_TRACKING"
+    | "ROLLUP";
   options: CustomFieldOption[] | null;
   isRequired: boolean;
 }
@@ -1032,6 +1039,51 @@ export function ListView({
                       render a blank placeholder so the grid stays
                       aligned. */}
                   {customFieldDefs.map((f) => {
+                    // Time tracking: total estimated vs actual DAYS for the
+                    // section — the PM's phase-level "Σ actual / estimated".
+                    if (f.type === "TIME_TRACKING") {
+                      let est = 0;
+                      let act = 0;
+                      let any = false;
+                      for (const t of section.tasks) {
+                        const { estimatedDays, actualDays } = readTimeTracking(
+                          customFieldValues[t.id]?.[f.id]
+                        );
+                        if (estimatedDays != null) {
+                          est += estimatedDays;
+                          any = true;
+                        }
+                        if (actualDays != null) {
+                          act += actualDays;
+                          any = true;
+                        }
+                      }
+                      if (!any) {
+                        return <div key={f.id} className="hidden md:block" />;
+                      }
+                      const over = act > est && est > 0;
+                      return (
+                        <div
+                          key={f.id}
+                          className="hidden md:flex items-center justify-end gap-1 pr-2 text-[11px] text-slate-400"
+                          title="Σ actual / estimated days"
+                        >
+                          <span className="font-medium tracking-wide">&#931;</span>
+                          <span
+                            className={cn(
+                              "tabular-nums font-medium",
+                              over ? "text-rose-600" : "text-slate-700"
+                            )}
+                          >
+                            {formatDays(act)}
+                          </span>
+                          <span className="text-slate-300">/</span>
+                          <span className="tabular-nums text-slate-500">
+                            {formatDays(est)}
+                          </span>
+                        </div>
+                      );
+                    }
                     const numericTypes = new Set([
                       "NUMBER",
                       "CURRENCY",
@@ -1099,6 +1151,83 @@ export function ListView({
             )}
           </div>
         ))}
+
+        {/* Project-level time totals — estimated vs actual DAYS across the
+            whole project, with variance. The PM's "are we over budget on
+            effort?" line. Only shown when a Time-tracking field has data. */}
+        {(() => {
+          const ttFields = customFieldDefs.filter(
+            (f) => f.type === "TIME_TRACKING"
+          );
+          if (ttFields.length === 0) return null;
+          const rows = ttFields
+            .map((f) => {
+              let est = 0;
+              let act = 0;
+              let any = false;
+              for (const section of localSections) {
+                for (const t of section.tasks) {
+                  const { estimatedDays, actualDays } = readTimeTracking(
+                    customFieldValues[t.id]?.[f.id]
+                  );
+                  if (estimatedDays != null) {
+                    est += estimatedDays;
+                    any = true;
+                  }
+                  if (actualDays != null) {
+                    act += actualDays;
+                    any = true;
+                  }
+                }
+              }
+              return { f, est, act, any };
+            })
+            .filter((r) => r.any);
+          if (rows.length === 0) return null;
+          return (
+            <div className="px-3 md:px-6 py-2.5 border-t border-[#e6e9ef] bg-slate-50/60 flex flex-wrap items-center gap-x-6 gap-y-1.5">
+              {rows.map(({ f, est, act }) => {
+                const over = act > est && est > 0;
+                const variance = act - est;
+                return (
+                  <div
+                    key={f.id}
+                    className="flex items-center gap-2 text-[12px]"
+                  >
+                    <span className="font-medium text-slate-600">{f.name}</span>
+                    <span className="text-slate-400">estimated</span>
+                    <span className="tabular-nums font-medium text-slate-700">
+                      {formatDays(est)}
+                    </span>
+                    <span className="text-slate-400">· actual</span>
+                    <span
+                      className={cn(
+                        "tabular-nums font-medium",
+                        over ? "text-rose-600" : "text-slate-700"
+                      )}
+                    >
+                      {formatDays(act)}
+                    </span>
+                    {est > 0 && (
+                      <span
+                        className={cn(
+                          "tabular-nums text-[11px] px-1.5 py-0.5 rounded",
+                          over
+                            ? "bg-rose-50 text-rose-600"
+                            : "bg-emerald-50 text-emerald-700"
+                        )}
+                      >
+                        {variance > 0 ? "+" : ""}
+                        {formatDays(variance)} ({((variance / est) * 100).toFixed(0)}
+                        %)
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Add Section Button — naturally clean (action row, not a task) */}
         <button
