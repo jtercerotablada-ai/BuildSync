@@ -578,6 +578,73 @@
 }
 
 /* =====================================================================
+   6b) INTEGRATED SOFTWARE — quiet grayscale logo band
+   ===================================================================== */
+.soft {
+  background: #ffffff;
+  border-top: 1px solid var(--lux-line-soft);
+  border-bottom: 1px solid var(--lux-line-soft);
+  padding: clamp(4rem, 7vw, 6rem) 0;
+}
+.soft__head {
+  text-align: center;
+  margin-bottom: clamp(2.5rem, 4.5vw, 3.5rem);
+}
+.soft__sub {
+  color: var(--lux-muted);
+  font-size: 0.92rem;
+  line-height: 1.7;
+  margin: 0.9rem 0 0;
+}
+.soft__grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2.5rem 1.5rem;
+  align-items: end;
+}
+.soft__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin: 0;
+}
+.soft__logo {
+  height: 40px;
+  width: auto;
+  max-width: 130px;
+  object-fit: contain;
+  filter: grayscale(1);
+  opacity: 0.55;
+  transition: filter 0.35s var(--ease-out), opacity 0.35s var(--ease-out);
+}
+.soft__item:hover .soft__logo {
+  filter: none;
+  opacity: 1;
+}
+.soft__caption {
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--lux-faint);
+}
+@media (max-width: 980px) {
+  .soft__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .soft__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.25rem 1rem;
+  }
+  .soft__logo {
+    height: 34px;
+  }
+}
+
+/* =====================================================================
    7) STATS — serif ink numbers, hairline top
    ===================================================================== */
 .stat__number {
