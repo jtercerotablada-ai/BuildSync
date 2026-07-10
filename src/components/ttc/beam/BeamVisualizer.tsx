@@ -74,7 +74,7 @@ export function BeamVisualizer({ beam, selectedId, unitSystem = 'metric' }: Prop
               y1={beamY}
               x2={xOf(L)}
               y2={beamY}
-              stroke="#e8e2d3"
+              stroke="#2a2a2a"
               strokeWidth="8"
               strokeLinecap="round"
             />
@@ -144,7 +144,7 @@ function renderSupport(
   uLen: string
 ) {
   const cx = xOf(s.position);
-  const color = selected ? '#c9a84c' : '#e8e2d3';
+  const color = selected ? '#c9a84c' : '#2a2a2a';
   const size = 18;
   const posLabel = `${fromSI(s.position, 'position', unitSystem).toFixed(2)} ${uLen}`;
 

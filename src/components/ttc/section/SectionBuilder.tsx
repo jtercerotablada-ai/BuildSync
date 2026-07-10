@@ -242,7 +242,7 @@ export function SectionBuilder() {
     } catch {
       // storage may be unavailable (private mode) — still navigate
     }
-    router.push('/knowledge/calculators/beam');
+    router.push('/resources/beam');
   };
 
   const handleReset = () => {
