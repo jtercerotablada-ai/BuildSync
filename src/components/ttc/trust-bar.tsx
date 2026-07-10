@@ -12,19 +12,19 @@ import { useTranslation } from './language-provider';
 
 const CREDENTIALS_EN = [
   'Registered P.E.',
-  'Florida SB-4-D Milestone',
+  'ACI 318 Concrete Design',
   'Miami-Dade & Broward',
-  'ACI Concrete Repair',
+  'Florida SB-4-D / BSIP',
 ];
 const CREDENTIALS_ES = [
   'P.E. Registrado',
-  'Milestone SB-4-D Florida',
+  'Diseño de Concreto ACI 318',
   'Miami-Dade y Broward',
-  'Reparacion de Concreto ACI',
+  'SB-4-D / BSIP Florida',
 ];
 
-const AUDIENCE_EN = ['Condominium Associations', 'HOAs', 'Property Managers', 'Building Owners'];
-const AUDIENCE_ES = ['Asociaciones de Condominios', 'HOAs', 'Administradores', 'Propietarios'];
+const AUDIENCE_EN = ['Developers & Owners', 'Condominium Associations', 'HOAs', 'Property Managers'];
+const AUDIENCE_ES = ['Desarrolladores y Propietarios', 'Asociaciones de Condominios', 'HOAs', 'Administradores'];
 
 export function TrustBar() {
   const { language } = useTranslation();

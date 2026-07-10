@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: '%s · Tercero Tablada',
   },
   description:
-    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Structural safety engineering firm. 40-year building recertification, milestone / building safety inspection (Florida SB-4-D), and reinforced-concrete restoration. Registered P.E.',
+    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Structural engineering firm. Reinforced-concrete building design, building recertification (Miami-Dade), and building safety inspection (Broward BSIP / Florida SB-4-D). Registered P.E.',
   metadataBase: new URL('https://ttcivilstructural.com'),
   openGraph: {
     siteName: 'Tercero Tablada',
@@ -54,24 +54,24 @@ const organizationSchema = {
   logo: 'https://ttcivilstructural.com/ttc/img/logo-white.png',
   email: 'info@tercerotablada.com',
   description:
-    'Structural safety engineering firm. Registered P.E. Specializes in 40-year building recertification (Miami-Dade & Broward), milestone / building safety inspections under Florida SB-4-D, and reinforced-concrete restoration.',
+    'Structural engineering firm. Registered P.E. Specializes in reinforced-concrete building design (ACI 318 / Florida Building Code), building recertification (Miami-Dade), and building safety inspections under Broward BSIP and Florida Statute 553.899.',
   knowsAbout: [
-    'Building Recertification',
-    '40-Year Recertification',
-    'Milestone Inspection',
-    'Building Safety Inspection',
-    'Florida SB-4-D',
-    'Reinforced Concrete Restoration',
-    'Concrete Repair',
-    'Structural Strengthening',
+    'Reinforced Concrete Design',
     'Structural Engineering',
-    'Structural Integrity Reserve Study',
+    'ACI 318',
+    'Building Recertification',
+    'Miami-Dade Recertification',
+    'Milestone Inspection',
+    'Building Safety Inspection Program',
+    'Broward BSIP',
+    'Florida Statute 553.899',
+    'Florida SB-4-D',
   ],
   areaServed: 'Florida, United States',
   serviceType: [
-    '40-Year Building Recertification',
-    'Milestone Inspection',
-    'Reinforced Concrete Restoration',
+    'Reinforced Concrete Design',
+    'Building Recertification',
+    'Building Safety Inspection',
   ],
 };
 

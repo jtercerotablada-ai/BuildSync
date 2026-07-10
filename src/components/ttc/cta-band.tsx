@@ -7,11 +7,11 @@ import { useTranslation } from './language-provider';
 export function CtaBand() {
   const { language } = useTranslation();
   const es = language === 'es';
-  const title = es ? '¿Tu edificio necesita recertificación?' : 'Is your building due for recertification?';
+  const title = es ? '¿Listo para diseñar o certificar tu edificio?' : 'Ready to design or certify your building?';
   const sub = es
-    ? 'Habla con un P.E. registrado sobre tu recertificación de 40 años, inspección milestone o restauración de concreto — sin compromiso.'
-    : 'Talk to a Registered P.E. about your 40-year recertification, milestone inspection, or concrete restoration — no obligation.';
-  const btn = es ? 'Solicitar una inspección' : 'Request an inspection';
+    ? 'Habla con un P.E. registrado sobre el diseño de concreto reforzado, tu recertificación o una inspección de seguridad — sin compromiso.'
+    : 'Talk to a Registered P.E. about reinforced-concrete design, your recertification, or a building safety inspection — no obligation.';
+  const btn = es ? 'Solicitar una consulta' : 'Request a consultation';
 
   return (
     <section className="cta-band" id="get-started">

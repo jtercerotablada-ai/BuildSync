@@ -35,14 +35,14 @@ const Ico = {
 const EN = [
   { i: Ico.shield, t: 'Resident safety first', d: 'Independent, evidence-based assessments that put life-safety ahead of everything — because that is exactly what these inspections exist to protect.' },
   { i: Ico.stamp, t: 'Signed by a Registered P.E.', d: 'Every recertification and milestone report is engineered and stamped by a licensed Professional Engineer — and accepted by building departments.' },
-  { i: Ico.clock, t: 'Ahead of your deadline', d: 'We track your 40-year and SB-4-D deadlines and deliver on time, so your association never slips into non-compliance.' },
+  { i: Ico.clock, t: 'Ahead of your deadline', d: 'We track your recertification and milestone deadlines and deliver on time, so you never slip into non-compliance.' },
   { i: Ico.report, t: 'Reports you can defend', d: 'Clear, thorough documentation that holds up with owners, boards, insurers, and the county — no ambiguity, no filler.' },
 ];
 
 const ES = [
   { i: Ico.shield, t: 'La seguridad primero', d: 'Evaluaciones independientes y basadas en evidencia que ponen la seguridad de vida por encima de todo — que es justo lo que estas inspecciones existen para proteger.' },
   { i: Ico.stamp, t: 'Firmado por un P.E. registrado', d: 'Cada informe de recertificación e inspección milestone es diseñado y sellado por un Ingeniero Profesional licenciado — y aceptado por los departamentos de construcción.' },
-  { i: Ico.clock, t: 'Adelantados a tu plazo', d: 'Damos seguimiento a tus plazos de 40 años y SB-4-D y entregamos a tiempo, para que tu asociación nunca caiga en incumplimiento.' },
+  { i: Ico.clock, t: 'Adelantados a tu plazo', d: 'Damos seguimiento a tus plazos de recertificación y milestone y entregamos a tiempo, para que nunca caigas en incumplimiento.' },
   { i: Ico.report, t: 'Informes que puedes defender', d: 'Documentación clara y completa que se sostiene ante propietarios, juntas, aseguradoras y el condado — sin ambigüedad, sin relleno.' },
 ];
 
@@ -53,8 +53,8 @@ export function WhyUs() {
   const label = es ? 'Por qué Tercero Tablada' : 'Why Tercero Tablada';
   const title = es ? 'Por qué confían en nosotros' : 'Why owners and associations trust us';
   const sub = es
-    ? 'Las recertificaciones e inspecciones milestone son de alto riesgo y con plazos estrictos. Esto es lo que obtienes al trabajar con nosotros.'
-    : 'Recertification and milestone inspections are high-stakes and deadline-bound. Here is what you get by working with us.';
+    ? 'El diseño estructural y el cumplimiento de seguridad son de alto riesgo y con plazos estrictos. Esto es lo que obtienes al trabajar con nosotros.'
+    : 'Structural design and safety compliance are high-stakes and deadline-bound. Here is what you get by working with us.';
 
   return (
     <section className="why-us" id="why-us">
