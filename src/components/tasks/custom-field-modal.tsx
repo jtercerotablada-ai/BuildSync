@@ -401,6 +401,17 @@ export function CustomFieldModal({
 
   const selectedType = FIELD_TYPES.find((t) => t.id === fieldType)!;
 
+  // Gate the Create button: Formula/Roll-up can't be created until they're
+  // properly configured (so we don't loop on a "pick both fields" toast).
+  const canSubmit = (() => {
+    if (!fieldTitle.trim() || submitting) return false;
+    if (fieldType === "formula")
+      return projectFields.length >= 2 && !!formula.left && !!formula.right;
+    if (fieldType === "rollup")
+      return projectFields.length >= 1 && !!rollup.source;
+    return true;
+  })();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="sm:max-w-[520px] p-0 gap-0 rounded-xl border-0 shadow-[0_16px_48px_rgba(0,0,0,0.16)] overflow-hidden">
@@ -484,7 +495,7 @@ export function CustomFieldModal({
             </button>
             <button
               onClick={handleCreate}
-              disabled={submitting || !fieldTitle.trim()}
+              disabled={!canSubmit}
               className="px-4 h-8 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
             >
               {submitting ? "Creating…" : "Create field"}
