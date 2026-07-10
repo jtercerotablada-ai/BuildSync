@@ -22,7 +22,7 @@ import {
   type ButtonHTMLAttributes,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,11 +47,13 @@ import {
   Loader2,
   Flag,
   Globe,
+  Lock,
   Download,
   Trash2,
   Calendar,
   ArrowLeftRight,
   ChevronDown,
+  ShieldAlert,
   UserPlus2,
   ListPlus,
   Copy,
@@ -66,6 +68,7 @@ import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import { ProjectSelector } from "@/components/tasks/project-selector";
 import { DependenciesPicker } from "@/components/tasks/dependencies-picker";
 import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
+import { EditableTagsCell } from "@/components/tasks/editable-tags-cell";
 import { FileViewerModal } from "@/components/files/file-viewer-modal";
 import { downloadFile } from "@/lib/download";
 import {
@@ -75,6 +78,11 @@ import {
   projectTypeShort,
   formatGateShort,
 } from "@/lib/task-helpers";
+import {
+  daysFromToday,
+  dueDateToLocalMidnight,
+  toDateOnlyISO,
+} from "@/lib/date-only";
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -150,6 +158,18 @@ interface TaskDependency {
   };
 }
 
+interface TaskDependent {
+  id: string;
+  type: DependencyTypeStr;
+  dependentTask: {
+    id: string;
+    name: string;
+    completed: boolean;
+    startDate: string | null;
+    dueDate: string | null;
+  };
+}
+
 interface TaskCustomFieldValue {
   fieldId: string;
   value: unknown;
@@ -160,6 +180,7 @@ interface TaskDetail {
   name: string;
   description: string | null;
   completed: boolean;
+  isPrivate?: boolean;
   dueDate: string | null;
   startDate: string | null;
   priority: "NONE" | "LOW" | "MEDIUM" | "HIGH" | string;
@@ -190,7 +211,15 @@ interface TaskDetail {
   attachments?: TaskAttachment[];
   collaborators?: TaskCollaborator[];
   dependencies?: TaskDependency[];
+  dependents?: TaskDependent[];
   customFieldValues?: TaskCustomFieldValue[];
+  taskTags?: { tag: { id: string; name: string; color: string } }[];
+  taskProjects?: {
+    id: string;
+    projectId: string;
+    project: { id: string; name: string; color: string };
+  }[];
+  _count?: { likes?: number };
 }
 
 const DEPENDENCY_TYPE_META: Record<
@@ -249,6 +278,7 @@ export function TaskDetailPanel({
 
   // ── Like state ─────────────────────────────────────────────────
   const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
   const [likeBusy, setLikeBusy] = useState(false);
 
   // ─────────────────────────────────────────────────────────────
@@ -267,6 +297,7 @@ export function TaskDetailPanel({
       setTaskDetail(data);
       setName(data.name);
       setDescription(data.description || "");
+      setLikeCount(data._count?.likes ?? 0);
       if (likeRes.ok) {
         const likeData = await likeRes.json();
         setLiked(Boolean(likeData.liked));
@@ -287,14 +318,18 @@ export function TaskDetailPanel({
     if (likeBusy) return;
     setLikeBusy(true);
     const prev = liked;
+    const prevCount = likeCount;
     setLiked(!prev);
+    setLikeCount((c) => c + (prev ? -1 : 1));
     try {
       const res = await fetch(`/api/tasks/${taskId}/like`, { method: "POST" });
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setLiked(Boolean(data.liked));
+      if (typeof data.count === "number") setLikeCount(data.count);
     } catch {
       setLiked(prev);
+      setLikeCount(prevCount);
       toast.error("Failed to update like");
     } finally {
       setLikeBusy(false);
@@ -478,6 +513,68 @@ export function TaskDetailPanel({
     }
   }
 
+  // Removing a "Blocks" relationship: the dependency row lives on the
+  // OTHER (dependent) task, so we DELETE against that task's endpoint.
+  async function handleDependentRemove(
+    dependencyId: string,
+    dependentTaskId: string
+  ) {
+    try {
+      const res = await fetch(
+        `/api/tasks/${dependentTaskId}/dependencies?id=${dependencyId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Removed");
+      await fetchTaskDetail();
+      onUpdate?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't remove"
+      );
+    }
+  }
+
+  // ─── Multi-homing: add / remove ADDITIONAL projects ───────────
+
+  async function handleAddToProject(projectId: string) {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || `HTTP ${res.status}`);
+      }
+      toast.success("Added to project");
+      await fetchTaskDetail();
+      onUpdate?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't add to project"
+      );
+    }
+  }
+
+  async function handleRemoveFromProject(projectId: string) {
+    try {
+      const res = await fetch(
+        `/api/tasks/${taskId}/projects?projectId=${projectId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Removed from project");
+      await fetchTaskDetail();
+      onUpdate?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't remove from project"
+      );
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────
   // COMMENT POST
   // ─────────────────────────────────────────────────────────────
@@ -599,19 +696,26 @@ export function TaskDetailPanel({
             onChange={handleAttachmentUpload}
             accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
           />
-          <ActionIconButton
-            onClick={handleToggleLike}
-            disabled={likeBusy}
-            title={liked ? "Unlike" : "Like"}
-            className={cn(liked && "text-[#c9a84c]")}
-          >
-            <Heart
-              className={cn(
-                "h-[15px] w-[15px]",
-                liked && "fill-current"
-              )}
-            />
-          </ActionIconButton>
+          <div className="flex items-center">
+            <ActionIconButton
+              onClick={handleToggleLike}
+              disabled={likeBusy}
+              title={liked ? "Unlike" : "Like"}
+              className={cn(liked && "text-[#c9a84c]")}
+            >
+              <Heart
+                className={cn(
+                  "h-[15px] w-[15px]",
+                  liked && "fill-current"
+                )}
+              />
+            </ActionIconButton>
+            {likeCount > 0 && (
+              <span className="text-[12px] tabular-nums text-[#6f7782] -ml-1 mr-0.5">
+                {likeCount}
+              </span>
+            )}
+          </div>
           <ActionIconButton
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -739,30 +843,68 @@ export function TaskDetailPanel({
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
-          {/* Overdue strip */}
+          {/* Overdue strip — compares by UTC calendar day (date-only.ts)
+              so a task due today is never falsely flagged overdue for
+              viewers west of UTC. */}
           {taskDetail?.dueDate &&
             !taskDetail.completed &&
-            new Date(taskDetail.dueDate).getTime() <
-              new Date(new Date().toDateString()).getTime() && (
+            daysFromToday(taskDetail.dueDate) < 0 && (
               <div className="px-4 py-2 bg-black text-white text-[12px] font-medium flex items-center gap-2 border-b border-black">
                 <Flag className="h-3.5 w-3.5 text-[#c9a84c] flex-shrink-0" />
                 {(() => {
-                  const dayMs = 86400000;
-                  const today = new Date(new Date().toDateString());
-                  const due = new Date(taskDetail.dueDate);
-                  const days = Math.round(
-                    (today.getTime() - due.getTime()) / dayMs
-                  );
+                  const days = -daysFromToday(taskDetail.dueDate);
                   return `Overdue · ${days} day${days === 1 ? "" : "s"} past due`;
                 })()}
               </div>
             )}
 
-          {/* Visibility bar */}
-          <div className="px-5 h-9 bg-[#f6f7f8] text-[12px] text-[#6f7782] flex items-center gap-1.5">
-            <Globe className="h-3 w-3" />
-            This task is visible to everyone in the workspace
-          </div>
+          {/* Visibility bar — reads Task.isPrivate and lets the user
+              switch between project-visible and private-to-collaborators. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full px-5 h-9 bg-[#f6f7f8] text-[12px] text-[#6f7782] flex items-center gap-1.5 hover:bg-[#eef0f2] transition-colors">
+                {taskDetail?.isPrivate ? (
+                  <Lock className="h-3 w-3" />
+                ) : (
+                  <Globe className="h-3 w-3" />
+                )}
+                {taskDetail?.isPrivate
+                  ? "This task is private — only its collaborators can see it"
+                  : "This task is visible to everyone in the workspace"}
+                <ChevronDown className="h-3 w-3 ml-auto" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[320px]">
+              <DropdownMenuItem
+                onClick={() => handleUpdate("isPrivate", false)}
+              >
+                <Globe className="mr-2 h-4 w-4 text-[#6f7782]" />
+                <div className="flex-1">
+                  <div className="text-[13px]">Visible to the project</div>
+                  <div className="text-[11px] text-[#6f7782]">
+                    Everyone with project access can see this task
+                  </div>
+                </div>
+                {!taskDetail?.isPrivate && (
+                  <Check className="h-4 w-4 text-[#1e1f21]" />
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleUpdate("isPrivate", true)}
+              >
+                <Lock className="mr-2 h-4 w-4 text-[#6f7782]" />
+                <div className="flex-1">
+                  <div className="text-[13px]">Private to collaborators</div>
+                  <div className="text-[11px] text-[#6f7782]">
+                    Only the assignee, creator and collaborators can see it
+                  </div>
+                </div>
+                {taskDetail?.isPrivate && (
+                  <Check className="h-4 w-4 text-[#1e1f21]" />
+                )}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Task title */}
           <div className="px-5 pt-4 pb-3 flex items-start gap-2">
@@ -782,11 +924,15 @@ export function TaskDetailPanel({
             <textarea
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onBlur={() =>
-                name !== taskDetail?.name &&
-                name.trim() &&
-                handleUpdate("name", name)
-              }
+              onBlur={() => {
+                if (name.trim() && name !== taskDetail?.name) {
+                  handleUpdate("name", name);
+                } else if (!name.trim()) {
+                  // Blanked title → revert to the stored name (Asana does
+                  // the same) instead of leaving the box empty.
+                  setName(taskDetail?.name || "");
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -854,11 +1000,13 @@ export function TaskDetailPanel({
               <DueDatePicker
                 startDate={
                   taskDetail?.startDate
-                    ? new Date(taskDetail.startDate)
+                    ? dueDateToLocalMidnight(taskDetail.startDate)
                     : null
                 }
                 dueDate={
-                  taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null
+                  taskDetail?.dueDate
+                    ? dueDateToLocalMidnight(taskDetail.dueDate)
+                    : null
                 }
                 onChange={async (start, due) => {
                   try {
@@ -866,8 +1014,8 @@ export function TaskDetailPanel({
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
-                        startDate: start?.toISOString() || null,
-                        dueDate: due?.toISOString() || null,
+                        startDate: start ? toDateOnlyISO(start) : null,
+                        dueDate: due ? toDateOnlyISO(due) : null,
                       }),
                     });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -906,10 +1054,10 @@ export function TaskDetailPanel({
                     {taskDetail?.dueDate || taskDetail?.startDate
                       ? formatRangeLabel(
                           taskDetail?.startDate
-                            ? new Date(taskDetail.startDate)
+                            ? dueDateToLocalMidnight(taskDetail.startDate)
                             : null,
                           taskDetail?.dueDate
-                            ? new Date(taskDetail.dueDate)
+                            ? dueDateToLocalMidnight(taskDetail.dueDate)
                             : null,
                           dueDateInfo.text
                         )
@@ -995,17 +1143,96 @@ export function TaskDetailPanel({
               );
             })()}
 
+            {(() => {
+              const deps: TaskDependent[] = taskDetail?.dependents ?? [];
+              return (
+                <PropertyRow
+                  label="Blocks"
+                  accessory={
+                    deps.length > 0 && (
+                      <span className="text-[11px] text-[#6f7782] tabular-nums">
+                        {deps.length}
+                      </span>
+                    )
+                  }
+                >
+                  <div className="flex-1 min-w-0 flex flex-col gap-1 py-0.5">
+                    {deps.map((dep) => (
+                      <div
+                        key={dep.id}
+                        className="group flex items-center gap-1.5 text-[12px] -ml-1.5 px-1.5 py-1 rounded hover:bg-[#f9fafb]"
+                      >
+                        <ShieldAlert className="h-3 w-3 text-[#c9a84c] flex-shrink-0" />
+                        <div
+                          className={cn(
+                            "w-3.5 h-3.5 rounded-full border flex items-center justify-center flex-shrink-0",
+                            dep.dependentTask.completed
+                              ? "bg-[#c9a84c] border-[#c9a84c]"
+                              : "border-[#c4c7cf]"
+                          )}
+                        >
+                          {dep.dependentTask.completed && (
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          )}
+                        </div>
+                        <span
+                          className={cn(
+                            "truncate max-w-[220px]",
+                            dep.dependentTask.completed
+                              ? "text-[#9aa0a6] line-through"
+                              : "text-[#1e1f21]"
+                          )}
+                          title={dep.dependentTask.name}
+                        >
+                          {dep.dependentTask.name}
+                        </span>
+                        <button
+                          onClick={() =>
+                            handleDependentRemove(dep.id, dep.dependentTask.id)
+                          }
+                          className="ml-auto opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
+                          aria-label={`Stop blocking ${dep.dependentTask.name}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    <DependenciesPicker
+                      taskId={taskId}
+                      mode="blocks"
+                      existingBlockingTaskIds={deps.map(
+                        (d) => d.dependentTask.id
+                      )}
+                      onAdded={() => {
+                        fetchTaskDetail();
+                        onUpdate?.();
+                      }}
+                      trigger={
+                        <button className="-ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#3b82f6] hover:bg-[#f3f4f6] hover:underline cursor-pointer text-left w-fit">
+                          Add tasks this blocks
+                        </button>
+                      }
+                    />
+                  </div>
+                </PropertyRow>
+              );
+            })()}
+
             <PropertyRow
               label="Projects"
-              accessory={
-                taskDetail?.project && (
+              accessory={(() => {
+                const count =
+                  (taskDetail?.project ? 1 : 0) +
+                  (taskDetail?.taskProjects?.length ?? 0);
+                return count > 0 ? (
                   <span className="text-[11px] text-[#6f7782] tabular-nums">
-                    1
+                    {count}
                   </span>
-                )
-              }
+                ) : undefined;
+              })()}
             >
               <div className="flex-1 min-w-0">
+                {/* Home project (Task.projectId) */}
                 <ProjectSelector
                   value={
                     taskDetail?.project
@@ -1018,6 +1245,9 @@ export function TaskDetailPanel({
                   }
                   onChange={(project) =>
                     handleUpdate("projectId", project?.id || null)
+                  }
+                  excludeIds={
+                    taskDetail?.taskProjects?.map((tp) => tp.projectId) ?? []
                   }
                 />
                 {taskDetail?.project &&
@@ -1041,6 +1271,52 @@ export function TaskDetailPanel({
                       )}
                     </div>
                   )}
+
+                {/* Additional projects (multi-homing) */}
+                {taskDetail?.taskProjects &&
+                  taskDetail.taskProjects.length > 0 && (
+                    <div className="mt-1.5 flex flex-col gap-1">
+                      {taskDetail.taskProjects.map((tp) => (
+                        <div
+                          key={tp.id}
+                          className="group flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6]"
+                        >
+                          <span
+                            className="w-2 h-2 rounded-sm flex-shrink-0"
+                            style={{ backgroundColor: tp.project.color || "#22C55E" }}
+                          />
+                          <span className="text-[13px] text-[#1e1f21] truncate">
+                            {tp.project.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFromProject(tp.projectId)}
+                            aria-label={`Remove from ${tp.project.name}`}
+                            className="ml-auto opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                {/* Add to another project (only once it has a home) */}
+                {taskDetail?.project && (
+                  <div className="mt-1">
+                    <ProjectSelector
+                      value={null}
+                      onChange={(project) =>
+                        project && handleAddToProject(project.id)
+                      }
+                      excludeIds={[
+                        taskDetail.project.id,
+                        ...(taskDetail.taskProjects?.map((tp) => tp.projectId) ??
+                          []),
+                      ]}
+                    />
+                  </div>
+                )}
               </div>
             </PropertyRow>
 
@@ -1085,6 +1361,26 @@ export function TaskDetailPanel({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            </PropertyRow>
+
+            <PropertyRow
+              label="Tags"
+              accessory={
+                taskDetail?.taskTags && taskDetail.taskTags.length > 0 ? (
+                  <span className="text-[11px] text-[#6f7782] tabular-nums">
+                    {taskDetail.taskTags.length}
+                  </span>
+                ) : undefined
+              }
+            >
+              <EditableTagsCell
+                taskId={taskId}
+                value={taskDetail?.taskTags ?? []}
+                onChange={() => {
+                  fetchTaskDetail();
+                  onUpdate?.();
+                }}
+              />
             </PropertyRow>
 
             {/* Project's custom fields */}
@@ -1615,23 +1911,40 @@ export function TaskDetailPanel({
           <span className="text-[#6f7782]">Collaborators</span>
           <div className="flex items-center gap-1">
             {taskDetail?.collaborators?.map((collab) => (
-              <Avatar
-                key={collab.id}
-                className="h-5 w-5"
-                title={collab.name || "User"}
-              >
-                <AvatarFallback className="text-[9px] bg-[#1e1f21] text-white">
-                  {(collab.name || "U").charAt(0)}
-                </AvatarFallback>
-              </Avatar>
+              <div key={collab.id} className="group relative">
+                <Avatar className="h-5 w-5" title={collab.name || "User"}>
+                  <AvatarImage src={collab.image || undefined} />
+                  <AvatarFallback className="text-[9px] bg-[#1e1f21] text-white">
+                    {(collab.name || "U").charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <button
+                  type="button"
+                  aria-label={`Remove ${collab.name || "collaborator"}`}
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(
+                        `/api/tasks/${taskId}/collaborators?userId=${collab.id}`,
+                        { method: "DELETE" }
+                      );
+                      if (res.ok) {
+                        fetchTaskDetail();
+                      } else {
+                        toast.error("Failed to remove collaborator");
+                      }
+                    } catch {
+                      toast.error("Failed to remove collaborator");
+                    }
+                  }}
+                  className="absolute -top-1 -right-1 hidden group-hover:flex h-3 w-3 items-center justify-center rounded-full bg-[#1e1f21] text-white"
+                >
+                  <X className="h-2 w-2" />
+                </button>
+              </div>
             ))}
             {(!taskDetail?.collaborators ||
               taskDetail.collaborators.length === 0) && (
-              <Avatar className="h-5 w-5">
-                <AvatarFallback className="text-[9px] bg-[#1e1f21] text-white">
-                  U
-                </AvatarFallback>
-              </Avatar>
+              <span className="text-[12px] text-[#9aa0a6]">None yet</span>
             )}
             <AssigneeSelector
               value={null}
@@ -1793,8 +2106,8 @@ function DependencyChip({
   const { id, type, blockingTask: bt } = dependency;
   const meta =
     DEPENDENCY_TYPE_META[type] ?? DEPENDENCY_TYPE_META.FINISH_TO_START;
-  const start = bt.startDate ? new Date(bt.startDate) : null;
-  const due = bt.dueDate ? new Date(bt.dueDate) : null;
+  const start = bt.startDate ? dueDateToLocalMidnight(bt.startDate) : null;
+  const due = bt.dueDate ? dueDateToLocalMidnight(bt.dueDate) : null;
   const dateLabel = formatRangeLabel(
     start,
     due,

@@ -21,6 +21,19 @@ export function startOfLocalDay(from: Date = new Date()): Date {
   return new Date(from.getFullYear(), from.getMonth(), from.getDate());
 }
 
+/** Format a picked local Date as a date-only "YYYY-MM-DD" string of its
+ *  local calendar day. Send this to the API (which stores it at UTC
+ *  midnight via `new Date(str)`) so every surface writes the SAME
+ *  convention as the list/calendar/timeline and reads back correctly
+ *  with `dueDateToLocalMidnight`. Avoids the local-midnight-ISO instant
+ *  that shifted the calendar day for non-UTC users. */
+export function toDateOnlyISO(value: Date): string {
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 /** Whole calendar days from today to the due date (negative = overdue). */
 export function daysFromToday(value: string | Date): number {
   const MS_PER_DAY = 24 * 60 * 60 * 1000;

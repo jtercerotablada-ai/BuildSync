@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MoreHorizontal, Plus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -86,6 +87,8 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
     (p) => !excludeIds.includes(p.id) && p.id !== value?.id
   );
 
+  const router = useRouter();
+
   const handleSelect = (project: Project) => {
     onChange(project);
     setSearch('');
@@ -127,7 +130,9 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
                 <DropdownMenuItem onClick={handleRemove}>
                   Remove from project
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push(`/projects/${value.id}`)}
+                >
                   Open project
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -136,8 +141,9 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
         </div>
       )}
 
-      {/* No project: show "+ Add to projects" link */}
-      {/* With project: show input to add more */}
+      {/* No project: show "+ Add to a project" link.
+          With a project: show an input to MOVE it (a task lives in one
+          project — selecting another replaces the current one). */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           {value ? (
@@ -145,13 +151,13 @@ export function ProjectSelector({ value, onChange, excludeIds = [] }: ProjectSel
               ref={inputRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Add this task to a project..."
+              placeholder="Move to another project..."
               className="h-9 text-sm border-gray-200 focus:border-[#c9a84c] focus:ring-blue-500"
             />
           ) : (
             <button className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
               <Plus className="h-4 w-4" />
-              <span>Add to projects</span>
+              <span>Add to a project</span>
             </button>
           )}
         </PopoverTrigger>

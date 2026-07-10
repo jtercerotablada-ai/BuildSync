@@ -16,9 +16,6 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this task
-    const task = await verifyTaskAccess(userId, taskId);
-
     const { userId: collaboratorId } = await req.json();
 
     if (!collaboratorId) {
@@ -27,6 +24,12 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    // Anyone with read access may follow a task themselves; adding
+    // SOMEONE ELSE as a collaborator requires write access on the task.
+    const task = await verifyTaskAccess(userId, taskId, {
+      requireWrite: collaboratorId !== userId,
+    });
 
     // The collaborator must be a member of the task's workspace. Without
     // this, collaboratorId is trusted from the body and the endpoint returns
@@ -51,6 +54,12 @@ export async function POST(
 
     await prisma.taskCollaborator.create({
       data: { taskId, userId: collaboratorId },
+    });
+
+    // Touch the task so the "Last modified" field reflects the change.
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { updatedAt: new Date() },
     });
 
     const user = await prisma.user.findUnique({
@@ -85,11 +94,14 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this task
-    await verifyTaskAccess(userId, taskId);
-
     const { searchParams } = new URL(req.url);
     const targetUserId = searchParams.get("userId") || userId;
+
+    // Leaving a task yourself only needs read access; removing ANOTHER
+    // collaborator requires write access on the task.
+    await verifyTaskAccess(userId, taskId, {
+      requireWrite: targetUserId !== userId,
+    });
 
     const existing = await prisma.taskCollaborator.findUnique({
       where: {
@@ -106,6 +118,12 @@ export async function DELETE(
 
     await prisma.taskCollaborator.delete({
       where: { id: existing.id },
+    });
+
+    // Touch the task so the "Last modified" field reflects the change.
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { updatedAt: new Date() },
     });
 
     return NextResponse.json({ success: true });

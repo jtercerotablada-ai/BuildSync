@@ -37,7 +37,8 @@ export async function POST(
         },
       });
 
-      return NextResponse.json({ liked: false });
+      const count = await prisma.taskLike.count({ where: { taskId } });
+      return NextResponse.json({ liked: false, count });
     } else {
       // Like - create new like
       await prisma.taskLike.create({
@@ -47,7 +48,8 @@ export async function POST(
         },
       });
 
-      return NextResponse.json({ liked: true });
+      const count = await prisma.taskLike.count({ where: { taskId } });
+      return NextResponse.json({ liked: true, count });
     }
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {

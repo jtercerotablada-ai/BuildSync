@@ -189,6 +189,13 @@ export async function POST(
       },
     });
 
+    // Touch the task so the "Last modified" field reflects the comment.
+    await prisma.task
+      .update({ where: { id: taskId }, data: { updatedAt: new Date() } })
+      .catch(() => {
+        /* non-fatal — the comment already saved */
+      });
+
     // ── Notification fan-out (best-effort) ──────────────────────
     // Everything below is wrapped so a bad @-mention id or a prefs
     // hiccup can never 500 a comment that already saved successfully.
@@ -246,14 +253,20 @@ export async function POST(
     }
 
     // ── COMMENT_ADDED fan-out ───────────────────────────────────
-    // Ping the task's assignee AND creator that a new comment landed.
-    // Exclude the comment author and anyone already @-mentioned above
-    // (they got a MENTIONED ping — no need to double-notify).
+    // Ping the task's assignee, creator AND collaborators (followers)
+    // that a new comment landed. Exclude the comment author and anyone
+    // already @-mentioned above (they got a MENTIONED ping).
     try {
       const mentionedSet = new Set(mentionedUserIds);
+      const collaboratorIds = (
+        await prisma.taskCollaborator.findMany({
+          where: { taskId },
+          select: { userId: true },
+        })
+      ).map((c) => c.userId);
       const commentRecipients = Array.from(
         new Set(
-          [task.assigneeId, task.creatorId].filter(
+          [task.assigneeId, task.creatorId, ...collaboratorIds].filter(
             (id): id is string =>
               typeof id === "string" &&
               id.length > 0 &&

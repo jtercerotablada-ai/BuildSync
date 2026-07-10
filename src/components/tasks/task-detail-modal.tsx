@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
 import {
+  dueDateToLocalMidnight,
+  daysFromToday,
+  toDateOnlyISO,
+} from '@/lib/date-only';
+import {
   Check,
   User,
   Calendar as CalendarIcon,
@@ -33,6 +38,7 @@ import { AssigneeSelector } from './assignee-selector';
 import { DueDatePicker } from './due-date-picker';
 import { ProjectSelector } from './project-selector';
 import { PrioritySelector, StatusSelector } from './field-selector';
+import { CustomFieldsSection } from './custom-fields-section';
 import { TaskDetailToolbar } from './task-detail-toolbar';
 import { TaskAttachments } from './task-attachments';
 import { DependencySelector } from './dependency-selector';
@@ -129,6 +135,7 @@ interface TaskDetail {
     name: string | null;
     image: string | null;
   }[];
+  customFieldValues?: { fieldId: string; value: unknown }[];
   isLiked?: boolean;
   likesCount?: number;
   _count?: {
@@ -148,17 +155,13 @@ function getInitials(name: string): string {
 }
 
 function formatDueDate(date: string): { text: string; isSpecial: boolean } {
-  const d = new Date(date);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (d.toDateString() === today.toDateString()) return { text: 'Today', isSpecial: true };
-  if (d.toDateString() === tomorrow.toDateString()) return { text: 'Tomorrow', isSpecial: true };
-  if (d.toDateString() === yesterday.toDateString()) return { text: 'Yesterday', isSpecial: false };
-  return { text: format(d, 'MMM d'), isSpecial: false };
+  // Read by UTC calendar day (date-only.ts) so a task due today never
+  // renders as "Yesterday" for viewers west of UTC.
+  const diff = daysFromToday(date);
+  if (diff === 0) return { text: 'Today', isSpecial: true };
+  if (diff === 1) return { text: 'Tomorrow', isSpecial: true };
+  if (diff === -1) return { text: 'Yesterday', isSpecial: false };
+  return { text: format(dueDateToLocalMidnight(date), 'MMM d'), isSpecial: false };
 }
 
 /**
@@ -271,8 +274,12 @@ export function TaskDetailModal({
   };
 
   const handleNameBlur = () => {
-    if (name !== task?.name && name.trim()) {
+    if (name.trim() && name !== task?.name) {
       updateTask({ name });
+    } else if (!name.trim()) {
+      // Blanked title → revert to the stored name instead of showing an
+      // empty box (matches Asana).
+      setName(task?.name || '');
     }
   };
 
@@ -729,13 +736,19 @@ export function TaskDetailModal({
                     <div className="flex-1">
                       <DueDatePicker
                         startDate={
-                          task.startDate ? new Date(task.startDate) : null
+                          task.startDate
+                            ? dueDateToLocalMidnight(task.startDate)
+                            : null
                         }
-                        dueDate={task.dueDate ? new Date(task.dueDate) : null}
+                        dueDate={
+                          task.dueDate
+                            ? dueDateToLocalMidnight(task.dueDate)
+                            : null
+                        }
                         onChange={(start, due) =>
                           updateTask({
-                            startDate: start?.toISOString() || null,
-                            dueDate: due?.toISOString() || null,
+                            startDate: start ? toDateOnlyISO(start) : null,
+                            dueDate: due ? toDateOnlyISO(due) : null,
                           })
                         }
                         trigger={
@@ -764,10 +777,10 @@ export function TaskDetailModal({
                               {task.dueDate || task.startDate
                                 ? formatRangeLabel(
                                     task.startDate
-                                      ? new Date(task.startDate)
+                                      ? dueDateToLocalMidnight(task.startDate)
                                       : null,
                                     task.dueDate
-                                      ? new Date(task.dueDate)
+                                      ? dueDateToLocalMidnight(task.dueDate)
                                       : null,
                                     task.dueDate
                                       ? formatDueDate(task.dueDate).text
@@ -832,6 +845,18 @@ export function TaskDetailModal({
                         value={task.taskStatus}
                         onChange={(status) => updateTask({ taskStatus: status })}
                         completed={task.completed}
+                      />
+                      {/* Project custom fields — same editors as the
+                          slide-over panel so the Home My-Tasks modal
+                          isn't missing them. */}
+                      <CustomFieldsSection
+                        taskId={task.id}
+                        projectId={task.project?.id ?? null}
+                        values={task.customFieldValues ?? []}
+                        onChanged={() => {
+                          fetchTask();
+                          onTaskUpdate?.();
+                        }}
                       />
                     </div>
                   </div>

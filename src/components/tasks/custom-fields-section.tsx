@@ -42,7 +42,13 @@ type FieldType =
   | "PEOPLE"
   | "CHECKBOX"
   | "CURRENCY"
-  | "PERCENTAGE";
+  | "PERCENTAGE"
+  // Fase 3 — Asana-parity types.
+  | "REFERENCE"
+  | "FORMULA"
+  | "ROLLUP"
+  | "TIMER"
+  | "TIME_TRACKING";
 
 interface FieldOption {
   id: string;
@@ -284,6 +290,68 @@ function CustomFieldRow({
           </span>
         </FieldRow>
       );
+    case "TIME_TRACKING":
+      return (
+        <FieldRow label={def.name} required={def.isRequired} saving={saving}>
+          <TimeTrackingEditor
+            value={
+              value && typeof value === "object" && !Array.isArray(value)
+                ? (value as { estimatedMin?: number | null; actualMin?: number | null })
+                : null
+            }
+            onCommit={onChange}
+          />
+        </FieldRow>
+      );
+    case "TIMER":
+      return (
+        <FieldRow label={def.name} required={def.isRequired} saving={saving}>
+          <TimerEditor
+            value={
+              value && typeof value === "object" && !Array.isArray(value)
+                ? (value as { targetIso?: string | null })
+                : null
+            }
+            onCommit={onChange}
+          />
+        </FieldRow>
+      );
+    case "REFERENCE":
+      return (
+        <FieldRow label={def.name} required={def.isRequired} saving={saving}>
+          <span className="text-[13px] text-[#1e1f21]">
+            {Array.isArray(value) && value.length > 0
+              ? (value as { name?: string }[])
+                  .map((r) => r?.name || "Untitled")
+                  .join(", ")
+              : <span className="text-[#9aa0a6]">Empty</span>}
+          </span>
+        </FieldRow>
+      );
+    case "FORMULA":
+    case "ROLLUP": {
+      const res =
+        value && typeof value === "object" && !Array.isArray(value)
+          ? (value as { result?: unknown; error?: string })
+          : null;
+      return (
+        <FieldRow label={def.name} required={def.isRequired} saving={saving}>
+          <span
+            className={cn(
+              "text-[13px] tabular-nums",
+              res?.error ? "text-[#a8323a]" : "text-[#1e1f21]"
+            )}
+            title={res?.error || undefined}
+          >
+            {res?.error
+              ? "—"
+              : res?.result !== undefined && res?.result !== null
+              ? String(res.result)
+              : <span className="text-[#9aa0a6]">—</span>}
+          </span>
+        </FieldRow>
+      );
+    }
     default:
       return null;
   }
@@ -534,6 +602,96 @@ function MultiSelectEditor({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Time tracking (Estimated / Actual minutes) ──────────────────
+
+function TimeTrackingEditor({
+  value,
+  onCommit,
+}: {
+  value: { estimatedMin?: number | null; actualMin?: number | null } | null;
+  onCommit: (next: { estimatedMin: number | null; actualMin: number | null } | null) => void;
+}) {
+  const est = value?.estimatedMin ?? null;
+  const act = value?.actualMin ?? null;
+  const [localEst, setLocalEst] = useState(est === null ? "" : String(est));
+  const [localAct, setLocalAct] = useState(act === null ? "" : String(act));
+  useEffect(() => setLocalEst(est === null ? "" : String(est)), [est]);
+  useEffect(() => setLocalAct(act === null ? "" : String(act)), [act]);
+
+  function commit(estStr: string, actStr: string) {
+    const e = estStr.trim() === "" ? null : Number(estStr);
+    const a = actStr.trim() === "" ? null : Number(actStr);
+    if ((e !== null && !Number.isFinite(e)) || (a !== null && !Number.isFinite(a)))
+      return;
+    if (e === null && a === null) {
+      if (est !== null || act !== null) onCommit(null);
+      return;
+    }
+    if (e !== est || a !== act) onCommit({ estimatedMin: e, actualMin: a });
+  }
+
+  return (
+    <div className="flex items-center gap-3 w-full">
+      {(["Est", "Act"] as const).map((label) => {
+        const local = label === "Est" ? localEst : localAct;
+        const setLocal = label === "Est" ? setLocalEst : setLocalAct;
+        return (
+          <label
+            key={label}
+            className="flex items-center gap-1 text-[12px] text-[#6f7782] px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] focus-within:bg-[#f3f4f6]"
+          >
+            <span>{label}</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={local}
+              onChange={(e) => setLocal(e.target.value)}
+              onBlur={() => commit(localEst, localAct)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              placeholder="0"
+              className="w-10 text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] text-[#1e1f21] tabular-nums text-right"
+            />
+            <span className="text-[#9aa0a6]">m</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Timer (countdown to a target date) ──────────────────────────
+
+function TimerEditor({
+  value,
+  onCommit,
+}: {
+  value: { targetIso?: string | null } | null;
+  onCommit: (next: { targetIso: string } | null) => void;
+}) {
+  const iso = value?.targetIso
+    ? new Date(value.targetIso).toISOString().slice(0, 10)
+    : "";
+  return (
+    <div className="flex items-center px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] focus-within:bg-[#f3f4f6] gap-1.5 w-full">
+      {!iso && <Calendar className="w-3.5 h-3.5 text-[#9aa0a6]" />}
+      <input
+        type="date"
+        value={iso}
+        onChange={(e) => {
+          const v = e.target.value;
+          onCommit(v ? { targetIso: new Date(v).toISOString() } : null);
+        }}
+        className={cn(
+          "flex-1 text-[13px] bg-transparent outline-none",
+          iso ? "text-[#1e1f21]" : "text-[#9aa0a6]"
+        )}
+      />
     </div>
   );
 }

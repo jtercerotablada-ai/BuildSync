@@ -451,6 +451,8 @@ model Project {
   // Relations
   sections      Section[]
   tasks         Task[]
+  // Tasks multi-homed INTO this project (their home is another project).
+  taskProjects  TaskProject[]
   members       ProjectMember[]
   companies     ProjectCompany[]     @relation("ProjectCompanies")
   views         ProjectView[]
@@ -665,12 +667,34 @@ model Section {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   tasks                 Task[]
+  // Multi-homed tasks placed in this section (their home is elsewhere).
+  taskProjects          TaskProject[]
   // Back-relation for Form.defaultSection — when a section gets
   // deleted, the linked form's defaultSection is set to NULL and
   // the submit endpoint falls back to the project's first section.
   formsAsDefaultSection Form[]
 
   @@index([projectId])
+}
+
+// Asana multi-homing: a task can appear in MORE than one project. The
+// task's primary/home project stays on Task.projectId; each extra
+// project it also lives in gets one TaskProject row. Additive — no
+// existing query changes unless it opts in to reading these rows.
+model TaskProject {
+  id        String   @id @default(cuid())
+  taskId    String
+  projectId String
+  sectionId String?
+  createdAt DateTime @default(now())
+
+  task    Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  section Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  @@unique([taskId, projectId])
+  @@index([projectId])
+  @@index([taskId])
 }
 
 // ============ TAREAS ============
@@ -720,6 +744,10 @@ model Task {
   keyResults        KeyResultTask[]
   clientApprovals   ClientApproval[]   @relation("TaskApprovals")
   taskTags          TaskTag[]
+  // Additional project memberships (Asana multi-homing). The task's
+  // "home" project stays on projectId above; these are EXTRA projects
+  // the same task also appears in.
+  taskProjects      TaskProject[]
 
   @@index([projectId])
   @@index([sectionId])

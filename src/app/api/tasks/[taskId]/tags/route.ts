@@ -103,6 +103,11 @@ export async function PUT(
             }),
           ]
         : []),
+      // Touch the task so the "Last modified" field reflects the change.
+      prisma.task.update({
+        where: { id: taskId },
+        data: { updatedAt: new Date() },
+      }),
     ]);
 
     // Return the updated tag list so the caller can replace its

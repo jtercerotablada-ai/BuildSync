@@ -6,7 +6,7 @@ import { Check, Plus, Calendar as CalendarIcon, ChevronRight } from 'lucide-reac
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday } from '@/lib/date-only';
+import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday, toDateOnlyISO } from '@/lib/date-only';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
 import { DueDatePicker } from '@/components/tasks/due-date-picker';
 
@@ -224,7 +224,7 @@ export function MyTasksWidget() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: newTaskName.trim(),
-            dueDate: newTaskDueDate ? newTaskDueDate.toISOString() : null,
+            dueDate: newTaskDueDate ? toDateOnlyISO(newTaskDueDate) : null,
           }),
         });
 
@@ -354,7 +354,7 @@ export function MyTasksWidget() {
                 <CalendarIcon className="h-3.5 w-3.5" />
                 {newTaskDueDate && (
                   <span className="tabular-nums">
-                    {formatDueDate(newTaskDueDate.toISOString()).text}
+                    {formatDueDate(toDateOnlyISO(newTaskDueDate)).text}
                   </span>
                 )}
               </button>

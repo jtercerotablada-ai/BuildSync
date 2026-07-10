@@ -1,9 +1,59 @@
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
+import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { ProjectContent } from "@/components/projects/project-content";
 import { getLevel } from "@/lib/people-types";
+
+// Shared task shape for both the project's own tasks and the tasks
+// multi-homed INTO it — keeps the two queries structurally identical.
+const TASK_INCLUDE = {
+  assignee: {
+    select: { id: true, name: true, email: true, image: true },
+  },
+  creator: {
+    select: { id: true, name: true, email: true, image: true },
+  },
+  subtasks: { select: { id: true, completed: true } },
+  dependencies: {
+    select: {
+      blockingTask: { select: { id: true, name: true, completed: true } },
+    },
+  },
+  dependents: {
+    select: {
+      dependentTask: { select: { id: true, name: true, completed: true } },
+    },
+  },
+  taskTags: {
+    select: { tag: { select: { id: true, name: true, color: true } } },
+  },
+  _count: {
+    select: {
+      subtasks: true,
+      comments: true,
+      attachments: true,
+      likes: true,
+    },
+  },
+} satisfies Prisma.TaskInclude;
+
+type ProjectTaskPayload = Prisma.TaskGetPayload<{ include: typeof TASK_INCLUDE }>;
+
+// Coerce a task's DateTime fields to ISO strings for the client. Used
+// for both the project's own tasks and multi-homed ones so they share
+// one shape.
+function serializeProjectTask(t: ProjectTaskPayload) {
+  return {
+    ...t,
+    dueDate: t.dueDate?.toISOString() || null,
+    startDate: t.startDate?.toISOString() || null,
+    completedAt: t.completedAt?.toISOString() || null,
+    createdAt: t.createdAt.toISOString(),
+    updatedAt: t.updatedAt.toISOString(),
+  };
+}
 
 interface ProjectPageProps {
   params: Promise<{ projectId: string }>;
@@ -61,59 +111,7 @@ export default async function ProjectPage({
               parentTaskId: null,
             },
             orderBy: { position: "asc" },
-            include: {
-              assignee: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                },
-              },
-              // Built-in "Created by" column source.
-              creator: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  image: true,
-                },
-              },
-              subtasks: {
-                select: {
-                  id: true,
-                  completed: true,
-                },
-              },
-              // "Blocked by" / "Blocks" built-in columns.
-              dependencies: {
-                select: {
-                  blockingTask: {
-                    select: { id: true, name: true, completed: true },
-                  },
-                },
-              },
-              dependents: {
-                select: {
-                  dependentTask: {
-                    select: { id: true, name: true, completed: true },
-                  },
-                },
-              },
-              // "Tags" built-in column.
-              taskTags: {
-                select: {
-                  tag: { select: { id: true, name: true, color: true } },
-                },
-              },
-              _count: {
-                select: {
-                  subtasks: true,
-                  comments: true,
-                  attachments: true,
-                },
-              },
-            },
+            include: TASK_INCLUDE,
           },
         },
       },
@@ -158,6 +156,32 @@ export default async function ProjectPage({
     notFound();
   }
 
+  // Multi-homing: tasks whose HOME is another project but that were
+  // added to THIS project (TaskProject rows). Render them under the
+  // section recorded on their TaskProject link (fallback: first section).
+  const firstSectionId = project.sections[0]?.id ?? null;
+  const multiHomedTasks = await prisma.task.findMany({
+    where: { parentTaskId: null, taskProjects: { some: { projectId } } },
+    orderBy: { position: "asc" },
+    include: {
+      ...TASK_INCLUDE,
+      taskProjects: { where: { projectId }, select: { sectionId: true } },
+    },
+  });
+  const multiHomedBySection = new Map<
+    string,
+    ReturnType<typeof serializeProjectTask>[]
+  >();
+  for (const t of multiHomedTasks) {
+    const targetSection = t.taskProjects[0]?.sectionId ?? firstSectionId;
+    if (!targetSection) continue;
+    const { taskProjects: _tp, ...rest } = t;
+    void _tp;
+    const arr = multiHomedBySection.get(targetSection) ?? [];
+    arr.push(serializeProjectTask(rest));
+    multiHomedBySection.set(targetSection, arr);
+  }
+
   // Serialize the project data for client component.
   // Prisma's Decimal type doesn't survive JSON.stringify cleanly, so we
   // coerce `budget` to a plain number here (loses precision past 15
@@ -175,14 +199,10 @@ export default async function ProjectPage({
     })),
     sections: project.sections.map((s) => ({
       ...s,
-      tasks: s.tasks.map((t) => ({
-        ...t,
-        dueDate: t.dueDate?.toISOString() || null,
-        startDate: t.startDate?.toISOString() || null,
-        completedAt: t.completedAt?.toISOString() || null,
-        createdAt: t.createdAt.toISOString(),
-        updatedAt: t.updatedAt.toISOString(),
-      })),
+      tasks: [
+        ...s.tasks.map(serializeProjectTask),
+        ...(multiHomedBySection.get(s.id) ?? []),
+      ],
     })),
   };
 

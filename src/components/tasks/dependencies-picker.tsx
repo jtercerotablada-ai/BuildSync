@@ -35,14 +35,20 @@ interface PickableTask {
 }
 
 interface DependenciesPickerProps {
-  /** The task we are adding a "blocked by" dependency to. */
+  /** The task whose detail we are editing. */
   taskId: string;
-  /** Task ids already in the dependency list — excluded from picker. */
+  /** Task ids already related — excluded from the picker. */
   existingBlockingTaskIds: string[];
   /** Called after the dependency is successfully created on the server. */
   onAdded: () => void;
   /** Element that opens the popover. */
   trigger: React.ReactNode;
+  /**
+   * "blockedBy" (default): the picked task blocks `taskId`.
+   * "blocks": `taskId` blocks the picked task — we create the dependency
+   * on the OTHER task's endpoint (dependent = picked, blocker = taskId).
+   */
+  mode?: "blockedBy" | "blocks";
 }
 
 export function DependenciesPicker({
@@ -50,6 +56,7 @@ export function DependenciesPicker({
   existingBlockingTaskIds,
   onAdded,
   trigger,
+  mode = "blockedBy",
 }: DependenciesPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -89,20 +96,28 @@ export function DependenciesPicker({
       .slice(0, 50);
   }, [tasks, search, excluded]);
 
-  async function handlePick(blocking: PickableTask) {
+  async function handlePick(picked: PickableTask) {
     if (submitting) return;
-    setSubmitting(blocking.id);
+    setSubmitting(picked.id);
     try {
-      const res = await fetch(`/api/tasks/${taskId}/dependencies`, {
+      // "blocks" mode creates the relationship on the OTHER task
+      // (dependent = picked task, blocker = the current task).
+      const targetTaskId = mode === "blocks" ? picked.id : taskId;
+      const blockingTaskId = mode === "blocks" ? taskId : picked.id;
+      const res = await fetch(`/api/tasks/${targetTaskId}/dependencies`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blockingTaskId: blocking.id }),
+        body: JSON.stringify({ blockingTaskId }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `HTTP ${res.status}`);
       }
-      toast.success(`Now blocked by "${blocking.name}"`);
+      toast.success(
+        mode === "blocks"
+          ? `Now blocking "${picked.name}"`
+          : `Now blocked by "${picked.name}"`
+      );
       onAdded();
       setOpen(false);
       setSearch("");

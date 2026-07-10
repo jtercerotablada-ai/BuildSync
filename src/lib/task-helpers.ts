@@ -4,6 +4,8 @@
  * formatting logic. Single source of truth for these mappings.
  */
 
+import { dueDateToLocalMidnight, startOfLocalDay } from "@/lib/date-only";
+
 /**
  * 3-letter discipline chip for the project type. Matches what shows
  * up in the cockpit-wide engineering metadata bar (CON / DES / REC /
@@ -118,12 +120,11 @@ export function formatDueDateLabel(date: string | null): {
   if (isNaN(d.getTime()))
     return { text: "No due date", className: "text-slate-400" };
 
-  const today = new Date(new Date().toDateString());
-  const target = new Date(
-    d.getFullYear(),
-    d.getMonth(),
-    d.getDate()
-  );
+  // Due dates are stored as UTC-midnight timestamps; read them by the
+  // UTC calendar day so a task due "today" never renders as "Yesterday"
+  // for viewers west of UTC. See src/lib/date-only.ts.
+  const today = startOfLocalDay();
+  const target = dueDateToLocalMidnight(d);
   const dayMs = 86400000;
   const diffDays = Math.round((target.getTime() - today.getTime()) / dayMs);
 

@@ -143,6 +143,11 @@ export async function PATCH(
         .catch(() => {
           /* already absent — fine */
         });
+      // Touch the task so the "Last modified" field reflects the change.
+      await prisma.task.update({
+        where: { id: taskId },
+        data: { updatedAt: new Date() },
+      });
       return NextResponse.json({ taskId, fieldId, value: null });
     }
 
@@ -271,13 +276,29 @@ export async function PATCH(
       }
       case "TIME_TRACKING": {
         // { estimatedMin, actualMin } — both optional numbers.
-        if (typeof raw !== "object" || raw === null) {
+        if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
           return NextResponse.json(
             { error: "Time tracking value must be { estimatedMin, actualMin }" },
             { status: 400 }
           );
         }
-        coerced = raw;
+        const tt = raw as Record<string, unknown>;
+        for (const k of ["estimatedMin", "actualMin"] as const) {
+          if (
+            tt[k] !== undefined &&
+            tt[k] !== null &&
+            (typeof tt[k] !== "number" || !Number.isFinite(tt[k] as number))
+          ) {
+            return NextResponse.json(
+              { error: `${k} must be a number of minutes` },
+              { status: 400 }
+            );
+          }
+        }
+        coerced = {
+          estimatedMin: (tt.estimatedMin as number | null | undefined) ?? null,
+          actualMin: (tt.actualMin as number | null | undefined) ?? null,
+        };
         break;
       }
     }
@@ -290,6 +311,12 @@ export async function PATCH(
         value: JSON.parse(JSON.stringify(coerced)),
       },
       update: { value: JSON.parse(JSON.stringify(coerced)) },
+    });
+
+    // Touch the task so the "Last modified" field reflects the change.
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { updatedAt: new Date() },
     });
 
     // After saving, recompute every FORMULA / ROLLUP on this task —

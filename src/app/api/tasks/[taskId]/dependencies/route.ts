@@ -65,8 +65,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this task
-    await verifyTaskAccess(userId, taskId);
+    // Adding a blocker mutates the task — require write access.
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     const body = await req.json();
     const data = createDependencySchema.parse(body);
@@ -123,6 +123,12 @@ export async function POST(
       },
     });
 
+    // Touch the task so the "Last modified" field reflects the change.
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { updatedAt: new Date() },
+    });
+
     return NextResponse.json(dependency, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -165,7 +171,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await verifyTaskAccess(userId, taskId);
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     const { searchParams } = new URL(req.url);
     const dependencyId = searchParams.get("id");
@@ -198,6 +204,12 @@ export async function PATCH(
           select: { id: true, name: true, completed: true },
         },
       },
+    });
+
+    // Touch the task so the "Last modified" field reflects the change.
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { updatedAt: new Date() },
     });
 
     return NextResponse.json(updated);
@@ -233,8 +245,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user has access to this task
-    await verifyTaskAccess(userId, taskId);
+    // Removing a blocker mutates the task — require write access.
+    await verifyTaskAccess(userId, taskId, { requireWrite: true });
 
     const { searchParams } = new URL(req.url);
     const dependencyId = searchParams.get("id");
@@ -250,7 +262,9 @@ export async function DELETE(
       where: { id: dependencyId },
     });
 
-    if (!dependency) {
+    // Guard that the dependency actually belongs to the task in the URL,
+    // so a caller can't delete another task's dependency by id.
+    if (!dependency || dependency.dependentTaskId !== taskId) {
       return NextResponse.json(
         { error: "Dependency not found" },
         { status: 404 }
@@ -258,6 +272,12 @@ export async function DELETE(
     }
 
     await prisma.taskDependency.delete({ where: { id: dependencyId } });
+
+    // Touch the task so the "Last modified" field reflects the change.
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { updatedAt: new Date() },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

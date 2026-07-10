@@ -45,6 +45,8 @@ import { BuiltinFieldCell } from "@/components/tasks/builtin-field-cell";
 import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import { formatRangeLabel } from "@/lib/task-helpers";
 import type { FieldTypeConfig, BuiltinFieldConfig } from "@/lib/field-types";
+import { BUILTIN_FIELDS } from "@/lib/field-types";
+import { useUiState } from "@/hooks/use-ui-state";
 
 // Per-project custom field metadata returned by
 // GET /api/projects/:id/custom-fields.
@@ -141,6 +143,9 @@ interface Task {
     subtasks: number;
     comments: number;
     attachments: number;
+    // Backs the "Likes" built-in column. Optional so cached/legacy
+    // pages that didn't select it still typecheck (column shows 0).
+    likes?: number;
   };
 }
 
@@ -163,11 +168,13 @@ interface ListViewProps {
   reorderDisabled?: boolean;
 }
 
+// Distinct per-level colors so High/Medium/Low read at a glance —
+// matches the PriorityTag palette used in the detail panel/modal.
 const PRIORITY_COLORS = {
   NONE: "",
-  LOW: "bg-white text-black border border-black",
-  MEDIUM: "bg-white text-black border border-black",
-  HIGH: "bg-white text-black border border-black",
+  LOW: "bg-[#e1eefc] text-[#274a73] border border-[#c5dbf5]",
+  MEDIUM: "bg-[#fbeed3] text-[#7a5b1b] border border-[#e7d5a3]",
+  HIGH: "bg-[#fce4e4] text-[#a8323a] border border-[#f3c4c4]",
 };
 
 const PRIORITY_LABELS = {
@@ -213,13 +220,20 @@ export function ListView({
     Record<string, Record<string, unknown>>
   >({});
   // Pinned built-in extras for this project — Asana's "Show more"
-  // columns (Tags, Blocked by, Blocks, Created by, etc.). Local state
-  // for now; a follow-up will persist to useUiState scoped by project
-  // id so the choice survives reload + device.
+  // columns (Tags, Blocked by, Blocks, Created by, etc.). Persisted
+  // per-user + per-project via useUiState (server-backed) so the choice
+  // survives reload + device. We store the ids and rebuild the config
+  // from BUILTIN_FIELDS on read.
   // Priority isn't offered here because it's already a hardcoded
   // column to the left of Status.
-  const [pinnedBuiltins, setPinnedBuiltins] = useState<BuiltinFieldConfig[]>(
-    []
+  const { value: pinnedBuiltinIds, setValue: setPinnedBuiltinIds } =
+    useUiState<string[]>(`projectListBuiltins:${projectId}`, []);
+  const pinnedBuiltins = useMemo(
+    () =>
+      pinnedBuiltinIds
+        .map((id) => BUILTIN_FIELDS.find((b) => b.id === id))
+        .filter((b): b is BuiltinFieldConfig => Boolean(b)),
+    [pinnedBuiltinIds]
   );
 
   const reloadCustomFields = useCallback(async () => {
@@ -806,8 +820,8 @@ export function ListView({
               <button
                 type="button"
                 onClick={() =>
-                  setPinnedBuiltins((prev) =>
-                    prev.filter((p) => p.id !== b.id)
+                  setPinnedBuiltinIds((prev) =>
+                    prev.filter((id) => id !== b.id)
                   )
                 }
                 className="opacity-0 group-hover/bhdr:opacity-100 transition-opacity flex items-center justify-center w-4 h-4 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded"
@@ -834,10 +848,9 @@ export function ListView({
               setCustomFieldModalOpen(true);
             }}
             onSelectBuiltin={(b) => {
-              setPinnedBuiltins((prev) => {
-                if (prev.some((p) => p.id === b.id)) return prev;
-                return [...prev, b];
-              });
+              setPinnedBuiltinIds((prev) =>
+                prev.includes(b.id) ? prev : [...prev, b.id]
+              );
             }}
             onFromLibrary={() => {
               setPreselectedFieldType(null);
@@ -1885,6 +1898,7 @@ function SortableTaskRow({
               task={{
                 id: task.id,
                 priority: task.priority as "NONE" | "LOW" | "MEDIUM" | "HIGH",
+                startDate: task.startDate ?? null,
                 completedAt: task.completedAt ?? null,
                 createdAt: task.createdAt || "",
                 updatedAt: task.updatedAt || "",
@@ -1892,6 +1906,7 @@ function SortableTaskRow({
                 dependencies: task.dependencies,
                 dependents: task.dependents,
                 taskTags: task.taskTags,
+                _count: task._count,
               }}
             />
           </div>

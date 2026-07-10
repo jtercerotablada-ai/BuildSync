@@ -48,7 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { isThisWeek } from "date-fns";
-import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { dueDateToLocalMidnight, daysFromToday } from "@/lib/date-only";
 import { ListView } from "@/components/views/list-view";
 import { BoardView } from "@/components/views/board-view";
 import { TimelineView } from "@/components/views/timeline-view";
@@ -71,6 +71,8 @@ interface Task {
   description: string | null;
   completed: boolean;
   dueDate: string | null;
+  // Serialized from the server — backs the "Created on" sort.
+  createdAt?: string;
   priority: string;
   // Engineering-firm task taxonomy: regular task, milestone (Diamond
   // icon), or approval gate (ThumbsUp). Optional so legacy rows that
@@ -87,6 +89,8 @@ interface Task {
     subtasks: number;
     comments: number;
     attachments: number;
+    // Backs the "Likes" built-in column.
+    likes?: number;
   };
 }
 
@@ -141,6 +145,79 @@ interface Project {
   clientName?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+}
+
+// ─── Group-by (project List) ─────────────────────────────────────
+type GroupByField = "none" | "assignee" | "priority" | "due_date" | "created_at";
+
+const GROUP_BY_LABELS: Record<GroupByField, string> = {
+  none: "None",
+  assignee: "Assignee",
+  priority: "Priority",
+  due_date: "Due date",
+  created_at: "Created on",
+};
+
+const GROUP_BY_ORDER: GroupByField[] = [
+  "none",
+  "assignee",
+  "priority",
+  "due_date",
+  "created_at",
+];
+
+// Bucket a task into a group (stable key + display label + sort weight)
+// for the chosen field. Lower `order` sorts first.
+function groupOf(
+  task: Task,
+  field: GroupByField
+): { key: string; label: string; order: number } {
+  switch (field) {
+    case "assignee":
+      return task.assignee
+        ? {
+            key: `a:${task.assignee.id}`,
+            label: task.assignee.name || task.assignee.email || "Unknown",
+            order: 0,
+          }
+        : { key: "a:none", label: "Unassigned", order: 1 };
+    case "priority": {
+      const map: Record<string, { label: string; order: number }> = {
+        HIGH: { label: "High", order: 0 },
+        MEDIUM: { label: "Medium", order: 1 },
+        LOW: { label: "Low", order: 2 },
+        NONE: { label: "No priority", order: 3 },
+      };
+      const m = map[task.priority] ?? { label: "No priority", order: 3 };
+      return { key: `p:${task.priority}`, label: m.label, order: m.order };
+    }
+    case "due_date": {
+      if (!task.dueDate)
+        return { key: "d:none", label: "No due date", order: 99 };
+      const diff = daysFromToday(task.dueDate);
+      if (diff < 0) return { key: "d:overdue", label: "Overdue", order: 0 };
+      if (diff === 0) return { key: "d:today", label: "Today", order: 1 };
+      if (diff === 1) return { key: "d:tomorrow", label: "Tomorrow", order: 2 };
+      if (diff <= 7) return { key: "d:week", label: "This week", order: 3 };
+      if (diff <= 31) return { key: "d:month", label: "This month", order: 4 };
+      return { key: "d:later", label: "Later", order: 5 };
+    }
+    case "created_at": {
+      if (!task.createdAt)
+        return { key: "c:none", label: "Unknown", order: 99 };
+      const daysSince = -daysFromToday(task.createdAt);
+      if (daysSince <= 0) return { key: "c:today", label: "Today", order: 0 };
+      if (daysSince === 1)
+        return { key: "c:yesterday", label: "Yesterday", order: 1 };
+      if (daysSince <= 7)
+        return { key: "c:week", label: "Past 7 days", order: 2 };
+      if (daysSince <= 31)
+        return { key: "c:month", label: "Past 30 days", order: 3 };
+      return { key: "c:earlier", label: "Earlier", order: 4 };
+    }
+    default:
+      return { key: "all", label: "All", order: 0 };
+  }
 }
 
 const PROJECT_TYPE_LABEL: Record<string, string> = {
@@ -265,11 +342,14 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
-  // Filter/Sort state
+  // Filter/Sort/Group state
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [showCompleted, setShowCompleted] = useState(true);
+  // Group-by for the project List — regroups tasks into synthetic
+  // sections by a field. "none" keeps the project's own sections.
+  const [groupBy, setGroupBy] = useState<GroupByField>("none");
 
   const toggleFilter = (filter: string) => {
     setActiveFilters(prev => {
@@ -305,10 +385,15 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
     setSortDirection("asc");
     setSearchQuery("");
     setShowCompleted(true);
+    setGroupBy("none");
   };
 
   const hasActiveFilters =
-    activeFilters.size > 0 || !!sortBy || !!searchQuery.trim() || !showCompleted;
+    activeFilters.size > 0 ||
+    !!sortBy ||
+    !!searchQuery.trim() ||
+    !showCompleted ||
+    groupBy !== "none";
 
   // Compute filtered & sorted sections
   const filteredSections = useMemo(() => {
@@ -381,17 +466,52 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             case "priority":
               cmp = (PRIORITY_ORDER[a.priority] ?? 3) - (PRIORITY_ORDER[b.priority] ?? 3);
               break;
-            case "created":
-              cmp = a.id.localeCompare(b.id);
+            case "created": {
+              // Sort by the real creation timestamp, not the task id.
+              // (cuid v1 is roughly time-ordered but diverges for
+              // seeded/imported rows, so id-sort disagreed with the
+              // visible Creation date column.)
+              const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+              const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+              cmp = ca - cb;
               break;
+            }
           }
           return sortDirection === "desc" ? -cmp : cmp;
         }),
       }));
     }
 
+    // Group-by: flatten the (filtered + sorted) tasks and rebucket them
+    // into synthetic sections by the chosen field. Preserves the current
+    // sort order within each group.
+    if (groupBy !== "none") {
+      const all = sections.flatMap((s) => s.tasks);
+      const groups = new Map<
+        string,
+        { label: string; order: number; tasks: typeof all }
+      >();
+      for (const t of all) {
+        const g = groupOf(t, groupBy);
+        const existing = groups.get(g.key);
+        if (existing) existing.tasks.push(t);
+        else groups.set(g.key, { label: g.label, order: g.order, tasks: [t] });
+      }
+      sections = Array.from(groups.entries())
+        .sort(
+          (a, b) =>
+            a[1].order - b[1].order || a[1].label.localeCompare(b[1].label)
+        )
+        .map(([key, g], i) => ({
+          id: `group:${key}`,
+          name: g.label,
+          position: i,
+          tasks: g.tasks,
+        }));
+    }
+
     return sections;
-  }, [project.sections, searchQuery, activeFilters, sortBy, sortDirection, showCompleted, session?.user?.email]);
+  }, [project.sections, searchQuery, activeFilters, sortBy, sortDirection, showCompleted, groupBy, session?.user?.email]);
 
   const handleViewChange = (view: string) => {
     router.push(`/projects/${project.id}?view=${view}`);
@@ -402,7 +522,11 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
   };
 
   const handleAddTask = (sectionId?: string) => {
-    setSelectedSectionId(sectionId || null);
+    // Synthetic group headers ("group:…") aren't real sections — adding
+    // a task under one should fall back to the project default section.
+    const realSectionId =
+      sectionId && !sectionId.startsWith("group:") ? sectionId : null;
+    setSelectedSectionId(realSectionId);
     setShowCreateTask(true);
   };
 
@@ -967,6 +1091,41 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {/* Group by — list view only. Regroups tasks into synthetic
+                  sections; "None" keeps the project's own sections. */}
+              {currentView === "list" && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(groupBy !== "none" && "text-[#a8893a] bg-[#c9a84c]/10")}
+                    >
+                      <Rows3 className="mr-2 h-4 w-4" />
+                      Group
+                      {groupBy !== "none" && (
+                        <span className="ml-1 text-xs text-[#a8893a]">
+                          ({GROUP_BY_LABELS[groupBy]})
+                        </span>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    {GROUP_BY_ORDER.map((field) => (
+                      <DropdownMenuItem
+                        key={field}
+                        onClick={() => setGroupBy(field)}
+                      >
+                        {groupBy === field && <Check className="mr-2 h-4 w-4" />}
+                        <span className={cn(groupBy !== field && "ml-6")}>
+                          {GROUP_BY_LABELS[field]}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
 
               {/* Options */}
               <DropdownMenu>

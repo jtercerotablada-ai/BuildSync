@@ -24,6 +24,7 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { toDateOnlyISO } from "@/lib/date-only";
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -61,7 +62,7 @@ export function CreateTaskDialog({
         body: JSON.stringify({
           name,
           description,
-          dueDate: dueDate?.toISOString(),
+          dueDate: dueDate ? toDateOnlyISO(dueDate) : undefined,
           projectId,
           sectionId,
         }),

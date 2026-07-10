@@ -3,6 +3,99 @@ import { sendTaskAssignedEmail } from "@/lib/email";
 import { shouldNotify } from "@/lib/notification-prefs";
 
 /**
+ * Fan a notification out to a task's collaborators (followers) — the
+ * behavior that makes "collaborators" meaningful in Asana. Used when a
+ * comment is posted or the task is completed so followers stay in the
+ * loop without being the assignee/creator.
+ *
+ * Best-effort + preference-gated per recipient. Always excludes the
+ * actor, plus any ids in `excludeUserIds` (e.g. the creator, who gets
+ * their own dedicated completion ping).
+ */
+export async function notifyTaskCollaborators(opts: {
+  taskId: string;
+  actorUserId: string;
+  type: "COMMENT_ADDED" | "TASK_COMPLETED";
+  taskName: string;
+  projectId: string | null;
+  projectName: string | null;
+  title?: string;
+  message?: string;
+  excludeUserIds?: string[];
+}) {
+  const {
+    taskId,
+    actorUserId,
+    type,
+    taskName,
+    projectId,
+    projectName,
+    excludeUserIds = [],
+  } = opts;
+
+  let recipientIds: string[] = [];
+  try {
+    const collabs = await prisma.taskCollaborator.findMany({
+      where: { taskId },
+      select: { userId: true },
+    });
+    const exclude = new Set([actorUserId, ...excludeUserIds]);
+    recipientIds = [...new Set(collabs.map((c) => c.userId))].filter(
+      (id) => !exclude.has(id)
+    );
+  } catch (err) {
+    console.error("[notifyTaskCollaborators] collaborator lookup failed:", err);
+    return;
+  }
+  if (recipientIds.length === 0) return;
+
+  let actorName = "A teammate";
+  let actorImage: string | null = null;
+  try {
+    const actor = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { name: true, email: true, image: true },
+    });
+    actorName = actor?.name ?? actor?.email ?? "A teammate";
+    actorImage = actor?.image ?? null;
+  } catch (err) {
+    console.error("[notifyTaskCollaborators] actor lookup failed:", err);
+  }
+
+  const title =
+    opts.title ??
+    (type === "COMMENT_ADDED"
+      ? `${actorName} commented on a task you follow`
+      : `${actorName} completed a task you follow`);
+
+  await Promise.all(
+    recipientIds.map(async (uid) => {
+      try {
+        if (!(await shouldNotify(uid, type))) return;
+        await prisma.notification.create({
+          data: {
+            userId: uid,
+            type,
+            title,
+            message: opts.message ?? taskName,
+            data: {
+              taskId,
+              projectId: projectId ?? null,
+              taskName,
+              projectName: projectName ?? null,
+              authorName: actorName,
+              authorImage: actorImage,
+            },
+          },
+        });
+      } catch (err) {
+        console.error("[notifyTaskCollaborators] create failed:", err);
+      }
+    })
+  );
+}
+
+/**
  * Drop a TASK_ASSIGNED Notification row + fire an email when a task
  * is assigned to someone other than the actor.
  *

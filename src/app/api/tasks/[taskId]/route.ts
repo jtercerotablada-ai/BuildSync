@@ -3,7 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { GoalProgressService } from "@/lib/goal-progress";
-import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { verifyTaskAccess, verifyProjectAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import {
   executeRulesOnSectionChange,
   executeRulesOnTaskCompleted,
@@ -11,6 +11,7 @@ import {
 import {
   notifyTaskAssigned,
   notifyTaskCompleted,
+  notifyTaskCollaborators,
 } from "@/lib/task-notifications";
 import {
   cascadeDependentDates,
@@ -18,9 +19,12 @@ import {
 } from "@/lib/dependency-cascade";
 
 const updateTaskSchema = z.object({
-  name: z.string().min(1).optional(),
+  name: z.string().trim().min(1).optional(),
   description: z.string().optional().nullable(),
   completed: z.boolean().optional(),
+  // Task-level visibility (Asana "Visible to"). true = private to the
+  // assignee, creator and collaborators; false = visible to the project.
+  isPrivate: z.boolean().optional(),
   projectId: z.string().optional().nullable(),
   sectionId: z.string().optional().nullable(),
   assigneeId: z.string().optional().nullable(),
@@ -168,6 +172,19 @@ export async function GET(
             value: true,
           },
         },
+        taskTags: {
+          select: {
+            tag: { select: { id: true, name: true, color: true } },
+          },
+        },
+        // Extra projects this task is multi-homed into (home = projectId).
+        taskProjects: {
+          select: {
+            id: true,
+            projectId: true,
+            project: { select: { id: true, name: true, color: true } },
+          },
+        },
         likes: {
           where: {
             userId,
@@ -287,6 +304,13 @@ export async function PATCH(
     }
 
     if (data.projectId !== undefined && data.projectId !== existingTask.projectId) {
+      // Moving a task INTO a project requires write access on the target
+      // project — otherwise a user could push tasks into projects they
+      // can't edit (or merely can't see).
+      if (data.projectId) {
+        await verifyProjectAccess(userId, data.projectId, { requireWrite: true });
+      }
+
       updateData.projectId = data.projectId;
 
       // Auto-assign to the first section of the new project so the task appears in views
@@ -353,6 +377,18 @@ export async function PATCH(
 
     if (data.priority !== undefined) {
       updateData.priority = data.priority;
+    }
+
+    // Convert-to (task ⇄ milestone ⇄ approval) — the schema accepted
+    // taskType but the handler never wrote it, so the panel's "Convert
+    // to" menu silently no-op'd. Persist it here.
+    if (data.taskType !== undefined && data.taskType !== null) {
+      updateData.taskType = data.taskType;
+    }
+
+    // Task-level visibility toggle (Asana "Make private / public").
+    if (data.isPrivate !== undefined) {
+      updateData.isPrivate = data.isPrivate;
     }
 
     if (data.taskStatus !== undefined) {
@@ -502,6 +538,24 @@ export async function PATCH(
         });
       } catch (err) {
         console.error("[tasks PATCH] notifyTaskCompleted failed:", err);
+      }
+    }
+
+    // Fan the completion out to the task's collaborators (followers)
+    // too — excluding the actor and the creator (who got the ping above).
+    if (completionDidFlipTrue) {
+      try {
+        await notifyTaskCollaborators({
+          taskId,
+          actorUserId: userId,
+          type: "TASK_COMPLETED",
+          taskName: task.name,
+          projectId: task.projectId ?? null,
+          projectName: task.project?.name ?? null,
+          excludeUserIds: task.creator?.id ? [task.creator.id] : [],
+        });
+      } catch (err) {
+        console.error("[tasks PATCH] notifyTaskCollaborators failed:", err);
       }
     }
 
