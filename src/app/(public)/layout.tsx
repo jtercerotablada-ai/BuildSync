@@ -78,6 +78,13 @@ const organizationSchema = {
     'Key Biscayne', 'Sweetwater', 'Virginia Gardens', 'Hialeah Gardens',
     'Aventura', 'Sunny Isles Beach', 'Miami Lakes', 'Palmetto Bay',
     'Miami Gardens', 'Doral', 'Cutler Bay',
+    'Fort Lauderdale', 'Hollywood', 'Pembroke Pines', 'Miramar', 'Coral Springs',
+    'Pompano Beach', 'Davie', 'Sunrise', 'Plantation', 'Deerfield Beach',
+    'Lauderhill', 'Weston', 'Tamarac', 'Margate', 'Coconut Creek',
+    'Oakland Park', 'North Lauderdale', 'Hallandale Beach', 'Dania Beach', 'Cooper City',
+    'Parkland', 'Lauderdale Lakes', 'Wilton Manors', 'West Park', 'Southwest Ranches',
+    'Pembroke Park', 'Lauderdale-by-the-Sea', 'Lighthouse Point', 'Hillsboro Beach',
+    'Sea Ranch Lakes', 'Lazy Lake',
   ],
   serviceType: [
     'Reinforced Concrete Design',
