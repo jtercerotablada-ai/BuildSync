@@ -645,6 +645,63 @@
 }
 
 /* =====================================================================
+   6c) SERVICE AREA — numbered municipality grid (editorial columns)
+   ===================================================================== */
+.coverage {
+  padding: clamp(6rem, 10vw, 9rem) 0;
+}
+.coverage__head {
+  max-width: 720px;
+  margin: 0 auto clamp(2.75rem, 5vw, 4rem);
+  text-align: center;
+}
+.coverage__sub {
+  color: var(--lux-muted);
+  font-size: 1rem;
+  line-height: 1.8;
+  margin-top: 1rem;
+}
+.coverage__grid {
+  list-style: none;
+  margin: 0;
+  padding: clamp(2rem, 4vw, 3rem) 0 0;
+  border-top: 1px solid var(--lux-line);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.1rem clamp(1.5rem, 3vw, 3rem);
+}
+.coverage__item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  border-bottom: 1px solid var(--lux-line-soft);
+  padding-bottom: 1.1rem;
+}
+.coverage__num {
+  font-family: var(--font-display, 'Playfair Display', serif);
+  font-style: italic;
+  font-size: 0.78rem;
+  color: var(--lux-gold-deep);
+  flex: none;
+}
+.coverage__name {
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
+  color: var(--lux-ink);
+}
+@media (max-width: 980px) {
+  .coverage__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .coverage__grid {
+    grid-template-columns: 1fr;
+    gap: 0.9rem 0;
+  }
+}
+
+/* =====================================================================
    7) STATS — serif ink numbers, hairline top
    ===================================================================== */
 .stat__number {
