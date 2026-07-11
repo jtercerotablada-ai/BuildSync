@@ -12,13 +12,14 @@ const fmt = (x: number, d = 1) => (Number.isFinite(x) ? x.toLocaleString('en-US'
 function Panel({ data, W, H, y0, L, label, unit, invert }: {
   data: { x: number; value: number }[]; W: number; H: number; y0: number; L: number; label: string; unit: string; invert?: boolean;
 }) {
-  const mL = 52, mR = 12;
+  const mL = 52, mR = 12, titleH = 16;
   const ys = data.map((d) => d.value);
   const yAbs = Math.max(1e-9, ...ys.map((v) => Math.abs(v)));
   const px = (x: number) => mL + (x / L) * (W - mL - mR);
-  const midY = y0 + H / 2;
+  // reserve a title strip on top so peak dots/labels never sit on the title
+  const midY = y0 + titleH + (H - titleH) / 2;
   const s = invert ? -1 : 1;
-  const py = (v: number) => midY - s * (v / yAbs) * (H / 2 - 8);
+  const py = (v: number) => midY - s * (v / yAbs) * ((H - titleH) / 2 - 6);
   const line = data.map((d, i) => `${i ? 'L' : 'M'}${px(d.x).toFixed(1)},${py(d.value).toFixed(1)}`).join(' ');
   const area = `M${px(0).toFixed(1)},${midY.toFixed(1)} ${line.slice(1)} L${px(L).toFixed(1)},${midY.toFixed(1)} Z`;
   void s;
@@ -63,7 +64,7 @@ export function AdvancedBeamDiagrams({ results, totalLength }: Props) {
     return <p className="stl-note">Diagrams will appear after a successful solve.</p>;
   }
   const L = totalLength;
-  const W = 560, hPanel = 110, mT = 10, gap = 18;
+  const W = 560, hPanel = 120, mT = 10, gap = 18;
   const panels: { data: { x: number; value: number }[]; label: string; unit: string; invert?: boolean }[] = [
     { data: results.shear, label: 'Shear V', unit: 'kN' },
     { data: results.moment, label: 'Moment M (sagging +)', unit: 'kN·m', invert: true },

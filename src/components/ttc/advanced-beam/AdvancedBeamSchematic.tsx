@@ -78,7 +78,10 @@ export function AdvancedBeamSchematic({ model, deflection, showDeformed = false,
         <g key={h.id}><circle cx={cx} cy={cy} r="5.5" fill="#fff" stroke={INK} strokeWidth="1.8" />
           <text x={cx} y={cy - 13} textAnchor="middle" fill={MUTED} fontSize="12">hinge</text></g>); })}
 
-      {model.supports.map((s) => <SupportSymbol key={s.id} support={s} label={labels[s.id] ?? s.id} cx={x2px(s.position)} cy={deflectedY(s.position)} />)}
+      {model.supports.map((s) => (
+        <SupportSymbol key={s.id} support={s} label={labels[s.id] ?? s.id} cx={x2px(s.position)} cy={deflectedY(s.position)}
+          side={s.position <= 0.02 * L ? 'left' : s.position >= 0.98 * L ? 'right' : 'mid'} />
+      ))}
       {model.loads.map((ld) => <LoadSymbol key={ld.id} load={ld} L={L} x2px={x2px} beamYAt={deflectedY} beamHeight={beamHeight} />)}
 
       <line x1={margin} y1="276" x2={W - margin} y2="276" stroke="#d8d2c4" strokeWidth="1" />
@@ -89,7 +92,7 @@ export function AdvancedBeamSchematic({ model, deflection, showDeformed = false,
   );
 }
 
-function SupportSymbol({ support, label, cx, cy }: { support: Support; label: string; cx: number; cy: number }) {
+function SupportSymbol({ support, label, cx, cy, side = 'mid' }: { support: Support; label: string; cx: number; cy: number; side?: 'left' | 'right' | 'mid' }) {
   const lbl = (y: number) => <text x={cx} y={y} textAnchor="middle" fill={INK} fontSize="15" fontWeight={600}>{label}</text>;
   switch (support.type) {
     case 'pin': return (<g>
@@ -101,9 +104,13 @@ function SupportSymbol({ support, label, cx, cy }: { support: Support; label: st
       <circle cx={cx + 7} cy={cy + 17} r="5.5" fill="none" stroke={INK} strokeWidth="1.8" />
       <line x1={cx - 20} y1={cy + 26} x2={cx + 20} y2={cy + 26} stroke={INK} strokeWidth="1.8" />
       <rect x={cx - 20} y={cy + 26} width="40" height="6" fill="url(#abx-hatch)" />{lbl(cy + 50)}</g>);
-    case 'fixed': return (<g>
-      <rect x={cx - 3} y={cy - 26} width="6" height="52" fill={INK} />
-      <rect x={cx + 3} y={cy - 30} width="12" height="60" fill="url(#abx-hatch)" />{lbl(cy + 50)}</g>);
+    case 'fixed': {
+      // hatch (ground/fixity) goes OUTSIDE the beam: left-end support → hatch left; right-end → hatch right
+      const hatchLeft = side === 'left';
+      return (<g>
+        <rect x={cx - 3} y={cy - 26} width="6" height="52" fill={INK} />
+        <rect x={hatchLeft ? cx - 15 : cx + 3} y={cy - 30} width="12" height="60" fill="url(#abx-hatch)" />{lbl(cy + 50)}</g>);
+    }
     case 'spring': return (<g>
       <path d={`M ${cx},${cy + 6} L ${cx - 7},${cy + 13} L ${cx + 7},${cy + 20} L ${cx - 7},${cy + 27} L ${cx + 7},${cy + 34} L ${cx},${cy + 42}`} fill="none" stroke={INK} strokeWidth="1.8" />
       <line x1={cx - 20} y1={cy + 46} x2={cx + 20} y2={cy + 46} stroke={INK} strokeWidth="1.8" />
