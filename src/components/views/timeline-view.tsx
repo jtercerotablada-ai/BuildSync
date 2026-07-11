@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowUpDown,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
@@ -96,11 +97,23 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const COMPLETED_BAR_FILL = "#94a3b8"; // slate-400
 
-// Swimlane geometry
-const LANE_HEIGHT = 36;
+// Swimlane geometry — Asana-height lanes: 36px bars fit two wrapped
+// 11px label lines instead of truncating to one.
+const LANE_HEIGHT = 44;
 const BAND_PADDING = 12;
 const COLLAPSED_BAND_HEIGHT = 36;
-const BAR_HEIGHT = 28;
+const BAR_HEIGHT = 36;
+// Tasks with a due date but no start render as a narrow pill + label
+// outside (Asana's "Para entregar" style), not a full day-wide bar.
+const DUE_ONLY_TICK_W = 8;
+
+// Sort order inside each swimlane (Asana's "Ordenar")
+const PRIORITY_RANK: Record<string, number> = {
+  HIGH: 0,
+  MEDIUM: 1,
+  LOW: 2,
+  NONE: 3,
+};
 const HEADER_HEIGHT = 64; // two 32px sticky header rows
 const FOOTER_ROW_HEIGHT = 44; // add-section row
 
@@ -200,7 +213,9 @@ export function TimelineView({
   const [showDueSoon, setShowDueSoon] = useState(true);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
   const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week">("all");
+  const [taskSort, setTaskSort] = useState<"start" | "due" | "name" | "priority">("start");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createType, setCreateType] = useState<"TASK" | "MILESTONE">("TASK");
   // Inline add-section (Enter = create, Escape = cancel)
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
@@ -465,8 +480,10 @@ export function TimelineView({
     for (const section of filteredSections) {
       const collapsed = collapsedSections.has(section.id);
 
-      // Sort dated tasks by start (then due) and first-fit into lanes so
-      // overlapping [start,due] ranges stack vertically.
+      // Sort dated tasks by the chosen order (Asana's "Ordenar") and
+      // first-fit into lanes so overlapping [start,due] ranges stack
+      // vertically. First-fit is safe with any input order — a lane only
+      // accepts a task starting after the lane's last end.
       const dated = section.tasks
         .filter((t) => t.dueDate)
         .map((t) => {
@@ -475,7 +492,16 @@ export function TimelineView({
           if (start > end) start = end;
           return { task: t, start: start.getTime(), end: end.getTime() };
         })
-        .sort((a, b) => a.start - b.start || a.end - b.end);
+        .sort((a, b) => {
+          if (taskSort === "due") return a.end - b.end || a.start - b.start;
+          if (taskSort === "name") return a.task.name.localeCompare(b.task.name);
+          if (taskSort === "priority")
+            return (
+              (PRIORITY_RANK[a.task.priority] ?? 3) -
+                (PRIORITY_RANK[b.task.priority] ?? 3) || a.start - b.start
+            );
+          return a.start - b.start || a.end - b.end;
+        });
 
       const laneEnds: number[] = [];
       const laneOf = new Map<string, number>();
@@ -508,7 +534,7 @@ export function TimelineView({
     }
 
     return { bands, totalHeight: top };
-  }, [filteredSections, collapsedSections]);
+  }, [filteredSections, collapsedSections, taskSort]);
 
   // taskId → absolute canvas coordinates for dependency arrows.
   // Y = bandTop + lane*LANE_HEIGHT + 18 (lane center). Null when the
@@ -523,10 +549,12 @@ export function TimelineView({
         if (!task) return null;
         const pos = getTaskPosition(task);
         if (!pos) return null;
+        // Due-only tasks render as a narrow tick — anchor arrows to it.
+        const width = task.startDate ? pos.width : DUE_ONLY_TICK_W;
         return {
           xLeft: pos.left,
-          xRight: pos.left + pos.width,
-          yCenter: band.top + lane * LANE_HEIGHT + 18,
+          xRight: pos.left + width,
+          yCenter: band.top + lane * LANE_HEIGHT + 4 + BAR_HEIGHT / 2,
         };
       }
       return null;
@@ -755,6 +783,12 @@ export function TimelineView({
     completed: "Completed",
     due_this_week: "Due this week",
   };
+  const SORT_LABELS: Record<typeof taskSort, string> = {
+    start: "Start date",
+    due: "Due date",
+    name: "Alphabetical",
+    priority: "Priority",
+  };
 
   // ============================================
   // RENDER
@@ -768,10 +802,54 @@ export function TimelineView({
       <div className="flex items-center justify-between px-2 md:px-4 py-2 bg-white border-b overflow-x-auto">
         {/* Left */}
         <div className="flex items-center gap-1 md:gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowCreateDialog(true)}>
-            <Plus className="w-4 h-4 mr-1" />
-            Add task
-          </Button>
+          {/* Split button — Asana's "Agregar tarea ▾" */}
+          <div className="flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => {
+                setCreateType("TASK");
+                setShowCreateDialog(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add task
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-l-none border-l-0 px-1.5"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setCreateType("TASK");
+                    setShowCreateDialog(true);
+                  }}
+                >
+                  Task
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setCreateType("MILESTONE");
+                    setShowCreateDialog(true);
+                  }}
+                >
+                  <Diamond className="w-3.5 h-3.5 mr-2 text-[#a8893a]" />
+                  Milestone
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAddingSection(true)}>
+                  Section
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
           <div className="h-6 w-px bg-slate-200 mx-1 md:mx-2" />
 
@@ -866,6 +944,32 @@ export function TimelineView({
               <DropdownMenuItem onClick={() => setTaskFilter("due_this_week")}>
                 Due this week
               </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Sort — Asana's "Ordenar": reorders lanes inside each section */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant={taskSort !== "start" ? "secondary" : "ghost"}
+                size="sm"
+              >
+                <ArrowUpDown className="w-4 h-4 mr-1" />
+                <span className="hidden md:inline">
+                  {taskSort === "start" ? "Sort" : SORT_LABELS[taskSort]}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {(Object.keys(SORT_LABELS) as (typeof taskSort)[]).map((key) => (
+                <DropdownMenuCheckboxItem
+                  key={key}
+                  checked={taskSort === key}
+                  onCheckedChange={() => setTaskSort(key)}
+                >
+                  {SORT_LABELS[key]}
+                </DropdownMenuCheckboxItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -1244,7 +1348,16 @@ export function TimelineView({
                         );
                       }
 
-                      const labelInside = renderWidth >= 80;
+                      // Asana style: a task with a due date but no start
+                      // renders as a narrow pill with its name + "Due X"
+                      // OUTSIDE the bar ("Para entregar" pattern).
+                      const isDueOnly = !task.startDate;
+                      const barWidth =
+                        isDueOnly &&
+                        !(isResizing && dragState!.handle === "right")
+                          ? DUE_ONLY_TICK_W
+                          : Math.max(renderWidth, 14);
+                      const labelInside = !isDueOnly && renderWidth >= 80;
                       const start = task.startDate
                         ? dueDateToLocalMidnight(task.startDate)
                         : dueDateToLocalMidnight(task.dueDate!);
@@ -1265,7 +1378,7 @@ export function TimelineView({
                             )}
                             style={{
                               left: renderLeft,
-                              width: Math.max(renderWidth, 14),
+                              width: barWidth,
                               top: laneTop,
                               height: BAR_HEIGHT,
                               backgroundColor: taskColor,
@@ -1282,7 +1395,7 @@ export function TimelineView({
                             title={`${task.name} · ${format(start, "MMM d")} → ${format(due, "MMM d")}`}
                           >
                             <div className="relative h-full flex items-center px-1.5 gap-1 overflow-hidden">
-                              {task.assignee && renderWidth >= 40 && (
+                              {!isDueOnly && task.assignee && renderWidth >= 40 && (
                                 <div className="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0 overflow-hidden">
                                   {task.assignee.image ? (
                                     // eslint-disable-next-line @next/next/no-img-element
@@ -1299,7 +1412,9 @@ export function TimelineView({
                               {labelInside && (
                                 <span
                                   className={cn(
-                                    "text-xs font-medium truncate",
+                                    // Wrap to two lines like Asana instead
+                                    // of truncating to one.
+                                    "text-[11px] leading-[13px] font-medium line-clamp-2",
                                     task.priority === "HIGH" || task.completed
                                       ? "text-white"
                                       : "text-black",
@@ -1311,32 +1426,62 @@ export function TimelineView({
                               )}
                             </div>
 
-                            {/* Resize handles */}
+                            {/* Resize handles — a due-only tick keeps just
+                                the right handle (stretching it right gives
+                                the task a duration; the tick body drags). */}
+                            {!isDueOnly && (
+                              <div
+                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l-lg z-10"
+                                onMouseDown={(e) => handleResizeStart(e, task.id, "left", task)}
+                              />
+                            )}
                             <div
-                              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l-lg z-10"
-                              onMouseDown={(e) => handleResizeStart(e, task.id, "left", task)}
-                            />
-                            <div
-                              className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r-lg z-10"
+                              className={cn(
+                                "absolute right-0 top-0 bottom-0 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r-lg z-10",
+                                isDueOnly ? "w-1" : "w-2"
+                              )}
                               onMouseDown={(e) => handleResizeStart(e, task.id, "right", task)}
                             />
                           </div>
 
-                          {/* Label outside the bar when it's too narrow */}
-                          {!labelInside && (
-                            <span
-                              className={cn(
-                                "absolute text-xs font-medium text-slate-700 whitespace-nowrap pointer-events-none z-10",
-                                task.completed && "line-through text-slate-400"
-                              )}
-                              style={{
-                                left: renderLeft + Math.max(renderWidth, 14) + 6,
-                                top: laneTop + BAR_HEIGHT / 2 - 8,
-                              }}
-                            >
-                              {task.name}
-                            </span>
-                          )}
+                          {/* Label outside the bar when it's a due-only tick
+                              or too narrow. Due-only gets Asana's two-line
+                              name + "Due X" subtitle. */}
+                          {!labelInside &&
+                            (isDueOnly ? (
+                              <div
+                                className="absolute pointer-events-none z-10 leading-tight"
+                                style={{
+                                  left: renderLeft + barWidth + 6,
+                                  top: laneTop + 3,
+                                }}
+                              >
+                                <div
+                                  className={cn(
+                                    "text-[11px] font-medium text-slate-900 whitespace-nowrap",
+                                    task.completed && "line-through text-slate-400"
+                                  )}
+                                >
+                                  {task.name}
+                                </div>
+                                <div className="text-[10px] text-slate-500 whitespace-nowrap">
+                                  Due {format(due, "MMM d")}
+                                </div>
+                              </div>
+                            ) : (
+                              <span
+                                className={cn(
+                                  "absolute text-xs font-medium text-slate-700 whitespace-nowrap pointer-events-none z-10",
+                                  task.completed && "line-through text-slate-400"
+                                )}
+                                style={{
+                                  left: renderLeft + barWidth + 6,
+                                  top: laneTop + BAR_HEIGHT / 2 - 8,
+                                }}
+                              >
+                                {task.name}
+                              </span>
+                            ))}
                         </div>
                       );
                     })}
@@ -1363,6 +1508,7 @@ export function TimelineView({
         onOpenChange={setShowCreateDialog}
         projectId={projectId}
         sectionId={filteredSections[0]?.id}
+        defaultTaskType={createType}
       />
     </div>
   );

@@ -31,6 +31,9 @@ interface CreateTaskDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId?: string;
   sectionId?: string;
+  /** Create a milestone/approval instead of a plain task (Asana's
+   *  "Add task ▾ → Milestone" split button in Timeline/Gantt). */
+  defaultTaskType?: "TASK" | "MILESTONE" | "APPROVAL";
 }
 
 export function CreateTaskDialog({
@@ -38,6 +41,7 @@ export function CreateTaskDialog({
   onOpenChange,
   projectId,
   sectionId,
+  defaultTaskType,
 }: CreateTaskDialogProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -65,6 +69,7 @@ export function CreateTaskDialog({
           dueDate: dueDate ? toDateOnlyISO(dueDate) : undefined,
           projectId,
           sectionId,
+          taskType: defaultTaskType,
         }),
       });
 
@@ -72,7 +77,11 @@ export function CreateTaskDialog({
         throw new Error("Failed to create task");
       }
 
-      toast.success("Task created successfully");
+      toast.success(
+        defaultTaskType === "MILESTONE"
+          ? "Milestone created successfully"
+          : "Task created successfully"
+      );
       onOpenChange(false);
       resetForm();
       router.refresh();
@@ -99,9 +108,15 @@ export function CreateTaskDialog({
       <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create new task</DialogTitle>
+            <DialogTitle>
+              {defaultTaskType === "MILESTONE"
+                ? "Create new milestone"
+                : "Create new task"}
+            </DialogTitle>
             <DialogDescription>
-              Add a new task to track your work.
+              {defaultTaskType === "MILESTONE"
+                ? "Mark an important point in your project's schedule."
+                : "Add a new task to track your work."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
