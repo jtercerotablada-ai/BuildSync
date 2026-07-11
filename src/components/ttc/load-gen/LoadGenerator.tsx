@@ -109,7 +109,7 @@ export function LoadGenerator() {
       </div>
 
       {tab === 'wind' && <WindTab input={input} units={units} onSite={setSite} onStruct={setStruct} result={res.wind} />}
-      {tab === 'snow' && <SnowTab snow={input.snow} risk={input.site.riskCategory} units={units} onChange={setSnow} result={res.snow} />}
+      {tab === 'snow' && <SnowTab snow={input.snow} risk={input.site.riskCategory} structure={input.structure} units={units} onChange={setSnow} result={res.snow} />}
       {tab === 'seismic' && <SeismicTab seismic={input.seismic} risk={input.site.riskCategory} units={units} onChange={setSeismic} result={res.seismic} />}
 
       <p className="stl-disclaimer">
@@ -203,7 +203,7 @@ function WindTab({ input, units, onSite, onStruct, result }: {
           <div style={{ height: 190, overflow: 'hidden', border: '1px solid var(--lux-line-soft)' }}><SiteMap location={site.location} /></div>
         </div>
         <div className="stl-card stl-card--pmblock">
-          <h4>Wind elevation <span className="stl-tag">MWFRS design pressures</span></h4>
+          <h4>Building model <span className="stl-tag">MWFRS pressures · 3D</span></h4>
           <WindPressureDiagram structure={structure} result={result} unitSystem={units} />
         </div>
         <WindResults result={result} units={units} view={view} setView={setView} />
@@ -259,7 +259,7 @@ function WindResults({ result, units, view, setView }: { result: WindResult | nu
 }
 
 /* ═══════════════════════ SNOW ═══════════════════════ */
-function SnowTab({ snow, risk, units, onChange, result }: { snow: SnowData; risk: RiskCategory; units: UnitSystem; onChange: (s: SnowData) => void; result: SnowResult | null }) {
+function SnowTab({ snow, risk, structure, units, onChange, result }: { snow: SnowData; risk: RiskCategory; structure: StructureData; units: UnitSystem; onChange: (s: SnowData) => void; result: SnowResult | null }) {
   const pu = unitLabel('pressureSmall', units);
   const { lenU, mmToLen, lenToMm } = useUnits(units);
   const fp = (pa: number) => `${fromSI(pa, 'pressureSmall', units).toFixed(1)} ${pu}`;
@@ -295,8 +295,8 @@ function SnowTab({ snow, risk, units, onChange, result }: { snow: SnowData; risk
 
       <div>
         <div className="stl-card stl-card--pmblock">
-          <h4>Roof section <span className="stl-tag">balanced snow</span></h4>
-          <SnowRoofDiagram result={result} roofSlope={snow.roofSlope} unitSystem={units} />
+          <h4>Building model <span className="stl-tag">balanced snow · 3D</span></h4>
+          <SnowRoofDiagram result={result} structure={structure} roofSlope={snow.roofSlope} unitSystem={units} />
         </div>
         <div className="stl-cards">
           <div className="stl-card">
@@ -363,7 +363,7 @@ function SeismicTab({ seismic, risk, units, onChange, result }: { seismic: Seism
 
       <div>
         <div className="stl-card stl-card--pmblock">
-          <h4>Vertical distribution <span className="stl-tag">Fx · V (§12.8.3)</span></h4>
+          <h4>Building model <span className="stl-tag">story forces · V · 3D</span></h4>
           <SeismicDiagram result={result} unitSystem={units} />
         </div>
         <div className="stl-cards">
