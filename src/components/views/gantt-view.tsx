@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowUpDown,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
@@ -99,28 +100,38 @@ interface DependencyRow {
 }
 
 // ============================================
-// PALETTE — monochrome + gold (matches timeline-view)
+// PALETTE — cloned from Asana's Gantt (measured in the real app):
+// every bar is the same blue (no priority coloring), today is a 2px
+// blue stripe, weekends are pale gray bands.
 // ============================================
 
-const PRIORITY_COLORS: Record<string, string> = {
-  NONE: "#9ca3af", // slate-400
-  LOW: "#d4b65a", // bright gold
-  MEDIUM: "#c9a84c", // gold
-  HIGH: "#0a0a0a", // black
-};
-
-const COMPLETED_BAR_FILL = "#94a3b8"; // slate-400
+const BAR_FILL = "#79ABFF"; // Asana TaskCell blue
+const BAR_FILL_COMPLETED = "#C3D3F0"; // muted blue for done tasks
+const TODAY_BLUE = "#335FB5"; // today stripe + axis dot
+const WEEKEND_STRIPE = "#E8E9EA"; // weekend bands
+const DATE_OVERDUE = "#B4304C"; // red due text
+const DATE_TODAY = "#14865E"; // green "– Today" due text
 
 // ============================================
-// LAYOUT CONSTANTS
+// LAYOUT CONSTANTS — Asana's measured geometry
 // ============================================
 
-const ROW_HEIGHT = 40;
-const HEADER_HEIGHT = 64; // two 32px header rows
-const NAME_COL_W = 270;
+const ROW_HEIGHT = 37;
+const BAR_HEIGHT = 24;
+const DUE_ONLY_W = 12; // pill width for tasks without a start date
+const HEADER_HEIGHT = 48; // two 24px header rows
+const NAME_COL_W = 254;
 const DUE_COL_W = 120;
-const BLOCKED_COL_W = 110;
-const SIDEBAR_W = NAME_COL_W + DUE_COL_W + BLOCKED_COL_W; // 500
+const BLOCKED_COL_W = 200;
+const SIDEBAR_W = NAME_COL_W + DUE_COL_W + BLOCKED_COL_W; // 574
+
+// Row order inside each section (Asana's "Ordenar")
+const PRIORITY_RANK: Record<string, number> = {
+  HIGH: 0,
+  MEDIUM: 1,
+  LOW: 2,
+  NONE: 3,
+};
 
 const ZOOM_ORDER: ZoomLevel[] = ["day", "week", "month", "quarter"];
 const ZOOM_LABELS: Record<ZoomLevel, string> = {
@@ -244,12 +255,17 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
   const [taskFilter, setTaskFilter] = useState<TaskFilter>("all");
+  const [taskSort, setTaskSort] = useState<
+    "manual" | "due" | "name" | "priority"
+  >("manual");
   const [showDependencies, setShowDependencies] = useState(true);
-  const [highlightDueSoon, setHighlightDueSoon] = useState(true);
+  // Off by default — Asana draws no due-soon rings; still toggleable.
+  const [highlightDueSoon, setHighlightDueSoon] = useState(false);
   const [dependencies, setDependencies] = useState<DependencyRow[]>([]);
   const [createDialog, setCreateDialog] = useState<{
     open: boolean;
     sectionId?: string;
+    taskType?: "TASK" | "MILESTONE";
   }>({ open: false });
   // Inline add-section input row (prompt() is not allowed).
   const [addingSection, setAddingSection] = useState(false);
@@ -291,24 +307,40 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
      
   }, [projectId, sections]);
 
-  // ---------- Filter ----------
+  // ---------- Filter + row sort ----------
   const filteredSections = useMemo(() => {
-    if (taskFilter === "all") return sections;
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 6);
-    return sections.map((section) => ({
-      ...section,
-      tasks: section.tasks.filter((task) => {
-        if (taskFilter === "incomplete") return !task.completed;
-        if (taskFilter === "completed") return task.completed;
-        // due_this_week
-        if (!task.dueDate) return false;
-        const due = dueDateToLocalMidnight(task.dueDate);
-        return due >= weekStart && due <= weekEnd;
-      }),
-    }));
-  }, [sections, taskFilter]);
+    return sections.map((section) => {
+      let tasks =
+        taskFilter === "all"
+          ? section.tasks
+          : section.tasks.filter((task) => {
+              if (taskFilter === "incomplete") return !task.completed;
+              if (taskFilter === "completed") return task.completed;
+              // due_this_week
+              if (!task.dueDate) return false;
+              const due = dueDateToLocalMidnight(task.dueDate);
+              return due >= weekStart && due <= weekEnd;
+            });
+      if (taskSort !== "manual") {
+        const dueMs = (t: Task) =>
+          t.dueDate
+            ? dueDateToLocalMidnight(t.dueDate).getTime()
+            : Number.MAX_SAFE_INTEGER;
+        tasks = [...tasks].sort((a, b) => {
+          if (taskSort === "due") return dueMs(a) - dueMs(b);
+          if (taskSort === "name") return a.name.localeCompare(b.name);
+          return (
+            (PRIORITY_RANK[a.priority] ?? 3) - (PRIORITY_RANK[b.priority] ?? 3) ||
+            dueMs(a) - dueMs(b)
+          );
+        });
+      }
+      return { ...section, tasks };
+    });
+  }, [sections, taskFilter, taskSort]);
 
   // ---------- Name lookup (from the FULL sections prop, so "Blocked by"
   // resolves even when the predecessor is filtered out) ----------
@@ -351,14 +383,15 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
         ),
     },
     month: {
-      columnWidth: 120,
-      range: 24,
+      // Asana's Meses zoom runs at ~12px/day (366px per average month).
+      columnWidth: 366,
+      range: 18,
       getColumns: (start, count) =>
         eachMonthOfInterval({ start, end: addMonths(start, count - 1) }),
     },
     quarter: {
-      columnWidth: 200,
-      range: 12,
+      columnWidth: 365, // ~4px/day
+      range: 8,
       getColumns: (start, count) => {
         const quarters: Date[] = [];
         let current = startOfQuarter(start);
@@ -386,7 +419,7 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
       let label = "";
       if (zoomLevel === "day") label = format(date, "d");
       else if (zoomLevel === "week") label = format(date, "MMM d");
-      else if (zoomLevel === "month") label = format(date, "MMM");
+      else if (zoomLevel === "month") label = format(date, "MMMM");
       else label = `Q${Math.floor(date.getMonth() / 3) + 1}`;
 
       return {
@@ -473,6 +506,49 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
     });
   }, [headerGroups, bounds, config.columnWidth]);
 
+  // Weekend bands across the whole canvas at week/month zoom (Asana shades
+  // weekends at Meses too; day zoom shades per-column, quarter is too dense).
+  const weekendStripes = useMemo(() => {
+    if (!bounds || zoomLevel === "day" || zoomLevel === "quarter") return [];
+    const stripes: { left: number; width: number }[] = [];
+    for (let off = 0; off < bounds.totalDays; off++) {
+      const dow = addDays(bounds.timelineStart, off).getDay();
+      if (dow === 6) {
+        stripes.push({
+          left: off * bounds.dayWidth,
+          width: Math.min(2, bounds.totalDays - off) * bounds.dayWidth,
+        });
+      } else if (dow === 0 && off === 0) {
+        stripes.push({ left: 0, width: bounds.dayWidth });
+      }
+    }
+    return stripes;
+  }, [bounds, zoomLevel]);
+
+  // Pixel span for an arbitrary [start, end] date range (section summary
+  // bars) — same clamping rules as getTaskPosition.
+  const getSpanPosition = useCallback(
+    (start: Date, end: Date) => {
+      if (!bounds) return null;
+      if (end < bounds.timelineStart || start >= bounds.timelineEnd) return null;
+      const startOffset = Math.max(
+        0,
+        differenceInDays(start, bounds.timelineStart)
+      );
+      const endOffset = Math.min(
+        bounds.totalDays - 1,
+        differenceInDays(end, bounds.timelineStart)
+      );
+      const left = (startOffset / bounds.totalDays) * bounds.totalWidth;
+      const width = Math.max(
+        ((endOffset - startOffset + 1) / bounds.totalDays) * bounds.totalWidth,
+        DUE_ONLY_W
+      );
+      return { left, width };
+    },
+    [bounds]
+  );
+
   // ---------- Task bar position ----------
   const getTaskPosition = useCallback(
     (task: Task) => {
@@ -508,7 +584,7 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
       const left = (startOffset / bounds.totalDays) * bounds.totalWidth;
       const width = Math.max(
         ((endOffset - startOffset + 1) / bounds.totalDays) * bounds.totalWidth,
-        20
+        DUE_ONLY_W
       );
 
       return { left, width };
@@ -550,9 +626,11 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
       if (!task) return null;
       const pos = getTaskPosition(task);
       if (!pos) return null;
+      // Due-only tasks render as a slim pill — anchor arrows to it.
+      const width = task.startDate ? pos.width : DUE_ONLY_W;
       return {
         xLeft: pos.left,
-        xRight: pos.left + pos.width,
+        xRight: pos.left + width,
         yCenter: row * ROW_HEIGHT + ROW_HEIGHT / 2,
       };
     },
@@ -775,14 +853,47 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
       <div className="flex items-center justify-between px-2 md:px-4 py-2 bg-white border-b overflow-x-auto flex-shrink-0">
         {/* Left */}
         <div className="flex items-center gap-1 md:gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCreateDialog({ open: true })}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Add task
-          </Button>
+          {/* Split button — Asana's "Agregar tarea ▾" */}
+          <div className="flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => setCreateDialog({ open: true, taskType: "TASK" })}
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add task
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-l-none border-l-0 px-1.5"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem
+                  onClick={() => setCreateDialog({ open: true, taskType: "TASK" })}
+                >
+                  Task
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    setCreateDialog({ open: true, taskType: "MILESTONE" })
+                  }
+                >
+                  <Diamond className="w-3.5 h-3.5 mr-2 text-[#79ABFF]" />
+                  Milestone
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAddingSection(true)}>
+                  Section
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
           <div className="h-6 w-px bg-slate-200 mx-1" />
 
@@ -889,6 +1000,43 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Sort — Asana's "Ordenar": reorders rows inside each section */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant={taskSort !== "manual" ? "secondary" : "ghost"}
+                size="sm"
+              >
+                <ArrowUpDown className="w-4 h-4 mr-1" />
+                {taskSort === "manual"
+                  ? "Sort"
+                  : taskSort === "due"
+                    ? "Due date"
+                    : taskSort === "name"
+                      ? "Alphabetical"
+                      : "Priority"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {(
+                [
+                  ["manual", "Manual (project order)"],
+                  ["due", "Due date"],
+                  ["name", "Alphabetical"],
+                  ["priority", "Priority"],
+                ] as const
+              ).map(([key, label]) => (
+                <DropdownMenuCheckboxItem
+                  key={key}
+                  checked={taskSort === key}
+                  onCheckedChange={() => setTaskSort(key)}
+                >
+                  {label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {/* Options */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -954,7 +1102,7 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                 <div key={section.id}>
                   {/* Section header row */}
                   <button
-                    className="flex items-center gap-2 px-2 border-b bg-slate-50 hover:bg-slate-100 w-full text-left"
+                    className="flex items-center gap-2 px-2 border-b bg-white hover:bg-slate-50 w-full text-left"
                     style={{ height: ROW_HEIGHT }}
                     onClick={() => toggleSection(section.id)}
                   >
@@ -1030,10 +1178,22 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                                   </div>
                                 ))}
                             </div>
-                            {/* Due date cell */}
+                            {/* Due date cell — red when overdue, green when
+                                the range ends today (Asana's date tones) */}
                             <div
                               className="px-2 border-l h-full flex items-center text-xs text-slate-600 truncate"
-                              style={{ width: DUE_COL_W }}
+                              style={{
+                                width: DUE_COL_W,
+                                // Inline color (when set) beats the class.
+                                color:
+                                  !task.dueDate || task.completed
+                                    ? undefined
+                                    : daysFromToday(task.dueDate) < 0
+                                      ? DATE_OVERDUE
+                                      : daysFromToday(task.dueDate) === 0
+                                        ? DATE_TODAY
+                                        : undefined,
+                              }}
                             >
                               {dueRangeText(task)}
                             </div>
@@ -1143,8 +1303,8 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                 {/* Today dot at the header */}
                 {todayPosition !== null && (
                   <div
-                    className="absolute bottom-0 w-2 h-2 rounded-full bg-[#c9a84c] -translate-x-1/2"
-                    style={{ left: todayPosition }}
+                    className="absolute bottom-0 w-2 h-2 rounded-full -translate-x-1/2"
+                    style={{ left: todayPosition, backgroundColor: TODAY_BLUE }}
                   />
                 )}
               </div>
@@ -1157,11 +1317,24 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
               className="relative flex-1 flex flex-col"
               style={{ minHeight: totalRows * ROW_HEIGHT }}
             >
-              {/* Today line — gold */}
+              {/* Weekend bands behind everything (week/month zoom) */}
+              {weekendStripes.map((s, i) => (
+                <div
+                  key={`wk-${i}`}
+                  className="absolute top-0 bottom-0 pointer-events-none"
+                  style={{
+                    left: s.left,
+                    width: s.width,
+                    backgroundColor: WEEKEND_STRIPE,
+                  }}
+                />
+              ))}
+
+              {/* Today line — Asana blue */}
               {todayPosition !== null && (
                 <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-[#c9a84c] z-10 pointer-events-none"
-                  style={{ left: todayPosition }}
+                  className="absolute top-0 bottom-0 w-0.5 z-10 pointer-events-none"
+                  style={{ left: todayPosition, backgroundColor: TODAY_BLUE }}
                 />
               )}
 
@@ -1278,12 +1451,54 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                 const isCollapsed = collapsedSections.has(section.id);
                 return (
                   <div key={section.id} className="flex-shrink-0">
-                    {/* Section header row */}
+                    {/* Section header row — carries Asana's section summary
+                        bar: a thin bracket spanning min start → max due of
+                        the section's dated tasks. */}
                     <div
-                      className="flex border-b bg-slate-50"
+                      className="flex border-b relative"
                       style={{ height: ROW_HEIGHT }}
                     >
                       {renderGridCells(true)}
+                      {(() => {
+                        let min: Date | null = null;
+                        let max: Date | null = null;
+                        for (const t of section.tasks) {
+                          if (!t.dueDate) continue;
+                          const end = dueDateToLocalMidnight(t.dueDate);
+                          let s = t.startDate
+                            ? dueDateToLocalMidnight(t.startDate)
+                            : end;
+                          if (s > end) s = end;
+                          if (!min || s < min) min = s;
+                          if (!max || end > max) max = end;
+                        }
+                        if (!min || !max) return null;
+                        const pos = getSpanPosition(min, max);
+                        if (!pos) return null;
+                        return (
+                          <div
+                            className="absolute z-10 pointer-events-none"
+                            style={{
+                              left: pos.left,
+                              width: pos.width,
+                              top: ROW_HEIGHT / 2 - 7,
+                            }}
+                          >
+                            <div
+                              className="h-[8px]"
+                              style={{ backgroundColor: BAR_FILL }}
+                            />
+                            <div
+                              className="absolute left-0 top-0 w-[3px] h-[14px] rounded-b"
+                              style={{ backgroundColor: BAR_FILL }}
+                            />
+                            <div
+                              className="absolute right-0 top-0 w-[3px] h-[14px] rounded-b"
+                              style={{ backgroundColor: BAR_FILL }}
+                            />
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {!isCollapsed && (
@@ -1293,10 +1508,11 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                           const isMilestone = task.taskType === "MILESTONE";
                           const isApproval = task.taskType === "APPROVAL";
                           const dueSoon = isTaskDueSoon(task);
+                          // Asana colors every bar the same project blue.
                           const barColor = task.completed
-                            ? COMPLETED_BAR_FILL
-                            : PRIORITY_COLORS[task.priority] ||
-                              PRIORITY_COLORS.NONE;
+                            ? BAR_FILL_COMPLETED
+                            : BAR_FILL;
+                          const isDueOnly = !task.startDate;
 
                           const isResizing =
                             dragState !== null && dragState.taskId === task.id;
@@ -1321,7 +1537,14 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                           const markerLeft =
                             (renderLeft ?? 0) + (renderWidth ?? 0) - 12;
 
-                          const labelInside = (renderWidth ?? 0) >= 90;
+                          // Asana renders the chart bare — names live only
+                          // in the left table. Due-only tasks are a slim
+                          // pill (12px), except while stretching them.
+                          const barWidth =
+                            isDueOnly &&
+                            !(isResizing && dragState!.handle === "right")
+                              ? DUE_ONLY_W
+                              : Math.max(renderWidth ?? DUE_ONLY_W, DUE_ONLY_W);
 
                           return (
                             <div
@@ -1343,8 +1566,8 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                                   >
                                     <Diamond
                                       className="w-6 h-6"
-                                      fill="#a8893a"
-                                      color="#a8893a"
+                                      fill={BAR_FILL}
+                                      color={BAR_FILL}
                                     />
                                   </div>
                                 ) : isApproval ? (
@@ -1356,60 +1579,47 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                                   >
                                     <ThumbsUp
                                       className="w-6 h-6"
-                                      fill="#a8893a"
-                                      color="#a8893a"
+                                      fill={BAR_FILL}
+                                      color={BAR_FILL}
                                     />
                                   </div>
                                 ) : (
-                                  <>
-                                    <div
-                                      className={cn(
-                                        "absolute rounded cursor-grab active:cursor-grabbing group/bar",
-                                        "hover:ring-2 hover:ring-[#c9a84c] hover:ring-offset-1",
-                                        "transition-shadow",
-                                        selectedTaskId === task.id &&
-                                          "ring-2 ring-[#c9a84c] ring-offset-1",
-                                        dueSoon &&
-                                          highlightDueSoon &&
-                                          "ring-2 ring-[#a8893a]/70",
-                                        isResizing &&
-                                          "shadow-lg ring-2 ring-[#c9a84c]"
-                                      )}
-                                      style={{
-                                        left: renderLeft,
-                                        width: Math.max(renderWidth ?? 20, 20),
-                                        top: 7,
-                                        height: ROW_HEIGHT - 14,
-                                        backgroundColor: barColor,
-                                      }}
-                                      onMouseDown={(e) =>
-                                        handleDragStart(e, task.id, "move", task)
+                                  <div
+                                    className={cn(
+                                      "absolute rounded cursor-grab active:cursor-grabbing group/bar",
+                                      "hover:ring-2 hover:ring-[#335FB5]/50",
+                                      "transition-shadow",
+                                      selectedTaskId === task.id &&
+                                        "ring-2 ring-[#335FB5]",
+                                      dueSoon &&
+                                        highlightDueSoon &&
+                                        "ring-2 ring-[#a8893a]/70",
+                                      isResizing &&
+                                        "shadow-lg ring-2 ring-[#335FB5]"
+                                    )}
+                                    style={{
+                                      left: renderLeft,
+                                      width: barWidth,
+                                      top: (ROW_HEIGHT - BAR_HEIGHT) / 2,
+                                      height: BAR_HEIGHT,
+                                      backgroundColor: barColor,
+                                    }}
+                                    title={`${task.name} · ${dueRangeText(task)}`}
+                                    onMouseDown={(e) =>
+                                      handleDragStart(e, task.id, "move", task)
+                                    }
+                                    onClick={() => {
+                                      if (didDragRef.current) {
+                                        didDragRef.current = false;
+                                        return;
                                       }
-                                      onClick={() => {
-                                        if (didDragRef.current) {
-                                          didDragRef.current = false;
-                                          return;
-                                        }
-                                        handleRowClick(task.id);
-                                      }}
-                                    >
-                                      {labelInside && (
-                                        <div className="relative h-full flex items-center px-2 overflow-hidden">
-                                          <span
-                                            className={cn(
-                                              "text-xs font-medium truncate",
-                                              task.priority === "HIGH" ||
-                                                task.completed
-                                                ? "text-white"
-                                                : "text-black"
-                                            )}
-                                          >
-                                            {task.name}
-                                          </span>
-                                        </div>
-                                      )}
-
-                                      {/* Resize handles */}
+                                      handleRowClick(task.id);
+                                    }}
+                                  >
+                                    {/* Resize handles — a due-only pill keeps
+                                        only the right one (stretching gives
+                                        the task a duration). */}
+                                    {!isDueOnly && (
                                       <div
                                         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l z-10"
                                         onMouseDown={(e) =>
@@ -1421,38 +1631,22 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                                           )
                                         }
                                       />
-                                      <div
-                                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r z-10"
-                                        onMouseDown={(e) =>
-                                          handleDragStart(
-                                            e,
-                                            task.id,
-                                            "right",
-                                            task
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    {/* Label outside narrow bars */}
-                                    {!labelInside && (
-                                      <span
-                                        className={cn(
-                                          "absolute text-xs text-slate-600 truncate max-w-[200px] pointer-events-none",
-                                          task.completed &&
-                                            "line-through text-slate-400"
-                                        )}
-                                        style={{
-                                          left:
-                                            (renderLeft ?? 0) +
-                                            Math.max(renderWidth ?? 20, 20) +
-                                            6,
-                                          top: ROW_HEIGHT / 2 - 8,
-                                        }}
-                                      >
-                                        {task.name}
-                                      </span>
                                     )}
-                                  </>
+                                    <div
+                                      className={cn(
+                                        "absolute right-0 top-0 bottom-0 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r z-10",
+                                        isDueOnly ? "w-1" : "w-2"
+                                      )}
+                                      onMouseDown={(e) =>
+                                        handleDragStart(
+                                          e,
+                                          task.id,
+                                          "right",
+                                          task
+                                        )
+                                      }
+                                    />
+                                  </div>
                                 ))}
                             </div>
                           );
@@ -1493,6 +1687,7 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
         }
         projectId={projectId}
         sectionId={createDialog.sectionId}
+        defaultTaskType={createDialog.taskType}
       />
     </div>
   );
