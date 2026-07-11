@@ -88,6 +88,9 @@ export async function POST(
           expiresAt,
           workspaceId: team.workspaceId,
           inviterId: userId,
+          // Bind the invite to THIS team so acceptance adds them as a
+          // TeamMember (not just a workspace member).
+          teamId,
         },
         update: {
           role: "MEMBER",
@@ -97,6 +100,7 @@ export async function POST(
           inviterId: userId,
           acceptedAt: null,
           acceptedUserId: null,
+          teamId,
         },
       });
 

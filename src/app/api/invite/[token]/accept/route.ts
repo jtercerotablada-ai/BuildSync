@@ -253,6 +253,29 @@ export async function POST(
         },
       });
 
+      // 2b. Optional team membership — the non-member team-invite path.
+      //     When the invitation carries a teamId (set by the team's
+      //     Invitar dialog for a brand-new email), add the accepter as a
+      //     TeamMember so the team shows up in their sidebar. Confirm the
+      //     team still exists in the SAME workspace before binding.
+      let boundTeamId: string | null = null;
+      if (invitation.teamId) {
+        const team = await tx.team.findUnique({
+          where: { id: invitation.teamId },
+          select: { id: true, workspaceId: true },
+        });
+        if (team && team.workspaceId === invitation.workspaceId) {
+          await tx.teamMember.upsert({
+            where: {
+              userId_teamId: { userId, teamId: invitation.teamId },
+            },
+            update: {},
+            create: { userId, teamId: invitation.teamId, role: "MEMBER" },
+          });
+          boundTeamId = invitation.teamId;
+        }
+      }
+
       // 3. Optional project membership — bound to the chosen
       //    company with the chosen role.
       let redirect = "/home";
@@ -305,6 +328,12 @@ export async function POST(
         }
       }
 
+      // Land the accepter on the team when nothing higher-priority
+      // (project / portfolio) already claimed the redirect target.
+      if (boundTeamId && !projectIdToBind && !boundPortfolioId) {
+        redirect = `/teams/${boundTeamId}`;
+      }
+
       // 4. Flip invitation status. Done inside the tx so a partial
       //    failure also rolls the status back — Resend can retry
       //    the same row later.
@@ -333,7 +362,13 @@ export async function POST(
         throw new Error("Workspace member row missing after upsert");
       }
 
-      return { userId, redirect, boundPortfolioId, boundProjectId: projectIdToBind };
+      return {
+        userId,
+        redirect,
+        boundPortfolioId,
+        boundProjectId: projectIdToBind,
+        boundTeamId,
+      };
     });
 
     // ── Side effects (best-effort, outside the transaction) ─────
@@ -392,6 +427,15 @@ export async function POST(
         type: "PORTFOLIO_INVITATION",
         title: "You were added to a portfolio",
         data: { portfolioId: txResult.boundPortfolioId },
+      });
+    }
+
+    if (txResult.boundTeamId) {
+      await notifyMembershipGranted({
+        userId: txResult.userId,
+        type: "TEAM_INVITATION",
+        title: "You were added to a team",
+        data: { teamId: txResult.boundTeamId },
       });
     }
 

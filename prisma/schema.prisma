@@ -235,6 +235,13 @@ model WorkspaceInvitation {
   portfolioId   String?
   portfolioRole PortfolioRole?
 
+  // Optional auto-bind to a team on accept — the non-member path of
+  // the team invite (Invitar). When set, the invitee is added as a
+  // TeamMember (role MEMBER) once they join, so the team shows up in
+  // their sidebar. Scalar (no FK), mirroring the project/portfolio
+  // binds above.
+  teamId String?
+
   // Bookkeeping — who actually accepted (might differ from the
   // invitee's pre-existing User row if they signed up new) and
   // when. Status flips to ACCEPTED at the same moment.
