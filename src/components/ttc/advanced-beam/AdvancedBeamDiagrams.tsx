@@ -24,6 +24,8 @@ function Panel({ data, W, H, y0, L, label, unit, invert }: {
   void s;
   let iMax = 0, iMin = 0; ys.forEach((v, i) => { if (v > ys[iMax]) iMax = i; if (v < ys[iMin]) iMin = i; });
   const peaks = [iMax, iMin].filter((i, k, a) => a.indexOf(i) === k && Math.abs(ys[i]) > 1e-6 * yAbs);
+  // a shear-type jump: max and min sit at (almost) the same x → a vertical line
+  const jump = peaks.length === 2 && Math.abs(data[iMax].x - data[iMin].x) < 0.02 * L;
   return (
     <g>
       <text x={mL} y={y0 + 11} className="stl-chart__lbl" style={{ fontWeight: 600, fill: INK }}>{label}</text>
@@ -35,9 +37,15 @@ function Panel({ data, W, H, y0, L, label, unit, invert }: {
         const cx = px(data[i].x), cy = py(ys[i]);
         // label toward the panel centre so it never spills into a neighbouring panel
         const labelY = cy < midY ? cy + 14 : cy - 7;
-        const nearL = cx < mL + 34, nearR = cx > W - mR - 34;
-        const anchor = nearL ? 'start' : nearR ? 'end' : 'middle';
-        const lx = nearL ? cx + 6 : nearR ? cx - 6 : cx;
+        let anchor: 'start' | 'middle' | 'end', lx: number;
+        if (jump) {
+          // put max & min on OPPOSITE sides of the vertical jump line
+          if (i === iMax) { anchor = 'start'; lx = cx + 7; } else { anchor = 'end'; lx = cx - 7; }
+        } else {
+          const nearL = cx < mL + 34, nearR = cx > W - mR - 34;
+          anchor = nearL ? 'start' : nearR ? 'end' : 'middle';
+          lx = nearL ? cx + 6 : nearR ? cx - 6 : cx;
+        }
         const shown = Math.abs(ys[i]) < 5e-3 ? 0 : ys[i]; // avoid "-0.00"
         return (
           <g key={i}>
