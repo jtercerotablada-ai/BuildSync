@@ -1380,6 +1380,16 @@
 .stl-bad { color: #b0322a; }
 
 .stl-card--pmblock { margin-bottom: 1.1rem; }
+.stl-editrow { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
+.stl-editrow .stl-field { flex: 1; margin: 0; }
+.stl-editrow .stl-field input { width: 100%; }
+.stl-editrow select { flex: 1.1; padding: 0.4rem 0.5rem; border: 1px solid var(--lux-line-soft); background: #fff; font-size: 0.8rem; color: var(--lux-ink); }
+.stl-editrow--4 .stl-field { min-width: 0; }
+.stl-x { flex: 0 0 auto; width: 26px; height: 30px; border: 1px solid var(--lux-line-soft); background: #fff; color: var(--lux-muted); cursor: pointer; font-size: 1rem; line-height: 1; }
+.stl-x:hover { color: #b0322a; border-color: #b0322a; }
+.stl-add { width: 100%; margin: 0.2rem 0 0.4rem; padding: 0.4rem; border: 1px dashed var(--lux-line); background: transparent; color: var(--lux-muted); cursor: pointer; font-size: 0.74rem; letter-spacing: 0.02em; }
+.stl-add:hover { color: var(--lux-ink); border-color: var(--lux-gold); }
+.stl-note--head { font-size: 0.64rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--lux-faint); margin: 0.1rem 0 0.2rem; }
 .stl-seg--mini { margin: 0 0 0.75rem; }
 .stl-seg--mini button { padding: 0.28rem 0.5rem; font-size: 0.72rem; }
 .stl-pm { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1rem 1.4rem; align-items: center; }
