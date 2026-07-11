@@ -39,9 +39,11 @@ import {
   Star,
   Globe,
   Lock,
-  Palette,
   Plus,
   Check,
+  Image as ImageIcon,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -134,8 +136,10 @@ export default function TeamOverviewPage() {
   const [savingDesc, setSavingDesc] = useState(false);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
-  // Color popover
+  // Cover color + image popover
   const [showColorMenu, setShowColorMenu] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const workSectionRef = useRef<TeamWorkSectionHandle>(null);
 
@@ -243,6 +247,60 @@ export default function TeamOverviewPage() {
     }
   }
 
+  async function handleAvatarSelected(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = e.target.files?.[0];
+    // Reset the input so selecting the same file again re-triggers change.
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image must be under 10MB");
+      return;
+    }
+    setShowColorMenu(false);
+    setUploadingAvatar(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch(`/api/teams/${teamId}/avatar`, {
+        method: "POST",
+        body,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Upload failed");
+      }
+      toast.success("Cover image updated");
+      fetchTeam();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't upload image");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function removeAvatar() {
+    setShowColorMenu(false);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/avatar`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed");
+      }
+      toast.success("Cover image removed");
+      fetchTeam();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't remove image");
+    }
+  }
+
   function handleSetupStep(stepId: string) {
     if (stepId === "description") startEditDesc();
     else if (stepId === "work") workSectionRef.current?.openAddWork();
@@ -285,13 +343,25 @@ export default function TeamOverviewPage() {
       {/* ── COVER HEADER ─────────────────────────────────────────── */}
       <div className="relative">
         <div
-          className="h-32 md:h-40 w-full"
-          style={{
-            background: `linear-gradient(135deg, ${cover} 0%, ${cover}cc 100%)`,
-          }}
+          className="h-32 md:h-40 w-full bg-cover bg-center"
+          style={
+            team.avatar
+              ? { backgroundImage: `url(${team.avatar})` }
+              : {
+                  background: `linear-gradient(135deg, ${cover} 0%, ${cover}cc 100%)`,
+                }
+          }
         >
-          {/* legibility overlay */}
-          <div className="absolute inset-0 h-32 md:h-40 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
+          {/* legibility overlay — a touch darker over a photo so the white
+              team name + actions stay readable */}
+          <div
+            className={cn(
+              "absolute inset-0 h-32 md:h-40",
+              team.avatar
+                ? "bg-gradient-to-t from-black/55 via-black/20 to-black/10"
+                : "bg-gradient-to-t from-black/35 via-black/5 to-transparent"
+            )}
+          />
 
           {/* top-right cover actions */}
           <div className="absolute top-3 right-4 flex items-center gap-1.5">
@@ -300,29 +370,62 @@ export default function TeamOverviewPage() {
                 <DropdownMenuTrigger asChild>
                   <button
                     className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md bg-white/20 hover:bg-white/30 text-white text-xs font-medium backdrop-blur-sm transition-colors"
-                    title="Change color"
+                    title="Change color or image"
                   >
-                    <Palette className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Color</span>
+                    {uploadingAvatar ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ImageIcon className="h-3.5 w-3.5" />
+                    )}
+                    <span className="hidden sm:inline">Cover</span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="p-2">
-                  <div className="grid grid-cols-5 gap-1.5">
+                <DropdownMenuContent align="end" className="w-52 p-2">
+                  {/* Image */}
+                  <button
+                    onClick={() => {
+                      setShowColorMenu(false);
+                      avatarInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-2 px-2 h-8 rounded text-[13px] text-gray-700 hover:bg-black/[0.04] transition-colors"
+                  >
+                    <Upload className="h-4 w-4 text-gray-400" />
+                    {team.avatar ? "Replace image" : "Upload image"}
+                  </button>
+                  {team.avatar && (
+                    <button
+                      onClick={removeAvatar}
+                      className="w-full flex items-center gap-2 px-2 h-8 rounded text-[13px] text-gray-700 hover:bg-black/[0.04] transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4 text-gray-400" />
+                      Remove image
+                    </button>
+                  )}
+
+                  <div className="my-1.5 border-t border-gray-200" />
+
+                  {/* Color */}
+                  <p className="px-2 pb-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wider">
+                    Color
+                  </p>
+                  <div className="grid grid-cols-5 gap-1.5 px-1">
                     {COVER_COLORS.map((c) => (
                       <button
                         key={c}
                         onClick={() => changeColor(c)}
                         className={cn(
                           "h-6 w-6 rounded-full ring-2 ring-transparent hover:ring-gray-300 transition-all flex items-center justify-center",
-                          cover.toLowerCase() === c.toLowerCase() &&
+                          !team.avatar &&
+                            cover.toLowerCase() === c.toLowerCase() &&
                             "ring-gray-900"
                         )}
                         style={{ backgroundColor: c }}
                         title={c}
                       >
-                        {cover.toLowerCase() === c.toLowerCase() && (
-                          <Check className="h-3.5 w-3.5 text-white" />
-                        )}
+                        {!team.avatar &&
+                          cover.toLowerCase() === c.toLowerCase() && (
+                            <Check className="h-3.5 w-3.5 text-white" />
+                          )}
                       </button>
                     ))}
                   </div>
@@ -587,6 +690,15 @@ export default function TeamOverviewPage() {
         open={showSettings}
         onClose={() => setShowSettings(false)}
         onSave={fetchTeam}
+      />
+
+      {/* Hidden file input driving the cover "Upload image" action */}
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarSelected}
       />
     </div>
   );
