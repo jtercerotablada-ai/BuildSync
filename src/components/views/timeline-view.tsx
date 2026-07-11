@@ -295,15 +295,17 @@ export function TimelineView({
     ZoomLevel,
     { columnWidth: number; range: number; getColumns: (start: Date, count: number) => Date[] }
   > = {
+    // Ranges are generous so the canvas always overflows the viewport and
+    // scrolls horizontally (Asana never shows dead space past the grid).
     day: {
       columnWidth: 40,
-      range: 35,
+      range: 120,
       getColumns: (start: Date, count: number) =>
         eachDayOfInterval({ start, end: addDays(start, count - 1) }),
     },
     week: {
       columnWidth: 80,
-      range: 16,
+      range: 36,
       getColumns: (start: Date, count: number) =>
         eachWeekOfInterval(
           { start, end: addWeeks(start, count - 1) },
@@ -312,7 +314,7 @@ export function TimelineView({
     },
     month: {
       columnWidth: 120,
-      range: 12,
+      range: 24,
       getColumns: (start: Date, count: number) =>
         eachMonthOfInterval({
           start: startOfMonth(start),
@@ -1009,17 +1011,19 @@ export function TimelineView({
       {/* SWIMLANE TIMELINE */}
       {/* ============================================ */}
       <div className="flex-1 overflow-auto">
-        <div className="flex min-w-max">
+        {/* min-h-full so gutter + canvas stretch to the viewport bottom —
+            the grid must never stop short of the screen edge (Asana). */}
+        <div className="flex min-w-max min-h-full">
           {/* ============================================ */}
           {/* LEFT GUTTER — section labels, sticky left */}
           {/* ============================================ */}
           <div
-            className="flex-shrink-0 bg-white border-r sticky left-0 z-30"
+            className="flex-shrink-0 bg-white border-r sticky left-0 z-30 flex flex-col"
             style={{ width: gutterWidth }}
           >
             {/* Corner cell — sticky both top and left */}
             <div
-              className="border-b bg-white sticky top-0 z-40"
+              className="border-b bg-white sticky top-0 z-40 flex-shrink-0"
               style={{ height: HEADER_HEIGHT }}
             />
 
@@ -1027,7 +1031,7 @@ export function TimelineView({
             {bandLayout.bands.map((band) => (
               <div
                 key={band.section.id}
-                className="border-b bg-white"
+                className="border-b bg-white flex-shrink-0"
                 style={{ height: band.bandHeight }}
               >
                 <button
@@ -1051,7 +1055,10 @@ export function TimelineView({
             ))}
 
             {/* Add section — inline input, Enter=create / Escape=cancel */}
-            <div className="border-b" style={{ height: FOOTER_ROW_HEIGHT }}>
+            <div
+              className="border-b flex-shrink-0"
+              style={{ height: FOOTER_ROW_HEIGHT }}
+            >
               {addingSection ? (
                 <div className="flex items-center h-full px-2 md:px-3">
                   <input
@@ -1085,15 +1092,18 @@ export function TimelineView({
                 </button>
               )}
             </div>
+
+            {/* White filler down to the viewport bottom */}
+            <div className="flex-1 bg-white" />
           </div>
 
           {/* ============================================ */}
           {/* TIMELINE CANVAS */}
           {/* ============================================ */}
-          <div className="flex-1" style={{ width: totalWidth }}>
+          <div className="flex-1 flex flex-col" style={{ width: totalWidth }}>
             {/* Two sticky header rows */}
             <div
-              className="sticky top-0 bg-white border-b z-20 relative"
+              className="sticky top-0 bg-white border-b z-20 relative flex-shrink-0"
               style={{ height: HEADER_HEIGHT, width: totalWidth }}
             >
               {/* Top row — months (day/week zoom) or quarters (month zoom) */}
@@ -1142,8 +1152,13 @@ export function TimelineView({
               )}
             </div>
 
-            {/* Bands */}
-            <div className="relative" style={{ width: totalWidth }}>
+            {/* Bands — flex column that stretches to the viewport bottom;
+                the trailing flex-1 row keeps the grid (and the today line,
+                which spans top-0→bottom-0) running past the last section. */}
+            <div
+              className="relative flex-1 flex flex-col"
+              style={{ width: totalWidth }}
+            >
               {/* Today line — gold */}
               {todayPosition !== null && (
                 <div
@@ -1256,7 +1271,10 @@ export function TimelineView({
               {bandLayout.bands.map((band) => (
                 <div
                   key={band.section.id}
-                  className={cn("relative border-b", band.collapsed && "bg-slate-50")}
+                  className={cn(
+                    "relative border-b flex-shrink-0",
+                    band.collapsed && "bg-slate-50"
+                  )}
                   style={{ height: band.bandHeight }}
                 >
                   {/* Grid columns (weekend shading at day zoom) */}
@@ -1489,7 +1507,21 @@ export function TimelineView({
               ))}
 
               {/* Filler row aligned with the gutter's add-section row */}
-              <div className="flex border-b" style={{ height: FOOTER_ROW_HEIGHT }}>
+              <div
+                className="flex border-b flex-shrink-0"
+                style={{ height: FOOTER_ROW_HEIGHT }}
+              >
+                {columns.map((col, i) => (
+                  <div
+                    key={i}
+                    className={cn("border-r", col.isWeekend && "bg-slate-100")}
+                    style={{ width: timelineRange.columnWidths[i] ?? config.columnWidth }}
+                  />
+                ))}
+              </div>
+
+              {/* Grid keeps running to the viewport bottom (Asana-style) */}
+              <div className="flex flex-1">
                 {columns.map((col, i) => (
                   <div
                     key={i}

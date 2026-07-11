@@ -337,13 +337,13 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
   > = {
     day: {
       columnWidth: 40,
-      range: 42,
+      range: 120,
       getColumns: (start, count) =>
         eachDayOfInterval({ start, end: addDays(start, count - 1) }),
     },
     week: {
       columnWidth: 80,
-      range: 16,
+      range: 36,
       getColumns: (start, count) =>
         eachWeekOfInterval(
           { start, end: addWeeks(start, count - 1) },
@@ -352,13 +352,13 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
     },
     month: {
       columnWidth: 120,
-      range: 12,
+      range: 24,
       getColumns: (start, count) =>
         eachMonthOfInterval({ start, end: addMonths(start, count - 1) }),
     },
     quarter: {
       columnWidth: 200,
-      range: 8,
+      range: 12,
       getColumns: (start, count) => {
         const quarters: Date[] = [];
         let current = startOfQuarter(start);
@@ -917,10 +917,12 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
 
       {/* ============ GRID ============ */}
       <div className="flex-1 overflow-auto">
-        <div className="flex min-w-max">
+        {/* min-h-full so table + grid stretch to the viewport bottom —
+            the grid must never stop short of the screen edge (Asana). */}
+        <div className="flex min-w-max min-h-full">
           {/* ---------- LEFT PANEL (table) ---------- */}
           <div
-            className="flex-shrink-0 bg-white border-r sticky max-md:static left-0 z-30"
+            className="flex-shrink-0 bg-white border-r sticky max-md:static left-0 z-30 flex flex-col"
             style={{ width: SIDEBAR_W }}
           >
             {/* Corner header — sticky both top and left */}
@@ -1096,13 +1098,16 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                 <span className="text-sm">Add section</span>
               </button>
             )}
+
+            {/* White filler down to the viewport bottom */}
+            <div className="flex-1 bg-white" />
           </div>
 
           {/* ---------- RIGHT PANEL (time grid + bars) ---------- */}
-          <div className="flex-1">
+          <div className="flex-1 flex flex-col">
             {/* Two-row date header — sticky top */}
             <div
-              className="sticky top-0 bg-white border-b z-20"
+              className="sticky top-0 bg-white border-b z-20 flex-shrink-0"
               style={{ height: HEADER_HEIGHT }}
             >
               {/* Group row */}
@@ -1145,10 +1150,12 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
               </div>
             </div>
 
-            {/* Body */}
+            {/* Body — flex column that stretches to the viewport bottom;
+                the trailing flex-1 row keeps the grid (and the today line,
+                which spans top-0→bottom-0) running past the last row. */}
             <div
-              className="relative"
-              style={{ height: totalRows * ROW_HEIGHT }}
+              className="relative flex-1 flex flex-col"
+              style={{ minHeight: totalRows * ROW_HEIGHT }}
             >
               {/* Today line — gold */}
               {todayPosition !== null && (
@@ -1270,7 +1277,7 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
               {filteredSections.map((section) => {
                 const isCollapsed = collapsedSections.has(section.id);
                 return (
-                  <div key={section.id}>
+                  <div key={section.id} className="flex-shrink-0">
                     {/* Section header row */}
                     <div
                       className="flex border-b bg-slate-50"
@@ -1465,9 +1472,15 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
               })}
 
               {/* Bottom add-section row */}
-              <div className="flex border-b" style={{ height: ROW_HEIGHT }}>
+              <div
+                className="flex border-b flex-shrink-0"
+                style={{ height: ROW_HEIGHT }}
+              >
                 {renderGridCells(true)}
               </div>
+
+              {/* Grid keeps running to the viewport bottom (Asana-style) */}
+              <div className="flex flex-1">{renderGridCells(true)}</div>
             </div>
           </div>
         </div>
