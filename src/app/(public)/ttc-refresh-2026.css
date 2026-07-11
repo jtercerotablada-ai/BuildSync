@@ -1379,6 +1379,8 @@
 .stl-good { color: #2f8a52; }
 .stl-bad { color: #b0322a; }
 
+.stl-pm { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1rem 1.4rem; align-items: center; }
+@media (max-width: 640px) { .stl-pm { grid-template-columns: 1fr; } }
 .stl-chart { width: 100%; height: auto; display: block; margin-top: 0.4rem; }
 .stl-chart__lbl { font-size: 8.5px; fill: var(--lux-muted); font-family: var(--font-sans, system-ui, sans-serif); }
 .stl-chart__lbl--mark { fill: #8a1c1c; font-weight: 600; }
