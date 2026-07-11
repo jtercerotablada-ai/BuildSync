@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { User, Camera, Eye, EyeOff } from "lucide-react";
 
+const COMPANY_NAME = "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.";
+
 // Password strength calculator
 function calculatePasswordStrength(password: string): { score: number; label: string } {
   let score = 0;
@@ -172,10 +174,23 @@ function OnboardingForm() {
   const emailFromParams = searchParams.get("email");
   const email = emailFromParams || session?.user?.email || "";
 
-  const [name, setName] = useState(session?.user?.name || "");
+  // Only prefill name/avatar from the session when it belongs to the SAME
+  // email being onboarded. Otherwise (e.g. an admin opening a signup link
+  // for someone else while logged in) we'd wrongly seed the other person's
+  // name/photo.
+  const sessionMatchesEmail =
+    !!session?.user?.email &&
+    (!emailFromParams ||
+      session.user.email.toLowerCase() === emailFromParams.toLowerCase());
+
+  const [name, setName] = useState(
+    sessionMatchesEmail ? session?.user?.name || "" : ""
+  );
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(session?.user?.image || null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(
+    sessionMatchesEmail ? session?.user?.image || null : null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -277,18 +292,22 @@ function OnboardingForm() {
           {/* Logo */}
           <div className="flex items-center mb-8">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/ttc/img/logo-square.png" alt="TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC." className="w-16 h-16 object-contain" />
+            <img src="/ttc/img/logo-square.png" alt={COMPANY_NAME} className="w-16 h-16 object-contain" />
           </div>
 
           {/* Welcome text */}
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            Welcome to TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.!
+            Welcome aboard!
           </h1>
+          <p className="text-slate-600">
+            You&apos;re joining {COMPANY_NAME}
+          </p>
           {email && (
-            <p className="text-slate-600 mb-8">
-              You&apos;re signing up as {email}
+            <p className="text-sm text-slate-500 mb-8">
+              Signing up as {email}
             </p>
           )}
+          {!email && <div className="mb-8" />}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
@@ -306,6 +325,9 @@ function OnboardingForm() {
                   className="w-24 h-24 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center bg-slate-50 hover:bg-slate-100 hover:border-slate-400 transition-colors overflow-hidden"
                 >
                   {avatarPreview ? (
+                    // Avatar preview is a client-side data: URI from FileReader;
+                    // next/image can't optimize those, so a plain img is intended.
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={avatarPreview}
                       alt="Avatar preview"
@@ -391,7 +413,28 @@ function OnboardingForm() {
                   ))}
                 </div>
                 <p className="text-sm text-slate-500">
-                  Password must be at least 8 characters
+                  {password.length === 0 ? (
+                    "Use at least 8 characters"
+                  ) : password.length < 8 ? (
+                    <span className="text-amber-600">
+                      A bit short — at least 8 characters
+                    </span>
+                  ) : (
+                    <>
+                      Password strength:{" "}
+                      <span
+                        className={
+                          passwordStrength.score >= 3
+                            ? "font-medium text-emerald-600"
+                            : passwordStrength.score === 2
+                              ? "font-medium text-amber-600"
+                              : "font-medium text-red-500"
+                        }
+                      >
+                        {passwordStrength.label}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -409,8 +452,9 @@ function OnboardingForm() {
           {/* Info box */}
           <div className="mt-8 p-4 bg-slate-50 rounded-lg border-l-4 border-slate-900">
             <p className="text-sm text-slate-600">
-              You&apos;re getting started with TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.. You&apos;ll be able to manage projects,
-              tasks, and collaborate with your team efficiently.
+              You&apos;re getting started with {COMPANY_NAME}{" "}
+              You&apos;ll be able to manage projects, tasks, and collaborate
+              with your team efficiently.
             </p>
           </div>
         </div>
