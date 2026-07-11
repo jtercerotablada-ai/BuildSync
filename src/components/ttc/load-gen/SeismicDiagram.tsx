@@ -4,7 +4,7 @@ import React from 'react';
 import type { SeismicResult } from '@/lib/load-gen/types';
 import type { UnitSystem } from '@/lib/beam/units';
 import { fromSI, unitLabel } from '@/lib/beam/units';
-import { makeIso, fitIso, poly, INK, GOLD, GOLD_DEEP, LINE } from './iso';
+import { makeIso, fitIso, poly, C30, DART, INK, GOLD, GOLD_DEEP, LINE } from './iso';
 
 interface Props {
   result: SeismicResult | null;
@@ -12,9 +12,10 @@ interface Props {
 }
 
 /**
- * Isometric tower with the ELF story forces Fx striking the near-right face,
- * the dashed triangular envelope through the arrow tails and the base shear V
- * at ground level (§12.8.3).
+ * Isometric tower with the ELF story forces Fx landing cleanly on the near
+ * corner edge (no overshoot into the volume), the dashed triangular envelope
+ * through the arrow tails and the base shear V at ground level (§12.8.3).
+ * The whole composition (plate → labels) is centred in the canvas.
  */
 export function SeismicDiagram({ result, unitSystem }: Props) {
   const fu = unitLabel('force', unitSystem);
@@ -26,34 +27,39 @@ export function SeismicDiagram({ result, unitSystem }: Props) {
   const hn = forces.length ? Math.max(...forces.map((f) => f.hx)) / 1000 : 12;
   const a = Math.max(0.3 * hn, (hn / N) * 0.85);
 
-  const { s, ox, oy } = fitIso(a, a, hn, 160, 250, 74, 52);
+  const fit = fitIso(a, a, hn, 170, 250, 74, 52);
+  const s = fit.s, oy = fit.oy;
+
+  const maxF = Math.max(1e-9, ...forces.map((f) => Math.abs(f.Fx)));
+  const Lmax = 0.52 * hn;
+  const yHit = 0.05 * a; // arrows land right at the near-right corner edge
+
+  // centre the whole composition: ground-plate far-left ↔ base-shear tail + label
+  const minOff = (-0.6 * a - (a + 0.6 * a)) * C30 * s;
+  const maxOff = (a + Lmax * 1.06 - yHit) * C30 * s + 92;
+  const ox = W / 2 - (minOff + maxOff) / 2;
   const p = makeIso(ox, oy, s);
 
   const g00 = p(0, 0, 0), ga0 = p(a, 0, 0), gaa = p(a, a, 0), g0a = p(0, a, 0);
   const t00 = p(0, 0, hn), ta0 = p(a, 0, hn), taa = p(a, a, hn), t0a = p(0, a, hn);
-
-  const maxF = Math.max(1e-9, ...forces.map((f) => Math.abs(f.Fx)));
-  const Lmax = 0.52 * hn;
-  const gapA = 0.06 * a;
   const storyH = hn / N;
 
   const arrows = forces.map((f) => {
     const z = f.hx / 1000;
     const len = Math.max(0.08 * hn, Lmax * (Math.abs(f.Fx) / maxF));
-    return { f, tip: p(a + gapA, 0.5 * a, z), tail: p(a + gapA + len, 0.5 * a, z) };
+    return { f, tip: p(a, yHit, z), tail: p(a + len, yHit, z) };
   });
   const ordered = [...arrows].sort((x, y) => x.f.level - y.f.level);
 
-  const vTail = p(a + gapA + Lmax * 1.06, 0.5 * a, 0.03 * hn);
-  const vTip = p(a + gapA * 0.5, 0.5 * a, 0.03 * hn);
-
+  const vTail = p(a + Lmax * 1.06, yHit, 0.03 * hn);
+  const vTip = p(a + 0.02 * a, yHit, 0.03 * hn);
   const sumW = forces.reduce((acc, f) => acc + f.wx, 0);
 
   return (
     <svg viewBox={`0 0 ${W} ${Hc}`} className="stl-chart" role="img" aria-label="Seismic story-force building model">
       <defs>
-        <marker id="se3-g" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill={GOLD_DEEP} /></marker>
-        <marker id="se3-v" markerWidth="9" markerHeight="9" refX="7.5" refY="3.5" orient="auto"><path d="M0,0 L0,7 L8,3.5 z" fill={GOLD} /></marker>
+        <marker id="se3-g" markerWidth="10.5" markerHeight="7.5" refX="9.3" refY="3.5" orient="auto"><path d={DART} fill={GOLD_DEEP} /></marker>
+        <marker id="se3-v" markerWidth="10.5" markerHeight="7.5" refX="9.3" refY="3.5" orient="auto"><path d={DART} fill={GOLD} /></marker>
       </defs>
 
       {/* ground plate + contact shadow */}
@@ -87,10 +93,10 @@ export function SeismicDiagram({ result, unitSystem }: Props) {
         <polyline points={ordered.map((q) => `${q.tail.X.toFixed(1)},${q.tail.Y.toFixed(1)}`).join(' ')} fill="none" stroke={GOLD} strokeWidth={0.9} strokeDasharray="4 4" />
       )}
 
-      {/* story forces */}
+      {/* story forces — tips stop at the corner edge */}
       {arrows.map((q) => (
         <g key={q.f.level}>
-          <line x1={q.tail.X} y1={q.tail.Y} x2={q.tip.X} y2={q.tip.Y} stroke={GOLD_DEEP} strokeWidth={1.6} markerEnd="url(#se3-g)" />
+          <line x1={q.tail.X} y1={q.tail.Y} x2={q.tip.X} y2={q.tip.Y} stroke={GOLD_DEEP} strokeWidth={1.4} markerEnd="url(#se3-g)" />
           <text x={q.tail.X + 6} y={q.tail.Y + 3} textAnchor="start" className="stl-chart__lbl" style={{ fill: INK, fontWeight: 600, fontSize: 9.5 }}>
             F{q.f.level} {ff(q.f.Fx)}
           </text>
@@ -100,7 +106,7 @@ export function SeismicDiagram({ result, unitSystem }: Props) {
       {/* base shear */}
       {result && (
         <g>
-          <line x1={vTail.X} y1={vTail.Y} x2={vTip.X} y2={vTip.Y} stroke={GOLD} strokeWidth={2.4} markerEnd="url(#se3-v)" />
+          <line x1={vTail.X} y1={vTail.Y} x2={vTip.X} y2={vTip.Y} stroke={GOLD} strokeWidth={2.2} markerEnd="url(#se3-v)" />
           <text x={(vTail.X + vTip.X) / 2} y={vTail.Y + 18} textAnchor="middle" className="stl-chart__lbl" style={{ fill: GOLD_DEEP, fontWeight: 600, fontSize: 10.5 }}>
             V = {ff(result.V)}
           </text>

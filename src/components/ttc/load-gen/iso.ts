@@ -33,3 +33,6 @@ export function fitIso(l: number, b: number, h: number, availW: number, availH: 
 }
 
 export const poly = (ps: XY[]) => ps.map((p) => `${p.X.toFixed(1)},${p.Y.toFixed(1)}`).join(' ');
+
+/** Sleek dart arrowhead path for load arrows (marker 10.5×7.5, refX 9.3, refY 3.5). */
+export const DART = 'M0,0 L9.5,3.5 L0,7 L2.6,3.5 Z';
