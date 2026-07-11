@@ -65,8 +65,6 @@ export function AdvancedBeamSchematic({ model, deflection, showDeformed = false,
           <line x1="0" y1="0" x2="0" y2="7" stroke={INK} strokeWidth="1" />
         </pattern>
       </defs>
-      <line x1={margin} y1={beamY + 84} x2={W - margin} y2={beamY + 84} stroke="#e6e0d2" strokeWidth="1" />
-
       {beamPath
         ? <path d={beamPath} fill="rgba(201,168,76,0.12)" stroke={INK} strokeWidth="1.8" />
         : <rect x={margin} y={beamY - beamHeight / 2} width={drawW} height={beamHeight} fill="rgba(201,168,76,0.12)" stroke={INK} strokeWidth="1.8" />}
