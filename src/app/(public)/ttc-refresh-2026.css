@@ -1379,6 +1379,8 @@
 .stl-good { color: #2f8a52; }
 .stl-bad { color: #b0322a; }
 
+.stl-seg--mini { margin: 0 0 0.75rem; }
+.stl-seg--mini button { padding: 0.28rem 0.5rem; font-size: 0.72rem; }
 .stl-pm { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1rem 1.4rem; align-items: center; }
 @media (max-width: 640px) { .stl-pm { grid-template-columns: 1fr; } }
 .stl-chart { width: 100%; height: auto; display: block; margin-top: 0.4rem; }
