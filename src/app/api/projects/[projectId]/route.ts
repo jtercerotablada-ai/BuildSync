@@ -7,6 +7,7 @@ import { getLevel } from "@/lib/people-types";
 const updateProjectSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional().nullable(),
+  notes: z.string().max(100000).optional().nullable(),
   color: z.string().optional(),
   status: z.enum(["ON_TRACK", "AT_RISK", "OFF_TRACK", "ON_HOLD", "COMPLETE"]).optional(),
   visibility: z.enum(["PRIVATE", "WORKSPACE", "PUBLIC"]).optional(),

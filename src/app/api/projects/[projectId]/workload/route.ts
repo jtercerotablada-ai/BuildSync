@@ -1,22 +1,19 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { verifyProjectAccess, getErrorStatus } from "@/lib/auth-guards";
 import { readTimeTracking, WORK_HOURS_PER_DAY } from "@/lib/duration";
 
-// GET /api/portfolios/:portfolioId/workload
-// Returns all open tasks across projects in this portfolio + the
-// distinct assignees, so the Workload view can render a member×day
-// heatmap without making one request per project.
-//
-// Each task also carries `estimatedMinutes` (summed from every
-// TIME_TRACKING custom field on the task, minutes) so the client can
-// switch the Measure between "Task count" and "Hours" without a second
-// request. The projects list backs Group-by / Filter-by project.
+// GET /api/projects/:projectId/workload
+// Project-scoped mirror of /api/portfolios/:id/workload — returns the
+// project's open tasks + their distinct assignees so the Workload view can
+// render an assignee×day heatmap. Each task carries `estimatedMinutes`
+// (summed from TIME_TRACKING custom fields) for the Hours measure.
 
 /** Estimated minutes from a TIME_TRACKING value blob. TIME_TRACKING now
  *  stores { estimatedDays, actualDays } in working days (readTimeTracking
- *  also handles the legacy minutes shape); convert days → minutes for the
- *  client's Hours measure. */
+ *  also handles the legacy minutes shape); the client's Hours measure wants
+ *  minutes, so convert days → minutes via the standard work-day length. */
 function estimatedMinutesOf(value: unknown): number {
   const { estimatedDays } = readTimeTracking(value);
   return estimatedDays && estimatedDays > 0
@@ -26,7 +23,7 @@ function estimatedMinutesOf(value: unknown): number {
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ portfolioId: string }> }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const userId = await getCurrentUserId();
@@ -34,40 +31,21 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { portfolioId } = await params;
+    const { projectId } = await params;
 
-    const portfolio = await prisma.portfolio.findUnique({
-      where: { id: portfolioId },
-      select: {
-        id: true,
-        ownerId: true,
-        privacy: true,
-        workspaceId: true,
-        members: { select: { userId: true } },
-        projects: { select: { projectId: true } },
-      },
+    // Read access — throws for non-members of a private project.
+    await verifyProjectAccess(userId, projectId);
+
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true, color: true, workspaceId: true },
     });
-
-    if (!portfolio) {
+    if (!project) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    const isOwner = portfolio.ownerId === userId;
-    const isMember = portfolio.members.some((m) => m.userId === userId);
-    const isPublic = portfolio.privacy === "PUBLIC";
-    if (!isOwner && !isMember && !isPublic) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-
-    const projectIds = portfolio.projects.map((p) => p.projectId);
-    if (projectIds.length === 0) {
-      return NextResponse.json({ tasks: [], assignees: [], projects: [] });
     }
 
     const tasks = await prisma.task.findMany({
-      where: {
-        projectId: { in: projectIds },
-        completed: false,
-      },
+      where: { projectId, completed: false },
       select: {
         id: true,
         name: true,
@@ -80,17 +58,12 @@ export async function GET(
       },
     });
 
-    // ── Estimated hours per task, from TIME_TRACKING custom fields ──
-    // TIME_TRACKING values are stored as { estimatedMin, actualMin } in
-    // MINUTES (see PATCH /api/tasks/[id]/custom-fields/[fieldId]). We sum
-    // estimatedMin across every TIME_TRACKING field on the task, then let
-    // the client convert to hours. No schema change — we join the existing
-    // CustomFieldValue rows for TIME_TRACKING defs in this workspace.
+    // ── Estimated minutes per task from TIME_TRACKING custom fields ──
     const taskIds = tasks.map((t) => t.id);
     const estimatedMinutesByTask = new Map<string, number>();
     if (taskIds.length) {
       const timeDefs = await prisma.customFieldDefinition.findMany({
-        where: { workspaceId: portfolio.workspaceId, type: "TIME_TRACKING" },
+        where: { workspaceId: project.workspaceId, type: "TIME_TRACKING" },
         select: { id: true },
       });
       const timeFieldIds = timeDefs.map((d) => d.id);
@@ -127,18 +100,6 @@ export async function GET(
         })
       : [];
 
-    // Projects that actually own the returned tasks — backs the Group-by
-    // and Filter-by project controls (names + colors for the client).
-    const usedProjectIds = [
-      ...new Set(tasks.map((t) => t.projectId).filter((v): v is string => !!v)),
-    ];
-    const projects = usedProjectIds.length
-      ? await prisma.project.findMany({
-          where: { id: { in: usedProjectIds } },
-          select: { id: true, name: true, color: true },
-        })
-      : [];
-
     return NextResponse.json({
       tasks: tasks.map((t) => ({
         ...t,
@@ -146,10 +107,13 @@ export async function GET(
         estimatedMinutes: estimatedMinutesByTask.get(t.id) || 0,
       })),
       assignees,
-      projects,
+      // Single-project shape parity with the portfolio endpoint.
+      projects: [{ id: project.id, name: project.name, color: project.color }],
     });
   } catch (err) {
-    console.error("[portfolio workload GET] error:", err);
+    const { status, message } = getErrorStatus(err);
+    if (status !== 500) return NextResponse.json({ error: message }, { status });
+    console.error("[project workload GET] error:", err);
     return NextResponse.json(
       { error: "Failed to fetch workload" },
       { status: 500 }

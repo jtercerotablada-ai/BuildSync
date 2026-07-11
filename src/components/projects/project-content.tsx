@@ -44,6 +44,9 @@ import {
   Check,
   X,
   MapPin,
+  NotebookPen,
+  Gauge,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -57,6 +60,8 @@ import { CalendarView } from "@/components/views/calendar-view";
 import { WorkflowView } from "@/components/views/workflow-view";
 import { MessagesView } from "@/components/views/messages-view";
 import { FilesView } from "@/components/views/files-view";
+import { NotesView } from "@/components/views/notes-view";
+import { PortfolioWorkloadView } from "@/components/portfolios/portfolio-workload-view";
 import { ProjectTeamView } from "@/components/views/project-team-view";
 import { ProjectOverview } from "@/components/projects/project-overview";
 import { ProjectMembersDialog } from "@/components/projects/project-members-dialog";
@@ -105,6 +110,7 @@ interface Project {
   id: string;
   name: string;
   description: string | null;
+  notes?: string | null;
   color: string;
   status: string;
   // Workspace-access level exposed in the Share dialog. Full project rows
@@ -258,6 +264,36 @@ const STATUS_LABELS = {
 };
 
 const PRIORITY_ORDER: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2, NONE: 3 };
+
+// Asana-style "+" (add view) catalog — Popular / Others, each with an icon
+// + one-line description. Clicking navigates to that view. Mirrors the
+// project view-picker in Asana so every view we support is discoverable.
+const ADD_VIEW_GROUPS: {
+  label: string;
+  items: { view: string; label: string; desc: string; Icon: LucideIcon }[];
+}[] = [
+  {
+    label: "Popular",
+    items: [
+      { view: "list", label: "List", desc: "Organize tasks in a table", Icon: List },
+      { view: "notes", label: "Notes", desc: "Write meeting notes and more", Icon: NotebookPen },
+      { view: "timeline", label: "Timeline", desc: "Track dependencies over time", Icon: GanttChart },
+      { view: "board", label: "Board", desc: "Track work on a Kanban board", Icon: LayoutGrid },
+      { view: "calendar", label: "Calendar", desc: "Plan work weekly or monthly", Icon: Calendar },
+      { view: "overview", label: "Overview", desc: "Project summary and status", Icon: FileText },
+    ],
+  },
+  {
+    label: "Others",
+    items: [
+      { view: "workload", label: "Resource management", desc: "See how busy the team is by tasks", Icon: Gauge },
+      { view: "dashboard", label: "Dashboard", desc: "Monitor metrics and analysis", Icon: BarChart3 },
+      { view: "files", label: "Files", desc: "See all attachments", Icon: FolderOpen },
+      { view: "messages", label: "Messages", desc: "Communicate with others", Icon: MessageSquare },
+      { view: "workflow", label: "Workflow", desc: "Automate work with rules", Icon: GitBranch },
+    ],
+  },
+];
 
 export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const router = useRouter();
@@ -941,29 +977,67 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               <Users className="h-4 w-4" />
               <span className="hidden md:inline">Team</span>
             </button>
+            <button
+              onClick={() => handleViewChange("notes")}
+              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+                currentView === "notes"
+                  ? "border-[#c9a84c] text-[#a8893a]"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <NotebookPen className="h-4 w-4" />
+              <span className="hidden md:inline">Notes</span>
+            </button>
+            <button
+              onClick={() => handleViewChange("workload")}
+              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+                currentView === "workload"
+                  ? "border-[#c9a84c] text-[#a8893a]"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Gauge className="h-4 w-4" />
+              <span className="hidden md:inline">Workload</span>
+            </button>
+            {/* "+" add-view catalog — Asana-style Popular / Others menu. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="p-2 text-slate-400 hover:text-slate-600">
-                  <MoreHorizontal className="h-4 w-4" />
+                <button
+                  className="flex items-center justify-center p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md"
+                  aria-label="Add view"
+                  title="Add view"
+                >
+                  <Plus className="h-4 w-4" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => handleViewChange("workflow")}>
-                  <GitBranch className="h-4 w-4 mr-2" />
-                  Workflow
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleViewChange("messages")}>
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Messages
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleViewChange("files")}>
-                  <FolderOpen className="h-4 w-4 mr-2" />
-                  Files
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleViewChange("team")}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Team
-                </DropdownMenuItem>
+              <DropdownMenuContent align="start" className="w-[300px] p-2">
+                {ADD_VIEW_GROUPS.map((group) => (
+                  <div key={group.label} className="mb-1 last:mb-0">
+                    <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                      {group.label}
+                    </div>
+                    {group.items.map((it) => {
+                      const Icon = it.Icon;
+                      return (
+                        <DropdownMenuItem
+                          key={it.view}
+                          onClick={() => handleViewChange(it.view)}
+                          className="flex items-start gap-2.5 py-1.5 cursor-pointer"
+                        >
+                          <Icon className="h-4 w-4 mt-0.5 text-slate-500 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-medium text-slate-800">
+                              {it.label}
+                            </div>
+                            <div className="text-[11px] text-slate-500 leading-snug">
+                              {it.desc}
+                            </div>
+                          </div>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </div>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -1237,6 +1311,16 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               projectName={project.name}
               projectOwner={project.owner}
             />
+          )}
+          {currentView === "notes" && (
+            <NotesView
+              projectId={project.id}
+              initialNotes={project.notes}
+              canEdit={canEditProject}
+            />
+          )}
+          {currentView === "workload" && (
+            <PortfolioWorkloadView projectId={project.id} />
           )}
         </div>
 

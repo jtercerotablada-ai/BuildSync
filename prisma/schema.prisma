@@ -488,6 +488,7 @@ model Project {
   id          String            @id @default(cuid())
   name        String
   description String?
+  notes       String?           @db.Text // free-form project Notes tab (rich-ish doc)
   color       String            @default("#4573D2")
   icon        String?
   status      ProjectStatus     @default(ON_TRACK)

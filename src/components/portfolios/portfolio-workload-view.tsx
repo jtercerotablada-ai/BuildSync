@@ -60,8 +60,11 @@ interface ProjectRef {
 }
 
 interface Props {
-  portfolioId: string;
-  projectCount: number;
+  /** Portfolio mode: fetch that portfolio's cross-project workload. */
+  portfolioId?: string;
+  /** Project mode: fetch a single project's workload (assignee grouping only). */
+  projectId?: string;
+  projectCount?: number;
 }
 
 type WindowSize = 7 | 14 | 30;
@@ -118,7 +121,19 @@ function fmtHours(mins: number): string {
   return Number.isInteger(r) ? String(r) : r.toFixed(1);
 }
 
-export function PortfolioWorkloadView({ portfolioId, projectCount }: Props) {
+export function PortfolioWorkloadView({
+  portfolioId,
+  projectId,
+  projectCount,
+}: Props) {
+  // Two modes share this component: a portfolio's cross-project workload, or
+  // a single project's. Only the fetch endpoint + a couple of project-grouping
+  // affordances differ.
+  const singleProject = !!projectId;
+  const endpoint = projectId
+    ? `/api/projects/${projectId}/workload`
+    : `/api/portfolios/${portfolioId}/workload`;
+
   const [anchor, setAnchor] = useState<Date>(() => startOfDay(new Date()));
   const [windowSize, setWindowSize] = useState<WindowSize>(14);
   const [measure, setMeasure] = useState<Measure>("tasks");
@@ -143,7 +158,7 @@ export function PortfolioWorkloadView({ portfolioId, projectCount }: Props) {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/portfolios/${portfolioId}/workload`);
+        const res = await fetch(endpoint);
         if (res.ok && !cancelled) {
           const data = await res.json();
           setTasks(data.tasks || []);
@@ -160,7 +175,7 @@ export function PortfolioWorkloadView({ portfolioId, projectCount }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [portfolioId]);
+  }, [endpoint]);
 
   // Adapt column width to window size so longer ranges still fit
   // legibly on wide screens.
@@ -393,8 +408,8 @@ export function PortfolioWorkloadView({ portfolioId, projectCount }: Props) {
         </Button>
         <span className="hidden lg:inline text-[11px] text-gray-500 ml-2">
           {measure === "hours" ? "Estimated hours" : "Open tasks"} per{" "}
-          {groupBy === "project" ? "project" : "assignee"} per day, across this
-          portfolio.
+          {groupBy === "project" ? "project" : "assignee"} per day, across this{" "}
+          {singleProject ? "project" : "portfolio"}.
         </span>
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
@@ -478,7 +493,7 @@ export function PortfolioWorkloadView({ portfolioId, projectCount }: Props) {
                 Unassigned
               </DropdownMenuCheckboxItem>
 
-              {projects.length > 0 && (
+              {!singleProject && projects.length > 0 && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel>Project</DropdownMenuLabel>
@@ -547,9 +562,11 @@ export function PortfolioWorkloadView({ portfolioId, projectCount }: Props) {
                 <DropdownMenuRadioItem value="assignee">
                   Assignee
                 </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="project">
-                  Project
-                </DropdownMenuRadioItem>
+                {!singleProject && (
+                  <DropdownMenuRadioItem value="project">
+                    Project
+                  </DropdownMenuRadioItem>
+                )}
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -610,10 +627,13 @@ export function PortfolioWorkloadView({ portfolioId, projectCount }: Props) {
           </h3>
           <p className="text-sm text-gray-500 max-w-md">
             {measure === "hours"
-              ? "Add time-tracking estimates and due dates to tasks to see hours distributed across the "
-              : "Assign tasks and add due dates to see workload distribution across the "}
-            {projectCount} {projectCount === 1 ? "project" : "projects"} in this
-            portfolio.
+              ? "Add time-tracking estimates and due dates to tasks to see hours distributed across "
+              : "Assign tasks and add due dates to see workload distribution across "}
+            {singleProject
+              ? "this project."
+              : `the ${projectCount ?? 0} ${
+                  projectCount === 1 ? "project" : "projects"
+                } in this portfolio.`}
           </p>
         </div>
       ) : (
