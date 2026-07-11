@@ -134,16 +134,6 @@ const PRESETS: { label: string; build: () => SlabInput }[] = [
     }),
   },
   {
-    label: 'Eurocode interior (5 × 6, C25/30)',
-    build: () => ({
-      code: 'EN 1992-1-1', units: 'SI',
-      geometry: { Lx: 5, Ly: 6, h: 200 },
-      edges: { left: 'fixed', right: 'fixed', top: 'fixed', bottom: 'fixed' },
-      materials: { fc: 25, fy: 500, concreteGrade: 'C25/30', rebarGrade: 'B500B' },
-      loads: { DL_super: 1.5, LL: 4 },
-    }),
-  },
-  {
     label: 'With punching (6 × 6 + interior column)',
     build: () => ({
       code: 'ACI 318-19', units: 'SI',
@@ -213,7 +203,6 @@ export function SlabCalculator() {
             onChange={(e) => dispatch({ type: 'SET_CODE', code: e.target.value as Code })}>
             <option value="ACI 318-25">ACI 318-25 (US, latest)</option>
             <option value="ACI 318-19">ACI 318-19 (US)</option>
-            <option value="EN 1992-1-1">EN 1992-1-1 (Eurocode 2)</option>
           </select>
         </div>
         <div className="ab-input-group">
@@ -392,9 +381,9 @@ function InputsTab({ model, dispatch }:
           <Field label="DL self-weight (auto, kN/m²)">
             <span className="ab-label">{((model.materials.gammaC ?? 24) * model.geometry.h / 1000).toFixed(2)}</span>
           </Field>
-          <Field label="Override factor DL (—)"><Num val={model.loads.factor_DL ?? (model.code === 'EN 1992-1-1' ? 1.35 : 1.2)} step={0.05}
+          <Field label="Override factor DL (—)"><Num val={model.loads.factor_DL ?? 1.2} step={0.05}
             onChange={(v) => dispatch({ type: 'SET_LOAD', patch: { factor_DL: v } })} /></Field>
-          <Field label="Override factor LL (—)"><Num val={model.loads.factor_LL ?? (model.code === 'EN 1992-1-1' ? 1.5 : 1.6)} step={0.05}
+          <Field label="Override factor LL (—)"><Num val={model.loads.factor_LL ?? 1.6} step={0.05}
             onChange={(v) => dispatch({ type: 'SET_LOAD', patch: { factor_LL: v } })} /></Field>
         </div>
       </div>
@@ -902,14 +891,13 @@ function CodeRefsTab({ result }: { result: ReturnType<typeof analyze> }) {
       ))}
       <div className="slab-card slab-card--validation">
         <h4>Validation</h4>
-        <p>Solver passes <strong>105/105</strong> unit tests against ACI 318-19, ACI 318-25 and EN 1992-1-1, including:</p>
+        <p>Solver passes <strong>105/105</strong> unit tests against ACI 318-19 and ACI 318-25, including:</p>
         <ul>
           <li>Closed-form one-way moments (SS, fixed-fixed)</li>
           <li>PCA Notes Method 3 coefficient lookup (Cases 1–9)</li>
           <li>Hand-calc flexural design (As req, As min)</li>
           <li>Branson Ie cracked-section deflection</li>
           <li>ACI 318 §22.6 punching shear with λs size factor and √fc ≤ 8.3 MPa cap</li>
-          <li>EN 1992 §6.4.4 punching with basic perimeter at 2d</li>
           <li>Crack-control max spacing per §24.3.2 / §7.3.3</li>
           <li>Min thickness Table 7.3.1.1 with fy modifier (0.4+fy/700)</li>
           <li>Min thickness Table 8.3.1.1 fy interpolation, edge-beam differentiation, drop-panel reduction</li>
