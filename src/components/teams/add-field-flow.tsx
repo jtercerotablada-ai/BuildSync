@@ -35,8 +35,6 @@ import {
   Hash,
   CheckCircle,
   FolderKanban,
-  Briefcase,
-  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FieldMembersModal } from "./field-members-modal";
@@ -62,11 +60,12 @@ const defaultColors = [
   "#84cc16", // lime
 ];
 
+// Only Tasks and Projects are actually linkable today (the reference
+// cell editor searches those two). Portfolios/Goals were removed so the
+// picker never offers a source the field can't hold.
 const referenceSourceOptions = [
   { id: "tasks", label: "Tasks", icon: CheckCircle },
   { id: "projects", label: "Projects", icon: FolderKanban },
-  { id: "portfolios", label: "Portfolios", icon: Briefcase },
-  { id: "goals", label: "Goals", icon: Target },
 ];
 
 const numberFormats = [
@@ -264,13 +263,6 @@ export function AddFieldFlow({
             </Button>
           </div>
 
-          {/* Send feedback link (only for Reference) */}
-          {isReferenceType && (
-            <button className="text-sm text-black hover:underline text-left">
-              Send feedback
-            </button>
-          )}
-
           <div className="space-y-4 py-2">
             {/* Title and Type */}
             <div className="grid grid-cols-2 gap-4">
@@ -399,15 +391,6 @@ export function AddFieldFlow({
                     })}
                   </div>
                 </div>
-                <div>
-                  <Label className="text-sm text-gray-500">
-                    Filters for reference list
-                  </Label>
-                  <button className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mt-2">
-                    <Plus className="h-4 w-4" />
-                    Add filter
-                  </button>
-                </div>
               </>
             )}
 
@@ -467,7 +450,11 @@ export function AddFieldFlow({
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={!title.trim() || (isReferenceType && !referenceSource)}
+              disabled={
+                !title.trim() ||
+                (isReferenceType && !referenceSource) ||
+                (isSelectType && !options.some((o) => o.name.trim()))
+              }
               className="bg-black hover:bg-black"
             >
               Create field

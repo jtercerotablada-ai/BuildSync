@@ -3,16 +3,17 @@
 /**
  * /teams/[teamId]/members — Team Members (Asana "Miembros" parity).
  *
- * Matches Asana's members view pixel-for-pixel: a full-width,
- * spreadsheet-style grid (cell borders, Name + Job title columns, a
- * "+" add-field column) under a toolbar of Add member · Filter · Sort ·
- * Search. Role management (make/remove lead, remove) lives on each
- * row's hover menu — the equivalent of Asana's per-member controls.
- * Role / Date-joined are optional columns you switch on via "+".
+ * Full-width spreadsheet grid: toolbar (Add member · Filter · Sort ·
+ * Search) over Name + Job title columns, any number of custom fields,
+ * and an Asana-style "Add field" (+) supporting all seven field types
+ * (single/multi select · date · people · reference · text · number).
+ * Field values are editable per member and persist server-side. Role
+ * management (make/remove lead, remove) lives on each row's hover menu.
  */
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   MoreHorizontal,
   Plus,
@@ -27,10 +28,18 @@ import {
   ArrowDown,
   Check,
   X,
+  Trash2,
+  Pencil,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +50,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TeamHeader } from "@/components/teams/team-header";
 import { InviteTeamModal } from "@/components/teams/invite-team-modal";
+import { AddFieldFlow } from "@/components/teams/add-field-flow";
+import {
+  TeamFieldCell,
+  type TeamFieldDef,
+} from "@/components/teams/team-field-cell";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -64,12 +78,16 @@ interface Team {
   members: TeamMember[];
 }
 
-type SortKey = "name" | "jobTitle" | "role" | "joined";
+interface FieldValueRow {
+  fieldId: string;
+  teamMemberId: string;
+  value: unknown;
+}
+
+type SortKey = "name" | "jobTitle";
 type SortDir = "asc" | "desc";
 type RoleFilter = "all" | "LEAD" | "MEMBER";
-type ExtraCol = "role" | "joined";
 
-// Asana-style colored avatars, stable per person.
 const AVATAR_COLORS = [
   "#4573d2", "#6457c9", "#8f4bd6", "#c057b8", "#d64b6a",
   "#e07b39", "#3aa35a", "#2aa8a8", "#b8a534", "#5c6a7a",
@@ -92,14 +110,6 @@ function getInitials(name: string | null, email: string | null): string {
   return (email || "?").slice(0, 2).toUpperCase();
 }
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 function displayName(m: TeamMember): string {
   return m.user.name || m.user.email || "Unknown";
 }
@@ -107,8 +117,13 @@ function displayName(m: TeamMember): string {
 export default function TeamMembersPage() {
   const params = useParams();
   const teamId = params.teamId as string;
+  const { data: session } = useSession();
+  const currentUserId =
+    (session?.user as { id?: string } | undefined)?.id || null;
 
   const [team, setTeam] = useState<Team | null>(null);
+  const [fields, setFields] = useState<TeamFieldDef[]>([]);
+  const [values, setValues] = useState<FieldValueRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
@@ -116,21 +131,42 @@ export default function TeamMembersPage() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [extraCols, setExtraCols] = useState<ExtraCol[]>([]);
+  const [renameTarget, setRenameTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
 
   useEffect(() => {
-    fetchTeam();
+    loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
 
-  async function fetchTeam() {
+  async function loadAll() {
     try {
-      const res = await fetch(`/api/teams/${teamId}`);
-      if (res.ok) setTeam(await res.json());
+      const [tRes, fRes] = await Promise.all([
+        fetch(`/api/teams/${teamId}`),
+        fetch(`/api/teams/${teamId}/fields`),
+      ]);
+      if (tRes.ok) setTeam(await tRes.json());
+      if (fRes.ok) {
+        const data = await fRes.json();
+        setFields(data.fields || []);
+        setValues(data.values || []);
+      }
     } catch (error) {
       console.error("Error fetching team:", error);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function refetchFields() {
+    const res = await fetch(`/api/teams/${teamId}/fields`);
+    if (res.ok) {
+      const data = await res.json();
+      setFields(data.fields || []);
+      setValues(data.values || []);
     }
   }
 
@@ -141,7 +177,7 @@ export default function TeamMembersPage() {
       });
       if (res.ok) {
         toast.success("Member removed from team");
-        fetchTeam();
+        loadAll();
       } else toast.error("Error removing member");
     } catch {
       toast.error("Error removing member");
@@ -157,12 +193,114 @@ export default function TeamMembersPage() {
       });
       if (res.ok) {
         toast.success("Role updated");
-        fetchTeam();
+        loadAll();
       } else toast.error("Error updating role");
     } catch {
       toast.error("Error updating role");
     }
   };
+
+  async function handleCreateField(field: {
+    title: string;
+    type: string;
+    description?: string;
+    options?: Array<{ id: string; name: string; color: string }>;
+    referenceSource?: string;
+    numberFormat?: string;
+    decimals?: number;
+  }) {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/fields`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(field),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed");
+      }
+      toast.success("Field added");
+      refetchFields();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't add field");
+    }
+  }
+
+  async function handleDeleteField(fieldId: string) {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/fields/${fieldId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed");
+      }
+      toast.success("Field deleted");
+      refetchFields();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't delete field");
+    }
+  }
+
+  async function handleRenameField() {
+    if (!renameTarget) return;
+    const name = renameDraft.trim();
+    if (!name || name === renameTarget.name) {
+      setRenameTarget(null);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `/api/teams/${teamId}/fields/${renameTarget.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed");
+      }
+      toast.success("Field renamed");
+      setRenameTarget(null);
+      refetchFields();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't rename field");
+    }
+  }
+
+  async function handleSaveValue(
+    fieldId: string,
+    teamMemberId: string,
+    value: unknown
+  ) {
+    // Optimistic update
+    setValues((prev) => {
+      const others = prev.filter(
+        (v) => !(v.fieldId === fieldId && v.teamMemberId === teamMemberId)
+      );
+      const isEmpty =
+        value === null ||
+        value === "" ||
+        (Array.isArray(value) && value.length === 0);
+      return isEmpty ? others : [...others, { fieldId, teamMemberId, value }];
+    });
+    try {
+      const res = await fetch(
+        `/api/teams/${teamId}/fields/${fieldId}/value`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ teamMemberId, value }),
+        }
+      );
+      if (!res.ok) throw new Error("Failed");
+    } catch {
+      toast.error("Couldn't save — reverting");
+      refetchFields();
+    }
+  }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -172,11 +310,19 @@ export default function TeamMembersPage() {
     }
   }
 
-  function toggleCol(col: ExtraCol) {
-    setExtraCols((cols) =>
-      cols.includes(col) ? cols.filter((c) => c !== col) : [...cols, col]
-    );
-  }
+  const myMembership = currentUserId
+    ? team?.members.find((m) => m.user.id === currentUserId)
+    : undefined;
+  const isLead = myMembership?.role === "LEAD";
+  const isMember = !!myMembership;
+
+  const valueMap = useMemo(() => {
+    const m: Record<string, Record<string, unknown>> = {};
+    for (const v of values) {
+      (m[v.teamMemberId] ||= {})[v.fieldId] = v.value;
+    }
+    return m;
+  }, [values]);
 
   const rows = useMemo(() => {
     const all = team?.members ?? [];
@@ -192,21 +338,14 @@ export default function TeamMembersPage() {
     });
     const dir = sortDir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
-      let av: string | number = "";
-      let bv: string | number = "";
-      if (sortKey === "name") {
-        av = displayName(a).toLowerCase();
-        bv = displayName(b).toLowerCase();
-      } else if (sortKey === "jobTitle") {
-        av = (a.user.jobTitle || "").toLowerCase();
-        bv = (b.user.jobTitle || "").toLowerCase();
-      } else if (sortKey === "role") {
-        av = a.role === "LEAD" ? 0 : 1;
-        bv = b.role === "LEAD" ? 0 : 1;
-      } else {
-        av = new Date(a.joinedAt).getTime();
-        bv = new Date(b.joinedAt).getTime();
-      }
+      const av =
+        sortKey === "name"
+          ? displayName(a).toLowerCase()
+          : (a.user.jobTitle || "").toLowerCase();
+      const bv =
+        sortKey === "name"
+          ? displayName(b).toLowerCase()
+          : (b.user.jobTitle || "").toLowerCase();
       if (av < bv) return -1 * dir;
       if (av > bv) return 1 * dir;
       return 0;
@@ -223,8 +362,6 @@ export default function TeamMembersPage() {
   if (!team) return <div className="p-8 text-gray-500">Team not found</div>;
 
   const totalMembers = team.members.length;
-  const showRole = extraCols.includes("role");
-  const showJoined = extraCols.includes("joined");
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -243,7 +380,6 @@ export default function TeamMembersPage() {
         </Button>
 
         <div className="flex items-center gap-0.5">
-          {/* Filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -284,7 +420,6 @@ export default function TeamMembersPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Sort */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-1.5 text-gray-600">
@@ -298,8 +433,6 @@ export default function TeamMembersPage() {
                 [
                   ["name", "Name"],
                   ["jobTitle", "Job title"],
-                  ["role", "Role"],
-                  ["joined", "Date joined"],
                 ] as [SortKey, string][]
               ).map(([val, label]) => (
                 <DropdownMenuItem
@@ -326,7 +459,6 @@ export default function TeamMembersPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Search */}
           {showSearch || searchQuery ? (
             <div className="relative ml-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -367,13 +499,14 @@ export default function TeamMembersPage() {
       </div>
 
       {/* ── Full-width spreadsheet grid ─────────────────────────── */}
-      <div className="border-t">
-        <table className="w-full table-fixed text-sm">
+      <div className="border-t overflow-x-auto">
+        <table className="w-full table-fixed text-sm min-w-[720px]">
           <colgroup>
-            <col className="w-[46%] min-w-[280px]" />
-            <col className="w-[240px]" />
-            {showRole && <col className="w-[120px]" />}
-            {showJoined && <col className="w-[150px]" />}
+            <col className="w-[300px] min-w-[240px]" />
+            <col className="w-[220px]" />
+            {fields.map((f) => (
+              <col key={f.id} className="w-[180px]" />
+            ))}
             <col className="w-[44px]" />
             <col />
           </colgroup>
@@ -392,51 +525,54 @@ export default function TeamMembersPage() {
                 dir={sortDir}
                 onClick={() => toggleSort("jobTitle")}
               />
-              {showRole && (
-                <ColHeader
-                  label="Role"
-                  active={sortKey === "role"}
-                  dir={sortDir}
-                  onClick={() => toggleSort("role")}
-                />
-              )}
-              {showJoined && (
-                <ColHeader
-                  label="Joined"
-                  active={sortKey === "joined"}
-                  dir={sortDir}
-                  onClick={() => toggleSort("joined")}
-                />
-              )}
-              {/* Add field */}
+              {/* Custom field headers */}
+              {fields.map((f) => (
+                <th
+                  key={f.id}
+                  className="border-r px-3 py-2.5 text-left font-semibold"
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="truncate normal-case tracking-normal text-gray-600">
+                      {f.name}
+                    </span>
+                    {isLead && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="opacity-40 hover:opacity-100 flex-shrink-0">
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setRenameTarget({ id: f.id, name: f.name });
+                              setRenameDraft(f.name);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Rename field
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-black"
+                            onClick={() => handleDeleteField(f.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete field
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                </th>
+              ))}
+              {/* Add field (+) — Asana's 7-type picker (lead-only) */}
               <th className="border-r px-1 text-center">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="mx-auto flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700"
-                      title="Add field"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuLabel>Add field</DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={() => toggleCol("role")}
-                      className="justify-between"
-                    >
-                      Role
-                      {showRole && <Check className="h-4 w-4" />}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => toggleCol("joined")}
-                      className="justify-between"
-                    >
-                      Date joined
-                      {showJoined && <Check className="h-4 w-4" />}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {isLead ? (
+                  <AddFieldFlow
+                    onCreateField={handleCreateField}
+                    organizationName={team.name}
+                  />
+                ) : null}
               </th>
               <th />
             </tr>
@@ -466,6 +602,11 @@ export default function TeamMembersPage() {
                     <span className="truncate text-gray-900">
                       {displayName(member)}
                     </span>
+                    {member.role === "LEAD" && (
+                      <span className="flex-shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
+                        Lead
+                      </span>
+                    )}
                   </div>
                 </td>
 
@@ -474,28 +615,17 @@ export default function TeamMembersPage() {
                   {member.user.jobTitle || ""}
                 </td>
 
-                {/* Role (optional) */}
-                {showRole && (
-                  <td className="border-r px-3 py-2.5">
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
-                        member.role === "LEAD"
-                          ? "bg-black text-white"
-                          : "bg-gray-100 text-gray-600"
-                      )}
-                    >
-                      {member.role === "LEAD" ? "Lead" : "Member"}
-                    </span>
+                {/* Custom field cells */}
+                {fields.map((f) => (
+                  <td key={f.id} className="border-r px-2 py-1.5 align-middle">
+                    <TeamFieldCell
+                      field={f}
+                      value={valueMap[member.id]?.[f.id] ?? null}
+                      canEdit={isMember}
+                      onSave={(v) => handleSaveValue(f.id, member.id, v)}
+                    />
                   </td>
-                )}
-
-                {/* Joined (optional) */}
-                {showJoined && (
-                  <td className="border-r px-3 py-2.5 text-gray-500 tabular-nums">
-                    {formatDate(member.joinedAt)}
-                  </td>
-                )}
+                ))}
 
                 {/* add-field spacer */}
                 <td className="border-r" />
@@ -576,8 +706,40 @@ export default function TeamMembersPage() {
         teamId={teamId}
         open={showInviteModal}
         onClose={() => setShowInviteModal(false)}
-        onInviteSent={fetchTeam}
+        onInviteSent={loadAll}
       />
+
+      {/* Rename field dialog */}
+      <Dialog
+        open={!!renameTarget}
+        onOpenChange={(open) => !open && setRenameTarget(null)}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename field</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameDraft}
+            onChange={(e) => setRenameDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleRenameField();
+            }}
+            placeholder="Field name"
+            autoFocus
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRenameField}
+              disabled={!renameDraft.trim()}
+            >
+              Save
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

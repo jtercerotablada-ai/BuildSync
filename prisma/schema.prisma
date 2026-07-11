@@ -278,10 +278,11 @@ model Team {
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  members    TeamMember[]
-  projects   Project[]
-  objectives Objective[]
-  messages   TeamMessage[]
+  members     TeamMember[]
+  projects    Project[]
+  objectives  Objective[]
+  messages    TeamMessage[]
+  customFields TeamCustomField[]
 }
 
 model TeamMember {
@@ -295,6 +296,8 @@ model TeamMember {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
+  fieldValues TeamMemberFieldValue[]
+
   @@unique([userId, teamId])
   // Standalone index so "all members of a team" doesn't scan — the
   // composite unique above leads with userId and can't serve it.
@@ -304,6 +307,47 @@ model TeamMember {
 enum TeamRole {
   LEAD
   MEMBER
+}
+
+// Asana-style custom fields on the team Members grid ("Add field").
+// A definition is scoped to a team; each member can hold one value per
+// field (TeamMemberFieldValue). Mirrors the project custom-field system
+// but for team members instead of tasks.
+model TeamCustomField {
+  id        String   @id @default(cuid())
+  teamId    String
+  name      String
+  // single_select | multi_select | date | people | reference | text | number
+  type      String
+  // For selects: [{ id, name, color }]. Null otherwise.
+  options   Json?
+  // Type-specific config: number { format, decimals }, reference
+  // { source }, plus an optional description. Null otherwise.
+  config    Json?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  team   Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  values TeamMemberFieldValue[]
+
+  @@index([teamId])
+}
+
+model TeamMemberFieldValue {
+  id           String @id @default(cuid())
+  fieldId      String
+  teamMemberId String
+  // Shape depends on the field type: string (text), number, ISO date
+  // string, string[] (multi-select option ids / people ids), or a
+  // structured ref. Null clears the value.
+  value        Json?
+
+  field  TeamCustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  member TeamMember      @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldId, teamMemberId])
+  @@index([fieldId])
+  @@index([teamMemberId])
 }
 
 enum TeamPrivacy {
