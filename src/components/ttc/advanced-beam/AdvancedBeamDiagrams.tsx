@@ -21,21 +21,31 @@ function Panel({ data, W, H, y0, L, label, unit, invert }: {
   const py = (v: number) => midY - s * (v / yAbs) * (H / 2 - 8);
   const line = data.map((d, i) => `${i ? 'L' : 'M'}${px(d.x).toFixed(1)},${py(d.value).toFixed(1)}`).join(' ');
   const area = `M${px(0).toFixed(1)},${midY.toFixed(1)} ${line.slice(1)} L${px(L).toFixed(1)},${midY.toFixed(1)} Z`;
+  void s;
   let iMax = 0, iMin = 0; ys.forEach((v, i) => { if (v > ys[iMax]) iMax = i; if (v < ys[iMin]) iMin = i; });
   const peaks = [iMax, iMin].filter((i, k, a) => a.indexOf(i) === k && Math.abs(ys[i]) > 1e-6 * yAbs);
   return (
     <g>
-      <text x={mL} y={y0 + 12} className="stl-chart__lbl" style={{ fontWeight: 600, fill: INK }}>{label}</text>
-      <text x={mL - 6} y={y0 + 12} textAnchor="end" className="stl-chart__ax">{unit}</text>
+      <text x={mL} y={y0 + 11} className="stl-chart__lbl" style={{ fontWeight: 600, fill: INK }}>{label}</text>
+      <text x={mL - 6} y={y0 + 11} textAnchor="end" className="stl-chart__ax">{unit}</text>
       <line x1={mL} y1={midY} x2={W - mR} y2={midY} stroke={LINE} strokeWidth={1} />
       <path d={area} fill={INK} fillOpacity={0.055} />
       <path d={line} fill="none" stroke={INK} strokeWidth={1.5} />
-      {peaks.map((i) => (
-        <g key={i}>
-          <circle cx={px(data[i].x)} cy={py(ys[i])} r={3} fill={GOLD} stroke={INK} strokeWidth={0.6} />
-          <text x={px(data[i].x)} y={py(ys[i]) + (ys[i] >= 0 ? -5 : 12) * s} textAnchor="middle" className="stl-chart__lbl" style={{ fill: GOLD_DEEP, fontWeight: 600 }}>{fmt(ys[i], Math.abs(ys[i]) < 10 ? 2 : 0)}</text>
-        </g>
-      ))}
+      {peaks.map((i) => {
+        const cx = px(data[i].x), cy = py(ys[i]);
+        // label toward the panel centre so it never spills into a neighbouring panel
+        const labelY = cy < midY ? cy + 14 : cy - 7;
+        const nearL = cx < mL + 34, nearR = cx > W - mR - 34;
+        const anchor = nearL ? 'start' : nearR ? 'end' : 'middle';
+        const lx = nearL ? cx + 6 : nearR ? cx - 6 : cx;
+        const shown = Math.abs(ys[i]) < 5e-3 ? 0 : ys[i]; // avoid "-0.00"
+        return (
+          <g key={i}>
+            <circle cx={cx} cy={cy} r={3} fill={GOLD} stroke={INK} strokeWidth={0.6} />
+            <text x={lx} y={labelY} textAnchor={anchor} className="stl-chart__lbl" style={{ fill: GOLD_DEEP, fontWeight: 600 }}>{fmt(shown, Math.abs(shown) < 10 ? 2 : 0)}</text>
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -45,7 +55,7 @@ export function AdvancedBeamDiagrams({ results, totalLength }: Props) {
     return <p className="stl-note">Diagrams will appear after a successful solve.</p>;
   }
   const L = totalLength;
-  const W = 560, hPanel = 96, mT = 6, gap = 8;
+  const W = 560, hPanel = 110, mT = 10, gap = 18;
   const panels: { data: { x: number; value: number }[]; label: string; unit: string; invert?: boolean }[] = [
     { data: results.shear, label: 'Shear V', unit: 'kN' },
     { data: results.moment, label: 'Moment M (sagging +)', unit: 'kN·m', invert: true },
