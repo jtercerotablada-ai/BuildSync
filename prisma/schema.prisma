@@ -283,6 +283,7 @@ model Team {
   objectives  Objective[]
   messages    TeamMessage[]
   customFields TeamCustomField[]
+  knowledgeEntries TeamKnowledgeEntry[]
 }
 
 model TeamMember {
@@ -348,6 +349,25 @@ model TeamMemberFieldValue {
   @@unique([fieldId, teamMemberId])
   @@index([fieldId])
   @@index([teamMemberId])
+}
+
+// Team Knowledge glossary (Asana "Conocimientos"): term + definition
+// entries that give teammates shared context. Any member can add/edit;
+// author or team lead can delete.
+model TeamKnowledgeEntry {
+  id          String   @id @default(cuid())
+  teamId      String
+  term        String
+  definition  String
+  // Scalar (no FK to User) — the author's name is resolved in the API,
+  // mirroring how other team rows avoid coupling to the User model.
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
 }
 
 enum TeamPrivacy {
