@@ -22,6 +22,7 @@ import {
   Users,
   Folder,
   FolderOpen,
+  ChevronRight,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
@@ -171,6 +172,50 @@ export function Sidebar({
   const [projectsDropdownOpen, setProjectsDropdownOpen] = useState(false);
   const projectsDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Inline collapsible lists (Asana-style) — click the section row to
+  // expand/collapse the user's projects / teams right in the sidebar.
+  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [teamsOpen, setTeamsOpen] = useState(true);
+  const [projects, setProjects] = useState<
+    { id: string; name: string; color: string }[]
+  >([]);
+  const [teams, setTeams] = useState<
+    { id: string; name: string; color?: string }[]
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [pRes, tRes] = await Promise.all([
+          fetch("/api/projects"),
+          fetch("/api/teams/list"),
+        ]);
+        if (!cancelled && pRes.ok) {
+          const data = await pRes.json();
+          setProjects(
+            Array.isArray(data)
+              ? data.map((p: { id: string; name: string; color?: string }) => ({
+                  id: p.id,
+                  name: p.name,
+                  color: p.color || "#c9a84c",
+                }))
+              : []
+          );
+        }
+        if (!cancelled && tRes.ok) {
+          const data = await tRes.json();
+          if (Array.isArray(data)) setTeams(data);
+        }
+      } catch {
+        /* silent — nav still renders */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -245,19 +290,34 @@ export function Sidebar({
                 "Projects" button that opens the full overview
                 (list / grid / gantt). The + still spawns the
                 New project / New portfolio menu. */}
-            <div className="relative" ref={projectsDropdownRef}>
+            {/* Projects — Asana-style collapsible section: click the row
+                to expand/collapse the inline project list. Collapsed rail
+                falls back to a single icon link. */}
+            {collapsed ? (
               <NavItem
                 href={`${basePath || ""}/projects/all`}
                 label="Projects"
                 icon={Folder}
-                isActive={
-                  pathname === `${basePath}/projects/all` ||
-                  pathname.startsWith(`${basePath}/projects/`)
-                }
-                collapsed={collapsed}
+                isActive={pathname.startsWith(`${basePath}/projects/`)}
+                collapsed
               />
-              {!collapsed && (
-                <>
+            ) : (
+              <div>
+                <div className="relative" ref={projectsDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setProjectsOpen((o) => !o)}
+                    className="w-full flex items-center gap-2 rounded-md px-3 py-1.5 pr-8 text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "h-3.5 w-3.5 text-gray-400 transition-transform flex-shrink-0",
+                        projectsOpen && "rotate-90"
+                      )}
+                    />
+                    <Folder className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <span className="flex-1 text-left truncate">Projects</span>
+                  </button>
                   <button
                     type="button"
                     aria-label="Add project or portfolio"
@@ -265,7 +325,7 @@ export function Sidebar({
                       e.stopPropagation();
                       setProjectsDropdownOpen(!projectsDropdownOpen);
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md bg-white border border-gray-300 text-black shadow-sm hover:bg-gray-100 hover:border-gray-400 transition-colors z-10"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors z-10"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -293,36 +353,122 @@ export function Sidebar({
                       </button>
                     </div>
                   )}
-                </>
-              )}
-            </div>
+                </div>
+                {projectsOpen && (
+                  <nav className="mt-0.5 space-y-0.5 pl-5">
+                    {projects.length === 0 ? (
+                      <p className="px-3 py-1 text-[12px] text-gray-400">
+                        No projects yet
+                      </p>
+                    ) : (
+                      projects.map((project) => {
+                        const isActive =
+                          pathname === `${basePath}/projects/${project.id}`;
+                        return (
+                          <Link
+                            key={project.id}
+                            href={`${basePath}/projects/${project.id}`}
+                          >
+                            <span
+                              className={cn(
+                                "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
+                                isActive
+                                  ? "bg-gray-200/80 text-gray-900"
+                                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                              )}
+                            >
+                              <div
+                                className="h-2 w-2 rounded-sm flex-shrink-0"
+                                style={{ backgroundColor: project.color }}
+                              />
+                              <span className="truncate">{project.name}</span>
+                            </span>
+                          </Link>
+                        );
+                      })
+                    )}
+                  </nav>
+                )}
+              </div>
+            )}
 
-            {/* Teams — same single-button pattern as Projects. */}
-            <div className="relative">
+            {/* Teams — same collapsible pattern as Projects. */}
+            {collapsed ? (
               <NavItem
                 href={`${basePath || ""}/teams`}
                 label="Teams"
                 icon={Users}
-                isActive={
-                  pathname === `${basePath}/teams` ||
-                  pathname.startsWith(`${basePath}/teams/`)
-                }
-                collapsed={collapsed}
+                isActive={pathname.startsWith(`${basePath}/teams/`)}
+                collapsed
               />
-              {!collapsed && (
-                <button
-                  type="button"
-                  aria-label="Create team"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    router.push(`${basePath || ""}/teams/new`);
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-md bg-white border border-gray-300 text-black shadow-sm hover:bg-gray-100 hover:border-gray-400 transition-colors z-10"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+            ) : (
+              <div>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setTeamsOpen((o) => !o)}
+                    className="w-full flex items-center gap-2 rounded-md px-3 py-1.5 pr-8 text-[13px] font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "h-3.5 w-3.5 text-gray-400 transition-transform flex-shrink-0",
+                        teamsOpen && "rotate-90"
+                      )}
+                    />
+                    <Users className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                    <span className="flex-1 text-left truncate">Teams</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Create team"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`${basePath || ""}/teams/new`);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors z-10"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+                {teamsOpen && (
+                  <nav className="mt-0.5 space-y-0.5 pl-5">
+                    {teams.length === 0 ? (
+                      <p className="px-3 py-1 text-[12px] text-gray-400">
+                        No teams yet
+                      </p>
+                    ) : (
+                      teams.map((team) => {
+                        const isActive =
+                          pathname === `${basePath}/teams/${team.id}`;
+                        return (
+                          <Link
+                            key={team.id}
+                            href={`${basePath}/teams/${team.id}`}
+                          >
+                            <span
+                              className={cn(
+                                "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
+                                isActive
+                                  ? "bg-gray-200/80 text-gray-900"
+                                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                              )}
+                            >
+                              <div
+                                className="h-4 w-4 rounded flex items-center justify-center flex-shrink-0"
+                                style={{ backgroundColor: team.color || "#c9a84c" }}
+                              >
+                                <Users className="h-2.5 w-2.5 text-white" />
+                              </div>
+                              <span className="truncate">{team.name}</span>
+                            </span>
+                          </Link>
+                        );
+                      })
+                    )}
+                  </nav>
+                )}
+              </div>
+            )}
           </div>
         </ScrollArea>
 
