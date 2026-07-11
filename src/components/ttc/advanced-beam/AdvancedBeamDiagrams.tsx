@@ -1,157 +1,64 @@
 'use client';
 
 import React from 'react';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ReferenceLine,
-  Area,
-  ComposedChart,
-} from 'recharts';
 import type { Results } from '@/lib/advanced-beam/types';
 
-interface Props {
-  results: Results;
-  totalLength: number;
-}
+interface Props { results: Results; totalLength: number }
 
-export function AdvancedBeamDiagrams({ results, totalLength }: Props) {
-  if (!results.solved) {
-    return (
-      <div className="ab-diagrams ab-diagrams--empty">
-        <p>Diagrams will appear after a successful solve.</p>
-      </div>
-    );
-  }
+const INK = '#221e17', GOLD = '#c9a84c', GOLD_DEEP = '#9a7a2c', LINE = '#cfc7b6';
+const fmt = (x: number, d = 1) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 
-  const fmt = (v: number, unit: string) => `${v.toFixed(2)} ${unit}`;
-
-  const charts: ChartCfg[] = [
-    {
-      id: 'shear',
-      title: 'Shear Force V (kN)',
-      data: results.shear,
-      color: '#4a90c9',
-      areaColor: 'rgba(74, 144, 201, 0.18)',
-      max: results.maxShear,
-      min: results.minShear,
-      unit: 'kN',
-    },
-    {
-      id: 'moment',
-      title: 'Bending Moment M (kN·m) — sagging positive',
-      data: results.moment,
-      color: '#c9a84c',
-      areaColor: 'rgba(201, 168, 76, 0.20)',
-      max: results.maxMoment,
-      min: results.minMoment,
-      unit: 'kN·m',
-    },
-    {
-      id: 'slope',
-      title: 'Slope θ (rad)',
-      data: results.slope,
-      color: '#9d6cd1',
-      areaColor: 'rgba(157, 108, 209, 0.16)',
-      unit: 'rad',
-    },
-    {
-      id: 'deflection',
-      title: 'Deflection δ (mm) — positive UP',
-      data: results.deflection,
-      color: '#5fb674',
-      areaColor: 'rgba(95, 182, 116, 0.16)',
-      max: { value: results.maxDeflection.value, position: results.maxDeflection.position },
-      unit: 'mm',
-    },
-  ];
-
+/** One stacked diagram panel — ink line, subtle fill, gold peak markers. */
+function Panel({ data, W, H, y0, L, label, unit, invert }: {
+  data: { x: number; value: number }[]; W: number; H: number; y0: number; L: number; label: string; unit: string; invert?: boolean;
+}) {
+  const mL = 52, mR = 12;
+  const ys = data.map((d) => d.value);
+  const yAbs = Math.max(1e-9, ...ys.map((v) => Math.abs(v)));
+  const px = (x: number) => mL + (x / L) * (W - mL - mR);
+  const midY = y0 + H / 2;
+  const s = invert ? -1 : 1;
+  const py = (v: number) => midY - s * (v / yAbs) * (H / 2 - 8);
+  const line = data.map((d, i) => `${i ? 'L' : 'M'}${px(d.x).toFixed(1)},${py(d.value).toFixed(1)}`).join(' ');
+  const area = `M${px(0).toFixed(1)},${midY.toFixed(1)} ${line.slice(1)} L${px(L).toFixed(1)},${midY.toFixed(1)} Z`;
+  let iMax = 0, iMin = 0; ys.forEach((v, i) => { if (v > ys[iMax]) iMax = i; if (v < ys[iMin]) iMin = i; });
+  const peaks = [iMax, iMin].filter((i, k, a) => a.indexOf(i) === k && Math.abs(ys[i]) > 1e-6 * yAbs);
   return (
-    <div className="ab-diagrams">
-      {charts.map((c) => (
-        <div className="ab-diagram-card" key={c.id}>
-          <header className="ab-diagram-card__header">
-            <h4>{c.title}</h4>
-            <div className="ab-diagram-card__extrema">
-              {c.max && (
-                <span className="ab-extremum">
-                  max <strong>{fmt(c.max.value, c.unit)}</strong> @ {c.max.position.toFixed(2)} m
-                </span>
-              )}
-              {c.min && (
-                <span className="ab-extremum">
-                  min <strong>{fmt(c.min.value, c.unit)}</strong> @ {c.min.position.toFixed(2)} m
-                </span>
-              )}
-            </div>
-          </header>
-          <div className="ab-diagram-card__chart">
-            <ResponsiveContainer width="100%" height={170}>
-              <ComposedChart data={c.data} margin={{ top: 6, right: 16, bottom: 6, left: 0 }}>
-                <defs>
-                  <linearGradient id={`grad-${c.id}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={c.color} stopOpacity={0.6} />
-                    <stop offset="100%" stopColor={c.color} stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis
-                  dataKey="x"
-                  domain={[0, totalLength]}
-                  type="number"
-                  tickFormatter={(v) => Number(v).toFixed(1)}
-                  stroke="rgba(255,255,255,0.5)"
-                  fontSize={11}
-                  tick={{ fill: 'rgba(255,255,255,0.6)' }}
-                />
-                <YAxis
-                  stroke="rgba(255,255,255,0.5)"
-                  fontSize={11}
-                  tick={{ fill: 'rgba(255,255,255,0.6)' }}
-                  width={48}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: 'rgba(15,15,15,0.95)',
-                    border: '1px solid rgba(201,168,76,0.4)',
-                    borderRadius: 4,
-                    color: '#fff',
-                    fontSize: 12,
-                  }}
-                  labelFormatter={(v) => `x = ${Number(v).toFixed(3)} m`}
-                  formatter={(v) => [`${Number(v).toFixed(3)} ${c.unit}`, '']}
-                />
-                <ReferenceLine y={0} stroke="rgba(255,255,255,0.3)" strokeWidth={1} />
-                <Area type="monotone" dataKey="value" stroke="none" fill={`url(#grad-${c.id})`} />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke={c.color}
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+    <g>
+      <text x={mL} y={y0 + 12} className="stl-chart__lbl" style={{ fontWeight: 600, fill: INK }}>{label}</text>
+      <text x={mL - 6} y={y0 + 12} textAnchor="end" className="stl-chart__ax">{unit}</text>
+      <line x1={mL} y1={midY} x2={W - mR} y2={midY} stroke={LINE} strokeWidth={1} />
+      <path d={area} fill={INK} fillOpacity={0.055} />
+      <path d={line} fill="none" stroke={INK} strokeWidth={1.5} />
+      {peaks.map((i) => (
+        <g key={i}>
+          <circle cx={px(data[i].x)} cy={py(ys[i])} r={3} fill={GOLD} stroke={INK} strokeWidth={0.6} />
+          <text x={px(data[i].x)} y={py(ys[i]) + (ys[i] >= 0 ? -5 : 12) * s} textAnchor="middle" className="stl-chart__lbl" style={{ fill: GOLD_DEEP, fontWeight: 600 }}>{fmt(ys[i], Math.abs(ys[i]) < 10 ? 2 : 0)}</text>
+        </g>
       ))}
-    </div>
+    </g>
   );
 }
 
-interface ChartCfg {
-  id: string;
-  title: string;
-  data: { x: number; value: number }[];
-  color: string;
-  areaColor: string;
-  max?: { value: number; position: number };
-  min?: { value: number; position: number };
-  unit: string;
+export function AdvancedBeamDiagrams({ results, totalLength }: Props) {
+  if (!results.solved || results.shear.length === 0) {
+    return <p className="stl-note">Diagrams will appear after a successful solve.</p>;
+  }
+  const L = totalLength;
+  const W = 560, hPanel = 96, mT = 6, gap = 8;
+  const panels: { data: { x: number; value: number }[]; label: string; unit: string; invert?: boolean }[] = [
+    { data: results.shear, label: 'Shear V', unit: 'kN' },
+    { data: results.moment, label: 'Moment M (sagging +)', unit: 'kN·m', invert: true },
+    { data: results.slope, label: 'Slope θ', unit: 'rad' },
+    { data: results.deflection, label: 'Deflection δ (up +)', unit: 'mm', invert: true },
+  ];
+  const totalH = mT + panels.length * (hPanel + gap) + 16;
+  return (
+    <svg viewBox={`0 0 ${W} ${totalH}`} className="stl-chart" role="img" aria-label="beam diagrams">
+      {panels.map((p, i) => (
+        <Panel key={p.label} data={p.data} W={W} H={hPanel} y0={mT + i * (hPanel + gap)} L={L} label={p.label} unit={p.unit} invert={p.invert} />
+      ))}
+      <text x={W / 2} y={totalH - 3} textAnchor="middle" className="stl-chart__ax">x (m) · span {fmt(L, 1)} m</text>
+    </svg>
+  );
 }

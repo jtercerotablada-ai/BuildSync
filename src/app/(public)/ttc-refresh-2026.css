@@ -1390,6 +1390,44 @@
 .stl-add { width: 100%; margin: 0.2rem 0 0.4rem; padding: 0.4rem; border: 1px dashed var(--lux-line); background: transparent; color: var(--lux-muted); cursor: pointer; font-size: 0.74rem; letter-spacing: 0.02em; }
 .stl-add:hover { color: var(--lux-ink); border-color: var(--lux-gold); }
 .stl-note--head { font-size: 0.64rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--lux-faint); margin: 0.1rem 0 0.2rem; }
+
+/* ── Advanced Beam (abx-) — light luxury, isolated from the shared ab- theme ── */
+.abx-controls { margin-bottom: 1.1rem; }
+.abx-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.85rem; }
+.abx-chip { padding: 0.34rem 0.7rem; border: 1px solid var(--lux-line-soft); background: #fff; color: var(--lux-muted); font-size: 0.73rem; letter-spacing: 0.01em; cursor: pointer; transition: color .12s, border-color .12s, background .12s; }
+.abx-chip:hover { border-color: var(--lux-gold); color: var(--lux-ink); background: rgba(201,168,76,0.06); }
+.abx-ctrlbar { display: flex; flex-wrap: wrap; gap: 1.2rem 1.6rem; align-items: flex-end; }
+.abx-ctrl { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.64rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--lux-muted); }
+.abx-ctrl input[type=number] { width: 92px; padding: 0.42rem 0.5rem; border: 1px solid var(--lux-line-soft); background: #fff; color: var(--lux-ink); font-size: 0.85rem; }
+.abx-ctrl input[type=number]:focus { border-color: var(--lux-gold); outline: none; }
+.abx-ctrl--check { flex-direction: row; align-items: center; gap: 0.4rem; text-transform: none; letter-spacing: 0; font-size: 0.78rem; color: var(--lux-ink); padding-bottom: 0.42rem; }
+.abx-ctrl--check input { width: auto; accent-color: var(--lux-gold-deep, #9a7a2c); }
+
+.abx-tabs { margin-bottom: 1rem; }
+.abx-tablewrap { overflow-x: auto; margin-bottom: 0.6rem; }
+.abx-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.abx-table th { text-align: left; font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--lux-faint); font-weight: 500; padding: 0 0.4rem 0.5rem; border-bottom: 1px solid var(--lux-line-soft); white-space: nowrap; }
+.abx-table td { padding: 0.32rem 0.4rem; border-bottom: 1px solid rgba(22,21,15,0.05); vertical-align: middle; white-space: nowrap; }
+.abx-mono { font-variant-numeric: tabular-nums; color: var(--lux-faint); }
+.abx-lbl { font-weight: 600; color: var(--lux-ink); }
+.abx-na { color: var(--lux-faint); }
+.abx-num { width: 78px; padding: 0.3rem 0.4rem; border: 1px solid var(--lux-line-soft); background: #fff; color: var(--lux-ink); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.abx-num:focus { border-color: var(--lux-gold); outline: none; }
+.abx-table select { padding: 0.3rem 0.4rem; border: 1px solid var(--lux-line-soft); background: #fff; color: var(--lux-ink); font-size: 0.8rem; }
+.abx-pair { display: inline-flex; align-items: center; gap: 0.3rem; }
+.abx-pair i { color: var(--lux-faint); font-style: normal; }
+.abx-addrow { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.abx-addinline { width: auto; flex: 1 1 auto; text-transform: capitalize; }
+
+.abx-warnings { margin-bottom: 1.1rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.abx-warning { padding: 0.5rem 0.75rem; background: rgba(184,134,11,0.08); border-left: 2px solid #b8860b; font-size: 0.78rem; color: #7a5a0a; }
+
+.abx-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; }
+.abx-mode { border: 1px solid var(--lux-line-soft); padding: 0.6rem 0.85rem; }
+.abx-mode__hz { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.85rem; color: var(--lux-muted); margin-bottom: 0.25rem; }
+.abx-mode__hz strong { font-family: var(--font-display,'Playfair Display',serif); font-weight: 400; font-size: 1.3rem; color: var(--lux-ink); }
+.abx-mode__hz span { font-size: 0.66rem; color: var(--lux-faint); }
+.abx-modesvg { width: 100%; height: auto; display: block; }
 .stl-seg--mini { margin: 0 0 0.75rem; }
 .stl-seg--mini button { padding: 0.28rem 0.5rem; font-size: 0.72rem; }
 .stl-pm { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1rem 1.4rem; align-items: center; }
