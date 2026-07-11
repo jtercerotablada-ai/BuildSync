@@ -20,9 +20,11 @@ function Num({ label, unit, value, onChange, step = 'any', w }: { label?: string
   );
 }
 
-/* one stacked diagram panel (filled area with zero line + peak marker) */
-function Panel({ xs, ys, W, H, y0, L, label, unit, color, invert }: {
-  xs: number[]; ys: number[]; W: number; H: number; y0: number; L: number; label: string; unit: string; color: string; invert?: boolean;
+/* one stacked diagram panel (filled area with zero line + peak marker).
+ * Luxury-minimal palette: ink line + subtle ink fill + gold peak markers. */
+const INK = '#221e17', GOLD = '#c9a84c', GOLD_DEEP = '#9a7a2c';
+function Panel({ xs, ys, W, H, y0, L, label, unit, invert }: {
+  xs: number[]; ys: number[]; W: number; H: number; y0: number; L: number; label: string; unit: string; invert?: boolean;
 }) {
   const mL = 46, mR = 10;
   const yAbs = Math.max(1e-9, ...ys.map((v) => Math.abs(v)));
@@ -36,14 +38,14 @@ function Panel({ xs, ys, W, H, y0, L, label, unit, color, invert }: {
   const peaks = [iMax, iMin].filter((i, k, a) => a.indexOf(i) === k && Math.abs(ys[i]) > 1e-6 * yAbs);
   return (
     <g>
-      <text x={mL} y={y0 + 12} className="stl-chart__lbl" style={{ fontWeight: 600 }}>{label}</text>
+      <text x={mL} y={y0 + 12} className="stl-chart__lbl" style={{ fontWeight: 600, fill: INK }}>{label}</text>
       <line x1={mL} y1={midY} x2={W - mR} y2={midY} stroke="#cfc7b6" strokeWidth={1} />
-      <path d={area} fill={color} fillOpacity={0.12} />
-      <path d={line} fill="none" stroke={color} strokeWidth={1.6} />
+      <path d={area} fill={INK} fillOpacity={0.06} />
+      <path d={line} fill="none" stroke={INK} strokeWidth={1.5} />
       {peaks.map((i) => (
         <g key={i}>
-          <circle cx={px(xs[i])} cy={py(ys[i])} r={2.8} fill={color} />
-          <text x={px(xs[i])} y={py(ys[i]) + (ys[i] >= 0 ? -5 : 12) * s} textAnchor="middle" className="stl-chart__lbl" style={{ fill: color }}>{fmt(ys[i], Math.abs(ys[i]) < 10 ? 2 : 0)}</text>
+          <circle cx={px(xs[i])} cy={py(ys[i])} r={3} fill={GOLD} stroke={INK} strokeWidth={0.6} />
+          <text x={px(xs[i])} y={py(ys[i]) + (ys[i] >= 0 ? -5 : 12) * s} textAnchor="middle" className="stl-chart__lbl" style={{ fill: GOLD_DEEP, fontWeight: 600 }}>{fmt(ys[i], Math.abs(ys[i]) < 10 ? 2 : 0)}</text>
         </g>
       ))}
       <text x={mL - 4} y={y0 + 12} textAnchor="end" className="stl-chart__ax">{unit}</text>
@@ -184,11 +186,11 @@ export function BeamAnalysisCalculator() {
                       {s.type === 'roller' && <line x1={cx - 7} y1={cy + 14} x2={cx + 7} y2={cy + 14} stroke="#221e17" strokeWidth={1.2} />}
                     </g>;
                   })}
-                  {points.map((p, i) => { const cx = supX(Math.min(Math.max(p.pos, 0), L)), cy = mT + hSchem / 2; return <g key={i}><line x1={cx} y1={cy - 20} x2={cx} y2={cy - 2} stroke="#8a1c1c" strokeWidth={1.4} /><polygon points={`${cx},${cy - 1} ${cx - 3},${cy - 7} ${cx + 3},${cy - 7}`} fill="#8a1c1c" /></g>; })}
-                  {dists.map((d, i) => { const x1 = supX(Math.max(0, d.x1)), x2 = supX(Math.min(L, d.x2)), cy = mT + hSchem / 2; return <g key={i}><line x1={x1} y1={cy - 16} x2={x2} y2={cy - 16} stroke="#c9a84c" strokeWidth={1.2} />{[0, 0.25, 0.5, 0.75, 1].map((t) => { const xx = x1 + t * (x2 - x1); return <line key={t} x1={xx} y1={cy - 16} x2={xx} y2={cy - 3} stroke="#c9a84c" strokeWidth={0.9} />; })}</g>; })}
-                  <Panel xs={xft} ys={shear} W={W} H={hPanel} y0={mT + hSchem} L={L} label="Shear V" unit="kip" color="#2f6f8a" />
-                  <Panel xs={xft} ys={momKft} W={W} H={hPanel} y0={mT + hSchem + hPanel} L={L} label="Moment M" unit="kip·ft" color="#8a1c1c" invert />
-                  <Panel xs={xft} ys={defl} W={W} H={hPanel} y0={mT + hSchem + hPanel * 2} L={L} label="Deflection δ" unit="in" color="#2f8a52" invert />
+                  {points.map((p, i) => { const cx = supX(Math.min(Math.max(p.pos, 0), L)), cy = mT + hSchem / 2; return <g key={i}><line x1={cx} y1={cy - 20} x2={cx} y2={cy - 2} stroke={GOLD_DEEP} strokeWidth={1.4} /><polygon points={`${cx},${cy - 1} ${cx - 3},${cy - 7} ${cx + 3},${cy - 7}`} fill={GOLD_DEEP} /></g>; })}
+                  {dists.map((d, i) => { const x1 = supX(Math.max(0, d.x1)), x2 = supX(Math.min(L, d.x2)), cy = mT + hSchem / 2; return <g key={i}><line x1={x1} y1={cy - 16} x2={x2} y2={cy - 16} stroke={GOLD} strokeWidth={1.2} />{[0, 0.25, 0.5, 0.75, 1].map((t) => { const xx = x1 + t * (x2 - x1); return <line key={t} x1={xx} y1={cy - 16} x2={xx} y2={cy - 3} stroke={GOLD} strokeWidth={0.9} />; })}</g>; })}
+                  <Panel xs={xft} ys={shear} W={W} H={hPanel} y0={mT + hSchem} L={L} label="Shear V" unit="kip" />
+                  <Panel xs={xft} ys={momKft} W={W} H={hPanel} y0={mT + hSchem + hPanel} L={L} label="Moment M" unit="kip·ft" invert />
+                  <Panel xs={xft} ys={defl} W={W} H={hPanel} y0={mT + hSchem + hPanel * 2} L={L} label="Deflection δ" unit="in" invert />
                   <text x={W / 2} y={totalH - 4} textAnchor="middle" className="stl-chart__ax">x (ft) · span {fmt(L, 0)} ft</text>
                 </svg>
               </div>
