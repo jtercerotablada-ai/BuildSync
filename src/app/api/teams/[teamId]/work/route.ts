@@ -137,3 +137,57 @@ export async function GET(
     );
   }
 }
+
+// DELETE /api/teams/:teamId/work?projectId=X - Remove a project from the team.
+// Only unsets the project's teamId (it stays in the workspace). Requires
+// team membership AND write access to the project — mirroring the link POST.
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
+  try {
+    const userId = await getCurrentUserId();
+    const { teamId } = await params;
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const projectId = searchParams.get("projectId");
+    if (!projectId) {
+      return NextResponse.json(
+        { error: "projectId is required" },
+        { status: 400 }
+      );
+    }
+
+    await verifyTeamAccess(userId, teamId);
+    await verifyProjectAccess(userId, projectId, { requireWrite: true });
+
+    // Scoped unlink: only clears teamId when the project actually belongs
+    // to THIS team, so a stale/guessed id can't detach another team's work.
+    const result = await prisma.project.updateMany({
+      where: { id: projectId, teamId },
+      data: { teamId: null },
+    });
+    if (result.count === 0) {
+      return NextResponse.json(
+        { error: "Project is not in this team" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
+    }
+    console.error("Error removing project from team:", error);
+    return NextResponse.json(
+      { error: "Failed to remove project" },
+      { status: 500 }
+    );
+  }
+}

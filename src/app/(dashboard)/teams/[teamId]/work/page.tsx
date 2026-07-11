@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { openCreateProjectGallery } from "@/lib/open-create-project";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Search,
   ArrowUpDown,
@@ -12,6 +13,10 @@ import {
   Settings,
   Loader2,
   FolderKanban,
+  MoreHorizontal,
+  ExternalLink,
+  Link2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +50,32 @@ export default function TeamAllWorkPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const queryClient = useQueryClient();
+
+  function copyProjectLink(projectId: string) {
+    const url = `${window.location.origin}/projects/${projectId}`;
+    navigator.clipboard.writeText(url).then(
+      () => toast.success("Project link copied"),
+      () => toast.error("Couldn't copy link")
+    );
+  }
+
+  async function removeFromTeam(projectId: string) {
+    try {
+      const res = await fetch(
+        `/api/teams/${teamId}/work?projectId=${projectId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed");
+      }
+      toast.success("Removed from team");
+      queryClient.invalidateQueries({ queryKey: ["team-projects", teamId] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't remove project");
+    }
+  }
 
   // Fetch team data
   const { data: team, isLoading: isLoadingTeam } = useQuery({
@@ -193,7 +224,7 @@ export default function TeamAllWorkPage() {
                   <div
                     key={project.id}
                     onClick={() => router.push(`/projects/${project.id}`)}
-                    className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer"
+                    className="group grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50 cursor-pointer"
                   >
                     {/* Name */}
                     <div className="col-span-7 flex items-center gap-3">
@@ -243,8 +274,42 @@ export default function TeamAllWorkPage() {
                       </div>
                     </div>
 
-                    {/* Space for sort column */}
-                    <div className="col-span-2" />
+                    {/* Row options ("..." menu) — Asana "Mostrar opciones" */}
+                    <div
+                      className="col-span-2 flex items-center justify-end"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="p-1.5 rounded text-gray-400 hover:bg-gray-200 hover:text-gray-700 opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 transition-opacity">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              router.push(`/projects/${project.id}`)
+                            }
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Open project
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => copyProjectLink(project.id)}
+                          >
+                            <Link2 className="h-4 w-4 mr-2" />
+                            Copy project link
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-black"
+                            onClick={() => removeFromTeam(project.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Remove from team
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 ))
               )}
