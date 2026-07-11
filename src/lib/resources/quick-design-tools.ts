@@ -48,7 +48,6 @@ export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
   // ─────────── Concrete ───────────
   { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Concrete Shear Wall Design', description: 'Reinforced concrete structural walls per ACI 318-19 — in-plane shear (§11.5.4), axial-flexure P-M interaction, minimum reinforcement, simplified axial and special boundary elements (§18.10.6), with the full interaction diagram. Validated against ACI clause arithmetic and PCA/StructurePoint values.', status: 'available', href: '/resources/shear-wall', isNew: true },
   { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Concrete Column Design', description: 'Reinforced concrete columns per ACI 318-19 — rectangular tied and circular spiral, uniaxial & biaxial P-M interaction (Bresler / PCA load contour), non-sway slenderness magnification (§6.6.4) and detailing limits, with the full interaction diagram. Validated against ACI hand calcs and StructurePoint values.', status: 'available', href: '/resources/concrete-column', isNew: true },
-  { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Concrete Beam Design', description: 'Reinforced concrete beams per ACI 318-19.', status: 'available', href: '/resources/beam' },
   { category: 'Concrete', code: 'CSA A23.3-14', title: 'CSA A23.3-14 Concrete Slab Design', description: 'RC slab resistance per CSA A23.3-14.', status: 'coming-soon' },
   { category: 'Concrete', code: 'ACI 360 R-06', title: 'ACI 360 R-06 Slab on Grade Design', description: 'Slab on grade per ACI 360 R-06.', status: 'coming-soon' },
   { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Reinforcement Development & Lap', description: 'Development and lap length per ACI 318-19.', status: 'coming-soon' },
@@ -106,7 +105,6 @@ export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
 
   // ─────────── Analysis ───────────
   { category: 'Analysis', code: '—', title: 'Column Analysis', description: 'Analyse columns for axial and bending.', status: 'coming-soon' },
-  { category: 'Analysis', code: '—', title: 'Simply Supported Beam Analysis', description: 'Beams with distributed and point loads.', status: 'available', href: '/resources/beam' },
   { category: 'Analysis', code: '—', title: 'Section Properties', description: 'Section properties for any shape.', status: 'available', href: '/resources/section-builder' },
   { category: 'Analysis', code: '—', title: 'Multi-Span Beam Analysis', description: 'Continuous beams, hinges, springs, settlements, thermal — full FEM.', status: 'available', href: '/resources/advanced-beam', isNew: true },
   { category: 'Analysis', code: '—', title: 'Beam Analysis', description: 'Quick and accurate single-beam analysis with shear, moment, and deflection diagrams. Direct-stiffness (FEM) Euler-Bernoulli solution for any support layout under point, distributed and moment loads. Validated against closed-form beam solutions.', status: 'available', href: '/resources/beam-analysis', isNew: true },
