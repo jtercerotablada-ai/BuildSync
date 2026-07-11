@@ -184,7 +184,7 @@ export const dictionaries = {
 
     // Engineering tools (live inside the Knowledge hub)
     'resources.title': 'Engineering Tools',
-    'resources.subtitle': 'Structural calculators and solvers built in-house \u2014 alongside the wiki entries in your Knowledge hub.',
+    'resources.subtitle': 'Free structural calculators and solvers built in-house \u2014 ACI, AISC and ASCE tools that run right in your browser.',
     'resources.section.label': 'Calculators',
     'resources.section.analysis': 'Analysis Software',
     'resources.section.design': 'Design Software',
@@ -437,7 +437,7 @@ export const dictionaries = {
 
     // Engineering tools (product UI stays in English per workspace rule)
     'resources.title': 'Engineering Tools',
-    'resources.subtitle': 'Structural calculators and solvers built in-house \u2014 alongside the wiki entries in your Knowledge hub.',
+    'resources.subtitle': 'Free structural calculators and solvers built in-house \u2014 ACI, AISC and ASCE tools that run right in your browser.',
     'resources.section.label': 'Calculators',
     'resources.section.analysis': 'Analysis Software',
     'resources.section.design': 'Design Software',

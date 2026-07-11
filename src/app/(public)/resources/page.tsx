@@ -177,7 +177,7 @@ export default function ResourcesPage() {
         <section className="section resources-page">
           <div className="container">
             <div className="section__header">
-              <span className="section__label">★</span>
+              <span className="section__label">Featured</span>
               <h2 className="section__title">{t('resources.featured.title')}</h2>
             </div>
             <div className="services__grid resources__grid">
