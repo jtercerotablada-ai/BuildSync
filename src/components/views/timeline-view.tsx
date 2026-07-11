@@ -85,24 +85,27 @@ interface TimelineViewProps {
 type ZoomLevel = "day" | "week" | "month";
 
 // ============================================
-// PRIORITY COLORS — monochrome + gold palette
+// BAR PALETTE — Asana Timeline hues measured in the real app
+// (TaskCell--colorOrange/Blue/Purple/CoolGray + their label tints).
+// Deterministic rule: priority picks the hue.
 // ============================================
 
-const PRIORITY_COLORS: Record<string, string> = {
-  NONE: "#9ca3af",   // slate-400
-  LOW: "#d4b65a",    // bright gold
-  MEDIUM: "#c9a84c", // gold
-  HIGH: "#0a0a0a",   // black
+const BAR_STYLE: Record<string, { bg: string; text: string }> = {
+  NONE: { bg: "#79ABFF", text: "#142B51" }, // Asana blue (default)
+  LOW: { bg: "#AAAAAA", text: "#2B2B2B" }, // cool gray
+  MEDIUM: { bg: "#E39EF2", text: "#3F1F47" }, // purple
+  HIGH: { bg: "#FEA06A", text: "#4B1F00" }, // orange
 };
+const COMPLETED_STYLE = { bg: "#C9CDD4", text: "#2B2B2B" };
+const TODAY_BLUE = "#335FB5"; // 2px today stripe + axis dot
+const WEEKEND_STRIPE = "#E8E9EA"; // weekend bands
 
-const COMPLETED_BAR_FILL = "#94a3b8"; // slate-400
-
-// Swimlane geometry — Asana-height lanes: 36px bars fit two wrapped
-// 11px label lines instead of truncating to one.
-const LANE_HEIGHT = 44;
+// Swimlane geometry — Asana's measured values: 34px bars on a 40px
+// lane pitch; two 12px/14px label lines fit inside.
+const LANE_HEIGHT = 40;
 const BAND_PADDING = 12;
 const COLLAPSED_BAND_HEIGHT = 36;
-const BAR_HEIGHT = 36;
+const BAR_HEIGHT = 34;
 // Tasks with a due date but no start render as a narrow pill + label
 // outside (Asana's "Para entregar" style), not a full day-wide bar.
 const DUE_ONLY_TICK_W = 8;
@@ -114,7 +117,7 @@ const PRIORITY_RANK: Record<string, number> = {
   LOW: 2,
   NONE: 3,
 };
-const HEADER_HEIGHT = 64; // two 32px sticky header rows
+const HEADER_HEIGHT = 48; // two 24px sticky header rows (Asana: 49px)
 const FOOTER_ROW_HEIGHT = 44; // add-section row
 
 // ============================================
@@ -210,7 +213,8 @@ export function TimelineView({
   // Asana's Cronograma defaults to day zoom.
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("day");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [showDueSoon, setShowDueSoon] = useState(true);
+  // Off by default — Asana draws no due-soon rings; still toggleable.
+  const [showDueSoon, setShowDueSoon] = useState(false);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
   const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week">("all");
   const [taskSort, setTaskSort] = useState<"start" | "due" | "name" | "priority">("start");
@@ -777,7 +781,7 @@ export function TimelineView({
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  const gutterWidth = isMobile ? 120 : 200;
+  const gutterWidth = isMobile ? 120 : 240;
   const { totalWidth } = timelineRange;
   const FILTER_LABELS: Record<typeof taskFilter, string> = {
     all: "All",
@@ -1126,7 +1130,7 @@ export function TimelineView({
                     key={i}
                     className={cn(
                       "flex items-center justify-center text-xs border-r",
-                      col.isWeekend && "bg-slate-100"
+                      col.isWeekend && "bg-[#E8E9EA]"
                     )}
                     style={{ width: timelineRange.columnWidths[i] ?? config.columnWidth }}
                   >
@@ -1134,7 +1138,7 @@ export function TimelineView({
                       className={cn(
                         "text-slate-500",
                         col.isToday &&
-                          "bg-[#c9a84c] text-white rounded-full w-5 h-5 flex items-center justify-center font-medium"
+                          "bg-[#335FB5] text-white rounded-full w-5 h-5 flex items-center justify-center font-medium"
                       )}
                     >
                       {col.label}
@@ -1146,7 +1150,7 @@ export function TimelineView({
               {/* Today dot in the header */}
               {todayPosition !== null && (
                 <div
-                  className="absolute w-2 h-2 rounded-full bg-[#c9a84c] pointer-events-none"
+                  className="absolute w-2 h-2 rounded-full bg-[#335FB5] pointer-events-none"
                   style={{ left: todayPosition - 4, bottom: -1 }}
                 />
               )}
@@ -1159,11 +1163,14 @@ export function TimelineView({
               className="relative flex-1 flex flex-col"
               style={{ width: totalWidth }}
             >
-              {/* Today line — gold */}
+              {/* Today line — Asana's 2px blue stripe */}
               {todayPosition !== null && (
                 <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-[#c9a84c] z-10 pointer-events-none"
-                  style={{ left: todayPosition - 1 }}
+                  className="absolute top-0 bottom-0 w-0.5 z-10 pointer-events-none"
+                  style={{
+                    left: todayPosition - 1,
+                    backgroundColor: TODAY_BLUE,
+                  }}
                 />
               )}
 
@@ -1193,7 +1200,7 @@ export function TimelineView({
                       refY="4"
                       orient="auto"
                     >
-                      <polygon points="0 0.5, 7 4, 0 7.5" fill="#a8893a" />
+                      <polygon points="0 0.5, 7 4, 0 7.5" fill="#335FB5" />
                     </marker>
                   </defs>
                   {dependencies.map((dep) => {
@@ -1250,7 +1257,7 @@ export function TimelineView({
                       <path
                         key={dep.id}
                         d={path}
-                        stroke={isActive ? "#a8893a" : "#94a3b8"}
+                        stroke={isActive ? "#335FB5" : "#94a3b8"}
                         strokeWidth={isActive ? 2 : 1.5}
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -1282,7 +1289,7 @@ export function TimelineView({
                     {columns.map((col, i) => (
                       <div
                         key={i}
-                        className={cn("border-r h-full", col.isWeekend && "bg-slate-100")}
+                        className={cn("border-r h-full", col.isWeekend && "bg-[#E8E9EA]")}
                         style={{ width: timelineRange.columnWidths[i] ?? config.columnWidth }}
                       />
                     ))}
@@ -1299,9 +1306,9 @@ export function TimelineView({
                       const isMilestone = isTaskMilestone(task);
                       const isApproval = isTaskApproval(task);
                       const dueSoon = isTaskDueSoon(task);
-                      const taskColor = task.completed
-                        ? COMPLETED_BAR_FILL
-                        : PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.NONE;
+                      const barStyle = task.completed
+                        ? COMPLETED_STYLE
+                        : BAR_STYLE[task.priority] || BAR_STYLE.NONE;
 
                       // Live drag preview
                       const isResizing = !!dragState && dragState.taskId === task.id;
@@ -1346,8 +1353,8 @@ export function TimelineView({
                           >
                             <Icon
                               className="w-5 h-5 flex-shrink-0"
-                              fill="#a8893a"
-                              color="#a8893a"
+                              fill={barStyle.bg}
+                              color={barStyle.bg}
                             />
                             <div className="leading-tight whitespace-nowrap">
                               <div
@@ -1386,20 +1393,20 @@ export function TimelineView({
                           {/* Bar */}
                           <div
                             className={cn(
-                              "absolute rounded-lg cursor-grab active:cursor-grabbing group/bar z-10",
-                              "hover:ring-2 hover:ring-[#c9a84c] hover:ring-offset-1",
+                              "absolute rounded cursor-grab active:cursor-grabbing group/bar z-10",
+                              "hover:ring-2 hover:ring-[#335FB5]/50",
                               "transition-shadow",
                               selectedTaskId === task.id &&
-                                "ring-2 ring-[#c9a84c] ring-offset-1",
+                                "ring-2 ring-[#335FB5]",
                               dueSoon && showDueSoon && "ring-2 ring-[#a8893a]/70",
-                              isResizing && "shadow-lg ring-2 ring-[#c9a84c]"
+                              isResizing && "shadow-lg ring-2 ring-[#335FB5]"
                             )}
                             style={{
                               left: renderLeft,
                               width: barWidth,
                               top: laneTop,
                               height: BAR_HEIGHT,
-                              backgroundColor: taskColor,
+                              backgroundColor: barStyle.bg,
                               opacity: task.completed ? 0.6 : 1,
                             }}
                             onMouseDown={(e) => handleResizeStart(e, task.id, "move", task)}
@@ -1414,7 +1421,7 @@ export function TimelineView({
                           >
                             <div className="relative h-full flex items-center px-1.5 gap-1 overflow-hidden">
                               {!isDueOnly && task.assignee && renderWidth >= 40 && (
-                                <div className="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0 overflow-hidden">
+                                <div className="w-5 h-5 rounded-full bg-[#d4b65a] flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0 overflow-hidden">
                                   {task.assignee.image ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
@@ -1430,14 +1437,12 @@ export function TimelineView({
                               {labelInside && (
                                 <span
                                   className={cn(
-                                    // Wrap to two lines like Asana instead
-                                    // of truncating to one.
-                                    "text-[11px] leading-[13px] font-medium line-clamp-2",
-                                    task.priority === "HIGH" || task.completed
-                                      ? "text-white"
-                                      : "text-black",
+                                    // Asana: 12px/14px regular, wraps two
+                                    // lines, tinted per bar hue.
+                                    "text-[12px] leading-[14px] font-normal line-clamp-2",
                                     task.completed && "line-through"
                                   )}
+                                  style={{ color: barStyle.text }}
                                 >
                                   {task.name}
                                 </span>
@@ -1476,13 +1481,13 @@ export function TimelineView({
                               >
                                 <div
                                   className={cn(
-                                    "text-[11px] font-medium text-slate-900 whitespace-nowrap",
+                                    "text-[12px] font-normal text-slate-900 whitespace-nowrap",
                                     task.completed && "line-through text-slate-400"
                                   )}
                                 >
                                   {task.name}
                                 </div>
-                                <div className="text-[10px] text-slate-500 whitespace-nowrap">
+                                <div className="text-[11px] text-slate-500 whitespace-nowrap">
                                   Due {format(due, "MMM d")}
                                 </div>
                               </div>
@@ -1514,7 +1519,7 @@ export function TimelineView({
                 {columns.map((col, i) => (
                   <div
                     key={i}
-                    className={cn("border-r", col.isWeekend && "bg-slate-100")}
+                    className={cn("border-r", col.isWeekend && "bg-[#E8E9EA]")}
                     style={{ width: timelineRange.columnWidths[i] ?? config.columnWidth }}
                   />
                 ))}
@@ -1525,7 +1530,7 @@ export function TimelineView({
                 {columns.map((col, i) => (
                   <div
                     key={i}
-                    className={cn("border-r", col.isWeekend && "bg-slate-100")}
+                    className={cn("border-r", col.isWeekend && "bg-[#E8E9EA]")}
                     style={{ width: timelineRange.columnWidths[i] ?? config.columnWidth }}
                   />
                 ))}
