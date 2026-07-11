@@ -1264,3 +1264,114 @@
   text-transform: uppercase;
   color: var(--lux-faint);
 }
+
+/* =====================================================================
+   15) STEEL MEMBER DESIGN calculator (AISC 360-22) — CYPE-clean
+   ===================================================================== */
+.stl { color: var(--lux-ink); font-size: 0.9rem; }
+
+.stl-sheethead {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 1rem; padding-bottom: 1.1rem; margin-bottom: 1.6rem;
+  border-bottom: 1px solid var(--lux-line);
+}
+.stl-brand { font-family: var(--font-display,'Playfair Display',serif); font-size: 1.05rem; letter-spacing: 0.02em; color: var(--lux-ink); }
+.stl-brand-sub { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--lux-muted); }
+.stl-sheettitle { text-align: right; display: flex; flex-direction: column; gap: 0.25rem; }
+.stl-sheettitle strong { font-size: 0.82rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--lux-ink); }
+.stl-code { font-size: 0.64rem; letter-spacing: 0.14em; color: var(--lux-gold-deep); }
+
+.stl-grid { display: grid; grid-template-columns: 320px 1fr; gap: 1.75rem; align-items: start; }
+@media (max-width: 900px) { .stl-grid { grid-template-columns: 1fr; } }
+
+.stl-h {
+  font-size: 0.64rem; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--lux-gold-deep); margin: 1.5rem 0 0.85rem; padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--lux-line-soft);
+}
+.stl-inputs .stl-h:first-child { margin-top: 0; }
+
+.stl-field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
+.stl-field label { font-size: 0.72rem; font-weight: 500; color: var(--lux-ink); }
+.stl-unit { color: var(--lux-faint); font-weight: 400; }
+.stl-field input, .stl-field select {
+  width: 100%; background: #fff; border: 1px solid var(--lux-line); border-radius: 0;
+  padding: 0.55rem 0.65rem; font: inherit; font-size: 0.86rem; color: var(--lux-ink);
+  outline: none; transition: border-color 0.2s;
+}
+.stl-field input:focus, .stl-field select:focus { border-color: var(--lux-gold); }
+.stl-hint { font-size: 0.66rem; color: var(--lux-faint); }
+.stl-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.stl-note { font-size: 0.74rem; color: var(--lux-muted); margin: 0.2rem 0 0; }
+
+.stl-svg { width: 100%; height: auto; max-height: 180px; margin: 0.5rem 0; display: block; }
+.stl-dim { font-size: 8px; fill: var(--lux-muted); font-family: var(--font-primary, sans-serif); letter-spacing: 0.02em; }
+
+.stl-props { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem 1rem; font-size: 0.72rem; color: var(--lux-muted); margin-top: 0.4rem; }
+.stl-props strong { color: var(--lux-ink); font-weight: 600; }
+
+.stl-seg { display: flex; border: 1px solid var(--lux-line); margin-bottom: 0.75rem; }
+.stl-seg button {
+  flex: 1; padding: 0.5rem; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase;
+  background: #fff; border: none; color: var(--lux-muted); cursor: pointer; transition: all 0.2s;
+}
+.stl-seg button + button { border-left: 1px solid var(--lux-line); }
+.stl-seg button.is-active { background: var(--lux-ink); color: #fff; }
+
+/* ── results ── */
+.stl-verdict {
+  display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.35rem;
+  border: 1px solid var(--lux-line); margin-bottom: 1.5rem;
+}
+.stl-verdict.is-pass { border-left: 3px solid #2f8a52; background: rgba(47,138,82,0.04); }
+.stl-verdict.is-fail { border-left: 3px solid #b0322a; background: rgba(176,50,42,0.05); }
+.stl-verdict__mark { font-size: 1.5rem; line-height: 1; }
+.stl-verdict.is-pass .stl-verdict__mark { color: #2f8a52; }
+.stl-verdict.is-fail .stl-verdict__mark { color: #b0322a; }
+.stl-verdict strong { display: block; font-size: 1rem; color: var(--lux-ink); }
+.stl-verdict span { font-size: 0.78rem; color: var(--lux-muted); }
+.stl-verdict__ratio { margin-left: auto; font-family: var(--font-display,serif); font-size: 1.9rem; color: var(--lux-ink); }
+
+.stl-bars { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.85rem 1.75rem; margin-bottom: 1.75rem; }
+@media (max-width: 560px) { .stl-bars { grid-template-columns: 1fr; } }
+.stl-bar__head { display: flex; justify-content: space-between; font-size: 0.74rem; margin-bottom: 0.3rem; }
+.stl-bar__head span { color: var(--lux-muted); }
+.stl-bar__val { font-weight: 600; }
+.stl-bar__val--ok { color: var(--lux-ink); }
+.stl-bar__val--high { color: #b8860b; }
+.stl-bar__val--over { color: #b0322a; }
+.stl-bar__track { position: relative; height: 7px; background: rgba(22,21,15,0.08); overflow: hidden; }
+.stl-bar__fill { height: 100%; transition: width 0.35s var(--ease-out); }
+.stl-bar__fill--ok { background: var(--lux-gold); }
+.stl-bar__fill--high { background: #d9a441; }
+.stl-bar__fill--over { background: #b0322a; }
+.stl-bar__limit { position: absolute; top: -2px; bottom: -2px; left: 74.07%; width: 1px; background: var(--lux-ink); opacity: 0.5; }
+
+.stl-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+@media (max-width: 680px) { .stl-cards { grid-template-columns: 1fr; } }
+.stl-card { background: #fff; border: 1px solid var(--lux-line-soft); padding: 1.1rem 1.25rem; }
+.stl-card--wide { grid-column: 1 / -1; }
+.stl-card h4 {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  font-family: var(--font-display,'Playfair Display',serif); font-weight: 400; font-size: 0.98rem;
+  color: var(--lux-ink); margin: 0 0 0.75rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--lux-line-soft);
+}
+.stl-tag { font-size: 0.58rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--lux-gold-deep); white-space: nowrap; }
+
+.stl-table { width: 100%; border-collapse: collapse; }
+.stl-table td { padding: 0.34rem 0; vertical-align: top; border-bottom: 1px solid rgba(22,21,15,0.05); font-size: 0.8rem; }
+.stl-table tr:last-child td { border-bottom: none; }
+.stl-k { color: var(--lux-muted); width: 46%; }
+.stl-v { color: var(--lux-ink); font-weight: 500; }
+.stl-v strong { color: var(--lux-ink); }
+.stl-ref { color: var(--lux-faint); font-size: 0.68rem; text-align: right; white-space: nowrap; }
+
+.stl-cls { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.1rem 0.45rem; }
+.stl-cls--compact { color: #2f8a52; background: rgba(47,138,82,0.1); }
+.stl-cls--noncompact { color: #b8860b; background: rgba(184,134,11,0.1); }
+.stl-cls--slender { color: #b0322a; background: rgba(176,50,42,0.1); }
+
+.stl-good { color: #2f8a52; }
+.stl-bad { color: #b0322a; }
+
+.stl-disclaimer { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--lux-line-soft); font-size: 0.7rem; line-height: 1.6; color: var(--lux-faint); }
