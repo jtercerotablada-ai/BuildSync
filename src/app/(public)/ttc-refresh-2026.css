@@ -1351,6 +1351,8 @@
 @media (max-width: 680px) { .stl-cards { grid-template-columns: 1fr; } }
 .stl-card { background: #fff; border: 1px solid var(--lux-line-soft); padding: 1.1rem 1.25rem; }
 .stl-card--wide { grid-column: 1 / -1; }
+/* A lone last card (odd count) spans the full row so no empty cell is left. */
+.stl-cards .stl-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .stl-card h4 {
   display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
   font-family: var(--font-display,'Playfair Display',serif); font-weight: 400; font-size: 0.98rem;

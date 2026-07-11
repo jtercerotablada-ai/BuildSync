@@ -317,7 +317,7 @@ export function SteelMemberCalculator() {
 
             {/* combined */}
             {r.combined && (
-              <div className="stl-card stl-card--wide">
+              <div className="stl-card">
                 <h4>Combined axial + flexure <span className="stl-tag">H1-1 ({r.combined.equation})</span></h4>
                 <table className="stl-table"><tbody>
                   <Row k="Pr / Pc" v={fmt(r.combined.Pr / r.combined.Pc, 3)} ref={`${fmt(r.combined.Pr)} / ${fmt(r.combined.Pc)} k`} />
