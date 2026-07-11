@@ -12,8 +12,11 @@
  *     instead of overlapping.
  *   - Weekend columns styling, infinite week scroll, Today jump,
  *     live month label.
- *   - "No date (N)" drawer for dateless tasks.
- *   - Inline "+ Add" task creation on any day, drag to reschedule.
+ *   - "No date (N)" drawer for dateless tasks, drag to reschedule.
+ *
+ * Inline click-a-day creation is intentionally OFF — verified against
+ * live Asana: its team calendar is view/complete/reschedule only; tasks
+ * are created from their projects, not from the team calendar grid.
  *
  * Clicking a task opens the TaskDetailPanel — the same slide-in panel
  * as the project views (assignee, dates, projects, description,
@@ -70,7 +73,6 @@ export default function TeamCalendarPage() {
 
   const [team, setTeam] = useState<Team | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [firstProjectId, setFirstProjectId] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
@@ -87,23 +89,13 @@ export default function TeamCalendarPage() {
     let cancelled = false;
     async function fetchData() {
       try {
-        const [teamRes, tasksRes, projectsRes] = await Promise.all([
+        const [teamRes, tasksRes] = await Promise.all([
           fetch(`/api/teams/${teamId}`),
           fetch(`/api/teams/${teamId}/tasks`),
-          fetch(`/api/teams/${teamId}/projects`),
         ]);
         if (cancelled) return;
         if (teamRes.ok) setTeam(await teamRes.json());
         if (tasksRes.ok) setTasks(await tasksRes.json());
-        if (projectsRes.ok) {
-          const projects = await projectsRes.json();
-          // The shared CalendarView's inline "+ Add" creates the task in
-          // this project — the team's first project, mirroring the
-          // POST /api/teams/[teamId]/tasks fallback.
-          if (Array.isArray(projects) && projects.length > 0) {
-            setFirstProjectId(projects[0].id);
-          }
-        }
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -143,8 +135,12 @@ export default function TeamCalendarPage() {
             { id: "team-tasks", name: "Team tasks", position: 0, tasks },
           ]}
           onTaskClick={(taskId) => setSelectedTaskId(taskId)}
-          projectId={firstProjectId}
+          // Unused when inline creation is off — the team calendar matches
+          // Asana's: view, open, complete and drag-reschedule tasks, but
+          // tasks are created from their projects (no click-a-day add).
+          projectId=""
           onTaskMutated={fetchTasks}
+          allowInlineCreate={false}
         />
       </div>
 

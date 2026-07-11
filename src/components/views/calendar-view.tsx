@@ -77,6 +77,11 @@ interface CalendarViewProps {
    *  parent can refresh the underlying task list. Defaults to a
    *  router.refresh() in the parent. */
   onTaskMutated?: () => void;
+  /** Click-a-day inline task creation. Defaults to true (the project
+   *  calendar). The TEAM calendar passes false — verified against live
+   *  Asana: its team calendar is view/complete/reschedule only, clicking
+   *  an empty day does NOT create a task there. */
+  allowInlineCreate?: boolean;
 }
 
 // Pixel constants — must stay in sync with the dynamic height calc.
@@ -94,6 +99,7 @@ export function CalendarView({
   onTaskClick,
   projectId,
   onTaskMutated,
+  allowInlineCreate = true,
 }: CalendarViewProps) {
   // Flatten sections → tasks once per render. The calendar doesn't
   // care which section a task belongs to.
@@ -692,7 +698,11 @@ export function CalendarView({
                     <div
                       key={dateStr}
                       onClick={(e) => {
-                        if (e.currentTarget === e.target && !isAdding) {
+                        if (
+                          allowInlineCreate &&
+                          e.currentTarget === e.target &&
+                          !isAdding
+                        ) {
                           setAddingForDate(dateStr);
                           setNewTaskName("");
                         }
@@ -703,7 +713,8 @@ export function CalendarView({
                       }}
                       onDrop={(e) => handleDayDrop(e, date)}
                       className={cn(
-                        "relative cursor-pointer h-full",
+                        "relative h-full",
+                        allowInlineCreate && "cursor-pointer",
                         dayOfWeek > 0 && "border-l border-gray-200",
                         !isCurrentMonth && "bg-gray-50/40",
                         isWeekend && isCurrentMonth && "bg-gray-50/20",
