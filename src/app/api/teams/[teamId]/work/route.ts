@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyTeamAccess, assertProjectInWorkspace, getErrorStatus } from "@/lib/auth-guards";
+import {
+  verifyTeamAccess,
+  verifyProjectAccess,
+  assertProjectInWorkspace,
+  getErrorStatus,
+} from "@/lib/auth-guards";
 
 // POST /api/teams/:teamId/work - Link work to team
 export async function POST(
@@ -20,7 +25,7 @@ export async function POST(
     await verifyTeamAccess(userId, teamId);
 
     const body = await req.json();
-    const { workId, workType, customName, description } = body;
+    const { workId, workType } = body;
 
     // Link the project to the team
     if (workType === "project") {
@@ -29,7 +34,7 @@ export async function POST(
       }
       // Scope the target project to THIS team's workspace before mutating it.
       // Without this, workId is trusted straight from the body, letting any
-      // team member re-parent and rename ANY project in the database — audit SEC-01.
+      // team member re-parent ANY project in the database — audit SEC-01.
       const team = await prisma.team.findUnique({
         where: { id: teamId },
         select: { workspaceId: true },
@@ -39,12 +44,18 @@ export async function POST(
       }
       await assertProjectInWorkspace(workId, team.workspaceId);
 
+      // The caller must have WRITE access to the target project. Team
+      // membership alone is not enough — otherwise any team member could
+      // re-parent a private project they can't even open into their own
+      // team (audit SEC-02). Linking only *associates* the project with the
+      // team; it must never rename or overwrite the project's canonical
+      // name/description (audit DATA-01).
+      await verifyProjectAccess(userId, workId, { requireWrite: true });
+
       const project = await prisma.project.update({
         where: { id: workId },
         data: {
           teamId: teamId,
-          name: customName || undefined,
-          description: description || undefined,
         },
       });
       return NextResponse.json(project);

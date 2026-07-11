@@ -131,7 +131,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    if (teamMember.role !== "LEAD") {
+    // Any team member may edit the team description (Asana parity). All other
+    // settings — name, color, avatar, privacy — stay lead-only.
+    const editedFields = Object.keys(data);
+    const descriptionOnly =
+      editedFields.length > 0 &&
+      editedFields.every((f) => f === "description");
+    if (!descriptionOnly && teamMember.role !== "LEAD") {
       return NextResponse.json(
         { error: "Only team leads can edit team settings" },
         { status: 403 }

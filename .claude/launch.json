@@ -5,7 +5,7 @@
       "name": "buildsync",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["next", "dev", "-p", "3002"],
-      "cwd": "C:\\Users\\Juan Tercero\\buildsync-temp",
+      "cwd": "C:\\Users\\Juan Tercero\\Dropbox\\14. BuildSync\\buildsync",
       "port": 3002,
       "autoPort": false
     }

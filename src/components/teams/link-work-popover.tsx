@@ -10,8 +10,6 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 interface LinkWorkPopoverProps {
@@ -38,8 +36,6 @@ export function LinkWorkPopover({ teamId, children, onSuccess }: LinkWorkPopover
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedWork, setSelectedWork] = useState<WorkItem | null>(null);
-  const [customName, setCustomName] = useState("");
-  const [description, setDescription] = useState("");
 
   // Search for available work
   const { data: searchResults = [], isLoading: isSearching } = useQuery({
@@ -62,8 +58,6 @@ export function LinkWorkPopover({ teamId, children, onSuccess }: LinkWorkPopover
         body: JSON.stringify({
           workId: selectedWork?.id,
           workType: selectedWork?.type,
-          customName: customName || selectedWork?.name,
-          description,
         }),
       });
       if (!res.ok) throw new Error("Failed to link work");
@@ -84,8 +78,6 @@ export function LinkWorkPopover({ teamId, children, onSuccess }: LinkWorkPopover
   const resetForm = () => {
     setSearchQuery("");
     setSelectedWork(null);
-    setCustomName("");
-    setDescription("");
   };
 
   const resetAndClose = () => {
@@ -95,7 +87,6 @@ export function LinkWorkPopover({ teamId, children, onSuccess }: LinkWorkPopover
 
   const handleSelectWork = (work: WorkItem) => {
     setSelectedWork(work);
-    setCustomName(work.name);
     setSearchQuery("");
   };
 
@@ -136,7 +127,7 @@ export function LinkWorkPopover({ teamId, children, onSuccess }: LinkWorkPopover
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search projects, portfolios..."
+              placeholder="Search projects by name..."
               className="pl-10"
             />
             {isSearching && (
@@ -201,27 +192,12 @@ export function LinkWorkPopover({ teamId, children, onSuccess }: LinkWorkPopover
             </div>
           )}
 
-          {/* Name */}
-          <div>
-            <Label className="text-sm">Name</Label>
-            <Input
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              className="mt-1"
-              placeholder="Custom name (optional)"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <Label className="text-sm">Description</Label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="mt-1 min-h-[60px]"
-              placeholder="Add a description..."
-            />
-          </div>
+          {selectedWork && (
+            <p className="text-xs text-gray-400">
+              This adds the project to the team&apos;s work. It won&apos;t
+              rename the project or change its contents.
+            </p>
+          )}
 
           {/* Submit button */}
           <Button

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, X, Folder, Briefcase, FileText, Loader2 } from "lucide-react";
+import { Search, X, Folder, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,9 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface LinkWorkModalProps {
@@ -25,7 +23,8 @@ interface LinkWorkModalProps {
 interface WorkItem {
   id: string;
   name: string;
-  type: "project" | "portfolio" | "template";
+  // Only projects are linkable today; /api/work/search returns projects only.
+  type: "project";
   color?: string;
 }
 
@@ -37,8 +36,6 @@ export function LinkWorkModal({
 }: LinkWorkModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedWork, setSelectedWork] = useState<WorkItem | null>(null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   const [isLinking, setIsLinking] = useState(false);
   const [searchResults, setSearchResults] = useState<WorkItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -68,14 +65,13 @@ export function LinkWorkModal({
 
   const handleSelectWork = (work: WorkItem) => {
     setSelectedWork(work);
-    setName(work.name);
     setSearchQuery("");
     setSearchResults([]);
   };
 
   const handleLink = async () => {
     if (!selectedWork) {
-      toast.error("Please select a work item to link");
+      toast.error("Please select a project to link");
       return;
     }
 
@@ -87,20 +83,19 @@ export function LinkWorkModal({
         body: JSON.stringify({
           workId: selectedWork.id,
           workType: selectedWork.type,
-          name,
-          description,
         }),
       });
 
       if (res.ok) {
-        toast.success("Work linked successfully");
+        toast.success("Project added to the team");
         onSuccess?.();
         handleClose();
       } else {
-        toast.error("Failed to link work");
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Failed to add project");
       }
-    } catch (error) {
-      toast.error("Failed to link work");
+    } catch {
+      toast.error("Failed to add project");
     } finally {
       setIsLinking(false);
     }
@@ -109,44 +104,30 @@ export function LinkWorkModal({
   const handleClose = () => {
     setSearchQuery("");
     setSelectedWork(null);
-    setName("");
-    setDescription("");
     setSearchResults([]);
     onClose();
-  };
-
-  const getWorkIcon = (type: WorkItem["type"]) => {
-    switch (type) {
-      case "project":
-        return <Folder className="h-4 w-4" />;
-      case "portfolio":
-        return <Briefcase className="h-4 w-4" />;
-      case "template":
-        return <FileText className="h-4 w-4" />;
-    }
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Link existing work</DialogTitle>
+          <DialogTitle>Add existing work</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Search for existing work */}
+          {/* Search for existing project */}
           {!selectedWork ? (
             <div className="space-y-2">
-              <Label className="text-sm">
-                Search for projects, portfolios, or templates
-              </Label>
+              <Label className="text-sm">Search for a project to add</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
-                  placeholder="Search by name..."
+                  placeholder="Search projects by name..."
                   className="pl-9"
+                  autoFocus
                 />
                 {isSearching && (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
@@ -166,7 +147,7 @@ export function LinkWorkModal({
                         className="h-8 w-8 rounded flex items-center justify-center text-white"
                         style={{ backgroundColor: result.color || "#6B7280" }}
                       >
-                        {getWorkIcon(result.type)}
+                        <Folder className="h-4 w-4" />
                       </div>
                       <div>
                         <p className="text-sm font-medium">{result.name}</p>
@@ -183,66 +164,39 @@ export function LinkWorkModal({
                 searchResults.length === 0 &&
                 !isSearching && (
                   <p className="text-sm text-gray-500 text-center py-4">
-                    No results found for "{searchQuery}"
+                    No projects found for &quot;{searchQuery}&quot;
                   </p>
                 )}
             </div>
           ) : (
-            <>
-              {/* Selected Work */}
-              <div className="space-y-2">
-                <Label className="text-sm">Selected work</Label>
-                <div className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
-                  <div
-                    className="h-8 w-8 rounded flex items-center justify-center text-white"
-                    style={{
-                      backgroundColor: selectedWork.color || "#6B7280",
-                    }}
-                  >
-                    {getWorkIcon(selectedWork.type)}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{selectedWork.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">
-                      {selectedWork.type}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedWork(null)}
-                    className="p-1 hover:bg-gray-200 rounded"
-                  >
-                    <X className="h-4 w-4 text-gray-500" />
-                  </button>
+            /* Selected project */
+            <div className="space-y-2">
+              <Label className="text-sm">Selected project</Label>
+              <div className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                <div
+                  className="h-8 w-8 rounded flex items-center justify-center text-white"
+                  style={{ backgroundColor: selectedWork.color || "#6B7280" }}
+                >
+                  <Folder className="h-4 w-4" />
                 </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{selectedWork.name}</p>
+                  <p className="text-xs text-gray-500 capitalize">
+                    {selectedWork.type}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedWork(null)}
+                  className="p-1 hover:bg-gray-200 rounded"
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
               </div>
-
-              {/* Name */}
-              <div className="space-y-2">
-                <Label htmlFor="work-name" className="text-sm">
-                  Name
-                </Label>
-                <Input
-                  id="work-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Work name"
-                />
-              </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="work-description" className="text-sm">
-                  Description
-                </Label>
-                <Textarea
-                  id="work-description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Add a description..."
-                  className="min-h-[80px]"
-                />
-              </div>
-            </>
+              <p className="text-xs text-gray-400">
+                This adds the project to the team&apos;s work. It won&apos;t
+                rename the project or change its contents.
+              </p>
+            </div>
           )}
         </div>
 
@@ -251,13 +205,8 @@ export function LinkWorkModal({
           <Button variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          <Button
-            onClick={handleLink}
-            disabled={!selectedWork || isLinking}
-          >
-            {isLinking ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : null}
+          <Button onClick={handleLink} disabled={!selectedWork || isLinking}>
+            {isLinking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             Add work
           </Button>
         </div>
