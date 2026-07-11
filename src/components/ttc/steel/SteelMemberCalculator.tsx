@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useId, useMemo, useState } from 'react';
-import { getAllAISC, type AISCEntry } from '@/lib/section/aisc-loader';
+import steelDb from '@/lib/steel/aisc-shapes.json';
+import { buildISection, buildHSSRect, buildRound } from '@/lib/steel/section-props';
 import {
   analyzeMember,
   type SteelSection,
@@ -10,7 +11,14 @@ import {
   type MemberResult,
 } from '@/lib/steel/aisc360';
 
-/* Families this tool checks rigorously (doubly-symmetric + HSS). */
+interface RawShape {
+  designation: string; family: string; weight: number;
+  A: number; d: number; bf: number; tf: number; tw: number;
+  Ix: number; Sx: number; Zx: number; rx: number;
+  Iy: number; Sy: number; Zy: number; ry: number; J: number; Cw: number;
+}
+const ALL_SHAPES = (steelDb as { shapes: RawShape[] }).shapes;
+
 const SUPPORTED: SteelFamily[] = ['W', 'S', 'HSS-R', 'HSS-C', 'Pipe'];
 const FAMILY_LABEL: Record<string, string> = {
   W: 'W — Wide Flange', S: 'S — American Std Beam',
@@ -23,21 +31,16 @@ const GRADES = [
   { id: 'A500C-C', label: 'A500 Gr. C (HSS round)', Fy: 46, Fu: 62 },
   { id: 'A36', label: 'A36', Fy: 36, Fu: 58 },
   { id: 'A572-50', label: 'A572 Gr. 50', Fy: 50, Fu: 65 },
+  { id: 'A53B', label: 'A53 Gr. B (pipe)', Fy: 35, Fu: 60 },
   { id: 'custom', label: 'Custom…', Fy: 50, Fu: 65 },
 ];
 
-function toSection(e: AISCEntry): SteelSection {
-  return {
-    designation: e.designation, family: e.family as SteelFamily,
-    A: e.A, d: e.d, bf: e.bf, tf: e.tf, tw: e.tw,
-    Ix: e.Ix, Sx: e.Sx, Zx: e.Zx, rx: e.rx,
-    Iy: e.Iy, Sy: e.Sy, Zy: e.Zy, ry: e.ry, J: e.J, Cw: e.Cw ?? 0,
-  };
+function toSection(e: RawShape): SteelSection {
+  return { ...e, family: e.family as SteelFamily };
 }
-
 const fmt = (x: number, d = 1) => (Number.isFinite(x) ? x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 
-/* ── small controls ──────────────────────────────────────────────────── */
+/* ── controls ─────────────────────────────────────────────────────────── */
 function Num({ label, unit, value, onChange, step = 'any', hint }: {
   label: string; unit?: string; value: number; onChange: (v: number) => void; step?: string; hint?: string;
 }) {
@@ -66,15 +69,13 @@ function Bar({ label, ratio }: { label: string; ratio: number }) {
   );
 }
 
-/* ── section diagram ─────────────────────────────────────────────────── */
 function SectionSVG({ s }: { s: SteelSection }) {
   const W = 220, H = 200, pad = 34;
   const round = s.family === 'HSS-C' || s.family === 'Pipe';
   const hss = s.family === 'HSS-R';
-  const maxDim = Math.max(s.d, s.bf);
-  const sc = (Math.min(W, H) - 2 * pad) / maxDim;
+  const sc = (Math.min(W, H) - 2 * pad) / Math.max(s.d, s.bf);
   const cx = W / 2, cy = H / 2;
-  const INK = '#221e17', GOLD = '#c9a84c';
+  const INK = '#221e17';
   if (round) {
     const R = (s.d / 2) * sc, r = R - s.tf * sc;
     return (
@@ -86,8 +87,7 @@ function SectionSVG({ s }: { s: SteelSection }) {
     );
   }
   if (hss) {
-    const bw = s.bf * sc, hh = s.d * sc, t = s.tf * sc;
-    const x = cx - bw / 2, y = cy - hh / 2;
+    const bw = s.bf * sc, hh = s.d * sc, t = s.tf * sc, x = cx - bw / 2, y = cy - hh / 2;
     return (
       <svg viewBox={`0 0 ${W} ${H}`} className="stl-svg" role="img" aria-label={`${s.designation} section`}>
         <rect x={x} y={y} width={bw} height={hh} fill="rgba(201,168,76,0.06)" stroke={INK} strokeWidth={1.4} />
@@ -96,68 +96,84 @@ function SectionSVG({ s }: { s: SteelSection }) {
       </svg>
     );
   }
-  // I-shape
-  const bw = s.bf * sc, hh = s.d * sc, tf = s.tf * sc, tw = s.tw * sc;
-  const x0 = cx - bw / 2, y0 = cy - hh / 2;
-  const pts = [
-    [x0, y0], [x0 + bw, y0], [x0 + bw, y0 + tf], [cx + tw / 2, y0 + tf],
-    [cx + tw / 2, y0 + hh - tf], [x0 + bw, y0 + hh - tf], [x0 + bw, y0 + hh],
-    [x0, y0 + hh], [x0, y0 + hh - tf], [cx - tw / 2, y0 + hh - tf],
-    [cx - tw / 2, y0 + tf], [x0, y0 + tf],
-  ].map((p) => p.join(',')).join(' ');
+  const bw = s.bf * sc, hh = s.d * sc, tf = s.tf * sc, tw = s.tw * sc, x0 = cx - bw / 2, y0 = cy - hh / 2;
+  const pts = [[x0, y0], [x0 + bw, y0], [x0 + bw, y0 + tf], [cx + tw / 2, y0 + tf],
+    [cx + tw / 2, y0 + hh - tf], [x0 + bw, y0 + hh - tf], [x0 + bw, y0 + hh], [x0, y0 + hh],
+    [x0, y0 + hh - tf], [cx - tw / 2, y0 + hh - tf], [cx - tw / 2, y0 + tf], [x0, y0 + tf]]
+    .map((p) => p.join(',')).join(' ');
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="stl-svg" role="img" aria-label={`${s.designation} section`}>
       <polygon points={pts} fill="rgba(201,168,76,0.07)" stroke={INK} strokeWidth={1.3} strokeLinejoin="round" />
-      <line x1={cx} y1={y0 - 6} x2={cx} y2={y0 + hh + 6} stroke={GOLD} strokeWidth={0.8} strokeDasharray="4 3" />
+      <line x1={cx} y1={y0 - 6} x2={cx} y2={y0 + hh + 6} stroke="#c9a84c" strokeWidth={0.8} strokeDasharray="4 3" />
       <text x={cx} y={H - 8} textAnchor="middle" className="stl-dim">d = {fmt(s.d, 2)} · bf = {fmt(s.bf, 2)} in</text>
     </svg>
   );
 }
 
-/* ── result table row ────────────────────────────────────────────────── */
 function Row({ k, v, unit, ref }: { k: string; v: React.ReactNode; unit?: string; ref?: string }) {
-  return (
-    <tr><td className="stl-k">{k}</td><td className="stl-v">{v}{unit ? <span className="stl-unit"> {unit}</span> : null}</td><td className="stl-ref">{ref}</td></tr>
-  );
+  return (<tr><td className="stl-k">{k}</td><td className="stl-v">{v}{unit ? <span className="stl-unit"> {unit}</span> : null}</td><td className="stl-ref">{ref}</td></tr>);
 }
 
-/* ── main ────────────────────────────────────────────────────────────── */
-export function SteelMemberCalculator() {
-  const all = useMemo(() => getAllAISC().filter((e) => SUPPORTED.includes(e.family as SteelFamily)), []);
-  const [family, setFamily] = useState<SteelFamily>('W');
-  const list = useMemo(() => all.filter((e) => e.family === family), [all, family]);
-  const [desig, setDesig] = useState('W14X90');
-  const entry = useMemo(() => list.find((e) => e.designation === desig) ?? list[0], [list, desig]);
-  const section = useMemo(() => (entry ? toSection(entry) : null), [entry]);
+type SectionMode = 'library' | 'custom';
+type CustomKind = 'I' | 'HSS-R' | 'HSS-C';
 
+/* ── main ─────────────────────────────────────────────────────────────── */
+export function SteelMemberCalculator() {
+  const [mode, setMode] = useState<SectionMode>('library');
+
+  // library
+  const [family, setFamily] = useState<SteelFamily>('W');
+  const [query, setQuery] = useState('');
+  const list = useMemo(() => {
+    const q = query.trim().toUpperCase();
+    return ALL_SHAPES.filter((e) => e.family === family && (!q || e.designation.toUpperCase().includes(q)));
+  }, [family, query]);
+  const [desig, setDesig] = useState('W14X90');
+  const libEntry = useMemo(() => list.find((e) => e.designation === desig) ?? list[0] ?? ALL_SHAPES.find((e) => e.family === family), [list, desig, family]);
+
+  // custom
+  const [ckind, setCkind] = useState<CustomKind>('I');
+  const [cd, setCd] = useState(14), [cbf, setCbf] = useState(8), [ctf, setCtf] = useState(0.5), [ctw, setCtw] = useState(0.375);
+  const [cB, setCB] = useState(8), [cH, setCH] = useState(8), [ct, setCt] = useState(0.5);
+  const [cD, setCD] = useState(8), [cDt, setCDt] = useState(0.375);
+
+  const section = useMemo<SteelSection | null>(() => {
+    if (mode === 'custom') {
+      if (ckind === 'I') return buildISection(cd, cbf, ctf, ctw);
+      if (ckind === 'HSS-R') return buildHSSRect(cB, cH, ct);
+      return buildRound(cD, cDt);
+    }
+    return libEntry ? toSection(libEntry) : null;
+  }, [mode, ckind, cd, cbf, ctf, ctw, cB, cH, ct, cD, cDt, libEntry]);
+
+  // material
   const [gradeId, setGradeId] = useState('A992');
   const grade = GRADES.find((g) => g.id === gradeId)!;
-  const [Fy, setFy] = useState(50);
-  const [Fu, setFu] = useState(65);
-  const activeFy = gradeId === 'custom' ? Fy : grade.Fy;
-  const activeFu = gradeId === 'custom' ? Fu : grade.Fu;
+  const [cFy, setCFy] = useState(50), [cFu, setCFu] = useState(65);
+  const activeFy = gradeId === 'custom' ? cFy : grade.Fy;
+  const activeFu = gradeId === 'custom' ? cFu : grade.Fu;
 
+  // length / bracing
   const [Lx, setLx] = useState(14), [Kx, setKx] = useState(1);
   const [Ly, setLy] = useState(14), [Ky, setKy] = useState(1);
   const [Lb, setLb] = useState(14), [Cb, setCb] = useState(1);
 
+  // demands
   const [axialKind, setAxialKind] = useState<'compression' | 'tension'>('compression');
-  const [P, setP] = useState(400);
-  const [Mux, setMux] = useState(120);
-  const [Muy, setMuy] = useState(0);
-  const [Vu, setVu] = useState(30);
+  const [P, setP] = useState(400), [Mux, setMux] = useState(120), [Muy, setMuy] = useState(0), [Vu, setVu] = useState(30);
+  const [anFrac, setAnFrac] = useState(1), [U, setU] = useState(1); // net-area fraction An/Ag and shear-lag U
 
   const result: MemberResult | null = useMemo(() => {
     if (!section) return null;
     const inp: MemberInputs = {
       section, material: { Fy: activeFy, Fu: activeFu },
       Lcx: Kx * Lx * 12, Lcy: Ky * Ly * 12, Lcz: Ky * Ly * 12, Lb: Lb * 12, Cb,
-      An: section.A, U: 1,
+      An: Math.max(0.01, anFrac) * section.A, U,
       Pu: axialKind === 'tension' ? Math.abs(P) : -Math.abs(P),
       Mux: Mux * 12, Muy: Muy * 12, Vu,
     };
     return analyzeMember(inp);
-  }, [section, activeFy, activeFu, Lx, Kx, Ly, Ky, Lb, Cb, axialKind, P, Mux, Muy, Vu]);
+  }, [section, activeFy, activeFu, Lx, Kx, Ly, Ky, Lb, Cb, axialKind, P, Mux, Muy, Vu, anFrac, U]);
 
   if (!section || !result) return null;
   const r = result;
@@ -166,7 +182,6 @@ export function SteelMemberCalculator() {
 
   return (
     <div className="stl">
-      {/* sheet header */}
       <div className="stl-sheethead">
         <div>
           <div className="stl-brand">TERCERO TABLADA</div>
@@ -179,21 +194,57 @@ export function SteelMemberCalculator() {
       </div>
 
       <div className="stl-grid">
-        {/* ── inputs ── */}
         <aside className="stl-inputs">
           <h3 className="stl-h">Section</h3>
-          <div className="stl-field">
-            <label htmlFor="stl-fam">Family</label>
-            <select id="stl-fam" value={family} onChange={(e) => { const f = e.target.value as SteelFamily; setFamily(f); const first = all.find((x) => x.family === f); if (first) setDesig(first.designation); }}>
-              {SUPPORTED.map((f) => <option key={f} value={f}>{FAMILY_LABEL[f]}</option>)}
-            </select>
+          <div className="stl-seg" role="tablist">
+            <button type="button" className={mode === 'library' ? 'is-active' : ''} onClick={() => setMode('library')}>Library</button>
+            <button type="button" className={mode === 'custom' ? 'is-active' : ''} onClick={() => setMode('custom')}>Custom</button>
           </div>
-          <div className="stl-field">
-            <label htmlFor="stl-des">Designation</label>
-            <select id="stl-des" value={entry?.designation} onChange={(e) => setDesig(e.target.value)}>
-              {list.map((e) => <option key={e.designation} value={e.designation}>{e.designation}</option>)}
-            </select>
-          </div>
+
+          {mode === 'library' ? (
+            <>
+              <div className="stl-field">
+                <label htmlFor="stl-fam">Family</label>
+                <select id="stl-fam" value={family} onChange={(e) => { const f = e.target.value as SteelFamily; setFamily(f); setQuery(''); const first = ALL_SHAPES.find((x) => x.family === f); if (first) setDesig(first.designation); }}>
+                  {SUPPORTED.map((f) => <option key={f} value={f}>{FAMILY_LABEL[f]} ({ALL_SHAPES.filter((x) => x.family === f).length})</option>)}
+                </select>
+              </div>
+              <div className="stl-field">
+                <label htmlFor="stl-search">Filter</label>
+                <input id="stl-search" type="search" placeholder="e.g. W14 or 8X8" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </div>
+              <div className="stl-field">
+                <label htmlFor="stl-des">Designation ({list.length})</label>
+                <select id="stl-des" size={6} value={libEntry?.designation} onChange={(e) => setDesig(e.target.value)} className="stl-listbox">
+                  {list.slice(0, 400).map((e) => <option key={e.designation} value={e.designation}>{e.designation}</option>)}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="stl-field">
+                <label htmlFor="stl-ck">Shape</label>
+                <select id="stl-ck" value={ckind} onChange={(e) => setCkind(e.target.value as CustomKind)}>
+                  <option value="I">I-shape (doubly-symmetric)</option>
+                  <option value="HSS-R">HSS — rectangular / square</option>
+                  <option value="HSS-C">HSS — round / pipe</option>
+                </select>
+              </div>
+              {ckind === 'I' && (<>
+                <div className="stl-row2"><Num label="d — depth" unit="in" value={cd} onChange={setCd} /><Num label="bf — flange" unit="in" value={cbf} onChange={setCbf} /></div>
+                <div className="stl-row2"><Num label="tf — flange t" unit="in" value={ctf} onChange={setCtf} /><Num label="tw — web t" unit="in" value={ctw} onChange={setCtw} /></div>
+              </>)}
+              {ckind === 'HSS-R' && (
+                <div className="stl-row2"><Num label="B — width" unit="in" value={cB} onChange={setCB} /><Num label="H — height" unit="in" value={cH} onChange={setCH} /></div>
+              )}
+              {ckind === 'HSS-R' && <Num label="t — wall" unit="in" value={ct} onChange={setCt} />}
+              {ckind === 'HSS-C' && (
+                <div className="stl-row2"><Num label="D — outside dia." unit="in" value={cD} onChange={setCD} /><Num label="t — wall" unit="in" value={cDt} onChange={setCDt} /></div>
+              )}
+              <p className="stl-note">Sharp-corner properties (built-up / plated member).</p>
+            </>
+          )}
+
           <SectionSVG s={section} />
           <div className="stl-props">
             <span>A <strong>{fmt(section.A, 2)}</strong> in²</span>
@@ -210,10 +261,8 @@ export function SteelMemberCalculator() {
             </select>
           </div>
           {gradeId === 'custom' ? (
-            <div className="stl-row2"><Num label="Fy" unit="ksi" value={Fy} onChange={setFy} /><Num label="Fu" unit="ksi" value={Fu} onChange={setFu} /></div>
-          ) : (
-            <p className="stl-note">Fy = {activeFy} ksi · Fu = {activeFu} ksi</p>
-          )}
+            <div className="stl-row2"><Num label="Fy" unit="ksi" value={cFy} onChange={setCFy} /><Num label="Fu" unit="ksi" value={cFu} onChange={setCFu} /></div>
+          ) : (<p className="stl-note">Fy = {activeFy} ksi · Fu = {activeFu} ksi</p>)}
 
           <h3 className="stl-h">Length &amp; bracing</h3>
           <div className="stl-row2"><Num label="Lx" unit="ft" value={Lx} onChange={setLx} /><Num label="Kx" value={Kx} onChange={setKx} /></div>
@@ -226,11 +275,13 @@ export function SteelMemberCalculator() {
             <button type="button" className={axialKind === 'tension' ? 'is-active' : ''} onClick={() => setAxialKind('tension')}>Tension</button>
           </div>
           <Num label={`Pu (${axialKind})`} unit="kips" value={P} onChange={setP} />
+          {axialKind === 'tension' && (
+            <div className="stl-row2"><Num label="An / Ag" value={anFrac} onChange={setAnFrac} step="0.01" hint="net/gross" /><Num label="U (shear-lag)" value={U} onChange={setU} step="0.05" /></div>
+          )}
           <div className="stl-row2"><Num label="Mux" unit="k·ft" value={Mux} onChange={setMux} /><Num label="Muy" unit="k·ft" value={Muy} onChange={setMuy} /></div>
           <Num label="Vu" unit="kips" value={Vu} onChange={setVu} />
         </aside>
 
-        {/* ── results ── */}
         <section className="stl-results">
           <div className={`stl-verdict ${govPass ? 'is-pass' : 'is-fail'}`}>
             <div className="stl-verdict__mark">{govPass ? '✓' : '✗'}</div>
@@ -250,7 +301,6 @@ export function SteelMemberCalculator() {
           </div>
 
           <div className="stl-cards">
-            {/* classification */}
             <div className="stl-card">
               <h4>Section classification <span className="stl-tag">Table B4.1</span></h4>
               <table className="stl-table"><tbody>
@@ -260,30 +310,24 @@ export function SteelMemberCalculator() {
               </tbody></table>
             </div>
 
-            {/* axial */}
             <div className="stl-card">
               <h4>{r.axialCheck.kind === 'tension' ? 'Axial tension' : 'Axial compression'} <span className="stl-tag">{r.axialCheck.kind === 'tension' ? r.tension.clause : r.compression.clause}</span></h4>
               <table className="stl-table"><tbody>
-                {r.axialCheck.kind === 'tension' ? (
-                  <>
-                    <Row k="Governing limit state" v={r.tension.detail} />
-                    <Row k="φt·Pn" v={<strong>{fmt(r.tension.phiRn)}</strong>} unit="kips" ref={`φt = ${r.tension.phi.toFixed(2)}`} />
-                  </>
-                ) : (
-                  <>
-                    <Row k="Buckling mode" v={r.compression.mode} />
-                    <Row k="Lc/r (governing)" v={fmt(r.compression.slendernessRatio, 0)} />
-                    <Row k="Fe (elastic)" v={fmt(r.compression.Fe, 1)} unit="ksi" ref="E3-4 / E4" />
-                    <Row k="Fcr (critical)" v={fmt(r.compression.Fcr, 1)} unit="ksi" ref="E3-2/E3-3" />
-                    {r.compression.slender && <Row k="Ae (effective)" v={fmt(r.compression.Ae, 2)} unit="in²" ref="E7" />}
-                    <Row k="φc·Pn" v={<strong>{fmt(r.compression.phiRn)}</strong>} unit="kips" ref="φc = 0.90" />
-                  </>
-                )}
-                <Row k="Demand Pu" v={fmt(Math.abs(axialKind === 'tension' ? P : -P))} unit="kips" />
+                {r.axialCheck.kind === 'tension' ? (<>
+                  <Row k="Governing limit state" v={r.tension.detail} />
+                  <Row k="φt·Pn" v={<strong>{fmt(r.tension.phiRn)}</strong>} unit="kips" ref={`φt = ${r.tension.phi.toFixed(2)}`} />
+                </>) : (<>
+                  <Row k="Buckling mode" v={r.compression.mode} />
+                  <Row k="Lc/r (governing)" v={fmt(r.compression.slendernessRatio, 0)} />
+                  <Row k="Fe (elastic)" v={fmt(r.compression.Fe, 1)} unit="ksi" ref="E3-4 / E4" />
+                  <Row k="Fcr (critical)" v={fmt(r.compression.Fcr, 1)} unit="ksi" ref="E3-2/E3-3" />
+                  {r.compression.slender && <Row k="Ae (effective)" v={fmt(r.compression.Ae, 2)} unit="in²" ref="E7" />}
+                  <Row k="φc·Pn" v={<strong>{fmt(r.compression.phiRn)}</strong>} unit="kips" ref="φc = 0.90" />
+                </>)}
+                <Row k="Demand Pu" v={fmt(Math.abs(P))} unit="kips" />
               </tbody></table>
             </div>
 
-            {/* flexure major */}
             <div className="stl-card">
               <h4>Flexure — major axis <span className="stl-tag">{r.flexureMajor.clause}</span></h4>
               <table className="stl-table"><tbody>
@@ -295,7 +339,6 @@ export function SteelMemberCalculator() {
               </tbody></table>
             </div>
 
-            {/* flexure minor */}
             <div className="stl-card">
               <h4>Flexure — minor axis <span className="stl-tag">{r.flexureMinor.clause}</span></h4>
               <table className="stl-table"><tbody>
@@ -305,7 +348,6 @@ export function SteelMemberCalculator() {
               </tbody></table>
             </div>
 
-            {/* shear */}
             <div className="stl-card">
               <h4>Shear <span className="stl-tag">{r.shear.clause}</span></h4>
               <table className="stl-table"><tbody>
@@ -315,7 +357,6 @@ export function SteelMemberCalculator() {
               </tbody></table>
             </div>
 
-            {/* combined */}
             {r.combined && (
               <div className="stl-card">
                 <h4>Combined axial + flexure <span className="stl-tag">H1-1 ({r.combined.equation})</span></h4>
@@ -331,7 +372,8 @@ export function SteelMemberCalculator() {
 
           <p className="stl-disclaimer">
             AISC 360-22 (LRFD). Doubly-symmetric I-shapes, HSS and pipe. Effective lengths, Cb and demands are user inputs —
-            verify bracing and load combinations independently. Engineering judgment and a licensed P.E. review remain required.
+            verify bracing and load combinations independently. Custom sections use idealised sharp-corner properties.
+            Engineering judgment and a licensed P.E. review remain required.
           </p>
         </section>
       </div>

@@ -1300,6 +1300,9 @@
   outline: none; transition: border-color 0.2s;
 }
 .stl-field input:focus, .stl-field select:focus { border-color: var(--lux-gold); }
+.stl-listbox { padding: 0; }
+.stl-listbox option { padding: 0.35rem 0.55rem; font-size: 0.82rem; }
+.stl-listbox option:checked { background: var(--lux-ink); color: #fff; }
 .stl-hint { font-size: 0.66rem; color: var(--lux-faint); }
 .stl-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .stl-note { font-size: 0.74rem; color: var(--lux-muted); margin: 0.2rem 0 0; }
