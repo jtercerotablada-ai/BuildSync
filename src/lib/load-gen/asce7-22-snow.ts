@@ -10,6 +10,10 @@ import type {
   RoofExposure,
   ThermalCondition,
   RiskCategory,
+  DriftResult,
+  DriftSurcharge,
+  UnbalancedGable,
+  SlidingSnow,
 } from './types';
 
 // 1 psf = 47.880259 Pa
@@ -82,6 +86,160 @@ export function slopeFactorCs(thetaDeg: number, Ct: number, slippery: boolean): 
   return (70 - t) / (70 - hold);
 }
 
+// ==================== Drift / unbalanced / sliding (§7.6–7.9) ====================
+const MM_TO_FT = 1 / 304.8;
+const FT_TO_MM = 304.8;
+
+/** Snow density γ — Eq 7.7-1 (pg in psf → pcf). */
+export function snowDensityPcf(pg_psf: number): number {
+  return Math.min(0.13 * pg_psf + 14, 30);
+}
+
+/** Drift height hd — ASCE 7-22 Eq 7.6-1 (ft).  No −1.5 term, no 20-ft lu floor. */
+export function driftHeightFt(pg_psf: number, lu_ft: number, W2: number, gamma_pcf: number): number {
+  if (pg_psf <= 0 || lu_ft <= 0 || W2 <= 0) return 0;
+  return 1.5 * Math.sqrt((Math.pow(pg_psf, 0.74) * Math.pow(lu_ft, 0.7) * Math.pow(W2, 1.7)) / gamma_pcf);
+}
+
+/**
+ * Drift, unbalanced-gable and sliding provisions.  Internal units: ft/psf/pcf
+ * (converted from mm/Pa at the boundary).  ps = balanced sloped-roof load.
+ */
+function solveDrift(snow: SnowData, pf_psf: number, ps_psf: number, theta: number): DriftResult | null {
+  const d = snow.drift;
+  const wantsAny = d.step || d.parapet || d.sliding || (theta >= 2.38 && theta <= 30.2);
+  if (!wantsAny) return null;
+
+  const issues: string[] = [];
+  const pg = snow.pg / PSF_TO_PA;
+  const W2 = snow.W2;
+  const gamma = snowDensityPcf(pg);
+  const hb = ps_psf > 0 && gamma > 0 ? ps_psf / gamma : 0; // ft
+
+  if (pg <= 0) return null;
+  if (W2 <= 0 || W2 > 1) {
+    issues.push('Winter Wind Parameter W2 must be the Fig 7.6-1 map value (typically 0.25–0.65).');
+  }
+
+  // §7.2 drift/unbalanced exceptions
+  const luMax_ft = Math.max(d.luUpper, d.luLower, d.parapetLu, snow.eaveToRidge) * MM_TO_FT;
+  if ((pg <= 10 && luMax_ft <= 100) || (pg <= 5 && luMax_ft <= 300)) {
+    issues.push('§7.2 exception: drift and unbalanced loads need not be considered (low pg with short fetch). Values shown for reference.');
+  }
+
+  // ---- Lower-roof step drifts (§7.7.1) ----
+  let leeward: DriftSurcharge | null = null;
+  let windward: DriftSurcharge | null = null;
+  let hc = 0;
+  let required = false;
+  if (d.step) {
+    const luU = d.luUpper * MM_TO_FT;
+    const luL = d.luLower * MM_TO_FT;
+    const stepH = d.stepHeight * MM_TO_FT;
+    hc = Math.max(stepH - hb, 0);
+    required = hb > 0 ? hc / hb >= 0.2 : true;
+    if (!required) {
+      issues.push('hc/hb < 0.2 — step drift loads are not required (§7.7.1). Values shown for reference.');
+    }
+
+    // Leeward (snow blown from the upper roof): height capped by hc and by 0.6·(lower-roof length, new in 7-22)
+    {
+      const hd = driftHeightFt(pg, luU, W2, gamma);
+      const h = Math.min(hd, hc, 0.6 * luL);
+      const w = hd <= hc ? 4 * hd : Math.min((4 * hd * hd) / Math.max(hc, 1e-9), 8 * hc);
+      leeward = {
+        hd: hd * FT_TO_MM, h: h * FT_TO_MM, pd: gamma * h * PSF_TO_PA,
+        w: w * FT_TO_MM, capped: h < hd - 1e-9, peak: (ps_psf + gamma * h) * PSF_TO_PA,
+      };
+      if (w > luL) issues.push('Leeward drift width exceeds the lower roof — taper the surcharge linearly to zero at the far end (§7.7.1).');
+    }
+    // Windward (snow blown across the lower roof toward the wall): 0.75·hd, width 8×(0.75·hd)
+    {
+      const hd75 = 0.75 * driftHeightFt(pg, luL, W2, gamma);
+      const h = Math.min(hd75, hc); // hc cap per ASCE intent (windward cap sentence is a known 7-22 text gap)
+      const w = 8 * hd75;
+      windward = {
+        hd: hd75 * FT_TO_MM, h: h * FT_TO_MM, pd: gamma * h * PSF_TO_PA,
+        w: w * FT_TO_MM, capped: h < hd75 - 1e-9, peak: (ps_psf + gamma * h) * PSF_TO_PA,
+      };
+    }
+    issues.push('Windward and leeward step drifts are separate load cases in ASCE 7-22 — check both (the "larger governs" rule was deleted).');
+  }
+
+  // ---- Parapet drift (§7.8, windward method) ----
+  let parapet: DriftSurcharge | null = null;
+  if (d.parapet) {
+    const luP = d.parapetLu * MM_TO_FT;
+    const hp = d.parapetHeight * MM_TO_FT;
+    const hcP = Math.max(hp - hb, 0);
+    const hd75 = 0.75 * driftHeightFt(pg, luP, W2, gamma);
+    const h = Math.min(hd75, hcP);
+    parapet = {
+      hd: hd75 * FT_TO_MM, h: h * FT_TO_MM, pd: gamma * h * PSF_TO_PA,
+      w: 8 * hd75 * FT_TO_MM, capped: h < hd75 - 1e-9, peak: (ps_psf + gamma * h) * PSF_TO_PA,
+    };
+    if (hcP <= 0) issues.push('Parapet is buried in the balanced snow (hc ≤ 0) — no parapet drift surcharge forms.');
+  }
+
+  // ---- Unbalanced gable (§7.6.1) ----
+  let unbalanced: UnbalancedGable | null = null;
+  {
+    const applies = theta >= 2.38 && theta <= 30.2;
+    if (applies) {
+      const W_ft = snow.eaveToRidge * MM_TO_FT;
+      const simpleCase = W_ft <= 20;
+      if (simpleCase) {
+        unbalanced = { applies, simpleCase, windward: 0, leeward: pg * PSF_TO_PA, surcharge: 0, extent: 0 };
+      } else {
+        const S = 1 / Math.tan((theta * Math.PI) / 180); // run per unit rise
+        const hd = driftHeightFt(pg, W_ft, W2, gamma);   // lu = W, no 20-ft floor in 7-22
+        unbalanced = {
+          applies, simpleCase,
+          windward: 0.3 * ps_psf * PSF_TO_PA,
+          leeward: ps_psf * PSF_TO_PA,
+          surcharge: ((gamma * hd) / Math.sqrt(S)) * PSF_TO_PA,
+          extent: (8 / 3) * hd * Math.sqrt(S) * FT_TO_MM,
+        };
+      }
+    } else if (theta > 0) {
+      unbalanced = { applies: false, simpleCase: false, windward: 0, leeward: 0, surcharge: 0, extent: 0 };
+    }
+  }
+
+  // ---- Sliding snow (§7.9) ----
+  let sliding: SlidingSnow | null = null;
+  if (d.sliding) {
+    const trigger = snow.slippery ? theta > 1.19 : theta > 9.46; // ¼:12 / 2:12
+    if (trigger) {
+      const W_ft = snow.eaveToRidge * MM_TO_FT;
+      const total = 0.4 * pf_psf * W_ft; // lb per ft of eave, full 15-ft strip
+      const width = Math.min(15, Math.max(d.luLower * MM_TO_FT, 1));
+      const totalApplied = total * (width / 15); // §7.9: narrower roof → reduce proportionally
+      sliding = {
+        intensity: (total / 15) * PSF_TO_PA,
+        width: width * FT_TO_MM,
+        totalPerLength: totalApplied * 14.5939, // lb/ft → N/m
+      };
+      if (width < 15) issues.push('Lower roof narrower than 15 ft — total sliding load reduced proportionally (§7.9).');
+    } else {
+      issues.push(`Sliding snow not triggered: upper roof slope must exceed ${snow.slippery ? '¼ on 12 (1.19°)' : '2 on 12 (9.46°)'} (§7.9).`);
+    }
+  }
+
+  return {
+    gamma_pcf: gamma,
+    hb: hb * FT_TO_MM,
+    hc: hc * FT_TO_MM,
+    required,
+    leeward,
+    windward,
+    parapet,
+    unbalanced,
+    sliding,
+    issues,
+  };
+}
+
 export function solveAsce722Snow(snow: SnowData, riskCategory: RiskCategory): SnowResult {
   const issues: string[] = [];
   const errors: string[] = [];
@@ -142,6 +300,9 @@ export function solveAsce722Snow(snow: SnowData, riskCategory: RiskCategory): Sn
     issues.push('Roof slope ≥ 70° — slope factor Cs = 0, no balanced snow retained on the surface.');
   }
 
+  // Drift / unbalanced / sliding — hb from the balanced sloped load (no ROS)
+  const drift = solveDrift(snow, pf, Cs * pf, theta);
+
   const toPa = (v: number) => v * PSF_TO_PA;
   return {
     Ce: CeUsed,
@@ -154,6 +315,7 @@ export function solveAsce722Snow(snow: SnowData, riskCategory: RiskCategory): Sn
     governing: toPa(balanced),
     slopeFactorApplies,
     minimumGoverns,
+    drift,
     issues,
     errors,
   };

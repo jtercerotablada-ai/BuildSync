@@ -5,17 +5,19 @@ import type { UnitSystem } from '@/lib/beam/units';
 import { fromSI, toSI, unitLabel } from '@/lib/beam/units';
 import type {
   LoadGenInput, DesignCode, SiteData, StructureData, SnowData, SeismicData,
-  RiskCategory, ExposureCategory, RoofType, Enclosure,
+  RiskCategory, ExposureCategory, SiteClass, RoofType, Enclosure,
   SnowTerrain, RoofExposure, ThermalCondition, SeismicSystemPeriod,
+  TopoFeature, GustMode,
   WindResult, SnowResult, SeismicResult,
 } from '@/lib/load-gen/types';
 import { DEFAULT_INPUT, solveLoads } from '@/lib/load-gen/solve';
+import { combosLRFD, combosASD, type ComboLine } from '@/lib/load-gen/asce7-22-combos';
 import { SiteMap } from './SiteMap';
 import { WindPressureDiagram } from './WindPressureDiagram';
 import { SnowRoofDiagram } from './SnowRoofDiagram';
 import { SeismicDiagram } from './SeismicDiagram';
 
-type LoadTab = 'wind' | 'snow' | 'seismic';
+type LoadTab = 'wind' | 'snow' | 'seismic' | 'combos';
 
 const CODE_OPTIONS: Array<{ value: DesignCode; label: string; enabled: boolean }> = [
   { value: 'ASCE-7-22', label: 'ASCE 7-22 (US)', enabled: true },
@@ -103,29 +105,46 @@ export function LoadGenerator() {
 
       {/* load-type tabs */}
       <div className="stl-seg abx-tabs" role="tablist">
-        {([['wind', 'Wind'], ['snow', 'Snow'], ['seismic', 'Seismic']] as const).map(([k, label]) => (
+        {([['wind', 'Wind'], ['snow', 'Snow'], ['seismic', 'Seismic'], ['combos', 'Combinations']] as const).map(([k, label]) => (
           <button key={k} type="button" role="tab" className={tab === k ? 'is-active' : ''} onClick={() => setTab(k)}>{label}</button>
         ))}
       </div>
 
-      {tab === 'wind' && <WindTab input={input} units={units} onSite={setSite} onStruct={setStruct} result={res.wind} />}
+      {tab === 'wind' && <WindTab input={input} units={units} onSite={setSite} onStruct={setStruct} onSeismic={(patch) => setInput((cur) => ({ ...cur, seismic: { ...cur.seismic, ...patch } }))} result={res.wind} />}
       {tab === 'snow' && <SnowTab snow={input.snow} risk={input.site.riskCategory} structure={input.structure} units={units} onChange={setSnow} result={res.snow} />}
-      {tab === 'seismic' && <SeismicTab seismic={input.seismic} risk={input.site.riskCategory} units={units} onChange={setSeismic} result={res.seismic} />}
+      {tab === 'seismic' && <SeismicTab seismic={input.seismic} site={input.site} units={units} onChange={setSeismic} onSite={setSite} result={res.seismic} />}
+      {tab === 'combos' && <CombosTab S={res.snow?.governing ?? 0} SDS={res.seismic?.SDS ?? 0} units={units} />}
 
       <p className="stl-disclaimer">
-        ASCE 7-22 wind (Ch. 26/27/30, Directional MWFRS + low-rise Components &amp; Cladding), snow (Ch. 7) and seismic
-        Equivalent Lateral Force (Ch. 11–12). Ground snow pg and mapped spectral accelerations Ss / S1 are site-specific —
-        obtain them from the ASCE 7 Hazard Tool for the project location. Results are preliminary design aids; a licensed
-        P.E. must verify all governing load combinations, site-specific ground-motion requirements (§11.4.8) and
+        ASCE 7-22 wind (Ch. 26/27/30 — 7-22 exposure constants, Kd in the pressure equations, topographic Kzt per
+        Fig 26.8-1, rigid/flexible gust factor per §26.11), snow (Ch. 7 incl. drift, unbalanced, parapet and sliding
+        per §7.6–7.9 with the Eq 7.6-1 W2 formulation), seismic ELF (Ch. 11–12, SDS/SD1 fetched from the USGS 7-22
+        geodatabase) and load combinations (§2.3/§2.4 with the 7-22 strength-level snow factors). Ground snow pg and W2
+        are site-specific — obtain them from the ASCE 7 Hazard Tool. Results are preliminary design aids; a licensed
+        P.E. must verify governing combinations, site-specific ground-motion requirements (§11.4.8), drift geometry and
         irregularity/redundancy provisions before use.
       </p>
     </div>
   );
 }
 
+/** Shared USGS ASCE 7-22 seismic-hazard fetch → partial SeismicData patch. */
+async function fetchUsgsSeismic(lat: number, lng: number, riskCategory: RiskCategory, siteClass: SiteClass): Promise<Partial<SeismicData>> {
+  const r = await fetch('/api/load-gen/seismic-hazard', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ lat, lng, riskCategory, siteClass }),
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? 'USGS lookup failed');
+  const d = await r.json();
+  const patch: Partial<SeismicData> = { SDS: d.sds, SD1: d.sd1, source: 'USGS' };
+  if (typeof d.s1 === 'number') patch.S1 = d.s1;
+  if (typeof d.tl === 'number') patch.TL = d.tl;
+  return patch;
+}
+
 /* ═══════════════════════ WIND ═══════════════════════ */
-function WindTab({ input, units, onSite, onStruct, result }: {
-  input: LoadGenInput; units: UnitSystem; onSite: (s: SiteData) => void; onStruct: (s: StructureData) => void; result: WindResult | null;
+function WindTab({ input, units, onSite, onStruct, onSeismic, result }: {
+  input: LoadGenInput; units: UnitSystem; onSite: (s: SiteData) => void; onStruct: (s: StructureData) => void; onSeismic: (patch: Partial<SeismicData>) => void; result: WindResult | null;
 }) {
   const site = input.site, structure = input.structure;
   const { lenU, mmToLen, lenToMm } = useUnits(units);
@@ -144,6 +163,8 @@ function WindTab({ input, units, onSite, onStruct, result }: {
       const w = await fetch('/api/load-gen/wind-hazard', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ lat: g.lat, lng: g.lng, riskCategory: site.riskCategory }) }).then((r) => r.json());
       onSite({ ...site, location: { lat: g.lat, lng: g.lng, formattedAddress: g.formattedAddress, elevation: e.elevation_m ?? 0 }, V: w.V, V_source: w.source === 'ATC' ? 'ATC' : 'interpolated' });
       setQuery(g.formattedAddress);
+      // one address → all three hazards: also pull SDS/SD1 from the USGS 7-22 service
+      try { onSeismic(await fetchUsgsSeismic(g.lat, g.lng, site.riskCategory, site.siteClass)); } catch { /* seismic stays manual */ }
     } catch {
       setErr('Address lookup unavailable — enter the design wind speed manually.');
     } finally { setLoading(false); }
@@ -191,10 +212,32 @@ function WindTab({ input, units, onSite, onStruct, result }: {
             ))}
           </div>
         </div>
-        <div className="stl-row2">
-          <NumField label="Kd (§26.6-1)" value={structure.Kd} step={0.01} onChange={(v) => setS('Kd', v || 0.85)} />
-          <NumField label="Kzt (§26.8)" value={structure.Kzt} step={0.05} onChange={(v) => setS('Kzt', v || 1)} />
-        </div>
+        <NumField label="Kd (§26.6-1)" value={structure.Kd} step={0.01} onChange={(v) => setS('Kd', v || 0.85)} />
+
+        <div className="stl-h">Topography &amp; gust</div>
+        <SelField label="Topographic feature (§26.8)" value={structure.topo.feature} onChange={(v) => setS('topo', { ...structure.topo, feature: v as TopoFeature })}
+          options={[['none', 'None — Kzt manual'], ['ridge', '2-D ridge'], ['escarpment', '2-D escarpment'], ['hill', '3-D axisymmetric hill']]} />
+        {structure.topo.feature === 'none' ? (
+          <NumField label="Kzt (manual)" value={structure.Kzt} step={0.05} onChange={(v) => setS('Kzt', v || 1)} />
+        ) : (
+          <>
+            <div className="stl-row2">
+              <NumField label="Feature height H" unit={lenU} value={mmToLen(structure.topo.H)} step={5} onChange={(v) => setS('topo', { ...structure.topo, H: lenToMm(v) })} />
+              <NumField label="Half-length Lh" unit={lenU} value={mmToLen(structure.topo.Lh)} step={10} onChange={(v) => setS('topo', { ...structure.topo, Lh: lenToMm(v) })} />
+            </div>
+            <NumField label="Distance from crest x (+ downwind)" unit={lenU} value={mmToLen(structure.topo.x)} step={10} onChange={(v) => setS('topo', { ...structure.topo, x: lenToMm(v) })} />
+            {result && <span className="stl-hint">Computed Kzt at mean roof height = {result.breakdown.Kzt.toFixed(3)} (Fig 26.8-1)</span>}
+          </>
+        )}
+        <SelField label="Gust-effect factor (§26.11)" value={structure.gustMode} onChange={(v) => setS('gustMode', v as GustMode)}
+          options={[['default', '0.85 — rigid default'], ['calculated', 'Calculated — rigid Eq 26.11-6'], ['flexible', 'Flexible Gf — Eq 26.11-10']]} />
+        {structure.gustMode === 'flexible' && (
+          <div className="stl-row2">
+            <NumField label="n1 (fund. frequency)" unit="Hz" value={structure.n1} step={0.05} onChange={(v) => setS('n1', Math.max(v || 0.5, 0.01))} />
+            <NumField label="β (damping ratio)" value={structure.beta} step={0.005} onChange={(v) => setS('beta', Math.max(v || 0.02, 0.005))} />
+          </div>
+        )}
+        {result && structure.gustMode !== 'default' && <span className="stl-hint">G = {result.mwfrs.G.toFixed(3)}</span>}
       </div>
 
       <div>
@@ -268,8 +311,11 @@ function SnowTab({ snow, risk, structure, units, onChange, result }: { snow: Sno
     <div className="stl-grid">
       <div className="stl-inputs">
         <div className="stl-h">Ground snow</div>
-        <NumField label="Ground snow pg (ultimate)" unit={pu} value={fromSI(snow.pg, 'pressureSmall', units)} step={1} onChange={(v) => set('pg', toSI(v, 'pressureSmall', units))} />
-        <span className="stl-hint">Ultimate, Risk-Category-{risk}-specific pg from the ASCE 7-22 Hazard Tool. In 7-22 the importance factor Is is removed — risk is carried in pg.</span>
+        <div className="stl-row2">
+          <NumField label="Ground snow pg (ultimate)" unit={pu} value={fromSI(snow.pg, 'pressureSmall', units)} step={1} onChange={(v) => set('pg', toSI(v, 'pressureSmall', units))} />
+          <NumField label="W2 (winter wind, 7.6-1)" value={snow.W2} step={0.05} onChange={(v) => set('W2', Math.max(0, Math.min(1, v)))} />
+        </div>
+        <span className="stl-hint">Ultimate, Risk-Category-{risk}-specific pg and Winter Wind Parameter W2 (0.25–0.65) from the ASCE 7-22 Hazard Tool. In 7-22 the importance factor Is is removed — risk is carried in pg.</span>
 
         <div className="stl-h">Roof condition</div>
         <SelField label="Terrain category" value={snow.terrain} onChange={(v) => set('terrain', v as SnowTerrain)}
@@ -291,6 +337,36 @@ function SnowTab({ snow, risk, structure, units, onChange, result }: { snow: Sno
           <input type="checkbox" checked={snow.slippery} onChange={(e) => set('slippery', e.target.checked)} />
           <span>Unobstructed slippery surface (metal / membrane / glass)</span>
         </label>
+
+        <div className="stl-h">Drift · sliding (§7.7–7.9)</div>
+        <label className="abx-ctrl abx-ctrl--check">
+          <input type="checkbox" checked={snow.drift.step} onChange={(e) => set('drift', { ...snow.drift, step: e.target.checked })} />
+          <span>Lower-roof step drift (leeward + windward)</span>
+        </label>
+        {snow.drift.step && (
+          <div className="stl-row2">
+            <NumField label="Upper-roof fetch lu" unit={lenU} value={mmToLen(snow.drift.luUpper)} step={5} onChange={(v) => set('drift', { ...snow.drift, luUpper: lenToMm(v) })} />
+            <NumField label="Roof step height" unit={lenU} value={mmToLen(snow.drift.stepHeight)} step={1} onChange={(v) => set('drift', { ...snow.drift, stepHeight: lenToMm(v) })} />
+          </div>
+        )}
+        {(snow.drift.step || snow.drift.sliding) && (
+          <NumField label="Lower-roof length" unit={lenU} value={mmToLen(snow.drift.luLower)} step={5} onChange={(v) => set('drift', { ...snow.drift, luLower: lenToMm(v) })} />
+        )}
+        <label className="abx-ctrl abx-ctrl--check">
+          <input type="checkbox" checked={snow.drift.parapet} onChange={(e) => set('drift', { ...snow.drift, parapet: e.target.checked })} />
+          <span>Parapet drift (§7.8, windward)</span>
+        </label>
+        {snow.drift.parapet && (
+          <div className="stl-row2">
+            <NumField label="Parapet height" unit={lenU} value={mmToLen(snow.drift.parapetHeight)} step={0.5} onChange={(v) => set('drift', { ...snow.drift, parapetHeight: lenToMm(v) })} />
+            <NumField label="Roof length upwind" unit={lenU} value={mmToLen(snow.drift.parapetLu)} step={5} onChange={(v) => set('drift', { ...snow.drift, parapetLu: lenToMm(v) })} />
+          </div>
+        )}
+        <label className="abx-ctrl abx-ctrl--check">
+          <input type="checkbox" checked={snow.drift.sliding} onChange={(e) => set('drift', { ...snow.drift, sliding: e.target.checked })} />
+          <span>Sliding snow onto lower roof (§7.9)</span>
+        </label>
+        {snow.drift.sliding && <span className="stl-hint">Uses the upper-roof pf, slope θ and eave-to-ridge W above; 0.4·pf·W over 15 ft (reduced proportionally by the lower-roof length when narrower).</span>}
       </div>
 
       <div>
@@ -322,27 +398,89 @@ function SnowTab({ snow, risk, structure, units, onChange, result }: { snow: Sno
             ) : <p className="stl-note">—</p>}
           </div>
         </div>
-        {result && <div className="stl-card" style={{ marginTop: '1rem' }}><Issues issues={result.issues} errors={result.errors} /></div>}
+        {result?.drift && (result.drift.leeward || result.drift.parapet || result.drift.unbalanced?.applies || result.drift.sliding) && (
+          <div className="stl-card" style={{ marginTop: '1rem' }}>
+            <h4>Drift · unbalanced · sliding <span className="stl-tag">§7.6–7.9 · Eq 7.6-1</span></h4>
+            <table className="stl-table"><tbody>
+              <Row k="γ (density, 7.7-1)" v={`${result.drift.gamma_pcf.toFixed(2)} pcf`} />
+              {result.drift.leeward && <>
+                <Row k="hb / hc" v={`${mmToLen(result.drift.hb).toFixed(2)} / ${mmToLen(result.drift.hc).toFixed(2)} ${lenU}`} ref={result.drift.required ? '' : 'hc/hb < 0.2 — not required'} />
+                <tr><td colSpan={3} className="stl-note--head">Leeward step drift (lu = upper roof)</td></tr>
+                <Row k="hd → h (capped)" v={`${mmToLen(result.drift.leeward.hd).toFixed(2)} → ${mmToLen(result.drift.leeward.h).toFixed(2)} ${lenU}`} ref={result.drift.leeward.capped ? 'capped' : ''} />
+                <Row k="Surcharge pd · width w" v={<strong>{fp(result.drift.leeward.pd)} · {mmToLen(result.drift.leeward.w).toFixed(1)} {lenU}</strong>} />
+                <Row k="Peak at step (ps + pd)" v={<strong>{fp(result.drift.leeward.peak)}</strong>} />
+              </>}
+              {result.drift.windward && <>
+                <tr><td colSpan={3} className="stl-note--head">Windward step drift (0.75·hd, lu = lower roof)</td></tr>
+                <Row k="hd → h (capped)" v={`${mmToLen(result.drift.windward.hd).toFixed(2)} → ${mmToLen(result.drift.windward.h).toFixed(2)} ${lenU}`} ref={result.drift.windward.capped ? 'capped' : ''} />
+                <Row k="Surcharge pd · width w" v={<strong>{fp(result.drift.windward.pd)} · {mmToLen(result.drift.windward.w).toFixed(1)} {lenU}</strong>} />
+              </>}
+              {result.drift.parapet && <>
+                <tr><td colSpan={3} className="stl-note--head">Parapet drift (§7.8)</td></tr>
+                <Row k="0.75·hd → h (capped)" v={`${mmToLen(result.drift.parapet.hd).toFixed(2)} → ${mmToLen(result.drift.parapet.h).toFixed(2)} ${lenU}`} ref={result.drift.parapet.capped ? 'capped by hc' : ''} />
+                <Row k="Surcharge pd · width w" v={<strong>{fp(result.drift.parapet.pd)} · {mmToLen(result.drift.parapet.w).toFixed(1)} {lenU}</strong>} />
+              </>}
+              {result.drift.unbalanced?.applies && <>
+                <tr><td colSpan={3} className="stl-note--head">Unbalanced gable (§7.6.1){result.drift.unbalanced.simpleCase ? ' — simple case (W ≤ 20 ft)' : ''}</td></tr>
+                <Row k="Windward side" v={fp(result.drift.unbalanced.windward)} />
+                <Row k="Leeward side" v={result.drift.unbalanced.simpleCase
+                  ? <strong>{fp(result.drift.unbalanced.leeward)}</strong>
+                  : <strong>{fp(result.drift.unbalanced.leeward)} + {fp(result.drift.unbalanced.surcharge)}</strong>}
+                  ref={result.drift.unbalanced.simpleCase ? '' : `over ${mmToLen(result.drift.unbalanced.extent).toFixed(1)} ${lenU} from ridge`} />
+              </>}
+              {result.drift.sliding && <>
+                <tr><td colSpan={3} className="stl-note--head">Sliding snow (§7.9)</td></tr>
+                <Row k="Added intensity · strip" v={<strong>{fp(result.drift.sliding.intensity)} · {mmToLen(result.drift.sliding.width).toFixed(1)} {lenU}</strong>} ref="0.4·pf·W over 15 ft" />
+              </>}
+            </tbody></table>
+          </div>
+        )}
+        {result && <div className="stl-card" style={{ marginTop: '1rem' }}><Issues issues={[...result.issues, ...(result.drift?.issues ?? [])]} errors={result.errors} /></div>}
       </div>
     </div>
   );
 }
 
 /* ═══════════════════════ SEISMIC ═══════════════════════ */
-function SeismicTab({ seismic, risk, units, onChange, result }: { seismic: SeismicData; risk: RiskCategory; units: UnitSystem; onChange: (s: SeismicData) => void; result: SeismicResult | null }) {
+function SeismicTab({ seismic, site, units, onChange, onSite, result }: { seismic: SeismicData; site: SiteData; units: UnitSystem; onChange: (s: SeismicData) => void; onSite: (s: SiteData) => void; result: SeismicResult | null }) {
   const forceU = unitLabel('force', units);
   const { lenU, mmToLen, lenToMm } = useUnits(units);
   const ff = (kn: number) => `${fromSI(kn, 'force', units).toFixed(1)} ${forceU}`;
   const set = <K extends keyof SeismicData>(k: K, v: SeismicData[K]) => onChange({ ...seismic, [k]: v });
+  const [fetching, setFetching] = useState(false);
+  const [fetchErr, setFetchErr] = useState<string | null>(null);
+  const refetch = async (siteClass: SiteClass) => {
+    if (!site.location) return;
+    setFetching(true); setFetchErr(null);
+    try {
+      onChange({ ...seismic, ...(await fetchUsgsSeismic(site.location.lat, site.location.lng, site.riskCategory, siteClass)) });
+    } catch (e) {
+      setFetchErr(e instanceof Error ? e.message : 'USGS lookup failed');
+    } finally { setFetching(false); }
+  };
   return (
     <div className="stl-grid">
       <div className="stl-inputs">
         <div className="stl-h">Design ground motion</div>
         <div className="stl-row2">
-          <NumField label="SDS (short-period)" unit="g" value={seismic.SDS} step={0.05} onChange={(v) => set('SDS', v)} />
-          <NumField label="SD1 (1-s period)" unit="g" value={seismic.SD1} step={0.02} onChange={(v) => set('SD1', v)} />
+          <SelField label="Site class (Table 20.2-1)" value={site.siteClass} onChange={(v) => { onSite({ ...site, siteClass: v as SiteClass }); refetch(v as SiteClass); }}
+            options={[['Default', 'Default — C/CD/D envelope'], ['A', 'A — Hard rock'], ['B', 'B — Medium hard rock'], ['BC', 'BC — Soft rock'], ['C', 'C — Very dense sand'], ['CD', 'CD — Dense sand'], ['D', 'D — Medium dense sand'], ['DE', 'DE — Loose sand'], ['E', 'E — Soft clay'], ['F', 'F — Site-specific']]} />
+          <div className="stl-field">
+            <label>USGS 7-22 geodatabase</label>
+            <button type="button" className="stl-add" style={{ margin: 0, padding: '0.55rem 0.65rem' }} disabled={!site.location || fetching} onClick={() => refetch(site.siteClass)}>
+              {fetching ? 'Fetching…' : site.location ? 'Fetch SDS / SD1 for site' : 'Look up an address first (Wind tab)'}
+            </button>
+          </div>
         </div>
-        <span className="stl-hint">ASCE 7-22 takes SDS / SD1 directly from the USGS Hazard Tool for the site class (Fa/Fv tables were removed). Risk category {risk} sets Ie.</span>
+        {fetchErr && <span className="stl-hint" style={{ color: '#b0322a' }}>{fetchErr}</span>}
+        <div className="stl-row2">
+          <NumField label="SDS (short-period)" unit="g" value={seismic.SDS} step={0.05} onChange={(v) => onChange({ ...seismic, SDS: v, source: 'manual' })} />
+          <NumField label="SD1 (1-s period)" unit="g" value={seismic.SD1} step={0.02} onChange={(v) => onChange({ ...seismic, SD1: v, source: 'manual' })} />
+        </div>
+        <span className="stl-hint">
+          {seismic.source === 'USGS' ? 'SDS / SD1 fetched from the USGS ASCE 7-22 geodatabase for this site & class. ' : ''}
+          7-22 removed the Fa/Fv tables — the geodatabase carries site effects. Risk category {site.riskCategory} sets Ie.
+        </span>
         <div className="stl-row2">
           <NumField label="S1 (mapped, at BC)" unit="g" value={seismic.S1} step={0.02} onChange={(v) => set('S1', v)} />
           <NumField label="TL (long-period)" unit="s" value={seismic.TL} step={1} onChange={(v) => set('TL', v || 8)} />
@@ -408,6 +546,70 @@ function SeismicTab({ seismic, risk, units, onChange, result }: { seismic: Seism
           </div>
         )}
         {result && <div className="stl-card" style={{ marginTop: '1rem' }}><Issues issues={result.issues} errors={result.errors} /></div>}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════ COMBINATIONS ═══════════════════════ */
+function CombosTab({ S, SDS, units }: { S: number; SDS: number; units: UnitSystem }) {
+  const pu = unitLabel('pressureSmall', units);
+  const fp = (pa: number) => `${fromSI(pa, 'pressureSmall', units).toFixed(1)} ${pu}`;
+  const [D, setD] = useState(20 * 47.880259);   // Pa (20 psf)
+  const [L, setL] = useState(50 * 47.880259);
+  const [Lr, setLr] = useState(20 * 47.880259);
+  const [R, setR] = useState(0);
+  const [rho, setRho] = useState(1.0);
+
+  const inputs = { D, L, Lr, R, S, SDS, rho };
+  const lrfd = combosLRFD(inputs);
+  const asd = combosASD(inputs);
+  const maxLrfd = Math.max(...lrfd.map((c) => c.value ?? 0));
+  const maxAsd = Math.max(...asd.map((c) => c.value ?? 0));
+
+  const ComboTable = ({ rows, maxVal, title, tag }: { rows: ComboLine[]; maxVal: number; title: string; tag: string }) => (
+    <div className="stl-card">
+      <h4>{title} <span className="stl-tag">{tag}</span></h4>
+      <div className="abx-tablewrap"><table className="abx-table"><thead><tr><th>Ref</th><th>Combination</th><th>Result</th></tr></thead><tbody>
+        {rows.map((c) => (
+          <tr key={c.id}>
+            <td className="abx-mono">{c.id}</td>
+            <td style={{ whiteSpace: 'normal' }}>{c.expr}</td>
+            <td className="abx-mono" style={c.value !== null && c.value === maxVal ? { fontWeight: 700, color: 'var(--lux-ink)' } : undefined}>
+              {c.value !== null ? fp(c.value) : c.kind === 'wind' ? '+ W terms' : '+ QE terms'}
+            </td>
+          </tr>
+        ))}
+      </tbody></table></div>
+    </div>
+  );
+
+  return (
+    <div className="stl-grid">
+      <div className="stl-inputs">
+        <div className="stl-h">Service loads</div>
+        <div className="stl-row2">
+          <NumField label="Dead D" unit={pu} value={fromSI(D, 'pressureSmall', units)} step={1} onChange={(v) => setD(toSI(v, 'pressureSmall', units))} />
+          <NumField label="Live L" unit={pu} value={fromSI(L, 'pressureSmall', units)} step={1} onChange={(v) => setL(toSI(v, 'pressureSmall', units))} />
+        </div>
+        <div className="stl-row2">
+          <NumField label="Roof live Lr" unit={pu} value={fromSI(Lr, 'pressureSmall', units)} step={1} onChange={(v) => setLr(toSI(v, 'pressureSmall', units))} />
+          <NumField label="Rain R" unit={pu} value={fromSI(R, 'pressureSmall', units)} step={1} onChange={(v) => setR(toSI(v, 'pressureSmall', units))} />
+        </div>
+        <SelField label="Redundancy ρ (§12.3.4)" value={String(rho)} onChange={(v) => setRho(parseFloat(v))}
+          options={[['1', '1.0 — SDC B/C or compliant'], ['1.3', '1.3 — SDC D–F default']]} />
+        <div className="stl-h">Pulled from the other tabs</div>
+        <table className="stl-table"><tbody>
+          <Row k="Snow S (governing balanced)" v={<strong>{fp(S)}</strong>} ref="Snow tab" />
+          <Row k="SDS (for Ev = 0.2·SDS·D)" v={<strong>{SDS.toFixed(3)} g</strong>} ref="Seismic tab" />
+        </tbody></table>
+        <span className="stl-hint">ASCE 7-22 factors: snow is strength-level — principal 1.0S, companion 0.3S (LRFD), 0.7S (ASD), 0.15S with seismic. W and QE (from the Wind / Seismic tabs) act per surface / as system shears and stay symbolic here.</span>
+      </div>
+      <div>
+        <div className="stl-cards">
+          <ComboTable rows={lrfd} maxVal={maxLrfd} title="Strength design" tag="LRFD · §2.3" />
+          <ComboTable rows={asd} maxVal={maxAsd} title="Allowable stress" tag="ASD · §2.4" />
+        </div>
       </div>
     </div>
   );

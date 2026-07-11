@@ -19,7 +19,8 @@ export type DesignCode =
 
 export type RiskCategory = 'I' | 'II' | 'III' | 'IV';
 export type ExposureCategory = 'B' | 'C' | 'D';
-export type SiteClass = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'Default';
+// ASCE 7-22 has nine site classes (Table 20.2-1); BC/CD/DE are new in 7-22.
+export type SiteClass = 'A' | 'B' | 'BC' | 'C' | 'CD' | 'D' | 'DE' | 'E' | 'F' | 'Default';
 export type RoofType = 'flat' | 'gable' | 'hip' | 'monoslope';
 export type Enclosure = 'enclosed' | 'partially-enclosed' | 'open';
 
@@ -41,6 +42,18 @@ export interface SiteData {
   V_source: 'ATC' | 'interpolated' | 'manual';
 }
 
+// Topographic speed-up feature (Fig 26.8-1)
+export type TopoFeature = 'none' | 'ridge' | 'escarpment' | 'hill';
+export interface TopoData {
+  feature: TopoFeature;
+  H: number;   // height of hill/escarpment (mm)
+  Lh: number;  // distance upwind of crest to half-height (mm)
+  x: number;   // distance from crest to site (mm, + downwind / − upwind)
+}
+
+// Gust-effect factor mode (§26.11)
+export type GustMode = 'default' | 'calculated' | 'flexible';
+
 export interface StructureData {
   H: number; // mean roof height (mm) — used for Kz and qh
   L: number; // building length, plan, parallel to wind (mm)
@@ -49,8 +62,12 @@ export interface StructureData {
   roofSlope: number; // degrees (0 for flat)
   enclosure: Enclosure;
   // Directionality + topographic (default conservative)
-  Kd: number;      // Table 26.6-1; 0.85 for MWFRS buildings
-  Kzt: number;     // topographic factor, default 1.0 (flat ground)
+  Kd: number;      // Table 26.6-1; 0.85 for MWFRS buildings (applied in the pressure eqs per 7-22)
+  Kzt: number;     // topographic factor — manual value used when topo.feature === 'none'
+  topo: TopoData;  // Kzt calculator inputs (Fig 26.8-1)
+  gustMode: GustMode; // 0.85 default | calculated rigid G | flexible Gf
+  n1: number;      // fundamental natural frequency (Hz) — flexible buildings
+  beta: number;    // damping ratio (fraction of critical), typ. 0.01–0.02
 }
 
 // ---- Snow (ASCE 7-22 Chapter 7) ----
@@ -64,6 +81,18 @@ export type ThermalCondition =
   | 'below-freezing'      // Ct = 1.3 — intentionally kept below freezing
   | 'greenhouse';         // Ct = 0.85 — continuously heated greenhouse (roof R < 2)
 
+// Drift / unbalanced / sliding inputs (§7.6–7.9)
+export interface DriftData {
+  step: boolean;         // lower-roof step drift (§7.7.1)
+  luUpper: number;       // upper-roof fetch, leeward drift (mm)
+  luLower: number;       // lower-roof length, windward drift + caps (mm)
+  stepHeight: number;    // top of lower roof → upper roof (mm)
+  parapet: boolean;      // parapet drift (§7.8)
+  parapetHeight: number; // parapet height above roof (mm)
+  parapetLu: number;     // roof length upwind of the wall (mm)
+  sliding: boolean;      // sliding snow onto a lower roof (§7.9)
+}
+
 export interface SnowData {
   pg: number;            // ground snow load — stored in Pa (pressureSmall)
   terrain: SnowTerrain;
@@ -73,6 +102,8 @@ export interface SnowData {
   roofSlope: number;     // degrees (uses StructureData.roofSlope if linked; kept separate for clarity)
   slippery: boolean;     // unobstructed slippery surface (metal, membrane, glass)
   eaveToRidge: number;   // W — horizontal eave-to-ridge distance, stored in mm (for rain-on-snow slope check)
+  W2: number;            // Winter Wind Parameter (Fig 7.6-1 / Hazard Tool), 0.25–0.65
+  drift: DriftData;
 }
 
 // ---- Seismic (ASCE 7-22 Chapters 11–12, ELF) ----
@@ -96,6 +127,7 @@ export interface SeismicData {
   hn: number;           // structural height — stored in mm (converted to ft for Ta)
   W: number;            // effective seismic weight — stored in kN (SI 'force' base)
   stories: number;      // number of stories for vertical force distribution (equal w & h assumed)
+  source: 'USGS' | 'manual'; // where SDS/SD1/S1/TL came from
   // riskCategory is read from SiteData (shared)
 }
 
@@ -167,6 +199,43 @@ export interface WindResult {
 }
 
 // ---- Snow results ----
+export interface DriftSurcharge {
+  hd: number;            // drift height before caps (mm)
+  h: number;             // drift height after caps (mm)
+  pd: number;            // max surcharge intensity (Pa)
+  w: number;             // drift width (mm)
+  capped: boolean;       // hc (or 0.6·luLower) governed
+  peak: number;          // balanced + surcharge at the wall/step (Pa)
+}
+
+export interface UnbalancedGable {
+  applies: boolean;
+  simpleCase: boolean;   // W ≤ 20 ft simply-supported: windward 0 / leeward pg
+  windward: number;      // Pa
+  leeward: number;       // Pa (uniform part)
+  surcharge: number;     // Pa (rectangular surcharge, general case)
+  extent: number;        // horizontal extent from ridge (mm)
+}
+
+export interface SlidingSnow {
+  intensity: number;     // Pa added over the 15-ft strip
+  width: number;         // strip width (mm, ≤ lower roof)
+  totalPerLength: number; // 0.4·pf·W (N/m of eave)
+}
+
+export interface DriftResult {
+  gamma_pcf: number;     // snow density (pcf, Eq 7.7-1)
+  hb: number;            // balanced snow depth (mm)
+  hc: number;            // clear height above balanced snow (mm) — step case
+  required: boolean;     // hc/hb ≥ 0.2 (step drift)
+  leeward: DriftSurcharge | null;
+  windward: DriftSurcharge | null;
+  parapet: DriftSurcharge | null;
+  unbalanced: UnbalancedGable | null;
+  sliding: SlidingSnow | null;
+  issues: string[];
+}
+
 export interface SnowResult {
   Ce: number;
   Ct: number;
@@ -178,6 +247,7 @@ export interface SnowResult {
   governing: number;     // governing balanced roof snow load (Pa)
   slopeFactorApplies: boolean;
   minimumGoverns: boolean;
+  drift: DriftResult | null;
   issues: string[];
   errors: string[];
 }

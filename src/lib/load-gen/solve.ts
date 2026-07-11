@@ -41,6 +41,10 @@ export const DEFAULT_STRUCTURE: StructureData = {
   enclosure: 'enclosed',
   Kd: 0.85,
   Kzt: 1.0,
+  topo: { feature: 'none', H: 50 * 304.8, Lh: 100 * 304.8, x: 0 },
+  gustMode: 'default',
+  n1: 1.0,     // Hz — used only in flexible mode
+  beta: 0.02,  // damping ratio
 };
 
 export const DEFAULT_SNOW: SnowData = {
@@ -52,6 +56,17 @@ export const DEFAULT_SNOW: SnowData = {
   roofSlope: 0,
   slippery: false,
   eaveToRidge: 20 * 304.8,   // 20 ft → mm
+  W2: 0.45,                  // Winter Wind Parameter (Fig 7.6-1 / Hazard Tool)
+  drift: {
+    step: false,
+    luUpper: 40 * 304.8,     // upper-roof fetch
+    luLower: 30 * 304.8,     // lower-roof length
+    stepHeight: 4 * 304.8,   // roof step
+    parapet: false,
+    parapetHeight: 2.5 * 304.8,
+    parapetLu: 50 * 304.8,
+    sliding: false,
+  },
 };
 
 export const DEFAULT_SEISMIC: SeismicData = {
@@ -64,6 +79,7 @@ export const DEFAULT_SEISMIC: SeismicData = {
   hn: 45 * 304.8,   // 45 ft → mm
   W: 2000 * 4.4482216152605, // 2000 kip → kN
   stories: 4,
+  source: 'manual',
 };
 
 export const DEFAULT_INPUT: LoadGenInput = {

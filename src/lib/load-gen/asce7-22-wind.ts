@@ -14,32 +14,68 @@ import type {
   CCResult,
   WindResult,
   Enclosure,
+  TopoFeature,
+  GustMode,
 } from './types';
 
 // ------------------- 26.10-1 Kz / Kh Velocity Pressure Exposure ----------
-// ASCE 7-22 Table 26.10-1. For buildings with h ≤ 60 ft there are tabulated
-// values at discrete heights; we use the formulae in Note 1 which are exact
-// power-law forms.
+// ASCE 7-22 Table 26.10-1.  7-22 recalibrated the exposure profiles: the
+// constant is 2.41 (was 2.01 in 7-16) with new gradient heights zg and new α.
+// The recalibration reproduces essentially the same Kz values (< 0.5% shift).
 const EXPOSURE_PARAMS: Record<ExposureCategory, { alpha: number; zg_m: number }> = {
-  B: { alpha: 7.0, zg_m: 365.76 },    // zg = 1200 ft
-  C: { alpha: 9.5, zg_m: 274.32 },    // zg = 900 ft
-  D: { alpha: 11.5, zg_m: 213.36 },   // zg = 700 ft
+  B: { alpha: 7.5, zg_m: 999.744 },   // zg = 3280 ft
+  C: { alpha: 9.8, zg_m: 749.808 },   // zg = 2460 ft
+  D: { alpha: 11.5, zg_m: 589.788 },  // zg = 1935 ft
 };
 
 /**
  * Velocity pressure exposure coefficient Kz or Kh (same formula, z is the
- * relevant height). Input z in meters (SI). The ASCE formula:
+ * relevant height). Input z in meters (SI). ASCE 7-22 Table 26.10-1:
  *
- *   Kz = 2.01 · (z/zg)^(2/α)  for z ≥ 4.57 m (15 ft)
- *   Kz = 2.01 · (4.57/zg)^(2/α) for z < 4.57 m  (i.e. clamp to 4.57 m)
- *
- * Ref: ASCE 7-22 Table 26.10-1 Note 1. Earlier drafts used 2.41 — the
- * current code explicitly uses 2.01.
+ *   Kz = 2.41 · (z/zg)^(2/α)   for 4.57 m (15 ft) ≤ z ≤ zg
+ *   Kz = 2.41 · (4.57/zg)^(2/α) for z < 4.57 m  (clamp to 15 ft)
  */
 export function kz(z_m: number, exposure: ExposureCategory): number {
   const { alpha, zg_m } = EXPOSURE_PARAMS[exposure];
-  const zUse = Math.max(z_m, 4.57);
-  return 2.01 * Math.pow(zUse / zg_m, 2 / alpha);
+  const zUse = Math.min(Math.max(z_m, 4.572), zg_m); // 15 ft floor
+  return 2.41 * Math.pow(zUse / zg_m, 2 / alpha);
+}
+
+// ------------------- 26.8 Topographic factor Kzt --------------------------
+// Kzt = (1 + K1·K2·K3)², Fig 26.8-1.  K1/(H/Lh) multipliers by exposure,
+// γ (height attenuation) and μ (horizontal attenuation, upwind/downwind).
+// Note 2: where H/Lh > 0.5, use H/Lh = 0.5 and substitute 2H for Lh.
+// ASCE 7-22 deleted the 7-16 isolation/sheltering criteria — the speed-up is
+// considered even when similar upwind features are present.
+const TOPO_PARAMS: Record<Exclude<TopoFeature, 'none'>, {
+  k1hl: Record<ExposureCategory, number>; gamma: number; muUp: number; muDown: number;
+}> = {
+  ridge:      { k1hl: { B: 1.30, C: 1.45, D: 1.55 }, gamma: 3.0, muUp: 1.5, muDown: 1.5 },
+  escarpment: { k1hl: { B: 0.75, C: 0.85, D: 0.95 }, gamma: 2.5, muUp: 1.5, muDown: 4.0 },
+  hill:       { k1hl: { B: 0.95, C: 1.05, D: 1.15 }, gamma: 4.0, muUp: 1.5, muDown: 1.5 },
+};
+
+/**
+ * Topographic factor at height z above ground (all lengths in meters).
+ * x is measured from the crest, positive downwind.
+ */
+export function kzt(
+  feature: TopoFeature,
+  exposure: ExposureCategory,
+  H_m: number,
+  Lh_m: number,
+  x_m: number,
+  z_m: number
+): number {
+  if (feature === 'none' || H_m <= 0 || Lh_m <= 0) return 1.0;
+  let Lh = Lh_m;
+  if (H_m / Lh > 0.5) Lh = 2 * H_m; // Note 2 substitution (forces H/Lh = 0.5)
+  const t = TOPO_PARAMS[feature];
+  const K1 = t.k1hl[exposure] * Math.min(H_m / Lh, 0.5);
+  const mu = x_m >= 0 ? t.muDown : t.muUp;
+  const K2 = Math.max(0, 1 - Math.abs(x_m) / (mu * Lh));
+  const K3 = Math.exp((-t.gamma * Math.max(z_m, 0)) / Lh);
+  return Math.pow(1 + K1 * K2 * K3, 2);
 }
 
 /**
@@ -57,20 +93,84 @@ export function ke(elevation_m: number): number {
 }
 
 /**
- * Velocity pressure qz (or qh at mean roof height). Eq 26.10-1 in SI:
- *   qz = 0.613 · Kz · Kzt · Kd · Ke · V²      (Pa, V in m/s)
+ * Velocity pressure qz (or qh at mean roof height). ASCE 7-22 Eq 26.10-1 in SI:
+ *   qz = 0.613 · Kz · Kzt · Ke · V²      (Pa, V in m/s)
  *
- * This is the SI rewrite of the imperial eq qz = 0.00256·Kz·Kzt·Kd·Ke·V²
- * (psf, V in mph). Derivation: q = ½·ρ·V² with ρ_air ≈ 1.225 kg/m³.
+ * NOTE: 7-22 removed Kd from the velocity-pressure equation — the
+ * directionality factor is now applied inside the pressure equations
+ * (p = q·Kd·G·Cp − qi·Kd·GCpi), i.e. exactly once on every pressure.
  */
 export function qz(
   V_ms: number,
   Kz: number,
   Kzt: number,
-  Kd: number,
   Ke: number
 ): number {
-  return 0.613 * Kz * Kzt * Kd * Ke * V_ms * V_ms;
+  return 0.613 * Kz * Kzt * Ke * V_ms * V_ms;
+}
+
+// ------------------- 26.11 Gust-effect factor -----------------------------
+// Table 26.11-1 terrain exposure constants (ASCE 7-22, ft units).  α/zg/ℓ/zmin
+// are code-confirmed; ᾱ, b̄, c, ε̄ trace to the 7-22 draft table (flagged in
+// the UI as verify-against-print for flexible buildings).
+const GUST_CONST: Record<ExposureCategory, {
+  c: number; ell: number; epsBar: number; alphaBar: number; bBar: number; zmin: number;
+}> = {
+  B: { c: 0.3, ell: 320, epsBar: 1 / 3.0, alphaBar: 1 / 4.5, bBar: 0.47, zmin: 30 },
+  C: { c: 0.2, ell: 500, epsBar: 1 / 5.0, alphaBar: 1 / 6.4, bBar: 0.66, zmin: 15 },
+  D: { c: 0.15, ell: 650, epsBar: 1 / 8.0, alphaBar: 1 / 8.0, bBar: 0.78, zmin: 7 },
+};
+
+export interface GustResult { G: number; mode: GustMode; Iz: number; Q: number; R: number | null }
+
+/**
+ * Gust-effect factor per §26.11.  h/B/L in meters (converted to ft inside),
+ * V in m/s.  'default' → 0.85 (permitted for rigid buildings);
+ * 'calculated' → rigid Eq 26.11-6; 'flexible' → Gf Eq 26.11-10 with n1 (Hz)
+ * and damping ratio β.
+ */
+export function gustEffect(
+  mode: GustMode,
+  exposure: ExposureCategory,
+  h_m: number,
+  B_m: number,
+  L_m: number,
+  V_ms: number,
+  n1: number,
+  beta: number
+): GustResult {
+  if (mode === 'default') return { G: 0.85, mode, Iz: 0, Q: 0, R: null };
+  const M_TO_FT = 1 / 0.3048;
+  const h = h_m * M_TO_FT, B = B_m * M_TO_FT, L = L_m * M_TO_FT;
+  const k = GUST_CONST[exposure];
+  const zBar = Math.max(0.6 * h, k.zmin);                    // ft
+  const Iz = k.c * Math.pow(33 / zBar, 1 / 6);               // Eq 26.11-7
+  const Lz = k.ell * Math.pow(zBar / 33, k.epsBar);          // Eq 26.11-9
+  const Q = Math.sqrt(1 / (1 + 0.63 * Math.pow((B + h) / Lz, 0.63))); // Eq 26.11-8
+  const gQ = 3.4, gv = 3.4;
+
+  if (mode === 'calculated') {
+    const G = 0.925 * ((1 + 1.7 * gQ * Iz * Q) / (1 + 1.7 * gv * Iz)); // Eq 26.11-6
+    return { G, mode, Iz, Q, R: null };
+  }
+
+  // Flexible Gf — Eq 26.11-10..16.  gR (Eq 26.11-11) is undefined for
+  // 3600·n1 ≤ 1, so clamp to physically plausible floors (0.01 Hz ≈ 100 s
+  // period; 0.5% damping) — anything lower is not a building.
+  const n = Math.max(n1, 0.01);
+  const b = Math.max(beta, 0.005);
+  const gR = Math.sqrt(2 * Math.log(3600 * n)) + 0.577 / Math.sqrt(2 * Math.log(3600 * n)); // 26.11-11
+  const V_mph = V_ms / 0.44704;
+  const Vz = k.bBar * Math.pow(zBar / 33, k.alphaBar) * (88 / 60) * V_mph; // ft/s, 26.11-16
+  const N1 = (n * Lz) / Vz;                                   // 26.11-14
+  const Rn = (7.47 * N1) / Math.pow(1 + 10.3 * N1, 5 / 3);    // 26.11-13
+  const Rl = (eta: number) => (eta <= 0 ? 1 : 1 / eta - (1 / (2 * eta * eta)) * (1 - Math.exp(-2 * eta))); // 26.11-15
+  const Rh = Rl((4.6 * n * h) / Vz);
+  const RB = Rl((4.6 * n * B) / Vz);
+  const RLl = Rl((15.4 * n * L) / Vz);
+  const R = Math.sqrt((1 / b) * Rn * Rh * RB * (0.53 + 0.47 * RLl)); // 26.11-12
+  const Gf = 0.925 * ((1 + 1.7 * Iz * Math.sqrt(gQ * gQ * Q * Q + gR * gR * R * R)) / (1 + 1.7 * gv * Iz)); // 26.11-10
+  return { G: Gf, mode, Iz, Q, R };
 }
 
 // ------------------- 27.3 MWFRS External Pressure Coefficients Cp --------
@@ -203,18 +303,11 @@ export function GCpi(enclosure: Enclosure): { pos: number; neg: number } {
   return { pos: 0.18, neg: -0.18 }; // enclosed
 }
 
-// ------------------- 26.11.5 Gust-effect factor G -------------------------
-// Default rigid-building gust factor per §26.11.4 (G = 0.85).
-// Flexible structures require natural frequency — not in MVP scope.
-export function gustFactor(): number {
-  return 0.85;
-}
-
 // ------------------- MWFRS pressure combine -------------------------------
-// p = qh · G · Cp  −  qi · (GCpi)   per Eq 27.3-1 (enclosed / partially enclosed)
+// ASCE 7-22 Eq 27.3-1: p = q·Kd·G·Cp − qi·Kd·(GCpi)  (Kd applied here, not in q).
 // For enclosed buildings qi = qh.
-function combinePressure(qh: number, qi: number, G: number, Cp: number, GCpi: number): number {
-  return qh * G * Cp - qi * GCpi;
+function combinePressure(qh: number, qi: number, Kd: number, G: number, Cp: number, GCpi: number): number {
+  return Kd * (qh * G * Cp - qi * GCpi);
 }
 
 // ------------------- Components & Cladding (Ch 30, Part 1) ---------------
@@ -285,42 +378,63 @@ export function solveAsce722Wind(site: SiteData, structure: StructureData): Wind
   const elev_m = site.location?.elevation ?? 0;
   const Kh = kz(h_m, site.exposure);
   const Ke = ke(elev_m);
-  const qh = qz(site.V, Kh, structure.Kzt, structure.Kd, Ke);
+
+  // Topographic factor — computed from Fig 26.8-1 when a feature is set,
+  // otherwise the manual value.  Evaluated at mean roof height.
+  let KztUsed = structure.Kzt;
+  if (structure.topo.feature !== 'none') {
+    const Ht = structure.topo.H / 1000, Lh = structure.topo.Lh / 1000, x = structure.topo.x / 1000;
+    KztUsed = kzt(structure.topo.feature, site.exposure, Ht, Lh, x, h_m);
+    const hMin = site.exposure === 'B' ? 18.288 : 4.572; // 60 ft / 15 ft
+    if (Ht / Math.max(Lh, 1e-9) < 0.2 || Ht < hMin) {
+      issues.push('Topographic feature is below the §26.8.1 thresholds (H/Lh ≥ 0.2 and H ≥ 15 ft C/D · 60 ft B) — Kzt may be taken as 1.0; the computed value is shown conservatively.');
+    }
+  }
+
+  const qh = qz(site.V, Kh, KztUsed, Ke); // 7-22: Kd is NOT in qz — applied in the pressure equations
 
   const breakdown: VelocityPressureBreakdown = {
     V: site.V,
     V_mph: site.V / 0.44704,
     Kz: Kh,
-    Kzt: structure.Kzt,
+    Kzt: KztUsed,
     Kd: structure.Kd,
     Ke,
     qh,
   };
 
   // ---- MWFRS walls + roof ----
-  const G = gustFactor();
+  const gust = gustEffect(structure.gustMode, site.exposure, h_m, B_m, L_m, site.V, structure.n1, structure.beta);
+  const G = gust.G;
+  if (structure.gustMode === 'flexible') {
+    if (structure.n1 >= 1) {
+      issues.push('n1 ≥ 1 Hz — the building is rigid per §26.2; the flexible Gf is not required (calculated G or 0.85 applies).');
+    }
+    issues.push('Flexible Gf uses the ASCE 7-22 Table 26.11-1 constants as published in the public draft — verify against the print standard.');
+  }
+  const Kd = structure.Kd;
   const { windward, leeward, side } = cpWall(L_m / B_m);
   const { pos: GCpi_pos, neg: GCpi_neg } = GCpi(structure.enclosure);
   const qi = qh; // enclosed building
 
   // Design pressure = the worst-case (max magnitude) of +GCpi and −GCpi
   const windwardDesign = Math.max(
-    Math.abs(combinePressure(qh, qi, G, windward, GCpi_pos)),
-    Math.abs(combinePressure(qh, qi, G, windward, GCpi_neg))
+    Math.abs(combinePressure(qh, qi, Kd, G, windward, GCpi_pos)),
+    Math.abs(combinePressure(qh, qi, Kd, G, windward, GCpi_neg))
   );
   const leewardDesign = -Math.max(
-    Math.abs(combinePressure(qh, qi, G, leeward, GCpi_pos)),
-    Math.abs(combinePressure(qh, qi, G, leeward, GCpi_neg))
+    Math.abs(combinePressure(qh, qi, Kd, G, leeward, GCpi_pos)),
+    Math.abs(combinePressure(qh, qi, Kd, G, leeward, GCpi_neg))
   );
   const sideDesign = -Math.max(
-    Math.abs(combinePressure(qh, qi, G, side, GCpi_pos)),
-    Math.abs(combinePressure(qh, qi, G, side, GCpi_neg))
+    Math.abs(combinePressure(qh, qi, Kd, G, side, GCpi_pos)),
+    Math.abs(combinePressure(qh, qi, Kd, G, side, GCpi_neg))
   );
 
   const walls: WallPressures = {
-    windward: qh * G * windward,
-    leeward: qh * G * leeward,
-    side: qh * G * side,
+    windward: qh * Kd * G * windward,
+    leeward: qh * Kd * G * leeward,
+    side: qh * Kd * G * side,
     GCpi_pos,
     GCpi_neg,
     windwardDesign,
@@ -330,23 +444,24 @@ export function solveAsce722Wind(site: SiteData, structure: StructureData): Wind
 
   const roofCps = cpRoof(structure.roofType, structure.roofSlope, h_m / L_m);
   const roof: RoofPressure[] = roofCps.map((r) => {
-    const pWorst = Math.min(
-      combinePressure(qh, qi, G, r.Cp, GCpi_pos),
-      combinePressure(qh, qi, G, r.Cp, GCpi_neg)
-    );
+    const pA = combinePressure(qh, qi, Kd, G, r.Cp, GCpi_pos);
+    const pB = combinePressure(qh, qi, Kd, G, r.Cp, GCpi_neg);
+    // Negative-Cp zones govern in suction (min); positive-Cp zones exist to
+    // capture downward pressure — their governing case is the max.
+    const pWorst = r.Cp >= 0 ? Math.max(pA, pB) : Math.min(pA, pB);
     return { zone: r.zone, Cp: r.Cp, p: pWorst };
   });
 
   const mwfrs: MwfrsResult = { G, walls, roof };
 
-  // ---- C&C zones ----
+  // ---- C&C zones ----  (7-22: p = qh·Kd·[(GCp) − (GCpi)])
   const a_mm = ccZoneBoundary_mm(B_m * 1000, L_m * 1000, h_m * 1000);
   const ccWallsRaw = ccWallZones();
   const ccRoofRaw = ccRoofZones(structure.roofType, structure.roofSlope);
   const fillZone = (z: CCZone): CCZone => ({
     ...z,
-    p_pos: qh * (z.GCp_pos - GCpi_neg), // positive pressure: external + · internal − (most positive)
-    p_neg: qh * (z.GCp_neg - GCpi_pos), // negative pressure: external − · internal + (most negative)
+    p_pos: qh * Kd * (z.GCp_pos - GCpi_neg), // positive: external + · internal − (most positive)
+    p_neg: qh * Kd * (z.GCp_neg - GCpi_pos), // negative: external − · internal + (most negative)
   });
   const cc: CCResult = {
     a: a_mm,
