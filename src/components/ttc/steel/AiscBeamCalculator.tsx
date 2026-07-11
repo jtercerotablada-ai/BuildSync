@@ -311,10 +311,10 @@ export function AiscBeamCalculator() {
 
           <p className="stl-disclaimer">
             AISC 360-16 (LRFD). Hot-rolled doubly-symmetric W and S shapes in major-axis bending — flexural yielding /
-            lateral-torsional buckling (Ch. F2) with flange local buckling (F3), shear (Ch. G2.1), and elastic
-            serviceability deflection. Lb, Cb and factored demands are user inputs — verify bracing, load combinations,
-            web local yielding/crippling and biaxial or combined effects independently. Shear uses a conservative
-            fillet-free web height h ≈ d − 2tf; a licensed P.E. review remains required.
+            lateral-torsional buckling (Ch. F2) with flange local buckling (F3), shear (Ch. G2.1 with the AISC-tabulated
+            h/tw), and elastic serviceability deflection. Lb, Cb and factored demands are user inputs — verify bracing,
+            load combinations, web local yielding/crippling and biaxial or combined effects independently. A licensed
+            P.E. review remains required.
           </p>
         </section>
       </div>
