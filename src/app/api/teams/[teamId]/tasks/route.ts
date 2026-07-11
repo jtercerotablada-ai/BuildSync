@@ -26,21 +26,25 @@ export async function GET(
     // Verify user has access to this team
     await verifyTeamAccess(userId, teamId);
 
-    // Get all tasks from projects belonging to this team
+    // All tasks from the team's projects. Dateless tasks are included on
+    // purpose — the shared CalendarView surfaces them via its "No date (N)"
+    // drawer (Asana parity) instead of hiding them. startDate/priority/
+    // taskType/description are what the multi-day bars + detail need.
     const tasks = await prisma.task.findMany({
       where: {
         project: {
           teamId,
         },
-        dueDate: {
-          not: null,
-        },
       },
       select: {
         id: true,
         name: true,
+        description: true,
         dueDate: true,
+        startDate: true,
         completed: true,
+        priority: true,
+        taskType: true,
         project: {
           select: {
             id: true,
@@ -52,6 +56,7 @@ export async function GET(
           select: {
             id: true,
             name: true,
+            email: true,
             image: true,
           },
         },
