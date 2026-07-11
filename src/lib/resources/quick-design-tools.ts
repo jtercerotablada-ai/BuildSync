@@ -33,7 +33,7 @@ export interface QuickDesignTool {
 export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
   // ─────────── Steel ───────────
   { category: 'Steel', code: 'AISC 360-22', title: 'Steel Member Design', description: 'Axial, bending, shear and combined-action checks per AISC 360-22 (LRFD) for W, S, HSS and pipe sections — full section library, limit-state capacities, utilisation and governing clause. Validated against AISC Manual values.', status: 'available', href: '/resources/steel-member', isNew: true },
-  { category: 'Steel', code: 'CSA S16-14', title: 'Steel I-Beam Design', description: 'Flexure, shear, deflection and lateral-torsional buckling for hot-rolled I-sections.', status: 'coming-soon' },
+  { category: 'Steel', code: 'CSA S16-14', title: 'Steel I-Beam Design', description: 'Flexure, shear, deflection and lateral-torsional buckling for hot-rolled W and S I-sections per CSA S16-14 (LSD) — full Canadian metric shape library, section classification, Mr with LTB curve, Vr and serviceability. Validated against CISC Handbook values.', status: 'available', href: '/resources/csa-i-beam', isNew: true },
   { category: 'Steel', code: 'AISC 360-16', title: 'Steel Angle Design', description: 'Tension, compression and flexural capacity of single and double angles.', status: 'coming-soon' },
   { category: 'Steel', code: 'AISC 360-16', title: 'Steel I-Beam Design', description: 'Flexure, shear, deflection and lateral-torsional buckling for hot-rolled I-sections.', status: 'coming-soon' },
   { category: 'Steel', code: 'AISC 360-16', title: 'Steel Channel Design', description: 'Bending, shear and buckling checks for hot-rolled channel (C) sections.', status: 'coming-soon' },

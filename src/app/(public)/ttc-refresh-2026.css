@@ -1379,4 +1379,9 @@
 .stl-good { color: #2f8a52; }
 .stl-bad { color: #b0322a; }
 
+.stl-chart { width: 100%; height: auto; display: block; margin-top: 0.4rem; }
+.stl-chart__lbl { font-size: 8.5px; fill: var(--lux-muted); font-family: var(--font-sans, system-ui, sans-serif); }
+.stl-chart__lbl--mark { fill: #8a1c1c; font-weight: 600; }
+.stl-chart__ax { font-size: 8.5px; fill: var(--lux-faint); letter-spacing: 0.04em; }
+
 .stl-disclaimer { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--lux-line-soft); font-size: 0.7rem; line-height: 1.6; color: var(--lux-faint); }
