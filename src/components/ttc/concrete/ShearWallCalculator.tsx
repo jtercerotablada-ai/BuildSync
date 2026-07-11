@@ -199,8 +199,7 @@ export function ShearWallCalculator() {
             {PuLb / inter.phiPnMax > 0 && <Bar label="Axial cap — Pu/φPn,max" ratio={PuLb / inter.phiPnMax} />}
           </div>
 
-          <div className="stl-cards">
-            <div className="stl-card stl-card--wide">
+          <div className="stl-card stl-card--pmblock">
               <h4>Axial-flexure interaction <span className="stl-tag">Ch. 22 · {special ? '§18.10' : '§11.5.2'}</span></h4>
               <div className="stl-pm">
                 <PMDiagram res={inter} Pu={PuLb} Mu={MuLbin} phiMnAtPu={phiMnAtPu} />
@@ -212,8 +211,9 @@ export function ShearWallCalculator() {
                   <Row k="Utilisation Mu/φMn" v={<strong className={utilPM <= 1 ? 'stl-good' : 'stl-bad'}>{fmt(utilPM, 2)}</strong>} />
                 </tbody></table>
               </div>
-            </div>
+          </div>
 
+          <div className="stl-cards">
             <div className="stl-card">
               <h4>In-plane shear <span className="stl-tag">{shear.clause}</span></h4>
               <table className="stl-table"><tbody>

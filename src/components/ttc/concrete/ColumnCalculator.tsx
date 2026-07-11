@@ -180,8 +180,7 @@ export function ColumnCalculator() {
             {slender && (slX.slender || slY.slender) && <Bar label="Slenderness δns (x)" ratio={slX.deltaNs / 1.4} />}
           </div>
 
-          <div className="stl-cards">
-            <div className="stl-card stl-card--wide">
+          <div className="stl-card stl-card--pmblock">
               <h4>Axial-flexure interaction <span className="stl-tag">Ch. 22{uniaxial ? '' : ' · biaxial'}</span></h4>
               <div className="stl-seg stl-seg--mini" role="tablist">
                 <button type="button" className={diagAxis === 'x' ? 'is-active' : ''} onClick={() => setDiagAxis('x')}>About X</button>
@@ -198,8 +197,9 @@ export function ColumnCalculator() {
                   <Row k="Utilisation" v={<strong className={pmRatio <= 1 ? 'stl-good' : 'stl-bad'}>{fmt(pmRatio, 2)}</strong>} />
                 </tbody></table>
               </div>
-            </div>
+          </div>
 
+          <div className="stl-cards">
             {slender && (
               <div className="stl-card">
                 <h4>Slenderness <span className="stl-tag">§6.6.4</span></h4>

@@ -1379,6 +1379,7 @@
 .stl-good { color: #2f8a52; }
 .stl-bad { color: #b0322a; }
 
+.stl-card--pmblock { margin-bottom: 1.1rem; }
 .stl-seg--mini { margin: 0 0 0.75rem; }
 .stl-seg--mini button { padding: 0.28rem 0.5rem; font-size: 0.72rem; }
 .stl-pm { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1rem 1.4rem; align-items: center; }
