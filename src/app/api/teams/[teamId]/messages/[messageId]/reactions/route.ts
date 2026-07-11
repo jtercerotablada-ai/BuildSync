@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import {
@@ -69,9 +70,22 @@ export async function POST(
       return NextResponse.json({ active: false, emoji });
     }
 
-    await prisma.messageReaction.create({
-      data: { teamMessageId: messageId, userId, emoji },
-    });
+    try {
+      await prisma.messageReaction.create({
+        data: { teamMessageId: messageId, userId, emoji },
+      });
+    } catch (e) {
+      // Concurrent double-fire (both requests saw "not existing" and both
+      // insert) trips the @@unique constraint. The reaction IS persisted,
+      // so treat it as an idempotent success instead of 500 + UI rollback.
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        return NextResponse.json({ active: true, emoji });
+      }
+      throw e;
+    }
     return NextResponse.json({ active: true, emoji });
   } catch (error) {
     if (

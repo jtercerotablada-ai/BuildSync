@@ -33,10 +33,21 @@ export async function POST(
     // Verify message exists and belongs to the team
     const message = await prisma.teamMessage.findFirst({
       where: { id: messageId, teamId },
+      select: { id: true, authorId: true },
     });
 
     if (!message) {
       return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+
+    // Only the message author or a team lead may attach files (mirrors the
+    // attachment DELETE gate + the UI, which only shows "Add file" on your
+    // own messages).
+    if (message.authorId !== userId && teamMember.role !== "LEAD") {
+      return NextResponse.json(
+        { error: "You can only attach files to your own messages" },
+        { status: 403 }
+      );
     }
 
     const formData = await req.formData();
@@ -53,7 +64,17 @@ export async function POST(
       );
     }
 
-    const { url } = await uploadFile(file, `messages/${messageId}`);
+    // Validation errors from uploadFile (disallowed type/extension) are
+    // CLIENT errors — surface the specific reason as a 400 instead of the
+    // generic 500 the outer catch would return.
+    let url: string;
+    try {
+      ({ url } = await uploadFile(file, `messages/${messageId}`));
+    } catch (uploadErr) {
+      const msg =
+        uploadErr instanceof Error ? uploadErr.message : "Upload failed";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
 
     const attachment = await prisma.messageAttachment.create({
       data: {

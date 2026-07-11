@@ -7,6 +7,11 @@ const ALLOWED_MIME_TYPES = [
   "image/png",
   "image/gif",
   "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/svg+xml",
+  "image/bmp",
+  "image/tiff",
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -22,11 +27,33 @@ const ALLOWED_MIME_TYPES = [
   "video/quicktime",
   "audio/mpeg",
   "audio/wav",
+  // Common CAD MIME variants (browsers often send octet-stream for these,
+  // which is handled by the extension allowlist below).
+  "image/vnd.dwg",
+  "image/vnd.dxf",
+  "application/acad",
+  "application/dxf",
 ];
 
 const BLOCKED_EXTENSIONS = [
   ".exe", ".bat", ".cmd", ".sh", ".ps1", ".js", ".jsx", ".ts", ".tsx",
   ".html", ".htm", ".php", ".py", ".rb", ".msi", ".dll", ".com", ".scr",
+];
+
+// Extensions accepted even when the browser sends a generic MIME type
+// (e.g. application/octet-stream) — the reliable signal for CAD/BIM and
+// other engineering files a civil/structural firm actually shares. The
+// BLOCKED_EXTENSIONS list above always takes precedence.
+const ALLOWED_EXTENSIONS = [
+  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif", ".svg",
+  ".bmp", ".tif", ".tiff",
+  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+  ".txt", ".csv", ".rtf", ".md",
+  ".zip",
+  ".mp4", ".mov", ".mp3", ".wav", ".m4a",
+  // Engineering / CAD / BIM
+  ".dwg", ".dxf", ".dwf", ".rvt", ".rfa", ".ifc", ".skp",
+  ".step", ".stp", ".iges", ".igs", ".dgn", ".kmz", ".kml",
 ];
 
 function sanitizeFilename(filename: string): string {
@@ -42,15 +69,22 @@ export async function uploadFile(file: File, folder: string) {
     throw new Error("File size exceeds 10MB limit");
   }
 
-  // Validate MIME type
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-    throw new Error(`File type '${file.type}' is not allowed`);
-  }
-
-  // Check extension
+  // Dangerous extensions are always rejected, regardless of MIME.
   const ext = "." + (file.name.split(".").pop()?.toLowerCase() || "");
   if (BLOCKED_EXTENSIONS.includes(ext)) {
     throw new Error(`File extension '${ext}' is not allowed`);
+  }
+
+  // Accept the file if EITHER its MIME type is allowlisted OR its
+  // extension is a known-safe one — CAD/BIM files frequently arrive as
+  // application/octet-stream, so a MIME-only allowlist wrongly rejects
+  // the engineering files this firm shares.
+  const mimeOk = !!file.type && ALLOWED_MIME_TYPES.includes(file.type);
+  const extOk = ALLOWED_EXTENSIONS.includes(ext);
+  if (!mimeOk && !extOk) {
+    throw new Error(
+      `File type '${file.type || ext || "unknown"}' is not allowed`
+    );
   }
 
   const safeName = sanitizeFilename(file.name);

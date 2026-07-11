@@ -84,7 +84,14 @@ export async function GET(req: Request) {
         // Deep-link payload — the inbox uses these to navigate.
         taskId: (data.taskId as string | undefined) ?? undefined,
         projectId: (data.projectId as string | undefined) ?? undefined,
-        messageId: (data.messageId as string | undefined) ?? undefined,
+        // Team mentions carry teamId + teamMessageId; surface teamId and
+        // treat teamMessageId as the messageId so the inbox can deep-link
+        // to /teams/[teamId]/messages?message=...
+        teamId: (data.teamId as string | undefined) ?? undefined,
+        messageId:
+          (data.messageId as string | undefined) ??
+          (data.teamMessageId as string | undefined) ??
+          undefined,
         rootMessageId:
           (data.rootMessageId as string | undefined) ?? undefined,
         sender: {

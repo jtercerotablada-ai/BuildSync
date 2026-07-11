@@ -56,6 +56,9 @@ interface Notification {
     | "form_submitted";
   taskId?: string;
   projectId?: string;
+  // Set for TEAM message mentions — deep-links to the team's own
+  // Messages page (/teams/[teamId]/messages) instead of a project tab.
+  teamId?: string;
   // Set when a mention notification points at a specific message —
   // the inbox uses this to deep-link straight to the message in
   // the project's Messages tab (with scroll + highlight).
@@ -491,6 +494,26 @@ export default function InboxPage() {
 
   const handleNotificationClick = (notification: Notification) => {
     markAsRead(notification.id);
+
+    // Team message mention: deep-link to the team's own Messages page.
+    // messages-view.tsx reads ?message= and ?thread= regardless of scope.
+    if (notification.type === "mention" && notification.teamId) {
+      const params = new URLSearchParams();
+      if (notification.messageId) {
+        params.set("message", notification.messageId);
+      }
+      if (
+        notification.rootMessageId &&
+        notification.rootMessageId !== notification.messageId
+      ) {
+        params.set("thread", notification.rootMessageId);
+      }
+      const qs = params.toString();
+      router.push(
+        `/teams/${notification.teamId}/messages${qs ? `?${qs}` : ""}`
+      );
+      return;
+    }
 
     // Mention deep-link: open the project's Messages tab and scroll
     // to the specific message id. messages-view.tsx reads ?message=
