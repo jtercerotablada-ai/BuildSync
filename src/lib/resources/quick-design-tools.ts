@@ -95,7 +95,7 @@ export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
   { category: 'Scaffolding', code: 'AISC 360-16', title: 'AISC 360-16 Scaffold Member Design', description: 'Scaffolding members per AISC 360-16.', status: 'coming-soon' },
 
   // ─────────── Loading ───────────
-  { category: 'Loading', code: 'ASCE 7-22', title: 'ASCE 7-22 Wind Load Generator', description: 'MWFRS + C&C wind pressures from site lat/lng lookup.', status: 'available', href: '/resources/load-gen', isNew: true },
+  { category: 'Loading', code: 'ASCE 7-22', title: 'ASCE 7-22 Load Generator', description: 'Wind (MWFRS + C&C), snow (Ch. 7) and seismic (ELF) loads from site data.', status: 'available', href: '/resources/load-gen', isNew: true },
   { category: 'Loading', code: 'NBCC 2015', title: 'NBCC 2015 Multi-Roof Snow Drift', description: 'Snow loads per NBCC 2015.', status: 'coming-soon' },
   { category: 'Loading', code: '—', title: 'Load Combination Generator', description: 'ASCE 7 / IBC load combinations (LRFD + ASD).', status: 'coming-soon' },
   { category: 'Loading', code: 'ASCE 7-16', title: 'ASCE 7-16 Gust-Effect Factor (Imperial)', description: 'Gust-effect factors per ASCE 7-16 (Imperial).', status: 'coming-soon' },

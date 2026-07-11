@@ -11,261 +11,100 @@ interface Props {
   unitSystem: UnitSystem;
 }
 
+const INK = '#221e17', GOLD = '#c9a84c', GOLD_DEEP = '#9a7a2c', LINE = '#cfc7b6', MUTE = '#8a8272';
+
 /**
- * SVG elevation of the building with wind arrows + C&C zone boundaries +
- * design pressures annotated on each wall. Uses the same TTC dark gradient
- * background as the other canvases.
+ * Luxury light-theme wind-pressure elevation: MWFRS windward (push) + leeward
+ * (suction) design pressures on the building section, with C&C zone boundaries
+ * at distance a from each edge. Normalised viewBox so strokes/labels stay crisp.
  */
 export function WindPressureDiagram({ structure, result, unitSystem }: Props) {
   const pu = unitLabel('pressureSmall', unitSystem);
-  const H = structure.H;
-  const L = structure.L;
+  const fmt = (pa: number) => `${fromSI(pa, 'pressureSmall', unitSystem).toFixed(1)} ${pu}`;
 
-  // viewBox: building + side space for arrows + labels
-  const padL = Math.max(L * 0.6, 4000);
-  const padR = Math.max(L * 0.6, 4000);
-  const padT = Math.max(H * 0.6, 3000);
-  const padB = Math.max(H * 0.35, 2500);
-  const vbW = L + padL + padR;
-  const vbH = H + padT + padB;
-  const xW = (x: number) => padL + x;
-  const yW = (y: number) => padT + H - y;
+  const W = 560, Htot = 320;
+  const cx0 = 210, cx1 = 470;      // horizontal band reserved for the building
+  const bandW = cx1 - cx0;
+  const groundY = 250, roofTopMin = 60;
 
-  const a = result?.cc.a ?? Math.min(0.1 * Math.min(structure.B, structure.L), 0.4 * H);
+  const Lb = Math.max(structure.L, 1);
+  const Hb = Math.max(structure.H, 1);
+  // fit building into the band; keep aspect ratio sane
+  const bw = bandW;
+  const bh = Math.min(groundY - roofTopMin, (Hb / Lb) * bw);
+  const bx = cx0, byTop = groundY - bh;
+  const aFrac = Math.min(
+    result ? result.cc.a / Lb : Math.min(0.1 * Math.min(structure.B, Lb), 0.4 * Hb) / Lb,
+    0.49
+  );
+  const aPx = aFrac * bw;
 
-  // arrow scale — max arrow length to 35% of padL
-  const maxAbs = result
-    ? Math.max(
-        Math.abs(result.mwfrs.walls.windwardDesign),
-        Math.abs(result.mwfrs.walls.leewardDesign)
-      )
-    : 1;
-  const arrowScale = (padL * 0.4) / Math.max(maxAbs, 1);
+  const wDes = result?.mwfrs.walls.windwardDesign ?? 0;   // + push
+  const lDes = result?.mwfrs.walls.leewardDesign ?? 0;    // − suction
+  const maxAbs = Math.max(Math.abs(wDes), Math.abs(lDes), 1);
+  const arrowMax = 46;
+  const wLen = (Math.abs(wDes) / maxAbs) * arrowMax;
+  const lLen = (Math.abs(lDes) / maxAbs) * arrowMax;
 
-  const fmt = (pa: number) =>
-    `${fromSI(pa, 'pressureSmall', unitSystem).toFixed(1)} ${pu}`;
-
+  const rows = 4;
   return (
-    <svg
-      viewBox={`0 0 ${vbW} ${vbH}`}
-      className="lg-diagram"
-      xmlns="http://www.w3.org/2000/svg"
-      preserveAspectRatio="xMidYMid meet"
-      role="img"
-      aria-label="Wind pressure diagram"
-    >
+    <svg viewBox={`0 0 ${W} ${Htot}`} className="stl-chart" role="img" aria-label="Wind pressure elevation">
       <defs>
-        <marker id="lg-arr-r" markerWidth="10" markerHeight="10" refX="9" refY="3.5" orient="auto">
-          <path d="M0,0 L0,7 L9,3.5 z" fill="#ff6b6b" />
+        <marker id="lgw-push" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill={GOLD_DEEP} />
         </marker>
-        <marker id="lg-arr-b" markerWidth="10" markerHeight="10" refX="9" refY="3.5" orient="auto">
-          <path d="M0,0 L0,7 L9,3.5 z" fill="#5dc4d4" />
+        <marker id="lgw-suck" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill={MUTE} />
         </marker>
       </defs>
 
-      {/* ground line */}
-      <line
-        x1={xW(-padL * 0.8)}
-        y1={yW(0)}
-        x2={xW(L + padR * 0.8)}
-        y2={yW(0)}
-        stroke="#c9a84c"
-        strokeWidth={6}
-      />
-      {/* ground hatching */}
-      {Array.from({ length: 30 }).map((_, i) => {
-        const x = -padL * 0.8 + i * ((L + padL * 0.8 + padR * 0.8) / 30);
-        return (
-          <line
-            key={i}
-            x1={xW(x)}
-            y1={yW(0)}
-            x2={xW(x + 200)}
-            y2={yW(-200)}
-            stroke="#c9a84c"
-            strokeOpacity="0.35"
-            strokeWidth={3}
-          />
-        );
+      {/* ground + hatch */}
+      <line x1={cx0 - 130} y1={groundY} x2={cx1 + 70} y2={groundY} stroke={INK} strokeWidth={1.4} />
+      {Array.from({ length: 26 }).map((_, i) => {
+        const x = cx0 - 128 + i * ((bandW + 190) / 26);
+        return <line key={i} x1={x} y1={groundY} x2={x - 8} y2={groundY + 9} stroke={LINE} strokeWidth={1} />;
       })}
 
       {/* building */}
-      <rect
-        x={xW(0)}
-        y={yW(H)}
-        width={L}
-        height={H}
-        fill="rgba(212, 203, 191, 0.08)"
-        stroke="#e0e0e0"
-        strokeWidth={7}
-      />
+      <rect x={bx} y={byTop} width={bw} height={bh} fill={INK} fillOpacity={0.04} stroke={INK} strokeWidth={1.4} />
 
-      {/* C&C zone boundaries on walls (distance a from each edge) */}
-      <line
-        x1={xW(a)}
-        y1={yW(H)}
-        x2={xW(a)}
-        y2={yW(0)}
-        stroke="#c9a84c"
-        strokeDasharray="20 14"
-        strokeWidth={4}
-        opacity="0.8"
-      />
-      <line
-        x1={xW(L - a)}
-        y1={yW(H)}
-        x2={xW(L - a)}
-        y2={yW(0)}
-        stroke="#c9a84c"
-        strokeDasharray="20 14"
-        strokeWidth={4}
-        opacity="0.8"
-      />
+      {/* C&C zone boundaries + labels (5 corner / 4 interior / 5 corner) */}
+      {[aPx, bw - aPx].map((dx, i) => (
+        <line key={i} x1={bx + dx} y1={byTop} x2={bx + dx} y2={groundY} stroke={GOLD} strokeDasharray="5 4" strokeWidth={1} />
+      ))}
+      {result && [
+        { x: bx + aPx / 2, t: '5' }, { x: bx + bw / 2, t: '4' }, { x: bx + bw - aPx / 2, t: '5' },
+      ].map((z) => (
+        <text key={z.t + z.x} x={z.x} y={byTop + bh / 2} textAnchor="middle" className="stl-chart__ax" style={{ fill: MUTE }}>{z.t}</text>
+      ))}
 
-      {/* zone labels on walls */}
-      <text x={xW(a / 2)} y={yW(H / 2)} fontSize={280} textAnchor="middle" fill="#f2efe4" fontFamily="Inter">
-        5
-      </text>
-      <text x={xW(L / 2)} y={yW(H / 2)} fontSize={280} textAnchor="middle" fill="#f2efe4" fontFamily="Inter">
-        4
-      </text>
-      <text x={xW(L - a / 2)} y={yW(H / 2)} fontSize={280} textAnchor="middle" fill="#f2efe4" fontFamily="Inter">
-        5
-      </text>
-
-      {/* windward arrows (left side) — positive pushing right into the wall */}
-      {result && Array.from({ length: 5 }).map((_, i) => {
-        const y = ((i + 0.5) / 5) * H;
-        const w = Math.abs(result.mwfrs.walls.windwardDesign) * arrowScale;
-        return (
-          <line
-            key={`w-${i}`}
-            x1={xW(-w)}
-            y1={yW(y)}
-            x2={xW(-200)}
-            y2={yW(y)}
-            stroke="#ff6b6b"
-            strokeWidth={10}
-            markerEnd="url(#lg-arr-r)"
-          />
-        );
+      {/* windward push arrows (left → into wall) */}
+      {result && Array.from({ length: rows }).map((_, i) => {
+        const y = byTop + ((i + 0.5) / rows) * bh;
+        return <line key={`w${i}`} x1={bx - 8 - wLen} y1={y} x2={bx - 8} y2={y} stroke={GOLD_DEEP} strokeWidth={1.4} markerEnd="url(#lgw-push)" />;
       })}
-
-      {/* leeward arrows (right side) — suction pulling away from wall */}
-      {result && Array.from({ length: 5 }).map((_, i) => {
-        const y = ((i + 0.5) / 5) * H;
-        const w = Math.abs(result.mwfrs.walls.leewardDesign) * arrowScale;
-        return (
-          <line
-            key={`l-${i}`}
-            x1={xW(L + 200)}
-            y1={yW(y)}
-            x2={xW(L + w)}
-            y2={yW(y)}
-            stroke="#5dc4d4"
-            strokeWidth={8}
-            markerEnd="url(#lg-arr-b)"
-          />
-        );
+      {/* leeward suction arrows (right, pulling away → pointing right/out) */}
+      {result && Array.from({ length: rows }).map((_, i) => {
+        const y = byTop + ((i + 0.5) / rows) * bh;
+        return <line key={`l${i}`} x1={bx + bw + 8} y1={y} x2={bx + bw + 8 + lLen} y2={y} stroke={MUTE} strokeWidth={1.2} markerEnd="url(#lgw-suck)" />;
       })}
 
       {/* labels */}
       {result && (
         <>
-          <text
-            x={xW(-padL * 0.45)}
-            y={yW(H / 2) - 60}
-            fontSize={260}
-            fill="#ff6b6b"
-            fontFamily="Inter, sans-serif"
-            fontWeight={800}
-          >
-            Windward
-          </text>
-          <text
-            x={xW(-padL * 0.45)}
-            y={yW(H / 2) + 220}
-            fontSize={220}
-            fill="#ff6b6b"
-            fontFamily="JetBrains Mono, monospace"
-          >
-            {fmt(result.mwfrs.walls.windwardDesign)}
-          </text>
-          <text
-            x={xW(L + padR * 0.45)}
-            y={yW(H / 2) - 60}
-            fontSize={260}
-            fill="#5dc4d4"
-            fontFamily="Inter, sans-serif"
-            fontWeight={800}
-            textAnchor="end"
-          >
-            Leeward
-          </text>
-          <text
-            x={xW(L + padR * 0.45)}
-            y={yW(H / 2) + 220}
-            fontSize={220}
-            fill="#5dc4d4"
-            fontFamily="JetBrains Mono, monospace"
-            textAnchor="end"
-          >
-            {fmt(result.mwfrs.walls.leewardDesign)}
-          </text>
-          <text
-            x={xW(L / 2)}
-            y={yW(H) - 120}
-            fontSize={260}
-            fill="#f2efe4"
-            fontFamily="Inter, sans-serif"
-            fontWeight={700}
-            textAnchor="middle"
-          >
-            qh = {fmt(result.breakdown.qh)}
-          </text>
+          <text x={bx - 12 - arrowMax} y={byTop - 8} textAnchor="start" className="stl-chart__lbl" style={{ fill: GOLD_DEEP, fontWeight: 600 }}>Windward (push)</text>
+          <text x={bx - 12 - arrowMax} y={groundY + 22} textAnchor="start" className="stl-chart__lbl" style={{ fill: INK, fontWeight: 600 }}>{fmt(wDes)}</text>
+          <text x={bx + bw + 12 + arrowMax} y={byTop - 8} textAnchor="end" className="stl-chart__lbl" style={{ fill: MUTE, fontWeight: 600 }}>Leeward (suction)</text>
+          <text x={bx + bw + 12 + arrowMax} y={groundY + 22} textAnchor="end" className="stl-chart__lbl" style={{ fill: INK, fontWeight: 600 }}>{fmt(lDes)}</text>
+          <text x={bx + bw / 2} y={byTop - 8} textAnchor="middle" className="stl-chart__ax">qh = {fmt(result.breakdown.qh)}</text>
         </>
       )}
 
-      {/* H dimension */}
-      <line
-        x1={xW(-padL * 0.15)}
-        y1={yW(0)}
-        x2={xW(-padL * 0.15)}
-        y2={yW(H)}
-        stroke="#c9a84c"
-        strokeWidth={4}
-      />
-      <text
-        x={xW(-padL * 0.15) + 60}
-        y={yW(H / 2)}
-        fontSize={230}
-        fill="#c9a84c"
-        fontFamily="JetBrains Mono, monospace"
-        fontWeight={700}
-      >
-        H
-      </text>
-
-      {/* L dimension */}
-      <line
-        x1={xW(0)}
-        y1={yW(-padB * 0.4)}
-        x2={xW(L)}
-        y2={yW(-padB * 0.4)}
-        stroke="#c9a84c"
-        strokeWidth={4}
-      />
-      <text
-        x={xW(L / 2)}
-        y={yW(-padB * 0.4) - 70}
-        fontSize={230}
-        fill="#c9a84c"
-        fontFamily="JetBrains Mono, monospace"
-        fontWeight={700}
-        textAnchor="middle"
-      >
-        L
-      </text>
+      {/* H + L dimensions */}
+      <line x1={bx - 20} y1={byTop} x2={bx - 20} y2={groundY} stroke={LINE} strokeWidth={1} />
+      <text x={bx - 24} y={byTop + bh / 2} textAnchor="end" className="stl-chart__ax" transform={`rotate(-90 ${bx - 24} ${byTop + bh / 2})`}>H</text>
+      <line x1={bx} y1={groundY + 30} x2={bx + bw} y2={groundY + 30} stroke={LINE} strokeWidth={1} />
+      <text x={bx + bw / 2} y={groundY + 42} textAnchor="middle" className="stl-chart__ax">L (along wind)</text>
     </svg>
   );
 }
