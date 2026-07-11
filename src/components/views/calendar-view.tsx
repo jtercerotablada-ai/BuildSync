@@ -34,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { useUiState } from "@/hooks/use-ui-state";
 
 /** Format a local Date as a date-only "YYYY-MM-DD" string (the wire format
  *  the API stores as UTC midnight — consistent with every other composer). */
@@ -107,6 +108,17 @@ export function CalendarView({
     () => sections.flatMap((s) => s.tasks),
     [sections]
   );
+
+  // ── Weekends toggle (Asana's "Fines de semana") ────────────────
+  // When off, Sat/Sun collapse to narrow slivers: weekend-only bars are
+  // hidden behind a dot indicator, spanning bars compress through the
+  // slivers. Persisted per user across all calendar surfaces.
+  const { value: showWeekends, setValue: setShowWeekends } =
+    useUiState<boolean>("calendar.showWeekends", true);
+  const WEEKEND_COL_PX = 30;
+  const gridTemplateColumns = showWeekends
+    ? "repeat(7, minmax(0, 1fr))"
+    : `repeat(5, minmax(0, 1fr)) ${WEEKEND_COL_PX}px ${WEEKEND_COL_PX}px`;
 
   // Tasks with no due date can't render as a calendar bar. We surface
   // them through a "No date (N)" pill in the toolbar (Asana parity).
@@ -342,8 +354,11 @@ export function CalendarView({
     clipsRight: boolean;
   };
 
-  const segmentsByWeek = useMemo(() => {
+  const { segmentsByWeek, weekendDotsByWeek } = useMemo(() => {
     const out: BarSegment[][] = weeks.map(() => []);
+    // Per week: which collapsed weekend days (5=Sat, 6=Sun) hold tasks
+    // whose bar was hidden by the weekends-off mode.
+    const dots: Set<number>[] = weeks.map(() => new Set<number>());
     const dayMs = 86400000;
 
     for (const task of tasks) {
@@ -393,6 +408,30 @@ export function CalendarView({
       }
     }
 
+    // Weekends collapsed → segments that live ENTIRELY on Sat/Sun can't
+    // render as a readable bar in a 30px sliver. Pull them out BEFORE
+    // lane packing (so they don't reserve empty lanes) and mark their
+    // days with a dot instead — Asana's exact behavior.
+    if (!showWeekends) {
+      for (let w = 0; w < out.length; w++) {
+        const keep: BarSegment[] = [];
+        for (const seg of out[w]) {
+          if (seg.colStart >= 5) {
+            for (
+              let d = seg.colStart;
+              d < Math.min(7, seg.colStart + seg.colSpan);
+              d++
+            ) {
+              dots[w].add(d);
+            }
+          } else {
+            keep.push(seg);
+          }
+        }
+        out[w] = keep;
+      }
+    }
+
     for (const list of out) {
       list.sort((a, b) => {
         const aMulti = a.colSpan > 1 ? 0 : 1;
@@ -427,8 +466,8 @@ export function CalendarView({
       }
     }
 
-    return out;
-  }, [tasks, weeks, allDays]);
+    return { segmentsByWeek: out, weekendDotsByWeek: dots };
+  }, [tasks, weeks, allDays, showWeekends]);
 
   // ── Per-week dynamic height ──────────────────────────────────
   const weekHeights = useMemo(() => {
@@ -576,12 +615,22 @@ export function CalendarView({
         <span className="font-medium text-black ml-2 tabular-nums">
           {formatMonthYear(visibleMonth.year, visibleMonth.month)}
         </span>
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {/* Asana's "Fines de semana: activado/desactivado" toggle. */}
+          <button
+            type="button"
+            onClick={() => setShowWeekends((v) => !v)}
+            className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+            title={showWeekends ? "Hide weekends" : "Show weekends"}
+          >
+            Weekends: {showWeekends ? "on" : "off"}
+          </button>
         {noDateTasks.length > 0 && (
           <Popover>
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
                 title="Tasks with no due date"
               >
                 <span className="tabular-nums">
@@ -618,22 +667,27 @@ export function CalendarView({
             </PopoverContent>
           </Popover>
         )}
+        </div>
       </div>
 
       {/* Single scroll container with sticky weekday header.
           Continuous downward scroll appends 8 weeks at a time via
           an IntersectionObserver on the bottom sentinel. */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="grid grid-cols-7 border-b border-gray-200 bg-white sticky top-0 z-10">
+        <div
+          className="grid border-b border-gray-200 bg-white sticky top-0 z-10"
+          style={{ gridTemplateColumns }}
+        >
           {weekDays.map((day, index) => (
             <div
               key={day}
               className={cn(
-                "py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-white",
+                "py-2 px-1.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-white overflow-hidden",
                 index > 0 && "border-l border-gray-200"
               )}
             >
-              {day}
+              {/* Collapsed weekend slivers: no room for the label. */}
+              {showWeekends || index < 5 ? day : ""}
             </div>
           ))}
         </div>
@@ -683,23 +737,28 @@ export function CalendarView({
               data-week-index={weekIdx}
             >
               {/* Background cells */}
-              <div className="grid grid-cols-7 h-full">
+              <div className="grid h-full" style={{ gridTemplateColumns }}>
                 {week.map((date, dayOfWeek) => {
                   const dateStr = date.toDateString();
                   const isToday = dateStr === todayStr;
                   const isWeekend = dayOfWeek >= 5;
+                  const isCollapsed = isWeekend && !showWeekends;
                   const dayNum = date.getDate();
                   const isCurrentMonth =
                     date.getMonth() === visibleMonth.month;
                   const isFirstOfMonth = dayNum === 1;
                   const isAdding = addingForDate === dateStr;
                   const isDropTarget = dragOverDate === dateStr;
+                  const hasHiddenWeekendTasks =
+                    isCollapsed &&
+                    (weekendDotsByWeek[weekIdx]?.has(dayOfWeek) ?? false);
                   return (
                     <div
                       key={dateStr}
                       onClick={(e) => {
                         if (
                           allowInlineCreate &&
+                          !isCollapsed &&
                           e.currentTarget === e.target &&
                           !isAdding
                         ) {
@@ -714,7 +773,7 @@ export function CalendarView({
                       onDrop={(e) => handleDayDrop(e, date)}
                       className={cn(
                         "relative h-full",
-                        allowInlineCreate && "cursor-pointer",
+                        allowInlineCreate && !isCollapsed && "cursor-pointer",
                         dayOfWeek > 0 && "border-l border-gray-200",
                         !isCurrentMonth && "bg-gray-50/40",
                         isWeekend && isCurrentMonth && "bg-gray-50/20",
@@ -724,7 +783,12 @@ export function CalendarView({
                           "ring-2 ring-[#c9a84c] ring-inset bg-[#c9a84c]/10"
                       )}
                     >
-                      <div className="px-2 pt-1.5 pointer-events-none">
+                      <div
+                        className={cn(
+                          "pt-1.5 pointer-events-none",
+                          isCollapsed ? "px-1 text-center" : "px-2"
+                        )}
+                      >
                         <span
                           className={cn(
                             "text-[12px] font-mono tabular-nums inline-block",
@@ -734,13 +798,18 @@ export function CalendarView({
                               "bg-black text-white rounded-full w-5 h-5 flex items-center justify-center font-semibold text-[11px]"
                           )}
                         >
-                          {isFirstOfMonth
+                          {isFirstOfMonth && !isCollapsed
                             ? date.toLocaleDateString("en-US", {
                                 month: "short",
                                 day: "numeric",
                               })
                             : dayNum}
                         </span>
+                        {/* Dot = tasks exist on this collapsed weekend day
+                            (their bars are hidden) — Asana's indicator. */}
+                        {hasHiddenWeekendTasks && (
+                          <span className="mt-1.5 mx-auto block w-1.5 h-1.5 rounded-full bg-gray-400" />
+                        )}
                       </div>
                     </div>
                   );
@@ -749,8 +818,13 @@ export function CalendarView({
 
               {/* Bars overlay */}
               <div
-                className="absolute inset-x-0 grid grid-cols-7 gap-y-0.5 pointer-events-none"
-                style={{ top: 28, paddingLeft: 2, paddingRight: 2 }}
+                className="absolute inset-x-0 grid gap-y-0.5 pointer-events-none"
+                style={{
+                  top: 28,
+                  paddingLeft: 2,
+                  paddingRight: 2,
+                  gridTemplateColumns,
+                }}
               >
                 {visibleSegments.map((seg) => {
                   const isBeingDragged = draggingTaskId === seg.task.id;
@@ -797,6 +871,10 @@ export function CalendarView({
                 {week.map((date, dayOfWeek) => {
                   const count = hiddenByDay[dayOfWeek];
                   if (!count) return null;
+                  // A 30px collapsed weekend sliver can't fit the pill;
+                  // the same overflow tasks surface on their weekday
+                  // columns (multi-day spans) or as the weekend dot.
+                  if (!showWeekends && dayOfWeek >= 5) return null;
                   let columnMaxLane = -1;
                   for (const seg of visibleSegments) {
                     if (
