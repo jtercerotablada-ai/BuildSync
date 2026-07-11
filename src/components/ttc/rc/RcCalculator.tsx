@@ -326,7 +326,6 @@ export function RcCalculator() {
           <select value={model.code} onChange={(e) => dispatch({ type: 'SET_CODE', code: e.target.value as Code })}>
             <option value="ACI 318-25">ACI 318-25 (latest)</option>
             <option value="ACI 318-19">ACI 318-19</option>
-            <option value="EN 1992-1-1">EN 1992-1-1 (Eurocode 2)</option>
           </select>
         </div>
         <div className="ab-input-group">
@@ -1494,7 +1493,6 @@ function RefsTab() {
         <li><strong>ACI 318-19</strong> — Previous edition (most provisions identical for beams)</li>
         <li><strong>ACI MNL-17(21)</strong> — Reinforced Concrete Design Handbook (worked examples)</li>
         <li><strong>Wight &amp; MacGregor</strong> — Reinforced Concrete: Mechanics and Design (textbook)</li>
-        <li><strong>EN 1992-1-1:2023</strong> — Eurocode 2: Design of Concrete Structures</li>
       </ul>
       <h4 style={{ marginTop: '1rem' }}>Validation</h4>
       <p className="slab-card__hint">
