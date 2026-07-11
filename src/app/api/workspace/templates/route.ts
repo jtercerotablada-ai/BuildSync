@@ -1,7 +1,50 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus, requireWorkspaceContributor } from "@/lib/auth-guards";
+
+/**
+ * Normalize an incoming template `structure` into a safe, well-formed
+ * object before persisting. Sections are the only required part; tasks /
+ * customFields / defaults / workflowTemplateId pass through when present
+ * (used by "Save as template"). Anything malformed is dropped rather than
+ * stored, so the galleries never choke on a bad row.
+ */
+function sanitizeStructure(raw: unknown): {
+  sections: string[];
+  accent?: string;
+  customFields?: unknown[];
+  tasks?: unknown[];
+  defaults?: Record<string, unknown>;
+  workflowTemplateId?: string;
+} {
+  const s = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const sections = Array.isArray(s.sections)
+    ? (s.sections as unknown[])
+        .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+        .map((x) => x.trim().slice(0, 80))
+        .slice(0, 20)
+    : [];
+  const ACCENTS = ["amber", "blue", "violet", "rose", "emerald", "slate"];
+  return {
+    sections,
+    accent:
+      typeof s.accent === "string" && ACCENTS.includes(s.accent)
+        ? s.accent
+        : undefined,
+    customFields: Array.isArray(s.customFields)
+      ? (s.customFields as unknown[]).slice(0, 30)
+      : undefined,
+    tasks: Array.isArray(s.tasks) ? (s.tasks as unknown[]).slice(0, 500) : undefined,
+    defaults:
+      s.defaults && typeof s.defaults === "object"
+        ? (s.defaults as Record<string, unknown>)
+        : undefined,
+    workflowTemplateId:
+      typeof s.workflowTemplateId === "string" ? s.workflowTemplateId : undefined,
+  };
+}
 
 // GET /api/workspace/templates - Get project templates
 export async function GET() {
@@ -12,27 +55,31 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
+    // Resolve the workspace with the SAME audited heuristic PUT/DELETE use
+    // (getUserWorkspaceId prefers the shared firm workspace over a personal
+    // singleton — audit SEC-06). Reads and writes must agree, or a template
+    // created here is scoped to one workspace and deleted against another.
+    const workspaceId = await getUserWorkspaceId(userId);
 
-    if (!workspaceMember) {
-      return NextResponse.json({ error: "No workspace found" }, { status: 404 });
-    }
-
-    const templates = await prisma.projectTemplate.findMany({
-      where: {
-        OR: [
-          { workspaceId: workspaceMember.workspaceId },
-          { isPublic: true },
-        ],
-      },
+    // Scope strictly to the caller's workspace — do NOT OR-in a global
+    // `isPublic: true` branch, which would leak templates across tenants.
+    const rows = await prisma.projectTemplate.findMany({
+      where: { workspaceId },
       orderBy: { createdAt: "desc" },
+      include: {
+        creator: { select: { id: true, name: true, image: true } },
+      },
     });
 
-    return NextResponse.json(templates);
+    // Surface `mine` so the gallery can offer delete only to the creator.
+    const shaped = rows.map((r) => ({ ...r, mine: r.creatorId === userId }));
+
+    return NextResponse.json(shaped);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching templates:", error);
     return NextResponse.json(
       { error: "Failed to fetch templates" },
@@ -50,37 +97,46 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await requireWorkspaceContributor(userId);
+    // requireWorkspaceContributor returns the caller's effective workspace
+    // (same heuristic as GET/PUT/DELETE) — use it directly instead of a
+    // separate findFirst, so create scopes to the same workspace as the rest.
+    const { workspaceId } = await requireWorkspaceContributor(userId);
 
     const { name, description, icon, color, isPublic, structure } = await req.json();
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
+    if (name.trim().length > 120) {
+      return NextResponse.json({ error: "Name is too long" }, { status: 400 });
+    }
 
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
-
-    if (!workspaceMember) {
-      return NextResponse.json({ error: "No workspace found" }, { status: 404 });
+    const cleanStructure = sanitizeStructure(structure);
+    if (cleanStructure.sections.length === 0) {
+      return NextResponse.json(
+        { error: "A template needs at least one section" },
+        { status: 400 }
+      );
     }
 
     const template = await prisma.projectTemplate.create({
       data: {
-        name,
-        description,
-        icon,
-        color,
+        name: name.trim(),
+        description:
+          typeof description === "string" ? description.trim().slice(0, 500) : null,
+        icon: typeof icon === "string" ? icon : null,
+        color: typeof color === "string" ? color : null,
         isPublic: isPublic || false,
-        structure: structure || { sections: [], defaultTasks: [] },
-        workspaceId: workspaceMember.workspaceId,
+        structure: cleanStructure as unknown as Prisma.InputJsonValue,
+        workspaceId,
         creatorId: userId,
+      },
+      include: {
+        creator: { select: { id: true, name: true, image: true } },
       },
     });
 
-    return NextResponse.json(template, { status: 201 });
+    return NextResponse.json({ ...template, mine: true }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
       const { status, message } = getErrorStatus(error);
@@ -111,11 +167,13 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Template ID required" }, { status: 400 });
     }
 
-    // Verify template belongs to user's workspace
+    // Verify template belongs to user's workspace AND that the caller is its
+    // creator — mirror DELETE's creator gate so one contributor can't edit
+    // (or publish, or overwrite the structure of) a teammate's template.
     const workspaceId = await getUserWorkspaceId(userId);
     const existing = await prisma.projectTemplate.findUnique({
       where: { id },
-      select: { workspaceId: true },
+      select: { workspaceId: true, creatorId: true },
     });
     if (!existing) {
       throw new NotFoundError("Template not found");
@@ -123,16 +181,38 @@ export async function PUT(req: Request) {
     if (existing.workspaceId !== workspaceId) {
       throw new AuthorizationError("You don't have access to this template");
     }
+    if (existing.creatorId !== userId) {
+      throw new AuthorizationError("Only the creator can edit this template");
+    }
+
+    // Sanitize an incoming structure the same way POST does, so PUT can't
+    // bypass the sections/tasks/customFields caps.
+    let cleanStructure: Prisma.InputJsonValue | undefined;
+    if (structure !== undefined) {
+      const s = sanitizeStructure(structure);
+      if (s.sections.length === 0) {
+        return NextResponse.json(
+          { error: "A template needs at least one section" },
+          { status: 400 }
+        );
+      }
+      cleanStructure = s as unknown as Prisma.InputJsonValue;
+    }
 
     const template = await prisma.projectTemplate.update({
       where: { id },
       data: {
-        ...(name !== undefined && { name }),
-        ...(description !== undefined && { description }),
+        ...(name !== undefined && { name: String(name).trim().slice(0, 120) }),
+        ...(description !== undefined && {
+          description:
+            typeof description === "string"
+              ? description.trim().slice(0, 500)
+              : null,
+        }),
         ...(icon !== undefined && { icon }),
         ...(color !== undefined && { color }),
         ...(isPublic !== undefined && { isPublic }),
-        ...(structure !== undefined && { structure }),
+        ...(cleanStructure !== undefined && { structure: cleanStructure }),
       },
     });
 

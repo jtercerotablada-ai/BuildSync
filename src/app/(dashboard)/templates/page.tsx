@@ -1,225 +1,140 @@
 "use client";
 
-import { useState } from "react";
+/**
+ * Full-page "Workflow gallery" (/templates).
+ *
+ * This is the full-screen mirror of the create-project modal
+ * (create-project-gallery.tsx): it renders the SAME built-in engineering
+ * template library PLUS the workspace's custom templates ("Created by your
+ * team"), and every pick funnels through the SAME shared ConfirmTemplateDialog
+ * → POST /api/projects. Reached from "Explore all templates" and (with
+ * ?new=1) "New template" across the app.
+ *
+ * There is intentionally no separate marketing template set anymore — one
+ * library, two entry points, exactly like Asana.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
   Sparkles,
   Download,
   Plus,
-  Users,
-  ChevronDown,
-  Star,
-  Share2,
-  MoreHorizontal,
-  List,
-  LayoutGrid,
-  Calendar,
-  Clock,
-  CheckCircle2,
+  Trash2,
+  FilePlus2,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  allTemplates,
-  templateCategories,
-  getTemplatesByCategory,
-  type TemplateDefinition,
-} from "@/lib/templates-data";
+  PROJECT_TEMPLATES,
+  CATEGORY_LABELS,
+  FOR_YOU_TEMPLATE_IDS,
+  findProjectTemplate,
+  type ProjectTemplate,
+  type ProjectTemplateCategory,
+} from "@/lib/project-templates";
+import {
+  customRowToProjectTemplate,
+  customIdToDbId,
+  type CustomProjectTemplate,
+  type CustomTemplateRow,
+} from "@/lib/custom-templates";
+import { ACCENT_BG, resolveTemplateIcon } from "@/components/projects/template-visuals";
+import { ConfirmTemplateDialog } from "@/components/projects/confirm-template-dialog";
+import { NewTemplateDialog } from "@/components/projects/new-template-dialog";
 
-// Categories for UI
-const categories = [
-  { id: "for_you", label: "For you" },
-  { id: "my_org", label: "My organization" },
-  { id: "marketing", label: "Marketing" },
-  { id: "operations", label: "Operations & PMO" },
-  { id: "productivity", label: "Productivity" },
-  { id: "more", label: "More: Sales & CX", hasDropdown: true },
+type TabKey = "for_you" | ProjectTemplateCategory | "custom";
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "for_you", label: CATEGORY_LABELS.for_you },
+  { key: "engineering", label: CATEGORY_LABELS.engineering },
+  { key: "construction", label: CATEGORY_LABELS.construction },
+  { key: "operations", label: CATEGORY_LABELS.operations },
+  { key: "productivity", label: CATEGORY_LABELS.productivity },
+  { key: "custom", label: "Created by your team" },
 ];
 
-const moreCategories = [
-  { id: "design", label: "Design" },
-  { id: "it", label: "IT" },
-  { id: "engineering", label: "Product & Engineering" },
-  { id: "hr", label: "HR" },
-  { id: "sales", label: "Sales & Customer Experience" },
-];
-
-// Preview images using Storyset illustrations - mapped by template ID
-function TemplatePreview({ templateId }: { templateId: string }) {
-  const imageMap: Record<string, string> = {
-    // Marketing
-    "campaign-management": "/templates/campaign-management.svg",
-    "creative-requests": "/templates/creative-requests.svg",
-    "content-calendar": "/templates/content-calendar.svg",
-    "social-media-calendar": "/templates/social-media-calendar.svg",
-    "event-planning": "/templates/event-planning.svg",
-    "product-launch": "/templates/product-launch.svg",
-    // Operations
-    "goal-setting-operations": "/templates/goal-setting-operations.svg",
-    "cross-functional-project": "/templates/cross-functional-project.svg",
-    "work-intake": "/templates/work-intake.svg",
-    "kanban-board": "/templates/kanban-board.svg",
-    "project-timeline": "/templates/project-timeline.svg",
-    // Productivity
-    "project-management": "/templates/project-management.svg",
-    "meeting-agenda": "/templates/meeting-agenda.svg",
-    "request-tracking": "/templates/request-tracking.svg",
-    "new-employee-checklist": "/templates/new-employee-checklist.svg",
-    "one-on-one-meeting": "/templates/one-on-one-meeting.svg",
-    // Design
-    "web-design-process": "/templates/web-design-process.svg",
-    "creative-asset-approval": "/templates/creative-asset-approval.svg",
-    "design-project-plan": "/templates/design-project-plan.svg",
-    "user-research-sessions": "/templates/user-research-sessions.svg",
-    // Engineering
-    "engineering-project-plan": "/templates/engineering-project-plan.svg",
-    "bug-tracking": "/templates/bug-tracking.svg",
-    "sprint-planning": "/templates/sprint-planning.svg",
-    "sprint-retrospective": "/templates/sprint-retrospective.svg",
-    // IT
-    "software-implementation": "/templates/software-implementation.svg",
-    "ticketing": "/templates/ticketing.svg",
-    // HR
-    "candidate-tracking": "/templates/candidate-tracking.svg",
-    // Sales
-    "customer-onboarding": "/templates/customer-onboarding.svg",
-    "sales-pipeline": "/templates/sales-pipeline.svg",
-    "digital-fundraising": "/templates/digital-fundraising.svg",
-  };
-
-  const image = imageMap[templateId] || "/templates/list.svg";
-
-  return (
-    <div className="w-full h-52 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex items-center justify-center p-4 overflow-hidden">
-      <img
-        src={image}
-        alt={`${templateId} template preview`}
-        className="w-full h-full object-contain grayscale hover:grayscale-0 transition-all duration-300"
-      />
-    </div>
-  );
-}
-
-// Large preview for modal - using Storyset illustrations mapped by template ID
-function LargeTemplatePreview({ templateId }: { templateId: string }) {
-  const imageMap: Record<string, string> = {
-    // Marketing
-    "campaign-management": "/templates/campaign-management.svg",
-    "creative-requests": "/templates/creative-requests.svg",
-    "content-calendar": "/templates/content-calendar.svg",
-    "social-media-calendar": "/templates/social-media-calendar.svg",
-    "event-planning": "/templates/event-planning.svg",
-    "product-launch": "/templates/product-launch.svg",
-    // Operations
-    "goal-setting-operations": "/templates/goal-setting-operations.svg",
-    "cross-functional-project": "/templates/cross-functional-project.svg",
-    "work-intake": "/templates/work-intake.svg",
-    "kanban-board": "/templates/kanban-board.svg",
-    "project-timeline": "/templates/project-timeline.svg",
-    // Productivity
-    "project-management": "/templates/project-management.svg",
-    "meeting-agenda": "/templates/meeting-agenda.svg",
-    "request-tracking": "/templates/request-tracking.svg",
-    "new-employee-checklist": "/templates/new-employee-checklist.svg",
-    "one-on-one-meeting": "/templates/one-on-one-meeting.svg",
-    // Design
-    "web-design-process": "/templates/web-design-process.svg",
-    "creative-asset-approval": "/templates/creative-asset-approval.svg",
-    "design-project-plan": "/templates/design-project-plan.svg",
-    "user-research-sessions": "/templates/user-research-sessions.svg",
-    // Engineering
-    "engineering-project-plan": "/templates/engineering-project-plan.svg",
-    "bug-tracking": "/templates/bug-tracking.svg",
-    "sprint-planning": "/templates/sprint-planning.svg",
-    "sprint-retrospective": "/templates/sprint-retrospective.svg",
-    // IT
-    "software-implementation": "/templates/software-implementation.svg",
-    "ticketing": "/templates/ticketing.svg",
-    // HR
-    "candidate-tracking": "/templates/candidate-tracking.svg",
-    // Sales
-    "customer-onboarding": "/templates/customer-onboarding.svg",
-    "sales-pipeline": "/templates/sales-pipeline.svg",
-    "digital-fundraising": "/templates/digital-fundraising.svg",
-  };
-
-  const image = imageMap[templateId] || "/templates/list.svg";
-
-  return (
-    <div className="w-full h-72 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center p-8 border border-gray-200">
-      <img
-        src={image}
-        alt={`${templateId} template preview`}
-        className="w-full h-full object-contain"
-      />
-    </div>
-  );
-}
-
-// Get view type icon
-function getViewIcon(type: string) {
-  switch (type) {
-    case "list": return List;
-    case "board": return LayoutGrid;
-    case "calendar": return Calendar;
-    case "timeline": return Clock;
-    default: return List;
-  }
-}
+const TAB_BLURB: Record<TabKey, string> = {
+  for_you: "your team",
+  engineering: "engineering teams",
+  construction: "construction teams",
+  operations: "operations teams",
+  productivity: "everyday work",
+  custom: "your organization",
+};
 
 export default function TemplatesGalleryPage() {
   const router = useRouter();
-  const [activeCategory, setActiveCategory] = useState("marketing");
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateDefinition | null>(null);
 
-  // Get templates based on active category
-  const getTemplatesForCategory = (): TemplateDefinition[] => {
-    if (activeCategory === "for_you") {
-      // Return a mix of popular templates
-      return allTemplates.slice(0, 6);
+  const [activeTab, setActiveTab] = useState<TabKey>("for_you");
+  const [custom, setCustom] = useState<CustomProjectTemplate[]>([]);
+  const [picked, setPicked] = useState<ProjectTemplate | null>(null);
+  const [newTemplateOpen, setNewTemplateOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadCustom = useCallback(async () => {
+    try {
+      const res = await fetch("/api/workspace/templates");
+      if (!res.ok) return;
+      const rows = (await res.json()) as CustomTemplateRow[];
+      setCustom(rows.map(customRowToProjectTemplate));
+    } catch {
+      /* non-fatal */
     }
-    if (activeCategory === "my_org") {
-      // Organization templates (empty for now)
-      return [];
+  }, []);
+
+  useEffect(() => {
+    loadCustom();
+  }, [loadCustom]);
+
+  // "New template" links route here with ?new=1 to auto-open the dialog.
+  // Read from window (client-only) instead of useSearchParams so the whole
+  // full-screen overlay doesn't need a Suspense boundary — wrapping it in
+  // one made React's streaming render the overlay twice.
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("new") === "1") {
+        setNewTemplateOpen(true);
+        // Strip the param so a refresh / browser Back doesn't reopen it
+        // (mirrors team/page.tsx's ?invite=true handling).
+        router.replace("/templates", { scroll: false });
+      }
     }
-    return getTemplatesByCategory(activeCategory);
-  };
+  }, [router]);
 
-  const currentTemplates = getTemplatesForCategory();
+  const currentTemplates = useMemo<ProjectTemplate[]>(() => {
+    if (activeTab === "custom") return custom;
+    if (activeTab === "for_you") {
+      return FOR_YOU_TEMPLATE_IDS.map(findProjectTemplate).filter(
+        (t): t is ProjectTemplate => !!t
+      );
+    }
+    return PROJECT_TEMPLATES.filter((t) => t.category === activeTab);
+  }, [activeTab, custom]);
 
-  const getCategoryTitle = () => {
-    const titles: Record<string, string> = {
-      for_you: "you",
-      my_org: "your organization",
-      marketing: "marketing teams",
-      operations: "operations & PMO teams",
-      productivity: "all teams",
-      design: "design teams",
-      it: "IT teams",
-      engineering: "product & engineering teams",
-      hr: "HR teams",
-      sales: "sales & customer experience teams",
-    };
-    return titles[activeCategory] || "all teams";
-  };
-
-  const handleUseTemplate = (template: TemplateDefinition) => {
-    setSelectedTemplate(null);
-    router.push(`/projects/new?template=${template.id}`);
-  };
+  async function handleDeleteCustom(id: string) {
+    const dbId = customIdToDbId(id);
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/workspace/templates?id=${dbId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to delete template");
+      }
+      toast.success("Template deleted");
+      setCustom((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete template");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-white z-50 overflow-auto">
@@ -233,17 +148,20 @@ export default function TemplatesGalleryPage() {
             </Badge>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              className="text-sm text-gray-600 hover:text-gray-900"
-              onClick={() => window.open('mailto:feedback@ttcivilstructural.com?subject=Templates%20Feedback', '_blank')}
-            >
-              Send feedback
-            </button>
             <Button
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={() => router.push('/projects/new?ai=true')}
+              onClick={() => setNewTemplateOpen(true)}
+            >
+              <FilePlus2 className="h-4 w-4" />
+              New template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => router.push("/projects/new?ai=true")}
             >
               <Sparkles className="h-4 w-4" />
               Create with AI
@@ -252,7 +170,7 @@ export default function TemplatesGalleryPage() {
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={() => router.push('/projects/new')}
+              onClick={() => router.push("/projects/new")}
             >
               <Download className="h-4 w-4" />
               Import
@@ -268,6 +186,7 @@ export default function TemplatesGalleryPage() {
             <button
               onClick={() => router.back()}
               className="p-2 hover:bg-gray-100 rounded"
+              aria-label="Close"
             >
               <X className="h-5 w-5" />
             </button>
@@ -276,51 +195,19 @@ export default function TemplatesGalleryPage() {
 
         {/* Category Tabs */}
         <div className="flex items-center gap-2 px-6 pb-4 overflow-x-auto">
-          {categories.map((cat) => (
-            <div key={cat.id} className="relative flex-shrink-0">
-              {cat.hasDropdown ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className={cn(
-                        "px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1 whitespace-nowrap",
-                        moreCategories.some((mc) => mc.id === activeCategory)
-                          ? "bg-gray-900 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      )}
-                    >
-                      {cat.label}
-                      <ChevronDown className="h-4 w-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-[200px]">
-                    {moreCategories.map((mc) => (
-                      <DropdownMenuItem
-                        key={mc.id}
-                        onClick={() => setActiveCategory(mc.id)}
-                        className={cn(
-                          activeCategory === mc.id && "bg-gray-100 font-medium"
-                        )}
-                      >
-                        {mc.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <button
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={cn(
-                    "px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap",
-                    activeCategory === cat.id
-                      ? "bg-gray-900 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  )}
-                >
-                  {cat.label}
-                </button>
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                "px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0",
+                activeTab === tab.key
+                  ? "bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               )}
-            </div>
+            >
+              {tab.label}
+            </button>
           ))}
         </div>
       </div>
@@ -330,199 +217,160 @@ export default function TemplatesGalleryPage() {
         {/* Category Header */}
         <div className="mb-8">
           <h2 className="text-2xl font-semibold">
-            Discover workflows designed for {getCategoryTitle()}
+            {activeTab === "custom"
+              ? "Templates created by your organization"
+              : `Discover workflows designed for ${TAB_BLURB[activeTab]}`}
           </h2>
           <p className="text-gray-600 mt-1">
-            Help your {getCategoryTitle()} track, plan, and deliver high-impact
-            work
+            {activeTab === "custom"
+              ? "Reusable setups your team saved — pick one to start a new project."
+              : "Help your team track, plan, and deliver high-impact work."}
           </p>
         </div>
 
         {/* Templates Grid */}
         {currentTemplates.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {currentTemplates.map((template) => (
-              <div
-                key={template.id}
-                onClick={() => setSelectedTemplate(template)}
-                className="group cursor-pointer"
-              >
-                {/* Preview */}
-                <div className="rounded-2xl overflow-hidden border border-gray-200 hover:border-gray-300 hover:shadow-xl transition-all duration-200 bg-white">
-                  <TemplatePreview templateId={template.id} />
-                </div>
-
-                {/* Info - Below preview */}
-                <div className="pt-4 px-1">
-                  <h3 className="font-semibold text-lg text-gray-900 group-hover:text-black leading-tight">
-                    {template.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mt-2 line-clamp-3 leading-relaxed">
-                    {template.description}
-                  </p>
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="flex items-center gap-2">
-                      {template.isNew ? (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-gray-300 text-xs text-gray-600">
-                          <Sparkles className="h-3 w-3" />
-                          <span>New</span>
-                        </div>
-                      ) : template.isTrusted ? (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                          <Users className="h-3.5 w-3.5" />
-                          <span>Trusted by top teams</span>
-                        </div>
-                      ) : null}
-                    </div>
-                    {template.company && (
-                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                        <span className="text-xs font-bold text-gray-500">
-                          {template.company.charAt(0)}
-                        </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {currentTemplates.map((template) => {
+              const Icon = resolveTemplateIcon(template.icon);
+              const isCustom = "custom" in template;
+              const c = template as CustomProjectTemplate;
+              const subCount =
+                template.tasks?.reduce(
+                  (acc, t) => acc + (t.subtasks?.length ?? 0),
+                  0
+                ) ?? 0;
+              return (
+                <div
+                  key={template.id}
+                  className="group relative rounded-2xl border border-gray-200 bg-white hover:border-[#c9a84c] hover:shadow-lg transition-all overflow-hidden flex flex-col"
+                >
+                  {isCustom && c.mine && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (
+                          window.confirm(
+                            `Delete the "${template.name}" template? This can't be undone.`
+                          )
+                        )
+                          handleDeleteCustom(template.id);
+                      }}
+                      disabled={deletingId === template.id}
+                      className="absolute top-3 right-3 z-10 w-8 h-8 rounded-md bg-white/90 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40"
+                      aria-label="Delete template"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPicked(template)}
+                    className="text-left flex flex-col flex-1"
+                  >
+                    <div
+                      className={cn(
+                        "px-6 py-8 flex items-center gap-3",
+                        ACCENT_BG[template.accent]
+                      )}
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-white/60 flex items-center justify-center">
+                        <Icon className="w-6 h-6" />
                       </div>
-                    )}
-                  </div>
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="h-2 w-3/4 rounded-full bg-white/60" />
+                        <div className="h-2 w-1/2 rounded-full bg-white/40" />
+                      </div>
+                    </div>
+                    <div className="p-5 flex-1 flex flex-col">
+                      <h3 className="font-semibold text-lg text-gray-900 leading-tight">
+                        {template.name}
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-2 line-clamp-3 leading-relaxed">
+                        {template.description}
+                      </p>
+                      <div className="mt-4 flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+                        <span>
+                          <span className="font-medium tabular-nums text-gray-700">
+                            {template.sections.length}
+                          </span>{" "}
+                          section{template.sections.length === 1 ? "" : "s"}
+                        </span>
+                        {template.tasks && template.tasks.length > 0 && (
+                          <>
+                            <span className="text-gray-300">·</span>
+                            <span>
+                              <span className="font-medium tabular-nums text-gray-700">
+                                {template.tasks.length}
+                              </span>{" "}
+                              task{template.tasks.length === 1 ? "" : "s"}
+                              {subCount > 0 ? ` + ${subCount} subtasks` : ""}
+                            </span>
+                          </>
+                        )}
+                        {template.workflowTemplateId && (
+                          <>
+                            <span className="text-gray-300">·</span>
+                            <span className="text-[#a8893a] font-medium">
+                              + workflow
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      {isCustom && (
+                        <p className="mt-3 text-xs text-gray-400">
+                          Created by {c.creator?.name || "your team"}
+                        </p>
+                      )}
+                    </div>
+                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-16">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-              <List className="h-8 w-8 text-gray-400" />
+              <FilePlus2 className="h-8 w-8 text-gray-400" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900">No templates yet</h3>
+            <h3 className="text-lg font-medium text-gray-900">
+              {activeTab === "custom"
+                ? "No custom templates yet"
+                : "No templates in this category yet"}
+            </h3>
             <p className="text-gray-500 mt-1">
-              {activeCategory === "my_org"
-                ? "Your organization hasn't created any templates yet"
-                : "No templates available for this category yet"}
+              {activeTab === "custom"
+                ? "Create one to reuse your team's setup across projects."
+                : "Try another category, or create your own template."}
             </p>
+            <Button
+              className="mt-5 gap-2 bg-black hover:bg-gray-900"
+              onClick={() => setNewTemplateOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              New template
+            </Button>
           </div>
         )}
       </div>
 
-      {/* Template Preview Modal */}
-      <Dialog open={!!selectedTemplate} onOpenChange={() => setSelectedTemplate(null)}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden">
-          {selectedTemplate && (
-            <>
-              {/* Modal Header */}
-              <div className="flex items-center justify-between px-6 py-5 border-b">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-black flex items-center justify-center shadow-sm">
-                    {(() => {
-                      const ViewIcon = getViewIcon(selectedTemplate.preview);
-                      return <ViewIcon className="h-6 w-6 text-white" />;
-                    })()}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h2 className="font-semibold text-xl">{selectedTemplate.name}</h2>
-                      {selectedTemplate.isNew && (
-                        <span className="px-2 py-0.5 text-xs font-medium border border-black rounded-full">
-                          New
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-500 mt-0.5 capitalize">{selectedTemplate.preview} view</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="hover:bg-gray-100"
-                    onClick={() => {
-                      toast.success('Template saved to favorites');
-                    }}
-                  >
-                    <Star className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="hover:bg-gray-100"
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/templates?template=${selectedTemplate.id}`);
-                      toast.success('Link copied to clipboard');
-                    }}
-                  >
-                    <Share2 className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
+      {/* Pick → name → create (shared with the modal gallery) */}
+      <ConfirmTemplateDialog
+        template={picked}
+        onClose={() => setPicked(null)}
+        onCreated={() => setPicked(null)}
+      />
 
-              {/* Modal Content */}
-              <div className="px-6 py-5">
-                {/* Large Preview */}
-                <LargeTemplatePreview templateId={selectedTemplate.id} />
-
-                {/* Template Info */}
-                <div className="mt-8 grid grid-cols-3 gap-8">
-                  <div className="col-span-2 pr-4">
-                    <h3 className="font-semibold text-gray-900 mb-3">About this template</h3>
-                    <p className="text-gray-600 leading-relaxed">{selectedTemplate.description}</p>
-
-                    {/* What's included */}
-                    <div className="mt-6 space-y-3">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">What's included</p>
-                      <div className="flex items-start gap-3 text-sm text-gray-700">
-                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <CheckCircle2 className="h-3 w-3 text-white" />
-                        </div>
-                        <span>{selectedTemplate.sections.length} sections: {selectedTemplate.sections.map(s => s.name).join(", ")}</span>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm text-gray-700">
-                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <CheckCircle2 className="h-3 w-3 text-white" />
-                        </div>
-                        <span>{selectedTemplate.tasks.length} pre-built tasks ready to assign</span>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm text-gray-700">
-                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <CheckCircle2 className="h-3 w-3 text-white" />
-                        </div>
-                        <span>Customizable fields and multiple views</span>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm text-gray-700">
-                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <CheckCircle2 className="h-3 w-3 text-white" />
-                        </div>
-                        <span>Ready to use immediately</span>
-                      </div>
-                    </div>
-
-                    {selectedTemplate.company && (
-                      <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                        <p className="text-xs text-gray-500 mb-1">Trusted by</p>
-                        <p className="font-semibold text-gray-900">{selectedTemplate.company}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-4 pl-4 border-l border-gray-100">
-                    <Button
-                      className="w-full bg-black hover:bg-gray-900 h-11 text-base font-medium"
-                      onClick={() => handleUseTemplate(selectedTemplate)}
-                    >
-                      Use template
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full h-11 text-base font-medium border-gray-300"
-                      onClick={() => handleUseTemplate(selectedTemplate)}
-                    >
-                      Preview & use
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* New custom template */}
+      <NewTemplateDialog
+        open={newTemplateOpen}
+        onOpenChange={setNewTemplateOpen}
+        onCreated={() => {
+          loadCustom();
+          setActiveTab("custom");
+        }}
+      />
     </div>
   );
 }

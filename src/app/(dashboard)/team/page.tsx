@@ -622,7 +622,7 @@ function OverviewContent({
                   Goal
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push("/templates")}>
+                <DropdownMenuItem onClick={() => router.push("/templates?new=1")}>
                   <FileText className="h-4 w-4 mr-2" />
                   Template
                 </DropdownMenuItem>
@@ -1621,7 +1621,7 @@ function WorkContent({
               <h2 className="text-lg font-semibold mb-4">Templates</h2>
               <div className="space-y-3">
                 <button
-                  onClick={() => router.push("/templates")}
+                  onClick={() => router.push("/templates?new=1")}
                   className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors flex flex-col items-center gap-2"
                 >
                   <div className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center">
