@@ -378,8 +378,8 @@ export function dimensionsForEntity(entity: ChartEntity): CatalogOption[] {
 
 export const TASK_MEASURES: CatalogOption[] = [
   { value: "task", label: "Task count" },
-  { value: "time.estimated", label: "Estimated time" },
-  { value: "time.actual", label: "Actual time" },
+  { value: "time.estimated", label: "Estimated time (days)" },
+  { value: "time.actual", label: "Actual time (days)" },
 ];
 
 export const PROJECT_MEASURES: CatalogOption[] = [

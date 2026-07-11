@@ -7,15 +7,16 @@ import {
   ChevronRight,
   ChevronLeft,
   Plus,
+  Minus,
   Filter,
   Diamond,
-  AlertTriangle,
   ThumbsUp,
-  Link2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -28,7 +29,6 @@ import {
   addWeeks,
   addMonths,
   startOfWeek,
-  endOfWeek,
   startOfMonth,
   format,
   differenceInDays,
@@ -39,7 +39,7 @@ import {
   eachMonthOfInterval,
   isWeekend,
 } from "date-fns";
-import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
 
 // ============================================
 // TYPES
@@ -53,9 +53,6 @@ interface Task {
   dueDate: string | null;
   startDate?: string | null;
   priority: string;
-  // Engineering taxonomy honoured here so MILESTONE/APPROVAL tasks
-  // render as gold Diamond / ThumbsUp instead of a regular bar, the
-  // same way they do in List + Board + Calendar (P1).
   taskType?: "TASK" | "MILESTONE" | "APPROVAL" | null;
   assignee: {
     id: string;
@@ -84,14 +81,11 @@ interface TimelineViewProps {
   projectId: string;
 }
 
-type ZoomLevel = "day" | "week" | "month" | "quarter";
+type ZoomLevel = "day" | "week" | "month";
 
 // ============================================
-// PRIORITY & STATUS COLORS — monochrome + gold palette
+// PRIORITY COLORS — monochrome + gold palette
 // ============================================
-// Matches the rest of the cockpit: NONE is a soft slate, LOW/MEDIUM
-// climb up the gold ramp, HIGH lands on black so a high-priority task
-// reads with maximum contrast against the slate grid.
 
 const PRIORITY_COLORS: Record<string, string> = {
   NONE: "#9ca3af",   // slate-400
@@ -100,18 +94,19 @@ const PRIORITY_COLORS: Record<string, string> = {
   HIGH: "#0a0a0a",   // black
 };
 
-// Completed bars get a muted slate fill + strike-through; in-progress
-// bars use the priority color and overlay a darker gradient for the
-// remaining work. "Due soon" is rendered via a gold ring on the bar.
 const COMPLETED_BAR_FILL = "#94a3b8"; // slate-400
 
+// Swimlane geometry
+const LANE_HEIGHT = 36;
+const BAND_PADDING = 12;
+const COLLAPSED_BAND_HEIGHT = 36;
+const BAR_HEIGHT = 28;
+const HEADER_HEIGHT = 64; // two 32px sticky header rows
+const FOOTER_ROW_HEIGHT = 44; // add-section row
+
 // ============================================
-// DEPENDENCY CONNECTOR GEOMETRY (MS Project / Asana style)
+// DEPENDENCY CONNECTOR GEOMETRY (rounded elbows)
 // ============================================
-// Renders a rounded ORTHOGONAL "elbow" between two Gantt bar endpoints
-// instead of a diagonal curve: the line leaves the predecessor's edge with a
-// short horizontal stub, turns at rounded right angles, and enters the
-// successor's edge horizontally so the arrowhead points cleanly into the bar.
 
 /** Convert a polyline into an SVG path with rounded corners of radius `r`. */
 function roundedPolyline(pts: { x: number; y: number }[], r: number): string {
@@ -139,12 +134,8 @@ function roundedPolyline(pts: { x: number; y: number }[], r: number): string {
 }
 
 /**
- * Build the elbow path between a source endpoint (sx,sy) and a target endpoint
- * (ex,ey). sxOutDir/exInDir are +1 (right) or -1 (left) — the direction the
- * line leaves the source and approaches the target, chosen per dependency
- * type (FS/SS/FF/SF). Routes straight with one vertical when the target is
- * reachable forward, or wraps through a mid-row corridor for overlapping /
- * backward links.
+ * Rounded orthogonal elbow between a source endpoint and a target endpoint.
+ * sxOutDir/exInDir are +1 (right) or -1 (left) per dependency type.
  */
 function dependencyElbowPath(
   sx: number,
@@ -160,7 +151,6 @@ function dependencyElbowPath(
   const eInX = ex + exInDir * STUB;
 
   if (Math.abs(sy - ey) < 1) {
-    // Same row (rare) — a flat segment; the arrowhead still reads.
     return `M ${sx} ${sy} L ${ex} ${ey}`;
   }
 
@@ -169,8 +159,6 @@ function dependencyElbowPath(
 
   let pts: { x: number; y: number }[];
   if (!needWrap) {
-    // Forward: leave the source, drop/climb to the target row at a midpoint,
-    // then run into the target edge. Two clean right angles.
     const midX = (sOutX + eInX) / 2;
     pts = [
       { x: sx, y: sy },
@@ -179,7 +167,6 @@ function dependencyElbowPath(
       { x: ex, y: ey },
     ];
   } else {
-    // Overlap / backward: wrap through a corridor halfway between the rows.
     const midY = (sy + ey) / 2;
     pts = [
       { x: sx, y: sy },
@@ -207,23 +194,18 @@ export function TimelineView({
   // State
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("week");
+  // Asana's Cronograma defaults to day zoom.
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("day");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  // "Due soon" highlight — honest name for the simple at-risk flag
-  // (tasks due within 7 days, not yet complete). True CPM critical
-  // path with forward/backward pass + total float lands in Phase 3.
   const [showDueSoon, setShowDueSoon] = useState(true);
   const [hoveredTask, setHoveredTask] = useState<string | null>(null);
-  const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week" | "has_deps">("all");
-  // Look-ahead window — narrows the visible tasks to those due within
-  // the next N weeks. PMI/AEC convention: superintendents run weekly
-  // 3-week look-aheads, project controls run 6-week. "all" disables
-  // the filter and shows the full schedule.
-  const [lookAhead, setLookAhead] = useState<"all" | "3w" | "6w">("all");
+  const [taskFilter, setTaskFilter] = useState<"all" | "incomplete" | "completed" | "due_this_week">("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  // Dependencies — loaded once on mount, render path is FINISH_TO_START
-  // arrows between task bars. Phase 3 only; the schema has the rows
-  // but the rest of the cockpit doesn't surface them yet.
+  // Inline add-section (Enter = create, Escape = cancel)
+  const [addingSection, setAddingSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState("");
+
+  // Dependencies — loaded on mount; rendered as rounded elbow arrows.
   type DependencyRow = {
     id: string;
     type: "FINISH_TO_START" | "START_TO_START" | "FINISH_TO_FINISH" | "START_TO_FINISH";
@@ -247,57 +229,37 @@ export function TimelineView({
       canceled = true;
     };
     // Re-fetch when the task set changes too: adding/removing a dependency
-    // from the task panel triggers router.refresh(), which updates `sections`
-    // — keying only on projectId left the arrows/count stale until remount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // from the task panel triggers router.refresh(), which updates `sections`.
+     
   }, [projectId, sections]);
+
   const [dragState, setDragState] = useState<{
     taskId: string;
-    // "left"/"right" handles resize one edge. "move" drags the whole
-    // bar — shifts startDate AND dueDate by the same delta so the
-    // duration is preserved (MS Project / Primavera convention).
     handle: "left" | "right" | "move";
     startX: number;
     originalStart: string | null;
     originalDue: string;
-    // Live pixel delta from drag start — updated on every mousemove
-    // so the bar can render its in-flight position before the server
-    // commits. Without this, resizing felt completely silent until
-    // mouseup + router.refresh redrew the bar.
     deltaX: number;
   } | null>(null);
+  // True once a drag actually moved by ≥1 snapped day — used to
+  // suppress the click that fires after mouseup so a real drag
+  // doesn't also open the task panel.
+  const dragMovedRef = useRef(false);
 
-  const timelineRef = useRef<HTMLDivElement>(null);
+  // ============================================
+  // FILTER
+  // ============================================
 
-  // Apply task filter + look-ahead window. Both are stacked: e.g.
-  // "Incomplete tasks" + "3-week look-ahead" → incomplete tasks
-  // ending within the next 21 days.
   const filteredSections = useMemo(() => {
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 6);
 
-    // Look-ahead end date — `null` means no look-ahead bound.
-    const lookAheadEnd =
-      lookAhead === "3w"
-        ? addDays(now, 21)
-        : lookAhead === "6w"
-          ? addDays(now, 42)
-          : null;
-
-    if (taskFilter === "all" && lookAheadEnd === null) return sections;
+    if (taskFilter === "all") return sections;
 
     return sections.map((section) => ({
       ...section,
       tasks: section.tasks.filter((task) => {
-        // Look-ahead first — narrows the schedule to a rolling
-        // window from today. Tasks without a dueDate are kept so
-        // the user can still see backlog rows.
-        if (lookAheadEnd && task.dueDate) {
-          const due = dueDateToLocalMidnight(task.dueDate);
-          if (due > lookAheadEnd) return false;
-        }
-        // Then the user-selected task filter.
         if (taskFilter === "incomplete") return !task.completed;
         if (taskFilter === "completed") return task.completed;
         if (taskFilter === "due_this_week") {
@@ -308,16 +270,19 @@ export function TimelineView({
         return true;
       }),
     }));
-  }, [sections, taskFilter, lookAhead]);
+  }, [sections, taskFilter]);
 
   // ============================================
   // ZOOM CONFIGURATION
   // ============================================
 
-  const zoomConfig = {
+  const zoomConfig: Record<
+    ZoomLevel,
+    { columnWidth: number; range: number; getColumns: (start: Date, count: number) => Date[] }
+  > = {
     day: {
       columnWidth: 40,
-      range: 30,
+      range: 35,
       getColumns: (start: Date, count: number) =>
         eachDayOfInterval({ start, end: addDays(start, count - 1) }),
     },
@@ -339,267 +304,291 @@ export function TimelineView({
           end: addMonths(start, count - 1),
         }),
     },
-    quarter: {
-      columnWidth: 200,
-      range: 8,
-      getColumns: (start: Date, count: number) => {
-        const quarters = [];
-        let current = startOfMonth(start);
-        for (let i = 0; i < count; i++) {
-          quarters.push(current);
-          current = addMonths(current, 3);
-        }
-        return quarters;
-      },
-    },
   };
 
   const config = zoomConfig[zoomLevel];
 
   // ============================================
-  // GENERATE TIMELINE COLUMNS
+  // TIMELINE COLUMNS
   // ============================================
 
   const columns = useMemo(() => {
-    const startDate = zoomLevel === "week"
-      ? startOfWeek(currentDate, { weekStartsOn: 1 })
-      : startOfMonth(currentDate);
+    const startDate =
+      zoomLevel === "month"
+        ? startOfMonth(currentDate)
+        : startOfWeek(currentDate, { weekStartsOn: 1 });
 
     const cols = config.getColumns(startDate, config.range);
 
     return cols.map((date) => {
       let label = "";
-      let subLabel = "";
-
       if (zoomLevel === "day") {
         label = format(date, "d");
-        subLabel = format(date, "EEE");
       } else if (zoomLevel === "week") {
-        const weekEnd = addDays(date, 6);
-        label = `${format(date, "d")}-${format(weekEnd, "d")}`;
-        subLabel = `W${format(date, "w")}`;
-      } else if (zoomLevel === "month") {
-        label = format(date, "MMM");
-        subLabel = format(date, "yyyy");
+        label = format(date, "MMM d");
       } else {
-        const quarter = Math.floor(date.getMonth() / 3) + 1;
-        label = `Q${quarter}`;
-        subLabel = format(date, "yyyy");
+        label = format(date, "MMM");
       }
-
       return {
         date,
         label,
-        subLabel,
         isWeekend: zoomLevel === "day" && isWeekend(date),
-        isToday: isSameDay(date, new Date()),
+        isToday: zoomLevel === "day" && isSameDay(date, new Date()),
       };
     });
-  }, [currentDate, zoomLevel, config]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate, zoomLevel]);
 
   // ============================================
-  // GROUP COLUMNS BY MONTH/YEAR
+  // TOP HEADER GROUPS (months at day/week zoom, quarters at month zoom)
   // ============================================
 
-  const monthGroups = useMemo(() => {
-    if (zoomLevel === "month" || zoomLevel === "quarter") {
-      const year = format(columns[0]?.date || new Date(), "yyyy");
-      return [{ label: year, columns }];
-    }
-
-    const groups: { label: string; columns: typeof columns }[] = [];
-    let currentMonth = "";
-
-    columns.forEach((col) => {
-      const monthLabel = format(col.date, "MMMM yyyy");
-      if (monthLabel !== currentMonth) {
-        currentMonth = monthLabel;
-        groups.push({ label: monthLabel, columns: [] });
+  const topGroups = useMemo(() => {
+    const groups: { label: string; count: number }[] = [];
+    let currentLabel = "";
+    for (const col of columns) {
+      const label =
+        zoomLevel === "month"
+          ? `Q${Math.floor(col.date.getMonth() / 3) + 1} ${format(col.date, "yyyy")}`
+          : format(col.date, "MMMM yyyy");
+      if (label !== currentLabel) {
+        currentLabel = label;
+        groups.push({ label, count: 0 });
       }
-      groups[groups.length - 1].columns.push(col);
-    });
-
+      groups[groups.length - 1].count++;
+    }
     return groups;
   }, [columns, zoomLevel]);
 
   // ============================================
-  // CALCULATE TASK POSITION
+  // TIMELINE RANGE (shared by bars / today line / pixel↔day math)
   // ============================================
+
+  const timelineRange = useMemo(() => {
+    const fallback =
+      zoomLevel === "month"
+        ? startOfMonth(currentDate)
+        : startOfWeek(currentDate, { weekStartsOn: 1 });
+    const start = columns[0]?.date || fallback;
+    const lastColumn = columns[columns.length - 1]?.date || fallback;
+    const end =
+      zoomLevel === "day"
+        ? addDays(lastColumn, 1)
+        : zoomLevel === "week"
+          ? addDays(lastColumn, 7)
+          : addMonths(lastColumn, 1);
+    const totalWidth = columns.length * config.columnWidth;
+    const totalDays = Math.max(1, differenceInDays(end, start));
+    const dayWidth = totalWidth / totalDays;
+    // Per-column pixel widths proportional to each column's true day span.
+    // Months are 28-31 days (not the 30.42-day average a fixed 120px column
+    // implies), so fixed-width columns drift off the uniform day-width math
+    // used by bars and the today line at month zoom.
+    const columnWidths = columns.map((c, i) => {
+      const colStart = differenceInDays(c.date, start);
+      const colEnd =
+        i + 1 < columns.length
+          ? differenceInDays(columns[i + 1].date, start)
+          : totalDays;
+      return (colEnd - colStart) * dayWidth;
+    });
+    return { start, end, totalWidth, totalDays, dayWidth, columnWidths };
+  }, [columns, zoomLevel, currentDate, config.columnWidth]);
+
+  // Header-group pixel widths — sum of member column widths so group
+  // borders stay aligned with the proportional columns.
+  const groupWidths = useMemo(() => {
+    let idx = 0;
+    return topGroups.map((g) => {
+      let w = 0;
+      for (let k = 0; k < g.count; k++)
+        w += timelineRange.columnWidths[idx++] ?? config.columnWidth;
+      return w;
+    });
+  }, [topGroups, timelineRange, config.columnWidth]);
+
+  // ============================================
+  // TASK BAR POSITION
+  // ============================================
+  // Bars only for tasks with a dueDate. Missing startDate = 1-day bar
+  // sitting on the due date. dueDate/startDate are UTC-midnight
+  // instants; read them by their UTC calendar day so bars don't render
+  // a day early for viewers west of UTC.
 
   const getTaskPosition = useCallback(
     (task: Task) => {
       if (!task.dueDate) return null;
 
-      const startDate = zoomLevel === "week"
-        ? startOfWeek(currentDate, { weekStartsOn: 1 })
-        : startOfMonth(currentDate);
+      const { start: timelineStart, end: timelineEnd, totalWidth, totalDays } = timelineRange;
 
-      const timelineStart = columns[0]?.date || startDate;
-      const lastColumn = columns[columns.length - 1]?.date || startDate;
-      // The last column's true span must match its header, or bars drift
-      // badly at month/quarter zoom (a quarter column spans ~91 days, not
-      // 30). Extend by the real unit so totalDays reflects the drawn range.
-      const timelineEnd =
-        zoomLevel === "day"
-          ? addDays(lastColumn, 1)
-          : zoomLevel === "week"
-            ? addDays(lastColumn, 7)
-            : zoomLevel === "month"
-              ? addMonths(lastColumn, 1)
-              : addMonths(lastColumn, 3);
-
-      // dueDate/startDate are UTC-midnight instants; read them by their UTC
-      // calendar day so bars don't render a day early for US-timezone users.
       const taskEnd = dueDateToLocalMidnight(task.dueDate);
-      const taskStart = task.startDate
+      let taskStart = task.startDate
         ? dueDateToLocalMidnight(task.startDate)
-        : new Date(taskEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+        : taskEnd;
+      if (taskStart > taskEnd) taskStart = taskEnd;
 
-      if (taskEnd < timelineStart || taskStart > timelineEnd) {
+      // timelineEnd is exclusive — a task starting exactly there is outside.
+      if (taskEnd < timelineStart || taskStart >= timelineEnd) {
         return null;
       }
 
-      const totalWidth = columns.length * config.columnWidth;
-      const totalDays = differenceInDays(timelineEnd, timelineStart);
-
       const startOffset = Math.max(0, differenceInDays(taskStart, timelineStart));
-      const endOffset = Math.min(totalDays, differenceInDays(taskEnd, timelineStart));
+      // Clamp to the last rendered day (totalDays - 1) so the inclusive +1
+      // in the width below ends exactly at the grid's right border.
+      const endOffset = Math.min(totalDays - 1, differenceInDays(taskEnd, timelineStart));
 
       const left = (startOffset / totalDays) * totalWidth;
-      const width = Math.max(((endOffset - startOffset + 1) / totalDays) * totalWidth, 24);
+      const width = Math.max(((endOffset - startOffset + 1) / totalDays) * totalWidth, 14);
 
       return { left, width };
     },
-    [columns, config.columnWidth, zoomLevel, currentDate]
+    [timelineRange]
   );
 
-  // Layout constants used by both the row map and the SVG arrow
-  // geometry. Declared early so the useCallback below can close over
-  // a stable value (TS const block-scoping otherwise errored at the
-  // taskRowMap call site that's higher up in the file than the old
-  // declaration block).
-  const rowHeight = 44;
-
   // ============================================
-  // GLOBAL TASK ROW MAP (taskId → rowIndex)
+  // SWIMLANE LAYOUT — greedy first-fit lane packing per section band
   // ============================================
-  // Walks filteredSections in render order and assigns each visible
-  // task its absolute row index inside the Gantt chart. Section
-  // headers and collapsed sections are accounted for so the Y of any
-  // task bar lines up perfectly with where the arrow needs to land.
 
-  const taskRowMap = useMemo(() => {
-    const map = new Map<string, number>();
-    let row = 0;
+  const bandLayout = useMemo(() => {
+    type Band = {
+      section: Section;
+      collapsed: boolean;
+      laneOf: Map<string, number>;
+      laneCount: number;
+      bandHeight: number;
+      top: number;
+      datedTasks: Task[];
+    };
+    const bands: Band[] = [];
+    let top = 0;
+
     for (const section of filteredSections) {
-      row++; // section header row
-      if (collapsedSections.has(section.id)) continue;
-      for (const task of section.tasks) {
-        map.set(task.id, row);
-        row++;
+      const collapsed = collapsedSections.has(section.id);
+
+      // Sort dated tasks by start (then due) and first-fit into lanes so
+      // overlapping [start,due] ranges stack vertically.
+      const dated = section.tasks
+        .filter((t) => t.dueDate)
+        .map((t) => {
+          const end = dueDateToLocalMidnight(t.dueDate!);
+          let start = t.startDate ? dueDateToLocalMidnight(t.startDate) : end;
+          if (start > end) start = end;
+          return { task: t, start: start.getTime(), end: end.getTime() };
+        })
+        .sort((a, b) => a.start - b.start || a.end - b.end);
+
+      const laneEnds: number[] = [];
+      const laneOf = new Map<string, number>();
+      for (const item of dated) {
+        let lane = laneEnds.findIndex((laneEnd) => laneEnd < item.start);
+        if (lane === -1) {
+          lane = laneEnds.length;
+          laneEnds.push(item.end);
+        } else {
+          laneEnds[lane] = item.end;
+        }
+        laneOf.set(item.task.id, lane);
       }
+
+      const laneCount = Math.max(1, laneEnds.length);
+      const bandHeight = collapsed
+        ? COLLAPSED_BAND_HEIGHT
+        : laneCount * LANE_HEIGHT + BAND_PADDING;
+
+      bands.push({
+        section,
+        collapsed,
+        laneOf,
+        laneCount,
+        bandHeight,
+        top,
+        datedTasks: dated.map((d) => d.task),
+      });
+      top += bandHeight;
     }
-    return map;
+
+    return { bands, totalHeight: top };
   }, [filteredSections, collapsedSections]);
 
-  // Map taskId → all the screen coordinates we need to draw an arrow
-  // ending or starting at this task. Returns null if the task isn't
-  // currently visible (outside the timeline window OR collapsed).
+  // taskId → absolute canvas coordinates for dependency arrows.
+  // Y = bandTop + lane*LANE_HEIGHT + 18 (lane center). Null when the
+  // task is collapsed, undated, or outside the visible window.
   const getTaskScreenPos = useCallback(
     (taskId: string) => {
-      const row = taskRowMap.get(taskId);
-      if (row === undefined) return null;
-      // Find the task object so we can compute its bar position.
-      let task: Task | null = null;
-      for (const s of filteredSections) {
-        const t = s.tasks.find((x) => x.id === taskId);
-        if (t) {
-          task = t;
-          break;
-        }
+      for (const band of bandLayout.bands) {
+        if (band.collapsed) continue;
+        const lane = band.laneOf.get(taskId);
+        if (lane === undefined) continue;
+        const task = band.section.tasks.find((t) => t.id === taskId);
+        if (!task) return null;
+        const pos = getTaskPosition(task);
+        if (!pos) return null;
+        return {
+          xLeft: pos.left,
+          xRight: pos.left + pos.width,
+          yCenter: band.top + lane * LANE_HEIGHT + 18,
+        };
       }
-      if (!task) return null;
-      const pos = getTaskPosition(task);
-      if (!pos) return null;
-      const yCenter = row * rowHeight + rowHeight / 2;
-      return {
-        xLeft: pos.left,
-        xRight: pos.left + pos.width,
-        yCenter,
-      };
+      return null;
     },
-    [taskRowMap, filteredSections, getTaskPosition, rowHeight]
+    [bandLayout, getTaskPosition]
   );
 
   // ============================================
-  // CALCULATE TODAY LINE POSITION
+  // TODAY LINE POSITION
   // ============================================
 
   const todayPosition = useMemo(() => {
     const today = startOfDay(new Date());
-    const startDate = zoomLevel === "week"
-      ? startOfWeek(currentDate, { weekStartsOn: 1 })
-      : startOfMonth(currentDate);
-
-    const timelineStart = columns[0]?.date || startDate;
-    const timelineEnd = addDays(
-      columns[columns.length - 1]?.date || startDate,
-      zoomLevel === "day" ? 1 : zoomLevel === "week" ? 7 : 30
-    );
-
-    if (today < timelineStart || today > timelineEnd) return null;
-
-    const totalWidth = columns.length * config.columnWidth;
-    const totalDays = differenceInDays(timelineEnd, timelineStart);
-    const daysFromStart = differenceInDays(today, timelineStart);
-
-    return (daysFromStart / totalDays) * totalWidth;
-  }, [columns, config.columnWidth, zoomLevel, currentDate]);
+    const { start, end, totalWidth, totalDays } = timelineRange;
+    if (today < start || today > end) return null;
+    const daysFromStart = differenceInDays(today, start);
+    // Center the marker on today's column at day zoom.
+    return ((daysFromStart + (zoomLevel === "day" ? 0.5 : 0)) / totalDays) * totalWidth;
+  }, [timelineRange, zoomLevel]);
 
   // ============================================
-  // DRAG-TO-RESIZE
+  // DRAG MOVE / RESIZE — whole-day snap, UTC-midnight-safe save
   // ============================================
 
-  const pixelsToDays = useCallback((px: number) => {
-    const totalWidth = columns.length * config.columnWidth;
-    const sd = zoomLevel === "week"
-      ? startOfWeek(currentDate, { weekStartsOn: 1 })
-      : startOfMonth(currentDate);
-    const timelineStart = columns[0]?.date || sd;
-    const timelineEnd = addDays(
-      columns[columns.length - 1]?.date || sd,
-      zoomLevel === "day" ? 1 : zoomLevel === "week" ? 7 : 30
-    );
-    const totalDays = differenceInDays(timelineEnd, timelineStart);
-    return (px / totalWidth) * totalDays;
-  }, [columns, config.columnWidth, zoomLevel, currentDate]);
+  const pixelsToDays = useCallback(
+    (px: number) => {
+      const { totalWidth, totalDays } = timelineRange;
+      return (px / totalWidth) * totalDays;
+    },
+    [timelineRange]
+  );
 
-  const handleResizeStart = useCallback((e: React.MouseEvent, taskId: string, handle: "left" | "right" | "move", task: Task) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!task.dueDate) return;
-    setDragState({
-      taskId,
-      handle,
-      startX: e.clientX,
-      originalStart: task.startDate || null,
-      originalDue: task.dueDate,
-      deltaX: 0,
-    });
-  }, []);
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent, taskId: string, handle: "left" | "right" | "move", task: Task) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!task.dueDate) return;
+      dragMovedRef.current = false;
+      setDragState({
+        taskId,
+        handle,
+        startX: e.clientX,
+        originalStart: task.startDate || null,
+        originalDue: task.dueDate,
+        deltaX: 0,
+      });
+    },
+    []
+  );
 
   useEffect(() => {
     if (!dragState) return;
 
-    // Update the live deltaX on every mousemove so the bar can paint
-    // its preview position while the user is still dragging. Snaps
-    // to whole days so the visual matches what'll actually persist
-    // (no sub-day "phantom" shifts).
+    // Use the true render ratio — columnWidth/30 at month zoom disagrees
+    // with totalWidth/totalDays and made the ghost bar snap on release.
+    const pxPerDay = timelineRange.totalWidth / timelineRange.totalDays;
+
     const handleMouseMove = (e: MouseEvent) => {
       const dx = e.clientX - dragState.startX;
       const snappedDays = Math.round(pixelsToDays(dx));
-      const snappedPx = snappedDays * (config.columnWidth /
-        (zoomLevel === "day" ? 1 : zoomLevel === "week" ? 7 : zoomLevel === "month" ? 30 : 90));
+      if (snappedDays !== 0) dragMovedRef.current = true;
+      const snappedPx = snappedDays * pxPerDay;
       setDragState((prev) => (prev ? { ...prev, deltaX: snappedPx } : prev));
     };
 
@@ -617,28 +606,29 @@ export function TimelineView({
       const origDue = dueDateToLocalMidnight(dragState.originalDue);
       const impliedStart = dragState.originalStart
         ? dueDateToLocalMidnight(dragState.originalStart)
-        : addDays(origDue, -7);
+        : origDue; // no startDate = 1-day bar sitting on the due date
 
       const body: Record<string, string | null> = {};
       if (dragState.handle === "left") {
-        const newStart = addDays(impliedStart, deltaDays);
+        let newStart = addDays(impliedStart, deltaDays);
+        if (newStart > origDue) newStart = origDue;
         body.startDate = format(newStart, "yyyy-MM-dd");
       } else if (dragState.handle === "right") {
-        const newDue = addDays(origDue, deltaDays);
+        let newDue = addDays(origDue, deltaDays);
+        if (newDue < impliedStart) newDue = impliedStart;
         body.dueDate = format(newDue, "yyyy-MM-dd");
-        // Pin the left edge: for a task with no persisted startDate the bar's
-        // implied start (dueDate − 7d) would otherwise recompute from the new
-        // dueDate and the bar would translate right instead of growing.
+        // Pin the left edge: with no persisted startDate the 1-day bar
+        // would otherwise translate instead of growing.
         if (!dragState.originalStart) {
           body.startDate = format(impliedStart, "yyyy-MM-dd");
         }
       } else {
-        // "move" — shift BOTH dates by the same delta so the
-        // duration is preserved.
-        const newStart = addDays(impliedStart, deltaDays);
+        // "move" — shift the whole bar; duration preserved.
         const newDue = addDays(origDue, deltaDays);
-        body.startDate = format(newStart, "yyyy-MM-dd");
         body.dueDate = format(newDue, "yyyy-MM-dd");
+        if (dragState.originalStart) {
+          body.startDate = format(addDays(impliedStart, deltaDays), "yyyy-MM-dd");
+        }
       }
 
       try {
@@ -661,10 +651,10 @@ export function TimelineView({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [dragState, pixelsToDays, router, config.columnWidth, zoomLevel]);
+  }, [dragState, pixelsToDays, router, timelineRange]);
 
   // ============================================
-  // NAVIGATION
+  // NAVIGATION & ZOOM STEPPING
   // ============================================
 
   const navigate = (direction: "prev" | "next" | "today") => {
@@ -672,15 +662,28 @@ export function TimelineView({
       setCurrentDate(new Date());
     } else {
       const amount = direction === "prev" ? -1 : 1;
-      if (zoomLevel === "day") setCurrentDate((d) => addWeeks(d, amount));
+      if (zoomLevel === "day") setCurrentDate((d) => addWeeks(d, amount * 2));
       else if (zoomLevel === "week") setCurrentDate((d) => addMonths(d, amount));
-      else if (zoomLevel === "month") setCurrentDate((d) => addMonths(d, amount * 3));
-      else setCurrentDate((d) => addMonths(d, amount * 6));
+      else setCurrentDate((d) => addMonths(d, amount * 3));
     }
   };
 
+  const ZOOM_ORDER: ZoomLevel[] = ["day", "week", "month"];
+  const zoomIndex = ZOOM_ORDER.indexOf(zoomLevel);
+  const zoomIn = () => {
+    if (zoomIndex > 0) setZoomLevel(ZOOM_ORDER[zoomIndex - 1]);
+  };
+  const zoomOut = () => {
+    if (zoomIndex < ZOOM_ORDER.length - 1) setZoomLevel(ZOOM_ORDER[zoomIndex + 1]);
+  };
+  const ZOOM_LABELS: Record<ZoomLevel, string> = {
+    day: "Days",
+    week: "Weeks",
+    month: "Months",
+  };
+
   // ============================================
-  // TOGGLE SECTION
+  // SECTION TOGGLE + INLINE ADD SECTION
   // ============================================
 
   const toggleSection = (sectionId: string) => {
@@ -693,22 +696,22 @@ export function TimelineView({
     setCollapsedSections(newCollapsed);
   };
 
-  // ============================================
-  // ADD SECTION
-  // ============================================
-
-  const handleAddSection = async () => {
+  const submitNewSection = async () => {
+    const name = newSectionName.trim();
+    if (!name) {
+      setAddingSection(false);
+      setNewSectionName("");
+      return;
+    }
     try {
       const response = await fetch("/api/sections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "New section",
-          projectId,
-        }),
+        body: JSON.stringify({ name, projectId }),
       });
-
       if (!response.ok) throw new Error("Failed to create section");
+      setAddingSection(false);
+      setNewSectionName("");
       router.refresh();
     } catch {
       toast.error("Failed to add section");
@@ -716,63 +719,27 @@ export function TimelineView({
   };
 
   // ============================================
-  // CALCULATE PROGRESS
+  // TASK FLAGS
   // ============================================
 
-  const getTaskProgress = (task: Task) => {
-    if (task.completed) return 100;
-    if (!task.subtasks || task.subtasks.length === 0) return 0;
-    const completed = task.subtasks.filter((s) => s.completed).length;
-    return Math.round((completed / task.subtasks.length) * 100);
-  };
-
-  // ============================================
-  // DETERMINE IF TASK IS DUE SOON
-  // ============================================
-  // Lightweight at-risk flag: due within 7 days and not yet complete.
-  // This is NOT true critical-path; CPM with total float = 0 lands
-  // in Phase 3 once we wire forward/backward pass.
-
+  // Due within 7 days and not yet complete → subtle gold ring.
   const isTaskDueSoon = (task: Task) => {
     if (!task.dueDate) return false;
     if (task.completed) return false;
-    const dueDate = dueDateToLocalMidnight(task.dueDate);
-    const today = new Date();
-    const daysUntilDue = differenceInDays(dueDate, today);
+    // daysFromToday rounds whole calendar days (differenceInDays against
+    // wall-clock `new Date()` truncates and flags 8-days-out as due soon).
+    const daysUntilDue = daysFromToday(task.dueDate);
     return daysUntilDue >= 0 && daysUntilDue <= 7;
   };
 
-  // ============================================
-  // DETERMINE IF TASK IS A MILESTONE
-  // ============================================
-  // Two ways a task can be a milestone:
-  //   1. Explicit taskType === "MILESTONE" (preferred — matches the
-  //      List / Board / Calendar treatment).
-  //   2. Implicit: a 0-duration task (startDate === dueDate or no
-  //      startDate set and the bar would collapse).
-  // The explicit form wins so a stakeholder can mark a milestone
-  // intentionally without juggling dates.
-
-  const isTaskMilestone = (task: Task) => {
-    if (task.taskType === "MILESTONE") return true;
-    if (!task.dueDate) return false;
-    const taskEnd = dueDateToLocalMidnight(task.dueDate);
-    const taskStart = task.startDate
-      ? dueDateToLocalMidnight(task.startDate)
-      : new Date(taskEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
-    return isSameDay(taskStart, taskEnd);
-  };
-
-  // Approval gates (taskType === "APPROVAL") render with the gold
-  // ThumbsUp icon in place of a regular bar.
+  const isTaskMilestone = (task: Task) => task.taskType === "MILESTONE";
   const isTaskApproval = (task: Task) => task.taskType === "APPROVAL";
 
   // ============================================
-  // RENDER
+  // RESPONSIVE GUTTER
   // ============================================
 
   const [isMobile, setIsMobile] = useState(false);
-
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -780,8 +747,18 @@ export function TimelineView({
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  const sidebarWidth = isMobile ? 120 : 280;
-  const headerHeight = 80;
+  const gutterWidth = isMobile ? 120 : 200;
+  const { totalWidth } = timelineRange;
+  const FILTER_LABELS: Record<typeof taskFilter, string> = {
+    all: "All",
+    incomplete: "Incomplete",
+    completed: "Completed",
+    due_this_week: "Due this week",
+  };
+
+  // ============================================
+  // RENDER
+  // ============================================
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
@@ -796,9 +773,8 @@ export function TimelineView({
             Add task
           </Button>
 
-          <div className="h-6 w-px bg-slate-200 mx-2" />
+          <div className="h-6 w-px bg-slate-200 mx-1 md:mx-2" />
 
-          {/* Navigation */}
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -808,11 +784,7 @@ export function TimelineView({
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("today")}
-            >
+            <Button variant="outline" size="sm" onClick={() => navigate("today")}>
               Today
             </Button>
             <Button
@@ -827,316 +799,261 @@ export function TimelineView({
         </div>
 
         {/* Right */}
-        <div className="hidden md:flex items-center gap-2">
-          {/* Zoom Level Selector */}
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-            {(["day", "week", "month", "quarter"] as ZoomLevel[]).map((level) => (
-              <button
-                key={level}
-                onClick={() => setZoomLevel(level)}
-                className={cn(
-                  "px-3 py-1 text-xs font-medium rounded-md transition-colors capitalize",
-                  zoomLevel === level
-                    ? "bg-white shadow-sm text-slate-900"
-                    : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                {level}
-              </button>
-            ))}
-          </div>
-
-          <div className="h-6 w-px bg-slate-200 mx-2" />
-
-          {/* View Options — only ship toggles that actually render
-              something. Dependencies arrows, baseline ghost bars, and
-              true CPM critical path are queued for Phase 3 when the
-              data model + algorithm are in place. */}
-          <Button
-            variant={showDueSoon ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setShowDueSoon(!showDueSoon)}
-            title="Highlight tasks due within 7 days"
-          >
-            <AlertTriangle className="w-4 h-4 mr-1" />
-            Due soon
-          </Button>
-
-          <Button
-            variant={showDependencies ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setShowDependencies(!showDependencies)}
-            title="Show dependency arrows between tasks"
-            disabled={dependencies.length === 0}
-          >
-            <Link2 className="w-4 h-4 mr-1" />
-            Dependencies
-            {dependencies.length > 0 && (
-              <span className="ml-1 text-[10px] tabular-nums text-slate-400">
-                {dependencies.length}
-              </span>
-            )}
-          </Button>
-
-          <div className="h-6 w-px bg-slate-200 mx-2" />
-
+        <div className="flex items-center gap-1 md:gap-2">
+          {/* Zoom */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant={lookAhead !== "all" ? "secondary" : "ghost"} size="sm">
-                <AlertTriangle className="w-4 h-4 mr-1" />
-                {lookAhead === "3w"
-                  ? "3-week look-ahead"
-                  : lookAhead === "6w"
-                    ? "6-week look-ahead"
-                    : "Look-ahead"}
+              <Button variant="ghost" size="sm">
+                {ZOOM_LABELS[zoomLevel]}
+                <ChevronDown className="w-3.5 h-3.5 ml-1" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setLookAhead("all")}>
-                Full schedule
+              {ZOOM_ORDER.map((level) => (
+                <DropdownMenuCheckboxItem
+                  key={level}
+                  checked={zoomLevel === level}
+                  onCheckedChange={() => setZoomLevel(level)}
+                >
+                  {ZOOM_LABELS[level]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={zoomOut}
+            disabled={zoomIndex >= ZOOM_ORDER.length - 1}
+            title="Zoom out"
+          >
+            <Minus className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={zoomIn}
+            disabled={zoomIndex <= 0}
+            title="Zoom in"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
+
+          <div className="h-6 w-px bg-slate-200 mx-1 md:mx-2 hidden md:block" />
+
+          {/* Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant={taskFilter !== "all" ? "secondary" : "ghost"} size="sm">
+                <Filter className="w-4 h-4 mr-1" />
+                <span className="hidden md:inline">
+                  {taskFilter === "all" ? "Filter" : FILTER_LABELS[taskFilter]}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTaskFilter("all")}>
+                All tasks
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLookAhead("3w")}>
-                3-week look-ahead
+              <DropdownMenuItem onClick={() => setTaskFilter("incomplete")}>
+                Incomplete tasks
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setLookAhead("6w")}>
-                6-week look-ahead
+              <DropdownMenuItem onClick={() => setTaskFilter("completed")}>
+                Completed tasks
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTaskFilter("due_this_week")}>
+                Due this week
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Options */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm">
-                <Filter className="w-4 h-4 mr-1" />
-                Filter
+                <SlidersHorizontal className="w-4 h-4 mr-1" />
+                <span className="hidden md:inline">Options</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTaskFilter("all")}>All tasks</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTaskFilter("incomplete")}>Incomplete tasks</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTaskFilter("completed")}>Completed tasks</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTaskFilter("due_this_week")}>Due this week</DropdownMenuItem>
+              <DropdownMenuCheckboxItem
+                checked={showDependencies && dependencies.length > 0}
+                disabled={dependencies.length === 0}
+                onCheckedChange={(v) => setShowDependencies(!!v)}
+              >
+                Show dependencies
+                {dependencies.length > 0 && (
+                  <span className="ml-2 text-[10px] tabular-nums text-slate-400">
+                    {dependencies.length}
+                  </span>
+                )}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={showDueSoon}
+                onCheckedChange={(v) => setShowDueSoon(!!v)}
+              >
+                Highlight due soon
+              </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
       {/* ============================================ */}
-      {/* TIMELINE GRID */}
+      {/* SWIMLANE TIMELINE */}
       {/* ============================================ */}
-      <div className="flex-1 overflow-auto" ref={timelineRef}>
+      <div className="flex-1 overflow-auto">
         <div className="flex min-w-max">
           {/* ============================================ */}
-          {/* SIDEBAR (Task List) */}
+          {/* LEFT GUTTER — section labels, sticky left */}
           {/* ============================================ */}
           <div
             className="flex-shrink-0 bg-white border-r sticky left-0 z-30"
-            style={{ width: sidebarWidth }}
+            style={{ width: gutterWidth }}
           >
-            {/* Sidebar Header — frozen in the top-left CORNER: sticky both
-                top and left (z above the date header z-20 and the sidebar
-                column z-30) so it stays put on vertical scroll, aligned with
-                the date header row instead of scrolling away. */}
+            {/* Corner cell — sticky both top and left */}
             <div
-              className="border-b bg-slate-50 px-2 md:px-4 flex items-center font-medium text-xs md:text-sm text-slate-700 sticky top-0 z-40"
-              style={{ height: headerHeight }}
-            >
-              Task Name
-            </div>
+              className="border-b bg-white sticky top-0 z-40"
+              style={{ height: HEADER_HEIGHT }}
+            />
 
-            {/* Sections & Tasks — each section gets a WBS number
-                (1.0, 2.0, 3.0...) and each task gets its parent
-                number plus its 1-based index (1.1, 1.2, 2.5...).
-                Matches PMI/AEC WBS convention so a structural firm
-                can pull a sub-row by its number in a meeting. */}
-            {filteredSections.map((section, sectionIdx) => {
-              const isCollapsed = collapsedSections.has(section.id);
-              const wbsSection = `${sectionIdx + 1}.0`;
+            {/* One gutter cell per band, height-matched to the band */}
+            {bandLayout.bands.map((band) => (
+              <div
+                key={band.section.id}
+                className="border-b bg-white"
+                style={{ height: band.bandHeight }}
+              >
+                <button
+                  className="flex items-center gap-1 px-2 md:px-3 w-full text-left hover:bg-slate-50"
+                  style={{ height: Math.min(band.bandHeight, 36) }}
+                  onClick={() => toggleSection(band.section.id)}
+                >
+                  {band.collapsed ? (
+                    <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  )}
+                  <span className="font-semibold text-xs md:text-sm text-slate-900 truncate">
+                    {band.section.name}
+                  </span>
+                  <span className="text-xs text-slate-400 ml-auto flex-shrink-0 tabular-nums">
+                    {band.section.tasks.length}
+                  </span>
+                </button>
+              </div>
+            ))}
 
-              return (
-                <div key={section.id}>
-                  {/* Section Row */}
-                  <button
-                    className="flex items-center gap-1 md:gap-2 px-2 md:px-4 border-b bg-slate-50 hover:bg-slate-100 cursor-pointer w-full text-left"
-                    style={{ height: rowHeight }}
-                    onClick={() => toggleSection(section.id)}
-                  >
-                    {isCollapsed ? (
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    )}
-                    <span className="text-[10px] font-mono font-semibold text-[#a8893a] tabular-nums flex-shrink-0 hidden md:inline">
-                      {wbsSection}
-                    </span>
-                    <span className="font-semibold text-xs md:text-sm text-slate-900 truncate">
-                      {section.name}
-                    </span>
-                    <span className="text-xs text-slate-400 ml-auto flex-shrink-0">
-                      {section.tasks.length}
-                    </span>
-                  </button>
-
-                  {/* Tasks */}
-                  {!isCollapsed &&
-                    section.tasks.map((task, taskIdx) => {
-                      const isMilestone = isTaskMilestone(task);
-                      const isApproval = isTaskApproval(task);
-                      const dueSoon = isTaskDueSoon(task);
-                      const progress = getTaskProgress(task);
-                      const wbsTask = `${sectionIdx + 1}.${taskIdx + 1}`;
-
-                      return (
-                        <div
-                          key={task.id}
-                          className={cn(
-                            "flex items-center gap-1 md:gap-2 px-2 md:px-4 border-b hover:bg-white cursor-pointer group",
-                            selectedTaskId === task.id && "bg-white"
-                          )}
-                          style={{ height: rowHeight }}
-                          onClick={() => {
-                            setSelectedTaskId(task.id);
-                            onTaskClick(task.id);
-                          }}
-                        >
-                          {/* WBS number — small, monospaced, gold.
-                              Hidden on mobile where space is tight. */}
-                          <span className="text-[10px] font-mono text-[#a8893a]/70 tabular-nums flex-shrink-0 hidden md:inline w-10">
-                            {wbsTask}
-                          </span>
-
-                          {/* Task-type marker — gold Diamond for
-                              MILESTONE, gold ThumbsUp for APPROVAL,
-                              gold square for regular tasks. */}
-                          {isMilestone ? (
-                            <Diamond className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
-                          ) : isApproval ? (
-                            <ThumbsUp className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
-                          ) : (
-                            <div
-                              className="w-3 h-3 rounded-sm flex-shrink-0"
-                              style={{
-                                backgroundColor:
-                                  PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.NONE,
-                              }}
-                            />
-                          )}
-
-                          <span
-                            className={cn(
-                              "text-xs md:text-sm truncate flex-1",
-                              task.completed && "line-through text-slate-400"
-                            )}
-                          >
-                            {task.name}
-                          </span>
-
-                          {dueSoon && showDueSoon && (
-                            <AlertTriangle
-                              className="w-3 h-3 text-[#a8893a] hidden md:block flex-shrink-0"
-                              aria-label="Due within 7 days"
-                            />
-                          )}
-
-                          {progress > 0 && progress < 100 && (
-                            <span className="text-xs text-slate-500 hidden md:inline tabular-nums">
-                              {progress}%
-                            </span>
-                          )}
-
-                          {task.assignee && (
-                            <div className="w-6 h-6 rounded-full bg-[#d4b65a] items-center justify-center text-xs font-medium text-white hidden md:flex flex-shrink-0">
-                              {task.assignee.name?.[0] || "?"}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+            {/* Add section — inline input, Enter=create / Escape=cancel */}
+            <div className="border-b" style={{ height: FOOTER_ROW_HEIGHT }}>
+              {addingSection ? (
+                <div className="flex items-center h-full px-2 md:px-3">
+                  <input
+                    autoFocus
+                    value={newSectionName}
+                    onChange={(e) => setNewSectionName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        submitNewSection();
+                      } else if (e.key === "Escape") {
+                        setAddingSection(false);
+                        setNewSectionName("");
+                      }
+                    }}
+                    onBlur={() => {
+                      setAddingSection(false);
+                      setNewSectionName("");
+                    }}
+                    placeholder="Section name"
+                    className="w-full text-sm bg-white border border-[#c9a84c] rounded px-2 py-1 outline-none"
+                  />
                 </div>
-              );
-            })}
-
-            {/* Add Section */}
-            <button
-              className="flex items-center gap-2 px-2 md:px-4 text-slate-500 hover:bg-slate-50 cursor-pointer w-full text-left"
-              style={{ height: rowHeight }}
-              onClick={handleAddSection}
-            >
-              <Plus className="w-4 h-4" />
-              <span className="text-sm">Add section</span>
-            </button>
+              ) : (
+                <button
+                  className="flex items-center gap-2 px-2 md:px-3 text-slate-500 hover:bg-slate-50 w-full h-full text-left"
+                  onClick={() => setAddingSection(true)}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="text-sm">Add section</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* ============================================ */}
-          {/* GANTT CHART AREA */}
+          {/* TIMELINE CANVAS */}
           {/* ============================================ */}
-          <div className="flex-1">
-            {/* Timeline Header */}
+          <div className="flex-1" style={{ width: totalWidth }}>
+            {/* Two sticky header rows */}
             <div
-              className="sticky top-0 bg-white border-b z-20"
-              style={{ height: headerHeight }}
+              className="sticky top-0 bg-white border-b z-20 relative"
+              style={{ height: HEADER_HEIGHT, width: totalWidth }}
             >
-              {/* Month Row */}
-              <div className="flex border-b" style={{ height: headerHeight / 2 }}>
-                {monthGroups.map((group, i) => (
+              {/* Top row — months (day/week zoom) or quarters (month zoom) */}
+              <div className="flex border-b" style={{ height: HEADER_HEIGHT / 2 }}>
+                {topGroups.map((group, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-center text-xs md:text-sm font-medium text-slate-700 border-r"
-                    style={{ width: group.columns.length * config.columnWidth }}
+                    className="flex items-center px-2 text-xs md:text-sm font-medium text-slate-700 border-r truncate"
+                    style={{ width: groupWidths[i] }}
                   >
                     {group.label}
                   </div>
                 ))}
               </div>
 
-              {/* Day/Week Row */}
-              <div className="flex" style={{ height: headerHeight / 2 }}>
+              {/* Bottom row — day numbers / week starts / month names */}
+              <div className="flex" style={{ height: HEADER_HEIGHT / 2 }}>
                 {columns.map((col, i) => (
                   <div
                     key={i}
                     className={cn(
-                      "flex flex-col items-center justify-center text-xs border-r",
-                      col.isWeekend && "bg-slate-50",
-                      col.isToday && "bg-white"
+                      "flex items-center justify-center text-xs border-r",
+                      col.isWeekend && "bg-slate-100"
                     )}
-                    style={{ width: config.columnWidth }}
+                    style={{ width: timelineRange.columnWidths[i] ?? config.columnWidth }}
                   >
-                    <span className="font-medium text-slate-700">{col.label}</span>
-                    <span className="text-slate-400">{col.subLabel}</span>
+                    <span
+                      className={cn(
+                        "text-slate-500",
+                        col.isToday &&
+                          "bg-[#c9a84c] text-white rounded-full w-5 h-5 flex items-center justify-center font-medium"
+                      )}
+                    >
+                      {col.label}
+                    </span>
                   </div>
                 ))}
               </div>
-            </div>
 
-            {/* Gantt Rows */}
-            <div className="relative">
-              {/* Today Line */}
+              {/* Today dot in the header */}
               {todayPosition !== null && (
                 <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-black z-10 pointer-events-none"
-                  style={{ left: todayPosition }}
-                >
-                  <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-black rounded-full" />
-                </div>
+                  className="absolute w-2 h-2 rounded-full bg-[#c9a84c] pointer-events-none"
+                  style={{ left: todayPosition - 4, bottom: -1 }}
+                />
+              )}
+            </div>
+
+            {/* Bands */}
+            <div className="relative" style={{ width: totalWidth }}>
+              {/* Today line — gold */}
+              {todayPosition !== null && (
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-[#c9a84c] z-10 pointer-events-none"
+                  style={{ left: todayPosition - 1 }}
+                />
               )}
 
-              {/* DEPENDENCY ARROWS — Asana-style Bezier connectors.
-                  Drawn as smooth cubic curves so the schedule reads
-                  like a Gantt and not a circuit board. Default state
-                  is a soft slate dashed line; when the user hovers
-                  or selects a task, every arrow touching that task
-                  flips to a salmon-red dashed line with a bolder
-                  stroke (mirrors what Asana does on bar select).
-                  Skipped silently if either endpoint is outside the
-                  visible timeline window or in a collapsed section. */}
+              {/* Dependency arrows — rounded orthogonal elbows */}
               {showDependencies && dependencies.length > 0 && (
                 <svg
-                  className="absolute inset-0 pointer-events-none z-[5]"
-                  width={columns.length * config.columnWidth}
-                  height="100%"
-                  style={{
-                    width: columns.length * config.columnWidth,
-                  }}
+                  className="absolute left-0 top-0 pointer-events-none z-[5]"
+                  width={totalWidth}
+                  height={bandLayout.totalHeight}
                 >
                   <defs>
                     <marker
@@ -1165,17 +1082,13 @@ export function TimelineView({
                     const dependent = getTaskScreenPos(dep.dependentTaskId);
                     if (!blocking || !dependent) return null;
 
-                    // Pick the right endpoint side per dependency type.
-                    // FS  = blocker right  → dependent left
-                    // SS  = blocker left   → dependent left
-                    // FF  = blocker right  → dependent right
-                    // SF  = blocker left   → dependent right
+                    // FS = blocker right → dependent left, etc.
                     let sx = 0;
                     let sy = 0;
                     let ex = 0;
                     let ey = 0;
-                    let sxOutDir = 1; // +1 = leave to the right, -1 = leave to the left
-                    let exInDir = -1; // -1 = enter from the right, +1 = enter from the left
+                    let sxOutDir = 1;
+                    let exInDir = -1;
                     if (dep.type === "FINISH_TO_START") {
                       sx = blocking.xRight;
                       sy = blocking.yCenter;
@@ -1198,7 +1111,6 @@ export function TimelineView({
                       sxOutDir = 1;
                       exInDir = 1;
                     } else {
-                      // START_TO_FINISH (rare)
                       sx = blocking.xLeft;
                       sy = blocking.yCenter;
                       ex = dependent.xRight;
@@ -1207,22 +1119,8 @@ export function TimelineView({
                       exInDir = 1;
                     }
 
-                    // Rounded orthogonal elbow — the MS Project / Asana look:
-                    // horizontal stub out of the predecessor, right-angle
-                    // turns, horizontal into the successor's edge.
-                    const path = dependencyElbowPath(
-                      sx,
-                      sy,
-                      ex,
-                      ey,
-                      sxOutDir,
-                      exInDir
-                    );
+                    const path = dependencyElbowPath(sx, sy, ex, ey, sxOutDir, exInDir);
 
-                    // Highlight any arrow whose blocker OR dependent
-                    // is the task the user is currently hovering or
-                    // has selected. Matches Asana's "select a bar to
-                    // see its chain" affordance.
                     const isActive =
                       hoveredTask === dep.blockingTaskId ||
                       hoveredTask === dep.dependentTaskId ||
@@ -1250,252 +1148,208 @@ export function TimelineView({
                 </svg>
               )}
 
-              {/* Section Rows */}
-              {filteredSections.map((section) => {
-                const isCollapsed = collapsedSections.has(section.id);
+              {/* Section bands */}
+              {bandLayout.bands.map((band) => (
+                <div
+                  key={band.section.id}
+                  className={cn("relative border-b", band.collapsed && "bg-slate-50")}
+                  style={{ height: band.bandHeight }}
+                >
+                  {/* Grid columns (weekend shading at day zoom) */}
+                  <div className="absolute inset-0 flex">
+                    {columns.map((col, i) => (
+                      <div
+                        key={i}
+                        className={cn("border-r h-full", col.isWeekend && "bg-slate-100")}
+                        style={{ width: timelineRange.columnWidths[i] ?? config.columnWidth }}
+                      />
+                    ))}
+                  </div>
 
-                return (
-                  <div key={section.id}>
-                    {/* Section Header Row */}
-                    <div
-                      className="flex border-b bg-slate-50"
-                      style={{ height: rowHeight }}
-                    >
-                      {columns.map((col, i) => (
-                        <div
-                          key={i}
-                          className={cn("border-r", col.isWeekend && "bg-slate-100")}
-                          style={{ width: config.columnWidth }}
-                        />
-                      ))}
-                    </div>
+                  {/* Lane-packed bars */}
+                  {!band.collapsed &&
+                    band.datedTasks.map((task) => {
+                      const position = getTaskPosition(task);
+                      if (!position) return null;
+                      const lane = band.laneOf.get(task.id) ?? 0;
+                      const laneTop = lane * LANE_HEIGHT + 4;
 
-                    {/* Task Rows */}
-                    {!isCollapsed &&
-                      section.tasks.map((task) => {
-                        const position = getTaskPosition(task);
-                        const isMilestone = isTaskMilestone(task);
-                        const isApproval = isTaskApproval(task);
-                        const dueSoon = isTaskDueSoon(task);
-                        const progress = getTaskProgress(task);
-                        const taskColor = task.completed
-                          ? COMPLETED_BAR_FILL
-                          : PRIORITY_COLORS[task.priority] ||
-                            PRIORITY_COLORS.NONE;
+                      const isMilestone = isTaskMilestone(task);
+                      const isApproval = isTaskApproval(task);
+                      const dueSoon = isTaskDueSoon(task);
+                      const taskColor = task.completed
+                        ? COMPLETED_BAR_FILL
+                        : PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.NONE;
 
-                        // Apply the live drag delta when this is the
-                        // bar being acted on:
-                        //   - "left" handle: shift left edge, shrink width
-                        //   - "right" handle: keep left, grow width
-                        //   - "move": shift left edge, keep width
-                        const isResizing =
-                          dragState && dragState.taskId === task.id;
-                        const renderLeft = position && isResizing
-                          ? dragState.handle === "left" ||
-                            dragState.handle === "move"
-                            ? position.left + dragState.deltaX
-                            : position.left
-                          : position?.left;
-                        const renderWidth = position && isResizing
-                          ? dragState.handle === "left"
-                            ? position.width - dragState.deltaX
-                            : dragState.handle === "right"
-                              ? position.width + dragState.deltaX
-                              : position.width
-                          : position?.width;
+                      // Live drag preview
+                      const isResizing = !!dragState && dragState.taskId === task.id;
+                      const renderLeft =
+                        isResizing &&
+                        (dragState!.handle === "left" || dragState!.handle === "move")
+                          ? position.left + dragState!.deltaX
+                          : position.left;
+                      const renderWidth = isResizing
+                        ? dragState!.handle === "left"
+                          ? Math.max(position.width - dragState!.deltaX, 14)
+                          : dragState!.handle === "right"
+                            ? Math.max(position.width + dragState!.deltaX, 14)
+                            : position.width
+                        : position.width;
 
-                        // Milestones/approvals are point-in-time markers on
-                        // their DUE date — i.e. the bar's right edge — not on
-                        // the implied start (dueDate − 7d) that getTaskPosition
-                        // returns as `left`. Center the 24px icon on that point.
-                        const markerLeft =
-                          (renderLeft ?? 0) + (renderWidth ?? 0) - 12;
-
+                      if (isMilestone || isApproval) {
+                        // Point-in-time marker centered on the DUE date's
+                        // day cell — computed from the date itself so the
+                        // min-width clamp and a persisted startDate can't
+                        // pull the marker off its labeled date.
+                        const due = dueDateToLocalMidnight(task.dueDate!);
+                        const dueOffset = Math.min(
+                          timelineRange.totalDays - 1,
+                          Math.max(0, differenceInDays(due, timelineRange.start))
+                        );
+                        const centerX =
+                          (dueOffset + 0.5) * timelineRange.dayWidth;
+                        const Icon = isMilestone ? Diamond : ThumbsUp;
                         return (
                           <div
                             key={task.id}
-                            className="flex border-b relative"
-                            style={{ height: rowHeight }}
+                            className="absolute flex items-center gap-1.5 cursor-pointer hover:opacity-80 z-10"
+                            style={{ left: centerX - 10, top: laneTop, height: BAR_HEIGHT }}
+                            onClick={() => {
+                              setSelectedTaskId(task.id);
+                              onTaskClick(task.id);
+                            }}
                             onMouseEnter={() => setHoveredTask(task.id)}
                             onMouseLeave={() => setHoveredTask(null)}
+                            title={`${task.name} — ${isMilestone ? "milestone" : "approval"}`}
                           >
-                            {/* Grid columns */}
-                            {columns.map((col, i) => (
+                            <Icon
+                              className="w-5 h-5 flex-shrink-0"
+                              fill="#a8893a"
+                              color="#a8893a"
+                            />
+                            <div className="leading-tight whitespace-nowrap">
                               <div
-                                key={i}
-                                className={cn("border-r", col.isWeekend && "bg-slate-50")}
-                                style={{ width: config.columnWidth }}
-                              />
-                            ))}
-
-                            {/* Task Bar */}
-                            {position &&
-                              (isMilestone ? (
-                                // Milestone — gold Diamond (matches
-                                // List / Board / Calendar convention)
-                                <div
-                                  className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
-                                  style={{ left: markerLeft }}
-                                  onClick={() => onTaskClick(task.id)}
-                                  title={`${task.name} — milestone`}
-                                >
-                                  <Diamond
-                                    className="w-6 h-6"
-                                    fill="#a8893a"
-                                    color="#a8893a"
-                                  />
-                                </div>
-                              ) : isApproval ? (
-                                // Approval gate — gold ThumbsUp
-                                <div
-                                  className="absolute top-1/2 -translate-y-1/2 cursor-pointer hover:scale-110 transition-transform z-10"
-                                  style={{ left: markerLeft }}
-                                  onClick={() => onTaskClick(task.id)}
-                                  title={`${task.name} — approval gate`}
-                                >
-                                  <ThumbsUp
-                                    className="w-6 h-6"
-                                    fill="#a8893a"
-                                    color="#a8893a"
-                                  />
-                                </div>
-                              ) : (
-                                // Task Bar — whole-bar drag moves both
-                                // dates; left/right edge handles resize
-                                // one boundary.
-                                <div
-                                  className={cn(
-                                    "absolute top-1.5 rounded cursor-grab active:cursor-grabbing group/bar",
-                                    "hover:ring-2 hover:ring-[#c9a84c] hover:ring-offset-1",
-                                    "transition-shadow",
-                                    selectedTaskId === task.id &&
-                                      "ring-2 ring-[#c9a84c] ring-offset-1",
-                                    dueSoon &&
-                                      showDueSoon &&
-                                      "ring-2 ring-[#a8893a]/70",
-                                    isResizing && "shadow-lg ring-2 ring-[#c9a84c]"
-                                  )}
-                                  style={{
-                                    left: renderLeft,
-                                    width: Math.max(renderWidth ?? 24, 24),
-                                    height: isMobile ? rowHeight - 8 : rowHeight - 12,
-                                    backgroundColor: taskColor,
-                                  }}
-                                  onMouseDown={(e) => {
-                                    // Ignore mousedowns that come from
-                                    // a resize handle child — those
-                                    // call handleResizeStart with their
-                                    // own handle and stopPropagation.
-                                    handleResizeStart(e, task.id, "move", task);
-                                  }}
-                                  onClick={(e) => {
-                                    // Only open the task panel if it
-                                    // wasn't a drag (no movement past
-                                    // mouseup). dragState is cleared
-                                    // before click fires on a real
-                                    // drag, so this only triggers on
-                                    // genuine clicks.
-                                    if (!isResizing) {
-                                      onTaskClick(task.id);
-                                    }
-                                  }}
-                                >
-                                  {/* Progress overlay — darker right
-                                      side shows remaining work. */}
-                                  {progress > 0 && progress < 100 && (
-                                    <div
-                                      className="absolute inset-0 rounded bg-black/25"
-                                      style={{
-                                        width: `${100 - progress}%`,
-                                        right: 0,
-                                        left: "auto",
-                                      }}
-                                    />
-                                  )}
-
-                                  {/* Content */}
-                                  <div className="relative h-full flex items-center px-2 gap-1 overflow-hidden">
-                                    {task.assignee && (
-                                      <div className="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0">
-                                        {task.assignee.name?.[0] || "?"}
-                                      </div>
-                                    )}
-                                    <span
-                                      className={cn(
-                                        "text-xs font-medium truncate",
-                                        task.priority === "HIGH" || task.completed
-                                          ? "text-white"
-                                          : "text-black"
-                                      )}
-                                    >
-                                      {task.name}
-                                    </span>
-                                    {progress > 0 && progress < 100 && (
-                                      <span
-                                        className={cn(
-                                          "text-[10px] ml-auto flex-shrink-0 tabular-nums",
-                                          task.priority === "HIGH" || task.completed
-                                            ? "text-white/80"
-                                            : "text-black/70"
-                                        )}
-                                      >
-                                        {progress}%
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {/* Resize Handles */}
-                                  <div
-                                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l z-10"
-                                    onMouseDown={(e) => handleResizeStart(e, task.id, "left", task)}
-                                  />
-                                  <div
-                                    className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r z-10"
-                                    onMouseDown={(e) => handleResizeStart(e, task.id, "right", task)}
-                                  />
-                                </div>
-                              ))}
-
-                            {/* Tooltip */}
-                            {hoveredTask === task.id && position && !isMilestone && (
-                              <div
-                                className="absolute bg-slate-900 text-white text-xs rounded-lg px-3 py-2 z-50 pointer-events-none shadow-lg"
-                                style={{
-                                  left: position.left + position.width / 2,
-                                  top: -60,
-                                  transform: "translateX(-50%)",
-                                }}
-                              >
-                                <div className="font-medium">{task.name}</div>
-                                <div className="text-slate-300">
-                                  {task.startDate &&
-                                    format(dueDateToLocalMidnight(task.startDate), "MMM d")}{" "}
-                                  →{" "}
-                                  {task.dueDate &&
-                                    format(dueDateToLocalMidnight(task.dueDate), "MMM d")}
-                                </div>
-                                {progress > 0 && (
-                                  <div className="text-slate-300">
-                                    Progress: {progress}%
-                                  </div>
+                                className={cn(
+                                  "text-[11px] font-medium text-slate-900",
+                                  task.completed && "line-through text-slate-400"
                                 )}
-                                <div className="absolute left-1/2 -bottom-1 w-2 h-2 bg-slate-900 rotate-45 -translate-x-1/2" />
+                              >
+                                {task.name}
                               </div>
-                            )}
+                              <div className="text-[10px] text-slate-500">
+                                Due {format(due, "MMM d")}
+                              </div>
+                            </div>
                           </div>
                         );
-                      })}
-                  </div>
-                );
-              })}
+                      }
 
-              {/* Add Section Row */}
-              <div className="flex border-b" style={{ height: rowHeight }}>
+                      const labelInside = renderWidth >= 80;
+                      const start = task.startDate
+                        ? dueDateToLocalMidnight(task.startDate)
+                        : dueDateToLocalMidnight(task.dueDate!);
+                      const due = dueDateToLocalMidnight(task.dueDate!);
+
+                      return (
+                        <div key={task.id}>
+                          {/* Bar */}
+                          <div
+                            className={cn(
+                              "absolute rounded-lg cursor-grab active:cursor-grabbing group/bar z-10",
+                              "hover:ring-2 hover:ring-[#c9a84c] hover:ring-offset-1",
+                              "transition-shadow",
+                              selectedTaskId === task.id &&
+                                "ring-2 ring-[#c9a84c] ring-offset-1",
+                              dueSoon && showDueSoon && "ring-2 ring-[#a8893a]/70",
+                              isResizing && "shadow-lg ring-2 ring-[#c9a84c]"
+                            )}
+                            style={{
+                              left: renderLeft,
+                              width: Math.max(renderWidth, 14),
+                              top: laneTop,
+                              height: BAR_HEIGHT,
+                              backgroundColor: taskColor,
+                              opacity: task.completed ? 0.6 : 1,
+                            }}
+                            onMouseDown={(e) => handleResizeStart(e, task.id, "move", task)}
+                            onMouseEnter={() => setHoveredTask(task.id)}
+                            onMouseLeave={() => setHoveredTask(null)}
+                            onClick={() => {
+                              if (dragMovedRef.current) return;
+                              setSelectedTaskId(task.id);
+                              onTaskClick(task.id);
+                            }}
+                            title={`${task.name} · ${format(start, "MMM d")} → ${format(due, "MMM d")}`}
+                          >
+                            <div className="relative h-full flex items-center px-1.5 gap-1 overflow-hidden">
+                              {task.assignee && renderWidth >= 40 && (
+                                <div className="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0 overflow-hidden">
+                                  {task.assignee.image ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={task.assignee.image}
+                                      alt={task.assignee.name || ""}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    task.assignee.name?.[0] || "?"
+                                  )}
+                                </div>
+                              )}
+                              {labelInside && (
+                                <span
+                                  className={cn(
+                                    "text-xs font-medium truncate",
+                                    task.priority === "HIGH" || task.completed
+                                      ? "text-white"
+                                      : "text-black",
+                                    task.completed && "line-through"
+                                  )}
+                                >
+                                  {task.name}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Resize handles */}
+                            <div
+                              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l-lg z-10"
+                              onMouseDown={(e) => handleResizeStart(e, task.id, "left", task)}
+                            />
+                            <div
+                              className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r-lg z-10"
+                              onMouseDown={(e) => handleResizeStart(e, task.id, "right", task)}
+                            />
+                          </div>
+
+                          {/* Label outside the bar when it's too narrow */}
+                          {!labelInside && (
+                            <span
+                              className={cn(
+                                "absolute text-xs font-medium text-slate-700 whitespace-nowrap pointer-events-none z-10",
+                                task.completed && "line-through text-slate-400"
+                              )}
+                              style={{
+                                left: renderLeft + Math.max(renderWidth, 14) + 6,
+                                top: laneTop + BAR_HEIGHT / 2 - 8,
+                              }}
+                            >
+                              {task.name}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              ))}
+
+              {/* Filler row aligned with the gutter's add-section row */}
+              <div className="flex border-b" style={{ height: FOOTER_ROW_HEIGHT }}>
                 {columns.map((col, i) => (
                   <div
                     key={i}
-                    className={cn("border-r", col.isWeekend && "bg-slate-50")}
-                    style={{ width: config.columnWidth }}
+                    className={cn("border-r", col.isWeekend && "bg-slate-100")}
+                    style={{ width: timelineRange.columnWidths[i] ?? config.columnWidth }}
                   />
                 ))}
               </div>

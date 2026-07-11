@@ -19,7 +19,8 @@ import {
   List,
   LayoutGrid,
   Calendar,
-  GanttChart,
+  ChartGantt,
+  ChartNoAxesGantt,
   BarChart3,
   Plus,
   MoreHorizontal,
@@ -55,6 +56,7 @@ import { dueDateToLocalMidnight, daysFromToday } from "@/lib/date-only";
 import { ListView } from "@/components/views/list-view";
 import { BoardView } from "@/components/views/board-view";
 import { TimelineView } from "@/components/views/timeline-view";
+import { GanttView } from "@/components/views/gantt-view";
 import { DashboardView } from "@/components/views/dashboard-view";
 import { CalendarView } from "@/components/views/calendar-view";
 import { WorkflowView } from "@/components/views/workflow-view";
@@ -277,10 +279,10 @@ const ADD_VIEW_GROUPS: {
     items: [
       { view: "list", label: "List", desc: "Organize tasks in a table", Icon: List },
       { view: "notes", label: "Notes", desc: "Write meeting notes and more", Icon: NotebookPen },
-      { view: "timeline", label: "Timeline", desc: "Track dependencies over time", Icon: GanttChart },
+      { view: "gantt", label: "Gantt", desc: "Track dependencies and references", Icon: ChartGantt },
       { view: "board", label: "Board", desc: "Track work on a Kanban board", Icon: LayoutGrid },
       { view: "calendar", label: "Calendar", desc: "Plan work weekly or monthly", Icon: Calendar },
-      { view: "overview", label: "Overview", desc: "Project summary and status", Icon: FileText },
+      { view: "timeline", label: "Timeline", desc: "Schedule work over time", Icon: ChartNoAxesGantt },
     ],
   },
   {
@@ -570,7 +572,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const status = statusConfig[project.status as keyof typeof statusConfig] || statusConfig.ON_TRACK;
 
   // Show toolbar only for task views (not calendar - it has its own)
-  const showToolbar = ["list", "board", "timeline"].includes(currentView);
+  const showToolbar = ["list", "board", "timeline", "gantt"].includes(currentView);
 
   return (
     <div className="h-full flex flex-col">
@@ -908,7 +910,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                   : "border-transparent text-slate-600 hover:text-slate-900"
               }`}
             >
-              <GanttChart className="h-4 w-4" />
+              <ChartNoAxesGantt className="h-4 w-4" />
               <span className="hidden md:inline">Timeline</span>
             </button>
             <button
@@ -932,6 +934,17 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             >
               <Calendar className="h-4 w-4" />
               <span className="hidden md:inline">Calendar</span>
+            </button>
+            <button
+              onClick={() => handleViewChange("gantt")}
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+                currentView === "gantt"
+                  ? "border-[#c9a84c] text-[#a8893a]"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <ChartGantt className="h-4 w-4" />
+              <span className="hidden md:inline">Gantt</span>
             </button>
             <button
               onClick={() => handleViewChange("workflow")}
@@ -1256,6 +1269,13 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
           )}
           {currentView === "timeline" && (
             <TimelineView
+              sections={filteredSections}
+              onTaskClick={handleTaskClick}
+              projectId={project.id}
+            />
+          )}
+          {currentView === "gantt" && (
+            <GanttView
               sections={filteredSections}
               onTaskClick={handleTaskClick}
               projectId={project.id}

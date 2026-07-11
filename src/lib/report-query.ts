@@ -23,6 +23,7 @@
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
+import { readTimeTracking } from "@/lib/duration";
 import type {
   ChartConfig,
   ChartDataRow,
@@ -556,8 +557,8 @@ function cfScalar(raw: unknown): string | number | boolean {
   if (raw == null) return "";
   if (typeof raw === "object") {
     const obj = raw as Record<string, unknown>;
-    // TIME_TRACKING stores { estimated, actual }; other structured types
-    // commonly wrap under `value` / `label` / `text`.
+    // Structured types commonly wrap under `value` / `label` / `text`
+    // (TIME_TRACKING is handled separately in measureValue, in days).
     if ("value" in obj) return cfScalar(obj.value);
     if ("label" in obj) return String(obj.label);
     if ("text" in obj) return String(obj.text);
@@ -584,17 +585,17 @@ function measureValue(
 
   if (measure.field === "time.estimated" || measure.field === "time.actual") {
     // Estimated/Actual time live in a TIME_TRACKING custom field, persisted
-    // as { estimatedMin, actualMin } in minutes (see the custom-field value
-    // route + the workload endpoint). Pull the first TIME_TRACKING value for
-    // this task, if any.
-    const key = measure.field === "time.estimated" ? "estimatedMin" : "actualMin";
+    // as { estimatedDays, actualDays } in WORKING DAYS (legacy rows may
+    // still hold { estimatedMin, actualMin } — readTimeTracking normalizes
+    // both to days). Report values are working days. Pull the first
+    // TIME_TRACKING value for this task that carries the measure, if any.
     for (const [mapKey, def] of maps.cfDefs) {
       if (def.type === "TIME_TRACKING") {
         const raw = maps.cfValues.get(`${row.id}:${mapKey}`);
-        if (raw && typeof raw === "object" && key in (raw as object)) {
-          const n = Number((raw as Record<string, unknown>)[key]);
-          return isNaN(n) ? null : n;
-        }
+        const { estimatedDays, actualDays } = readTimeTracking(raw);
+        const days =
+          measure.field === "time.estimated" ? estimatedDays : actualDays;
+        if (days != null) return days;
       }
     }
     return null;
@@ -984,9 +985,9 @@ function measureFieldLabel(field: MeasureField): string {
     case "goal":
       return "Goals";
     case "time.estimated":
-      return "Estimated time";
+      return "Estimated time (days)";
     case "time.actual":
-      return "Actual time";
+      return "Actual time (days)";
     default:
       return field.startsWith("cf:") ? "Custom field" : String(field);
   }

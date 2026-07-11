@@ -40,7 +40,16 @@ const updateTaskSchema = z.object({
   // field; the patch path was the missing piece.
   taskType: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional().nullable(),
   position: z.number().optional(),
-});
+}).refine(
+  (b) =>
+    !b.startDate ||
+    !b.dueDate ||
+    new Date(b.startDate) <= new Date(b.dueDate),
+  {
+    message: "startDate must be on or before dueDate",
+    path: ["startDate"],
+  }
+);
 
 // GET /api/tasks/:taskId - Get task details
 export async function GET(
