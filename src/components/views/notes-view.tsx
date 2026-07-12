@@ -9,7 +9,18 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NotebookPen, Check, Loader2, AlertCircle } from "lucide-react";
+import {
+  NotebookPen,
+  Check,
+  Loader2,
+  AlertCircle,
+  CalendarDays,
+  ClipboardList,
+  Link2,
+  CalendarRange,
+  FileText,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface NotesViewProps {
@@ -19,6 +30,107 @@ interface NotesViewProps {
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+
+// ─── Note templates — Asana's chips on an empty note. The meeting
+// template mirrors Asana's stock "Notas de la reunión" structure. ───
+
+const NOTE_TEMPLATES: {
+  key: string;
+  label: string;
+  Icon: LucideIcon;
+  content: string;
+}[] = [
+  {
+    key: "meeting",
+    label: "Meeting notes",
+    Icon: CalendarDays,
+    content: `Meeting notes
+
+🗓️ What's the date?
+
+👥 Attendees
+• Use @ to include attendees.
+
+📝 Agenda
+• Track the topics here.
+• Link the relevant tasks and projects.
+
+✍️ Notes
+• Add notes here.
+
+🎯 Action items
+• Add the activities that need to happen.
+• Turn action items into project tasks so they get done.
+
+────────────────────────
+
+🗓️ Previous date
+• Notes from previous meetings can be added here.
+`,
+  },
+  {
+    key: "context",
+    label: "Project context",
+    Icon: ClipboardList,
+    content: `Project context
+
+🌟 Overview
+• What is this project about, in one or two sentences?
+
+🎯 Goals
+• What does success look like?
+
+🧭 Background
+• Why now? Key decisions and constraints so far.
+
+🔗 Related resources
+• Link specs, drawings, calcs, and reference docs here.
+`,
+  },
+  {
+    key: "resources",
+    label: "Key resources",
+    Icon: Link2,
+    content: `Key resources
+
+📄 Documents
+• Link the project brief, contracts, and specs.
+
+🔗 Links
+• Add portals, drives, and external tools.
+
+👥 Contacts
+• Client, contractor, inspector — names and emails.
+`,
+  },
+  {
+    key: "weekly",
+    label: "Weekly planning",
+    Icon: CalendarRange,
+    content: `Weekly planning
+
+📅 Week of …
+
+⭐ Top priorities
+• What must ship this week?
+
+📋 To do
+• …
+
+🚧 Blockers
+• What's in the way?
+
+✅ Wins
+• What moved forward?
+`,
+  },
+  {
+    key: "blank",
+    label: "Blank note",
+    Icon: FileText,
+    content: "",
+  },
+];
 
 export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) {
   const [value, setValue] = useState(initialNotes ?? "");
@@ -108,6 +220,20 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
     if (value !== lastSavedRef.current) save(value);
   }
 
+  // Template chips (Asana's empty-note gallery) — insert the template
+  // body and focus the editor; "Blank note" just focuses.
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  function applyTemplate(content: string) {
+    if (content) handleChange(content);
+    // setTimeout, not rAF — rAF is throttled in background tabs and the
+    // focus would silently never happen.
+    setTimeout(() => {
+      editorRef.current?.focus();
+      editorRef.current?.setSelectionRange(0, 0);
+      editorRef.current?.scrollTo?.(0, 0);
+    }, 0);
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -123,14 +249,42 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 md:px-8 py-6">
           {canEdit ? (
-            <textarea
-              value={value}
-              onChange={(e) => handleChange(e.target.value)}
-              onBlur={handleBlur}
-              placeholder="Take meeting notes, jot down ideas, or document decisions for this project…"
-              className="w-full min-h-[60vh] resize-none border-0 outline-none text-[15px] leading-7 text-slate-800 placeholder:text-slate-400 bg-transparent"
-              spellCheck
-            />
+            <>
+              {/* Asana's empty-note ghost title */}
+              {!value.trim() && (
+                <p className="text-[28px] leading-9 font-medium text-slate-300 text-center mb-6 select-none pointer-events-none">
+                  Untitled note
+                </p>
+              )}
+              <textarea
+                ref={editorRef}
+                value={value}
+                onChange={(e) => handleChange(e.target.value)}
+                onBlur={handleBlur}
+                placeholder="Start writing…"
+                className={cnNotes(
+                  "w-full resize-none border-0 outline-none text-[15px] leading-7 text-slate-800 placeholder:text-slate-400 bg-transparent",
+                  value.trim() ? "min-h-[60vh]" : "min-h-[3rem] text-center"
+                )}
+                spellCheck
+              />
+              {/* Template chips — Asana shows these on an empty note */}
+              {!value.trim() && (
+                <div className="flex flex-wrap justify-center gap-2 mt-6">
+                  {NOTE_TEMPLATES.map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => applyTemplate(t.content)}
+                      className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-[6px] bg-white border border-[#C4C6C8] text-xs text-slate-700 hover:bg-slate-50 shadow-sm"
+                    >
+                      <t.Icon className="w-3.5 h-3.5 text-slate-500" />
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           ) : value.trim() ? (
             <div className="whitespace-pre-wrap text-[15px] leading-7 text-slate-800">
               {value}
@@ -167,19 +321,29 @@ function SaveIndicator({
   }
   if (state === "saved") {
     return (
-      <span className="flex items-center gap-1.5 text-xs text-emerald-600">
+      <span className="flex items-center gap-1.5 text-xs text-[#14865E]">
         <Check className="h-3.5 w-3.5" />
-        Saved
+        Saved · Just now
       </span>
     );
   }
   if (state === "error") {
     return (
-      <span className="flex items-center gap-1.5 text-xs text-red-600">
+      <span className="flex items-center gap-1.5 text-xs text-[#B4304C]">
         <AlertCircle className="h-3.5 w-3.5" />
         Save failed
       </span>
     );
   }
-  return <span className="text-xs text-slate-300">Auto-saves</span>;
+  // Asana: "Todos los cambios se guardarán automáticamente"
+  return (
+    <span className="text-xs text-slate-400">
+      All changes are saved automatically
+    </span>
+  );
+}
+
+// Tiny local class combiner — keeps this file dependency-free.
+function cnNotes(...classes: (string | false)[]): string {
+  return classes.filter(Boolean).join(" ");
 }
