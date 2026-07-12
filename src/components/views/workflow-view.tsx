@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   type WorkflowAction,
   type WorkflowActionType,
@@ -130,6 +131,12 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
   const [workflow, setWorkflow] = useState<WorkflowRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  // Asana's builder is a wizard: one card is "active" at a time (blue
+  // border, expanded suggestions, Previous/Next footer). Index 0 is the
+  // intake card, 1..n the sections, n+1 the completion card. null =
+  // nothing selected.
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  const [addingSection, setAddingSection] = useState(false);
 
   // Action-configuration dialog state. When the user picks an action
   // type that needs config (assignee, comment template, project, etc.)
@@ -372,6 +379,27 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     toast.success("Public form link copied");
   };
 
+  // "+ Add section" pill and the "+" circles on the connectors —
+  // appends a real section (same API the List view uses).
+  const addSection = async () => {
+    if (addingSection) return;
+    setAddingSection(true);
+    try {
+      const res = await fetch("/api/sections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "New section", projectId }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Section added");
+      router.refresh();
+    } catch {
+      toast.error("Failed to add section");
+    } finally {
+      setAddingSection(false);
+    }
+  };
+
   const removeRule = async (ruleId: string) => {
     // Optimistic: remove from UI immediately, roll back on failure.
     const snapshot = workflow;
@@ -467,254 +495,109 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     );
   }
 
+  // Wizard indices: 0 = intake card, 1..sections.length = section cards,
+  // sections.length + 1 = the completion card.
+  const completionIdx = sections.length + 1;
+
   return (
-    <div className="h-full overflow-x-auto overflow-y-auto bg-white">
-      <div className="min-h-full min-w-max p-6">
-        {/* Main Layout */}
-        <div className="flex items-start gap-4">
-          {/* Left: heading + status */}
-          <div className="w-56 flex-shrink-0 pt-8">
-            <h1 className="text-xl font-bold text-slate-900 mb-2">
-              {workflow?.rules.length === 0
-                ? "Create your workflow in minutes"
-                : "Workflow"}
+    <div
+      className="h-full overflow-x-auto overflow-y-auto"
+      style={{
+        // Asana's builder canvas: dotted grid measured in the real app.
+        backgroundImage: "radial-gradient(#C4C6C8 10%, #F2F3F4 10%)",
+        backgroundSize: "20px 20px",
+        backgroundColor: "#F2F3F4",
+      }}
+      onClick={() => setActiveIdx(null)}
+    >
+      <div className="min-h-full min-w-max px-8 py-10">
+        {/* Main Layout — horizontal pipeline like Asana's builder */}
+        <div className="flex items-start">
+          {/* Intro heading on the canvas */}
+          <div className="w-64 flex-shrink-0 pt-8 pr-8">
+            <h1 className="text-[26px] leading-8 font-bold text-slate-900 mb-2">
+              Create your workflow in minutes
             </h1>
-            <p className="text-sm text-slate-500">
-              {(workflow?.rules.length ?? 0) === 0
-                ? "Automate your team's process. Pick an action for any section — it persists and runs when tasks move there."
-                : `${workflow?.rules.length} rule${
-                    workflow?.rules.length === 1 ? "" : "s"
-                  } configured.`}
+            <p className="text-sm text-slate-600">
+              Automate your team&apos;s processes and let the work flow.
             </p>
-            {/* Active: rules run automatically the moment a task
-                lands in this section (via List drag, Board drop,
-                Timeline edit, or PATCH on any other view). */}
-            <p className="text-[11px] text-[#a8893a] mt-3 leading-snug">
-              ⓘ Rules fire automatically when a task is moved into
-              the matching section, from any view.
-            </p>
-            {/* Engineering templates — one-click bundles for common
-                AEC handoffs (calc review, permitting, RFI cycle…). */}
-            <button
-              type="button"
-              onClick={() => setTemplatesOpen(true)}
-              className="mt-3 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] font-medium text-[#1e1f21] bg-[#fbeed3] hover:bg-[#f4dfa8] border border-[#e9d287] transition-colors"
-            >
-              <Zap className="w-3.5 h-3.5 text-[#7a5b1b]" />
-              {workflow?.rules.length === 0
-                ? "Start with a template"
-                : "Add from template"}
-            </button>
           </div>
 
-          {/* Sources panel — Forms section.
-              Forms are external intake (RFI, change order, inspection
-              requests) — anyone with the link fills the form, the
-              answers become a task in this project. Workflow rules
-              defined above then run on that task. */}
-          <div className="flex-shrink-0">
-            <div className="w-80 bg-white rounded-lg border shadow-sm">
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h2 className="text-sm font-semibold text-slate-900">
-                      Intake forms
-                    </h2>
-                    <p className="text-[11px] text-slate-500">
-                      External requests → project tasks
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      setEditingForm(null);
-                      setFormDialogOpen(true);
-                    }}
-                    className="h-7 px-2.5 text-[12px] bg-black hover:bg-slate-800 text-white"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-0.5" />
-                    New form
-                  </Button>
-                </div>
+          {/* Intake card */}
+          <IntakeCard
+            forms={forms}
+            hasRules={(workflow?.rules.length ?? 0) > 0}
+            active={activeIdx === 0}
+            onSelect={() => setActiveIdx(0)}
+            onNext={() => setActiveIdx(sections.length > 0 ? 1 : completionIdx)}
+            onNewForm={() => {
+              setEditingForm(null);
+              setFormDialogOpen(true);
+            }}
+            onTemplates={() => setTemplatesOpen(true)}
+            onPreviewForm={(f) => window.open(`/forms/${f.id}`, "_blank")}
+            onCopyLink={(f) => copyFormLink(f.id)}
+            onInbox={(f) => setSubmissionsForm(f)}
+            onEditForm={(f) => {
+              setEditingForm(f);
+              setFormDialogOpen(true);
+            }}
+            onDeleteForm={(f) => handleFormDelete(f.id)}
+          />
 
-                {forms.length === 0 ? (
-                  // Educational empty state — Asana parity. The user
-                  // is here for the first time and has no idea what
-                  // a "form" does. Concrete examples beat abstract.
-                  <div className="border border-dashed border-slate-300 rounded-lg p-4 text-center">
-                    <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                    <p className="text-[12px] font-medium text-slate-700 mb-1">
-                      No forms yet
-                    </p>
-                    <p className="text-[11px] text-slate-500 leading-snug mb-3">
-                      Create a form to collect intake from outside the
-                      app — examples:
-                    </p>
-                    <ul className="text-[11px] text-slate-600 space-y-1 mb-3 inline-block text-left">
-                      <li className="flex items-start gap-1">
-                        <span className="text-[#a8893a]">•</span>
-                        RFI Request (contractor asks a question)
-                      </li>
-                      <li className="flex items-start gap-1">
-                        <span className="text-[#a8893a]">•</span>
-                        Change Order Request
-                      </li>
-                      <li className="flex items-start gap-1">
-                        <span className="text-[#a8893a]">•</span>
-                        Inspection Request
-                      </li>
-                      <li className="flex items-start gap-1">
-                        <span className="text-[#a8893a]">•</span>
-                        Recertification Intake
-                      </li>
-                    </ul>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingForm(null);
-                        setFormDialogOpen(true);
-                      }}
-                      className="text-[12px]"
-                    >
-                      Browse templates
-                    </Button>
-                  </div>
-                ) : (
-                  <ul className="space-y-2">
-                    {forms.map((f) => (
-                      <li
-                        key={f.id}
-                        className="border rounded-md p-2.5 text-xs bg-white"
-                      >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-start gap-1.5 min-w-0">
-                            <FileText className="w-3.5 h-3.5 text-[#a8893a] flex-shrink-0 mt-0.5" />
-                            <div className="min-w-0">
-                              <p className="font-medium text-slate-900 truncate">
-                                {f.name}
-                              </p>
-                              <p className="text-[10px] text-slate-500">
-                                {f.submissionCount ?? 0} response
-                                {f.submissionCount === 1 ? "" : "s"}
-                                {!f.isActive && " · inactive"}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center flex-wrap gap-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              window.open(`/forms/${f.id}`, "_blank")
-                            }
-                            title="Open the public form in a new tab — see exactly what a submitter sees"
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-[#a8893a] hover:bg-[#fbeed3] rounded font-medium border border-[#e9d287] bg-[#fbeed3]/40"
-                          >
-                            <Eye className="w-3 h-3" />
-                            Preview
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => copyFormLink(f.id)}
-                            title="Copy the public link to share with clients / contractors"
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-[#1d6b3e] bg-[#dff1e6]/60 hover:bg-[#dff1e6] rounded font-medium border border-[#bce0c9]"
-                          >
-                            <LinkIcon className="w-3 h-3" />
-                            Copy link
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSubmissionsForm(f)}
-                            title="View submissions inbox"
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100 rounded font-medium border border-slate-200"
-                          >
-                            <Inbox className="w-3 h-3" />
-                            Inbox
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingForm(f);
-                              setFormDialogOpen(true);
-                            }}
-                            title="Edit fields and settings"
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100 rounded font-medium border border-slate-200"
-                          >
-                            <Pencil className="w-3 h-3" />
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleFormDelete(f.id)}
-                            title="Delete this form"
-                            className="ml-auto p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {showOnboarding && forms.length === 0 && (
-                  <div className="mt-3 flex justify-center">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => setShowOnboarding(false)}
-                    >
-                      Got it
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Connector from Sources to Sections */}
-          <div className="flex items-center self-start mt-[88px]">
-            <div className="w-4 h-px bg-slate-300" />
-            <div className="w-7 h-7 rounded-full border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 flex-shrink-0">
-              <Plus className="w-4 h-4" />
-            </div>
-            <div className="w-4 h-px bg-slate-300" />
-          </div>
+          <Connector onAdd={addSection} />
 
           {/* Section cards with connectors */}
-          <div className="flex items-start flex-1">
-            {sections.map((section, index) => (
-              <div key={section.id} className="flex items-start">
-                <SectionCard
-                  section={section}
-                  rules={rulesBySection[section.id] || []}
-                  onAddAction={(type) => startAddAction(section.id, type)}
-                  onRemoveAction={removeAction}
-                />
-                {index < sections.length - 1 && (
-                  <div className="flex items-center self-center h-full py-16">
-                    <div className="w-4 h-px bg-slate-300" />
-                  </div>
-                )}
-              </div>
-            ))}
+          {sections.map((section, index) => (
+            <div key={section.id} className="flex items-start">
+              <SectionCard
+                section={section}
+                rules={rulesBySection[section.id] || []}
+                position={
+                  index === 0
+                    ? "first"
+                    : index === sections.length - 1
+                      ? "last"
+                      : "middle"
+                }
+                active={activeIdx === index + 1}
+                onSelect={() => setActiveIdx(index + 1)}
+                onPrev={() => setActiveIdx(index)}
+                onNext={() => setActiveIdx(index + 2)}
+                onAddAction={(type) => startAddAction(section.id, type)}
+                onRemoveAction={removeAction}
+              />
+              <Connector onAdd={addSection} />
+            </div>
+          ))}
 
-            {/* Connector + project-wide completion card. Fires
-                whenever ANY task on this project flips to
-                completed (regardless of section). */}
-            {sections.length > 0 && (
-              <div className="flex items-center self-center h-full py-16">
-                <div className="w-4 h-px bg-slate-300" />
-              </div>
-            )}
-            <CompletionCard
-              rules={completionRules}
-              onAddAction={startAddCompletionAction}
-              onRemoveAction={removeAction}
-            />
+          {/* Project-wide completion card — fires when ANY task in the
+              project flips to completed. Real automation, presented in
+              the same card language as the section stages. */}
+          <CompletionCard
+            rules={completionRules}
+            active={activeIdx === completionIdx}
+            onSelect={() => setActiveIdx(completionIdx)}
+            onPrev={() => setActiveIdx(sections.length)}
+            onDone={() => setActiveIdx(null)}
+            onAddAction={startAddCompletionAction}
+            onRemoveAction={removeAction}
+          />
+
+          {/* "+ Add section" pill at the end of the pipeline */}
+          <div className="flex-shrink-0 pt-8 pl-6 pr-10">
+            <button
+              type="button"
+              disabled={addingSection}
+              onClick={(e) => {
+                e.stopPropagation();
+                addSection();
+              }}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md bg-white border border-[#C4C6C8] text-sm text-slate-900 hover:bg-slate-50 shadow-sm whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" />
+              Add section
+            </button>
           </div>
         </div>
       </div>
@@ -790,12 +673,411 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
 }
 
 // ============================================
-// SECTION CARD
+// SHARED CARD PRIMITIVES — Asana's builder card language (measured in
+// the real app): 360px white cards, 8px radius, #E0E1E3 ring (blue
+// #335FB5 when active), 48px rows — solid #F2F3F4 fill for configured
+// items, dashed #C4C6C8 for suggestions.
 // ============================================
+
+const CARD_BASE =
+  "w-[360px] flex-shrink-0 bg-white rounded-lg p-4 cursor-pointer shadow-sm";
+
+function cardBorder(active: boolean) {
+  return active ? "border border-[#335FB5]" : "border border-[#E0E1E3]";
+}
+
+const DASHED_ROW =
+  "w-full h-12 rounded-lg border border-dashed border-[#C4C6C8] flex items-center gap-2.5 px-3 text-sm text-[#626364] hover:border-[#626364] hover:text-slate-800 text-left";
+
+function FilledRow({
+  icon,
+  label,
+  onRemove,
+}: {
+  icon: React.ReactNode;
+  label: React.ReactNode;
+  onRemove?: () => void;
+}) {
+  return (
+    <div className="h-12 rounded-lg border border-[#E0E1E3] bg-[#F2F3F4] flex items-center gap-2.5 px-3 text-sm text-slate-800 group/row">
+      <span className="text-[#626364] flex-shrink-0">{icon}</span>
+      <span className="flex-1 truncate text-left">{label}</span>
+      {onRemove && (
+        <button
+          type="button"
+          aria-label="Remove"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="opacity-0 group-hover/row:opacity-100 p-1 rounded hover:bg-slate-200 text-slate-500"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DashedRow({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={DASHED_ROW}
+    >
+      <span className="flex-shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
+function WizardFooter({
+  onPrev,
+  onNext,
+  nextLabel = "Next",
+}: {
+  onPrev?: () => void;
+  onNext: () => void;
+  nextLabel?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between mt-4 pt-3">
+      {onPrev ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrev();
+          }}
+          className="text-sm text-slate-700 hover:underline"
+        >
+          Previous
+        </button>
+      ) : (
+        <span />
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onNext();
+        }}
+        className="h-8 px-3 rounded-[6px] bg-[#4273D1] hover:bg-[#335FB5] text-white text-sm"
+      >
+        {nextLabel}
+      </button>
+    </div>
+  );
+}
+
+// Connector between pipeline cards: 1px #C4C6C8 line with a 28px "+"
+// circle that inserts a section (Asana's builder affordance).
+function Connector({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="flex items-center flex-shrink-0 pt-[38px]">
+      <div className="w-4 h-px bg-[#C4C6C8]" />
+      <button
+        type="button"
+        title="Add section"
+        onClick={(e) => {
+          e.stopPropagation();
+          onAdd();
+        }}
+        className="w-7 h-7 rounded-full border border-[#626364] bg-transparent hover:bg-white flex items-center justify-center text-[#626364] flex-shrink-0"
+      >
+        <Plus className="w-4 h-4" />
+      </button>
+      <div className="w-4 h-px bg-[#C4C6C8]" />
+    </div>
+  );
+}
+
+// ============================================
+// INTAKE CARD — "How will tasks be added to this project?"
+// Manual + forms (real intake) + templates + apps. Forms keep their
+// full management surface via the row menu (preview / copy link /
+// submissions inbox / edit / delete).
+// ============================================
+
+interface IntakeCardProps {
+  forms: FormRow[];
+  hasRules: boolean;
+  active: boolean;
+  onSelect: () => void;
+  onNext: () => void;
+  onNewForm: () => void;
+  onTemplates: () => void;
+  onPreviewForm: (f: FormRow) => void;
+  onCopyLink: (f: FormRow) => void;
+  onInbox: (f: FormRow) => void;
+  onEditForm: (f: FormRow) => void;
+  onDeleteForm: (f: FormRow) => void;
+}
+
+function FormRowItem({
+  form,
+  onPreview,
+  onCopyLink,
+  onInbox,
+  onEdit,
+  onDelete,
+}: {
+  form: FormRow;
+  onPreview: () => void;
+  onCopyLink: () => void;
+  onInbox: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className="w-full h-12 rounded-lg border border-[#E0E1E3] bg-[#F2F3F4] hover:bg-[#E8E9EA] flex items-center gap-2.5 px-3 text-sm text-slate-800 text-left"
+        >
+          <FileText className="w-4 h-4 text-[#626364] flex-shrink-0" />
+          <span className="flex-1 truncate">{form.name}</span>
+          <span className="text-xs text-slate-500 flex-shrink-0">
+            {form.submissionCount ?? 0}{" "}
+            {form.submissionCount === 1 ? "response" : "responses"}
+          </span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44">
+        <DropdownMenuItem onClick={onPreview} className="gap-2">
+          <Eye className="w-4 h-4" />
+          Preview
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onCopyLink} className="gap-2">
+          <LinkIcon className="w-4 h-4" />
+          Copy link
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onInbox} className="gap-2">
+          <Inbox className="w-4 h-4" />
+          Submissions
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onEdit} className="gap-2">
+          <Pencil className="w-4 h-4" />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onDelete} className="gap-2 text-black">
+          <Trash2 className="w-4 h-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function IntakeOption({
+  icon,
+  name,
+  desc,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  name: string;
+  desc: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="w-full rounded-lg border border-[#E0E1E3] p-3 flex items-start gap-3 hover:border-[#626364] text-left"
+    >
+      <span className="flex-shrink-0 mt-0.5">{icon}</span>
+      <span>
+        <span className="block text-sm font-medium text-slate-900">
+          {name}
+        </span>
+        <span className="block text-xs text-slate-500 leading-snug mt-0.5">
+          {desc}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function IntakeCard({
+  forms,
+  hasRules,
+  active,
+  onSelect,
+  onNext,
+  onNewForm,
+  onTemplates,
+  onPreviewForm,
+  onCopyLink,
+  onInbox,
+  onEditForm,
+  onDeleteForm,
+}: IntakeCardProps) {
+  // First-run (nothing configured anywhere) or explicitly selected →
+  // show the expanded "Más opciones" gallery like Asana.
+  const expanded = active || (forms.length === 0 && !hasRules);
+
+  return (
+    <div
+      className={cn(CARD_BASE, cardBorder(active))}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+    >
+      <h3 className="text-[20px] leading-6 font-medium text-slate-900 text-center px-3 mb-4">
+        How will tasks be added to this project?
+      </h3>
+
+      {expanded ? (
+        <>
+          <div className="rounded-lg bg-[#F2F3F4] p-3 flex items-start gap-2 text-xs text-slate-600 mb-4">
+            <Info className="w-4 h-4 flex-shrink-0 text-slate-500" />
+            <span>
+              Anyone with access to this project can add tasks manually.
+            </span>
+          </div>
+
+          {forms.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {forms.map((f) => (
+                <FormRowItem
+                  key={f.id}
+                  form={f}
+                  onPreview={() => onPreviewForm(f)}
+                  onCopyLink={() => onCopyLink(f)}
+                  onInbox={() => onInbox(f)}
+                  onEdit={() => onEditForm(f)}
+                  onDelete={() => onDeleteForm(f)}
+                />
+              ))}
+            </div>
+          )}
+
+          <p className="text-xs text-[#626364] mb-2">More options</p>
+          <div className="space-y-2">
+            <IntakeOption
+              icon={<FileText className="w-6 h-6 text-[#4573D2]" />}
+              name="Form submissions"
+              desc="Create a form that turns submissions into tasks"
+              onClick={onNewForm}
+            />
+            <IntakeOption
+              icon={<Zap className="w-6 h-6 text-[#4573D2]" />}
+              name="Task templates"
+              desc="Standardize tasks with ready-made rule bundles"
+              onClick={onTemplates}
+            />
+            <IntakeOption
+              icon={<LinkIcon className="w-6 h-6 text-[#4573D2]" />}
+              name="From other apps"
+              desc="Choose the apps your team uses to create tasks"
+              onClick={() => toast.info("App integrations coming soon")}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="space-y-2">
+          <FilledRow
+            icon={<Pencil className="w-4 h-4" />}
+            label="Manually"
+          />
+          {forms.map((f) => (
+            <FormRowItem
+              key={f.id}
+              form={f}
+              onPreview={() => onPreviewForm(f)}
+              onCopyLink={() => onCopyLink(f)}
+              onInbox={() => onInbox(f)}
+              onEdit={() => onEditForm(f)}
+              onDelete={() => onDeleteForm(f)}
+            />
+          ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => e.stopPropagation()}
+                className={DASHED_ROW}
+              >
+                <Plus className="w-4 h-4 flex-shrink-0" />
+                <span>Intake source</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuItem onClick={onNewForm} className="gap-2">
+                <FileText className="w-4 h-4" />
+                Form
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onTemplates} className="gap-2">
+                <Zap className="w-4 h-4" />
+                Task template
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => toast.info("App integrations coming soon")}
+                className="gap-2"
+              >
+                <LinkIcon className="w-4 h-4" />
+                App
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      {active && <WizardFooter onNext={onNext} />}
+    </div>
+  );
+}
+
+// ============================================
+// SECTION CARD — one workflow stage. Suggestions are position-aware
+// like Asana (first: assignee; middle: collaborators/comment; last:
+// complete/add-to-project); the active card expands the full list.
+// ============================================
+
+const SUGGESTIONS_BY_POSITION: Record<
+  "first" | "middle" | "last",
+  WorkflowActionType[]
+> = {
+  first: ["SET_ASSIGNEE", "ADD_COLLABORATORS"],
+  middle: ["ADD_COLLABORATORS", "ADD_COMMENT"],
+  last: ["MARK_COMPLETE", "ADD_TO_PROJECT"],
+};
+
+const ACTIVE_SUGGESTIONS: WorkflowActionType[] = [
+  "SET_ASSIGNEE",
+  "ADD_COLLABORATORS",
+  "ADD_COMMENT",
+  "SET_PRIORITY",
+  "ADD_SUBTASK",
+];
 
 interface SectionCardProps {
   section: Section;
   rules: WorkflowRuleRow[];
+  position: "first" | "middle" | "last";
+  active: boolean;
+  onSelect: () => void;
+  onPrev: () => void;
+  onNext: () => void;
   onAddAction: (type: WorkflowActionType) => void;
   onRemoveAction: (ruleId: string, actionIdx: number) => void;
 }
@@ -803,14 +1085,16 @@ interface SectionCardProps {
 function SectionCard({
   section,
   rules,
+  position,
+  active,
+  onSelect,
+  onPrev,
+  onNext,
   onAddAction,
   onRemoveAction,
 }: SectionCardProps) {
   const incompleteCount = section.tasks.filter((t) => !t.completed).length;
 
-  // Each rule's first action drives the display chip. Phase 2 will
-  // surface configurable per-action targets (the userId, comment
-  // template, etc.).
   const ruleChips = rules.flatMap((r) =>
     (r.actions as WorkflowAction[]).map((a, idx) => ({
       ruleId: r.id,
@@ -818,99 +1102,123 @@ function SectionCard({
       type: a.type,
     }))
   );
+  const configured = new Set(ruleChips.map((c) => c.type));
+  // Active card expands the list but keeps the position-specific
+  // suggestions on top (Asana shows "Finalizar tarea" on the last
+  // stage even when expanded).
+  const suggestions = (
+    active
+      ? [
+          ...SUGGESTIONS_BY_POSITION[position],
+          ...ACTIVE_SUGGESTIONS.filter(
+            (t) => !SUGGESTIONS_BY_POSITION[position].includes(t)
+          ),
+        ]
+      : SUGGESTIONS_BY_POSITION[position]
+  ).filter((t) => !configured.has(t));
+  const menuActions = PICKABLE_ACTIONS.filter((t) => !configured.has(t));
 
   return (
-    <div className="w-52 flex-shrink-0 bg-white rounded-lg border">
+    <div
+      className={cn(CARD_BASE, cardBorder(active))}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+    >
       {/* Header */}
-      <div className="p-3 border-b">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-slate-400">Section</span>
-        </div>
-        <h3 className="font-semibold text-slate-900 text-sm truncate" title={section.name}>
-          {section.name}
-        </h3>
-        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-black" />
-          {incompleteCount} incomplete {incompleteCount === 1 ? "task" : "tasks"}
-        </p>
-      </div>
+      <p className="text-xs text-[#626364] mb-0.5">Section</p>
+      <h3
+        className="text-base font-medium text-slate-900 truncate"
+        title={section.name}
+      >
+        {section.name}
+      </h3>
+
+      {/* Incomplete-tasks chip */}
+      <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded bg-[#E8E9EA] text-xs text-slate-600 mt-2">
+        <CheckCircle className="w-3 h-3" />
+        {incompleteCount} incomplete {incompleteCount === 1 ? "task" : "tasks"}
+      </span>
 
       {/* Trigger prompt */}
-      <div className="p-3 border-b">
-        <p className="text-xs text-slate-500">
-          What actions should trigger automatically when tasks move to
-          this section?
-        </p>
-      </div>
+      <p className="text-xs text-[#626364] mt-4 mb-3">
+        What actions should trigger automatically when tasks move to this
+        section?
+      </p>
 
-      {/* Configured rules */}
-      <div className="p-3">
-        <div className="space-y-1">
-          {ruleChips.length === 0 && (
-            <div className="text-center py-3 text-xs text-slate-400">
-              No automations configured
-            </div>
-          )}
-          {ruleChips.map((chip) => (
-            <div
-              key={`${chip.ruleId}-${chip.actionIdx}`}
-              className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded text-xs group"
-            >
-              <span className="text-[#a8893a]">{ACTION_ICONS[chip.type]}</span>
-              <span className="text-slate-700 flex-1">
-                {ACTION_LABELS[chip.type]}
-              </span>
-              <button
-                onClick={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
-                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-200 rounded transition-all"
-                aria-label="Remove rule"
-              >
-                <X className="w-3 h-3 text-slate-400" />
-              </button>
-            </div>
-          ))}
-        </div>
+      {/* Configured rules (solid) + suggestions (dashed) */}
+      <div className="space-y-2">
+        {ruleChips.map((chip) => (
+          <FilledRow
+            key={`${chip.ruleId}-${chip.actionIdx}`}
+            icon={ACTION_ICONS[chip.type]}
+            label={ACTION_LABELS[chip.type]}
+            onRemove={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
+          />
+        ))}
+        {suggestions.map((t) => (
+          <DashedRow
+            key={t}
+            icon={ACTION_ICONS[t]}
+            label={ACTION_LABELS[t]}
+            onClick={() => onAddAction(t)}
+          />
+        ))}
 
-        {/* Add-action dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="mt-2 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
-              <Plus className="w-3 h-3" />
-              Add action
-              <ChevronDown className="w-3 h-3" />
+            <button
+              type="button"
+              onClick={(e) => e.stopPropagation()}
+              className={DASHED_ROW}
+            >
+              <Plus className="w-4 h-4 flex-shrink-0" />
+              <span>More actions</span>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            {PICKABLE_ACTIONS.map((type) => (
+          <DropdownMenuContent align="start" className="w-56">
+            {menuActions.map((type) => (
               <DropdownMenuItem
                 key={type}
                 onClick={() => onAddAction(type)}
                 className="gap-2"
               >
-                <span className="text-[#a8893a]">{ACTION_ICONS[type]}</span>
+                <span className="text-[#626364]">{ACTION_ICONS[type]}</span>
                 {ACTION_LABELS[type]}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {active && <WizardFooter onPrev={onPrev} onNext={onNext} />}
     </div>
   );
 }
 
 // ============================================
-// COMPLETION CARD — project-wide rules that fire when any task
-// is marked complete, regardless of which section it's in.
+// COMPLETION CARD — project-wide rules that fire when any task is
+// marked complete, regardless of which section it's in. Presented in
+// the same Asana card language as the section stages.
 // ============================================
 
 interface CompletionCardProps {
   rules: WorkflowRuleRow[];
+  active: boolean;
+  onSelect: () => void;
+  onPrev: () => void;
+  onDone: () => void;
   onAddAction: (type: WorkflowActionType) => void;
   onRemoveAction: (ruleId: string, actionIdx: number) => void;
 }
 
 function CompletionCard({
   rules,
+  active,
+  onSelect,
+  onPrev,
+  onDone,
   onAddAction,
   onRemoveAction,
 }: CompletionCardProps) {
@@ -921,73 +1229,81 @@ function CompletionCard({
       type: a.type,
     }))
   );
+  const configured = new Set(ruleChips.map((c) => c.type));
+  // MARK_COMPLETE is meaningless on an already-completed trigger.
+  const suggestions = (["ADD_COMMENT", "ADD_TO_PROJECT"] as WorkflowActionType[]).filter(
+    (t) => !configured.has(t)
+  );
+  const menuActions = PICKABLE_ACTIONS.filter(
+    (t) => t !== "MARK_COMPLETE" && !configured.has(t)
+  );
 
   return (
-    <div className="w-52 flex-shrink-0 bg-white rounded-lg border border-[#c9a84c]/40 shadow-sm">
-      <div className="p-3 border-b bg-[#c9a84c]/[0.04]">
-        <div className="flex items-center gap-1.5 mb-1">
-          <Zap className="w-3.5 h-3.5 text-[#a8893a]" />
-          <span className="text-xs text-[#a8893a] font-semibold uppercase tracking-wider">
-            Trigger
-          </span>
-        </div>
-        <h3 className="font-semibold text-slate-900 text-sm">
-          On completion
-        </h3>
-        <p className="text-xs text-slate-500 mt-1">
-          Fires when any task in this project is marked complete.
-        </p>
-      </div>
+    <div
+      className={cn(CARD_BASE, cardBorder(active))}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect();
+      }}
+    >
+      <p className="text-xs text-[#626364] mb-0.5">Trigger</p>
+      <h3 className="text-base font-medium text-slate-900">On completion</h3>
 
-      <div className="p-3">
-        <div className="space-y-1">
-          {ruleChips.length === 0 && (
-            <div className="text-center py-3 text-xs text-slate-400">
-              No completion rules configured
-            </div>
-          )}
-          {ruleChips.map((chip) => (
-            <div
-              key={`${chip.ruleId}-${chip.actionIdx}`}
-              className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded text-xs group"
-            >
-              <span className="text-[#a8893a]">{ACTION_ICONS[chip.type]}</span>
-              <span className="text-slate-700 flex-1">
-                {ACTION_LABELS[chip.type]}
-              </span>
-              <button
-                onClick={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
-                className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-slate-200 rounded transition-all"
-                aria-label="Remove rule"
-              >
-                <X className="w-3 h-3 text-slate-400" />
-              </button>
-            </div>
-          ))}
-        </div>
+      <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded bg-[#E8E9EA] text-xs text-slate-600 mt-2">
+        <Zap className="w-3 h-3" />
+        Any section
+      </span>
+
+      <p className="text-xs text-[#626364] mt-4 mb-3">
+        What actions should trigger automatically when any task in this
+        project is completed?
+      </p>
+
+      <div className="space-y-2">
+        {ruleChips.map((chip) => (
+          <FilledRow
+            key={`${chip.ruleId}-${chip.actionIdx}`}
+            icon={ACTION_ICONS[chip.type]}
+            label={ACTION_LABELS[chip.type]}
+            onRemove={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
+          />
+        ))}
+        {suggestions.map((t) => (
+          <DashedRow
+            key={t}
+            icon={ACTION_ICONS[t]}
+            label={ACTION_LABELS[t]}
+            onClick={() => onAddAction(t)}
+          />
+        ))}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="mt-2 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
-              <Plus className="w-3 h-3" />
-              Add action
-              <ChevronDown className="w-3 h-3" />
+            <button
+              type="button"
+              onClick={(e) => e.stopPropagation()}
+              className={DASHED_ROW}
+            >
+              <Plus className="w-4 h-4 flex-shrink-0" />
+              <span>More actions</span>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            {PICKABLE_ACTIONS.filter((t) => t !== "MARK_COMPLETE").map((type) => (
+          <DropdownMenuContent align="start" className="w-56">
+            {menuActions.map((type) => (
               <DropdownMenuItem
                 key={type}
                 onClick={() => onAddAction(type)}
                 className="gap-2"
               >
-                <span className="text-[#a8893a]">{ACTION_ICONS[type]}</span>
+                <span className="text-[#626364]">{ACTION_ICONS[type]}</span>
                 {ACTION_LABELS[type]}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {active && <WizardFooter onPrev={onPrev} onNext={onDone} nextLabel="Done" />}
     </div>
   );
 }
