@@ -43,6 +43,7 @@ import {
   Diamond,
   ThumbsUp,
   Layers,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
@@ -102,11 +103,13 @@ interface BoardViewProps {
 // PRIORITY CONFIG
 // ============================================
 
-const PRIORITY_CONFIG: Record<string, { dot: string; label: string }> = {
-  HIGH: { dot: "bg-black", label: "High" },
-  MEDIUM: { dot: "bg-[#a8893a]", label: "Medium" },
-  LOW: { dot: "bg-[#c9a84c]", label: "Low" },
-  NONE: { dot: "", label: "" },
+// Asana's enum-chip palette (measured in the real app): solid fill,
+// 4px radius, dark tinted text. Cards use the 20px-tall small chip.
+const PRIORITY_CONFIG: Record<string, { chip: string; label: string }> = {
+  HIGH: { chip: "bg-[#FF878A] text-[#4F1A1D]", label: "High" },
+  MEDIUM: { chip: "bg-[#F6D861] text-[#352B00]", label: "Medium" },
+  LOW: { chip: "bg-[#85D7A2] text-[#06321B]", label: "Low" },
+  NONE: { chip: "", label: "" },
 };
 
 // ============================================
@@ -595,7 +598,7 @@ export function BoardView({
             overflow, so its gray background grows with the cards
             inside it (Asana behavior). Without this, every column
             stretched to viewport height even when half-empty. */}
-        <div className="hidden md:flex gap-3 px-6 py-4 overflow-auto items-start min-h-full">
+        <div className="hidden md:flex gap-4 px-6 py-4 overflow-auto items-start min-h-full">
           {localSections.map((section) => (
             <BoardColumn
               key={section.id}
@@ -725,8 +728,9 @@ function BoardColumn({
         // inside it instead of being clipped to viewport height.
         // The outer board container handles vertical scroll when a
         // column grows past the page.
-        "flex-shrink-0 w-[260px] md:w-[280px] flex flex-col rounded-xl transition-colors",
-        isOver ? "bg-slate-200/80" : "bg-slate-100/80"
+        // Asana column: 304px, 6px radius, #F2F3F4 fill, 12px padding.
+        "flex-shrink-0 w-[280px] md:w-[304px] flex flex-col rounded-[6px] transition-colors",
+        isOver ? "bg-[#E8E9EA]" : "bg-[#F2F3F4]"
       )}
     >
       {/* Column Header */}
@@ -750,10 +754,10 @@ function BoardColumn({
             />
           ) : (
             <>
-              <h3 className="font-medium text-sm text-slate-900 truncate">
+              <h3 className="font-medium text-base text-slate-900 truncate">
                 {section.name}
               </h3>
-              <span className="text-xs text-slate-400 tabular-nums">
+              <span className="text-xs text-slate-500 tabular-nums">
                 {section.tasks.length}
               </span>
             </>
@@ -801,13 +805,13 @@ function BoardColumn({
           height tracks the cards inside it. Long columns get
           scrolled by the page-level container above, not by an
           internal scrollbar. */}
-      <div className="px-2 pb-2 min-h-[60px]">
+      <div className="px-3 pb-2 min-h-[60px]">
         <SortableContext
           id={section.id}
           items={section.tasks.map((t) => t.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {section.tasks.map((task) => (
               <SortableTaskCard
                 key={task.id}
@@ -865,7 +869,7 @@ function BoardColumn({
       {!isAddingTask && (
         <button
           onClick={onStartAddTask}
-          className="flex items-center gap-1.5 w-full px-3 py-2 text-sm text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-b-xl transition-colors"
+          className="flex items-center gap-1.5 w-full px-3 py-2 text-sm text-slate-500 hover:text-slate-700 hover:bg-[#E8E9EA] rounded-b-[6px] transition-colors"
         >
           <Plus className="w-4 h-4" />
           Add task
@@ -930,7 +934,9 @@ function SortableTaskCard({
       {...attributes}
       {...listeners}
       className={cn(
-        "bg-white rounded-lg border border-slate-200 p-2 md:p-3 cursor-grab active:cursor-grabbing transition-all",
+        // Asana card: white, 8px radius, 1px #E0E1E3 ring + soft shadow,
+        // 16px inner padding.
+        "bg-white rounded-[8px] border border-[#E0E1E3] p-4 cursor-grab active:cursor-grabbing transition-all",
         isDragging
           ? "opacity-40 shadow-none"
           : "hover:shadow-md hover:border-slate-300 shadow-sm"
@@ -945,36 +951,50 @@ function SortableTaskCard({
         <CardCompletionIcon task={task} onToggle={handleToggleComplete} />
         <span
           className={cn(
-            "text-[13px] leading-snug flex-1 min-w-0",
-            task.completed ? "line-through text-slate-400" : "text-slate-800"
+            "text-sm leading-[22px] flex-1 min-w-0",
+            task.completed ? "line-through text-slate-400" : "text-slate-900"
           )}
         >
           {task.name}
         </span>
       </div>
 
-      {/* Priority indicator */}
+      {/* Priority chip — Asana's solid 20px pill */}
       {task.priority && task.priority !== "NONE" && (
-        <div className="mt-2 flex items-center gap-1.5">
-          <span className={cn("w-2 h-2 rounded-full", priority.dot)} />
-          <span className="text-[11px] text-slate-500">{priority.label}</span>
+        <div className="mt-2 flex flex-wrap gap-1">
+          <span
+            className={cn(
+              "text-xs font-normal rounded px-2 py-0.5",
+              priority.chip
+            )}
+          >
+            {priority.label}
+          </span>
         </div>
       )}
 
-      {/* Bottom row: assignee + meta */}
+      {/* Bottom row — Asana: 28px avatar (dashed circle when
+          unassigned) with the due date right beside it; counters on
+          the right edge. */}
       {(task.assignee || hasMetaInfo) && (
-        <div className="flex items-center justify-between mt-2 pt-1.5">
-          {/* Assignee */}
-          {task.assignee ? (
-            <Avatar className="h-5 w-5">
-              <AvatarImage src={task.assignee.image || ""} />
-              <AvatarFallback className="text-[10px] bg-[#c9a84c] text-white">
-                {task.assignee.name?.[0]?.toUpperCase() || "?"}
-              </AvatarFallback>
-            </Avatar>
-          ) : (
-            <div />
-          )}
+        <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center gap-2 min-w-0">
+            {task.assignee ? (
+              <Avatar className="h-7 w-7">
+                <AvatarImage src={task.assignee.image || ""} />
+                <AvatarFallback className="text-[11px] bg-[#d4b65a] text-white">
+                  {task.assignee.name?.[0]?.toUpperCase() || "?"}
+                </AvatarFallback>
+              </Avatar>
+            ) : (
+              <div className="w-7 h-7 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center flex-shrink-0">
+                <User className="w-3.5 h-3.5 text-slate-300" />
+              </div>
+            )}
+            {task.dueDate && (
+              <DueDateBadge dueDate={task.dueDate} completed={task.completed} />
+            )}
+          </div>
 
           {/* Meta info */}
           <div className="flex items-center gap-2 text-slate-400">
@@ -986,9 +1006,6 @@ function SortableTaskCard({
             )}
             {task._count.comments > 0 && <MessageSquare className="h-3 w-3" />}
             {task._count.attachments > 0 && <Paperclip className="h-3 w-3" />}
-            {task.dueDate && (
-              <DueDateBadge dueDate={task.dueDate} completed={task.completed} />
-            )}
           </div>
         </div>
       )}
@@ -1103,17 +1120,17 @@ function DueDateBadge({
   return (
     <span
       className={cn(
-        "flex items-center gap-1 text-[11px] whitespace-nowrap",
+        // Asana date tones: red overdue, green today — plain text.
+        "flex items-center gap-1 text-xs whitespace-nowrap",
         completed
           ? "text-slate-400"
           : overdue
-            ? "text-black font-medium"
+            ? "text-[#B4304C]"
             : today
-              ? "text-[#a8893a]"
-              : "text-slate-400"
+              ? "text-[#14865E]"
+              : "text-slate-500"
       )}
     >
-      <Calendar className="h-3 w-3" />
       {label}
     </span>
   );
