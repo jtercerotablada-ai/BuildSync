@@ -62,6 +62,7 @@ export async function GET(
       createdAt: a.createdAt.toISOString(),
       taskId: a.task?.id || null,
       taskName: a.task?.name || null,
+      messageId: null as string | null,
       source: "task" as const,
       uploader: uploaderMap.get(a.uploaderId) || null,
     }));
@@ -92,6 +93,7 @@ export async function GET(
       createdAt: a.createdAt.toISOString(),
       taskId: null,
       taskName: null,
+      messageId: a.message?.id ?? null,
       source: "message" as const,
       uploader: a.message?.author ?? null,
     }));
