@@ -15,6 +15,8 @@ import {
   Circle,
   CheckCircle2,
   SlidersHorizontal,
+  User,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
+import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import {
   addDays,
   addWeeks,
@@ -83,6 +86,13 @@ interface GanttViewProps {
   sections: Section[];
   onTaskClick: (taskId: string) => void;
   projectId: string;
+  /** Project members (owner included) for the inline assignee picker. */
+  members?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  }[];
 }
 
 type ZoomLevel = "day" | "week" | "month" | "quarter";
@@ -242,7 +252,12 @@ function dueRangeText(task: Task): string {
 // MAIN COMPONENT
 // ============================================
 
-export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) {
+export function GanttView({
+  sections,
+  onTaskClick,
+  projectId,
+  members = [],
+}: GanttViewProps) {
   const router = useRouter();
 
   // ---------- State ----------
@@ -361,6 +376,122 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
     }
     return m;
   }, [dependencies, taskNameById]);
+
+  // Same map but with the dependency ids, for the editable "Blocked by"
+  // cell (remove needs the dep id, add needs candidate tasks).
+  const blockedByDetail = useMemo(() => {
+    const m = new Map<
+      string,
+      { depId: string; blockingTaskId: string; name: string }[]
+    >();
+    for (const dep of dependencies) {
+      const name = taskNameById.get(dep.blockingTaskId);
+      if (!name) continue;
+      const arr = m.get(dep.dependentTaskId) ?? [];
+      arr.push({ depId: dep.id, blockingTaskId: dep.blockingTaskId, name });
+      m.set(dep.dependentTaskId, arr);
+    }
+    return m;
+  }, [dependencies, taskNameById]);
+
+  const allTasksFlat = useMemo(
+    () => sections.flatMap((s) => s.tasks),
+    [sections]
+  );
+
+  // ---------- Inline edit helpers (Asana's Gantt table is editable) ----------
+  const [renaming, setRenaming] = useState<{
+    taskId: string;
+    value: string;
+  } | null>(null);
+
+  const patchTask = useCallback(
+    async (taskId: string, body: Record<string, unknown>) => {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || "Failed to update task");
+        }
+        router.refresh();
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to update task"
+        );
+      }
+    },
+    [router]
+  );
+
+  const saveRename = useCallback(() => {
+    if (!renaming) return;
+    const name = renaming.value.trim();
+    const taskId = renaming.taskId;
+    setRenaming(null);
+    if (!name || name === taskNameById.get(taskId)) return;
+    patchTask(taskId, { name });
+  }, [renaming, patchTask, taskNameById]);
+
+  const reloadDependencies = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/dependencies`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setDependencies(data);
+      }
+    } catch {
+      /* keep the stale list */
+    }
+  }, [projectId]);
+
+  const addBlocker = useCallback(
+    async (taskId: string, blockingTaskId: string) => {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/dependencies`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blockingTaskId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || "Failed to add dependency");
+        }
+        await reloadDependencies();
+        toast.success("Dependency added");
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to add dependency"
+        );
+      }
+    },
+    [reloadDependencies]
+  );
+
+  const removeBlocker = useCallback(
+    async (taskId: string, depId: string) => {
+      try {
+        const res = await fetch(
+          `/api/tasks/${taskId}/dependencies?id=${depId}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || "Failed to remove dependency");
+        }
+        await reloadDependencies();
+        toast.success("Dependency removed");
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to remove dependency"
+        );
+      }
+    },
+    [reloadDependencies]
+  );
 
   // ---------- Zoom configuration ----------
   const zoomConfig: Record<
@@ -1135,7 +1266,9 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                             style={{ height: ROW_HEIGHT }}
                             onClick={() => handleRowClick(task.id)}
                           >
-                            {/* Name cell */}
+                            {/* Name cell — double-click renames, the
+                                avatar opens the assignee picker (Asana's
+                                Gantt table is editable in place) */}
                             <div
                               className="flex items-center gap-2 px-3 min-w-0"
                               style={{ width: NAME_COL_W }}
@@ -1155,56 +1288,233 @@ export function GanttView({ sections, onTaskClick, projectId }: GanttViewProps) 
                                   <Circle className="w-4 h-4" />
                                 )}
                               </button>
-                              <span
-                                className={cn(
-                                  "text-sm truncate flex-1",
-                                  task.completed &&
-                                    "line-through text-slate-400"
-                                )}
-                              >
-                                {task.name}
-                              </span>
-                              {task.assignee &&
-                                (task.assignee.image ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={task.assignee.image}
-                                    alt={task.assignee.name ?? ""}
-                                    className="w-6 h-6 rounded-full flex-shrink-0 object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-6 h-6 rounded-full bg-[#d4b65a] flex items-center justify-center text-xs font-medium text-white flex-shrink-0">
-                                    {task.assignee.name?.[0] || "?"}
+                              {renaming?.taskId === task.id ? (
+                                <input
+                                  autoFocus
+                                  value={renaming.value}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) =>
+                                    setRenaming({
+                                      taskId: task.id,
+                                      value: e.target.value,
+                                    })
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveRename();
+                                    if (e.key === "Escape") setRenaming(null);
+                                  }}
+                                  onBlur={saveRename}
+                                  className="flex-1 min-w-0 text-sm bg-transparent outline-none border-b-2 border-[#335FB5] px-0.5"
+                                />
+                              ) : (
+                                <span
+                                  className={cn(
+                                    "text-sm truncate flex-1",
+                                    task.completed &&
+                                      "line-through text-slate-400"
+                                  )}
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    setRenaming({
+                                      taskId: task.id,
+                                      value: task.name,
+                                    });
+                                  }}
+                                >
+                                  {task.name}
+                                </span>
+                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    className="flex-shrink-0"
+                                    title="Set assignee"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {task.assignee ? (
+                                      task.assignee.image ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={task.assignee.image}
+                                          alt={task.assignee.name ?? ""}
+                                          className="w-6 h-6 rounded-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-6 h-6 rounded-full bg-[#d4b65a] flex items-center justify-center text-xs font-medium text-white">
+                                          {task.assignee.name?.[0] || "?"}
+                                        </div>
+                                      )
+                                    ) : (
+                                      <div className="w-6 h-6 rounded-full border border-dashed border-slate-300 flex items-center justify-center hover:border-slate-500">
+                                        <User className="w-3 h-3 text-slate-300" />
+                                      </div>
+                                    )}
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-52">
+                                  {members.map((m) => (
+                                    <DropdownMenuItem
+                                      key={m.id}
+                                      onClick={() =>
+                                        patchTask(task.id, {
+                                          assigneeId: m.id,
+                                        })
+                                      }
+                                      className="gap-2"
+                                    >
+                                      <span className="w-5 h-5 rounded-full bg-[#d4b65a] flex items-center justify-center text-[10px] font-medium text-white overflow-hidden">
+                                        {m.image ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img
+                                            src={m.image}
+                                            alt={m.name || ""}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        ) : (
+                                          (m.name || m.email || "?")[0]
+                                        )}
+                                      </span>
+                                      <span className="truncate">
+                                        {m.name || m.email}
+                                      </span>
+                                    </DropdownMenuItem>
+                                  ))}
+                                  {task.assignee && (
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        patchTask(task.id, {
+                                          assigneeId: null,
+                                        })
+                                      }
+                                      className="gap-2 text-slate-500"
+                                    >
+                                      <X className="w-4 h-4" />
+                                      Unassign
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                            {/* Due date cell — click opens the range
+                                picker; red when overdue, green when the
+                                range ends today (Asana's date tones) */}
+                            <div
+                              className="border-l h-full flex items-center"
+                              style={{ width: DUE_COL_W }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <DueDatePicker
+                                startDate={
+                                  task.startDate
+                                    ? dueDateToLocalMidnight(task.startDate)
+                                    : null
+                                }
+                                dueDate={
+                                  task.dueDate
+                                    ? dueDateToLocalMidnight(task.dueDate)
+                                    : null
+                                }
+                                onChange={(start, due) => {
+                                  patchTask(task.id, {
+                                    startDate: start
+                                      ? format(start, "yyyy-MM-dd")
+                                      : null,
+                                    dueDate: due
+                                      ? format(due, "yyyy-MM-dd")
+                                      : null,
+                                  });
+                                }}
+                                trigger={
+                                  <div
+                                    className="w-full px-2 py-1 text-xs text-slate-600 truncate cursor-pointer hover:bg-slate-100 rounded"
+                                    style={{
+                                      color:
+                                        !task.dueDate || task.completed
+                                          ? undefined
+                                          : daysFromToday(task.dueDate) < 0
+                                            ? DATE_OVERDUE
+                                            : daysFromToday(task.dueDate) === 0
+                                              ? DATE_TODAY
+                                              : undefined,
+                                    }}
+                                  >
+                                    {dueRangeText(task)}
                                   </div>
-                                ))}
+                                }
+                              />
                             </div>
-                            {/* Due date cell — red when overdue, green when
-                                the range ends today (Asana's date tones) */}
+                            {/* Blocked by cell — click manages blockers */}
                             <div
-                              className="px-2 border-l h-full flex items-center text-xs text-slate-600 truncate"
-                              style={{
-                                width: DUE_COL_W,
-                                // Inline color (when set) beats the class.
-                                color:
-                                  !task.dueDate || task.completed
-                                    ? undefined
-                                    : daysFromToday(task.dueDate) < 0
-                                      ? DATE_OVERDUE
-                                      : daysFromToday(task.dueDate) === 0
-                                        ? DATE_TODAY
-                                        : undefined,
-                              }}
-                            >
-                              {dueRangeText(task)}
-                            </div>
-                            {/* Blocked by cell */}
-                            <div
-                              className="px-2 border-l h-full flex items-center text-xs text-slate-500"
+                              className="border-l h-full flex items-center"
                               style={{ width: BLOCKED_COL_W }}
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              <span className="truncate" title={blockedTxt}>
-                                {blockedTxt}
-                              </span>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="w-full px-2 py-1 text-xs text-slate-500 text-left truncate hover:bg-slate-100 rounded cursor-pointer">
+                                    <span className="truncate" title={blockedTxt}>
+                                      {blockedTxt || (
+                                        <span className="text-slate-300">
+                                          —
+                                        </span>
+                                      )}
+                                    </span>
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="start"
+                                  className="w-64 max-h-72 overflow-y-auto"
+                                >
+                                  {(blockedByDetail.get(task.id) ?? []).map(
+                                    (b) => (
+                                      <DropdownMenuItem
+                                        key={b.depId}
+                                        onClick={() =>
+                                          removeBlocker(task.id, b.depId)
+                                        }
+                                        className="gap-2"
+                                      >
+                                        <X className="w-3.5 h-3.5 text-slate-400" />
+                                        <span className="truncate">
+                                          {b.name}
+                                        </span>
+                                      </DropdownMenuItem>
+                                    )
+                                  )}
+                                  {(blockedByDetail.get(task.id) ?? [])
+                                    .length > 0 && (
+                                    <div className="my-1 border-t" />
+                                  )}
+                                  <div className="px-2 py-1 text-[11px] text-slate-400">
+                                    Add blocker
+                                  </div>
+                                  {allTasksFlat
+                                    .filter(
+                                      (t) =>
+                                        t.id !== task.id &&
+                                        !(
+                                          blockedByDetail.get(task.id) ?? []
+                                        ).some(
+                                          (b) => b.blockingTaskId === t.id
+                                        )
+                                    )
+                                    .slice(0, 15)
+                                    .map((t) => (
+                                      <DropdownMenuItem
+                                        key={t.id}
+                                        onClick={() =>
+                                          addBlocker(task.id, t.id)
+                                        }
+                                        className="gap-2"
+                                      >
+                                        <Plus className="w-3.5 h-3.5 text-slate-400" />
+                                        <span className="truncate">
+                                          {t.name}
+                                        </span>
+                                      </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
                         );

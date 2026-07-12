@@ -1335,6 +1335,28 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               sections={filteredSections}
               onTaskClick={handleTaskClick}
               projectId={project.id}
+              members={(() => {
+                // Owner + members, deduped — feeds the inline assignee
+                // picker in the Gantt's editable left table.
+                const seen = new Set<string>();
+                const list: {
+                  id: string;
+                  name: string | null;
+                  email: string | null;
+                  image: string | null;
+                }[] = [];
+                if (project.owner && !seen.has(project.owner.id)) {
+                  seen.add(project.owner.id);
+                  list.push(project.owner);
+                }
+                for (const m of project.members) {
+                  if (!seen.has(m.user.id)) {
+                    seen.add(m.user.id);
+                    list.push(m.user);
+                  }
+                }
+                return list;
+              })()}
             />
           )}
           {currentView === "calendar" && (
