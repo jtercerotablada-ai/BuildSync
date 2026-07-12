@@ -35,7 +35,6 @@ import {
   GitBranch,
   MessageSquare,
   FolderOpen,
-  Users,
   ChevronDown,
   Rows3,
   Search,
@@ -982,17 +981,9 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               <FolderOpen className="h-4 w-4" />
               <span className="hidden md:inline">Files</span>
             </button>
-            <button
-              onClick={() => handleViewChange("team")}
-              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "team"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Users className="h-4 w-4" />
-              <span className="hidden md:inline">Team</span>
-            </button>
+            {/* No "Team" tab — Asana assigns the team at the team level;
+                projects don't carry a Team view. The route still resolves
+                for old deep links, and members live in Manage members. */}
             <button
               onClick={() => handleViewChange("notes")}
               className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
