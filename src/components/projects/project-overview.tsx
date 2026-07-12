@@ -16,7 +16,6 @@ import {
   FileText,
   Folder,
   MessageCircle,
-  TrendingUp,
   Activity as ActivityIcon,
   Send,
   Paperclip,
@@ -732,50 +731,6 @@ export function ProjectOverview({
     return roster;
   }, [project.owner, project.members]);
 
-  // Project pulse — derive from data we already have on the client.
-  const pulse = useMemo(() => {
-    const allTasks =
-      project.sections?.flatMap((s) => s.tasks) ?? ([] as { completed: boolean }[]);
-    const totalTasks = allTasks.length;
-    const completedTasks = allTasks.filter((t) => t.completed).length;
-    const percentComplete = totalTasks
-      ? Math.round((completedTasks / totalTasks) * 100)
-      : 0;
-
-    let percentTimeElapsed: number | null = null;
-    let daysRemaining: number | null = null;
-    if (project.startDate && project.endDate) {
-      const start = new Date(project.startDate).getTime();
-      const end = new Date(project.endDate).getTime();
-      const now = Date.now();
-      if (end > start) {
-        percentTimeElapsed = Math.max(
-          0,
-          Math.min(100, Math.round(((now - start) / (end - start)) * 100))
-        );
-        // Future: floor so "you have 2.5 days left" → "2d" (full days).
-        // Past: ceil(|ms|/day) so any fraction over deadline reads as
-        // "1d over" not "0d", matching how PMs say "we missed it".
-        const ms = end - now;
-        const dayMs = 1000 * 60 * 60 * 24;
-        if (ms >= 0) {
-          daysRemaining = Math.floor(ms / dayMs);
-        } else {
-          daysRemaining = -Math.ceil(Math.abs(ms) / dayMs);
-        }
-      }
-    }
-
-    return {
-      totalTasks,
-      completedTasks,
-      percentComplete,
-      percentTimeElapsed,
-      daysRemaining,
-      membersCount: allMembers.length,
-    };
-  }, [project.sections, project.startDate, project.endDate, allMembers.length]);
-
   // True when at least one section has typed content. Drives the
   // Post button's enabled state + the cancel "discard?" prompt.
   const hasComposerContent = useMemo(
@@ -949,84 +904,9 @@ export function ProjectOverview({
 
   return (
     <div className="flex flex-col lg:flex-row h-full">
-      {/* Main Content — no max-width so the pulse grid + roster + goals
-          stretch across wide monitors instead of crowding into a
-          1024px ribbon. Padding scales with breakpoint so 2K/4K
-          screens get breathing room without losing data density on
-          smaller laptops. */}
+      {/* Main Content — Asana's Resumen starts directly with the
+          project description; padding scales with breakpoint. */}
       <div className="flex-1 overflow-auto p-4 md:p-6 xl:p-8 2xl:p-10">
-        {/* Project pulse — replaces the old AI summary stubs with real
-            numbers derived from project data. Six compact cells in a
-            monochrome+gold grid; mobile collapses to 2 columns. */}
-        <div className="border border-slate-200 rounded-lg bg-white mb-6 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 bg-slate-50/60">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-[#a8893a]" />
-              <span className="text-sm font-semibold text-slate-900">
-                Project pulse
-              </span>
-            </div>
-            <span className="text-[11px] uppercase tracking-[1.5px] text-slate-400 font-medium">
-              Live
-            </span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-6 divide-x divide-y md:divide-y-0 divide-slate-100">
-            <PulseCell
-              label="% Complete"
-              value={`${pulse.percentComplete}%`}
-              sub={`${pulse.completedTasks}/${pulse.totalTasks} tasks`}
-            />
-            <PulseCell
-              label="% Time elapsed"
-              value={
-                pulse.percentTimeElapsed === null
-                  ? "—"
-                  : `${pulse.percentTimeElapsed}%`
-              }
-              sub={
-                pulse.percentTimeElapsed === null
-                  ? "No dates set"
-                  : "of schedule"
-              }
-            />
-            <PulseCell
-              label="Days remaining"
-              value={
-                pulse.daysRemaining === null
-                  ? "—"
-                  : pulse.daysRemaining < 0
-                    ? `${Math.abs(pulse.daysRemaining)}d over`
-                    : `${pulse.daysRemaining}d`
-              }
-              sub={
-                pulse.daysRemaining === null
-                  ? "No end date"
-                  : pulse.daysRemaining < 0
-                    ? "past deadline"
-                    : "to end date"
-              }
-              emphasize={
-                pulse.daysRemaining !== null && pulse.daysRemaining < 0
-              }
-            />
-            <PulseCell
-              label="Tasks done"
-              value={`${pulse.completedTasks}`}
-              sub={`of ${pulse.totalTasks}`}
-            />
-            <PulseCell
-              label="Members"
-              value={`${pulse.membersCount}`}
-              sub={pulse.membersCount === 1 ? "person" : "people"}
-            />
-            <PulseCell
-              label="Status updates"
-              value={`${statusUpdates.length}`}
-              sub={statusUpdates.length === 1 ? "posted" : "in history"}
-            />
-          </div>
-        </div>
-
         {/* Project description */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
@@ -1777,35 +1657,6 @@ export function ProjectOverview({
         sectionId={project.sections?.[0]?.id}
         defaultTaskType="MILESTONE"
       />
-    </div>
-  );
-}
-
-function PulseCell({
-  label,
-  value,
-  sub,
-  emphasize,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  emphasize?: boolean;
-}) {
-  return (
-    <div className="px-3 py-2.5">
-      <p className="text-[10px] uppercase tracking-[1.5px] text-slate-400 font-medium mb-1">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "text-lg font-semibold tabular-nums leading-none",
-          emphasize ? "text-black" : "text-slate-900"
-        )}
-      >
-        {value}
-      </p>
-      <p className="text-[11px] text-slate-500 mt-1 leading-tight">{sub}</p>
     </div>
   );
 }
