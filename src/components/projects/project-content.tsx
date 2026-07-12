@@ -62,7 +62,7 @@ import { WorkflowView } from "@/components/views/workflow-view";
 import { MessagesView } from "@/components/views/messages-view";
 import { FilesView } from "@/components/views/files-view";
 import { NotesView } from "@/components/views/notes-view";
-import { PortfolioWorkloadView } from "@/components/portfolios/portfolio-workload-view";
+import { WorkloadView } from "@/components/views/workload-view";
 import { ProjectTeamView } from "@/components/views/project-team-view";
 import { ProjectOverview } from "@/components/projects/project-overview";
 import { ProjectMembersDialog } from "@/components/projects/project-members-dialog";
@@ -1409,7 +1409,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             />
           )}
           {currentView === "workload" && (
-            <PortfolioWorkloadView projectId={project.id} />
+            <WorkloadView projectId={project.id} canEdit={canEditProject} />
           )}
         </div>
 

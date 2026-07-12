@@ -50,6 +50,7 @@ export async function GET(
         id: true,
         name: true,
         assigneeId: true,
+        startDate: true,
         dueDate: true,
         completed: true,
         projectId: true,
@@ -96,6 +97,8 @@ export async function GET(
             email: true,
             image: true,
             jobTitle: true,
+            position: true,
+            customTitle: true,
           },
         })
       : [];
@@ -103,6 +106,7 @@ export async function GET(
     return NextResponse.json({
       tasks: tasks.map((t) => ({
         ...t,
+        startDate: t.startDate ? t.startDate.toISOString() : null,
         dueDate: t.dueDate ? t.dueDate.toISOString() : null,
         estimatedMinutes: estimatedMinutesByTask.get(t.id) || 0,
       })),
