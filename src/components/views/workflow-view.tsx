@@ -1,6 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
@@ -424,8 +441,28 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     }
   };
 
-  // Drag-to-reorder stages (Asana's builder allows dragging cards).
-  const dragSecId = useRef<string | null>(null);
+  // Drag-to-reorder stages — dnd-kit for Asana-grade drag visuals
+  // (lifted overlay card follows the cursor, siblings shift live).
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  // Optimistic order so the pipeline doesn't snap back while the
+  // PATCH + router.refresh round-trip completes.
+  const [orderOverride, setOrderOverride] = useState<string[] | null>(null);
+  useEffect(() => {
+    setOrderOverride(null);
+  }, [sections]);
+  const orderedSections = useMemo(() => {
+    if (!orderOverride) return sections;
+    const byId = new Map(sections.map((s) => [s.id, s]));
+    const inOrder = orderOverride
+      .map((id) => byId.get(id))
+      .filter(Boolean) as Section[];
+    const missing = sections.filter((s) => !orderOverride.includes(s.id));
+    return [...inOrder, ...missing];
+  }, [sections, orderOverride]);
+
   const reorderSection = async (sectionId: string, position: number) => {
     try {
       const res = await fetch(`/api/sections/${sectionId}`, {
@@ -438,7 +475,24 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
       router.refresh();
     } catch {
       toast.error("Failed to move section");
+      setOrderOverride(null);
     }
+  };
+
+  const handleStageDragStart = (e: DragStartEvent) => {
+    setActiveDragId(String(e.active.id));
+  };
+
+  const handleStageDragEnd = (e: DragEndEvent) => {
+    setActiveDragId(null);
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const ids = orderedSections.map((s) => s.id);
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from === -1 || to === -1) return;
+    setOrderOverride(arrayMove(ids, from, to));
+    reorderSection(String(active.id), to);
   };
 
   // "+ Add section" pill and the "+" circles on the connectors —
@@ -621,50 +675,67 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
 
           <Connector onAdd={addSection} />
 
-          {/* Section cards with connectors */}
-          {sections.map((section, index) => (
-            <div key={section.id} className="flex items-start">
-              <SectionCard
-                section={section}
-                rules={rulesBySection[section.id] || []}
-                position={
-                  index === 0
-                    ? "first"
-                    : index === sections.length - 1
-                      ? "last"
-                      : "middle"
-                }
-                active={activeIdx === index + 1}
-                onSelect={() => setActiveIdx(index + 1)}
-                onPrev={() => setActiveIdx(index)}
-                onNext={() => setActiveIdx(index + 2)}
-                onAddAction={(type) => startAddAction(section.id, type)}
-                onRemoveAction={removeAction}
-                moveTriggers={moveTriggersFor(section.id)}
-                onAddMoveTrigger={() =>
-                  commitAction(
-                    { kind: "completion" },
-                    { type: "MOVE_TO_SECTION", sectionId: section.id }
-                  )
-                }
-                onRename={(name) => renameSection(section.id, name)}
-                onDelete={() =>
-                  deleteSection(section.id, section.tasks.length)
-                }
-                onDragStart={() => {
-                  dragSecId.current = section.id;
-                }}
-                onDropOn={() => {
-                  const dragged = dragSecId.current;
-                  dragSecId.current = null;
-                  if (dragged && dragged !== section.id) {
-                    reorderSection(dragged, index);
-                  }
-                }}
-              />
-              <Connector onAdd={addSection} />
-            </div>
-          ))}
+          {/* Section cards with connectors — dnd-kit sortable so the
+              drag feels like Asana (overlay card follows the cursor,
+              siblings shift live). */}
+          <DndContext
+            sensors={dndSensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleStageDragStart}
+            onDragEnd={handleStageDragEnd}
+            onDragCancel={() => setActiveDragId(null)}
+          >
+            <SortableContext
+              items={orderedSections.map((s) => s.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {orderedSections.map((section, index) => (
+                <SortableStage key={section.id} id={section.id}>
+                  <SectionCard
+                    section={section}
+                    rules={rulesBySection[section.id] || []}
+                    position={
+                      index === 0
+                        ? "first"
+                        : index === orderedSections.length - 1
+                          ? "last"
+                          : "middle"
+                    }
+                    active={activeIdx === index + 1}
+                    onSelect={() => setActiveIdx(index + 1)}
+                    onPrev={() => setActiveIdx(index)}
+                    onNext={() => setActiveIdx(index + 2)}
+                    onAddAction={(type) => startAddAction(section.id, type)}
+                    onRemoveAction={removeAction}
+                    moveTriggers={moveTriggersFor(section.id)}
+                    onAddMoveTrigger={() =>
+                      commitAction(
+                        { kind: "completion" },
+                        { type: "MOVE_TO_SECTION", sectionId: section.id }
+                      )
+                    }
+                    onRename={(name) => renameSection(section.id, name)}
+                    onDelete={() =>
+                      deleteSection(section.id, section.tasks.length)
+                    }
+                  />
+                  <Connector onAdd={addSection} />
+                </SortableStage>
+              ))}
+            </SortableContext>
+
+            {/* Lifted clone that follows the cursor while dragging */}
+            <DragOverlay>
+              {activeDragId ? (
+                <div className="w-[360px] bg-white rounded-lg border border-[#335FB5] shadow-2xl p-4 rotate-2 cursor-grabbing">
+                  <p className="text-xs text-[#626364] mb-0.5">Section</p>
+                  <h3 className="text-base font-medium text-slate-900 truncate">
+                    {orderedSections.find((s) => s.id === activeDragId)?.name}
+                  </h3>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
 
           {/* Project-wide completion card — fires when ANY task in the
               project flips to completed. Real automation, presented in
@@ -873,6 +944,37 @@ function WizardFooter({
       >
         {nextLabel}
       </button>
+    </div>
+  );
+}
+
+// Sortable wrapper for a stage (card + trailing connector) — dnd-kit
+// transforms give the live shift-aside motion while dragging; the
+// original dims and the DragOverlay clone follows the cursor.
+function SortableStage({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+      className={cn("flex items-start", isDragging && "opacity-40")}
+    >
+      {children}
     </div>
   );
 }
@@ -1180,8 +1282,6 @@ interface SectionCardProps {
   onAddMoveTrigger: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
-  onDragStart: () => void;
-  onDropOn: () => void;
 }
 
 function SectionCard({
@@ -1198,8 +1298,6 @@ function SectionCard({
   onAddMoveTrigger,
   onRename,
   onDelete,
-  onDragStart,
-  onDropOn,
 }: SectionCardProps) {
   const [renamingName, setRenamingName] = useState<string | null>(null);
   const incompleteCount = section.tasks.filter((t) => !t.completed).length;
@@ -1274,13 +1372,6 @@ function SectionCard({
 
       <div
         className={cn(CARD_BASE, cardBorder(active))}
-        draggable
-        onDragStart={onDragStart}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          onDropOn();
-        }}
         onClick={(e) => {
           e.stopPropagation();
           onSelect();
