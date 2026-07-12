@@ -84,6 +84,20 @@ interface ProjectMemberLite {
   jobTitle: string | null;
 }
 
+interface StatusUpdateRow {
+  id: string;
+  status: string;
+  summary: string;
+  sections?: { id: string; type: string; label: string; content: string }[] | null;
+  createdAt: string;
+  author: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  } | null;
+}
+
 interface MessageRow {
   id: string;
   content: string;
@@ -207,6 +221,8 @@ const QUICK_EMOJIS = ["👍", "🎉", "✅", "🚀", "👀", "💡"];
 export function MessagesView({
   scope: scopeProp,
   projectId,
+  projectName,
+  projectColor,
   currentUser,
 }: MessagesViewProps) {
   // Resolve effective scope: explicit prop wins; otherwise infer
@@ -329,6 +345,28 @@ export function MessagesView({
   // without yanking the viewport when the user is reading history.
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [hasNewBelow, setHasNewBelow] = useState(false);
+  // Asana's Messages tab: the composer is a collapsed bar at the top
+  // that expands in place; the feed below mixes messages and status
+  // updates, newest first.
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [statusUpdates, setStatusUpdates] = useState<StatusUpdateRow[]>([]);
+
+  // Status updates only exist for project scope (this component is
+  // shared with team/portfolio messages).
+  useEffect(() => {
+    if (scope.type !== "project") return;
+    let canceled = false;
+    fetch(`/api/projects/${scope.projectId}/status-updates`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (!canceled && Array.isArray(data)) setStatusUpdates(data);
+      })
+      .catch(() => {});
+    return () => {
+      canceled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope.type, scopeKey]);
   const [atBottom, setAtBottom] = useState(true);
 
   // Refs that the poll loop reads — avoids stale closures from the
@@ -537,22 +575,12 @@ export function MessagesView({
 
   // Auto-scroll on new messages — but only if the user was already
   // pinned to the bottom. Don't yank them mid-read.
-  const lastMessageId = messages[messages.length - 1]?.id;
-  useEffect(() => {
-    if (!atBottom) return;
-    const c = scrollContainerRef.current;
-    if (!c) return;
-    // requestAnimationFrame so the DOM has the new message before we
-    // measure heights.
-    requestAnimationFrame(() => {
-      c.scrollTop = c.scrollHeight;
-    });
-  }, [lastMessageId, atBottom]);
-
+  // Newest-first feed (Asana): new items land at the top, right under
+  // the composer — no chat-style auto-scroll to the bottom.
   const scrollToBottom = useCallback(() => {
     const c = scrollContainerRef.current;
     if (!c) return;
-    c.scrollTop = c.scrollHeight;
+    c.scrollTop = 0;
     setHasNewBelow(false);
   }, []);
 
@@ -1241,11 +1269,34 @@ export function MessagesView({
     toast.success("Link copied");
   };
 
-  // Sort: pinned first, then chronological (newest at bottom).
+  // Sort: pinned first, then newest first (Asana's Messages feed).
   const sorted = [...messages].sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1;
     if (!a.isPinned && b.isPinned) return 1;
-    return a.createdAt.localeCompare(b.createdAt);
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+
+  // Interleave status updates into the feed by date (Asana shows both).
+  const feed: (
+    | { kind: "message"; message: MessageRow; createdAt: string; pinned: boolean }
+    | { kind: "status"; update: StatusUpdateRow; createdAt: string; pinned: boolean }
+  )[] = [
+    ...sorted.map((m) => ({
+      kind: "message" as const,
+      message: m,
+      createdAt: m.createdAt,
+      pinned: m.isPinned,
+    })),
+    ...statusUpdates.map((u) => ({
+      kind: "status" as const,
+      update: u,
+      createdAt: u.createdAt,
+      pinned: false,
+    })),
+  ].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return b.createdAt.localeCompare(a.createdAt);
   });
 
   // ── Render ───────────────────────────────────────────────
@@ -1258,14 +1309,148 @@ export function MessagesView({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-50 relative">
-      {/* Messages list */}
+    <div className="flex-1 flex flex-col bg-white relative">
+      {/* Feed — Asana's Messages: composer bar on top, then messages +
+          status updates newest first, education card at the bottom. */}
       <div ref={scrollContainerRef} className="flex-1 overflow-auto">
         <div className="max-w-3xl mx-auto py-6 px-4 space-y-3">
-          {sorted.length === 0 ? (
-            <EmptyState />
+          {/* Composer — collapsed "Send message to members" bar that
+              expands in place (Asana pattern). */}
+          {!composerOpen ? (
+            <div className="flex items-center gap-2 pb-2">
+              <Avatar className="h-7 w-7 flex-shrink-0">
+                <AvatarImage src={currentUser?.image || ""} />
+                <AvatarFallback className="text-xs bg-[#d4b65a] text-white">
+                  {(currentUser?.name || "Y").charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={() => {
+                  setComposerOpen(true);
+                  requestAnimationFrame(() => inputRef.current?.focus());
+                }}
+                className="flex-1 h-9 px-3 rounded-[6px] border border-[#C4C6C8] text-sm text-slate-500 text-left hover:border-slate-500 bg-white"
+              >
+                Send message to members
+              </button>
+            </div>
           ) : (
-            sorted.map((m) => (
+            <div className="pb-2">
+              <div className="bg-white rounded-lg border border-[#E0E1E3] shadow-sm focus-within:border-[#335FB5] transition-colors">
+                {pendingFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 p-2 border-b">
+                    {pendingFiles.map((f, idx) => (
+                      <div
+                        key={`${f.name}-${idx}`}
+                        className="inline-flex items-center gap-1.5 bg-slate-50 border rounded-md pl-2 pr-1 py-1 text-xs text-slate-700"
+                      >
+                        {f.type.startsWith("image/") ? (
+                          <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 text-slate-400" />
+                        )}
+                        <span className="truncate max-w-[180px]">
+                          {f.name}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {formatBytes(f.size)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removePendingFile(idx)}
+                          className="p-0.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+                          aria-label="Remove"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-end gap-2">
+                  <Avatar className="h-8 w-8 m-2 flex-shrink-0">
+                    <AvatarImage src={currentUser?.image || ""} />
+                    <AvatarFallback className="text-xs bg-[#d4b65a] text-white">
+                      {(currentUser?.name || "Y").charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <MentionTextarea
+                    textareaRef={inputRef}
+                    value={newContent}
+                    onChange={setNewContent}
+                    members={members}
+                    onMentionAdd={(member) =>
+                      setMentionUserIds((prev) =>
+                        prev.includes(member.id)
+                          ? prev
+                          : [...prev, member.id]
+                      )
+                    }
+                    onSend={handleSend}
+                    placeholder="Send a message — Enter to send, Shift+Enter for newline. @ to mention."
+                    rows={3}
+                    maxLength={10000}
+                    disabled={sending}
+                    className="w-full outline-none text-sm py-3 resize-none bg-transparent min-h-[72px] max-h-[240px]"
+                  />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    hidden
+                    onChange={handleSelectFiles}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={sending}
+                    className="m-2 p-2 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-700 disabled:opacity-40 transition-colors"
+                    title="Attach files"
+                    aria-label="Attach files"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setComposerOpen(false)}
+                  className="text-sm text-slate-600 hover:underline px-2"
+                >
+                  Cancel
+                </button>
+                <Button
+                  size="sm"
+                  onClick={handleSend}
+                  disabled={
+                    (!newContent.trim() && pendingFiles.length === 0) ||
+                    sending
+                  }
+                  className="bg-[#4273D1] hover:bg-[#335FB5] text-white"
+                >
+                  {sending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "Send"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {feed.map((item) =>
+            item.kind === "status" ? (
+              <StatusUpdateCard
+                key={`status-${item.update.id}`}
+                update={item.update}
+                projectName={projectName}
+                projectColor={projectColor}
+              />
+            ) : (
+              ((m) => (
               <MessageItem
                 key={m.id}
                 message={m}
@@ -1336,120 +1521,12 @@ export function MessagesView({
                   })
                 }
               />
-            ))
+              ))(item.message)
+            )
           )}
-        </div>
-      </div>
 
-      {/* "New messages ↓" pill — only when user scrolled up and new
-          ones landed below them via the poll. Click jumps them down. */}
-      {hasNewBelow && (
-        <button
-          type="button"
-          onClick={scrollToBottom}
-          className="absolute left-1/2 -translate-x-1/2 bottom-[88px] z-10 px-3 py-1.5 rounded-full bg-[#c9a84c] text-white text-xs font-medium shadow-lg hover:bg-[#a8893a] transition-colors flex items-center gap-1.5"
-        >
-          New messages
-          <span aria-hidden>↓</span>
-        </button>
-      )}
-
-      {/* Composer fixed to the bottom of the panel */}
-      <div className="border-t bg-white">
-        <div className="max-w-3xl mx-auto p-4">
-          <div className="bg-white rounded-lg border focus-within:border-[#c9a84c] transition-colors">
-            {/* Pending file chips (above the textarea so they're
-                visible as the user types) */}
-            {pendingFiles.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 p-2 border-b">
-                {pendingFiles.map((f, idx) => (
-                  <div
-                    key={`${f.name}-${idx}`}
-                    className="inline-flex items-center gap-1.5 bg-slate-50 border rounded-md pl-2 pr-1 py-1 text-xs text-slate-700"
-                  >
-                    {f.type.startsWith("image/") ? (
-                      <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
-                    ) : (
-                      <FileText className="w-3.5 h-3.5 text-slate-400" />
-                    )}
-                    <span className="truncate max-w-[180px]">{f.name}</span>
-                    <span className="text-[10px] text-slate-400">
-                      {formatBytes(f.size)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removePendingFile(idx)}
-                      className="p-0.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600"
-                      aria-label="Remove"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-end gap-2">
-              <Avatar className="h-8 w-8 m-2 flex-shrink-0">
-                <AvatarImage src={currentUser?.image || ""} />
-                <AvatarFallback className="text-xs bg-[#d4b65a] text-white">
-                  {(currentUser?.name || "Y").charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <MentionTextarea
-                textareaRef={inputRef}
-                value={newContent}
-                onChange={setNewContent}
-                members={members}
-                onMentionAdd={(member) =>
-                  setMentionUserIds((prev) =>
-                    prev.includes(member.id) ? prev : [...prev, member.id]
-                  )
-                }
-                onSend={handleSend}
-                placeholder="Send a message — Enter to send, Shift+Enter for newline. @ to mention."
-                rows={1}
-                maxLength={10000}
-                disabled={sending}
-                className="w-full outline-none text-sm py-3 resize-none bg-transparent min-h-[40px] max-h-[200px]"
-              />
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                hidden
-                onChange={handleSelectFiles}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending}
-                className="m-2 p-2 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-700 disabled:opacity-40 transition-colors"
-                title="Attach files"
-                aria-label="Attach files"
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-              <Button
-                size="sm"
-                onClick={handleSend}
-                disabled={
-                  (!newContent.trim() && pendingFiles.length === 0) || sending
-                }
-                className="m-2 bg-black hover:bg-gray-900 text-white"
-              >
-                {sending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-          </div>
-          <p className="text-[10px] text-slate-400 mt-1.5 text-center">
-            Press Enter to send · Shift+Enter for a new line · Paperclip to
-            attach
-          </p>
+          {/* Education card — Asana closes the feed with it */}
+          <ConnectCard />
         </div>
       </div>
 
@@ -2244,20 +2321,155 @@ function MentionTextarea({
   );
 }
 
-// ─── Empty state ─────────────────────────────────────────────────
+// ─── Status update card — Asana renders project status updates in
+// the Messages feed as rich cards with a thick colored top accent
+// and Status / Project meta rows. ─────────────────────────────────
 
-function EmptyState() {
+const STATUS_CARD_VISUAL: Record<
+  string,
+  { borderT: string; chipBg: string; chipText: string; dot: string; label: string }
+> = {
+  ON_TRACK: {
+    borderT: "border-t-[#5DA182]",
+    chipBg: "bg-[#E9F5F0]",
+    chipText: "text-[#14865E]",
+    dot: "bg-[#5DA182]",
+    label: "On track",
+  },
+  AT_RISK: {
+    borderT: "border-t-[#F1BD6C]",
+    chipBg: "bg-[#FBF3E4]",
+    chipText: "text-[#8F6C1F]",
+    dot: "bg-[#F1BD6C]",
+    label: "At risk",
+  },
+  OFF_TRACK: {
+    borderT: "border-t-[#DE5F73]",
+    chipBg: "bg-[#FBE9EC]",
+    chipText: "text-[#B4304C]",
+    dot: "bg-[#DE5F73]",
+    label: "Off track",
+  },
+  ON_HOLD: {
+    borderT: "border-t-[#79ABFF]",
+    chipBg: "bg-[#EDF3FE]",
+    chipText: "text-[#335FB5]",
+    dot: "bg-[#79ABFF]",
+    label: "On hold",
+  },
+  COMPLETE: {
+    borderT: "border-t-[#5DA182]",
+    chipBg: "bg-[#E9F5F0]",
+    chipText: "text-[#14865E]",
+    dot: "bg-[#5DA182]",
+    label: "Complete",
+  },
+};
+
+function StatusUpdateCard({
+  update,
+  projectName,
+  projectColor,
+}: {
+  update: StatusUpdateRow;
+  projectName?: string;
+  projectColor?: string;
+}) {
+  const v = STATUS_CARD_VISUAL[update.status] || STATUS_CARD_VISUAL.ON_TRACK;
+  const authorName =
+    update.author?.name || update.author?.email || "Someone";
+  const filled = (update.sections || []).filter((s) => s.content.trim());
   return (
-    <div className="text-center py-16 px-4">
-      <div className="w-12 h-12 rounded-full bg-[#c9a84c]/10 mx-auto flex items-center justify-center mb-3">
-        <MessageSquare className="w-6 h-6 text-[#a8893a]" />
+    <div
+      className={cn(
+        "bg-white rounded-lg border border-[#E0E1E3] border-t-4 shadow-sm p-5",
+        v.borderT
+      )}
+    >
+      <h3 className="text-lg font-medium text-slate-900 mb-2">
+        Status update
+      </h3>
+      <div className="flex items-center gap-2 mb-4">
+        <Avatar className="h-6 w-6">
+          <AvatarImage src={update.author?.image || ""} />
+          <AvatarFallback className="text-[10px] bg-[#d4b65a] text-white">
+            {authorName.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-sm font-medium text-slate-900">
+          {authorName}
+        </span>
+        <span className="text-xs text-slate-400">
+          · {formatRelative(update.createdAt)}
+        </span>
       </div>
-      <h3 className="text-base font-semibold text-slate-900 mb-1">
-        Start the conversation
+
+      {/* Meta rows — Status / Project, like Asana */}
+      <div className="space-y-1.5 mb-4 text-xs">
+        <div className="flex items-center gap-6">
+          <span className="w-16 text-slate-500">Status</span>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded",
+              v.chipBg,
+              v.chipText
+            )}
+          >
+            <span className={cn("w-2 h-2 rounded-full", v.dot)} />
+            {v.label}
+          </span>
+        </div>
+        {projectName && (
+          <div className="flex items-center gap-6">
+            <span className="w-16 text-slate-500">Project</span>
+            <span className="inline-flex items-center gap-1.5 text-slate-700">
+              <span
+                className="w-3 h-3 rounded-[3px]"
+                style={{ backgroundColor: projectColor || "#79ABFF" }}
+              />
+              {projectName}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Body — structured blocks when present, plain summary otherwise */}
+      {filled.length > 0 ? (
+        <div className="space-y-3">
+          {filled.map((s) => (
+            <div key={s.id}>
+              <h4 className="text-base font-medium text-slate-900 mb-1">
+                {s.label}
+              </h4>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                {s.content}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-slate-700 whitespace-pre-wrap">
+          {update.summary}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Education card — Asana closes the Messages feed with it ─────
+
+function ConnectCard() {
+  return (
+    <div className="bg-white rounded-lg border border-[#E0E1E3] shadow-sm p-10 text-center">
+      <div className="w-14 h-14 rounded-full bg-[#FBE9EC] mx-auto flex items-center justify-center mb-4">
+        <MessageSquare className="w-7 h-7 text-[#DE5F73]" />
+      </div>
+      <h3 className="text-base font-medium text-slate-900 mb-1.5">
+        Connect your conversations to your work
       </h3>
       <p className="text-sm text-slate-500 max-w-md mx-auto">
-        Messages live here. Share updates, decisions, and questions —
-        they persist for the whole team to see.
+        Send a message to kick off projects, discuss tasks, or brainstorm
+        ideas. Messages stay with the project for the whole team to see.
       </p>
     </div>
   );
