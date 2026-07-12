@@ -164,6 +164,18 @@ async function runAction(
       });
       return;
 
+    case "MOVE_TO_SECTION":
+      // Move the task into the configured section (e.g. "when a task
+      // is completed → move it to Done"). Idempotent by nature; the
+      // direct prisma update does NOT re-enter the engine (rules are
+      // dispatched from the API layer), so no cascade loops.
+      if (!action.sectionId) return;
+      await prisma.task.update({
+        where: { id: ctx.taskId },
+        data: { sectionId: action.sectionId },
+      });
+      return;
+
     case "ADD_SUBTASK":
       // Idempotent: don't double-add the same-named subtask if the
       // rule re-fires on the same task. Subtasks share the parent's

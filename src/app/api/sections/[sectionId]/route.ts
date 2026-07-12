@@ -6,9 +6,12 @@ import { verifyProjectAccess, AuthorizationError, NotFoundError, getErrorStatus 
 
 const updateSectionSchema = z.object({
   name: z.string().min(1, "Section name is required").optional(),
+  // Target index among the project's sections (0-based). Used by the
+  // workflow builder's drag-to-reorder.
+  position: z.number().int().min(0).optional(),
 });
 
-// PATCH /api/sections/:sectionId - Rename a section
+// PATCH /api/sections/:sectionId - Rename and/or reorder a section
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ sectionId: string }> }
@@ -33,6 +36,24 @@ export async function PATCH(
 
     const body = await req.json();
     const data = updateSectionSchema.parse(body);
+
+    // Reorder: pull the project's sections in order, move this one to
+    // the requested index, and rewrite positions 0..n atomically.
+    if (data.position !== undefined) {
+      const siblings = await prisma.section.findMany({
+        where: { projectId: existingSection.projectId },
+        orderBy: { position: "asc" },
+        select: { id: true },
+      });
+      const ids = siblings.map((s) => s.id).filter((id) => id !== sectionId);
+      const target = Math.min(data.position, ids.length);
+      ids.splice(target, 0, sectionId);
+      await prisma.$transaction(
+        ids.map((id, idx) =>
+          prisma.section.update({ where: { id }, data: { position: idx } })
+        )
+      );
+    }
 
     const section = await prisma.section.update({
       where: { id: sectionId },

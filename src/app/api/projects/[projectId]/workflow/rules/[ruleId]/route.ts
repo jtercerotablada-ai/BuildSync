@@ -41,6 +41,10 @@ const actionSchema = z.discriminatedUnion("type", [
     type: z.literal("ADD_SUBTASK"),
     name: z.string().min(1).max(200),
   }),
+  z.object({
+    type: z.literal("MOVE_TO_SECTION"),
+    sectionId: z.string().min(1),
+  }),
 ]);
 
 const patchRuleSchema = z.object({

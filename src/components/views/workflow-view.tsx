@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
+  ArrowDown,
+  ArrowRight,
   CheckCircle,
   Users,
   MessageSquare,
+  MoreHorizontal,
   User,
   X,
   Info,
@@ -80,6 +83,7 @@ const ACTION_ICONS: Record<WorkflowActionType, React.ReactNode> = {
   ADD_TO_PROJECT: <Plus className="w-4 h-4" />,
   SET_PRIORITY: <Flag className="w-4 h-4" />,
   ADD_SUBTASK: <CheckCircle className="w-4 h-4" />,
+  MOVE_TO_SECTION: <ArrowRight className="w-4 h-4" />,
 };
 
 const PICKABLE_ACTIONS: WorkflowActionType[] = [
@@ -118,6 +122,8 @@ function makeDefaultAction(type: WorkflowActionType): WorkflowAction {
       return { type: "SET_PRIORITY", priority: "MEDIUM" };
     case "ADD_SUBTASK":
       return { type: "ADD_SUBTASK", name: "Follow up" };
+    case "MOVE_TO_SECTION":
+      return { type: "MOVE_TO_SECTION", sectionId: "" };
   }
 }
 
@@ -379,6 +385,62 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     toast.success("Public form link copied");
   };
 
+  // ── Section management from the builder (Asana's "…" menu + drag) ──
+  const renameSection = async (sectionId: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    try {
+      const res = await fetch(`/api/sections/${sectionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Section renamed");
+      router.refresh();
+    } catch {
+      toast.error("Failed to rename section");
+    }
+  };
+
+  const deleteSection = async (sectionId: string, taskCount: number) => {
+    if (
+      !confirm(
+        taskCount > 0
+          ? `Delete this section and its ${taskCount} task${taskCount === 1 ? "" : "s"}?`
+          : "Delete this section?"
+      )
+    )
+      return;
+    try {
+      const res = await fetch(`/api/sections/${sectionId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Section deleted");
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete section");
+    }
+  };
+
+  // Drag-to-reorder stages (Asana's builder allows dragging cards).
+  const dragSecId = useRef<string | null>(null);
+  const reorderSection = async (sectionId: string, position: number) => {
+    try {
+      const res = await fetch(`/api/sections/${sectionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ position }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Section moved");
+      router.refresh();
+    } catch {
+      toast.error("Failed to move section");
+    }
+  };
+
   // "+ Add section" pill and the "+" circles on the connectors —
   // appends a real section (same API the List view uses).
   const addSection = async () => {
@@ -499,6 +561,18 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
   // sections.length + 1 = the completion card.
   const completionIdx = sections.length + 1;
 
+  // "Move tasks to this section" trigger rules (completion-triggered
+  // MOVE_TO_SECTION actions) shown in the slot above each stage.
+  const moveTriggersFor = (sectionId: string) =>
+    completionRules
+      .flatMap((r) =>
+        (r.actions as WorkflowAction[]).map((a, idx) => ({ rule: r, a, idx }))
+      )
+      .filter(
+        (x) => x.a.type === "MOVE_TO_SECTION" && x.a.sectionId === sectionId
+      )
+      .map((x) => ({ ruleId: x.rule.id, actionIdx: x.idx }));
+
   return (
     <div
       className="h-full overflow-x-auto overflow-y-auto"
@@ -510,7 +584,7 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
       }}
       onClick={() => setActiveIdx(null)}
     >
-      <div className="min-h-full min-w-max px-8 py-10">
+      <div className="min-h-full min-w-max px-8 pt-28 pb-10">
         {/* Main Layout — horizontal pipeline like Asana's builder */}
         <div className="flex items-start">
           {/* Intro heading on the canvas */}
@@ -566,6 +640,27 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                 onNext={() => setActiveIdx(index + 2)}
                 onAddAction={(type) => startAddAction(section.id, type)}
                 onRemoveAction={removeAction}
+                moveTriggers={moveTriggersFor(section.id)}
+                onAddMoveTrigger={() =>
+                  commitAction(
+                    { kind: "completion" },
+                    { type: "MOVE_TO_SECTION", sectionId: section.id }
+                  )
+                }
+                onRename={(name) => renameSection(section.id, name)}
+                onDelete={() =>
+                  deleteSection(section.id, section.tasks.length)
+                }
+                onDragStart={() => {
+                  dragSecId.current = section.id;
+                }}
+                onDropOn={() => {
+                  const dragged = dragSecId.current;
+                  dragSecId.current = null;
+                  if (dragged && dragged !== section.id) {
+                    reorderSection(dragged, index);
+                  }
+                }}
               />
               <Connector onAdd={addSection} />
             </div>
@@ -1080,6 +1175,13 @@ interface SectionCardProps {
   onNext: () => void;
   onAddAction: (type: WorkflowActionType) => void;
   onRemoveAction: (ruleId: string, actionIdx: number) => void;
+  /** Completion-triggered MOVE_TO_SECTION rules targeting this stage. */
+  moveTriggers: { ruleId: string; actionIdx: number }[];
+  onAddMoveTrigger: () => void;
+  onRename: (name: string) => void;
+  onDelete: () => void;
+  onDragStart: () => void;
+  onDropOn: () => void;
 }
 
 function SectionCard({
@@ -1092,7 +1194,14 @@ function SectionCard({
   onNext,
   onAddAction,
   onRemoveAction,
+  moveTriggers,
+  onAddMoveTrigger,
+  onRename,
+  onDelete,
+  onDragStart,
+  onDropOn,
 }: SectionCardProps) {
+  const [renamingName, setRenamingName] = useState<string | null>(null);
   const incompleteCount = section.tasks.filter((t) => !t.completed).length;
 
   const ruleChips = rules.flatMap((r) =>
@@ -1119,21 +1228,124 @@ function SectionCard({
   const menuActions = PICKABLE_ACTIONS.filter((t) => !configured.has(t));
 
   return (
-    <div
-      className={cn(CARD_BASE, cardBorder(active))}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect();
-      }}
-    >
-      {/* Header */}
-      <p className="text-xs text-[#626364] mb-0.5">Section</p>
-      <h3
-        className="text-base font-medium text-slate-900 truncate"
-        title={section.name}
+    <div className="relative">
+      {/* "Add a trigger to move tasks to this section" slot — floats
+          above the ACTIVE card exactly like Asana's builder. */}
+      {active && (
+        <div
+          className="absolute bottom-full left-0 w-[360px] pb-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {moveTriggers.length > 0 ? (
+            <FilledRow
+              icon={<ArrowRight className="w-4 h-4" />}
+              label="Task completed → moved here"
+              onRemove={() =>
+                onRemoveAction(
+                  moveTriggers[0].ruleId,
+                  moveTriggers[0].actionIdx
+                )
+              }
+            />
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full rounded-lg border border-dashed border-[#C4C6C8] bg-white/60 px-3 py-2.5 text-xs text-[#626364] hover:border-[#626364] hover:text-slate-800 text-left"
+                >
+                  Add a trigger to move tasks to this section
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuItem onClick={onAddMoveTrigger} className="gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  When a task is completed
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <div className="flex justify-center text-[#626364]">
+            <ArrowDown className="w-4 h-4" />
+          </div>
+        </div>
+      )}
+
+      <div
+        className={cn(CARD_BASE, cardBorder(active))}
+        draggable
+        onDragStart={onDragStart}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          onDropOn();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect();
+        }}
       >
-        {section.name}
-      </h3>
+      {/* Header — eyebrow + name + Asana's "…" menu */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-[#626364] mb-0.5">Section</p>
+          {renamingName !== null ? (
+            <input
+              autoFocus
+              value={renamingName}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setRenamingName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  onRename(renamingName);
+                  setRenamingName(null);
+                }
+                if (e.key === "Escape") setRenamingName(null);
+              }}
+              onBlur={() => {
+                if (renamingName.trim() && renamingName !== section.name) {
+                  onRename(renamingName);
+                }
+                setRenamingName(null);
+              }}
+              className="w-full text-base font-medium text-slate-900 bg-transparent outline-none border-b-2 border-[#335FB5]"
+            />
+          ) : (
+            <h3
+              className="text-base font-medium text-slate-900 truncate"
+              title={section.name}
+            >
+              {section.name}
+            </h3>
+          )}
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              onClick={(e) => e.stopPropagation()}
+              className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex-shrink-0"
+              title="Section options"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem
+              onClick={() => setRenamingName(section.name)}
+              className="gap-2"
+            >
+              <Pencil className="w-4 h-4" />
+              Rename section
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDelete} className="gap-2 text-black">
+              <Trash2 className="w-4 h-4" />
+              Delete section
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {/* Incomplete-tasks chip */}
       <span className="inline-flex items-center gap-1 h-5 px-1.5 rounded bg-[#E8E9EA] text-xs text-slate-600 mt-2">
@@ -1193,6 +1405,7 @@ function SectionCard({
       </div>
 
       {active && <WizardFooter onPrev={onPrev} onNext={onNext} />}
+      </div>
     </div>
   );
 }
@@ -1222,13 +1435,17 @@ function CompletionCard({
   onAddAction,
   onRemoveAction,
 }: CompletionCardProps) {
-  const ruleChips = rules.flatMap((r) =>
-    (r.actions as WorkflowAction[]).map((a, idx) => ({
-      ruleId: r.id,
-      actionIdx: idx,
-      type: a.type,
-    }))
-  );
+  const ruleChips = rules
+    .flatMap((r) =>
+      (r.actions as WorkflowAction[]).map((a, idx) => ({
+        ruleId: r.id,
+        actionIdx: idx,
+        type: a.type,
+      }))
+    )
+    // MOVE_TO_SECTION completion rules render on their target
+    // section's trigger slot, not here.
+    .filter((c) => c.type !== "MOVE_TO_SECTION");
   const configured = new Set(ruleChips.map((c) => c.type));
   // MARK_COMPLETE is meaningless on an already-completed trigger.
   const suggestions = (["ADD_COMMENT", "ADD_TO_PROJECT"] as WorkflowActionType[]).filter(

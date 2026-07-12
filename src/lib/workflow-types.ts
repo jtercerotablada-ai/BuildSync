@@ -35,7 +35,11 @@ export type WorkflowAction =
       type: "SET_PRIORITY";
       priority: "NONE" | "LOW" | "MEDIUM" | "HIGH";
     }
-  | { type: "ADD_SUBTASK"; name: string };
+  | { type: "ADD_SUBTASK"; name: string }
+  // "Add a trigger to move tasks to this section" (Asana's builder
+  // slot above each stage): paired with a non-section trigger, it
+  // moves the task INTO the configured section.
+  | { type: "MOVE_TO_SECTION"; sectionId: string };
 
 export type WorkflowActionType = WorkflowAction["type"];
 
@@ -68,6 +72,7 @@ export const ACTION_LABELS: Record<WorkflowActionType, string> = {
   ADD_TO_PROJECT: "Add to another project",
   SET_PRIORITY: "Set priority",
   ADD_SUBTASK: "Add a subtask",
+  MOVE_TO_SECTION: "Move task to this section",
 };
 
 export const TRIGGER_LABELS: Record<WorkflowTriggerType, string> = {
