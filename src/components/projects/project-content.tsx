@@ -302,6 +302,9 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const { data: session } = useSession();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [createTaskType, setCreateTaskType] = useState<"TASK" | "MILESTONE">(
+    "TASK"
+  );
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [isStarred, setIsStarred] = useState(false);
 
@@ -1059,7 +1062,58 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               row below the view tabs (Asana parity). border-t adds
               the thin separator Asana uses between the two strips. */}
           {showToolbar && (
-            <div className="flex items-center justify-end gap-1 overflow-x-auto flex-nowrap border-t border-slate-100 py-1.5">
+            <div className="flex items-center justify-between gap-1 overflow-x-auto flex-nowrap border-t border-slate-100 py-1.5">
+              {/* Left — Asana's "Agregar tarea ▾" split button (List view;
+                  Timeline/Gantt carry their own toolbar copy). */}
+              <div className="flex items-center">
+                {(currentView === "list" || currentView === "board") && (
+                  <div className="flex items-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-r-none"
+                      onClick={() => {
+                        setCreateTaskType("TASK");
+                        handleAddTask();
+                      }}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add task
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-l-none border-l-0 px-1.5"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setCreateTaskType("TASK");
+                            handleAddTask();
+                          }}
+                        >
+                          Task
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setCreateTaskType("MILESTONE");
+                            handleAddTask();
+                          }}
+                        >
+                          Milestone
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
               {/* Filter */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1228,6 +1282,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                   Clear all
                 </Button>
               )}
+              </div>
             </div>
           )}
         </div>
@@ -1364,6 +1419,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
         onOpenChange={setShowCreateTask}
         projectId={project.id}
         sectionId={selectedSectionId || undefined}
+        defaultTaskType={createTaskType}
       />
 
       {/* Project Members Dialog — mounted regardless of owner. Project.ownerId

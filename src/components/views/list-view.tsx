@@ -176,14 +176,17 @@ interface ListViewProps {
   reorderDisabled?: boolean;
 }
 
-// Distinct per-level colors so High/Medium/Low read at a glance —
-// matches the PriorityTag palette used in the detail panel/modal.
+// Asana's enum-chip palette, measured in the real app: solid fills,
+// 4px radius, dark tinted text (Baja green / Media yellow / Alta red).
 const PRIORITY_COLORS = {
   NONE: "",
-  LOW: "bg-[#e1eefc] text-[#274a73] border border-[#c5dbf5]",
-  MEDIUM: "bg-[#fbeed3] text-[#7a5b1b] border border-[#e7d5a3]",
-  HIGH: "bg-[#fce4e4] text-[#a8323a] border border-[#f3c4c4]",
+  LOW: "bg-[#85D7A2] text-[#06321B]",
+  MEDIUM: "bg-[#F6D861] text-[#352B00]",
+  HIGH: "bg-[#FF878A] text-[#4F1A1D]",
 };
+
+// Shared Asana chip shape: solid, no border, 4px radius.
+const CHIP_BASE = "text-xs font-normal rounded border-0 px-2 py-0.5";
 
 const PRIORITY_LABELS = {
   NONE: "",
@@ -825,7 +828,7 @@ export function ListView({
           // in the header row. This is the only place we still draw
           // vertical dividers via per-cell borders — every other
           // body cell defers to the overlay.
-          className="hidden md:grid px-6 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-[#e6e9ef] [&>*]:flex [&>*]:items-center"
+          className="hidden md:grid px-6 py-2 text-xs font-normal text-[#626364] [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-[#e6e9ef] [&>*]:flex [&>*]:items-center"
           style={{ gridTemplateColumns: gridTemplate }}
         >
           <div onClick={(e) => e.stopPropagation()}>
@@ -967,9 +970,16 @@ export function ListView({
                     autoFocus
                   />
                 ) : (
-                  <span className="font-semibold text-slate-900">{section.name}</span>
+                  <span className="text-base font-medium text-slate-900">
+                    {section.name}
+                  </span>
                 )}
-                <span className="text-xs text-slate-400">{section.tasks.length}</span>
+                {/* Asana shows the count only while collapsed */}
+                {!expandedSections.has(section.id) && (
+                  <span className="text-xs text-slate-400">
+                    {section.tasks.length}
+                  </span>
+                )}
               </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1417,6 +1427,7 @@ function DueDateBadge({
 }) {
   const date = dueDateToLocalMidnight(dueDate);
   const isOverdue = !completed && isPast(date) && !isToday(date);
+  const isDueToday = !completed && isToday(date);
 
   let label = format(date, "MMM d");
   if (isToday(date)) label = "Today";
@@ -1425,12 +1436,16 @@ function DueDateBadge({
   return (
     <div
       className={cn(
-        "flex items-center gap-1 text-sm",
-        isOverdue ? "text-black" : "text-slate-600",
+        // Asana date tones: red overdue, green today — plain text.
+        "flex items-center gap-1 text-xs",
+        isOverdue
+          ? "text-[#B4304C]"
+          : isDueToday
+            ? "text-[#14865E]"
+            : "text-slate-600",
         completed && "text-slate-400"
       )}
     >
-      <Calendar className="h-3 w-3" />
       {label}
     </div>
   );
@@ -1707,7 +1722,7 @@ function SortableTaskRow({
           headers don't use this class so they stay naturally
           clean (no lines passing through). */}
       <div
-        className="hidden md:grid px-6 py-2 hover:bg-slate-50 cursor-pointer items-center border-t border-[#e6e9ef] group [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-[#e6e9ef] [&>*]:min-w-0"
+        className="hidden md:grid px-6 py-1.5 hover:bg-slate-50 cursor-pointer items-center border-t border-[#e6e9ef] group [&>*]:px-2 [&>*+*]:border-l [&>*+*]:border-[#e6e9ef] [&>*]:min-w-0"
         style={{ gridTemplateColumns: gridTemplate }}
         onClick={() => onTaskClick(task.id)}
       >
@@ -1845,24 +1860,27 @@ function SortableTaskRow({
               saveInlineEdit(task.id, "dueDate", dueStr);
             }}
             trigger={
-              <div className="cursor-pointer hover:bg-slate-100 rounded px-1 py-0.5 -mx-1">
+              <div className="cursor-pointer hover:bg-slate-100 rounded px-1 -mx-1">
                 {task.startDate || task.dueDate ? (
                   task.startDate && task.dueDate ? (
                     // Range present → "May 14 – 27" pill matching
                     // task-helpers.formatRangeLabel output.
                     <div
                       className={cn(
-                        "flex items-center gap-1 text-sm",
+                        // Asana date tones: red when overdue, green when
+                        // the range ends today — plain text, no icon.
+                        "flex items-center gap-1 text-xs",
                         !task.completed &&
-                          task.dueDate &&
                           isPast(dueDateToLocalMidnight(task.dueDate)) &&
                           !isToday(dueDateToLocalMidnight(task.dueDate))
-                          ? "text-black"
-                          : "text-slate-600",
+                          ? "text-[#B4304C]"
+                          : !task.completed &&
+                              isToday(dueDateToLocalMidnight(task.dueDate))
+                            ? "text-[#14865E]"
+                            : "text-slate-600",
                         task.completed && "text-slate-400"
                       )}
                     >
-                      <Calendar className="h-3 w-3" />
                       {formatRangeLabel(
                         dueDateToLocalMidnight(task.startDate),
                         dueDateToLocalMidnight(task.dueDate),
@@ -1878,8 +1896,7 @@ function SortableTaskRow({
                     />
                   ) : (
                     // Start only → "From May 14"
-                    <div className="flex items-center gap-1 text-sm text-slate-600">
-                      <Calendar className="h-3 w-3" />
+                    <div className="flex items-center gap-1 text-xs text-slate-600">
                       {formatRangeLabel(
                         dueDateToLocalMidnight(task.startDate!),
                         null,
@@ -1899,12 +1916,12 @@ function SortableTaskRow({
         <div onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="hover:bg-slate-100 rounded px-1 py-0.5 -mx-1 w-full text-left">
+              <button className="hover:bg-slate-100 rounded px-1 -mx-1 w-full text-left">
                 {task.priority && task.priority !== "NONE" ? (
                   <Badge
                     variant="secondary"
                     className={cn(
-                      "text-xs",
+                      CHIP_BASE,
                       PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS]
                     )}
                   >
@@ -1936,28 +1953,17 @@ function SortableTaskRow({
         <div onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="hover:bg-slate-100 rounded px-1 py-0.5 -mx-1 w-full text-left">
+              <button className="hover:bg-slate-100 rounded px-1 -mx-1 w-full text-left">
                 {(() => {
-                  // Display priority:
-                  //   1. completed → "Done" (gold)
-                  //   2. explicit taskStatus → that label + color
-                  //   3. dueDate in the past → "Overdue" (black)
-                  //   4. otherwise → "To do" (gold soft)
-                  if (task.completed) {
-                    return (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30"
-                      >
-                        Done
-                      </Badge>
-                    );
-                  }
+                  // Asana enum semantics: a chip renders ONLY when the
+                  // status field is explicitly set — no derived
+                  // Done/Overdue/To do pills (completion shows via the
+                  // check + strikethrough, lateness via the red date).
                   if (task.taskStatus === "ON_TRACK") {
                     return (
                       <Badge
                         variant="secondary"
-                        className="text-xs bg-[#dff1e6] text-[#1d6b3e] border-[#1d6b3e]/30"
+                        className={cn(CHIP_BASE, "bg-[#85D7A2] text-[#06321B]")}
                       >
                         On track
                       </Badge>
@@ -1967,7 +1973,7 @@ function SortableTaskRow({
                     return (
                       <Badge
                         variant="secondary"
-                        className="text-xs bg-[#fbeed3] text-[#7a5b1b] border-[#a8893a]/40"
+                        className={cn(CHIP_BASE, "bg-[#F6D861] text-[#352B00]")}
                       >
                         At risk
                       </Badge>
@@ -1977,34 +1983,13 @@ function SortableTaskRow({
                     return (
                       <Badge
                         variant="secondary"
-                        className="text-xs bg-black text-white border-black"
+                        className={cn(CHIP_BASE, "bg-[#FF878A] text-[#4F1A1D]")}
                       >
                         Off track
                       </Badge>
                     );
                   }
-                  if (
-                    task.dueDate &&
-                    isPast(dueDateToLocalMidnight(task.dueDate)) &&
-                    !isToday(dueDateToLocalMidnight(task.dueDate))
-                  ) {
-                    return (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs bg-gray-100 text-black border-gray-300"
-                      >
-                        Overdue
-                      </Badge>
-                    );
-                  }
-                  return (
-                    <Badge
-                      variant="secondary"
-                      className="text-xs bg-[#c9a84c]/10 text-[#a8893a] border-[#c9a84c]/30"
-                    >
-                      To do
-                    </Badge>
-                  );
+                  return <span className="text-slate-400 text-sm">---</span>;
                 })()}
               </button>
             </DropdownMenuTrigger>
