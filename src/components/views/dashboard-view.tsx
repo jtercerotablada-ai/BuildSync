@@ -1,15 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import {
-  Plus,
-  Filter,
-  MoreHorizontal,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  BarChart3,
-} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Plus, ListFilter, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -31,8 +24,11 @@ import {
   Pie,
   Cell,
   Legend,
+  AreaChart,
+  Area,
+  LabelList,
 } from "recharts";
-import { isPast, isToday } from "date-fns";
+import { isPast, isToday, format, subDays, startOfDay } from "date-fns";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
 
 // ============================================
@@ -73,24 +69,22 @@ interface DashboardViewProps {
 }
 
 // ============================================
-// COLORS
+// COLORS — Asana's Panel palette, measured in the real app:
+// charts are purple #9885F1 with the light #B8ACFF companion series,
+// axis text #626364, card ring #E0E1E3.
 // ============================================
 
-const COLORS = {
-  primary: "#a8893a", // purple
-  secondary: "#c9a84c", // blue
-  success: "#22C55E", // green
-  warning: "#F97316", // orange
-  danger: "#0a0a0a", // red
-  gray: "#9CA3AF", // gray
-  chart: ["#a8893a", "#c9a84c", "#22C55E", "#F97316", "#0a0a0a", "#c9a84c", "#14B8A6"],
-};
+const PURPLE = "#9885F1";
+const PURPLE_LIGHT = "#B8ACFF";
+const AXIS = "#626364";
 
 // ============================================
 // MAIN COMPONENT
 // ============================================
 
 export function DashboardView({ sections, projectId }: DashboardViewProps) {
+  const router = useRouter();
+
   // Flatten all tasks from sections
   const allTasks = useMemo(() => {
     return sections.flatMap((section) =>
@@ -100,6 +94,26 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
       }))
     );
   }, [sections]);
+
+  // createdAt/completedAt aren't part of the section props — fetch the
+  // raw rows once for the completion-over-time burnup (Asana's 4th chart).
+  const [timeRows, setTimeRows] = useState<
+    { createdAt?: string | null; completedAt?: string | null; completed: boolean }[]
+  >([]);
+  useEffect(() => {
+    let canceled = false;
+    fetch(`/api/tasks?projectId=${projectId}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (canceled) return;
+        const list = Array.isArray(data) ? data : data?.tasks || [];
+        setTimeRows(list);
+      })
+      .catch(() => {});
+    return () => {
+      canceled = true;
+    };
+  }, [projectId, sections]);
 
   // ============================================
   // KPI CALCULATIONS
@@ -124,48 +138,48 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
   // CHART DATA
   // ============================================
 
-  // Tasks by section
+  // Incomplete tasks by section (Asana: "Total de tareas sin finalizar
+  // por sección")
   const tasksBySection = useMemo(() => {
     return sections.map((section) => ({
-      name: section.name.length > 12 ? section.name.slice(0, 12) + "..." : section.name,
+      name:
+        section.name.length > 10
+          ? section.name.slice(0, 10) + "…"
+          : section.name,
       fullName: section.name,
       incomplete: section.tasks.filter((t) => !t.completed).length,
-      completed: section.tasks.filter((t) => t.completed).length,
-      total: section.tasks.length,
     }));
   }, [sections]);
 
-  // Tasks by status (for donut)
+  // Tasks by completion status (Asana donut: exactly two states —
+  // Finalizadas / Sin finalizar; no invented third segment).
   const tasksByStatus = useMemo(() => {
-    const data = [
-      { name: "Completed", value: kpis.completed, color: COLORS.success },
-      { name: "Incomplete", value: kpis.incomplete - kpis.overdue, color: COLORS.primary },
-      { name: "Overdue", value: kpis.overdue, color: COLORS.danger },
+    return [
+      { name: "Complete", value: kpis.completed, color: PURPLE_LIGHT },
+      { name: "Incomplete", value: kpis.incomplete, color: PURPLE },
     ].filter((item) => item.value > 0);
-    return data;
   }, [kpis]);
 
-  // Tasks by assignee
+  // Upcoming (incomplete) tasks by assignee (Asana lollipop chart)
   const tasksByAssignee = useMemo(() => {
-    const assigneeMap = new Map<string, { name: string; count: number; image: string | null }>();
+    const assigneeMap = new Map<
+      string,
+      { name: string; count: number; image: string | null }
+    >();
 
     allTasks.forEach((task) => {
-      if (task.assignee) {
-        const key = task.assignee.id;
-        const current = assigneeMap.get(key) || {
-          name: task.assignee.name || task.assignee.email || "Unknown",
-          count: 0,
-          image: task.assignee.image,
-        };
-        assigneeMap.set(key, { ...current, count: current.count + 1 });
-      }
+      if (task.completed) return;
+      const key = task.assignee ? task.assignee.id : "unassigned";
+      const name = task.assignee
+        ? task.assignee.name || task.assignee.email || "Unknown"
+        : "Unassigned";
+      const current = assigneeMap.get(key) || {
+        name,
+        count: 0,
+        image: task.assignee?.image || null,
+      };
+      assigneeMap.set(key, { ...current, count: current.count + 1 });
     });
-
-    // Add unassigned if there are any
-    const unassigned = allTasks.filter((t) => !t.assignee).length;
-    if (unassigned > 0) {
-      assigneeMap.set("unassigned", { name: "Unassigned", count: unassigned, image: null });
-    }
 
     return Array.from(assigneeMap.entries()).map(([id, data]) => ({
       id,
@@ -181,14 +195,40 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
     }));
   }, [allTasks]);
 
+  // Completion over time (Asana: "Finalización de tareas a lo largo del
+  // tiempo") — last 15 days; Total = tasks that existed by each day,
+  // Complete = cumulative completions by completedAt.
+  const completionOverTime = useMemo(() => {
+    const days: { name: string; Total: number; Complete: number }[] = [];
+    const today = startOfDay(new Date());
+    for (let i = 14; i >= 0; i--) {
+      const day = subDays(today, i);
+      const endOfThatDay = new Date(day.getTime() + 24 * 60 * 60 * 1000 - 1);
+      let total = 0;
+      let complete = 0;
+      for (const t of timeRows) {
+        const created = t.createdAt ? new Date(t.createdAt) : null;
+        if (created && created > endOfThatDay) continue;
+        total++;
+        const completedAt = t.completedAt ? new Date(t.completedAt) : null;
+        if (t.completed && (!completedAt || completedAt <= endOfThatDay)) {
+          if (completedAt) complete++;
+          else if (i === 0) complete++;
+        }
+      }
+      days.push({ name: format(day, "MM/dd"), Total: total, Complete: complete });
+    }
+    return days;
+  }, [timeRows]);
+
   // ============================================
   // RENDER
   // ============================================
 
   return (
-    <div className="flex-1 overflow-auto bg-slate-50 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="flex-1 overflow-auto bg-white p-6">
+      {/* Header — Asana shows a single "+ Agregar widget" control */}
+      <div className="flex items-center justify-between mb-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm">
@@ -197,81 +237,88 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => toast.info("Chart widget coming soon")}>Chart</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("KPI card coming soon")}>KPI card</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("Task list widget coming soon")}>Task list</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("Custom widget coming soon")}>Custom</DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => toast.info("Chart widget coming soon")}
+            >
+              Chart
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => toast.info("KPI card coming soon")}
+            >
+              KPI card
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <button className="text-sm text-black hover:text-black" onClick={() => toast.info("Invite comments coming soon")}>
-          Invite comments
-        </button>
       </div>
 
-      {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <KPICard
-          title="Completed tasks"
-          value={kpis.completed}
-          icon={<CheckCircle2 className="w-5 h-5 text-black" />}
-        />
-        <KPICard
-          title="Incomplete tasks"
-          value={kpis.incomplete}
-          icon={<Clock className="w-5 h-5 text-black" />}
-        />
-        <KPICard
-          title="Overdue tasks"
-          value={kpis.overdue}
-          icon={<AlertTriangle className="w-5 h-5 text-black" />}
-          highlight={kpis.overdue > 0 ? "danger" : undefined}
-        />
-        <KPICard
-          title="Total tasks"
-          value={kpis.total}
-          icon={<BarChart3 className="w-5 h-5 text-black" />}
-        />
+      {/* KPI tiles row — Asana order: Complete, Incomplete, Overdue, Total */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <KPICard title="Total complete tasks" value={kpis.completed} filterLabel="1 filter" />
+        <KPICard title="Total incomplete tasks" value={kpis.incomplete} filterLabel="1 filter" />
+        <KPICard title="Total overdue tasks" value={kpis.overdue} filterLabel="1 filter" />
+        <KPICard title="Total tasks" value={kpis.total} filterLabel="No filters" />
       </div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Bar Chart - Tasks by Section */}
-        <ChartCard title="Incomplete tasks by section">
-          {tasksBySection.some((s) => s.total > 0) ? (
+      {/* Charts grid — 2 columns, 4 cards like Asana's default Panel */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* 1. Column chart — incomplete tasks by section */}
+        <ChartCard
+          title="Total incomplete tasks by section"
+          filterLabel="2 filters"
+          onViewAll={() => router.push(`/projects/${projectId}?view=list`)}
+        >
+          {tasksBySection.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <BarChart
                 data={tasksBySection}
-                margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                margin={{ top: 20, right: 20, left: 0, bottom: 15 }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <CartesianGrid stroke="#E8E9EA" vertical={false} />
                 <XAxis
                   dataKey="name"
-                  axisLine={false}
+                  axisLine={{ stroke: "#C4C6C8" }}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: "#6B7280" }}
+                  angle={-30}
+                  textAnchor="end"
+                  tick={{ fontSize: 11, fill: AXIS }}
+                  interval={0}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: "#6B7280" }}
+                  tick={{ fontSize: 11, fill: AXIS }}
                   allowDecimals={false}
+                  label={{
+                    value: "Tasks (count)",
+                    angle: -90,
+                    position: "insideLeft",
+                    style: { fontSize: 10, fill: AXIS },
+                  }}
                 />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "white",
-                    border: "1px solid #E5E7EB",
+                    border: "1px solid #E0E1E3",
                     borderRadius: "8px",
                     boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
                   }}
-                  formatter={(value, name) => [value ?? 0, name === "incomplete" ? "Incomplete" : name]}
-                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                  formatter={(value) => [value ?? 0, "Incomplete"]}
+                  labelFormatter={(label, payload) =>
+                    payload?.[0]?.payload?.fullName || label
+                  }
                 />
                 <Bar
                   dataKey="incomplete"
-                  fill={COLORS.primary}
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={60}
-                />
+                  fill={PURPLE}
+                  maxBarSize={24}
+                  isAnimationActive={false}
+                >
+                  <LabelList
+                    dataKey="incomplete"
+                    position="top"
+                    style={{ fontSize: 11, fill: "#1D1F21" }}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -279,8 +326,12 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
           )}
         </ChartCard>
 
-        {/* Donut Chart - Tasks by Status */}
-        <ChartCard title="Tasks by completion status">
+        {/* 2. Donut — tasks by completion status, total in the center */}
+        <ChartCard
+          title="Total tasks by completion status"
+          filterLabel="1 filter"
+          onViewAll={() => router.push(`/projects/${projectId}?view=list`)}
+        >
           {tasksByStatus.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
@@ -288,24 +339,40 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
                   data={tasksByStatus}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={2}
+                  innerRadius={62}
+                  outerRadius={95}
+                  paddingAngle={0}
                   dataKey="value"
                   label={({ value }) => value}
                   labelLine={false}
+                  isAnimationActive={false}
                 >
                   {tasksByStatus.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
+                {/* Asana centers the grand total inside the ring */}
+                <text
+                  x="50%"
+                  y="50%"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  style={{ fontSize: 28, fontWeight: 400, fill: "#1D1F21" }}
+                >
+                  {kpis.total}
+                </text>
                 <Tooltip />
                 <Legend
                   verticalAlign="middle"
                   align="right"
                   layout="vertical"
-                  iconType="circle"
+                  iconType="square"
                   iconSize={10}
+                  formatter={(value) => (
+                    <span style={{ fontSize: 12, color: "#1D1F21" }}>
+                      {value}
+                    </span>
+                  )}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -313,61 +380,154 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
             <EmptyChartState message="No tasks to display" />
           )}
         </ChartCard>
-      </div>
 
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Bar Chart - Tasks by Assignee */}
-        <ChartCard title="Tasks by assignee">
+        {/* 3. Lollipop — upcoming tasks by assignee (Asana style: thin
+            stem + dot, avatar under each category) */}
+        <ChartCard
+          title="Total upcoming tasks by assignee"
+          filterLabel="2 filters"
+          onViewAll={() => router.push(`/projects/${projectId}?view=list`)}
+        >
           {tasksByAssignee.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={210}>
                 <BarChart
                   data={tasksByAssignee}
-                  layout="vertical"
-                  margin={{ top: 20, right: 30, left: 80, bottom: 5 }}
+                  margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <CartesianGrid stroke="#E8E9EA" vertical={false} />
                   <XAxis
-                    type="number"
-                    axisLine={false}
+                    dataKey="name"
+                    axisLine={{ stroke: "#C4C6C8" }}
                     tickLine={false}
-                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: AXIS }}
+                    interval={0}
                   />
                   <YAxis
-                    type="category"
-                    dataKey="name"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 12, fill: "#6B7280" }}
+                    tick={{ fontSize: 11, fill: AXIS }}
+                    allowDecimals={false}
                   />
-                  <Tooltip />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "white",
+                      border: "1px solid #E0E1E3",
+                      borderRadius: "8px",
+                    }}
+                    formatter={(value) => [value ?? 0, "Upcoming"]}
+                  />
                   <Bar
                     dataKey="tasks"
-                    fill={COLORS.warning}
-                    radius={[0, 4, 4, 0]}
-                    maxBarSize={30}
-                  />
+                    fill={PURPLE}
+                    shape={<LollipopBar />}
+                    maxBarSize={8}
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      dataKey="tasks"
+                      position="top"
+                      offset={12}
+                      style={{ fontSize: 11, fill: "#1D1F21" }}
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
 
-              {/* Avatars below chart */}
-              <div className="flex justify-center gap-6 mt-2">
-                {tasksByAssignee.slice(0, 5).map((assignee, i) => (
-                  <div key={i} className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full bg-[#d4b65a] flex items-center justify-center text-sm font-medium text-white">
-                      {assignee.initials}
+              {/* Avatars below the chart, one per category */}
+              <div className="flex justify-around mt-1 px-8">
+                {tasksByAssignee.slice(0, 8).map((assignee) => (
+                  <div key={assignee.id} className="flex flex-col items-center">
+                    <div className="w-7 h-7 rounded-full bg-[#d4b65a] flex items-center justify-center text-[11px] font-medium text-white overflow-hidden">
+                      {assignee.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={assignee.image}
+                          alt={assignee.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        assignee.initials
+                      )}
                     </div>
-                    <span className="text-xs text-slate-500 mt-1 truncate max-w-[60px]">
-                      {assignee.name.split(" ")[0]}
-                    </span>
                   </div>
                 ))}
               </div>
             </>
           ) : (
-            <EmptyChartState message="No assignees found" />
+            <EmptyChartState message="No upcoming tasks" />
           )}
+        </ChartCard>
+
+        {/* 4. Burnup — task completion over time (Total vs Complete) */}
+        <ChartCard
+          title="Task completion over time"
+          filterLabel="No filters"
+          onViewAll={() => router.push(`/projects/${projectId}?view=list`)}
+        >
+          <ResponsiveContainer width="100%" height={250}>
+            <AreaChart
+              data={completionOverTime}
+              margin={{ top: 20, right: 20, left: 0, bottom: 15 }}
+            >
+              <CartesianGrid stroke="#E8E9EA" vertical={false} />
+              <XAxis
+                dataKey="name"
+                axisLine={{ stroke: "#C4C6C8" }}
+                tickLine={false}
+                angle={-30}
+                textAnchor="end"
+                tick={{ fontSize: 10, fill: AXIS }}
+                interval={0}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: AXIS }}
+                allowDecimals={false}
+                label={{
+                  value: "Tasks (count)",
+                  angle: -90,
+                  position: "insideLeft",
+                  style: { fontSize: 10, fill: AXIS },
+                }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "white",
+                  border: "1px solid #E0E1E3",
+                  borderRadius: "8px",
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="Total"
+                stroke={PURPLE_LIGHT}
+                fill={PURPLE_LIGHT}
+                fillOpacity={0.55}
+                strokeWidth={1.5}
+                isAnimationActive={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="Complete"
+                stroke={PURPLE}
+                fill={PURPLE}
+                fillOpacity={0.7}
+                strokeWidth={1.5}
+                isAnimationActive={false}
+              />
+              <Legend
+                verticalAlign="bottom"
+                align="right"
+                iconType="square"
+                iconSize={10}
+                formatter={(value) => (
+                  <span style={{ fontSize: 12, color: "#1D1F21" }}>{value}</span>
+                )}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </ChartCard>
       </div>
     </div>
@@ -375,85 +535,94 @@ export function DashboardView({ sections, projectId }: DashboardViewProps) {
 }
 
 // ============================================
-// KPI CARD COMPONENT
+// LOLLIPOP BAR SHAPE — thin stem with a round head (Asana's
+// "upcoming by assignee" chart mark)
 // ============================================
 
-interface KPICardProps {
-  title: string;
-  value: number;
-  icon?: React.ReactNode;
-  filterCount?: number;
-  highlight?: "success" | "warning" | "danger";
+function LollipopBar(props: {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+}) {
+  const { x = 0, y = 0, width = 0, height = 0, fill = PURPLE } = props;
+  if (height <= 0) return <g />;
+  const cx = x + width / 2;
+  return (
+    <g>
+      <rect x={cx - 1} y={y} width={2} height={height} fill={fill} />
+      <circle cx={cx} cy={y} r={5} fill={fill} />
+    </g>
+  );
 }
 
-function KPICard({ title, value, icon, filterCount, highlight }: KPICardProps) {
+// ============================================
+// KPI TILE — Asana's stat card: 16px/500 title top-left, 48px/300
+// number centered, "≡ N filters" footer bottom-left. 8px radius,
+// 1px #E0E1E3 ring, no hover effects.
+// ============================================
+
+function KPICard({
+  title,
+  value,
+  filterLabel,
+}: {
+  title: string;
+  value: number;
+  filterLabel: string;
+}) {
   return (
-    <div
-      className={cn(
-        "bg-white rounded-xl border p-4 hover:shadow-md transition-shadow",
-        highlight === "danger" && "border-black bg-white",
-        highlight === "warning" && "border-black bg-white",
-        highlight === "success" && "border-black bg-white"
-      )}
-    >
-      <div className="flex items-start justify-between mb-2">
-        <h3 className="text-sm font-medium text-slate-600">{title}</h3>
-        {icon}
+    <div className="bg-white rounded-[8px] border border-[#E0E1E3] p-4 h-[168px] flex flex-col">
+      <h3 className="text-base font-medium text-slate-900">{title}</h3>
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-5xl font-light text-[#1D1F21] tabular-nums">
+          {value}
+        </p>
       </div>
-
-      <div className="flex items-end justify-between">
-        <div>
-          <p
-            className={cn(
-              "text-4xl font-bold",
-              highlight === "danger" && "text-black",
-              !highlight && "text-slate-900"
-            )}
-          >
-            {value}
-          </p>
-        </div>
+      <div className="flex items-center gap-1 text-xs text-slate-500">
+        <ListFilter className="w-3 h-3" />
+        {filterLabel}
       </div>
-
-      {filterCount !== undefined && (
-        <div className="mt-3 pt-3 border-t flex items-center text-xs text-slate-500">
-          <Filter className="w-3 h-3 mr-1" />
-          {filterCount} {filterCount === 1 ? "filter" : "filters"}
-        </div>
-      )}
     </div>
   );
 }
 
 // ============================================
-// CHART CARD COMPONENT
+// CHART CARD — Asana's widget card: 16px/500 title, chart body,
+// footer with "≡ N filters" left and a "View all" button right.
 // ============================================
 
-interface ChartCardProps {
+function ChartCard({
+  title,
+  filterLabel,
+  onViewAll,
+  children,
+}: {
   title: string;
+  filterLabel: string;
+  onViewAll?: () => void;
   children: React.ReactNode;
-}
-
-function ChartCard({ title, children }: ChartCardProps) {
+}) {
   return (
-    <div className="bg-white rounded-xl border p-4 hover:shadow-md transition-shadow">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-medium text-slate-900">{title}</h3>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => toast.info("Edit widget coming soon")}>Edit</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("Duplicate widget coming soon")}>Duplicate</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("Remove widget coming soon")}>Remove</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+    <div className="bg-white rounded-[8px] border border-[#E0E1E3] p-4 flex flex-col">
+      <h3 className="text-base font-medium text-slate-900 mb-3">{title}</h3>
+      <div className="flex-1">{children}</div>
+      <div className="flex items-center justify-between pt-3">
+        <span className="flex items-center gap-1 text-xs text-slate-500">
+          <ListFilter className="w-3 h-3" />
+          {filterLabel}
+        </span>
+        {onViewAll && (
+          <button
+            type="button"
+            onClick={onViewAll}
+            className="text-xs text-slate-700 border border-[#C4C6C8] rounded-[6px] px-2.5 py-1 hover:bg-slate-50"
+          >
+            View all
+          </button>
+        )}
       </div>
-
-      {children}
     </div>
   );
 }
