@@ -12,7 +12,10 @@ import {
   Users,
   CheckCircle2,
   CircleDot,
+  Diamond,
   FileText,
+  Folder,
+  MessageCircle,
   TrendingUp,
   Activity as ActivityIcon,
   Send,
@@ -20,6 +23,7 @@ import {
   Sparkles,
   Loader2,
 } from "lucide-react";
+import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -77,6 +81,26 @@ interface ProjectOverviewProps {
   // (ProjectContent) so the Overview can reuse the same modal as the
   // header avatars instead of navigating to a non-existent route.
   onManageMembers?: () => void;
+  // Open the task detail panel (milestone rows use it).
+  onTaskClick?: (taskId: string) => void;
+}
+
+interface MilestoneRow {
+  id: string;
+  name: string;
+  completed: boolean;
+  dueDate: string | null;
+}
+
+interface PortfolioLite {
+  id: string;
+  name: string;
+  status?: string | null;
+  owner?: {
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  } | null;
 }
 
 // Status Update block-builder section types. Matches the API enum.
@@ -177,45 +201,58 @@ interface ConnectedGoal {
   status: string;
 }
 
-// Monochrome + gold palette — matches the rest of the cockpit.
-// `border` is the left-accent color used by status update history cards.
+// Asana's semantic status palette (measured in the real app: the
+// "En curso" heading/top-bar green is #5DA182, its text #14865E).
+// `border` is the accent color used by status update cards.
 const STATUS_VISUAL: Record<
   ProjectStatusKey,
-  { dot: string; bg: string; text: string; border: string; label: string }
+  {
+    dot: string;
+    bg: string;
+    text: string;
+    border: string;
+    borderT: string;
+    label: string;
+  }
 > = {
   ON_TRACK: {
-    dot: "bg-[#c9a84c]",
-    bg: "bg-[#fdf7e8]",
-    text: "text-[#8a7028]",
-    border: "border-[#c9a84c]",
+    dot: "bg-[#5DA182]",
+    bg: "bg-[#E9F5F0]",
+    text: "text-[#14865E]",
+    border: "border-[#5DA182]",
+    borderT: "border-t-[#5DA182]",
     label: "On track",
   },
   AT_RISK: {
-    dot: "bg-[#a8893a]",
-    bg: "bg-[#f8eed4]",
-    text: "text-[#6e5a26]",
-    border: "border-[#a8893a]",
+    dot: "bg-[#F1BD6C]",
+    bg: "bg-[#FBF3E4]",
+    text: "text-[#8F6C1F]",
+    border: "border-[#F1BD6C]",
+    borderT: "border-t-[#F1BD6C]",
     label: "At risk",
   },
   OFF_TRACK: {
-    dot: "bg-black",
-    bg: "bg-slate-100",
-    text: "text-black",
-    border: "border-black",
+    dot: "bg-[#DE5F73]",
+    bg: "bg-[#FBE9EC]",
+    text: "text-[#B4304C]",
+    border: "border-[#DE5F73]",
+    borderT: "border-t-[#DE5F73]",
     label: "Off track",
   },
   ON_HOLD: {
-    dot: "bg-slate-500",
-    bg: "bg-slate-100",
-    text: "text-slate-700",
-    border: "border-slate-400",
+    dot: "bg-[#79ABFF]",
+    bg: "bg-[#EDF3FE]",
+    text: "text-[#335FB5]",
+    border: "border-[#79ABFF]",
+    borderT: "border-t-[#79ABFF]",
     label: "On hold",
   },
   COMPLETE: {
-    dot: "bg-[#c9a84c]",
-    bg: "bg-[#fdf7e8]",
-    text: "text-[#8a7028]",
-    border: "border-[#c9a84c]",
+    dot: "bg-[#5DA182]",
+    bg: "bg-[#E9F5F0]",
+    text: "text-[#14865E]",
+    border: "border-[#5DA182]",
+    borderT: "border-t-[#5DA182]",
     label: "Complete",
   },
 };
@@ -257,6 +294,7 @@ function initial(person: { name: string | null; email: string | null }) {
 export function ProjectOverview({
   project,
   onManageMembers,
+  onTaskClick,
 }: ProjectOverviewProps) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -318,6 +356,104 @@ export function ProjectOverview({
 
   // History pagination — start collapsed at 3, expand to full on demand.
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  // Asana Overview parity — Milestones + Connected portfolios sections.
+  const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
+  const [portfolios, setPortfolios] = useState<PortfolioLite[]>([]);
+  const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
+
+  useEffect(() => {
+    let canceled = false;
+    fetch(`/api/tasks?projectId=${project.id}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (canceled) return;
+        const list: MilestoneRow[] = (
+          Array.isArray(data) ? data : data?.tasks || []
+        )
+          .filter(
+            (t: { taskType?: string | null }) => t.taskType === "MILESTONE"
+          )
+          .map(
+            (t: {
+              id: string;
+              name: string;
+              completed: boolean;
+              dueDate: string | null;
+            }) => ({
+              id: t.id,
+              name: t.name,
+              completed: t.completed,
+              dueDate: t.dueDate,
+            })
+          )
+          .sort(
+            (a: MilestoneRow, b: MilestoneRow) =>
+              (a.dueDate ? new Date(a.dueDate).getTime() : Infinity) -
+              (b.dueDate ? new Date(b.dueDate).getTime() : Infinity)
+          );
+        setMilestones(list);
+      })
+      .catch(() => {});
+    fetch("/api/portfolios")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (canceled) return;
+        const arr = Array.isArray(data) ? data : [];
+        setPortfolios(
+          arr
+            .filter(
+              (p: {
+                projects?: { project?: { id: string } }[];
+              }) =>
+                (p.projects || []).some(
+                  (pp) => pp.project?.id === project.id
+                )
+            )
+            .map(
+              (p: {
+                id: string;
+                name: string;
+                status?: string | null;
+                owner?: PortfolioLite["owner"];
+              }) => ({
+                id: p.id,
+                name: p.name,
+                status: p.status,
+                owner: p.owner,
+              })
+            )
+        );
+      })
+      .catch(() => {});
+    return () => {
+      canceled = true;
+    };
+  }, [project.id, project.sections]);
+
+  const toggleMilestone = useCallback(
+    async (m: MilestoneRow) => {
+      setMilestones((prev) =>
+        prev.map((x) => (x.id === m.id ? { ...x, completed: !m.completed } : x))
+      );
+      try {
+        const res = await fetch(`/api/tasks/${m.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ completed: !m.completed }),
+        });
+        if (!res.ok) throw new Error();
+        router.refresh();
+      } catch {
+        setMilestones((prev) =>
+          prev.map((x) =>
+            x.id === m.id ? { ...x, completed: m.completed } : x
+          )
+        );
+        toast.error("Failed to update milestone");
+      }
+    },
+    [router]
+  );
   // Per-card expand — independent of pagination, so the structured blocks of
   // an update are viewable even when there are 3 or fewer updates (the
   // pagination toggle only appears at >3, previously stranding their content).
@@ -894,7 +1030,7 @@ export function ProjectOverview({
         {/* Project description */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-base font-semibold text-slate-900">
+            <h2 className="text-xl font-medium text-slate-900">
               Project description
             </h2>
             {canEdit && description !== seededDescription && (
@@ -924,7 +1060,7 @@ export function ProjectOverview({
         {/* Project roles */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-semibold text-slate-900">
+            <h2 className="text-xl font-medium text-slate-900">
               Project roles
             </h2>
             {onManageMembers && (
@@ -972,7 +1108,7 @@ export function ProjectOverview({
         {/* Connected goals — real fetch with graceful empty state */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-semibold text-slate-900">
+            <h2 className="text-xl font-medium text-slate-900">
               Connected goals
             </h2>
             {goals.length > 0 && (
@@ -1031,32 +1167,196 @@ export function ProjectOverview({
             </div>
           )}
         </div>
+
+        {/* Connected portfolios — Asana Overview section */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <h2 className="text-xl font-medium text-slate-900">
+              Connected portfolios
+            </h2>
+            <button
+              type="button"
+              onClick={() => router.push("/portfolios")}
+              className="text-slate-400 hover:text-slate-600"
+              title="Manage portfolios"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          {portfolios.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              This project isn&apos;t in a portfolio yet.
+            </p>
+          ) : (
+            <div>
+              {portfolios.map((p) => {
+                const v =
+                  STATUS_VISUAL[p.status as ProjectStatusKey] ||
+                  STATUS_VISUAL.ON_TRACK;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => router.push(`/portfolios/${p.id}`)}
+                    className="w-full flex items-center gap-3 py-2 border-b border-slate-100 hover:bg-slate-50 text-left"
+                  >
+                    <Folder className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <span className="text-sm font-medium text-slate-900 flex-1 truncate">
+                      {p.name}
+                    </span>
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 text-xs",
+                        v.text
+                      )}
+                    >
+                      <span
+                        className={cn("w-2 h-2 rounded-full", v.dot)}
+                      />
+                      {v.label}
+                    </span>
+                    {p.owner && (
+                      <span className="w-6 h-6 rounded-full bg-[#d4b65a] flex items-center justify-center text-[10px] font-medium text-white flex-shrink-0 overflow-hidden">
+                        {p.owner.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={p.owner.image}
+                            alt={p.owner.name || ""}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          (p.owner.name || p.owner.email || "?")[0]
+                        )}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Key resources — Asana Overview section */}
+        <div className="mb-6">
+          <h2 className="text-xl font-medium text-slate-900 mb-3">
+            Key resources
+          </h2>
+          <div className="border border-slate-200 rounded-lg p-6 bg-white text-center">
+            <p className="text-sm text-slate-500 max-w-[340px] mx-auto mb-4">
+              Align your team around a shared vision with a project brief and
+              supporting resources.
+            </p>
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(`/projects/${project.id}?view=notes`)
+                }
+                className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 hover:underline"
+              >
+                <FileText className="w-4 h-4 text-slate-400" />
+                Create project brief
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(`/projects/${project.id}?view=files`)
+                }
+                className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 hover:underline"
+              >
+                <Paperclip className="w-4 h-4 text-slate-400" />
+                Add links &amp; files
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Milestones — Asana Overview section */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <h2 className="text-xl font-medium text-slate-900">Milestones</h2>
+            <button
+              type="button"
+              onClick={() => setMilestoneDialogOpen(true)}
+              className="text-slate-400 hover:text-slate-600"
+              title="Add milestone"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+          <div>
+            {milestones.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center gap-3 py-2 border-b border-slate-100 hover:bg-slate-50 group"
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleMilestone(m)}
+                  title={
+                    m.completed ? "Mark incomplete" : "Mark milestone complete"
+                  }
+                >
+                  <Diamond
+                    className={cn(
+                      "w-4 h-4",
+                      m.completed
+                        ? "text-[#5DA182] fill-[#5DA182]"
+                        : "text-slate-400 hover:text-[#5DA182]"
+                    )}
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onTaskClick?.(m.id)}
+                  className={cn(
+                    "text-sm text-left flex-1 truncate text-slate-900 hover:underline",
+                    m.completed && "line-through text-slate-400"
+                  )}
+                >
+                  {m.name}
+                </button>
+                {m.dueDate && (
+                  <span className="text-xs text-slate-500 flex-shrink-0">
+                    {new Date(m.dueDate).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      timeZone: "UTC",
+                    })}
+                  </span>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setMilestoneDialogOpen(true)}
+              className="flex items-center gap-3 py-2 w-full text-left text-sm text-slate-400 hover:text-slate-600"
+            >
+              <Diamond className="w-4 h-4" />
+              Add milestone…
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Right Sidebar — Status + Activity */}
-      <div className="w-full lg:w-96 lg:border-l border-t lg:border-t-0 bg-slate-50 overflow-auto flex-shrink-0">
+      <div className="w-full lg:w-[330px] lg:border-l border-t lg:border-t-0 bg-white overflow-auto flex-shrink-0">
         <div className="p-4">
           {/* Current status */}
           <div className="mb-5">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className={cn("w-2.5 h-2.5 rounded-full", currentStatus.dot)} />
-                <h3
-                  className={cn(
-                    "text-base font-semibold",
-                    currentStatus.text
-                  )}
-                >
-                  {currentStatus.label}
-                </h3>
-              </div>
+              {/* Asana: big soft-colored status heading, no dot */}
+              <h3
+                className={cn("text-xl font-medium", currentStatus.text)}
+              >
+                {currentStatus.label}
+              </h3>
               {/* Only editors/owner can change the live status — the API
                   403s everyone else, so hide the control for read-only users. */}
               {canEdit && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="h-8 text-xs">
-                    Change
+                    Update status
                     <ChevronDown className="w-3.5 h-3.5 ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1235,6 +1535,43 @@ export function ProjectOverview({
             )}
           </div>
 
+          {/* Project date range + message-members shortcut (Asana rows) */}
+          <div className="mb-5 space-y-3">
+            {(project.startDate || project.endDate) && (
+              <div className="flex items-center gap-2 text-sm text-slate-700">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                {[
+                  project.startDate
+                    ? new Date(project.startDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        timeZone: "UTC",
+                      })
+                    : null,
+                  project.endDate
+                    ? new Date(project.endDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        timeZone: "UTC",
+                      })
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" – ")}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                router.push(`/projects/${project.id}?view=messages`)
+              }
+              className="flex items-center gap-2 text-sm font-medium text-[#335FB5] hover:underline"
+            >
+              <MessageCircle className="w-4 h-4" />
+              Send message to members
+            </button>
+          </div>
+
           {/* Status updates history */}
           <div className="mb-6">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[1.5px] text-slate-500 font-medium mb-3">
@@ -1267,8 +1604,9 @@ export function ProjectOverview({
                     <div
                       key={u.id}
                       className={cn(
-                        "bg-white rounded-lg border-l-4 p-3 shadow-sm",
-                        v.border
+                        // Asana: thick colored TOP accent on status cards
+                        "bg-white rounded-lg border border-slate-200 border-t-4 p-3 shadow-sm",
+                        v.borderT
                       )}
                     >
                       <div className="flex items-center gap-2 mb-1.5">
@@ -1430,6 +1768,15 @@ export function ProjectOverview({
           </div>
         </div>
       </div>
+
+      {/* Add-milestone dialog (Asana's "Agregar hito") */}
+      <CreateTaskDialog
+        open={milestoneDialogOpen}
+        onOpenChange={setMilestoneDialogOpen}
+        projectId={project.id}
+        sectionId={project.sections?.[0]?.id}
+        defaultTaskType="MILESTONE"
+      />
     </div>
   );
 }

@@ -1244,6 +1244,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             <ProjectOverview
               project={project}
               onManageMembers={() => setMembersDialogOpen(true)}
+              onTaskClick={handleTaskClick}
             />
           )}
           {currentView === "list" && (
