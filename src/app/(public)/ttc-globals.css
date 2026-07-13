@@ -4439,6 +4439,16 @@ img, svg {
     transform: translateX(-50%);
   }
 
+  /* Keep the logo centered on tap/hover/focus (touch fires :hover, and the
+     base .header__logo:hover scale(1.03) would otherwise drop the translateX
+     and shift the logo ~22px to the right). */
+  .header__logo:hover,
+  .header__logo:active,
+  .header__logo:focus,
+  .header__logo:focus-visible {
+    transform: translateX(-50%) scale(1.03);
+  }
+
   .header__logo-img {
     content: url('/ttc/img/logo-icon.svg');
     height: 44px;
