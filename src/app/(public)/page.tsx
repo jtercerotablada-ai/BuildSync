@@ -64,7 +64,7 @@ export default function HomePage() {
       {/* ESSENCE — single philosophy statement */}
       <EssenceSection />
 
-      {/* SERVICES (3 core) */}
+      {/* SERVICES */}
       <ServicesShowcase />
 
       {/* HOW WE WORK */}

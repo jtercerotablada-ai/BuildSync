@@ -6,9 +6,9 @@ import { ProjectCard } from '@/components/ttc/project-card';
 
 /**
  * "Our Work" — capability gallery. These are the areas of work the firm
- * takes on (reinforced-concrete design, recertification, safety inspection),
- * illustrated with representative imagery — not claimed, named case studies
- * (we don't fabricate client work). Swap in real project photos when available.
+ * takes on (reinforced-concrete structural design), illustrated with
+ * representative imagery — not claimed, named case studies (we don't
+ * fabricate client work). Swap in real project photos when available.
  */
 
 interface Capability {
@@ -27,21 +27,6 @@ const CAPABILITIES: Capability[] = [
     image: '/ttc/img/projects/project-05.jpg',
     en: { category: 'Reinforced Concrete', title: 'Foundation & Slab Design', desc: 'Shallow and deep foundations, mat foundations, and reinforced or post-tensioned slabs.' },
     es: { category: 'Concreto Armado', title: 'Cimentaciones y Losas', desc: 'Cimentaciones superficiales y profundas, losas de cimentación y losas armadas o postensadas.' },
-  },
-  {
-    image: '/ttc/img/projects/project-01.jpg',
-    en: { category: 'Recertification', title: '30-Year Recertification', desc: 'Structural & electrical recertification for Miami-Dade — 25 years for coastal buildings.' },
-    es: { category: 'Recertificacion', title: 'Recertificación de 30 Años', desc: 'Recertificación estructural y eléctrica para Miami-Dade — 25 años en zona costera.' },
-  },
-  {
-    image: '/ttc/img/projects/project-09.jpg',
-    en: { category: 'Building Safety', title: 'Building Safety Inspection', desc: 'Broward’s BSIP for buildings three stories and taller, under Florida Statute 553.899.' },
-    es: { category: 'Seguridad', title: 'Inspección de Seguridad', desc: 'El BSIP de Broward para edificios de tres pisos o más, bajo el Estatuto de Florida 553.899.' },
-  },
-  {
-    image: '/ttc/img/projects/project-10.jpg',
-    en: { category: 'Building Safety', title: 'Milestone Inspection', desc: 'Phase 1 & 2 milestone inspections for condominiums and cooperatives (SB-4-D).' },
-    es: { category: 'Seguridad', title: 'Inspección Milestone', desc: 'Inspecciones milestone Fase 1 y 2 para condominios y cooperativas (SB-4-D).' },
   },
   {
     image: '/ttc/img/projects/project-07.jpg',

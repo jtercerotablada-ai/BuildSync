@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: '%s · Tercero Tablada',
   },
   description:
-    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Structural engineering firm. Reinforced-concrete building design, building recertification (Miami-Dade), and building safety inspection (Broward BSIP / Florida SB-4-D). Registered P.E.',
+    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Structural engineering firm. Reinforced-concrete building design (ACI 318 / Florida Building Code) — foundations, columns, beams, slabs and shear walls. Permit-ready, stamped by a Registered P.E.',
   metadataBase: new URL('https://ttcivilstructural.com'),
   openGraph: {
     siteName: 'Tercero Tablada',
@@ -54,18 +54,17 @@ const organizationSchema = {
   logo: 'https://ttcivilstructural.com/ttc/img/logo-white.png',
   email: 'info@tercerotablada.com',
   description:
-    'Structural engineering firm. Registered P.E. Specializes in reinforced-concrete building design (ACI 318 / Florida Building Code), building recertification (Miami-Dade), and building safety inspections under Broward BSIP and Florida Statute 553.899.',
+    'Structural engineering firm. Registered P.E. Specializes in the structural design of reinforced-concrete buildings (ACI 318 / Florida Building Code) — foundations, columns, beams, slabs and shear walls, delivered permit-ready and P.E.-stamped.',
   knowsAbout: [
     'Reinforced Concrete Design',
     'Structural Engineering',
     'ACI 318',
-    'Building Recertification',
-    'Miami-Dade Recertification',
-    'Milestone Inspection',
-    'Building Safety Inspection Program',
-    'Broward BSIP',
-    'Florida Statute 553.899',
-    'Florida SB-4-D',
+    'Florida Building Code',
+    'Structural Design',
+    'Foundations',
+    'Columns and Beams',
+    'Concrete Slabs',
+    'Shear Walls',
   ],
   areaServed: [
     'Miami-Dade County, Florida',
@@ -88,8 +87,6 @@ const organizationSchema = {
   ],
   serviceType: [
     'Reinforced Concrete Design',
-    'Building Recertification',
-    'Building Safety Inspection',
   ],
 };
 

@@ -4,17 +4,17 @@ import React from 'react';
 import { useTranslation } from './language-provider';
 
 const STEPS_EN = [
-  { n: '01', t: 'Scope & Site Review', d: 'We review your project or building, gather the documents, and define the scope — a design brief or a Phase 1 inspection walkthrough.' },
-  { n: '02', t: 'Engineering & Analysis', d: 'We design or evaluate the structure against ACI 318 and the Florida Building Code, sizing every member with margin.' },
-  { n: '03', t: 'Documentation & P.E. Seal', d: 'We deliver clear, code-compliant, P.E.-stamped drawings or reports your building department can rely on — on time.' },
-  { n: '04', t: 'Permitting & Sign-Off', d: 'We support you through permitting and approvals — from a design permit to final recertification sign-off.' },
+  { n: '01', t: 'Scope & Site Review', d: 'We review your project, gather the documents, and define the scope — the loads, the geometry, and what the structure has to carry.' },
+  { n: '02', t: 'Engineering & Analysis', d: 'We design the structure against ACI 318 and the Florida Building Code, sizing every member with margin.' },
+  { n: '03', t: 'Documentation & P.E. Seal', d: 'We deliver clear, code-compliant, P.E.-stamped drawings your building department can rely on — on time.' },
+  { n: '04', t: 'Permitting & Sign-Off', d: 'We support you through permitting and approvals — answering plan-review comments until your permit is issued.' },
 ];
 
 const STEPS_ES = [
-  { n: '01', t: 'Alcance y Revisión de Sitio', d: 'Revisamos tu proyecto o edificio, reunimos los documentos y definimos el alcance — un brief de diseño o un recorrido de inspección Fase 1.' },
-  { n: '02', t: 'Ingeniería y Análisis', d: 'Diseñamos o evaluamos la estructura según ACI 318 y el Código de Construcción de Florida, dimensionando cada elemento con margen.' },
-  { n: '03', t: 'Documentación y Sello P.E.', d: 'Entregamos planos o informes claros, en cumplimiento y sellados por P.E. en los que tu departamento de construcción puede confiar — a tiempo.' },
-  { n: '04', t: 'Permiso y Certificación', d: 'Te acompañamos en permisos y aprobaciones — desde un permiso de diseño hasta la certificación final de recertificación.' },
+  { n: '01', t: 'Alcance y Revisión de Sitio', d: 'Revisamos tu proyecto, reunimos los documentos y definimos el alcance — las cargas, la geometría y lo que la estructura debe soportar.' },
+  { n: '02', t: 'Ingeniería y Análisis', d: 'Diseñamos la estructura según ACI 318 y el Código de Construcción de Florida, dimensionando cada elemento con margen.' },
+  { n: '03', t: 'Documentación y Sello P.E.', d: 'Entregamos planos claros, en cumplimiento y sellados por P.E. en los que tu departamento de construcción puede confiar — a tiempo.' },
+  { n: '04', t: 'Permiso y Aprobación', d: 'Te acompañamos en permisos y aprobaciones — respondiendo los comentarios de revisión hasta que se emita tu permiso.' },
 ];
 
 export function ProcessSection() {

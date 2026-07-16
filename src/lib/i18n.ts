@@ -12,11 +12,11 @@ export const dictionaries = {
     'nav.clientPortal': 'Client Portal',
 
     // Hero
-    'hero.badge': 'Reinforced Concrete Design & Building Safety',
+    'hero.badge': 'Reinforced Concrete Structural Design',
     'hero.titleLine1': 'Structural engineering',
     'hero.titleLine2': 'for buildings that endure.',
-    'hero.materials': 'REINFORCED CONCRETE DESIGN \u00b7 RECERTIFICATION \u00b7 BUILDING SAFETY INSPECTION',
-    'hero.desc': 'We design reinforced-concrete buildings and keep existing ones safe and compliant \u2014 from structural design to 30-year recertification and Building Safety Inspections across South Florida. Registered P.E.',
+    'hero.materials': 'REINFORCED CONCRETE DESIGN \u00b7 FOUNDATIONS \u00b7 COLUMNS \u00b7 BEAMS \u00b7 SLABS',
+    'hero.desc': 'We design reinforced-concrete buildings across South Florida \u2014 foundations, columns, beams, slabs, and shear walls \u2014 engineered for safety, efficiency, and code compliance. Permit-ready drawings stamped by a Registered P.E.',
     'hero.credential': 'Registered P.E.',
     'hero.viewProjects': 'Our Services',
     'hero.contactUs': 'Request a Consultation',
@@ -48,7 +48,7 @@ export const dictionaries = {
     'section.featuredProjects': 'Featured Projects',
     'section.whatWeDo': 'What We Do',
     'section.ourServices': 'Our Services',
-    'section.servicesSubtitle': 'Three focused structural services — reinforced-concrete building design, recertification, and building safety inspection — delivered and stamped by a Registered P.E.',
+    'section.servicesSubtitle': 'Complete structural design of reinforced-concrete buildings — from foundations to slabs — delivered permit-ready and stamped by a Registered P.E.',
     'section.ourPrinciples': 'Our Principles',
     'section.ourValues': 'Our Values',
     'section.aboutUs': 'About Us',
@@ -61,7 +61,7 @@ export const dictionaries = {
 
     // Projects
     'projects.title': 'Our Work',
-    'projects.subtitle': 'The structural work we take on — reinforced-concrete building design, recertification, and building safety inspections across South Florida.',
+    'projects.subtitle': 'The structural work we take on — reinforced-concrete building design across South Florida.',
     'projects.viewAll': 'View All Projects',
     'projects.filterAll': 'All',
     'projects.filterResidential': 'Residential',
@@ -141,8 +141,8 @@ export const dictionaries = {
     'about.title': 'About Us',
     'about.subtitle': 'A structural engineering firm — we design reinforced-concrete buildings and keep existing ones safe and compliant.',
     'about.heading': 'Engineered for Safety, Built to Last',
-    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. is a structural engineering firm focused on reinforced-concrete buildings — from new structural design to the recertification and safety inspection of existing structures. Every drawing and report is engineered and stamped by a Registered P.E.',
-    'about.p2': 'Our team brings combined experience of more than 30 years across high-rise, commercial, and residential structures. We know ACI 318, the Florida Building Code, the Miami-Dade recertification program, Broward’s Building Safety Inspection Program (BSIP), and the SB-4-D milestone-inspection requirements — and we guide owners and associations through them with clarity.',
+    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. is a structural engineering firm focused on reinforced-concrete buildings — foundations, columns, beams, slabs, and shear walls. Every drawing is engineered and stamped by a Registered P.E.',
+    'about.p2': 'Our team brings combined experience of more than 30 years across high-rise, commercial, and residential structures. We know ACI 318 and the Florida Building Code inside out — and we guide owners, architects, and developers through them with clarity.',
     'about.p3': 'We give building owners, developers, condominium associations, and property managers straight answers, permit-ready designs, and defensible reports that protect both the asset and the people inside it.',
 
     // Stats
@@ -179,7 +179,7 @@ export const dictionaries = {
     'option.other': 'Other',
 
     // CTA
-    'cta.ready': 'Need reinforced-concrete design, recertification, or a safety inspection?',
+    'cta.ready': 'Need reinforced-concrete structural design?',
     'cta.contact': 'Request a Consultation',
 
     // Engineering tools (live inside the Knowledge hub)
@@ -241,7 +241,7 @@ export const dictionaries = {
     'tool.slab.desc': 'One-way and two-way RC slab design per ACI 318-25 and ACI 318-19: Method 3 coefficients (9 cases), reinforcement with user-editable bar+spacing override and live φMn capacity verification (with tension-controlled εt-based φ reduction per §21.2.2), deflection (Branson Ie + edge-aware service moment + sustained-LL ψ + selectable Tabla 24.2.2 limit + Tabla 24.2.4.1.3 ξ multiplier), punching shear (with λ_s size factor, lightweight λ, stud rails per ACI 421.1), crack control. Live 3D model with column top reinforcement. 105 unit tests.',
 
     // Footer
-    'footer.tagline': 'Reinforced Concrete Design · Recertification · Building Safety Inspection',
+    'footer.tagline': 'Reinforced Concrete Design · Permit-Ready · P.E. Stamped',
     'footer.credential': 'Registered P.E.',
     'footer.mainOffice': 'Main Office',
     'footer.navigation': 'Navigation',
@@ -265,11 +265,11 @@ export const dictionaries = {
     'nav.clientPortal': 'Portal de Cliente',
 
     // Hero
-    'hero.badge': 'Dise\u00f1o de Concreto Armado y Seguridad de Edificios',
+    'hero.badge': 'Dise\u00f1o Estructural de Concreto Armado',
     'hero.titleLine1': 'Ingenier\u00eda estructural',
     'hero.titleLine2': 'para edificios que perduran.',
-    'hero.materials': 'DISE\u00d1O DE CONCRETO REFORZADO \u00b7 RECERTIFICACION \u00b7 INSPECCION DE SEGURIDAD',
-    'hero.desc': 'Dise\u00f1amos edificios de concreto armado y mantenemos los existentes seguros y en cumplimiento \u2014 desde el dise\u00f1o estructural hasta la recertificacion de 30 a\u00f1os e inspecciones de seguridad en el sur de Florida. P.E. registrado.',
+    'hero.materials': 'DISE\u00d1O DE CONCRETO REFORZADO \u00b7 CIMENTACIONES \u00b7 COLUMNAS \u00b7 VIGAS \u00b7 LOSAS',
+    'hero.desc': 'Dise\u00f1amos edificios de concreto armado en el sur de Florida \u2014 cimentaciones, columnas, vigas, losas y muros de cortante \u2014 para seguridad, eficiencia y cumplimiento. Planos listos para permiso, sellados por un P.E. registrado.',
     'hero.credential': 'P.E. Registrado',
     'hero.viewProjects': 'Nuestros Servicios',
     'hero.contactUs': 'Solicitar Consulta',
@@ -301,7 +301,7 @@ export const dictionaries = {
     'section.featuredProjects': 'Proyectos Destacados',
     'section.whatWeDo': 'Lo Que Hacemos',
     'section.ourServices': 'Nuestros Servicios',
-    'section.servicesSubtitle': 'Tres servicios estructurales enfocados — diseño de edificios de concreto armado, recertificacion e inspeccion de seguridad — entregados y sellados por un P.E. registrado.',
+    'section.servicesSubtitle': 'Diseño estructural completo de edificios de concreto armado — de la cimentacion a las losas — entregado listo para permiso y sellado por un P.E. registrado.',
     'section.ourPrinciples': 'Nuestros Principios',
     'section.ourValues': 'Nuestros Valores',
     'section.aboutUs': 'Sobre Nosotros',
@@ -314,7 +314,7 @@ export const dictionaries = {
 
     // Projects
     'projects.title': 'Nuestro Trabajo',
-    'projects.subtitle': 'El trabajo estructural que realizamos — diseño de edificios de concreto armado, recertificacion e inspecciones de seguridad en el sur de Florida.',
+    'projects.subtitle': 'El trabajo estructural que realizamos — diseño de edificios de concreto armado en el sur de Florida.',
     'projects.viewAll': 'Ver Todos los Proyectos',
     'projects.filterAll': 'Todos',
     'projects.filterResidential': 'Residencial',
@@ -394,8 +394,8 @@ export const dictionaries = {
     'about.title': 'Sobre Nosotros',
     'about.subtitle': 'Una firma de ingenieria estructural — diseñamos edificios de concreto armado y mantenemos los existentes seguros y en cumplimiento.',
     'about.heading': 'Diseñado para la Seguridad, Construido para Durar',
-    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. es una firma de ingenieria estructural enfocada en edificios de concreto armado — desde el diseño estructural nuevo hasta la recertificacion e inspeccion de seguridad de estructuras existentes. Cada plano e informe es diseñado y sellado por un P.E. registrado.',
-    'about.p2': 'Nuestro equipo cuenta con mas de 30 años de experiencia combinada en estructuras de gran altura, comerciales y residenciales. Conocemos ACI 318, el Codigo de Construccion de Florida, el programa de recertificacion de Miami-Dade, el Programa de Inspeccion de Seguridad de Edificios (BSIP) de Broward y los requisitos de inspeccion milestone SB-4-D — y guiamos a propietarios y asociaciones a traves de ellos con claridad.',
+    'about.p1': 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. es una firma de ingenieria estructural enfocada en edificios de concreto armado — cimentaciones, columnas, vigas, losas y muros de cortante. Cada plano es diseñado y sellado por un P.E. registrado.',
+    'about.p2': 'Nuestro equipo cuenta con mas de 30 años de experiencia combinada en estructuras de gran altura, comerciales y residenciales. Conocemos a fondo ACI 318 y el Codigo de Construccion de Florida — y guiamos a propietarios, arquitectos y desarrolladores a traves de ellos con claridad.',
     'about.p3': 'Damos a propietarios, desarrolladores, asociaciones de condominios y administradores respuestas claras, diseños listos para permiso e informes defendibles que protegen tanto el activo como a las personas que lo habitan.',
 
     // Stats
@@ -432,7 +432,7 @@ export const dictionaries = {
     'option.other': 'Otro',
 
     // CTA
-    'cta.ready': '¿Necesitas diseño de concreto, recertificacion o una inspeccion?',
+    'cta.ready': '¿Necesitas diseño estructural de concreto armado?',
     'cta.contact': 'Solicitar Consulta',
 
     // Engineering tools (product UI stays in English per workspace rule)
@@ -494,7 +494,7 @@ export const dictionaries = {
     'tool.slab.desc': 'Diseno de losas RC en una y dos direcciones segun ACI 318-25 y ACI 318-19: coeficientes Method 3 (9 casos), refuerzo editable con verificacion phi-Mn en vivo (incluyendo reduccion de phi por strain epsilon-t segun §21.2.2), deflexion (Ie de Branson + momento de servicio segun apoyos + fraccion sostenida psi de LL + selector Tabla 24.2.2 + multiplicador xi de Tabla 24.2.4.1.3), punzonamiento (con factor de tamano lambda_s, factor lambda de hormigon ligero, pernos ACI 421.1), control de fisuras. Modelo 3D en vivo con refuerzo superior sobre la columna. 105 tests unitarios.',
 
     // Footer
-    'footer.tagline': 'Diseño de Concreto Armado · Recertificacion · Inspeccion de Seguridad',
+    'footer.tagline': 'Diseño de Concreto Armado · Listo para Permiso · Sellado por P.E.',
     'footer.credential': 'P.E. Registrado',
     'footer.mainOffice': 'Oficina Principal',
     'footer.navigation': 'Navegacion',

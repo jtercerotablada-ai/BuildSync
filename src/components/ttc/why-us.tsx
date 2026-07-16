@@ -33,17 +33,17 @@ const Ico = {
 };
 
 const EN = [
-  { i: Ico.shield, t: 'Resident safety first', d: 'Independent, evidence-based assessments that put life-safety ahead of everything — because that is exactly what these inspections exist to protect.' },
-  { i: Ico.stamp, t: 'Signed by a Registered P.E.', d: 'Every recertification and milestone report is engineered and stamped by a licensed Professional Engineer — and accepted by building departments.' },
-  { i: Ico.clock, t: 'Ahead of your deadline', d: 'We track your recertification and milestone deadlines and deliver on time, so you never slip into non-compliance.' },
-  { i: Ico.report, t: 'Reports you can defend', d: 'Clear, thorough documentation that holds up with owners, boards, insurers, and the county — no ambiguity, no filler.' },
+  { i: Ico.shield, t: 'Safety first, with margin', d: 'Every member sized against ACI 318 and the Florida Building Code — designed to carry what the building will actually see, wind and all.' },
+  { i: Ico.stamp, t: 'Signed by a Registered P.E.', d: 'Every drawing is engineered and stamped by a licensed Professional Engineer — and accepted by building departments.' },
+  { i: Ico.clock, t: 'Permit-ready, on schedule', d: 'We deliver complete, coordinated drawings on time and answer plan-review comments until your permit is issued.' },
+  { i: Ico.report, t: 'Drawings you can build from', d: 'Clear, thorough documentation that holds up with owners, architects, contractors, and the county — no ambiguity, no filler.' },
 ];
 
 const ES = [
-  { i: Ico.shield, t: 'La seguridad primero', d: 'Evaluaciones independientes y basadas en evidencia que ponen la seguridad de vida por encima de todo — que es justo lo que estas inspecciones existen para proteger.' },
-  { i: Ico.stamp, t: 'Firmado por un P.E. registrado', d: 'Cada informe de recertificación e inspección milestone es diseñado y sellado por un Ingeniero Profesional licenciado — y aceptado por los departamentos de construcción.' },
-  { i: Ico.clock, t: 'Adelantados a tu plazo', d: 'Damos seguimiento a tus plazos de recertificación y milestone y entregamos a tiempo, para que nunca caigas en incumplimiento.' },
-  { i: Ico.report, t: 'Informes que puedes defender', d: 'Documentación clara y completa que se sostiene ante propietarios, juntas, aseguradoras y el condado — sin ambigüedad, sin relleno.' },
+  { i: Ico.shield, t: 'Seguridad primero, con margen', d: 'Cada elemento dimensionado según ACI 318 y el Código de Construcción de Florida — diseñado para soportar lo que el edificio realmente verá, viento incluido.' },
+  { i: Ico.stamp, t: 'Firmado por un P.E. registrado', d: 'Cada plano es diseñado y sellado por un Ingeniero Profesional licenciado — y aceptado por los departamentos de construcción.' },
+  { i: Ico.clock, t: 'Listo para permiso, a tiempo', d: 'Entregamos planos completos y coordinados a tiempo, y respondemos los comentarios de revisión hasta que se emita tu permiso.' },
+  { i: Ico.report, t: 'Planos con los que se construye', d: 'Documentación clara y completa que se sostiene ante propietarios, arquitectos, contratistas y el condado — sin ambigüedad, sin relleno.' },
 ];
 
 export function WhyUs() {

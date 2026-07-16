@@ -5,13 +5,12 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useTranslation } from './language-provider';
 
 /**
- * Service Area — the South-Florida municipalities where the firm offers
- * building recertification (Miami-Dade) and the Building Safety Inspection
- * Program / BSIP (Broward), rendered as numbered editorial grids per county.
- * Also a strong local-SEO signal.
+ * Service Area — the South-Florida municipalities the firm designs and permits
+ * in, rendered as numbered editorial grids per county. Also a strong
+ * local-SEO signal.
  *
- * Miami-Dade: the county recertification list ("Islandia", #29, omitted —
- * dissolved 2012). Broward: the county's 31 municipalities + unincorporated.
+ * Miami-Dade: the county's municipalities ("Islandia" omitted — dissolved
+ * 2012). Broward: the county's 31 municipalities + unincorporated.
  */
 
 const MIAMI_DADE = [
@@ -65,8 +64,8 @@ export function CoverageSection() {
     <>Coverage across <em>all</em> of South Florida.</>
   );
   const sub = es
-    ? 'Recertificación e inspección de seguridad de edificios en cada ciudad de Miami-Dade y Broward.'
-    : 'Building recertification and safety inspection in every city of Miami-Dade and Broward.';
+    ? 'Diseñamos y tramitamos permisos de estructuras de concreto armado en cada ciudad de Miami-Dade y Broward.'
+    : 'We design and permit reinforced-concrete structures in every city of Miami-Dade and Broward.';
 
   return (
     <section className="coverage" aria-label={label}>
@@ -92,12 +91,12 @@ export function CoverageSection() {
         >
           <CountyGroup
             name={es ? 'Condado de Miami-Dade' : 'Miami-Dade County'}
-            note={es ? 'Recertificación' : 'Recertification'}
+            note={`${MIAMI_DADE.length} ${es ? 'municipios' : 'municipalities'}`}
             items={MIAMI_DADE}
           />
           <CountyGroup
             name={es ? 'Condado de Broward' : 'Broward County'}
-            note={es ? 'Inspección de Seguridad (BSIP)' : 'Building Safety Inspection (BSIP)'}
+            note={`${BROWARD.length} ${es ? 'municipios' : 'municipalities'}`}
             items={BROWARD}
           />
         </motion.div>
