@@ -170,12 +170,19 @@ function dependencyElbowPath(
     return `M ${sx} ${sy} L ${ex} ${ey}`;
   }
 
-  const needWrap =
-    (sxOutDir > 0 && eInX < sOutX) || (sxOutDir < 0 && eInX > sOutX);
+  // The short 4-point elbow (out → drop at midX → in) is only legal when
+  // that single vertical leg sits on the correct side of BOTH ends: it has
+  // to leave `sx` heading `sxOutDir` AND reach `ex` from the `exInDir`
+  // side. Checking only the start (as this used to) breaks every arrow
+  // whose two stubs point the SAME way — FF (right→right) and SS
+  // (left→left): the leg dropped inside the dependent's bar and the last
+  // segment ran through it to the far edge, arrowhead pointing backwards.
+  const midX = (sOutX + eInX) / 2;
+  const leavesCorrectly = sxOutDir * (midX - sx) > 0;
+  const arrivesCorrectly = exInDir * (midX - ex) > 0;
 
   let pts: { x: number; y: number }[];
-  if (!needWrap) {
-    const midX = (sOutX + eInX) / 2;
+  if (leavesCorrectly && arrivesCorrectly) {
     pts = [
       { x: sx, y: sy },
       { x: midX, y: sy },
