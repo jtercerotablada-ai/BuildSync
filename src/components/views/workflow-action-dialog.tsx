@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   type WorkflowAction,
@@ -69,6 +69,11 @@ export function WorkflowActionDialog({
   const [users, setUsers] = useState<WorkflowUser[]>([]);
   const [projects, setProjects] = useState<WorkflowProject[]>([]);
   const [loadingTargets, setLoadingTargets] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  // Server-side search: the list used to be capped at whatever the
+  // endpoint returned first, so people further down were unreachable.
+  const [userQuery, setUserQuery] = useState("");
 
   // Per-action picked values
   const [pickedAssigneeId, setPickedAssigneeId] = useState<string | null>(null);
@@ -100,6 +105,7 @@ export function WorkflowActionDialog({
     let canceled = false;
     async function load() {
       setLoadingTargets(true);
+      setLoadError(false);
       try {
         if (
           actionType === "SET_ASSIGNEE" ||
@@ -107,32 +113,32 @@ export function WorkflowActionDialog({
         ) {
           // Workspace user search — same endpoint AssigneeSelector
           // uses. Empty query returns recent members.
-          const res = await fetch(`/api/users/search?q=`);
-          if (res.ok) {
-            const data = (await res.json()) as WorkflowUser[];
-            if (!canceled) setUsers(Array.isArray(data) ? data : []);
-          }
+          const res = await fetch(
+            `/api/users/search?q=${encodeURIComponent(userQuery)}`
+          );
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = (await res.json()) as WorkflowUser[];
+          if (!canceled) setUsers(Array.isArray(data) ? data : []);
         } else if (actionType === "ADD_TO_PROJECT") {
           // List of projects in the workspace, excluding the current
           // project (you can't "Add to another project" with itself).
           const res = await fetch(`/api/projects`);
-          if (res.ok) {
-            const data = (await res.json()) as Array<{
-              id: string;
-              name: string;
-              color: string | null;
-            }>;
-            if (!canceled) {
-              setProjects(
-                Array.isArray(data)
-                  ? data.filter((p) => p.id !== projectId)
-                  : []
-              );
-            }
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = (await res.json()) as Array<{
+            id: string;
+            name: string;
+            color: string | null;
+          }>;
+          if (!canceled) {
+            setProjects(
+              Array.isArray(data) ? data.filter((p) => p.id !== projectId) : []
+            );
           }
         }
       } catch {
-        if (!canceled) toast.error("Couldn't load options");
+        // A swallowed failure left an empty picker that looked like
+        // "no people exist" — surface it and offer a retry instead.
+        if (!canceled) setLoadError(true);
       } finally {
         if (!canceled) setLoadingTargets(false);
       }
@@ -141,7 +147,7 @@ export function WorkflowActionDialog({
     return () => {
       canceled = true;
     };
-  }, [open, actionType, projectId]);
+  }, [open, actionType, projectId, userQuery, retryKey]);
 
   // ─── Confirm button ──────────────────────────────────────────
   function handleConfirm() {
@@ -149,6 +155,13 @@ export function WorkflowActionDialog({
     let payload: WorkflowAction | null = null;
     switch (actionType) {
       case "SET_ASSIGNEE":
+        // Picking nobody used to save `userId: null`, i.e. a silent
+        // "unassign everyone who enters this section" rule — never what
+        // someone clicking "Set assignee" means.
+        if (!pickedAssigneeId) {
+          toast.error("Pick a person to assign");
+          return;
+        }
         payload = { type: "SET_ASSIGNEE", userId: pickedAssigneeId };
         break;
       case "ADD_COLLABORATORS":
@@ -211,20 +224,18 @@ export function WorkflowActionDialog({
               <p className="text-sm text-slate-500">
                 When a task enters this section, set the assignee to:
               </p>
+              <UserSearchBox value={userQuery} onChange={setUserQuery} />
               {loadingTargets ? (
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              ) : loadError ? (
+                <LoadFailed onRetry={() => setRetryKey((k) => k + 1)} />
               ) : (
                 <div className="space-y-1 max-h-72 overflow-auto border rounded-md">
-                  <button
-                    type="button"
-                    onClick={() => setPickedAssigneeId(null)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 text-left ${
-                      pickedAssigneeId === null && "bg-[#c9a84c]/10"
-                    }`}
-                  >
-                    <div className="w-6 h-6 rounded-full border-2 border-dashed border-slate-300" />
-                    <span>No assignee (unassign)</span>
-                  </button>
+                  {users.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-slate-400">
+                      No people found
+                    </p>
+                  )}
                   {users.map((u) => (
                     <button
                       key={u.id}
@@ -254,10 +265,18 @@ export function WorkflowActionDialog({
               <p className="text-sm text-slate-500">
                 When a task enters this section, add these collaborators:
               </p>
+              <UserSearchBox value={userQuery} onChange={setUserQuery} />
               {loadingTargets ? (
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              ) : loadError ? (
+                <LoadFailed onRetry={() => setRetryKey((k) => k + 1)} />
               ) : (
                 <div className="space-y-1 max-h-72 overflow-auto border rounded-md">
+                  {users.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-slate-400">
+                      No people found
+                    </p>
+                  )}
                   {users.map((u) => {
                     const checked = pickedCollaboratorIds.includes(u.id);
                     return (
@@ -429,5 +448,38 @@ export function WorkflowActionDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Server-side people search — the picker previously showed only the first
+ *  handful of workspace users with no way to reach anyone else. */
+function UserSearchBox({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search people…"
+        className="h-8 w-full rounded-md border border-slate-200 pl-7 pr-2 text-sm outline-none focus:border-slate-300"
+      />
+    </div>
+  );
+}
+
+function LoadFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-md border border-slate-200 py-6">
+      <p className="text-sm text-slate-500">Couldn&apos;t load options.</p>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        Retry
+      </Button>
+    </div>
   );
 }

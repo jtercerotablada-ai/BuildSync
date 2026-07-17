@@ -30,6 +30,7 @@ import {
   sendFormSubmitterReceiptEmail,
 } from "@/lib/email";
 import { notifyFormSubmitted } from "@/lib/form-notifications";
+import { executeRulesOnSectionChange } from "@/lib/workflow-engine";
 import {
   signTrackingToken,
   buildTrackingUrl,
@@ -358,6 +359,23 @@ export async function POST(
 
       return { submissionId: submission.id, taskId: createdTask.id };
     });
+
+    // ── Workflow rules for the landing section ────────────────
+    // Intake forms are the single most common reason to build a rule
+    // ("new request lands in Triage → assign the engineer"), and they
+    // silently skipped it. Fired after the transaction commits, since the
+    // engine uses the global prisma client (inside `tx` it would deadlock
+    // on the uncommitted row). Anonymous public submitters have no user
+    // row, so rule-authored comments/subtasks attribute to the project
+    // owner — the same fallback the task's creatorId uses above.
+    const actorForRules = submitterUserId || form.project.ownerId || null;
+    if (actorForRules) {
+      await executeRulesOnSectionChange(
+        { taskId: result.taskId, actorUserId: actorForRules },
+        targetSectionId,
+        form.projectId
+      );
+    }
 
     // ── Notifications (best-effort, soft-fail) ────────────────
     // Build a Q/A preview for the admin email.

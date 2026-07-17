@@ -103,6 +103,45 @@ const ACTION_ICONS: Record<WorkflowActionType, React.ReactNode> = {
   MOVE_TO_SECTION: <ArrowRight className="w-4 h-4" />,
 };
 
+/**
+ * Chip copy for a CONFIGURED action. The bare type label ("Set assignee")
+ * gave no clue what the rule actually does — you had to delete it and
+ * re-add to find out who it assigns to.
+ */
+function describeAction(
+  a: WorkflowAction,
+  people: Map<string, string>,
+  projects: Map<string, string>
+): string {
+  const who = (id: string) => people.get(id) ?? "someone";
+  switch (a.type) {
+    case "SET_ASSIGNEE":
+      return a.userId
+        ? `Set assignee · ${who(a.userId)}`
+        : "Unassign everyone";
+    case "ADD_COLLABORATORS": {
+      const names = (a.userIds ?? []).map(who);
+      if (names.length === 0) return ACTION_LABELS.ADD_COLLABORATORS;
+      if (names.length <= 2) return `Add collaborators · ${names.join(", ")}`;
+      return `Add collaborators · ${names[0]} +${names.length - 1}`;
+    }
+    case "ADD_COMMENT": {
+      const c = a.content.trim();
+      return `Add comment · “${c.length > 32 ? `${c.slice(0, 29)}…` : c}”`;
+    }
+    case "SET_PRIORITY":
+      return `Set priority · ${a.priority.charAt(0)}${a.priority
+        .slice(1)
+        .toLowerCase()}`;
+    case "ADD_SUBTASK":
+      return `Add a subtask · ${a.name}`;
+    case "ADD_TO_PROJECT":
+      return `Add to project · ${projects.get(a.projectId) ?? "another project"}`;
+    default:
+      return ACTION_LABELS[a.type];
+  }
+}
+
 const PICKABLE_ACTIONS: WorkflowActionType[] = [
   "SET_ASSIGNEE",
   "ADD_COLLABORATORS",
@@ -174,6 +213,48 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
     target: { kind: "section"; sectionId: string } | { kind: "completion" };
     actionType: WorkflowActionType;
   } | null>(null);
+
+  // Lookups so a configured chip can read "Set assignee · Juan" instead of
+  // the bare action name. Loaded once; a miss falls back to generic copy.
+  const [people, setPeople] = useState<Map<string, string>>(new Map());
+  const [projectsById, setProjectsById] = useState<Map<string, string>>(
+    new Map()
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [uRes, pRes] = await Promise.all([
+          fetch("/api/users/search?q="),
+          fetch("/api/projects"),
+        ]);
+        if (uRes.ok) {
+          const list = (await uRes.json()) as {
+            id: string;
+            name: string | null;
+            email: string | null;
+          }[];
+          if (!cancelled && Array.isArray(list)) {
+            setPeople(
+              new Map(list.map((u) => [u.id, u.name || u.email || "Unknown"]))
+            );
+          }
+        }
+        if (pRes.ok) {
+          const list = (await pRes.json()) as { id: string; name: string }[];
+          if (!cancelled && Array.isArray(list)) {
+            setProjectsById(new Map(list.map((p) => [p.id, p.name])));
+          }
+        }
+      } catch {
+        // Chips fall back to generic labels — not worth an error state.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Forms (Phase 3 source). Loaded once on mount alongside the
   // workflow so the Sources panel can render counts + public links
@@ -718,6 +799,8 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
                     onDelete={() =>
                       deleteSection(section.id, section.tasks.length)
                     }
+                    people={people}
+                    projectsById={projectsById}
                   />
                   <Connector onAdd={addSection} />
                 </SortableStage>
@@ -748,6 +831,8 @@ export function WorkflowView({ sections, projectId }: WorkflowViewProps) {
             onDone={() => setActiveIdx(null)}
             onAddAction={startAddCompletionAction}
             onRemoveAction={removeAction}
+            people={people}
+            projectsById={projectsById}
           />
 
           {/* "+ Add section" pill at the end of the pipeline */}
@@ -1282,6 +1367,10 @@ interface SectionCardProps {
   onAddMoveTrigger: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
+  /** userId → display name, for describing configured actions. */
+  people: Map<string, string>;
+  /** projectId → name, same purpose. */
+  projectsById: Map<string, string>;
 }
 
 function SectionCard({
@@ -1298,6 +1387,8 @@ function SectionCard({
   onAddMoveTrigger,
   onRename,
   onDelete,
+  people,
+  projectsById,
 }: SectionCardProps) {
   const [renamingName, setRenamingName] = useState<string | null>(null);
   const incompleteCount = section.tasks.filter((t) => !t.completed).length;
@@ -1307,6 +1398,7 @@ function SectionCard({
       ruleId: r.id,
       actionIdx: idx,
       type: a.type,
+      label: describeAction(a, people, projectsById),
     }))
   );
   const configured = new Set(ruleChips.map((c) => c.type));
@@ -1323,7 +1415,10 @@ function SectionCard({
         ]
       : SUGGESTIONS_BY_POSITION[position]
   ).filter((t) => !configured.has(t));
-  const menuActions = PICKABLE_ACTIONS.filter((t) => !configured.has(t));
+  // Every action stays offered: a section legitimately wants several of the
+  // same type (three "Add a subtask" for a checklist, "Add to another
+  // project" for two projects). Only the dashed SUGGESTIONS de-dupe.
+  const menuActions = PICKABLE_ACTIONS;
 
   return (
     <div className="relative">
@@ -1456,7 +1551,7 @@ function SectionCard({
           <FilledRow
             key={`${chip.ruleId}-${chip.actionIdx}`}
             icon={ACTION_ICONS[chip.type]}
-            label={ACTION_LABELS[chip.type]}
+            label={chip.label}
             onRemove={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
           />
         ))}
@@ -1515,6 +1610,8 @@ interface CompletionCardProps {
   onDone: () => void;
   onAddAction: (type: WorkflowActionType) => void;
   onRemoveAction: (ruleId: string, actionIdx: number) => void;
+  people: Map<string, string>;
+  projectsById: Map<string, string>;
 }
 
 function CompletionCard({
@@ -1525,6 +1622,8 @@ function CompletionCard({
   onDone,
   onAddAction,
   onRemoveAction,
+  people,
+  projectsById,
 }: CompletionCardProps) {
   const ruleChips = rules
     .flatMap((r) =>
@@ -1532,6 +1631,7 @@ function CompletionCard({
         ruleId: r.id,
         actionIdx: idx,
         type: a.type,
+        label: describeAction(a, people, projectsById),
       }))
     )
     // MOVE_TO_SECTION completion rules render on their target
@@ -1572,7 +1672,7 @@ function CompletionCard({
           <FilledRow
             key={`${chip.ruleId}-${chip.actionIdx}`}
             icon={ACTION_ICONS[chip.type]}
-            label={ACTION_LABELS[chip.type]}
+            label={chip.label}
             onRemove={() => onRemoveAction(chip.ruleId, chip.actionIdx)}
           />
         ))}

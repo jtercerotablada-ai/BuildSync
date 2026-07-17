@@ -32,7 +32,18 @@ export async function validateRuleTargets(
       userId?: string | null;
       userIds?: string[];
       projectId?: string;
+      sectionId?: string;
     };
+    // MOVE_TO_SECTION was never validated: a crafted rule could push this
+    // project's tasks into a section of a project the author can't even
+    // open (the engine re-checks too, but reject it at save time).
+    if (a.type === "MOVE_TO_SECTION" && a.sectionId) {
+      const section = await prisma.section.findFirst({
+        where: { id: a.sectionId, projectId: project.id },
+        select: { id: true },
+      });
+      if (!section) return "Target section doesn't belong to this project";
+    }
     if (a.type === "SET_ASSIGNEE" && a.userId) userIdsToCheck.add(a.userId);
     if (a.type === "ADD_COLLABORATORS" && Array.isArray(a.userIds)) {
       a.userIds.forEach((u) => userIdsToCheck.add(u));

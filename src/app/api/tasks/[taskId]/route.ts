@@ -3,7 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { GoalProgressService } from "@/lib/goal-progress";
-import { verifyTaskAccess, verifyProjectAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { verifyTaskAccess, verifyProjectAccess, assertSectionInWorkspace, getUserWorkspaceId, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import {
   executeRulesOnSectionChange,
   executeRulesOnTaskCompleted,
@@ -346,6 +346,15 @@ export async function PATCH(
     }
 
     if (data.sectionId !== undefined && data.sectionId !== existingTask.sectionId && updateData.sectionId === undefined) {
+      // Prove the destination section belongs to the caller's workspace.
+      // verifyTaskAccess above only authorizes the TASK — it never reads the
+      // body, so without this any writable task could be relocated into an
+      // arbitrary foreign section (and, via the workflow engine, fire that
+      // project's rules). Mirrors the guard /api/tasks/reorder already has.
+      if (data.sectionId !== null) {
+        const callerWorkspaceId = await getUserWorkspaceId(userId);
+        await assertSectionInWorkspace(data.sectionId, callerWorkspaceId);
+      }
       updateData.sectionId = data.sectionId;
       activities.push({
         type: "TASK_MOVED",

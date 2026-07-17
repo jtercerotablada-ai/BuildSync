@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getProjectAccess } from "@/lib/project-access";
 
 /**
  * GET /api/projects/:projectId/workflow
@@ -16,37 +17,16 @@ import { getCurrentUserId } from "@/lib/auth-utils";
  * lib/workflow-types.ts.
  */
 
+// Access uses the canonical project rule (getProjectAccess) — the same one
+// the page and the sibling dependencies endpoint use. The old inline check
+// here handed every workspace member the project's rules on WORKSPACE
+// visibility while 403'ing workspace admins on PRIVATE projects.
 async function assertProjectAccess(projectId: string, userId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: {
-      id: true,
-      ownerId: true,
-      visibility: true,
-      workspaceId: true,
-      members: { select: { userId: true, role: true } },
-    },
-  });
-
-  if (!project) return { ok: false as const, status: 404 };
-
-  const member = project.members.find((m) => m.userId === userId);
-  const isOwner = project.ownerId === userId;
-  const isMember = !!member;
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project, member };
+  const access = await getProjectAccess(projectId, userId);
+  if (!access.ok) {
+    return { ok: false as const, status: access.status };
   }
-
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project, member: null };
-  }
-
-  return { ok: false as const, status: 403 };
+  return { ok: true as const };
 }
 
 export async function GET(

@@ -6,6 +6,7 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 import { getUserWorkspaceId, verifyProjectAccess, verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { readJson, jsonErrorResponse } from "@/lib/http";
 import { notifyTaskAssigned } from "@/lib/task-notifications";
+import { executeRulesOnSectionChange } from "@/lib/workflow-engine";
 
 const createTaskSchema = z.object({
   name: z.string().min(1, "Task name is required"),
@@ -421,6 +422,32 @@ export async function POST(req: Request) {
       } catch (err) {
         console.error("[tasks POST] notifyTaskAssigned failed:", err);
       }
+    }
+
+    // A task created straight into a section has ENTERED that section just
+    // like a card dragged in from another column, so it fires the same
+    // rules (Asana's trigger is "task added to this section"). Without
+    // this, "+ Add task" inside a column silently skipped the automation
+    // while a drag into the same column ran it. Subtasks are excluded —
+    // section rules only govern top-level tasks. The engine never throws.
+    if (task.projectId && task.sectionId && !task.parentTaskId) {
+      await executeRulesOnSectionChange(
+        { taskId: task.id, actorUserId: userId },
+        task.sectionId,
+        task.projectId
+      );
+      // Rules may have just changed the row (assignee, priority, complete),
+      // so re-read rather than returning the pre-rule snapshot.
+      const fresh = await prisma.task.findUnique({
+        where: { id: task.id },
+        include: {
+          assignee: { select: { id: true, name: true, email: true, image: true } },
+          creator: { select: { id: true, name: true, email: true, image: true } },
+          project: { select: { id: true, name: true, color: true } },
+          section: { select: { id: true, name: true } },
+        },
+      });
+      if (fresh) return NextResponse.json(fresh, { status: 201 });
     }
 
     return NextResponse.json(task, { status: 201 });

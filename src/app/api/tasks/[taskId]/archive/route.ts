@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { executeRulesOnTaskCompleted } from "@/lib/workflow-engine";
+import { GoalProgressService } from "@/lib/goal-progress";
 
 // POST /api/tasks/:taskId/archive - Archive a task
 export async function POST(
@@ -21,7 +23,7 @@ export async function POST(
 
     const task = await prisma.task.findUnique({
       where: { id: taskId },
-      select: { id: true },
+      select: { id: true, completed: true, projectId: true },
     });
 
     if (!task) {
@@ -48,6 +50,21 @@ export async function POST(
         data: { archived: true },
       },
     });
+
+    // Archiving completes the task, so it owes the same side effects as
+    // any other completion: goal rollups and "when a task is completed"
+    // rules. Only on the false→true transition.
+    if (!task.completed) {
+      await GoalProgressService.recalculateForTask(taskId).catch((err) =>
+        console.error("[tasks archive] goal recalc failed:", err)
+      );
+      if (task.projectId) {
+        await executeRulesOnTaskCompleted(
+          { taskId, actorUserId: userId },
+          task.projectId
+        );
+      }
+    }
 
     return NextResponse.json({ archived: true });
   } catch (error) {
