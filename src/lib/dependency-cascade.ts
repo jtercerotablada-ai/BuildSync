@@ -20,9 +20,13 @@
  *
  * We never shift a task *earlier*. Dependencies only push forward.
  *
- * Cycle protection: the dependency-create endpoint already refuses to
- * create cycles, but we keep a visited-set here as defense in depth so
- * a corrupt graph can't hang the request.
+ * A task can have SEVERAL blockers (diamond graphs: A→B, A→C, B→D, C→D).
+ * Each one is a separate constraint, so a dependent must be re-evaluated
+ * every time one of its blockers moves — not just the first time we reach
+ * it. Cycle protection therefore counts *visits per task* rather than
+ * marking a task seen forever: the dependency-create endpoint already
+ * refuses cycles, and this bound keeps a corrupt graph from hanging the
+ * request while still letting every blocker have its say.
  */
 
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -131,6 +135,75 @@ function computeShiftedDates(
 }
 
 /**
+ * Apply ONE dependency edge (after it was created or retyped), then cascade
+ * onward from whatever it moved.
+ *
+ * Deliberately narrower than `cascadeDependentDates(tx, blockingTaskId)`:
+ * that would re-evaluate every OTHER edge out of the same blocker too, so
+ * retyping A→B could silently reschedule an unrelated A→C dependent the
+ * user never touched.
+ */
+export async function cascadeFromDependency(
+  tx: Prisma.TransactionClient | PrismaClient,
+  dependencyId: string
+): Promise<CascadeShift[]> {
+  const dep = await tx.taskDependency.findUnique({
+    where: { id: dependencyId },
+    include: {
+      blockingTask: { select: { id: true, startDate: true, dueDate: true } },
+      dependentTask: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          dueDate: true,
+          completed: true,
+        },
+      },
+    },
+  });
+  if (!dep || dep.dependentTask.completed) return [];
+
+  const result = computeShiftedDates(
+    dep.type as DependencyType,
+    { start: dep.dependentTask.startDate, end: dep.dependentTask.dueDate },
+    { start: dep.blockingTask.startDate, end: dep.blockingTask.dueDate }
+  );
+  if (!result) return [];
+
+  const sameStart =
+    (result.start?.getTime() ?? null) ===
+    (dep.dependentTask.startDate?.getTime() ?? null);
+  const sameEnd =
+    (result.end?.getTime() ?? null) ===
+    (dep.dependentTask.dueDate?.getTime() ?? null);
+  if (sameStart && sameEnd) return [];
+
+  await tx.task.update({
+    where: { id: dep.dependentTask.id },
+    data: { startDate: result.start, dueDate: result.end },
+  });
+
+  const shifts: CascadeShift[] = [
+    {
+      taskId: dep.dependentTask.id,
+      taskName: dep.dependentTask.name,
+      oldStart: dep.dependentTask.startDate,
+      oldEnd: dep.dependentTask.dueDate,
+      newStart: result.start,
+      newEnd: result.end,
+    },
+  ];
+
+  // Everything downstream of the task we just moved.
+  const downstream = await cascadeDependentDates(tx, dep.dependentTask.id);
+  for (const s of downstream) {
+    if (!shifts.some((x) => x.taskId === s.taskId)) shifts.push(s);
+  }
+  return shifts;
+}
+
+/**
  * Cascade date changes from `rootTaskId` outward through its dependent
  * tasks, persisting any shifted dates inside the supplied transaction.
  * Returns the list of shifts so the caller can surface them to the user.
@@ -155,7 +228,10 @@ export async function cascadeDependentDates(
   if (!root) return shifts;
   queue.push({ id: root.id, start: root.startDate, end: root.dueDate });
 
-  const visited = new Set<string>([root.id]);
+  // How many times each task has been re-evaluated. A task legitimately
+  // repeats once per blocker; the cap only exists to bound a cyclic graph.
+  const visits = new Map<string, number>([[root.id, 1]]);
+  const MAX_VISITS = 32;
 
   while (queue.length > 0) {
     const blocker = queue.shift()!;
@@ -177,22 +253,33 @@ export async function cascadeDependentDates(
 
     for (const dep of deps) {
       const dt = dep.dependentTask;
-      if (visited.has(dt.id)) continue;
-      visited.add(dt.id);
+      const seen = visits.get(dt.id) ?? 0;
+      if (seen >= MAX_VISITS) continue; // cyclic/pathological graph guard
+      visits.set(dt.id, seen + 1);
       // Completed tasks aren't auto-reshuffled — once it's done it's done.
       if (dt.completed) continue;
 
+      // Re-read the dependent: an earlier blocker in this same cascade may
+      // have already moved it, and `dependentTask` above is the snapshot
+      // from when the query ran.
+      const current = await tx.task.findUnique({
+        where: { id: dt.id },
+        select: { startDate: true, dueDate: true },
+      });
+      if (!current) continue;
+
       const result = computeShiftedDates(
         dep.type as DependencyType,
-        { start: dt.startDate, end: dt.dueDate },
+        { start: current.startDate, end: current.dueDate },
         { start: blocker.start, end: blocker.end }
       );
       if (!result) continue;
 
       const sameStart =
-        (result.start?.getTime() ?? null) === (dt.startDate?.getTime() ?? null);
+        (result.start?.getTime() ?? null) ===
+        (current.startDate?.getTime() ?? null);
       const sameEnd =
-        (result.end?.getTime() ?? null) === (dt.dueDate?.getTime() ?? null);
+        (result.end?.getTime() ?? null) === (current.dueDate?.getTime() ?? null);
       if (sameStart && sameEnd) continue;
 
       await tx.task.update({
@@ -200,14 +287,22 @@ export async function cascadeDependentDates(
         data: { startDate: result.start, dueDate: result.end },
       });
 
-      shifts.push({
-        taskId: dt.id,
-        taskName: dt.name,
-        oldStart: dt.startDate,
-        oldEnd: dt.dueDate,
-        newStart: result.start,
-        newEnd: result.end,
-      });
+      // Report one shift per task: fold repeats into the existing entry so
+      // the caller's "N tasks rescheduled" counts tasks, not edges.
+      const prior = shifts.find((s) => s.taskId === dt.id);
+      if (prior) {
+        prior.newStart = result.start;
+        prior.newEnd = result.end;
+      } else {
+        shifts.push({
+          taskId: dt.id,
+          taskName: dt.name,
+          oldStart: current.startDate,
+          oldEnd: current.dueDate,
+          newStart: result.start,
+          newEnd: result.end,
+        });
+      }
 
       // Continue cascading from the dependent's new schedule
       queue.push({ id: dt.id, start: result.start, end: result.end });

@@ -111,7 +111,6 @@ interface Project {
   id: string;
   name: string;
   description: string | null;
-  notes?: string | null;
   color: string;
   status: string;
   // Workspace-access level exposed in the Share dialog. Full project rows
@@ -1402,11 +1401,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             />
           )}
           {currentView === "notes" && (
-            <NotesView
-              projectId={project.id}
-              initialNotes={project.notes}
-              canEdit={canEditProject}
-            />
+            <NotesView projectId={project.id} canEdit={canEditProject} />
           )}
           {currentView === "workload" && (
             <WorkloadView projectId={project.id} canEdit={canEditProject} />

@@ -3,17 +3,18 @@
 /**
  * Notes view — Asana's full-page note editor, cloned 1:1.
  *
- * Layout: 50px formatting toolbar, sidebar-toggle gutter button, a centered
+ * Layout: 50px formatting toolbar, notes-list gutter button, a centered
  * ~600px document (editable title + rich-text body), template chips on an
- * empty note, and a floating "Enviar comentarios" button.
+ * empty note, and a floating "Send feedback" button.
  *
- * Storage: Project.notes holds JSON {"v":1,"title","html"} via
- * PATCH /api/projects/[id]. Legacy plain-text notes are converted to
- * paragraphs on load and migrate to the JSON shape on first edit.
+ * Storage: MANY notes per project (ProjectNote rows) via
+ * /api/projects/[id]/notes[/noteId]. The notes-list panel switches between
+ * them. A brand-new note is a local draft until its first non-empty save,
+ * so merely opening the tab never creates junk rows.
  * HTML is sanitized with DOMPurify on load, paste, and save.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 import {
   Plus,
@@ -45,6 +46,8 @@ import {
   ClipboardList,
   CalendarRange,
   FileText,
+  Trash2,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -58,7 +61,6 @@ import { toast } from "sonner";
 
 interface NotesViewProps {
   projectId: string;
-  initialNotes: string | null | undefined;
   canEdit: boolean;
 }
 
@@ -66,9 +68,23 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 
 // ─── Storage ───────────────────────────────────────────────────────────
 
+/** A ProjectNote row as returned by /api/projects/[id]/notes. */
+interface NoteRow {
+  id: string;
+  title: string;
+  content: string;
+  position: number;
+  updatedAt: string;
+}
+
 interface StoredNote {
   title: string;
   html: string;
+}
+
+/** Stable key for dirty-checking a note's editor content. */
+function noteKey(title: string, html: string): string {
+  return JSON.stringify([title, html]);
 }
 
 const SANITIZE_CONFIG = {
@@ -104,8 +120,9 @@ notesPurifier?.addHook("uponSanitizeAttribute", (_node, data) => {
   if (!data.attrValue) data.keepAttr = false;
 });
 
-// Matches the server-side zod limit on Project.notes.
+// Match the server-side zod limits on ProjectNote.
 const NOTES_MAX = 100000;
+const TITLE_MAX = 255;
 
 function sanitizeHtml(html: string): string {
   // SSR never renders note HTML (all innerHTML writes happen in effects).
@@ -121,32 +138,16 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function plainTextToHtml(text: string): string {
-  return text
-    .split(/\r?\n/)
-    .map((l) => (l.trim() ? `<p>${escapeHtml(l)}</p>` : "<p><br></p>"))
-    .join("");
-}
-
-function parseStoredNotes(raw: string | null | undefined): StoredNote {
-  if (!raw || !raw.trim()) return { title: "", html: "" };
-  if (raw.startsWith('{"v"')) {
-    try {
-      const p = JSON.parse(raw);
-      // Exact shape check (v === 1, both fields strings) so legacy plain
-      // text that happens to be foreign JSON falls through and is
-      // preserved verbatim instead of being reinterpreted and overwritten.
-      if (
-        p && typeof p === "object" && p.v === 1 &&
-        typeof p.title === "string" && typeof p.html === "string"
-      ) {
-        return { title: p.title, html: p.html };
-      }
-    } catch {
-      // fall through to plain-text handling
-    }
-  }
-  return { title: "", html: plainTextToHtml(raw) };
+/** Plain-text preview of a note's HTML for the notes list. */
+function snippetOf(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // "<p><br></p>" and friends count as blank; real structure (hr/li/pre) doesn't.
@@ -163,7 +164,7 @@ function computeBodyEmpty(el: HTMLElement | null): boolean {
 }
 
 // ─── Templates — Asana's chips on an empty note ────────────────────────
-// The meeting template mirrors Asana's stock "Notas de la reunión".
+// The meeting template mirrors Asana's stock "Meeting notes".
 
 interface NoteTemplate {
   key: string;
@@ -176,54 +177,54 @@ interface NoteTemplate {
 const NOTE_TEMPLATES: NoteTemplate[] = [
   {
     key: "meeting",
-    label: "Notas de la reunión",
+    label: "Meeting notes",
     Icon: CalendarDays,
-    title: "Notas de la reunión",
+    title: "Meeting notes",
     html:
-      "<h2>🗓️ ¿Cuál es la fecha?</h2><p><br></p>" +
-      "<h2>👥 Participantes</h2><ul><li>Usa @ para incluir participantes.</li></ul>" +
-      "<h2>📝 Agenda</h2><ul><li>Haz un seguimiento de los temas aquí.</li><li>Usa @ para vincular las tareas y los proyectos relevantes.</li></ul>" +
-      "<h2>✍️ Notas</h2><ul><li>Agrega notas aquí.</li></ul>" +
-      "<h2>🎯 Acciones pendientes</h2><ul><li>Agrega las actividades que se deben realizar.</li><li>Resalta el texto y selecciona “Crear tarea” para convertirlo en una tarea.</li></ul>" +
+      "<h2>🗓️ What's the date?</h2><p><br></p>" +
+      "<h2>👥 Attendees</h2><ul><li>Use @ to include attendees.</li></ul>" +
+      "<h2>📝 Agenda</h2><ul><li>Track the topics here.</li><li>Use @ to link relevant tasks and projects.</li></ul>" +
+      "<h2>✍️ Notes</h2><ul><li>Add notes here.</li></ul>" +
+      "<h2>🎯 Action items</h2><ul><li>Add the activities that need to happen.</li><li>Highlight text and select “Create task” to turn it into a task.</li></ul>" +
       "<hr>" +
-      "<h2>🗓️ Fecha anterior</h2><ul><li>Las notas de las reuniones anteriores se pueden agregar aquí.</li></ul>",
+      "<h2>🗓️ Previous date</h2><ul><li>Notes from previous meetings can be added here.</li></ul>",
   },
   {
     key: "context",
-    label: "Contexto del proyecto",
+    label: "Project context",
     Icon: ClipboardList,
-    title: "Contexto del proyecto",
+    title: "Project context",
     html:
-      "<h2>🌟 Descripción general</h2><ul><li>¿De qué trata este proyecto, en una o dos oraciones?</li></ul>" +
-      "<h2>🎯 Objetivos</h2><ul><li>¿Cómo se ve el éxito?</li></ul>" +
-      "<h2>🧭 Antecedentes</h2><ul><li>¿Por qué ahora? Decisiones clave y limitaciones hasta la fecha.</li></ul>" +
-      "<h2>🔗 Recursos relacionados</h2><ul><li>Vincula aquí especificaciones, planos, cálculos y documentos de referencia.</li></ul>",
+      "<h2>🌟 Overview</h2><ul><li>What is this project about, in one or two sentences?</li></ul>" +
+      "<h2>🎯 Goals</h2><ul><li>What does success look like?</li></ul>" +
+      "<h2>🧭 Background</h2><ul><li>Why now? Key decisions and constraints so far.</li></ul>" +
+      "<h2>🔗 Related resources</h2><ul><li>Link specs, drawings, calcs and reference docs here.</li></ul>",
   },
   {
     key: "resources",
-    label: "Recursos clave",
+    label: "Key resources",
     Icon: Link2,
-    title: "Recursos clave",
+    title: "Key resources",
     html:
-      "<h2>📄 Documentos</h2><ul><li>Vincula el resumen del proyecto, los contratos y las especificaciones.</li></ul>" +
-      "<h2>🔗 Enlaces</h2><ul><li>Agrega portales, unidades y herramientas externas.</li></ul>" +
-      "<h2>👥 Contactos</h2><ul><li>Cliente, contratista, inspector — nombres y correos.</li></ul>",
+      "<h2>📄 Documents</h2><ul><li>Link the project brief, contracts and specs.</li></ul>" +
+      "<h2>🔗 Links</h2><ul><li>Add portals, drives and external tools.</li></ul>" +
+      "<h2>👥 Contacts</h2><ul><li>Client, contractor, inspector — names and emails.</li></ul>",
   },
   {
     key: "weekly",
-    label: "Planificación semanal",
+    label: "Weekly planning",
     Icon: CalendarRange,
-    title: "Planificación semanal",
+    title: "Weekly planning",
     html:
-      "<h2>📅 Semana del…</h2><p><br></p>" +
-      "<h2>⭐ Prioridades principales</h2><ul><li>¿Qué debe completarse esta semana?</li></ul>" +
-      "<h2>📋 Por hacer</h2><ul><li><br></li></ul>" +
-      "<h2>🚧 Bloqueos</h2><ul><li>¿Qué está en el camino?</li></ul>" +
-      "<h2>✅ Logros</h2><ul><li>¿Qué avanzó?</li></ul>",
+      "<h2>📅 Week of…</h2><p><br></p>" +
+      "<h2>⭐ Top priorities</h2><ul><li>What must ship this week?</li></ul>" +
+      "<h2>📋 To do</h2><ul><li><br></li></ul>" +
+      "<h2>🚧 Blockers</h2><ul><li>What's in the way?</li></ul>" +
+      "<h2>✅ Wins</h2><ul><li>What moved forward?</li></ul>",
   },
   {
     key: "blank",
-    label: "Nota en blanco",
+    label: "Blank note",
     Icon: FileText,
     title: "",
     html: "",
@@ -237,25 +238,25 @@ type BlockAction =
   | "ul" | "ol" | "quote" | "codeblock" | "divider";
 
 const BLOCK_ITEMS: { action: BlockAction; label: string; Icon: LucideIcon }[] = [
-  { action: "p", label: "Texto normal", Icon: Pilcrow },
-  { action: "h1", label: "Título 1", Icon: Heading1 },
-  { action: "h2", label: "Título 2", Icon: Heading2 },
-  { action: "h3", label: "Título 3", Icon: Heading3 },
-  { action: "ul", label: "Lista con viñetas", Icon: List },
-  { action: "ol", label: "Lista numerada", Icon: ListOrdered },
-  { action: "quote", label: "Cita", Icon: TextQuote },
-  { action: "codeblock", label: "Bloque de código", Icon: SquareCode },
-  { action: "divider", label: "Separador", Icon: Minus },
+  { action: "p", label: "Normal text", Icon: Pilcrow },
+  { action: "h1", label: "Heading 1", Icon: Heading1 },
+  { action: "h2", label: "Heading 2", Icon: Heading2 },
+  { action: "h3", label: "Heading 3", Icon: Heading3 },
+  { action: "ul", label: "Bulleted list", Icon: List },
+  { action: "ol", label: "Numbered list", Icon: ListOrdered },
+  { action: "quote", label: "Quote", Icon: TextQuote },
+  { action: "codeblock", label: "Code block", Icon: SquareCode },
+  { action: "divider", label: "Divider", Icon: Minus },
 ];
 
 const FORMAT_LABELS: Record<string, string> = {
-  p: "Texto normal",
-  div: "Texto normal",
-  h1: "Título 1",
-  h2: "Título 2",
-  h3: "Título 3",
-  blockquote: "Cita",
-  pre: "Código",
+  p: "Normal text",
+  div: "Normal text",
+  h1: "Heading 1",
+  h2: "Heading 2",
+  h3: "Heading 3",
+  blockquote: "Quote",
+  pre: "Code",
 };
 
 const HIGHLIGHT_COLOR = "#FEF3C7";
@@ -291,10 +292,14 @@ interface MenuPos {
 
 // ─── Component ─────────────────────────────────────────────────────────
 
-export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) {
+export function NotesView({ projectId, canEdit }: NotesViewProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLDivElement | null>(null);
 
+  const [notes, setNotes] = useState<NoteRow[]>([]);
+  // null = an unsaved draft (a brand-new note that has no row yet).
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [titleEmpty, setTitleEmpty] = useState(true);
   const [bodyEmpty, setBodyEmpty] = useState(true);
@@ -314,79 +319,180 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
   // ── Save machinery: contentRef always holds the latest title/body so the
   // unmount flush works after editorRef detaches. Sanitizes at save time.
   const contentRef = useRef<StoredNote>({ title: "", html: "" });
-  const lastSavedRef = useRef<string>("");
+  const lastSavedRef = useRef<string>(noteKey("", ""));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  // One AbortController PER NOTE: a save for note B must never abort note
+  // A's in-flight PATCH (selectNote flushes A then rebinds to B at once).
+  const abortsRef = useRef<Map<string, AbortController>>(new Map());
   const projectIdRef = useRef(projectId);
   projectIdRef.current = projectId;
+  // The note the editor is currently bound to, readable synchronously from
+  // save() so a debounce that fires mid-switch still targets the note it
+  // was scheduled for.
+  const activeIdRef = useRef<string | null>(null);
+  activeIdRef.current = activeId;
+  // Identity of the current unsaved draft. Drafts have no id, so `null`
+  // alone can't tell "my draft is still active" from "a DIFFERENT draft is
+  // active now" — without this, a POST resolving after "+ New note" adopts
+  // the created row and the next save blanks it.
+  const draftSeqRef = useRef(0);
+  // In-flight POST, tagged with the draft it belongs to.
+  const creatingRef = useRef<{ seq: number; promise: Promise<NoteRow> } | null>(
+    null
+  );
+  // Live mirror of `notes` for callbacks that must not read a stale closure.
+  const notesRef = useRef<NoteRow[]>([]);
+  notesRef.current = notes;
   const savedSelectionRef = useRef<Range | null>(null);
 
-  const buildSerialized = useCallback((): string => {
-    const t = contentRef.current.title.trim();
-    const html = sanitizeHtml(contentRef.current.html);
-    if (!t && isHtmlBlank(html)) return "";
-    return JSON.stringify({ v: 1, title: t, html });
+  /** Current editor content, sanitized. */
+  const readContent = useCallback((): StoredNote => {
+    return {
+      title: contentRef.current.title.trim(),
+      html: sanitizeHtml(contentRef.current.html),
+    };
   }, []);
 
-  // Raw persist — no React state updates, safe from the unmount cleanup.
-  // Aborts any prior in-flight save so writes stay ordered.
-  const persist = useCallback(async (id: string, serialized: string) => {
-    if (serialized === lastSavedRef.current) return true;
-    abortRef.current?.abort();
-    const ac = new AbortController();
-    abortRef.current = ac;
-    const res = await fetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes: serialized }),
-      signal: ac.signal,
-    });
-    if (res.ok) {
-      lastSavedRef.current = serialized;
-      return true;
-    }
-    // Surface the server's message (e.g. the zod size-limit error) instead
-    // of a generic string.
-    let msg = "No se pudo guardar la nota";
+  const buildSerialized = useCallback(
+    (): string => {
+      const { title, html } = readContent();
+      return noteKey(title, html);
+    },
+    [readContent]
+  );
+
+  const isBlank = useCallback((n: StoredNote) => !n.title && isHtmlBlank(n.html), []);
+
+  const errorFrom = async (res: Response, fallback: string) => {
     try {
       const body = await res.json();
-      if (typeof body?.error === "string" && body.error) msg = body.error;
+      if (typeof body?.error === "string" && body.error) return body.error;
     } catch {
-      // keep the generic message
+      // keep the fallback
     }
-    throw new Error(msg);
-  }, []);
+    return fallback;
+  };
 
   const save = useCallback(async () => {
-    const serialized = buildSerialized();
-    if (serialized === lastSavedRef.current) {
+    // Capture the target note synchronously — switching notes later must
+    // not redirect this write.
+    const noteId = activeIdRef.current;
+    const draftSeq = draftSeqRef.current;
+    const projId = projectIdRef.current;
+    const content = readContent();
+    const key = noteKey(content.title, content.html);
+    /** Is the editor still parked on the exact note this save started on? */
+    const stillMine = () =>
+      activeIdRef.current === noteId &&
+      (noteId !== null || draftSeqRef.current === draftSeq);
+
+    const settle = (state: SaveState) => {
+      // Only touch the indicator if we're still on the note we saved.
+      if (!stillMine()) return;
+      setSaveState(state);
+      if (state === "saved") {
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+        // Back to Asana's permanent auto-save message after a moment.
+        savedTimerRef.current = setTimeout(() => setSaveState("idle"), 3000);
+      }
+    };
+
+    if (key === lastSavedRef.current) {
       // An edit that round-tripped back to the saved value (type+undo) —
-      // clear the pending "Guardando…" or it sticks forever.
-      setSaveState((s) => (s === "saving" ? "idle" : s));
+      // clear the pending "Saving…" or it sticks forever.
+      if (stillMine()) {
+        setSaveState((s) => (s === "saving" ? "idle" : s));
+      }
       return;
     }
-    if (serialized.length > NOTES_MAX) {
-      setSaveState("error");
+    if (content.html.length > NOTES_MAX) {
+      settle("error");
       toast.error(
-        "La nota supera el límite de 100.000 caracteres. Reduce el contenido para poder guardar.",
+        "This note is over the 100,000 character limit. Trim it to save.",
         { id: "note-too-large" }
       );
       return;
     }
-    setSaveState("saving");
+    // An empty draft is nothing to create — Asana doesn't persist it either.
+    if (noteId === null && isBlank(content)) {
+      settle("idle");
+      return;
+    }
+
+    settle("saving");
     try {
-      await persist(projectIdRef.current, serialized);
-      setSaveState("saved");
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-      // Back to Asana's permanent auto-save message after a moment.
-      savedTimerRef.current = setTimeout(() => setSaveState("idle"), 3000);
+      if (noteId === null) {
+        // Draft → create the row. Deduped PER DRAFT: a second debounce for
+        // the SAME draft awaits the first POST, while a different draft
+        // (after "+ New note") must create its own row.
+        if (!creatingRef.current || creatingRef.current.seq !== draftSeq) {
+          const promise = (async () => {
+            const res = await fetch(`/api/projects/${projId}/notes`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ title: content.title, content: content.html }),
+            });
+            if (!res.ok) throw new Error(await errorFrom(res, "Couldn't save the note"));
+            return (await res.json()) as NoteRow;
+          })();
+          creatingRef.current = { seq: draftSeq, promise };
+          void promise.catch(() => {}).finally(() => {
+            if (creatingRef.current?.seq === draftSeq) creatingRef.current = null;
+          });
+        }
+        const created = await creatingRef.current.promise;
+        setNotes((prev) =>
+          prev.some((n) => n.id === created.id) ? prev : [...prev, created]
+        );
+        // Adopt the new id ONLY if THIS draft is still in the editor. If the
+        // user moved on (another draft, or another note), the row exists and
+        // the list shows it — adopting here would retarget the next save at
+        // the new row and blank it.
+        if (!stillMine()) return;
+        lastSavedRef.current = noteKey(created.title, created.content);
+        setActiveId(created.id);
+        activeIdRef.current = created.id;
+        // A newer keystroke may have landed while the POST was in flight.
+        if (buildSerialized() !== lastSavedRef.current) {
+          if (timerRef.current) clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(() => void save(), 0);
+          return;
+        }
+        settle("saved");
+        return;
+      }
+
+      // Mirror the edit into the list BEFORE the round-trip: notes[] is
+      // what selectNote rebinds from, so leaving and re-entering a note
+      // mid-PATCH must not restore its pre-edit content (which the next
+      // save would then write back, undoing the edit).
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === noteId
+            ? { ...n, title: content.title, content: content.html }
+            : n
+        )
+      );
+      abortsRef.current.get(noteId)?.abort();
+      const ac = new AbortController();
+      abortsRef.current.set(noteId, ac);
+      const res = await fetch(`/api/projects/${projId}/notes/${noteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: content.title, content: content.html }),
+        signal: ac.signal,
+      });
+      if (abortsRef.current.get(noteId) === ac) abortsRef.current.delete(noteId);
+      if (!res.ok) throw new Error(await errorFrom(res, "Couldn't save the note"));
+      if (stillMine()) lastSavedRef.current = key;
+      settle("saved");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setSaveState("error");
-      toast.error(err instanceof Error ? err.message : "No se pudo guardar la nota");
+      settle("error");
+      toast.error(err instanceof Error ? err.message : "Couldn't save the note");
     }
-  }, [buildSerialized, persist]);
+  }, [readContent, buildSerialized, isBlank]);
 
   const scheduleSave = useCallback(() => {
     setSaveState("saving");
@@ -394,89 +500,211 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
     timerRef.current = setTimeout(() => void save(), 800);
   }, [save]);
 
+  /** Run any pending debounce NOW, against the note it was scheduled for. */
   const flushSave = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     void save();
   }, [save]);
 
-  // Load / reload when the project changes underneath us. initialNotes also
-  // changes on every router.refresh() after our own autosave (task panel,
-  // members dialog, rename… all call refresh), so for same-project updates
-  // we must NOT clobber the live DOM: skip when the incoming value is just
-  // an echo of our own save, or when local edits are newer than the server
-  // snapshot (a refresh can even race an in-flight save and deliver OLDER
-  // data — resetting would visibly revert the note mid-typing).
-  const loadedProjectRef = useRef<string | null>(null);
-  useEffect(() => {
-    const parsed = parseStoredNotes(initialNotes);
-    const html = sanitizeHtml(parsed.html);
-    const incoming =
-      !parsed.title.trim() && isHtmlBlank(html)
-        ? ""
-        : JSON.stringify({ v: 1, title: parsed.title.trim(), html });
-    if (loadedProjectRef.current === projectId) {
-      const dirty = buildSerialized() !== lastSavedRef.current;
-      if (incoming === lastSavedRef.current || dirty) return;
-    }
-    loadedProjectRef.current = projectId;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    contentRef.current = { title: parsed.title, html };
-    lastSavedRef.current = incoming;
-    if (titleRef.current) titleRef.current.textContent = parsed.title;
+  /** Point the editor at a note (or a blank draft when `note` is null). */
+  const bindEditor = useCallback((note: NoteRow | null) => {
+    // Every fresh draft gets a new identity, so a POST resolving later can
+    // tell whether the draft it was saving is still the one on screen.
+    if (note === null) draftSeqRef.current += 1;
+    const title = note?.title ?? "";
+    const html = sanitizeHtml(note?.content ?? "");
+    contentRef.current = { title, html };
+    lastSavedRef.current = noteKey(title, html);
+    if (titleRef.current) titleRef.current.textContent = title;
     if (editorRef.current) editorRef.current.innerHTML = html;
-    setTitleEmpty(!parsed.title.trim());
+    setTitleEmpty(!title.trim());
     setBodyEmpty(computeBodyEmpty(editorRef.current));
     setSaveState("idle");
+  }, []);
+
+  // ── Load the project's notes ──────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/notes`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows: NoteRow[] = await res.json();
+        if (cancelled) return;
+        setNotes(rows);
+        const first = rows[0] ?? null;
+        setActiveId(first?.id ?? null);
+        activeIdRef.current = first?.id ?? null;
+        bindEditor(first);
+      } catch (err) {
+        console.error("Error fetching notes:", err);
+        if (!cancelled) toast.error("Couldn't load notes");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
     try {
       document.execCommand("defaultParagraphSeparator", false, "p");
     } catch {
       // non-fatal
     }
-  }, [projectId, initialNotes, buildSerialized]);
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, bindEditor]);
 
-  // Flush pending changes on unmount (fire-and-forget; contentRef survives).
+  // ── Teardown flush ────────────────────────────────────────────────────
+  // Fire-and-forget write of the pending edit. Can't await (it runs from an
+  // unmount cleanup or pagehide), so it must not go through save(): instead
+  // it reuses save()'s in-flight create so a draft can never be POSTed
+  // twice, and it never marks the note saved before the write lands.
+  const flushedKeyRef = useRef<string | null>(null);
+  const flushNow = useCallback((keepalive: boolean) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    const noteId = activeIdRef.current;
+    const draftSeq = draftSeqRef.current;
+    const projId = projectIdRef.current;
+    const content = {
+      title: contentRef.current.title.trim(),
+      html: sanitizeHtml(contentRef.current.html),
+    };
+    const key = noteKey(content.title, content.html);
+    if (key === lastSavedRef.current || content.html.length > NOTES_MAX) return;
+    if (noteId === null && !content.title && isHtmlBlank(content.html)) return;
+    // pagehide and visibilitychange can both fire on the same teardown —
+    // dedupe by content instead of lying about lastSavedRef (marking it
+    // saved before the request lands turns a failed flush into silent loss).
+    if (key === flushedKeyRef.current) return;
+    flushedKeyRef.current = key;
+
+    const init = {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: content.title, content: content.html }),
+      keepalive: keepalive && content.html.length < 60000,
+    };
+    try {
+      if (noteId === null) {
+        const inflight = creatingRef.current;
+        if (inflight && inflight.seq === draftSeq) {
+          // A create for this draft is already on the wire — PATCH the row
+          // it produces rather than creating a second one.
+          void inflight.promise
+            .then((created) =>
+              fetch(`/api/projects/${projId}/notes/${created.id}`, {
+                method: "PATCH",
+                ...init,
+              })
+            )
+            .catch(() => {});
+          return;
+        }
+        void fetch(`/api/projects/${projId}/notes`, {
+          method: "POST",
+          ...init,
+        }).catch(() => {});
+        return;
+      }
+      void fetch(`/api/projects/${projId}/notes/${noteId}`, {
+        method: "PATCH",
+        ...init,
+      }).catch(() => {});
+    } catch {
+      // best-effort
+    }
+  }, []);
+
+  // Flush on unmount (SPA navigation away from the tab).
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-      const serialized = buildSerialized();
-      if (serialized !== lastSavedRef.current && serialized.length <= NOTES_MAX) {
-        persist(projectIdRef.current, serialized).catch(() => {});
-      }
+      flushNow(false);
     };
-  }, [buildSerialized, persist]);
+  }, [flushNow]);
 
   // React cleanups don't run on tab close / hard navigation — flush on
   // pagehide and on tab-hide with keepalive so the last debounce window
   // isn't silently lost. keepalive bodies are capped (~64KB), so very large
   // notes fall back to a best-effort plain fetch.
   useEffect(() => {
-    const flush = () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      const serialized = buildSerialized();
-      if (serialized === lastSavedRef.current || serialized.length > NOTES_MAX) return;
-      lastSavedRef.current = serialized;
-      try {
-        void fetch(`/api/projects/${projectIdRef.current}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ notes: serialized }),
-          keepalive: serialized.length < 60000,
-        }).catch(() => {});
-      } catch {
-        // best-effort
-      }
-    };
+    const onHide = () => flushNow(true);
     const onVis = () => {
-      if (document.visibilityState === "hidden") flush();
+      if (document.visibilityState === "hidden") flushNow(true);
     };
-    window.addEventListener("pagehide", flush);
+    window.addEventListener("pagehide", onHide);
     document.addEventListener("visibilitychange", onVis);
     return () => {
-      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("pagehide", onHide);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [buildSerialized]);
+  }, [flushNow]);
+
+  // ── Notes-list actions ────────────────────────────────────────────────
+
+  const selectNote = useCallback(
+    (id: string | null) => {
+      if (id === activeIdRef.current) return;
+      flushSave(); // targets the note we're leaving (save captured its id)
+      // notesRef, not the `notes` closure: flushSave's optimistic list
+      // update lands synchronously in the ref, so re-entering a note that
+      // is mid-save rebinds its LATEST content, not the pre-edit copy.
+      const next =
+        id === null ? null : notesRef.current.find((n) => n.id === id) ?? null;
+      setActiveId(id);
+      activeIdRef.current = id;
+      bindEditor(next);
+      setTimeout(() => editorRef.current?.focus(), 0);
+    },
+    [flushSave, bindEditor]
+  );
+
+  /** "+ New note": park the editor on a fresh draft. */
+  const newNote = useCallback(() => {
+    flushSave();
+    setActiveId(null);
+    activeIdRef.current = null;
+    bindEditor(null);
+    setTimeout(() => titleRef.current?.focus(), 0);
+  }, [flushSave, bindEditor]);
+
+  const deleteNote = useCallback(
+    async (id: string) => {
+      const row = notesRef.current.find((n) => n.id === id);
+      if (!row) return;
+      const label = row.title.trim() || "Untitled note";
+      if (!confirm(`Delete "${label}"?`)) return;
+      try {
+        const res = await fetch(`/api/projects/${projectIdRef.current}/notes/${id}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) throw new Error(await errorFrom(res, "Couldn't delete the note"));
+        // Functional update: a note created while the DELETE was in flight
+        // must not be dropped by a stale snapshot.
+        setNotes((prev) => prev.filter((n) => n.id !== id));
+        const remaining = notesRef.current.filter((n) => n.id !== id);
+        if (activeIdRef.current === id) {
+          // Cancel any pending save for the note we just deleted, or it
+          // would 404 (or worse, resurrect nothing) right after.
+          if (timerRef.current) clearTimeout(timerRef.current);
+          timerRef.current = null;
+          const next = remaining[0] ?? null;
+          setActiveId(next?.id ?? null);
+          activeIdRef.current = next?.id ?? null;
+          bindEditor(next);
+        }
+        toast.success("Note deleted");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't delete the note");
+      }
+    },
+    [bindEditor]
+  );
 
   // ── Selection helpers ─────────────────────────────────────────────────
 
@@ -653,7 +881,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
     }
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !fmt.inEditor) {
-      toast.info("Selecciona el texto que quieres enlazar");
+      toast.info("Select the text you want to link");
       return;
     }
     const rect = sel.getRangeAt(0).getBoundingClientRect();
@@ -681,9 +909,9 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
         body: JSON.stringify({ name, projectId: projectIdRef.current }),
       });
       if (!res.ok) throw new Error();
-      toast.success(`Tarea creada: “${name.length > 60 ? `${name.slice(0, 57)}…` : name}”`);
+      toast.success(`Task created: “${name.length > 60 ? `${name.slice(0, 57)}…` : name}”`);
     } catch {
-      toast.error("No se pudo crear la tarea");
+      toast.error("Couldn't create the task");
     }
   }, []);
 
@@ -721,10 +949,27 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
   // ── Title handlers ────────────────────────────────────────────────────
 
   const onTitleInput = useCallback(() => {
-    setTitleEmpty(!(titleRef.current?.textContent ?? "").trim());
+    const el = titleRef.current;
+    // Hard-cap to the server's limit: a longer title 400s every save, which
+    // would block the note's BODY from ever persisting too.
+    if (el && (el.textContent ?? "").length > TITLE_MAX) {
+      el.textContent = (el.textContent ?? "").slice(0, TITLE_MAX);
+      const sel = window.getSelection();
+      if (sel && el.firstChild) {
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        r.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+      toast.warning(`Note titles are limited to ${TITLE_MAX} characters.`, {
+        id: "note-title-too-long",
+      });
+    }
+    setTitleEmpty(!(el?.textContent ?? "").trim());
     contentRef.current = {
       ...contentRef.current,
-      title: titleRef.current?.textContent?.trim() ?? "",
+      title: el?.textContent?.trim() ?? "",
     };
     scheduleSave();
   }, [scheduleSave]);
@@ -846,7 +1091,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
             e.preventDefault();
             pickBlockItem(item);
           } else {
-            // "Sin resultados": close and let Enter insert a newline.
+            // "No results": close and let Enter insert a newline.
             closeBlockMenu();
           }
           return;
@@ -995,8 +1240,19 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
   const formatLabel =
     fmt.inEditor && !bodyEmpty ? FORMAT_LABELS[fmt.block] ?? "-" : "-";
 
-  const sidebarSnippet = (editorRef.current?.textContent ?? "").trim().slice(0, 80);
-  const sidebarTitle = (titleRef.current?.textContent ?? "").trim() || "Nota sin nombre";
+  // The notes-list rows: saved notes, plus the live draft while it exists.
+  const listRows = useMemo(() => {
+    const rows = notes.map((n) => ({
+      id: n.id as string | null,
+      title: n.title.trim(),
+      snippet: snippetOf(n.content),
+      draft: false,
+    }));
+    if (activeId === null && !loading) {
+      rows.push({ id: null, title: "", snippet: "", draft: true });
+    }
+    return rows;
+  }, [notes, activeId, loading]);
 
   return (
     <div className="relative flex h-full flex-col bg-white">
@@ -1005,7 +1261,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
         {/* Insert (+) */}
         <ToolBtn
           Icon={Plus}
-          label="Insertar"
+          label="Insert"
           disabled={!canEdit}
           menuTrigger
           onMouseDown={saveSelection}
@@ -1019,15 +1275,15 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
           }}
         />
         <Sep />
-        <ToolBtn Icon={Undo2} label="Deshacer" disabled={!canEdit || !fmt.canUndo} onClick={() => exec("undo")} />
-        <ToolBtn Icon={Redo2} label="Rehacer" disabled={!canEdit || !fmt.canRedo} onClick={() => exec("redo")} />
+        <ToolBtn Icon={Undo2} label="Undo" disabled={!canEdit || !fmt.canUndo} onClick={() => exec("undo")} />
+        <ToolBtn Icon={Redo2} label="Redo" disabled={!canEdit || !fmt.canRedo} onClick={() => exec("redo")} />
         <Sep />
         {/* Format selector */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild disabled={!canEdit}>
             <button
               type="button"
-              title="Formato de texto"
+              title="Text format"
               onMouseDown={saveSelection}
               className={cn(
                 "flex h-7 min-w-[76px] items-center justify-between gap-1 rounded-[4px] px-2 text-xs text-[#55585D] hover:bg-[#F7F7F7] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C6C9CD]",
@@ -1051,25 +1307,25 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
           </DropdownMenuContent>
         </DropdownMenu>
         <Sep />
-        <ToolBtn Icon={Bold} label="Negrita (Ctrl+B)" active={fmt.bold} disabled={!canEdit} onClick={() => exec("bold")} />
-        <ToolBtn Icon={Italic} label="Cursiva (Ctrl+I)" active={fmt.italic} disabled={!canEdit} onClick={() => exec("italic")} />
-        <ToolBtn Icon={Underline} label="Subrayado (Ctrl+U)" active={fmt.underline} disabled={!canEdit} onClick={() => exec("underline")} />
-        <ToolBtn Icon={Highlighter} label="Resaltar" disabled={!canEdit} onClick={toggleHighlight} />
-        <ToolBtn Icon={Strikethrough} label="Tachado" active={fmt.strike} disabled={!canEdit} onClick={() => exec("strikeThrough")} />
-        <ToolBtn Icon={List} label="Lista con viñetas" active={fmt.ul} disabled={!canEdit} onClick={() => exec("insertUnorderedList")} />
-        <ToolBtn Icon={ListOrdered} label="Lista numerada" active={fmt.ol} disabled={!canEdit} onClick={() => exec("insertOrderedList")} />
-        <ToolBtn Icon={TextQuote} label="Cita" active={fmt.quote} disabled={!canEdit} onClick={() => applyBlockAction("quote")} />
-        <ToolBtn Icon={Link2} label="Insertar enlace" active={fmt.inLink} disabled={!canEdit} onClick={onLinkButton} />
+        <ToolBtn Icon={Bold} label="Bold (Ctrl+B)" active={fmt.bold} disabled={!canEdit} onClick={() => exec("bold")} />
+        <ToolBtn Icon={Italic} label="Italic (Ctrl+I)" active={fmt.italic} disabled={!canEdit} onClick={() => exec("italic")} />
+        <ToolBtn Icon={Underline} label="Underline (Ctrl+U)" active={fmt.underline} disabled={!canEdit} onClick={() => exec("underline")} />
+        <ToolBtn Icon={Highlighter} label="Highlight" disabled={!canEdit} onClick={toggleHighlight} />
+        <ToolBtn Icon={Strikethrough} label="Strikethrough" active={fmt.strike} disabled={!canEdit} onClick={() => exec("strikeThrough")} />
+        <ToolBtn Icon={List} label="Bulleted list" active={fmt.ul} disabled={!canEdit} onClick={() => exec("insertUnorderedList")} />
+        <ToolBtn Icon={ListOrdered} label="Numbered list" active={fmt.ol} disabled={!canEdit} onClick={() => exec("insertOrderedList")} />
+        <ToolBtn Icon={TextQuote} label="Quote" active={fmt.quote} disabled={!canEdit} onClick={() => applyBlockAction("quote")} />
+        <ToolBtn Icon={Link2} label="Insert link" active={fmt.inLink} disabled={!canEdit} onClick={onLinkButton} />
         <Sep />
-        <ToolBtn Icon={Code} label="Código en línea" disabled={!canEdit} onClick={toggleInlineCode} />
-        <ToolBtn Icon={SquareCode} label="Bloque de código" active={fmt.codeblock} disabled={!canEdit} onClick={() => applyBlockAction("codeblock")} />
+        <ToolBtn Icon={Code} label="Inline code" disabled={!canEdit} onClick={toggleInlineCode} />
+        <ToolBtn Icon={SquareCode} label="Code block" active={fmt.codeblock} disabled={!canEdit} onClick={() => applyBlockAction("codeblock")} />
         <Sep />
         {/* AI */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild disabled={!canEdit}>
             <button
               type="button"
-              title="Asistente de IA"
+              title="AI assistant"
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-[4px] text-[#9A9C9F] hover:bg-[#F7F7F7] hover:text-[#55585D] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C6C9CD]",
                 !canEdit && "pointer-events-none opacity-40"
@@ -1079,11 +1335,11 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
-            {["Resumir la nota", "Mejorar la redacción", "Corregir ortografía y gramática"].map((l) => (
+            {["Summarize the note", "Improve the writing", "Fix spelling & grammar"].map((l) => (
               <DropdownMenuItem
                 key={l}
                 className="cursor-pointer text-[13px]"
-                onSelect={() => toast.info("Las funciones de IA estarán disponibles próximamente")}
+                onSelect={() => toast.info("AI features are coming soon")}
               >
                 <Sparkles className="mr-2 h-3.5 w-3.5 text-[#9885F1]" />
                 {l}
@@ -1092,10 +1348,10 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
           </DropdownMenuContent>
         </DropdownMenu>
         <Sep />
-        {/* Crear tarea */}
+        {/* Create task */}
         <button
           type="button"
-          title="Convierte el texto seleccionado en una tarea"
+          title="Turn the selected text into a task"
           disabled={!canEdit || !fmt.hasSelection}
           onMouseDown={(e) => {
             e.preventDefault();
@@ -1108,7 +1364,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
           )}
         >
           <CircleCheck className="h-4 w-4" strokeWidth={1.75} />
-          Crear tarea
+          Create task
         </button>
 
         {/* Right group */}
@@ -1121,18 +1377,18 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
             )}
           >
             {!canEdit
-              ? "Solo lectura"
+              ? "Read-only"
               : saveState === "saving"
-                ? "Guardando…"
+                ? "Saving…"
                 : saveState === "saved"
-                  ? "Guardado · Ahora mismo"
+                  ? "Saved · Just now"
                   : saveState === "error"
-                    ? "No se pudo guardar"
-                    : "Todos los cambios se guardarán automáticamente"}
+                    ? "Couldn't save"
+                    : "All changes are saved automatically"}
           </span>
           <ToolBtn
             Icon={Search}
-            label="Buscar en la nota"
+            label="Find in note"
             active={searchOpen}
             onClick={() => setSearchOpen((o) => !o)}
           />
@@ -1144,7 +1400,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
         {/* Sidebar toggle */}
         <button
           type="button"
-          title="Lista de notas"
+          title="Notes list"
           onClick={() => setSidebarOpen((o) => !o)}
           className="absolute left-[21px] top-[22px] z-20 flex h-7 w-7 items-center justify-center rounded-[4px] text-[#6B6D70] hover:bg-[#F7F7F7] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#C6C9CD]"
         >
@@ -1165,34 +1421,73 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
           </svg>
         </button>
 
-        {/* Sidebar panel */}
+        {/* Sidebar panel — the project's notes list */}
         {sidebarOpen && (
-          <div className="absolute inset-y-0 left-0 z-10 w-[264px] border-r border-[#E0E1E3] bg-white pt-[52px]">
+          <div className="absolute inset-y-0 left-0 z-10 flex w-[264px] flex-col border-r border-[#E0E1E3] bg-white pt-[52px]">
             <div className="flex items-center justify-between px-4 pb-2">
-              <span className="text-sm font-medium text-[#1E1F21]">Notas</span>
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(false)}
-                className="flex h-6 w-6 items-center justify-center rounded text-[#9A9C9F] hover:bg-[#F7F7F7]"
-                title="Cerrar"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              <span className="text-sm font-medium text-[#1E1F21]">Notes</span>
+              <div className="flex items-center gap-0.5">
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={newNote}
+                    className="flex h-6 w-6 items-center justify-center rounded text-[#6B6D70] hover:bg-[#F7F7F7]"
+                    title="New note"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(false)}
+                  className="flex h-6 w-6 items-center justify-center rounded text-[#9A9C9F] hover:bg-[#F7F7F7]"
+                  title="Close"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
-            <div className="px-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSidebarOpen(false);
-                  editorRef.current?.focus();
-                }}
-                className="w-full rounded-[6px] bg-[#F7F7F7] px-3 py-2 text-left hover:bg-[#F2F3F4]"
-              >
-                <p className="truncate text-[13px] font-medium text-[#1E1F21]">{sidebarTitle}</p>
-                <p className="mt-0.5 truncate text-xs text-[#6B6D70]">
-                  {sidebarSnippet || "Sin contenido"}
-                </p>
-              </button>
+            <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
+              {loading && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#9A9C9F]" />
+                </div>
+              )}
+              {!loading && listRows.length === 0 && (
+                <p className="px-3 py-2 text-xs text-[#9A9C9F]">No notes yet.</p>
+              )}
+              {listRows.map((row) => (
+                <div
+                  key={row.id ?? "__draft"}
+                  className={cn(
+                    "group relative rounded-[6px] hover:bg-[#F2F3F4]",
+                    row.id === activeId && "bg-[#F7F7F7]"
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => selectNote(row.id)}
+                    className="w-full px-3 py-2 pr-8 text-left"
+                  >
+                    <p className="truncate text-[13px] font-medium text-[#1E1F21]">
+                      {row.title || "Untitled note"}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-[#6B6D70]">
+                      {row.draft ? "New note" : row.snippet || "No content"}
+                    </p>
+                  </button>
+                  {canEdit && row.id && (
+                    <button
+                      type="button"
+                      onClick={() => void deleteNote(row.id!)}
+                      title="Delete note"
+                      className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded text-[#9A9C9F] opacity-0 hover:bg-white hover:text-[#B4304C] focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -1205,7 +1500,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
               <div className="relative">
                 {titleEmpty && (
                   <div className="pointer-events-none absolute inset-x-0 top-0 select-none text-[28px] leading-[34px] text-[#626364]">
-                    Nota sin nombre
+                    Untitled note
                   </div>
                 )}
                 <div
@@ -1213,7 +1508,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
                   contentEditable={canEdit}
                   suppressContentEditableWarning
                   role="textbox"
-                  aria-label="Título de la nota"
+                  aria-label="Note title"
                   spellCheck
                   className="min-h-[34px] whitespace-pre-wrap break-words text-[28px] font-normal leading-[34px] text-[#1E1F21] outline-none"
                   onInput={onTitleInput}
@@ -1229,7 +1524,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
                   <>
                     <button
                       type="button"
-                      title="Insertar"
+                      title="Insert"
                       data-bs-menu-trigger=""
                       onClick={(e) => {
                         if (blockMenu) {
@@ -1245,7 +1540,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
                       <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
                     </button>
                     <div className="pointer-events-none absolute left-0 top-0 select-none text-[12px] leading-6 text-[#6B6D70]">
-                      Empieza a escribir o ingresa “/” para ver el menú
+                      Start typing or enter “/” to see the menu
                     </div>
                   </>
                 )}
@@ -1255,7 +1550,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
                   suppressContentEditableWarning
                   role="textbox"
                   aria-multiline="true"
-                  aria-label="Contenido de la nota"
+                  aria-label="Note content"
                   spellCheck
                   className={cn(
                     "bs-note-editor min-h-[24px] whitespace-pre-wrap break-words text-[14px] leading-6 text-[#3F4144] outline-none",
@@ -1290,20 +1585,20 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
 
                 {/* Read-only empty state */}
                 {bodyEmpty && !canEdit && (
-                  <p className="text-[13px] text-[#9A9C9F]">Esta nota está vacía.</p>
+                  <p className="text-[13px] text-[#9A9C9F]">This note is empty.</p>
                 )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Enviar comentarios */}
+        {/* Send feedback */}
         <button
           type="button"
           onClick={() => setFeedbackOpen(true)}
           className="absolute bottom-3 right-6 z-20 h-[31px] w-[100px] rounded-[8px] border border-[#C6C9CD] bg-white text-[10px] text-[#55585D] underline hover:bg-[#F7F7F7]"
         >
-          Enviar comentarios
+          Send feedback
         </button>
 
         {/* Search popover */}
@@ -1320,19 +1615,19 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
                 if (e.key === "Enter") goToMatch(e.shiftKey ? -1 : 1);
                 if (e.key === "Escape") setSearchOpen(false);
               }}
-              placeholder="Buscar en la nota"
+              placeholder="Find in note"
               className="h-6 min-w-0 flex-1 rounded px-1.5 text-xs text-[#1E1F21] outline-none placeholder:text-[#9A9C9F]"
             />
             <span className="shrink-0 px-1 text-[11px] tabular-nums text-[#6B6D70]">
-              {matches.length > 0 ? `${matchIdx + 1} de ${matches.length}` : searchQuery.trim() ? "0" : ""}
+              {matches.length > 0 ? `${matchIdx + 1} of ${matches.length}` : searchQuery.trim() ? "0" : ""}
             </span>
-            <button type="button" onClick={() => goToMatch(-1)} disabled={matches.length === 0} className="flex h-6 w-6 items-center justify-center rounded text-[#6B6D70] hover:bg-[#F7F7F7] disabled:opacity-40" title="Anterior">
+            <button type="button" onClick={() => goToMatch(-1)} disabled={matches.length === 0} className="flex h-6 w-6 items-center justify-center rounded text-[#6B6D70] hover:bg-[#F7F7F7] disabled:opacity-40" title="Previous">
               <ChevronUp className="h-3.5 w-3.5" />
             </button>
-            <button type="button" onClick={() => goToMatch(1)} disabled={matches.length === 0} className="flex h-6 w-6 items-center justify-center rounded text-[#6B6D70] hover:bg-[#F7F7F7] disabled:opacity-40" title="Siguiente">
+            <button type="button" onClick={() => goToMatch(1)} disabled={matches.length === 0} className="flex h-6 w-6 items-center justify-center rounded text-[#6B6D70] hover:bg-[#F7F7F7] disabled:opacity-40" title="Next">
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
-            <button type="button" onClick={() => setSearchOpen(false)} className="flex h-6 w-6 items-center justify-center rounded text-[#6B6D70] hover:bg-[#F7F7F7]" title="Cerrar">
+            <button type="button" onClick={() => setSearchOpen(false)} className="flex h-6 w-6 items-center justify-center rounded text-[#6B6D70] hover:bg-[#F7F7F7]" title="Close">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -1346,9 +1641,9 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
           className="fixed z-50 w-56 rounded-[8px] border border-[#E0E1E3] bg-white py-1 shadow-lg"
           style={{ left: blockMenu.x, top: blockMenu.y }}
         >
-          <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-[#9A9C9F]">Insertar</p>
+          <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-[#9A9C9F]">Insert</p>
           {filteredBlocks.length === 0 && (
-            <p className="px-3 py-2 text-xs text-[#9A9C9F]">Sin resultados</p>
+            <p className="px-3 py-2 text-xs text-[#9A9C9F]">No results</p>
           )}
           {filteredBlocks.map((item, i) => (
             <button
@@ -1384,7 +1679,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
               if (e.key === "Enter") applyLink();
               if (e.key === "Escape") setLinkPop(null);
             }}
-            placeholder="Pega o escribe un enlace"
+            placeholder="Paste or type a link"
             className="h-7 min-w-0 flex-1 rounded border border-[#E0E1E3] px-2 text-xs text-[#1E1F21] outline-none placeholder:text-[#9A9C9F] focus:border-[#C6C9CD]"
           />
           <button
@@ -1392,7 +1687,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
             onClick={applyLink}
             className="h-7 shrink-0 rounded-[6px] border border-[#C6C9CD] bg-white px-2.5 text-xs text-[#3F4144] hover:bg-[#F7F7F7]"
           >
-            Aplicar
+            Apply
           </button>
         </div>
       )}
@@ -1407,16 +1702,16 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
             className="w-[420px] rounded-[10px] border border-[#E0E1E3] bg-white p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-semibold text-[#1E1F21]">Enviar comentarios</h3>
+            <h3 className="text-sm font-semibold text-[#1E1F21]">Send feedback</h3>
             <p className="mt-1 text-xs text-[#6B6D70]">
-              Cuéntanos qué te gustaría mejorar de las notas.
+              Tell us what you&apos;d like to improve about notes.
             </p>
             <textarea
               autoFocus
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
               className="mt-3 h-28 w-full resize-none rounded-[6px] border border-[#E0E1E3] p-2 text-[13px] text-[#1E1F21] outline-none placeholder:text-[#9A9C9F] focus:border-[#C6C9CD]"
-              placeholder="Escribe tus comentarios…"
+              placeholder="Share your feedback…"
             />
             <div className="mt-3 flex justify-end gap-2">
               <button
@@ -1424,7 +1719,7 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
                 onClick={() => setFeedbackOpen(false)}
                 className="h-8 rounded-[6px] px-3 text-xs text-[#55585D] hover:bg-[#F7F7F7]"
               >
-                Cancelar
+                Cancel
               </button>
               <button
                 type="button"
@@ -1432,11 +1727,11 @@ export function NotesView({ projectId, initialNotes, canEdit }: NotesViewProps) 
                 onClick={() => {
                   setFeedbackOpen(false);
                   setFeedbackText("");
-                  toast.success("¡Gracias por tus comentarios!");
+                  toast.success("Thanks for your feedback!");
                 }}
                 className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
               >
-                Enviar
+                Send
               </button>
             </div>
           </div>

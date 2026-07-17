@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { cascadeFromDependency, type CascadeShift } from "@/lib/dependency-cascade";
 
 const createDependencySchema = z.object({
   blockingTaskId: z.string().min(1, "Blocking task ID is required"),
@@ -110,26 +111,37 @@ export async function POST(
       );
     }
 
-    const dependency = await prisma.taskDependency.create({
-      data: {
-        dependentTaskId: taskId,
-        blockingTaskId: data.blockingTaskId,
-        type: data.type,
-      },
-      include: {
-        blockingTask: {
-          select: { id: true, name: true, completed: true },
+    // Creating the link + auto-shifting the dependent runs in one
+    // transaction so a failed cascade can't leave a half-applied schedule.
+    let cascadeShifts: CascadeShift[] = [];
+    const dependency = await prisma.$transaction(async (tx) => {
+      const created = await tx.taskDependency.create({
+        data: {
+          dependentTaskId: taskId,
+          blockingTaskId: data.blockingTaskId,
+          type: data.type,
         },
-      },
+        include: {
+          blockingTask: {
+            select: { id: true, name: true, completed: true },
+          },
+        },
+      });
+
+      // Touch the task so the "Last modified" field reflects the change.
+      await tx.task.update({
+        where: { id: taskId },
+        data: { updatedAt: new Date() },
+      });
+
+      // A new link can already be violated — push the dependent forward
+      // (and anything downstream of it), same as moving a blocker's dates.
+      // Scoped to THIS edge so the blocker's other dependents stay put.
+      cascadeShifts = await cascadeFromDependency(tx, created.id);
+      return created;
     });
 
-    // Touch the task so the "Last modified" field reflects the change.
-    await prisma.task.update({
-      where: { id: taskId },
-      data: { updatedAt: new Date() },
-    });
-
-    return NextResponse.json(dependency, { status: 201 });
+    return NextResponse.json({ ...dependency, cascadeShifts }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -196,23 +208,34 @@ export async function PATCH(
       );
     }
 
-    const updated = await prisma.taskDependency.update({
-      where: { id: dependencyId },
-      data: { type: data.type },
-      include: {
-        blockingTask: {
-          select: { id: true, name: true, completed: true },
+    // Retyping the link changes which date it constrains, so the dependent
+    // (and its own dependents) may need to shift — Asana auto-adjusts here.
+    // One transaction so a failed cascade can't half-apply the schedule.
+    let cascadeShifts: CascadeShift[] = [];
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.taskDependency.update({
+        where: { id: dependencyId },
+        data: { type: data.type },
+        include: {
+          blockingTask: {
+            select: { id: true, name: true, completed: true },
+          },
         },
-      },
+      });
+
+      // Touch the task so the "Last modified" field reflects the change.
+      await tx.task.update({
+        where: { id: taskId },
+        data: { updatedAt: new Date() },
+      });
+
+      // Only this edge's dependent (and its downstream) — retyping A→B must
+      // not silently reschedule an unrelated A→C.
+      cascadeShifts = await cascadeFromDependency(tx, dependencyId);
+      return row;
     });
 
-    // Touch the task so the "Last modified" field reflects the change.
-    await prisma.task.update({
-      where: { id: taskId },
-      data: { updatedAt: new Date() },
-    });
-
-    return NextResponse.json(updated);
+    return NextResponse.json({ ...updated, cascadeShifts });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

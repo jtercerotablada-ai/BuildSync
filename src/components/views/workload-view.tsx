@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Workload view — Asana's "Gestión de recursos" timeline, cloned 1:1.
+ * Workload view — Asana's "Workload" timeline, cloned 1:1.
  *
- * Layout: 50px toolbar (Agregar tarea, ‹ Hoy ›, and the right-side controls
- * Días (pequeño) / Filtrar / Agrupar / Cantidad de tareas / Opciones /
- * Enviar comentarios), a 265px fixed resource column, and a horizontally
+ * Layout: 50px toolbar (Add task, ‹ Today ›, and the right-side controls
+ * Days (small) / Filter / Group / Task count / Options /
+ * Send feedback), a 265px fixed resource column, and a horizontally
  * scrollable day timeline with month/day headers, weekend bands, a today
  * line with dot, per-row stepped lavender load charts, and a custom bottom
  * scrollbar with arrow buttons.
@@ -95,9 +95,9 @@ const TOTAL_DAYS = 121;
 const TODAY_VIEW_OFFSET = 10;
 
 const ZOOMS = [
-  { key: "day-lg", label: "Días (grande)", width: 66 },
-  { key: "day-sm", label: "Días (pequeño)", width: 33 },
-  { key: "weeks", label: "Semanas", width: 12 },
+  { key: "day-lg", label: "Days (large)", width: 66 },
+  { key: "day-sm", label: "Days (small)", width: 33 },
+  { key: "weeks", label: "Weeks", width: 12 },
 ] as const;
 type ZoomKey = (typeof ZOOMS)[number]["key"];
 
@@ -123,11 +123,11 @@ function dayIndexOf(rangeStart: Date, d: Date): number {
 }
 
 const MONTH_NAMES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
-/** Cargo shown next to the name: "CEO", jobTitle, or a friendly enum. */
+/** Role shown next to the name: "CEO", jobTitle, or a friendly enum. */
 function roleLabelOf(a: WAssignee): string {
   if (a.jobTitle) return a.jobTitle;
   if (a.customTitle) return a.customTitle;
@@ -211,7 +211,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
   const timelineW = TOTAL_DAYS * dayW;
 
   // ── Data fetch ────────────────────────────────────────────────────────
-  // Only the FIRST load shows the spinner: reloads (after Agregar tarea)
+  // Only the FIRST load shows the spinner: reloads (after Add task)
   // must not unmount the scroll DOM or the timeline would snap back to the
   // window start and desync the custom scrollbar thumb.
   const firstLoadRef = useRef(true);
@@ -229,7 +229,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
         setProject(data.projects?.[0] ?? null);
       } catch (err) {
         console.error("Error fetching workload:", err);
-        if (!cancelled) toast.error("No se pudo cargar la gestión de recursos");
+        if (!cancelled) toast.error("Couldn't load workload");
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -244,7 +244,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
 
   // ── Load math ─────────────────────────────────────────────────────────
 
-  // Hidden people AND a hidden "Sin asignar" row both leave the totals —
+  // Hidden people AND a hidden "Unassigned" row both leave the totals —
   // otherwise the total row disagrees with the sum of visible rows.
   const visibleTasks = useMemo(
     () =>
@@ -301,7 +301,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
         list.push({
           key: "__unassigned",
           kind: "unassigned",
-          label: "Sin asignar",
+          label: "Unassigned",
           tasks: visibleTasks.filter((t) => !t.assigneeId),
         });
       }
@@ -309,7 +309,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
       list.push({
         key: project?.id ?? "__project",
         kind: "project",
-        label: project?.name ?? "Proyecto",
+        label: project?.name ?? "Project",
         tasks: visibleTasks,
       });
     }
@@ -513,12 +513,12 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
         }),
       });
       if (!res.ok) throw new Error();
-      toast.success("Tarea creada");
+      toast.success("Task created");
       setAddOpen(false);
       setForm({ name: "", assigneeId: "", startDate: "", dueDate: "" });
       setReloadKey((k) => k + 1);
     } catch {
-      toast.error("No se pudo crear la tarea");
+      toast.error("Couldn't create task");
     } finally {
       setSaving(false);
     }
@@ -548,11 +548,11 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
           )}
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={2} />
-          Agregar tarea
+          Add task
         </button>
         <button
           type="button"
-          title="Período anterior"
+          title="Previous period"
           onClick={() => nudge(-1)}
           className="ml-3 flex h-6 w-6 items-center justify-center rounded text-[#6B6D70] hover:bg-[#F7F7F7]"
         >
@@ -563,11 +563,11 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
           onClick={() => scrollToDay(DAYS_BEFORE_TODAY - TODAY_VIEW_OFFSET)}
           className="px-1 text-[11px] text-[#44464B] hover:underline"
         >
-          Hoy
+          Today
         </button>
         <button
           type="button"
-          title="Período siguiente"
+          title="Next period"
           onClick={() => nudge(1)}
           className="flex h-6 w-6 items-center justify-center rounded text-[#6B6D70] hover:bg-[#F7F7F7]"
         >
@@ -589,13 +589,13 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
             ))}
           </ToolMenu>
           <VSep />
-          <ToolMenu Icon={ListFilter} label="Filtrar">
+          <ToolMenu Icon={ListFilter} label="Filter">
             <DropdownMenuLabel className="text-[11px] font-normal text-[#9A9C9F]">
-              Mostrar personas
+              Show people
             </DropdownMenuLabel>
             {assignees.length === 0 && (
               <p className="px-2 py-1.5 text-[11px] text-[#9A9C9F]">
-                Sin personas con tareas
+                No people with tasks
               </p>
             )}
             {assignees.map((a) => (
@@ -618,44 +618,44 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
             ))}
           </ToolMenu>
           <VSep />
-          <ToolMenu Icon={LayoutGrid} label="Agrupar">
+          <ToolMenu Icon={LayoutGrid} label="Group">
             <DropdownMenuCheckboxItem
               checked={groupBy === "assignee"}
               onSelect={() => setGroupBy("assignee")}
               className="cursor-pointer text-[12px]"
             >
-              Persona responsable
+              Assignee
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={groupBy === "project"}
               onSelect={() => setGroupBy("project")}
               className="cursor-pointer text-[12px]"
             >
-              Proyecto
+              Project
             </DropdownMenuCheckboxItem>
           </ToolMenu>
           <VSep />
           <ToolMenu
             Icon={CircleCheck}
-            label={measure === "count" ? "Cantidad de tareas" : "Horas estimadas"}
+            label={measure === "count" ? "Task count" : "Estimated hours"}
           >
             <DropdownMenuCheckboxItem
               checked={measure === "count"}
               onSelect={() => setMeasure("count")}
               className="cursor-pointer text-[12px]"
             >
-              Cantidad de tareas
+              Task count
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={measure === "hours"}
               onSelect={() => setMeasure("hours")}
               className="cursor-pointer text-[12px]"
             >
-              Horas estimadas
+              Estimated hours
             </DropdownMenuCheckboxItem>
           </ToolMenu>
           <VSep />
-          <ToolMenu Icon={SlidersHorizontal} label="Opciones">
+          <ToolMenu Icon={SlidersHorizontal} label="Options">
             <DropdownMenuCheckboxItem
               checked={shadeWeekends}
               onSelect={(e) => {
@@ -664,7 +664,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
               }}
               className="cursor-pointer text-[12px]"
             >
-              Sombrear fines de semana
+              Shade weekends
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={showUnassigned}
@@ -674,7 +674,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
               }}
               className="cursor-pointer text-[12px]"
             >
-              Mostrar “Sin asignar”
+              Show “Unassigned”
             </DropdownMenuCheckboxItem>
           </ToolMenu>
           <button
@@ -682,7 +682,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
             onClick={() => setFeedbackOpen(true)}
             className="ml-2 text-[11px] text-[#55585D] underline hover:text-[#1E1F21]"
           >
-            Enviar comentarios
+            Send feedback
           </button>
         </div>
       </div>
@@ -793,7 +793,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                     </div>
                   );
                 })}
-                {/* Day numbers — centered per column; at Semanas zoom only
+                {/* Day numbers — centered per column; at Weeks zoom only
                     Mondays are labeled, left-aligned at their column. */}
                 {days.map((d, i) =>
                   showDayNumbers ? (
@@ -835,7 +835,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                     strokeWidth={1.5}
                   />
                   <span className="text-[12px] text-[#44464B]">
-                    Tareas en total
+                    Total tasks
                   </span>
                 </div>
               }
@@ -918,7 +918,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                         )}
                         {row.kind === "unassigned" && (
                           <span className="text-[12px] text-[#44464B]">
-                            Sin asignar
+                            Unassigned
                           </span>
                         )}
                       </button>
@@ -937,7 +937,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                     (row.tasks.length === 0 ? (
                       <Row height={SUB_ROW_H} laneW={timelineW} left={
                         <span className="pl-[46px] text-[11px] text-[#9A9C9F]">
-                          Sin tareas
+                          No tasks
                         </span>
                       }>
                         {null}
@@ -1005,7 +1005,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
         >
           <button
             type="button"
-            aria-label="Desplazar a la izquierda"
+            aria-label="Scroll left"
             onClick={() => nudge(-1)}
             className="flex h-full w-5 items-center justify-center text-[#9A9C9F] hover:text-[#55585D]"
           >
@@ -1022,7 +1022,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
           </div>
           <button
             type="button"
-            aria-label="Desplazar a la derecha"
+            aria-label="Scroll right"
             onClick={() => nudge(1)}
             className="flex h-full w-5 items-center justify-center text-[#9A9C9F] hover:text-[#55585D]"
           >
@@ -1044,21 +1044,21 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-sm font-semibold text-[#1E1F21]">
-              Agregar tarea
+              Add task
             </h3>
             <div className="mt-3 space-y-2.5">
               <label className="block">
-                <span className="text-[11px] text-[#6B6D70]">Nombre</span>
+                <span className="text-[11px] text-[#6B6D70]">Name</span>
                 <input
                   autoFocus
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] px-2 text-[13px] text-[#1E1F21] outline-none focus:border-[#C6C9CD]"
-                  placeholder="Nombre de la tarea"
+                  placeholder="Task name"
                 />
               </label>
               <label className="block">
-                <span className="text-[11px] text-[#6B6D70]">Responsable</span>
+                <span className="text-[11px] text-[#6B6D70]">Assignee</span>
                 <select
                   value={form.assigneeId}
                   onChange={(e) =>
@@ -1066,7 +1066,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                   }
                   className="mt-0.5 h-8 w-full rounded-[6px] border border-[#E0E1E3] bg-white px-2 text-[13px] text-[#1E1F21] outline-none focus:border-[#C6C9CD]"
                 >
-                  <option value="">Sin asignar</option>
+                  <option value="">Unassigned</option>
                   {members.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.name}
@@ -1077,7 +1077,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
               <div className="flex gap-2">
                 <label className="block flex-1">
                   <span className="text-[11px] text-[#6B6D70]">
-                    Fecha de inicio
+                    Start date
                   </span>
                   <input
                     type="date"
@@ -1090,7 +1090,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                 </label>
                 <label className="block flex-1">
                   <span className="text-[11px] text-[#6B6D70]">
-                    Fecha de entrega
+                    Due date
                   </span>
                   <input
                     type="date"
@@ -1103,7 +1103,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                 </label>
               </div>
               <label className="block">
-                <span className="text-[11px] text-[#6B6D70]">Proyecto</span>
+                <span className="text-[11px] text-[#6B6D70]">Project</span>
                 <input
                   disabled
                   value={project?.name ?? ""}
@@ -1117,7 +1117,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                 onClick={() => setAddOpen(false)}
                 className="h-8 rounded-[6px] px-3 text-xs text-[#55585D] hover:bg-[#F7F7F7]"
               >
-                Cancelar
+                Cancel
               </button>
               <button
                 type="button"
@@ -1125,7 +1125,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                 onClick={() => void submitTask()}
                 className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
               >
-                {saving ? "Creando…" : "Crear tarea"}
+                {saving ? "Creating…" : "Create task"}
               </button>
             </div>
           </div>
@@ -1143,14 +1143,14 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-sm font-semibold text-[#1E1F21]">
-              Enviar comentarios
+              Send feedback
             </h3>
             <textarea
               autoFocus
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
               className="mt-3 h-28 w-full resize-none rounded-[6px] border border-[#E0E1E3] p-2 text-[13px] text-[#1E1F21] outline-none placeholder:text-[#9A9C9F] focus:border-[#C6C9CD]"
-              placeholder="Escribe tus comentarios…"
+              placeholder="Share your feedback…"
             />
             <div className="mt-3 flex justify-end gap-2">
               <button
@@ -1158,7 +1158,7 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                 onClick={() => setFeedbackOpen(false)}
                 className="h-8 rounded-[6px] px-3 text-xs text-[#55585D] hover:bg-[#F7F7F7]"
               >
-                Cancelar
+                Cancel
               </button>
               <button
                 type="button"
@@ -1166,11 +1166,11 @@ export function WorkloadView({ projectId, canEdit }: WorkloadViewProps) {
                 onClick={() => {
                   setFeedbackOpen(false);
                   setFeedbackText("");
-                  toast.success("¡Gracias por tus comentarios!");
+                  toast.success("Thanks for your feedback!");
                 }}
                 className="h-8 rounded-[6px] bg-[#4273D1] px-3 text-xs font-medium text-white hover:bg-[#335FB5] disabled:opacity-40"
               >
-                Enviar
+                Send
               </button>
             </div>
           </div>

@@ -90,6 +90,7 @@ model User {
   teamMessageMentions TeamMessageMention[] @relation("UserTeamMentions")
   objectiveMembers    ObjectiveMember[]    @relation("UserObjectiveMembers")
   workspaceNotes      WorkspaceNote[]      @relation("NoteAuthor")
+  projectNotes        ProjectNote[]        @relation("ProjectNoteAuthor")
   noteCollaborators   NoteCollaborator[]
   preferences         UserPreferences?
 
@@ -488,7 +489,11 @@ model Project {
   id          String            @id @default(cuid())
   name        String
   description String?
-  notes       String?           @db.Text // free-form project Notes tab (rich-ish doc)
+  // DEPRECATED: the single free-form Notes doc. Superseded by the
+  // ProjectNote[] relation (the Notes tab holds many notes now). Rows were
+  // backfilled into ProjectNote; the column is kept only so historic data
+  // isn't destroyed. Do not read or write it — use `projectNotes`.
+  notes       String?           @db.Text
   color       String            @default("#4573D2")
   icon        String?
   status      ProjectStatus     @default(ON_TRACK)
@@ -523,6 +528,7 @@ model Project {
   // Relations
   sections      Section[]
   tasks         Task[]
+  projectNotes  ProjectNote[]
   // Tasks multi-homed INTO this project (their home is another project).
   taskProjects  TaskProject[]
   members       ProjectMember[]
@@ -1664,6 +1670,28 @@ enum WidgetType {
 }
 
 // ============ NOTAS DEL WORKSPACE ============
+
+/// A note inside a project's Notes tab. Asana's Notes holds MANY notes per
+/// project, listed in the left panel. Supersedes the single Project.notes
+/// column, whose rows were backfilled into this table.
+model ProjectNote {
+  id        String   @id @default(cuid())
+  title     String   @default("")
+  /// Sanitized rich-text HTML (the editor sanitizes on load, paste + save).
+  content   String   @db.Text
+  /// Manual order in the notes list; ties break by createdAt.
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projectId String
+  authorId  String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  User?   @relation("ProjectNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+}
 
 model WorkspaceNote {
   id         String         @id @default(cuid())

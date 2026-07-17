@@ -188,6 +188,11 @@ export default async function ProjectPage({
   // significant digits, fine for any realistic project budget).
   const serializedProject = {
     ...project,
+    // Drop the deprecated single-doc Notes column: the Notes tab reads
+    // ProjectNote rows now, and this can be 100KB of dead payload on every
+    // project page load. (`include` keeps all scalars, hence the explicit
+    // undefined rather than a full `select` rewrite of the query.)
+    notes: undefined,
     budget: project.budget != null ? Number(project.budget) : null,
     createdAt: project.createdAt.toISOString(),
     updatedAt: project.updatedAt.toISOString(),

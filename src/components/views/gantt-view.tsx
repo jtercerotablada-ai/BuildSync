@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpDown,
+  Check,
   ChevronDown,
   ChevronRight,
   ChevronLeft,
@@ -98,15 +99,31 @@ interface GanttViewProps {
 type ZoomLevel = "day" | "week" | "month" | "quarter";
 type TaskFilter = "all" | "incomplete" | "completed" | "due_this_week";
 
+type DependencyType =
+  | "FINISH_TO_START"
+  | "START_TO_START"
+  | "FINISH_TO_FINISH"
+  | "START_TO_FINISH";
+
 interface DependencyRow {
   id: string;
-  type:
-    | "FINISH_TO_START"
-    | "START_TO_START"
-    | "FINISH_TO_FINISH"
-    | "START_TO_FINISH";
+  type: DependencyType;
   dependentTaskId: string;
   blockingTaskId: string;
+}
+
+// Asana's dependency-type menu: full name + the two-letter code.
+const DEPENDENCY_TYPES: { type: DependencyType; label: string; code: string }[] =
+  [
+    { type: "FINISH_TO_START", label: "Finish to start", code: "FS" },
+    { type: "FINISH_TO_FINISH", label: "Finish to finish", code: "FF" },
+    { type: "START_TO_START", label: "Start to start", code: "SS" },
+    { type: "START_TO_FINISH", label: "Start to finish", code: "SF" },
+  ];
+
+function dependencyLabel(type: DependencyType): string {
+  const t = DEPENDENCY_TYPES.find((d) => d.type === type);
+  return t ? `${t.label} · ${t.code}` : "";
 }
 
 // ============================================
@@ -277,6 +294,16 @@ export function GanttView({
   // Off by default — Asana draws no due-soon rings; still toggleable.
   const [highlightDueSoon, setHighlightDueSoon] = useState(false);
   const [dependencies, setDependencies] = useState<DependencyRow[]>([]);
+  // Clicked dependency arrow → Asana's type pill + menu. x/y are CONTENT
+  // coords inside the scrolling timeline body (same space as the arrow
+  // paths), so the pill stays glued to its arrow while the user scrolls.
+  const [depMenu, setDepMenu] = useState<{
+    dep: DependencyRow;
+    x: number;
+    y: number;
+    flipUp: boolean;
+    open: boolean;
+  } | null>(null);
   const [createDialog, setCreateDialog] = useState<{
     open: boolean;
     sectionId?: string;
@@ -460,15 +487,26 @@ export function GanttView({
           const data = await res.json().catch(() => null);
           throw new Error(data?.error || "Failed to add dependency");
         }
+        // The server auto-shifts the dependent when the new link is already
+        // violated — pull the bars too, or they'd show stale dates.
+        const data = await res.json().catch(() => null);
+        const shifted = Array.isArray(data?.cascadeShifts)
+          ? data.cascadeShifts.length
+          : 0;
+        if (shifted > 0) router.refresh();
         await reloadDependencies();
-        toast.success("Dependency added");
+        toast.success(
+          shifted > 0
+            ? `Dependency added · ${shifted} task${shifted > 1 ? "s" : ""} rescheduled`
+            : "Dependency added"
+        );
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : "Failed to add dependency"
         );
       }
     },
-    [reloadDependencies]
+    [reloadDependencies, router]
   );
 
   const removeBlocker = useCallback(
@@ -492,6 +530,105 @@ export function GanttView({
     },
     [reloadDependencies]
   );
+
+  // ---------- Dependency type menu (click an arrow) ----------
+
+  /** Retype a dependency. The server auto-shifts the dependent task (and
+   *  anything downstream) so the new constraint holds, then we refresh both
+   *  the arrows and the bars. */
+  const changeDependencyType = useCallback(
+    async (dep: DependencyRow, type: DependencyType) => {
+      if (dep.type === type) {
+        setDepMenu(null);
+        return;
+      }
+      // Optimistic: the arrow re-anchors immediately.
+      setDependencies((prev) =>
+        prev.map((d) => (d.id === dep.id ? { ...d, type } : d))
+      );
+      setDepMenu((m) => (m && m.dep.id === dep.id ? { ...m, dep: { ...m.dep, type }, open: false } : m));
+      try {
+        const res = await fetch(
+          `/api/tasks/${dep.dependentTaskId}/dependencies?id=${dep.id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type }),
+          }
+        );
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || "Failed to update dependency");
+        }
+        const data = await res.json().catch(() => null);
+        const shifted = Array.isArray(data?.cascadeShifts)
+          ? data.cascadeShifts.length
+          : 0;
+        // Dates may have moved — pull the bars, then the arrows.
+        if (shifted > 0) router.refresh();
+        await reloadDependencies();
+        toast.success(
+          shifted > 0
+            ? `Dependency updated · ${shifted} task${shifted > 1 ? "s" : ""} rescheduled`
+            : "Dependency updated"
+        );
+      } catch (err) {
+        // Roll the optimistic change back — including the pill's own copy of
+        // the row, or it keeps showing the type that never saved.
+        setDependencies((prev) =>
+          prev.map((d) => (d.id === dep.id ? { ...d, type: dep.type } : d))
+        );
+        setDepMenu((m) =>
+          m && m.dep.id === dep.id ? { ...m, dep: { ...m.dep, type: dep.type } } : m
+        );
+        await reloadDependencies();
+        toast.error(
+          err instanceof Error ? err.message : "Failed to update dependency"
+        );
+      }
+    },
+    [reloadDependencies, router]
+  );
+
+  const deleteDependency = useCallback(
+    async (dep: DependencyRow) => {
+      setDepMenu(null);
+      await removeBlocker(dep.dependentTaskId, dep.id);
+    },
+    [removeBlocker]
+  );
+
+  // Close the pill on outside pointerdown / Escape; Backspace deletes the
+  // selected dependency (Asana shows the "Bksp" hint in the menu).
+  useEffect(() => {
+    if (!depMenu) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest("[data-gantt-dep-menu]")) setDepMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      // Never steal Backspace from a field the user is typing in.
+      if (
+        t &&
+        (t.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))
+      ) {
+        return;
+      }
+      if (e.key === "Escape") setDepMenu(null);
+      if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        void deleteDependency(depMenu.dep);
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [depMenu, deleteDependency]);
 
   // ---------- Zoom configuration ----------
   const zoomConfig: Record<
@@ -1729,28 +1866,60 @@ export function GanttView({
                       exInDir
                     );
 
+                    const isSelected = depMenu?.dep.id === dep.id;
                     const isActive =
+                      isSelected ||
                       hoveredTask === dep.blockingTaskId ||
                       hoveredTask === dep.dependentTaskId ||
                       selectedTaskId === dep.blockingTaskId ||
                       selectedTaskId === dep.dependentTaskId;
 
                     return (
-                      <path
-                        key={dep.id}
-                        d={path}
-                        stroke={isActive ? "#a8893a" : "#94a3b8"}
-                        strokeWidth={isActive ? 2 : 1.5}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                        markerEnd={
-                          isActive
-                            ? "url(#gantt-dep-arrow-active)"
-                            : "url(#gantt-dep-arrow-default)"
-                        }
-                        opacity={isActive ? 1 : 0.9}
-                      />
+                      <g key={dep.id}>
+                        <path
+                          d={path}
+                          stroke={isActive ? "#a8893a" : "#94a3b8"}
+                          strokeWidth={isActive ? 2 : 1.5}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          fill="none"
+                          markerEnd={
+                            isActive
+                              ? "url(#gantt-dep-arrow-active)"
+                              : "url(#gantt-dep-arrow-default)"
+                          }
+                          opacity={isActive ? 1 : 0.9}
+                        />
+                        {/* Fat transparent hit area — a 1.5px line is
+                            unclickable. The parent <svg> is pointer-events-
+                            none, so only these paths take clicks. */}
+                        <path
+                          d={path}
+                          stroke="transparent"
+                          strokeWidth={12}
+                          fill="none"
+                          style={{
+                            pointerEvents: "stroke",
+                            cursor: "pointer",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Convert the click to the SVG's own coordinate
+                            // space (= the timeline body's), so the pill
+                            // scrolls with the arrow instead of floating.
+                            const svg = e.currentTarget.ownerSVGElement;
+                            const box = svg?.getBoundingClientRect();
+                            setDepMenu({
+                              dep,
+                              x: box ? e.clientX - box.left : 0,
+                              y: box ? e.clientY - box.top : 0,
+                              // Not enough room below → open upwards.
+                              flipUp: window.innerHeight - e.clientY < 260,
+                              open: false,
+                            });
+                          }}
+                        />
+                      </g>
                     );
                   })}
                 </svg>
@@ -1985,6 +2154,71 @@ export function GanttView({
 
               {/* Grid keeps running to the viewport bottom (Asana-style) */}
               <div className="flex flex-1">{renderGridCells(true)}</div>
+
+              {/* ---------- Dependency type pill + menu (Asana) ----------
+                  Lives INSIDE the timeline body so its content coords track
+                  the arrow while the user scrolls horizontally. */}
+              {depMenu && (
+                <div
+                  data-gantt-dep-menu
+                  className="absolute z-50"
+                  style={{
+                    left: depMenu.x,
+                    top: depMenu.y,
+                    transform: depMenu.flipUp ? "translateY(-100%)" : undefined,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDepMenu((m) => m && { ...m, open: !m.open })
+                    }
+                    className="flex h-7 items-center gap-1 rounded-[6px] border border-[#C6C9CD] bg-white px-2.5 text-xs text-[#1E1F21] shadow-sm hover:bg-[#F7F7F7]"
+                  >
+                    {dependencyLabel(depMenu.dep.type)}
+                    <ChevronDown className="h-3 w-3 text-[#6B6D70]" />
+                  </button>
+
+                  {depMenu.open && (
+                    <div className="mt-1 w-[212px] rounded-[8px] border border-[#E0E1E3] bg-white py-1 shadow-lg">
+                      {DEPENDENCY_TYPES.map((t) => (
+                        <button
+                          key={t.type}
+                          type="button"
+                          onClick={() =>
+                            void changeDependencyType(depMenu.dep, t.type)
+                          }
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-[#1E1F21] hover:bg-[#F7F7F7]"
+                        >
+                          <Check
+                            className={cn(
+                              "h-3.5 w-3.5 shrink-0",
+                              depMenu.dep.type === t.type
+                                ? "text-[#1E1F21]"
+                                : "invisible"
+                            )}
+                          />
+                          {t.label} · {t.code}
+                        </button>
+                      ))}
+                      <div className="my-1 h-px bg-[#E0E1E3]" />
+                      <button
+                        type="button"
+                        onClick={() => void deleteDependency(depMenu.dep)}
+                        className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[13px] text-[#B4304C] hover:bg-[#F7F7F7]"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="w-3.5" />
+                          Remove
+                        </span>
+                        <kbd className="rounded border border-[#E0E1E3] bg-[#F7F7F7] px-1.5 py-0.5 text-[10px] font-normal text-[#6B6D70]">
+                          Bksp
+                        </kbd>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1992,9 +2226,7 @@ export function GanttView({
 
       <CreateTaskDialog
         open={createDialog.open}
-        onOpenChange={(open) =>
-          setCreateDialog((prev) => ({ ...prev, open }))
-        }
+        onOpenChange={(open) => setCreateDialog((prev) => ({ ...prev, open }))}
         projectId={projectId}
         sectionId={createDialog.sectionId}
         defaultTaskType={createDialog.taskType}
@@ -2002,3 +2234,4 @@ export function GanttView({
     </div>
   );
 }
+
