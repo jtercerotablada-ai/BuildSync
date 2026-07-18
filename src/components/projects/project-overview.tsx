@@ -20,6 +20,7 @@ import {
   Link2,
   Download,
   ExternalLink,
+  MoreHorizontal,
   X,
   Upload,
   Folder,
@@ -31,11 +32,14 @@ import {
   Loader2,
 } from "lucide-react";
 import { CreateTaskDialog } from "@/components/tasks/create-task-dialog";
+import { ProjectBriefEditor } from "@/components/projects/project-brief-editor";
+import { isRichTextBlank } from "@/lib/rich-text-sanitize";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -409,6 +413,53 @@ export function ProjectOverview({
       canceled = true;
     };
   }, [project.id]);
+
+  // ── Project brief ────────────────────────────────────────────────────
+  const [brief, setBrief] = useState<{
+    content: string;
+    updatedAt: string;
+  } | null>(null);
+  const [briefOpen, setBriefOpen] = useState(false);
+
+  const loadBrief = useCallback(() => {
+    fetch(`/api/projects/${project.id}/brief`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        // A brief row can exist but be blank (all content deleted) — treat
+        // that as "no brief" so the empty prompt shows. Use the SAME blank
+        // definition as the editor so a structure-only brief (divider/list)
+        // still shows a banner instead of vanishing.
+        if (data && data.content && !isRichTextBlank(data.content)) {
+          setBrief({ content: data.content, updatedAt: data.updatedAt });
+        } else {
+          setBrief(null);
+        }
+      })
+      .catch(() => {});
+  }, [project.id]);
+
+  useEffect(() => {
+    loadBrief();
+  }, [loadBrief]);
+
+  // "Copy brief link" opens the project with ?brief=1 — auto-open the editor.
+  // NOT gated on canEdit: canEdit derives from the async session and is false
+  // at mount, and the editor supports a read-only mode for viewers anyway.
+  useEffect(() => {
+    if (searchParams?.get("brief") === "1") setBriefOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const briefPreview = useMemo(() => {
+    if (!brief) return "";
+    return brief.content
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 180);
+  }, [brief]);
 
   useEffect(() => {
     let canceled = false;
@@ -1378,7 +1429,7 @@ export function ProjectOverview({
           {!resourcesLoaded ? (
             /* Reserve the row height so tiles don't cause a layout jump. */
             <div className="h-[68px]" />
-          ) : resources.length === 0 ? (
+          ) : resources.length === 0 && !brief ? (
             /* Empty state — brief prompt + the two entry points. */
             <div className="border border-slate-200 rounded-lg p-6 bg-white text-center">
               <p className="text-sm text-slate-500 max-w-[340px] mx-auto mb-4">
@@ -1386,16 +1437,16 @@ export function ProjectOverview({
                 supporting resources.
               </p>
               <div className="flex flex-col items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(`/projects/${project.id}?view=notes`)
-                  }
-                  className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 hover:underline"
-                >
-                  <FileText className="w-4 h-4 text-slate-400" />
-                  Create project brief
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setBriefOpen(true)}
+                    className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 hover:underline"
+                  >
+                    <FileText className="w-4 h-4 text-slate-400" />
+                    Create project brief
+                  </button>
+                )}
                 {canEdit && (
                   <AddResourcePopover
                     uploading={resourceUploading}
@@ -1415,42 +1466,75 @@ export function ProjectOverview({
               </div>
             </div>
           ) : (
-            /* Populated — a row of tiles, like Asana. */
-            <div className="flex flex-wrap gap-3">
-              {canEdit && (
-                <AddResourcePopover
-                  uploading={resourceUploading}
-                  onUploadFile={uploadResourceFile}
-                  onAddLink={addResourceLink}
-                  align="start"
-                >
+            /* Populated — optional brief banner, then a row of tiles. */
+            <div className="space-y-3">
+              {brief && (
+                <BriefBanner
+                  projectName={project.name}
+                  updatedAt={brief.updatedAt}
+                  preview={briefPreview}
+                  canEdit={canEdit}
+                  onOpen={() => setBriefOpen(true)}
+                  onCopyLink={() => {
+                    navigator.clipboard
+                      ?.writeText(
+                        `${window.location.origin}/projects/${project.id}?view=overview&brief=1`
+                      )
+                      .then(() => toast.success("Link copied"))
+                      .catch(() => toast.error("Couldn't copy the link"));
+                  }}
+                  onDelete={() => {
+                    if (!confirm("Delete the project brief?")) return;
+                    fetch(`/api/projects/${project.id}/brief`, { method: "DELETE" })
+                      .then((r) => {
+                        if (!r.ok) throw new Error();
+                        setBrief(null);
+                        toast.success("Brief deleted");
+                      })
+                      .catch(() => toast.error("Couldn't delete the brief"));
+                  }}
+                />
+              )}
+              <div className="flex flex-wrap gap-3">
+                {canEdit && (
+                  <AddResourcePopover
+                    uploading={resourceUploading}
+                    onUploadFile={uploadResourceFile}
+                    onAddLink={addResourceLink}
+                    align="start"
+                  >
+                    <button
+                      type="button"
+                      title="Add links & files"
+                      className="flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </AddResourcePopover>
+                )}
+                {/* Offer "Create project brief" only to editors, and only
+                    when there isn't one yet. */}
+                {canEdit && !brief && (
                   <button
                     type="button"
-                    title="Add links & files"
-                    className="flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600"
+                    onClick={() => setBriefOpen(true)}
+                    className="flex h-[68px] w-[200px] items-center gap-3 rounded-lg border border-dashed border-slate-300 px-3 text-left hover:border-slate-400 hover:bg-slate-50"
                   >
-                    <Plus className="w-5 h-5" />
+                    <FileText className="w-6 h-6 shrink-0 text-[#4573D2]" />
+                    <span className="text-sm font-medium text-slate-700 leading-tight">
+                      Create project brief
+                    </span>
                   </button>
-                </AddResourcePopover>
-              )}
-              <button
-                type="button"
-                onClick={() => router.push(`/projects/${project.id}?view=notes`)}
-                className="flex h-[68px] w-[200px] items-center gap-3 rounded-lg border border-dashed border-slate-300 px-3 text-left hover:border-slate-400 hover:bg-slate-50"
-              >
-                <FileText className="w-6 h-6 shrink-0 text-[#4573D2]" />
-                <span className="text-sm font-medium text-slate-700 leading-tight">
-                  Create project brief
-                </span>
-              </button>
-              {resources.map((r) => (
-                <ResourceTile
-                  key={r.id}
-                  resource={r}
-                  canEdit={canEdit}
-                  onRemove={() => removeResource(r.id)}
-                />
-              ))}
+                )}
+                {resources.map((r) => (
+                  <ResourceTile
+                    key={r.id}
+                    resource={r}
+                    canEdit={canEdit}
+                    onRemove={() => removeResource(r.id)}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -1962,6 +2046,111 @@ export function ProjectOverview({
         sectionId={project.sections?.[0]?.id}
         defaultTaskType="MILESTONE"
       />
+
+      {/* Full-screen project brief editor (Asana's "Brief del proyecto") */}
+      {briefOpen && (
+        <ProjectBriefEditor
+          projectId={project.id}
+          projectName={project.name}
+          canEdit={canEdit}
+          onClose={() => {
+            setBriefOpen(false);
+            loadBrief(); // refresh the banner/preview after editing
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Project brief banner (Overview Key resources) ──────────────────────
+
+function BriefBanner({
+  projectName,
+  updatedAt,
+  preview,
+  canEdit,
+  onOpen,
+  onCopyLink,
+  onDelete,
+}: {
+  projectName: string;
+  updatedAt: string;
+  preview: string;
+  canEdit: boolean;
+  onOpen: () => void;
+  onCopyLink: () => void;
+  onDelete: () => void;
+}) {
+  const edited = (() => {
+    try {
+      const d = new Date(updatedAt);
+      const diff = Date.now() - d.getTime();
+      if (diff < 60_000) return "Just now";
+      if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+      if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    } catch {
+      return "";
+    }
+  })();
+
+  return (
+    <div className="group relative flex overflow-hidden rounded-lg border border-slate-200 bg-white">
+      {/* Left: title + last edited */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-[220px] shrink-0 flex-col justify-center gap-1 border-r border-slate-100 bg-slate-50 px-5 py-4 text-center hover:bg-slate-100"
+      >
+        <span className="text-[15px] font-semibold leading-tight text-slate-800">
+          Project brief {projectName}
+        </span>
+        <span className="text-xs text-slate-400">Last edited: {edited}</span>
+      </button>
+      {/* Right: content preview */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="min-w-0 flex-1 px-5 py-4 text-left"
+      >
+        <p className="truncate text-sm text-slate-600">
+          {preview || "Open the brief…"}
+        </p>
+      </button>
+      {/* "…" menu */}
+      <div className="absolute right-2 top-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 opacity-0 hover:bg-slate-50 focus-visible:opacity-100 group-hover:opacity-100"
+              title="Brief actions"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem className="cursor-pointer text-[13px]" onSelect={onOpen}>
+              {canEdit ? "View / edit" : "View"}
+            </DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer text-[13px]" onSelect={onCopyLink}>
+              Copy link
+            </DropdownMenuItem>
+            {canEdit && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer text-[13px] text-[#B4304C] focus:text-[#B4304C]"
+                  onSelect={onDelete}
+                >
+                  Delete brief
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }

@@ -92,6 +92,7 @@ model User {
   workspaceNotes      WorkspaceNote[]      @relation("NoteAuthor")
   projectNotes        ProjectNote[]        @relation("ProjectNoteAuthor")
   projectResources    ProjectResource[]    @relation("UserProjectResources")
+  projectBriefs       ProjectBrief[]       @relation("UserProjectBriefs")
   noteCollaborators   NoteCollaborator[]
   preferences         UserPreferences?
 
@@ -531,6 +532,7 @@ model Project {
   tasks         Task[]
   projectNotes  ProjectNote[]
   resources     ProjectResource[]
+  brief         ProjectBrief?
   // Tasks multi-homed INTO this project (their home is another project).
   taskProjects  TaskProject[]
   members       ProjectMember[]
@@ -1072,6 +1074,25 @@ model ProjectResource {
   uploader User?   @relation("UserProjectResources", fields: [uploaderId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+}
+
+/// The project's single "Brief del proyecto" (Asana). One rich-text doc per
+/// project, distinct from the many ProjectNotes — it's the pinned brief that
+/// surfaces as a special tile in the Overview's Key resources.
+/// NOTE: columns match a pre-existing (drifted) prod table — the who-edited
+/// column is `lastEditedById`, not `authorId`.
+model ProjectBrief {
+  id        String   @id @default(cuid())
+  /// Sanitized rich-text HTML (sanitized on load, paste, and save).
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projectId      String  @unique
+  lastEditedById String?
+
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lastEditedBy User?   @relation("UserProjectBriefs", fields: [lastEditedById], references: [id], onDelete: SetNull)
 }
 
 model Attachment {
