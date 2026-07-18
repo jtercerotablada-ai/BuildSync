@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { renderCommentContent } from "@/components/tasks/comment-content";
 import {
   Loader2,
   AlertCircle,
@@ -421,7 +422,7 @@ export function TrackingPageClient({
                           )}
                         </div>
                         <p className="text-sm text-slate-700 whitespace-pre-wrap mt-0.5">
-                          {c.content}
+                          {renderCommentContent(c.content)}
                         </p>
                         {c.attachments.length > 0 && (
                           <ul className="mt-2 space-y-1">

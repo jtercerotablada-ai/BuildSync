@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
+import { buildCommentContent, commentToPlainText } from "@/lib/comment-format";
 
 const updateCommentSchema = z.object({
   content: z.string().min(1, "Comment cannot be empty"),
@@ -44,7 +45,9 @@ export async function PATCH(
     const comment = await prisma.comment.update({
       where: { id: commentId },
       data: {
-        content: data.content,
+        // Store HTML-escaped plain text (never trust client HTML). Editing
+        // drops mention chips to plain @Name text — acceptable, and safe.
+        content: buildCommentContent(commentToPlainText(data.content), []),
       },
       include: {
         author: {

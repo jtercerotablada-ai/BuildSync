@@ -14,6 +14,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import {
+  renderCommentContent,
+  commentToPlainText,
+} from '@/components/tasks/comment-content';
 
 interface Activity {
   id: string;
@@ -290,7 +294,9 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
                           </div>
                         </div>
                       ) : (
-                        <span className="text-gray-700">{item.content}</span>
+                        <span className="text-gray-700">
+                          {renderCommentContent(item.content || "")}
+                        </span>
                       )
                     ) : (
                       <span className="text-gray-600">
@@ -315,7 +321,7 @@ export function TaskCommentsSection({ taskId, comments, activities, onCommentAdd
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => {
                           setEditingCommentId(item.id);
-                          setEditingContent(item.content || '');
+                          setEditingContent(commentToPlainText(item.content || ''));
                         }}>
                           <Pencil className="h-4 w-4 mr-2" />
                           Edit

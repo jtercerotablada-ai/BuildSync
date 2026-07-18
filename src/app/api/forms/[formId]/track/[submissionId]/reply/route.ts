@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyTrackingToken } from "@/lib/tracking-token";
 import { uploadFile } from "@/lib/storage";
+import { buildCommentContent, commentToPlainText } from "@/lib/comment-format";
 
 /**
  * POST /api/forms/:formId/track/:submissionId/reply
@@ -209,7 +210,10 @@ export async function POST(
         data: {
           taskId: submission.taskId!,
           authorId: null, // guest — display name comes from guestName
-          content,
+          // Guests can't @-mention; store HTML-escaped plain text so a
+          // hand-crafted request can't forge a mention chip on the public
+          // tracking page (renderCommentContent un-escapes symmetrically).
+          content: buildCommentContent(commentToPlainText(content), []),
           source: "TRACKING_REPLY",
           visibility: "EXTERNAL",
           guestName,

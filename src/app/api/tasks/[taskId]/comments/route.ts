@@ -5,27 +5,25 @@ import { getCurrentUserId, getCurrentUser } from "@/lib/auth-utils";
 import { verifyTaskAccess, AuthorizationError, NotFoundError, getErrorStatus } from "@/lib/auth-guards";
 import { shouldNotify } from "@/lib/notification-prefs";
 import { resolveAllowedMentionUserIds } from "@/lib/mentions";
-
-// Helper function to extract mentioned user IDs from HTML content
-function extractMentionedUserIds(content: string): string[] {
-  const mentionRegex = /data-user-id="([^"]+)"/g;
-  const userIds: string[] = [];
-  let match;
-
-  while ((match = mentionRegex.exec(content)) !== null) {
-    if (match[1] && !userIds.includes(match[1])) {
-      userIds.push(match[1]);
-    }
-  }
-
-  return userIds;
-}
+import {
+  buildCommentContent,
+  commentToPlainText,
+  extractMentionIds,
+  mentionHandle,
+} from "@/lib/comment-format";
 
 // Helper function to strip HTML for notification preview
 function getTextPreview(html: string, maxLength: number = 100): string {
   let text = html.replace(/<span[^>]*data-user-id="[^"]*"[^>]*>([^<]*)<\/span>/gi, "$1");
   text = text.replace(/<[^>]*>/g, "");
-  text = text.replace(/&nbsp;/g, " ");
+  // Un-escape entities so the preview reads as the user's plain text
+  // (comments are stored HTML-escaped now).
+  text = text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&");
   text = text.replace(/\s+/g, " ").trim();
   if (text.length > maxLength) {
     text = text.substring(0, maxLength) + "...";
@@ -160,9 +158,40 @@ export async function POST(
       }
     }
 
+    // ── Normalize the content SERVER-SIDE (never trust client HTML) ──
+    // Reduce whatever the client sent to plain text, then rebuild the
+    // stored content by HTML-escaping it and re-wrapping ONLY the mentions
+    // we validate against project membership. A direct-API caller's raw
+    // <span data-user-id> is stripped to escaped text — it can't forge a
+    // mention chip or a MENTIONED ping to a non-member.
+    const plainText = commentToPlainText(content);
+    const rawMentionIds = extractMentionIds(content).filter(
+      (id) => id !== currentUser.id
+    );
+    let allowedMembers: { id: string; name: string | null; email: string | null }[] = [];
+    if (rawMentionIds.length > 0 && task.projectId) {
+      const allowedIds = await resolveAllowedMentionUserIds(
+        task.projectId,
+        rawMentionIds
+      );
+      if (allowedIds.length > 0) {
+        allowedMembers = await prisma.user.findMany({
+          where: { id: { in: allowedIds } },
+          select: { id: true, name: true, email: true },
+        });
+      }
+    }
+    // Only members whose handle actually survives in the text become real
+    // mentions (both the rendered chip AND the notification) — a forged
+    // <span> with mismatched inner text pings nobody.
+    const mentionedMembers = allowedMembers.filter((m) =>
+      plainText.includes(mentionHandle(m))
+    );
+    const storedContent = buildCommentContent(plainText, mentionedMembers);
+
     const comment = await prisma.comment.create({
       data: {
-        content,
+        content: storedContent,
         taskId,
         authorId: currentUser.id,
         parentId,
@@ -199,26 +228,18 @@ export async function POST(
     // ── Notification fan-out (best-effort) ──────────────────────
     // Everything below is wrapped so a bad @-mention id or a prefs
     // hiccup can never 500 a comment that already saved successfully.
-    const textPreview = getTextPreview(content);
-
-    // Parse @-mentions from the client HTML. These are UNVALIDATED —
-    // the data-user-id attributes come straight off the wire, so we
-    // validate them against the project's membership before use to
-    // avoid a foreign-key P2003 on createMany.
-    const rawMentionIds = extractMentionedUserIds(content).filter(
-      (id) => id !== currentUser.id
-    );
+    const textPreview = getTextPreview(storedContent);
 
     let mentionedUserIds: string[] = [];
     try {
-      // Comments only carry mentions when the task lives in a project
-      // (mentions resolve against project membership). Task-less tasks
-      // (personal My Tasks) get no mention fan-out.
-      if (rawMentionIds.length > 0 && task.projectId) {
+      // Notify from the SAME set we actually wrapped in the content —
+      // never from raw client markup, and never a member whose handle
+      // isn't visibly in the comment.
+      if (mentionedMembers.length > 0) {
         const gated = await Promise.all(
-          (
-            await resolveAllowedMentionUserIds(task.projectId, rawMentionIds)
-          ).map(async (uid) => ((await shouldNotify(uid, "MENTIONED")) ? uid : null))
+          mentionedMembers.map(async (m) =>
+            (await shouldNotify(m.id, "MENTIONED")) ? m.id : null
+          )
         );
         mentionedUserIds = gated.filter((uid): uid is string => uid !== null);
       }

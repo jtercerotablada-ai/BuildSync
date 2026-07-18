@@ -101,6 +101,12 @@ import { SortPanel, type SortState } from "@/components/tasks/sort-panel";
 import { GroupPanel, type GroupConfig } from "@/components/tasks/group-panel";
 import { CustomFieldModal, type CreatedFieldInfo } from "@/components/tasks/custom-field-modal";
 import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
+import {
+  renderCommentContent,
+  buildCommentContent,
+  MentionInput,
+  type MentionCandidate,
+} from "@/components/tasks/comment-content";
 import { UploadToTaskDialog } from "@/components/tasks/upload-to-task-dialog";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { BuiltinFieldCell } from "@/components/tasks/builtin-field-cell";
@@ -7796,6 +7802,50 @@ function TaskDetailPanel({
     files: any[];
     index: number;
   } | null>(null);
+  // @-mention typeahead (mirrors the shared task detail panel).
+  const [mentionCandidates, setMentionCandidates] = useState<
+    MentionCandidate[]
+  >([]);
+  const [stagedMentions, setStagedMentions] = useState<MentionCandidate[]>([]);
+
+  useEffect(() => {
+    const pid = taskDetail?.project?.id;
+    if (!pid) {
+      setMentionCandidates([]);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/projects/${pid}/members`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: unknown) => {
+        if (cancelled || !Array.isArray(rows)) return;
+        const seen = new Set<string>();
+        const list: MentionCandidate[] = [];
+        for (const row of rows as {
+          user?: {
+            id: string;
+            name: string | null;
+            email: string | null;
+            image: string | null;
+          };
+        }[]) {
+          const u = row?.user;
+          if (!u?.id || seen.has(u.id)) continue;
+          seen.add(u.id);
+          list.push({
+            id: u.id,
+            name: u.name ?? null,
+            email: u.email ?? null,
+            image: u.image ?? null,
+          });
+        }
+        setMentionCandidates(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [taskDetail?.project?.id]);
 
   async function handleAttachmentUpload(
     e: React.ChangeEvent<HTMLInputElement>
@@ -7941,6 +7991,13 @@ function TaskDetailPanel({
 
   useEffect(() => {
     fetchTaskDetail();
+    // Reset the comment draft on task switch — this panel also stays
+    // mounted across task changes, so staged mentions / typed text must
+    // not leak into the next task's comment.
+    setNewComment("");
+    setStagedMentions([]);
+    setPendingCommentFiles([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
 
   // det-03: fetch the linked project's sections so the Projects row can
@@ -8055,7 +8112,9 @@ function TaskDetailPanel({
         body: JSON.stringify({
           // Persist a single non-breaking space when the user attached
           // a file with no caption — the API requires non-empty content.
-          content: hasText ? newComment : " ",
+          // Confirmed @-mentions are wrapped in the data-user-id spans
+          // the server parses for MENTIONED notifications.
+          content: hasText ? buildCommentContent(newComment, stagedMentions) : " ",
         }),
       });
       if (!res.ok) {
@@ -8092,6 +8151,7 @@ function TaskDetailPanel({
       }
 
       setNewComment("");
+      setStagedMentions([]);
       setPendingCommentFiles([]);
       if (commentFileInputRef.current) commentFileInputRef.current.value = "";
       await fetchTaskDetail();
@@ -9056,7 +9116,7 @@ function TaskDetailPanel({
                         </div>
                         {comment.content && comment.content.trim() && (
                           <p className="text-sm text-black mt-1 whitespace-pre-wrap break-words">
-                            {comment.content}
+                            {renderCommentContent(comment.content)}
                           </p>
                         )}
                         {atts.length > 0 && (
@@ -9153,21 +9213,27 @@ function TaskDetailPanel({
           </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 rounded-md border border-[#e8e8e8] bg-white focus-within:border-[#c4c7cf] transition-colors px-2.5 py-1.5">
-              <input
-                type="text"
-                placeholder={
-                  pendingCommentFiles.length > 0 ? "Caption (optional)…" : "Add a comment…"
-                }
+              <MentionInput
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !postingComment) {
-                    e.preventDefault();
-                    handleAddComment();
-                  }
+                onChange={setNewComment}
+                candidates={mentionCandidates}
+                onMentionAdd={(member) =>
+                  setStagedMentions((prev) =>
+                    prev.some((m) => m.id === member.id)
+                      ? prev
+                      : [...prev, member]
+                  )
+                }
+                onSubmit={() => {
+                  if (!postingComment) handleAddComment();
                 }}
+                placeholder={
+                  pendingCommentFiles.length > 0
+                    ? "Caption (optional)…"
+                    : "Add a comment… @ to mention"
+                }
                 disabled={postingComment}
-                className="flex-1 text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] text-[#1e1f21]"
+                className="w-full text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] text-[#1e1f21] leading-5 max-h-24 overflow-y-auto"
               />
               <input
                 ref={commentFileInputRef}

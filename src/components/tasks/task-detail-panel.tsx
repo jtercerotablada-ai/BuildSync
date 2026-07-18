@@ -70,6 +70,13 @@ import { ProjectSelector } from "@/components/tasks/project-selector";
 import { DependenciesPicker } from "@/components/tasks/dependencies-picker";
 import { CustomFieldsSection } from "@/components/tasks/custom-fields-section";
 import { EditableTagsCell } from "@/components/tasks/editable-tags-cell";
+import {
+  MentionInput,
+  buildCommentContent,
+  commentToPlainText,
+  renderCommentContent,
+  type MentionCandidate,
+} from "@/components/tasks/comment-content";
 import { FileViewerModal } from "@/components/files/file-viewer-modal";
 import { downloadFile } from "@/lib/download";
 import {
@@ -295,6 +302,12 @@ export function TaskDetailPanel({
   // Inline edit of an existing (own) comment.
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
+  // @-mention typeahead: who can be mentioned (the home project's members)
+  // and which mentions the user confirmed in the current draft.
+  const [mentionCandidates, setMentionCandidates] = useState<
+    MentionCandidate[]
+  >([]);
+  const [stagedMentions, setStagedMentions] = useState<MentionCandidate[]>([]);
 
   // ── Like state ─────────────────────────────────────────────────
   const [liked, setLiked] = useState(false);
@@ -342,6 +355,13 @@ export function TaskDetailPanel({
 
   useEffect(() => {
     fetchTaskDetail();
+    // Reset the comment draft when the panel swaps to a different task —
+    // the panel stays mounted across taskId changes, so a mention staged
+    // (or text typed) on task A must not leak into task B's comment.
+    setNewComment("");
+    setStagedMentions([]);
+    setPendingCommentFiles([]);
+    setEditingCommentId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
@@ -360,6 +380,56 @@ export function TaskDetailPanel({
           setProjectSections(d.sections.map((s) => ({ id: s.id, name: s.name })));
         }
       })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [taskDetail?.project?.id]);
+
+  // Load the project's members for the @-mention typeahead. The server
+  // gates mention fan-out to project membership, so this is the same
+  // audience it will accept. Tasks without a project keep an empty list
+  // (typeahead simply never opens).
+  useEffect(() => {
+    const pid = taskDetail?.project?.id;
+    if (!pid) {
+      setMentionCandidates([]);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/projects/${pid}/members`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then(
+        (
+          rows:
+            | {
+                userId: string;
+                user: {
+                  id: string;
+                  name: string | null;
+                  email: string | null;
+                  image: string | null;
+                };
+              }[]
+            | unknown
+        ) => {
+          if (cancelled || !Array.isArray(rows)) return;
+          const seen = new Set<string>();
+          const list: MentionCandidate[] = [];
+          for (const row of rows) {
+            const u = row?.user;
+            if (!u?.id || seen.has(u.id)) continue;
+            seen.add(u.id);
+            list.push({
+              id: u.id,
+              name: u.name ?? null,
+              email: u.email ?? null,
+              image: u.image ?? null,
+            });
+          }
+          setMentionCandidates(list);
+        }
+      )
       .catch(() => {});
     return () => {
       cancelled = true;
@@ -637,10 +707,15 @@ export function TaskDetailPanel({
     if (!hasText && !hasFiles) return;
     setPostingComment(true);
     try {
+      // Wrap confirmed @-mentions in the data-user-id spans the server
+      // parses for MENTIONED notifications; plain comments go unchanged.
+      const content = hasText
+        ? buildCommentContent(newComment, stagedMentions)
+        : " ";
       const res = await fetch(`/api/tasks/${taskId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: hasText ? newComment : " " }),
+        body: JSON.stringify({ content }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -673,6 +748,7 @@ export function TaskDetailPanel({
       }
 
       setNewComment("");
+      setStagedMentions([]);
       setPendingCommentFiles([]);
       if (commentFileInputRef.current) commentFileInputRef.current.value = "";
       await fetchTaskDetail();
@@ -1954,7 +2030,12 @@ export function TaskDetailPanel({
                                 <DropdownMenuItem
                                   onClick={() => {
                                     setEditingCommentId(comment.id);
-                                    setEditingCommentText(comment.content);
+                                    // Mention spans → plain @Name text for
+                                    // the edit box (saving keeps the text;
+                                    // the chip linkage is dropped).
+                                    setEditingCommentText(
+                                      commentToPlainText(comment.content)
+                                    );
                                   }}
                                 >
                                   Edit comment
@@ -1992,7 +2073,7 @@ export function TaskDetailPanel({
                           />
                         ) : comment.content && comment.content.trim() ? (
                           <p className="text-sm text-black mt-1 whitespace-pre-wrap break-words">
-                            {comment.content}
+                            {renderCommentContent(comment.content)}
                           </p>
                         ) : null}
                         {atts.length > 0 && (
@@ -2099,23 +2180,27 @@ export function TaskDetailPanel({
           </Avatar>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 rounded-md border border-[#e8e8e8] bg-white focus-within:border-[#c4c7cf] transition-colors px-2.5 py-1.5">
-              <input
-                type="text"
+              <MentionInput
+                value={newComment}
+                onChange={setNewComment}
+                candidates={mentionCandidates}
+                onMentionAdd={(member) =>
+                  setStagedMentions((prev) =>
+                    prev.some((m) => m.id === member.id)
+                      ? prev
+                      : [...prev, member]
+                  )
+                }
+                onSubmit={() => {
+                  if (!postingComment) handleAddComment();
+                }}
                 placeholder={
                   pendingCommentFiles.length > 0
                     ? "Caption (optional)…"
-                    : "Add a comment…"
+                    : "Add a comment… @ to mention"
                 }
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !postingComment) {
-                    e.preventDefault();
-                    handleAddComment();
-                  }
-                }}
                 disabled={postingComment}
-                className="flex-1 text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] text-[#1e1f21]"
+                className="w-full text-[13px] bg-transparent outline-none placeholder:text-[#9aa0a6] text-[#1e1f21] leading-5 max-h-24 overflow-y-auto"
               />
               <input
                 ref={commentFileInputRef}
