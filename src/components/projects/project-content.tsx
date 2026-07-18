@@ -46,10 +46,17 @@ import {
   MapPin,
   NotebookPen,
   Gauge,
+  Link2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  BUILTIN_VIEWS,
+  BUILTIN_VIEW_KEYS,
+  baseLabelFor,
+  RENDERABLE_VIEWS,
+} from "@/lib/project-views";
 import { isThisWeek } from "date-fns";
 import { dueDateToLocalMidnight, daysFromToday } from "@/lib/date-only";
 import { ListView } from "@/components/views/list-view";
@@ -119,6 +126,9 @@ interface Project {
   visibility?: "PRIVATE" | "WORKSPACE" | "PUBLIC";
   sections: Section[];
   views: { id: string; name: string; type: string; isDefault: boolean }[];
+  // Per-project view-tab customization (Asana's tab context menu). Empty for
+  // projects whose tabs were never renamed / reordered / copied / hidden.
+  viewPrefs?: ViewPref[];
   owner: {
     id: string;
     name: string | null;
@@ -294,6 +304,45 @@ const ADD_VIEW_GROUPS: {
     ],
   },
 ];
+
+// Per-project view-tab customization row (serialized from ProjectViewPref).
+interface ViewPref {
+  id: string;
+  viewKey: string;
+  baseView: string;
+  label: string | null;
+  hidden: boolean;
+  isDefault: boolean;
+  position: number;
+}
+
+// A resolved tab in the strip: a built-in view (with any rename applied) or a
+// "Make a copy" of one. `mobile` mirrors the built-in's responsive visibility.
+interface TabDef {
+  viewKey: string;
+  baseView: string;
+  label: string;
+  mobile: boolean;
+  isCopy: boolean;
+  isDefault: boolean;
+}
+
+// Tab icons, keyed by the underlying built-in view. Copies reuse their base
+// view's icon.
+const VIEW_ICONS: Record<string, LucideIcon> = {
+  overview: FileText,
+  list: List,
+  board: LayoutGrid,
+  timeline: ChartNoAxesGantt,
+  dashboard: BarChart3,
+  calendar: Calendar,
+  gantt: ChartGantt,
+  workflow: GitBranch,
+  messages: MessageSquare,
+  files: FolderOpen,
+  notes: NotebookPen,
+  workload: Gauge,
+};
 
 export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const router = useRouter();
@@ -548,6 +597,228 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
     router.push(`/projects/${project.id}?view=${view}`);
   };
 
+  // ── View tabs + per-tab context menu (Asana parity) ─────────────────
+  // The strip is data-driven: the built-in catalog merged with this project's
+  // ProjectViewPref rows (renames, hidden "deleted" tabs, and "Make a copy"
+  // tabs). Clicking the already-active tab opens the Rename / Set as default /
+  // Make a copy / Copy link / Delete menu.
+  const viewPrefs = useMemo<ViewPref[]>(
+    () => project.viewPrefs ?? [],
+    [project.viewPrefs]
+  );
+
+  const tabs = useMemo<TabDef[]>(() => {
+    const prefByKey = new Map(viewPrefs.map((p) => [p.viewKey, p]));
+    const result: TabDef[] = [];
+    // Built-in tabs, in catalog order, minus any "deleted" (hidden) ones, with
+    // rename overrides applied.
+    for (const b of BUILTIN_VIEWS) {
+      const pref = prefByKey.get(b.key);
+      if (pref?.hidden) continue;
+      result.push({
+        viewKey: b.key,
+        baseView: b.key,
+        label: pref?.label?.trim() || b.label,
+        mobile: b.mobile,
+        isCopy: false,
+        isDefault: !!pref?.isDefault,
+      });
+    }
+    // "Make a copy" tabs, appended after the built-ins (Asana order).
+    const copies = viewPrefs
+      .filter((p) => !BUILTIN_VIEW_KEYS.has(p.viewKey) && !p.hidden)
+      .sort(
+        (a, b) => a.position - b.position || a.viewKey.localeCompare(b.viewKey)
+      );
+    for (const c of copies) {
+      result.push({
+        viewKey: c.viewKey,
+        baseView: c.baseView,
+        label: c.label?.trim() || `${baseLabelFor(c.baseView)} copy`,
+        mobile: true,
+        isCopy: true,
+        isDefault: c.isDefault,
+      });
+    }
+    return result;
+  }, [viewPrefs]);
+
+  // The active tab may be a copy, whose underlying built-in drives rendering.
+  const activeTab = tabs.find((t) => t.viewKey === currentView);
+  const baseView = activeTab
+    ? activeTab.baseView
+    : RENDERABLE_VIEWS.has(currentView)
+      ? currentView
+      : "list";
+
+  // Hidden built-in views — the "+" catalog re-adds (unhides) these.
+  const hiddenBuiltins = useMemo(
+    () =>
+      new Set(
+        viewPrefs
+          .filter((p) => p.hidden && BUILTIN_VIEW_KEYS.has(p.viewKey))
+          .map((p) => p.viewKey)
+      ),
+    [viewPrefs]
+  );
+
+  const [renamingKey, setRenamingKey] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [tabBusy, setTabBusy] = useState(false);
+
+  const viewsApi = (suffix = "") =>
+    `/api/projects/${project.id}/views${suffix}`;
+
+  const startRename = (tab: TabDef) => {
+    setRenameValue(tab.label);
+    setRenamingKey(tab.viewKey);
+  };
+
+  const commitRename = async (tab: TabDef) => {
+    const next = renameValue.trim();
+    setRenamingKey(null);
+    if (!next || next === tab.label) return;
+    try {
+      const res = await fetch(viewsApi(`/${encodeURIComponent(tab.viewKey)}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: next }),
+      });
+      if (!res.ok) {
+        throw new Error((await res.json().catch(() => ({}))).error);
+      }
+      router.refresh();
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message ? e.message : "Could not rename view"
+      );
+    }
+  };
+
+  const setDefaultView = async (tab: TabDef) => {
+    if (tabBusy) return;
+    setTabBusy(true);
+    try {
+      const res = await fetch(viewsApi(`/${encodeURIComponent(tab.viewKey)}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isDefault: true }),
+      });
+      if (!res.ok) {
+        throw new Error((await res.json().catch(() => ({}))).error);
+      }
+      toast.success(`"${tab.label}" is now the default view`);
+      router.refresh();
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message ? e.message : "Could not set default"
+      );
+    } finally {
+      setTabBusy(false);
+    }
+  };
+
+  const makeViewCopy = async (tab: TabDef) => {
+    if (tabBusy) return;
+    setTabBusy(true);
+    try {
+      const res = await fetch(viewsApi(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          baseView: tab.baseView,
+          label: `${tab.label} copy`,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error);
+      // Land on the new tab so it renders and is second-click-ready.
+      router.push(`/projects/${project.id}?view=${data.viewKey}`);
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message ? e.message : "Could not copy view"
+      );
+    } finally {
+      setTabBusy(false);
+    }
+  };
+
+  const copyViewLink = async (tab: TabDef) => {
+    const url = `${window.location.origin}/projects/${project.id}?view=${tab.viewKey}`;
+    // Prefer the async Clipboard API; fall back to a hidden-textarea execCommand
+    // when it's unavailable or blocked (e.g. document not focused).
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard");
+      return;
+    } catch {
+      /* fall through to the legacy path */
+    }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok) toast.success("Link copied to clipboard");
+      else toast.error("Could not copy link");
+    } catch {
+      toast.error("Could not copy link");
+    }
+  };
+
+  const deleteView = async (tab: TabDef) => {
+    if (tabBusy) return;
+    if (tabs.length <= 1) {
+      toast.error("A project must keep at least one view");
+      return;
+    }
+    setTabBusy(true);
+    try {
+      const res = await fetch(viewsApi(`/${encodeURIComponent(tab.viewKey)}`), {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        throw new Error((await res.json().catch(() => ({}))).error);
+      }
+      // If we're deleting the tab we're viewing, fall back to another tab.
+      if (currentView === tab.viewKey) {
+        const fallback =
+          tabs.find((t) => t.viewKey !== tab.viewKey)?.viewKey ?? "list";
+        router.push(`/projects/${project.id}?view=${fallback}`);
+      } else {
+        router.refresh();
+      }
+      toast.success(tab.isCopy ? "View deleted" : `"${tab.label}" removed`);
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message ? e.message : "Could not delete view"
+      );
+    } finally {
+      setTabBusy(false);
+    }
+  };
+
+  // "+" catalog: re-add (unhide) a hidden built-in before navigating to it.
+  const addOrOpenView = async (viewKey: string) => {
+    if (hiddenBuiltins.has(viewKey)) {
+      try {
+        await fetch(viewsApi(`/${encodeURIComponent(viewKey)}`), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hidden: false }),
+        });
+      } catch {
+        /* navigate regardless; a failed unhide just re-renders the tab */
+      }
+    }
+    handleViewChange(viewKey);
+  };
+
   const handleTaskClick = (taskId: string) => {
     setSelectedTaskId(taskId);
   };
@@ -573,7 +844,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
   const status = statusConfig[project.status as keyof typeof statusConfig] || statusConfig.ON_TRACK;
 
   // Show toolbar only for task views (not calendar - it has its own)
-  const showToolbar = ["list", "board", "timeline", "gantt"].includes(currentView);
+  const showToolbar = ["list", "board", "timeline", "gantt"].includes(baseView);
 
   return (
     <div className="h-full flex flex-col">
@@ -870,141 +1141,125 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             primary navigation never feels crowded by toggles. */}
         <div className="flex flex-col gap-0">
           <div className="flex items-center gap-0 md:gap-1 overflow-x-auto flex-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <button
-              onClick={() => handleViewChange("overview")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "overview"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <FileText className="h-4 w-4" />
-              <span className="hidden md:inline">Overview</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("list")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "list"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <List className="h-4 w-4" />
-              <span className="hidden md:inline">List</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("board")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "board"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <LayoutGrid className="h-4 w-4" />
-              <span className="hidden md:inline">Board</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("timeline")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "timeline"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <ChartNoAxesGantt className="h-4 w-4" />
-              <span className="hidden md:inline">Timeline</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("dashboard")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "dashboard"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span className="hidden md:inline">Dashboard</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("calendar")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "calendar"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Calendar className="h-4 w-4" />
-              <span className="hidden md:inline">Calendar</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("gantt")}
-              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "gantt"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <ChartGantt className="h-4 w-4" />
-              <span className="hidden md:inline">Gantt</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("workflow")}
-              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "workflow"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <GitBranch className="h-4 w-4" />
-              <span className="hidden md:inline">Workflow</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("messages")}
-              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "messages"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span className="hidden md:inline">Messages</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("files")}
-              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "files"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <FolderOpen className="h-4 w-4" />
-              <span className="hidden md:inline">Files</span>
-            </button>
             {/* No "Team" tab — Asana assigns the team at the team level;
                 projects don't carry a Team view. The route still resolves
                 for old deep links, and members live in Manage members. */}
-            <button
-              onClick={() => handleViewChange("notes")}
-              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "notes"
+            {tabs.map((tab) => {
+              const Icon = VIEW_ICONS[tab.baseView] ?? List;
+              const active = currentView === tab.viewKey;
+              const display = tab.mobile ? "flex" : "hidden md:flex";
+              const cls = `${display} items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+                active
                   ? "border-[#c9a84c] text-[#a8893a]"
                   : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <NotebookPen className="h-4 w-4" />
-              <span className="hidden md:inline">Notes</span>
-            </button>
-            <button
-              onClick={() => handleViewChange("workload")}
-              className={`hidden md:flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
-                currentView === "workload"
-                  ? "border-[#c9a84c] text-[#a8893a]"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Gauge className="h-4 w-4" />
-              <span className="hidden md:inline">Workload</span>
-            </button>
+              }`;
+              // Copies keep their label on mobile so two same-icon tabs stay
+              // distinguishable; built-ins collapse to icon-only like before.
+              const labelCls = tab.isCopy ? "" : "hidden md:inline";
+
+              // Inline rename — the active tab becomes a text field.
+              if (active && renamingKey === tab.viewKey) {
+                return (
+                  <div
+                    key={tab.viewKey}
+                    className={`${display} items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 border-b-2 border-[#c9a84c]`}
+                  >
+                    <Icon className="h-4 w-4 text-[#a8893a]" />
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          commitRename(tab);
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setRenamingKey(null);
+                        }
+                      }}
+                      onBlur={() => commitRename(tab)}
+                      className="w-24 md:w-32 bg-transparent text-xs md:text-[13px] font-medium text-[#a8893a] outline-none"
+                    />
+                  </div>
+                );
+              }
+
+              // Inactive tab — a plain button that navigates.
+              if (!active) {
+                return (
+                  <button
+                    key={tab.viewKey}
+                    onClick={() => handleViewChange(tab.viewKey)}
+                    className={cls}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className={labelCls}>{tab.label}</span>
+                  </button>
+                );
+              }
+
+              // Active tab — clicking it again opens the Asana context menu.
+              return (
+                <DropdownMenu key={tab.viewKey}>
+                  <DropdownMenuTrigger asChild>
+                    <button className={cls} aria-label={`${tab.label} view options`}>
+                      <Icon className="h-4 w-4" />
+                      <span className={labelCls}>{tab.label}</span>
+                      <ChevronDown className="h-3 w-3 opacity-60" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    {canEditProject && (
+                      <DropdownMenuItem onClick={() => startRename(tab)}>
+                        <Edit2 className="h-4 w-4 mr-2" />
+                        Rename
+                      </DropdownMenuItem>
+                    )}
+                    {canEditProject && (
+                      <DropdownMenuItem onClick={() => setDefaultView(tab)}>
+                        <Star
+                          className={cn(
+                            "h-4 w-4 mr-2",
+                            tab.isDefault && "fill-[#c9a84c] text-[#c9a84c]"
+                          )}
+                        />
+                        {tab.isDefault ? "Default view" : "Set as default"}
+                        {tab.isDefault && (
+                          <Check className="h-4 w-4 ml-auto text-[#a8893a]" />
+                        )}
+                      </DropdownMenuItem>
+                    )}
+                    {canEditProject && (
+                      <DropdownMenuItem onClick={() => makeViewCopy(tab)}>
+                        <Copy className="h-4 w-4 mr-2" />
+                        Make a copy
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => copyViewLink(tab)}>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Copy link
+                    </DropdownMenuItem>
+                    {/* Overview is the fixed landing tab and isn't in the "+"
+                        catalog to re-add, so it can't be deleted (only copied,
+                        renamed, or set as default) — matches Asana. */}
+                    {canEditProject && tab.viewKey !== "overview" && (
+                      <DropdownMenuSeparator />
+                    )}
+                    {canEditProject && tab.viewKey !== "overview" && (
+                      <DropdownMenuItem
+                        className="text-black"
+                        disabled={tabs.length <= 1}
+                        onClick={() => deleteView(tab)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            })}
             {/* "+" add-view catalog — Asana-style Popular / Others menu. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1027,7 +1282,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                       return (
                         <DropdownMenuItem
                           key={it.view}
-                          onClick={() => handleViewChange(it.view)}
+                          onClick={() => addOrOpenView(it.view)}
                           className="flex items-start gap-2.5 py-1.5 cursor-pointer"
                         >
                           <Icon className="h-4 w-4 mt-0.5 text-slate-500 flex-shrink-0" />
@@ -1056,7 +1311,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               {/* Left — Asana's "Agregar tarea ▾" split button (List view;
                   Timeline/Gantt carry their own toolbar copy). */}
               <div className="flex items-center">
-                {(currentView === "list" || currentView === "board") && (
+                {(baseView === "list" || baseView === "board") && (
                   <div className="flex items-center">
                     <Button
                       variant="outline"
@@ -1190,7 +1445,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
 
               {/* Group by — list view only. Regroups tasks into synthetic
                   sections; "None" keeps the project's own sections. */}
-              {currentView === "list" && (
+              {baseView === "list" && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -1284,15 +1539,15 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             intrinsic width of its content (e.g. all the board columns),
             blowing past the parent's `overflow-hidden` and killing the
             board's own overflow-auto. Classic flex gotcha. */}
-        <div className={cn("flex-1 min-w-0 flex flex-col", currentView !== "calendar" && currentView !== "board" && "overflow-auto")}>
-          {currentView === "overview" && (
+        <div className={cn("flex-1 min-w-0 flex flex-col", baseView !== "calendar" && baseView !== "board" && "overflow-auto")}>
+          {baseView === "overview" && (
             <ProjectOverview
               project={project}
               onManageMembers={() => setMembersDialogOpen(true)}
               onTaskClick={handleTaskClick}
             />
           )}
-          {currentView === "list" && (
+          {baseView === "list" && (
             <ListView
               sections={filteredSections}
               onTaskClick={handleTaskClick}
@@ -1301,7 +1556,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               reorderDisabled={hasActiveFilters}
             />
           )}
-          {currentView === "board" && (
+          {baseView === "board" && (
             <BoardView
               sections={filteredSections}
               onTaskClick={handleTaskClick}
@@ -1313,14 +1568,14 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               )}
             />
           )}
-          {currentView === "timeline" && (
+          {baseView === "timeline" && (
             <TimelineView
               sections={filteredSections}
               onTaskClick={handleTaskClick}
               projectId={project.id}
             />
           )}
-          {currentView === "gantt" && (
+          {baseView === "gantt" && (
             <GanttView
               sections={filteredSections}
               onTaskClick={handleTaskClick}
@@ -1349,7 +1604,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               })()}
             />
           )}
-          {currentView === "calendar" && (
+          {baseView === "calendar" && (
             <CalendarView
               sections={filteredSections}
               onTaskClick={handleTaskClick}
@@ -1357,19 +1612,19 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onTaskMutated={() => router.refresh()}
             />
           )}
-          {currentView === "dashboard" && (
+          {baseView === "dashboard" && (
             <DashboardView
               sections={project.sections}
               projectId={project.id}
             />
           )}
-          {currentView === "workflow" && (
+          {baseView === "workflow" && (
             <WorkflowView
               sections={project.sections}
               projectId={project.id}
             />
           )}
-          {currentView === "messages" && (
+          {baseView === "messages" && (
             <MessagesView
               sections={project.sections}
               projectId={project.id}
@@ -1387,23 +1642,23 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               }
             />
           )}
-          {currentView === "files" && (
+          {baseView === "files" && (
             <FilesView
               sections={project.sections}
               projectId={project.id}
             />
           )}
-          {currentView === "team" && (
+          {baseView === "team" && (
             <ProjectTeamView
               projectId={project.id}
               projectName={project.name}
               projectOwner={project.owner}
             />
           )}
-          {currentView === "notes" && (
+          {baseView === "notes" && (
             <NotesView projectId={project.id} canEdit={canEditProject} />
           )}
-          {currentView === "workload" && (
+          {baseView === "workload" && (
             <WorkloadView projectId={project.id} canEdit={canEditProject} />
           )}
         </div>

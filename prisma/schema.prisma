@@ -538,6 +538,7 @@ model Project {
   members       ProjectMember[]
   companies     ProjectCompany[]     @relation("ProjectCompanies")
   views         ProjectView[]
+  viewPrefs     ProjectViewPref[]
   customFields  ProjectCustomField[]
   portfolios    PortfolioProject[]
   messages      Message[]
@@ -734,6 +735,36 @@ enum ViewType {
   GANTT
   DASHBOARD
   FILES
+}
+
+/// Per-project customization of the view tabs (Asana's tab context menu:
+/// Rename / Set as default / Make a copy / Copy link / Delete). One row per
+/// customized tab — built-in tabs that were never touched have NO row and
+/// fall back to their catalog defaults.
+///
+/// - `viewKey` is the tab's identity in the URL (`?view=<viewKey>`). Built-in
+///   tabs use their view key ("list","board",…); a "Make a copy" gets a
+///   generated key ("board-a1b2c3").
+/// - `baseView` is the underlying built-in view this tab renders. For a
+///   built-in tab `baseView == viewKey`; for a copy it's the copied view.
+/// - Deleting a built-in tab sets `hidden = true` (soft, so the "+" catalog
+///   can re-add it); deleting a copy removes the row outright.
+model ProjectViewPref {
+  id        String   @id @default(cuid())
+  viewKey   String
+  baseView  String
+  label     String?
+  hidden    Boolean  @default(false)
+  isDefault Boolean  @default(false)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, viewKey])
+  @@index([projectId])
 }
 
 // ============ SECCIONES ============

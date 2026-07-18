@@ -66,7 +66,9 @@ export default async function ProjectPage({
 }: ProjectPageProps) {
   const session = await getServerSession(authOptions);
   const { projectId } = await params;
-  const { view = "list" } = await searchParams;
+  // The default landing view is resolved from the project's view prefs below
+  // (Asana's "Set as default"); an explicit ?view= always wins.
+  const { view: viewParam } = await searchParams;
 
   if (!session?.user?.email) {
     return null;
@@ -116,12 +118,18 @@ export default async function ProjectPage({
         },
       },
       views: true,
+      viewPrefs: true,
     },
   });
 
   if (!project) {
     notFound();
   }
+
+  // Resolve the landing view: an explicit ?view= wins; otherwise the tab the
+  // user pinned as default ("Set as default"); otherwise List.
+  const defaultViewPref = project.viewPrefs.find((p) => p.isDefault && !p.hidden);
+  const view = viewParam ?? defaultViewPref?.viewKey ?? "list";
 
   // ── Per-workspace access check ───────────────────────────────
   // Read the user's role + position relative to THIS project's
@@ -208,6 +216,16 @@ export default async function ProjectPage({
         ...s.tasks.map(serializeProjectTask),
         ...(multiHomedBySection.get(s.id) ?? []),
       ],
+    })),
+    // Per-project view-tab customization (rename / default / copies / hidden).
+    viewPrefs: project.viewPrefs.map((p) => ({
+      id: p.id,
+      viewKey: p.viewKey,
+      baseView: p.baseView,
+      label: p.label,
+      hidden: p.hidden,
+      isDefault: p.isDefault,
+      position: p.position,
     })),
   };
 
