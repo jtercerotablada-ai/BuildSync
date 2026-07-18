@@ -136,6 +136,8 @@ export default function TeamMembersPage() {
     name: string;
   } | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  // Inline job-title editing — the id of the member row being edited.
+  const [editingJobTitle, setEditingJobTitle] = useState<string | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -197,6 +199,41 @@ export default function TeamMembersPage() {
       } else toast.error("Error updating role");
     } catch {
       toast.error("Error updating role");
+    }
+  };
+
+  const handleSaveJobTitle = async (memberId: string, raw: string) => {
+    setEditingJobTitle(null);
+    const next = raw.trim();
+    const current =
+      team?.members.find((m) => m.id === memberId)?.user.jobTitle || "";
+    if (next === current) return; // no change
+    try {
+      const res = await fetch(`/api/teams/${teamId}/members/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobTitle: next || null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update job title");
+      }
+      const updated = await res.json();
+      // Reflect the saved value locally without a full reload.
+      setTeam((prev) =>
+        prev
+          ? {
+              ...prev,
+              members: prev.members.map((m) =>
+                m.id === memberId
+                  ? { ...m, user: { ...m.user, jobTitle: updated?.user?.jobTitle ?? null } }
+                  : m
+              ),
+            }
+          : prev
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't update job title");
     }
   };
 
@@ -610,9 +647,43 @@ export default function TeamMembersPage() {
                   </div>
                 </td>
 
-                {/* Job title */}
-                <td className="border-r px-3 py-2.5 text-gray-700 truncate">
-                  {member.user.jobTitle || ""}
+                {/* Job title — inline editable. A lead can set anyone's; a
+                    member can set their own. Others see it read-only. */}
+                <td className="border-r px-3 py-1.5 text-gray-700">
+                  {editingJobTitle === member.id ? (
+                    <input
+                      autoFocus
+                      defaultValue={member.user.jobTitle || ""}
+                      onBlur={(e) => handleSaveJobTitle(member.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          (e.target as HTMLInputElement).blur();
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setEditingJobTitle(null);
+                        }
+                      }}
+                      placeholder="Job title"
+                      maxLength={120}
+                      className="w-full rounded border border-[#c9a84c] bg-white px-1.5 py-1 text-sm text-gray-900 outline-none"
+                    />
+                  ) : isLead || member.user.id === currentUserId ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingJobTitle(member.id)}
+                      className="block w-full truncate rounded px-1.5 py-1 text-left hover:bg-gray-50"
+                      title="Edit job title"
+                    >
+                      {member.user.jobTitle || (
+                        <span className="text-gray-300">Add job title…</span>
+                      )}
+                    </button>
+                  ) : (
+                    <span className="block truncate px-1.5 py-1">
+                      {member.user.jobTitle || ""}
+                    </span>
+                  )}
                 </td>
 
                 {/* Custom field cells */}
