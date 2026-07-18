@@ -333,6 +333,65 @@ export function GanttView({
   // also open the task panel.
   const didDragRef = useRef(false);
 
+  // Optimistic date overrides — applied the instant a drag is released so
+  // the bar stays where the user dropped it while the PATCH +
+  // router.refresh() round-trip completes (no snap-back). Also fed by the
+  // server's cascadeShifts so dependent bars glide along immediately.
+  const [optimisticDates, setOptimisticDates] = useState<
+    Record<string, { startDate: string | null; dueDate: string | null }>
+  >({});
+  const patchesInFlightRef = useRef(0);
+
+  // Drop each override once fresh server data CONFIRMS it (incoming prop
+  // dates match). Non-matching overrides get two strikes while idle before
+  // being dropped as stale — see timeline-view for the full rationale.
+  const staleOverridesRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    setOptimisticDates((prev) => {
+      const ids = Object.keys(prev);
+      if (ids.length === 0) return prev;
+      const propDates = new Map<string, { s: string | null; d: string | null }>();
+      for (const sec of sections)
+        for (const t of sec.tasks)
+          propDates.set(t.id, {
+            s: t.startDate ? String(t.startDate).slice(0, 10) : null,
+            d: t.dueDate ? String(t.dueDate).slice(0, 10) : null,
+          });
+      const next: typeof prev = {};
+      let changed = false;
+      for (const id of ids) {
+        const o = prev[id];
+        const p = propDates.get(id);
+        const matches =
+          !!p &&
+          p.s === (o.startDate ? o.startDate.slice(0, 10) : null) &&
+          p.d === (o.dueDate ? o.dueDate.slice(0, 10) : null);
+        if (
+          matches ||
+          (patchesInFlightRef.current === 0 && staleOverridesRef.current.has(id))
+        ) {
+          changed = true;
+          staleOverridesRef.current.delete(id);
+          continue;
+        }
+        staleOverridesRef.current.add(id);
+        next[id] = o;
+      }
+      return changed ? next : prev;
+    });
+  }, [sections]);
+
+  const effectiveSections = useMemo(() => {
+    if (Object.keys(optimisticDates).length === 0) return sections;
+    return sections.map((section) => ({
+      ...section,
+      tasks: section.tasks.map((task) => {
+        const o = optimisticDates[task.id];
+        return o ? { ...task, startDate: o.startDate, dueDate: o.dueDate ?? task.dueDate } : task;
+      }),
+    }));
+  }, [sections, optimisticDates]);
+
   useEffect(() => {
     if (addingSection) sectionInputRef.current?.focus();
   }, [addingSection]);
@@ -361,7 +420,7 @@ export function GanttView({
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 6);
-    return sections.map((section) => {
+    return effectiveSections.map((section) => {
       let tasks =
         taskFilter === "all"
           ? section.tasks
@@ -389,7 +448,7 @@ export function GanttView({
       }
       return { ...section, tasks };
     });
-  }, [sections, taskFilter, taskSort]);
+  }, [effectiveSections, taskFilter, taskSort]);
 
   // ---------- Name lookup (from the FULL sections prop, so "Blocked by"
   // resolves even when the predecessor is filtered out) ----------
@@ -429,8 +488,8 @@ export function GanttView({
   }, [dependencies, taskNameById]);
 
   const allTasksFlat = useMemo(
-    () => sections.flatMap((s) => s.tasks),
-    [sections]
+    () => effectiveSections.flatMap((s) => s.tasks),
+    [effectiveSections]
   );
 
   // ---------- Inline edit helpers (Asana's Gantt table is editable) ----------
@@ -482,8 +541,33 @@ export function GanttView({
     }
   }, [projectId]);
 
+  // Apply server cascade results to the optimistic layer so rescheduled
+  // bars glide to their new dates IMMEDIATELY instead of waiting for
+  // router.refresh() to land.
+  const applyShiftOverrides = useCallback(
+    (
+      shifts:
+        | { taskId: string; newStart: string | null; newEnd: string | null }[]
+        | undefined
+    ) => {
+      if (!Array.isArray(shifts) || shifts.length === 0) return;
+      setOptimisticDates((prev) => {
+        const next = { ...prev };
+        for (const s of shifts) {
+          next[s.taskId] = {
+            startDate: s.newStart ? String(s.newStart).slice(0, 10) : null,
+            dueDate: s.newEnd ? String(s.newEnd).slice(0, 10) : null,
+          };
+        }
+        return next;
+      });
+    },
+    []
+  );
+
   const addBlocker = useCallback(
     async (taskId: string, blockingTaskId: string) => {
+      patchesInFlightRef.current += 1;
       try {
         const res = await fetch(`/api/tasks/${taskId}/dependencies`, {
           method: "POST",
@@ -495,11 +579,12 @@ export function GanttView({
           throw new Error(data?.error || "Failed to add dependency");
         }
         // The server auto-shifts the dependent when the new link is already
-        // violated — pull the bars too, or they'd show stale dates.
+        // violated — move the bars optimistically, then refresh.
         const data = await res.json().catch(() => null);
         const shifted = Array.isArray(data?.cascadeShifts)
           ? data.cascadeShifts.length
           : 0;
+        applyShiftOverrides(data?.cascadeShifts);
         if (shifted > 0) router.refresh();
         await reloadDependencies();
         toast.success(
@@ -511,9 +596,11 @@ export function GanttView({
         toast.error(
           err instanceof Error ? err.message : "Failed to add dependency"
         );
+      } finally {
+        patchesInFlightRef.current -= 1;
       }
     },
-    [reloadDependencies, router]
+    [reloadDependencies, router, applyShiftOverrides]
   );
 
   const removeBlocker = useCallback(
@@ -554,6 +641,7 @@ export function GanttView({
         prev.map((d) => (d.id === dep.id ? { ...d, type } : d))
       );
       setDepMenu((m) => (m && m.dep.id === dep.id ? { ...m, dep: { ...m.dep, type }, open: false } : m));
+      patchesInFlightRef.current += 1;
       try {
         const res = await fetch(
           `/api/tasks/${dep.dependentTaskId}/dependencies?id=${dep.id}`,
@@ -571,7 +659,9 @@ export function GanttView({
         const shifted = Array.isArray(data?.cascadeShifts)
           ? data.cascadeShifts.length
           : 0;
-        // Dates may have moved — pull the bars, then the arrows.
+        // Dates may have moved — glide the bars optimistically, then let
+        // the refresh confirm; the arrows re-anchor from the same dates.
+        applyShiftOverrides(data?.cascadeShifts);
         if (shifted > 0) router.refresh();
         await reloadDependencies();
         toast.success(
@@ -592,9 +682,11 @@ export function GanttView({
         toast.error(
           err instanceof Error ? err.message : "Failed to update dependency"
         );
+      } finally {
+        patchesInFlightRef.current -= 1;
       }
     },
-    [reloadDependencies, router]
+    [reloadDependencies, router, applyShiftOverrides]
   );
 
   const deleteDependency = useCallback(
@@ -901,12 +993,20 @@ export function GanttView({
       if (!task) return null;
       const pos = getTaskPosition(task);
       if (!pos) return null;
+      const yCenter = row * ROW_HEIGHT + ROW_HEIGHT / 2;
+      // Milestones/approvals render as a 24px glyph centered on the span's
+      // right edge (markerLeft = left + width − 12) — anchor arrows to the
+      // glyph, not the invisible bar rect.
+      if (task.taskType === "MILESTONE" || task.taskType === "APPROVAL") {
+        const centerX = pos.left + (task.startDate ? pos.width : DUE_ONLY_W);
+        return { xLeft: centerX - 12, xRight: centerX + 12, yCenter };
+      }
       // Due-only tasks render as a slim pill — anchor arrows to it.
       const width = task.startDate ? pos.width : DUE_ONLY_W;
       return {
         xLeft: pos.left,
         xRight: pos.left + width,
-        yCenter: row * ROW_HEIGHT + ROW_HEIGHT / 2,
+        yCenter,
       };
     },
     [taskRowMap, filteredSections, getTaskPosition]
@@ -958,7 +1058,24 @@ export function GanttView({
 
     const handleMouseMove = (e: MouseEvent) => {
       const dx = e.clientX - dragState.startX;
-      const snappedDays = Math.round(pixelsToDays(dx));
+      let snappedDays = Math.round(pixelsToDays(dx));
+      // Clamp handle overshoot in the PREVIEW too, mirroring the commit
+      // clamps — otherwise the ghost slides past the opposite edge and
+      // visibly jumps back on release.
+      if (dragState.handle !== "move") {
+        const s = dueDateToLocalMidnight(
+          dragState.originalStart ?? dragState.originalDue
+        );
+        const d = dueDateToLocalMidnight(dragState.originalDue);
+        const durationDays = Math.round(
+          (d.getTime() - s.getTime()) / 86400000
+        );
+        if (dragState.handle === "left") {
+          snappedDays = Math.min(snappedDays, durationDays);
+        } else {
+          snappedDays = Math.max(snappedDays, -durationDays);
+        }
+      }
       const snappedPx = snappedDays * bounds.dayWidth;
       setDragState((prev) => (prev ? { ...prev, deltaX: snappedPx } : prev));
     };
@@ -1003,18 +1120,54 @@ export function GanttView({
         }
       }
 
+      // Optimistic: pin the bar at its dropped position IMMEDIATELY, then
+      // persist in the background — it must never snap back mid round-trip.
+      const taskId = dragState.taskId;
+      setOptimisticDates((prev) => ({
+        ...prev,
+        [taskId]: {
+          startDate: body.startDate !== undefined ? body.startDate : dragState.originalStart,
+          dueDate: body.dueDate !== undefined ? body.dueDate : dragState.originalDue,
+        },
+      }));
+      setDragState(null);
+
+      patchesInFlightRef.current += 1;
       try {
-        const res = await fetch(`/api/tasks/${dragState.taskId}`, {
+        const res = await fetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error();
+        // Glide dependents along too (server-side cascade result).
+        const updated = await res.json().catch(() => null);
+        const shifts: { taskId: string; newStart: string | null; newEnd: string | null }[] =
+          updated?.cascadeShifts ?? [];
+        if (shifts.length > 0) {
+          setOptimisticDates((prev) => {
+            const next = { ...prev };
+            for (const s of shifts) {
+              next[s.taskId] = {
+                startDate: s.newStart ? String(s.newStart).slice(0, 10) : null,
+                dueDate: s.newEnd ? String(s.newEnd).slice(0, 10) : null,
+              };
+            }
+            return next;
+          });
+        }
         router.refresh();
       } catch {
+        // Roll back only the failed bar.
+        setOptimisticDates((prev) => {
+          const next = { ...prev };
+          delete next[taskId];
+          return next;
+        });
         toast.error("Failed to update dates");
+      } finally {
+        patchesInFlightRef.current -= 1;
       }
-      setDragState(null);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
@@ -2072,7 +2225,13 @@ export function GanttView({
                                 ) : (
                                   <div
                                     className={cn(
-                                      "absolute rounded cursor-grab active:cursor-grabbing group/bar",
+                                      // z-10 keeps the bar ABOVE the dependency
+                                      // svg (z-[5]) — its invisible 12px hit-
+                                      // paths otherwise sit on top of the bar
+                                      // and steal mousedown/click wherever an
+                                      // arrow crosses it, making drags feel
+                                      // stuck.
+                                      "absolute rounded cursor-grab active:cursor-grabbing group/bar z-10",
                                       "hover:ring-2 hover:ring-[#335FB5]/50",
                                       "transition-shadow",
                                       selectedTaskId === task.id &&

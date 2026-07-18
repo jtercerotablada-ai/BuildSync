@@ -124,8 +124,15 @@ export async function GET(
                 image: true,
               },
             },
+            // The panel renders per-comment attachments — without this
+            // include they were silently dropped from every response.
+            attachments: {
+              orderBy: { createdAt: "asc" },
+            },
           },
-          orderBy: { createdAt: "desc" },
+          // Oldest-first: the thread reads top-down with the composer at
+          // the bottom (Asana order).
+          orderBy: { createdAt: "asc" },
         },
         attachments: {
           orderBy: { createdAt: "desc" },
@@ -459,7 +466,13 @@ export async function PATCH(
         },
       });
       if (datesChanged) {
-        cascadeShifts = await cascadeDependentDates(tx, taskId);
+        // Pass the pre-edit dates so dependents shift by the same delta the
+        // schedule moved (gap-preserving, both directions — MS-Project style)
+        // instead of only being pushed when a constraint breaks.
+        cascadeShifts = await cascadeDependentDates(tx, taskId, {
+          start: existingTask.startDate,
+          end: existingTask.dueDate,
+        });
       }
       return updated;
     });

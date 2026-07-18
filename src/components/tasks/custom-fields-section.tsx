@@ -72,6 +72,9 @@ interface FieldDef {
 interface CustomFieldsSectionProps {
   taskId: string;
   projectId: string | null;
+  /** Extra projects the task is multi-homed into — their custom fields
+   *  render too (definitions deduped by id when shared). */
+  extraProjectIds?: string[];
   /** From the task detail payload — array of { fieldId, value }. */
   values: { fieldId: string; value: unknown }[];
   onChanged: () => void;
@@ -80,6 +83,7 @@ interface CustomFieldsSectionProps {
 export function CustomFieldsSection({
   taskId,
   projectId,
+  extraProjectIds,
   values,
   onChanged,
 }: CustomFieldsSectionProps) {
@@ -87,8 +91,14 @@ export function CustomFieldsSection({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
 
+  // Stable key across renders for the id list.
+  const projectIdsKey = [projectId, ...(extraProjectIds ?? [])]
+    .filter(Boolean)
+    .join(",");
+
   useEffect(() => {
-    if (!projectId) {
+    const ids = projectIdsKey.split(",").filter(Boolean);
+    if (ids.length === 0) {
       setDefs([]);
       return;
     }
@@ -96,12 +106,28 @@ export function CustomFieldsSection({
     setLoading(true);
     (async () => {
       try {
-        const res = await fetch(
-          `/api/projects/${projectId}/custom-fields`
+        const results = await Promise.all(
+          ids.map((id) =>
+            fetch(`/api/projects/${id}/custom-fields`).then((res) =>
+              res.ok ? (res.json() as Promise<FieldDef[]>) : []
+            )
+          )
         );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: FieldDef[] = await res.json();
-        if (!cancelled) setDefs(data);
+        if (!cancelled) {
+          // Merge home + multi-homed projects' fields, deduped by
+          // definition id (a shared definition appears once).
+          const seen = new Set<string>();
+          const merged: FieldDef[] = [];
+          for (const list of results) {
+            for (const def of list) {
+              if (!seen.has(def.id)) {
+                seen.add(def.id);
+                merged.push(def);
+              }
+            }
+          }
+          setDefs(merged);
+        }
       } catch (err) {
         console.error("[custom-fields] load failed:", err);
         if (!cancelled) setDefs([]);
@@ -112,7 +138,7 @@ export function CustomFieldsSection({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectIdsKey]);
 
   const valueMap = useMemo(() => {
     const m = new Map<string, unknown>();
@@ -148,7 +174,7 @@ export function CustomFieldsSection({
     [taskId, onChanged]
   );
 
-  if (!projectId || loading) {
+  if (loading) {
     return null;
   }
   if (!defs || defs.length === 0) {

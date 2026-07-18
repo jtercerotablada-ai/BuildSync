@@ -1,9 +1,9 @@
 /**
- * Project-management style dependency cascade.
+ * Project-management style dependency cascade (MS-Project / Asana model).
  *
  * When a "blocking" task's startDate or dueDate moves, every task that
- * depends on it (its "dependents") may need to shift forward so the
- * dependency constraint still holds. This module computes those shifts.
+ * depends on it (its "dependents") auto-adjusts. This module computes
+ * those shifts.
  *
  * Dependency types follow standard PERT/CPM notation:
  *
@@ -12,13 +12,26 @@
  *   FF  (Finish-to-Finish)  dependent.end   ≥ blocker.end
  *   SF  (Start-to-Finish)   dependent.end   ≥ blocker.start
  *
- * The cascade preserves each dependent's *duration* (end − start). If a
- * dependent only has one of the two dates set, we adjust the one we can
- * compute and leave the other null. Tasks with no dates are skipped —
- * the user has not committed to a schedule yet, so we don't fabricate
- * one.
+ * SCHEDULING SEMANTICS — two modes:
  *
- * We never shift a task *earlier*. Dependencies only push forward.
+ * 1. GAP-PRESERVING SHIFT (the MS-Project behaviour, used when we know how
+ *    far the blocker's relevant anchor moved): the dependent shifts by the
+ *    SAME delta, in EITHER direction, keeping whatever buffer the user had
+ *    scheduled between the two tasks (Asana calls this "maintaining the
+ *    buffer"; MSP calls the buffer lag). Moving a blocker 3 days later
+ *    moves its dependents 3 days later; moving it earlier pulls them
+ *    earlier. A pulled-back dependent is then CLAMPED against every one of
+ *    its OTHER blockers so no constraint is ever violated (diamond graphs).
+ *
+ * 2. CONSTRAINT ENFORCEMENT (used when there is no before/after delta —
+ *    e.g. a dependency was just created or retyped, or the blocker
+ *    previously had no relevant date): push the dependent forward only as
+ *    far as needed for the constraint to hold; never move it earlier.
+ *
+ * The cascade preserves each dependent's *duration* (end − start). If a
+ * dependent only has one of the two dates set, we shift the one that
+ * exists. Tasks with no dates are skipped — the user has not committed to
+ * a schedule yet, so we don't fabricate one. Completed tasks never move.
  *
  * A task can have SEVERAL blockers (diamond graphs: A→B, A→C, B→D, C→D).
  * Each one is a separate constraint, so a dependent must be re-evaluated
@@ -56,6 +69,29 @@ function addDays(d: Date, days: number): Date {
   return new Date(d.getTime() + days * MS_PER_DAY);
 }
 
+interface DateRange {
+  start: Date | null;
+  end: Date | null;
+}
+
+/** The blocker date the dependency type anchors on, and which dependent
+ *  field it constrains. */
+function edgeAnchor(
+  type: DependencyType,
+  blocker: DateRange
+): { anchor: Date | null; constrains: "start" | "end" } {
+  switch (type) {
+    case "FINISH_TO_START":
+      return { anchor: blocker.end, constrains: "start" };
+    case "START_TO_START":
+      return { anchor: blocker.start, constrains: "start" };
+    case "FINISH_TO_FINISH":
+      return { anchor: blocker.end, constrains: "end" };
+    case "START_TO_FINISH":
+      return { anchor: blocker.start, constrains: "end" };
+  }
+}
+
 /**
  * Compute the new (start, end) for a dependent task so that the
  * dependency constraint to `blocker` is satisfied — without ever
@@ -67,56 +103,45 @@ function computeShiftedDates(
   blocker: { start: Date | null; end: Date | null }
 ): { start: Date | null; end: Date | null } | null {
   // Determine the anchor the dependent must be ≥
-  let anchor: Date | null = null;
-  let constrains: "start" | "end" = "start";
-
-  switch (type) {
-    case "FINISH_TO_START":
-      anchor = blocker.end;
-      constrains = "start";
-      break;
-    case "START_TO_START":
-      anchor = blocker.start;
-      constrains = "start";
-      break;
-    case "FINISH_TO_FINISH":
-      anchor = blocker.end;
-      constrains = "end";
-      break;
-    case "START_TO_FINISH":
-      anchor = blocker.start;
-      constrains = "end";
-      break;
-  }
+  const { anchor, constrains } = edgeAnchor(type, blocker);
 
   if (!anchor) return null; // Blocker has no relevant date — nothing to enforce
   if (!dep.start && !dep.end) return null; // Dependent has no schedule yet
 
   if (constrains === "start") {
+    // Single-dated dependent (due only): treat that one day as the task's
+    // whole occupancy — its effective start IS its due date. Never
+    // fabricate a startDate; if the constraint fails, shift the one date
+    // that exists forward.
+    if (!dep.start && dep.end) {
+      return dep.end.getTime() >= anchor.getTime()
+        ? null
+        : { start: null, end: anchor };
+    }
     const currentStart = dep.start;
     if (currentStart && currentStart.getTime() >= anchor.getTime()) {
       return null; // Constraint already holds
     }
     const newStart = anchor;
-    // Preserve duration when both ends exist; otherwise leave the
-    // other date null/unchanged.
+    // Preserve duration when both ends exist.
     let newEnd: Date | null = dep.end;
     if (dep.start && dep.end) {
       const duration = daysBetween(dep.start, dep.end);
       newEnd = addDays(newStart, duration);
-    } else if (!dep.start && dep.end) {
-      // Only end was set — we now also have a start (the anchor).
-      // Keep end unchanged unless newStart > end, in which case
-      // we have to push end out by (newStart − end) so the task has
-      // non-negative duration.
-      if (newStart.getTime() > dep.end.getTime()) {
-        newEnd = newStart;
-      }
     }
     return { start: newStart, end: newEnd };
   }
 
   // constrains === "end"
+  // Single-dated dependent (start only): its effective finish IS its start
+  // day. Forward-only: satisfied when start ≥ anchor; otherwise shift the
+  // one existing date to the anchor — never pull it back, never fabricate
+  // a due date.
+  if (dep.start && !dep.end) {
+    return dep.start.getTime() >= anchor.getTime()
+      ? null
+      : { start: anchor, end: null };
+  }
   const currentEnd = dep.end;
   if (currentEnd && currentEnd.getTime() >= anchor.getTime()) {
     return null;
@@ -126,10 +151,6 @@ function computeShiftedDates(
   if (dep.start && dep.end) {
     const duration = daysBetween(dep.start, dep.end);
     newStart = addDays(newEnd, -duration);
-  } else if (dep.start && !dep.end) {
-    if (dep.start.getTime() > newEnd.getTime()) {
-      newStart = newEnd;
-    }
   }
   return { start: newStart, end: newEnd };
 }
@@ -195,8 +216,12 @@ export async function cascadeFromDependency(
     },
   ];
 
-  // Everything downstream of the task we just moved.
-  const downstream = await cascadeDependentDates(tx, dep.dependentTask.id);
+  // Everything downstream of the task we just moved — carrying its
+  // before-dates so deeper hops shift gap-preserving too.
+  const downstream = await cascadeDependentDates(tx, dep.dependentTask.id, {
+    start: dep.dependentTask.startDate,
+    end: dep.dependentTask.dueDate,
+  });
   for (const s of downstream) {
     if (!shifts.some((x) => x.taskId === s.taskId)) shifts.push(s);
   }
@@ -213,25 +238,45 @@ export async function cascadeFromDependency(
  */
 export async function cascadeDependentDates(
   tx: Prisma.TransactionClient | PrismaClient,
-  rootTaskId: string
+  rootTaskId: string,
+  /** The root task's dates BEFORE the edit that triggered this cascade.
+   *  When supplied, dependents shift by the same delta the relevant anchor
+   *  moved (gap-preserving, both directions — the MS-Project behaviour).
+   *  When omitted, falls back to forward-only constraint enforcement. */
+  rootOld?: DateRange
 ): Promise<CascadeShift[]> {
   const shifts: CascadeShift[] = [];
   // Tasks whose dates we have just committed and whose dependents
-  // therefore need re-evaluation. Each entry holds the *current*
-  // start/end for that task (post-update).
-  const queue: { id: string; start: Date | null; end: Date | null }[] = [];
+  // therefore need re-evaluation. Each entry holds the task's dates
+  // before (`old`) and after (`now`) its move, so each outgoing edge can
+  // compute how far its anchor travelled.
+  const queue: { id: string; now: DateRange; old: DateRange | null }[] = [];
 
   const root = await tx.task.findUnique({
     where: { id: rootTaskId },
     select: { id: true, startDate: true, dueDate: true },
   });
   if (!root) return shifts;
-  queue.push({ id: root.id, start: root.startDate, end: root.dueDate });
+  queue.push({
+    id: root.id,
+    now: { start: root.startDate, end: root.dueDate },
+    old: rootOld ?? null,
+  });
 
   // How many times each task has been re-evaluated. A task legitimately
   // repeats once per blocker; the cap only exists to bound a cyclic graph.
   const visits = new Map<string, number>([[root.id, 1]]);
   const MAX_VISITS = 32;
+
+  // Each task's dates BEFORE this cascade touched it. Delta shifts are
+  // always computed from this baseline, never from the current (possibly
+  // already-shifted) dates — otherwise a diamond graph (A→B, A→C, B→D,
+  // C→D) applies the same root delta to D once per path, doubling the
+  // move. With the baseline, the second path proposes baseline+delta ==
+  // current → no-op → convergence. Also neutralizes delta re-application
+  // on corrupt cyclic graphs.
+  const baseline = new Map<string, DateRange>();
+  baseline.set(root.id, rootOld ?? { start: root.startDate, end: root.dueDate });
 
   while (queue.length > 0) {
     const blocker = queue.shift()!;
@@ -267,13 +312,87 @@ export async function cascadeDependentDates(
         select: { startDate: true, dueDate: true },
       });
       if (!current) continue;
+      if (!current.startDate && !current.dueDate) continue; // unscheduled
 
-      const result = computeShiftedDates(
-        dep.type as DependencyType,
-        { start: current.startDate, end: current.dueDate },
-        { start: blocker.start, end: blocker.end }
-      );
+      // First touch records the pre-cascade baseline; later paths from the
+      // same root move shift from THIS, not from already-shifted dates.
+      if (!baseline.has(dt.id)) {
+        baseline.set(dt.id, { start: current.startDate, end: current.dueDate });
+      }
+      const base = baseline.get(dt.id)!;
+
+      const type = dep.type as DependencyType;
+      const { anchor: anchorNew } = edgeAnchor(type, blocker.now);
+      const anchorOld = blocker.old ? edgeAnchor(type, blocker.old).anchor : null;
+
+      let result: { start: Date | null; end: Date | null } | null = null;
+
+      if (anchorNew && anchorOld) {
+        // GAP-PRESERVING SHIFT — move the dependent by exactly as far as
+        // the anchor moved, keeping the user's scheduled buffer. Works in
+        // both directions. Computed from the BASELINE so a diamond's second
+        // path proposes the same position (no double-application).
+        const delta = daysBetween(anchorOld, anchorNew);
+        if (delta !== 0) {
+          result = {
+            start: base.start ? addDays(base.start, delta) : null,
+            end: base.end ? addDays(base.end, delta) : null,
+          };
+        }
+      } else {
+        // No before/after picture (dependency just created/retyped, or the
+        // blocker previously had no relevant date) — enforce forward-only.
+        result = computeShiftedDates(
+          type,
+          { start: current.startDate, end: current.dueDate },
+          blocker.now
+        );
+      }
       if (!result) continue;
+
+      // CLAMP — a shift (especially a pull-back) must still satisfy every
+      // OTHER blocker of this dependent. Push the whole proposal forward by
+      // the largest deficit; duration is preserved because both dates move.
+      const otherEdges = await tx.taskDependency.findMany({
+        where: { dependentTaskId: dt.id },
+        include: {
+          blockingTask: { select: { id: true, startDate: true, dueDate: true } },
+        },
+      });
+      let maxDeficit = 0;
+      for (const edge of otherEdges) {
+        // The blocker we're cascading FROM may not be persisted yet inside
+        // this loop's snapshot — use the in-memory dates for it.
+        const bDates: DateRange =
+          edge.blockingTask.id === blocker.id
+            ? blocker.now
+            : {
+                start: edge.blockingTask.startDate,
+                end: edge.blockingTask.dueDate,
+              };
+        const { anchor, constrains } = edgeAnchor(
+          edge.type as DependencyType,
+          bDates
+        );
+        if (!anchor) continue;
+        // Day-occupancy fallback: a single-dated proposal uses its one
+        // existing date as the effective value for BOTH ends, so a due-only
+        // dependent still gets clamped against FS/SS blockers (and a
+        // start-only one against FF/SF).
+        const field =
+          constrains === "start"
+            ? result.start ?? result.end
+            : result.end ?? result.start;
+        if (!field) continue; // fully unscheduled — nothing to clamp
+        const deficit = daysBetween(field, anchor);
+        if (deficit > maxDeficit) maxDeficit = deficit;
+      }
+      if (maxDeficit > 0) {
+        result = {
+          start: result.start ? addDays(result.start, maxDeficit) : null,
+          end: result.end ? addDays(result.end, maxDeficit) : null,
+        };
+      }
 
       const sameStart =
         (result.start?.getTime() ?? null) ===
@@ -304,8 +423,13 @@ export async function cascadeDependentDates(
         });
       }
 
-      // Continue cascading from the dependent's new schedule
-      queue.push({ id: dt.id, start: result.start, end: result.end });
+      // Continue cascading from the dependent's new schedule, carrying its
+      // before-dates so the next hop can also preserve gaps.
+      queue.push({
+        id: dt.id,
+        now: { start: result.start, end: result.end },
+        old: { start: current.startDate, end: current.dueDate },
+      });
     }
   }
 

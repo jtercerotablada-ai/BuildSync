@@ -22,6 +22,7 @@ import {
   type ButtonHTMLAttributes,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -131,6 +132,11 @@ interface TaskSubtask {
   id: string;
   name: string;
   completed: boolean;
+  assignee?: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  } | null;
 }
 
 interface TaskCollaborator {
@@ -183,6 +189,7 @@ interface TaskDetail {
   dueDate: string | null;
   startDate: string | null;
   priority: "NONE" | "LOW" | "MEDIUM" | "HIGH" | string;
+  taskStatus?: "ON_TRACK" | "AT_RISK" | "OFF_TRACK" | null;
   taskType?: "TASK" | "MILESTONE" | "APPROVAL" | null;
   assignee: {
     id: string;
@@ -204,6 +211,13 @@ interface TaskDetail {
       | null;
   } | null;
   section?: { id: string; name: string } | null;
+  creator?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  } | null;
+  createdAt?: string;
   subtasks?: TaskSubtask[];
   comments?: TaskComment[];
   activities?: TaskActivity[];
@@ -238,6 +252,10 @@ export function TaskDetailPanel({
   onAttachmentsChange,
 }: TaskDetailPanelProps) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const sessionUser = session?.user as
+    | { id?: string; name?: string | null; image?: string | null }
+    | undefined;
 
   // ── Data state ────────────────────────────────────────────────
   const [taskDetail, setTaskDetail] = useState<TaskDetail | null>(null);
@@ -274,18 +292,31 @@ export function TaskDetailPanel({
     files: TaskAttachment[];
     index: number;
   } | null>(null);
+  // Inline edit of an existing (own) comment.
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
 
   // ── Like state ─────────────────────────────────────────────────
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [likeBusy, setLikeBusy] = useState(false);
 
+  // ── Sections of the task's home project (for the Section row) ──
+  const [projectSections, setProjectSections] = useState<
+    { id: string; name: string }[]
+  >([]);
+
   // ─────────────────────────────────────────────────────────────
   // FETCH TASK DETAIL
   // ─────────────────────────────────────────────────────────────
 
+  // Which task the panel currently displays — refetches for the SAME task
+  // (after an inline edit) keep the content on screen instead of swapping
+  // the whole panel for a spinner on every save.
+  const loadedTaskIdRef = useRef<string | null>(null);
+
   const fetchTaskDetail = async () => {
-    setLoading(true);
+    if (loadedTaskIdRef.current !== taskId) setLoading(true);
     try {
       const [detailRes, likeRes] = await Promise.all([
         fetch(`/api/tasks/${taskId}`),
@@ -301,6 +332,7 @@ export function TaskDetailPanel({
         const likeData = await likeRes.json();
         setLiked(Boolean(likeData.liked));
       }
+      loadedTaskIdRef.current = taskId;
     } catch {
       toast.error("Failed to load task");
     } finally {
@@ -312,6 +344,27 @@ export function TaskDetailPanel({
     fetchTaskDetail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
+
+  // Load the home project's sections so the Section row can move the task.
+  useEffect(() => {
+    const pid = taskDetail?.project?.id;
+    if (!pid) {
+      setProjectSections([]);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/projects/${pid}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { sections?: { id: string; name: string }[] } | null) => {
+        if (!cancelled && d?.sections) {
+          setProjectSections(d.sections.map((s) => ({ id: s.id, name: s.name })));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [taskDetail?.project?.id]);
 
   async function handleToggleLike() {
     if (likeBusy) return;
@@ -623,8 +676,10 @@ export function TaskDetailPanel({
       setPendingCommentFiles([]);
       if (commentFileInputRef.current) commentFileInputRef.current.value = "";
       await fetchTaskDetail();
+      // The comment count changed either way — let the parent refresh its
+      // counters (not only when files were attached).
+      onUpdate?.();
       if (attachmentsUploaded > 0) {
-        onUpdate?.();
         onAttachmentsChange?.();
       }
     } catch (err) {
@@ -633,6 +688,46 @@ export function TaskDetailPanel({
       );
     } finally {
       setPostingComment(false);
+    }
+  }
+
+  async function handleSaveCommentEdit(commentId: string) {
+    const text = editingCommentText.trim();
+    setEditingCommentId(null);
+    if (!text) return;
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/comments/${commentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to edit comment");
+      }
+      await fetchTaskDetail();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to edit comment"
+      );
+    }
+  }
+
+  async function handleDeleteComment(commentId: string) {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/comments/${commentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to delete comment");
+      }
+      await fetchTaskDetail();
+      onUpdate?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete comment"
+      );
     }
   }
 
@@ -1308,6 +1403,48 @@ export function TaskDetailPanel({
               </div>
             </PropertyRow>
 
+            {/* Section — the task's column/group inside its home project.
+                Was fetched + PATCH-able but had no UI. */}
+            {taskDetail?.project && (
+              <PropertyRow label="Section">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="-ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer text-left"
+                    >
+                      {taskDetail?.section?.name ? (
+                        <span className="text-[13px] text-[#1e1f21]">
+                          {taskDetail.section.name}
+                        </span>
+                      ) : (
+                        <span className="text-[13px] text-[#6f7782]">
+                          No section
+                        </span>
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+                    {projectSections.length === 0 ? (
+                      <DropdownMenuItem disabled>No sections</DropdownMenuItem>
+                    ) : (
+                      projectSections.map((s) => (
+                        <DropdownMenuItem
+                          key={s.id}
+                          onClick={() => handleUpdate("sectionId", s.id)}
+                        >
+                          <span className="flex-1 truncate">{s.name}</span>
+                          {taskDetail?.section?.id === s.id && (
+                            <Check className="h-3.5 w-3.5 ml-2 text-[#1e1f21]" />
+                          )}
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </PropertyRow>
+            )}
+
             <PropertyRow label="Priority">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1351,6 +1488,65 @@ export function TaskDetailPanel({
               </DropdownMenu>
             </PropertyRow>
 
+            {/* Status — same enum chips as the List view's Status column
+                (the field was editable there but absent here). */}
+            <PropertyRow label="Status">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="-ml-1.5 px-1.5 py-0.5 rounded hover:bg-[#f3f4f6] cursor-pointer"
+                  >
+                    {taskDetail?.taskStatus === "ON_TRACK" ? (
+                      <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[#85D7A2] text-[#06321B]">
+                        On track
+                      </span>
+                    ) : taskDetail?.taskStatus === "AT_RISK" ? (
+                      <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[#F6D861] text-[#352B00]">
+                        At risk
+                      </span>
+                    ) : taskDetail?.taskStatus === "OFF_TRACK" ? (
+                      <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-[#FF878A] text-[#4F1A1D]">
+                        Off track
+                      </span>
+                    ) : (
+                      <span className="text-[13px] text-[#6f7782]">
+                        No status
+                      </span>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem
+                    onClick={() => handleUpdate("taskStatus", "ON_TRACK")}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-[#1d6b3e] mr-2" />
+                    On track
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleUpdate("taskStatus", "AT_RISK")}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-[#a8893a] mr-2" />
+                    At risk
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleUpdate("taskStatus", "OFF_TRACK")}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-black mr-2" />
+                    Off track
+                  </DropdownMenuItem>
+                  {taskDetail?.taskStatus && (
+                    <DropdownMenuItem
+                      onClick={() => handleUpdate("taskStatus", null)}
+                    >
+                      <span className="inline-block w-2 h-2 rounded-full bg-slate-300 mr-2" />
+                      Clear status
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </PropertyRow>
+
             <PropertyRow
               label="Tags"
               accessory={
@@ -1375,6 +1571,9 @@ export function TaskDetailPanel({
             <CustomFieldsSection
               taskId={taskId}
               projectId={taskDetail?.project?.id ?? null}
+              extraProjectIds={
+                taskDetail?.taskProjects?.map((tp) => tp.projectId) ?? []
+              }
               values={taskDetail?.customFieldValues ?? []}
               onChanged={() => {
                 fetchTaskDetail();
@@ -1568,6 +1767,17 @@ export function TaskDetailPanel({
                   >
                     {subtask.name}
                   </span>
+                  {subtask.assignee && (
+                    <Avatar
+                      className="h-5 w-5 flex-shrink-0"
+                      title={subtask.assignee.name || undefined}
+                    >
+                      <AvatarImage src={subtask.assignee.image || undefined} />
+                      <AvatarFallback className="text-[9px] bg-[#c9a84c] text-white">
+                        {(subtask.assignee.name || "?").charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                 </div>
               ))}
               {isAddingSubtask ? (
@@ -1664,6 +1874,30 @@ export function TaskDetailPanel({
           <div className="p-4 space-y-4">
             {activeTab === "comments" ? (
               <>
+                {/* Creation entry — Asana shows who created the task at the
+                    top of the feed. */}
+                {taskDetail?.creator && taskDetail?.createdAt && (
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage
+                        src={taskDetail.creator.image || undefined}
+                      />
+                      <AvatarFallback className="text-[10px] bg-white border border-black">
+                        {(taskDetail.creator.name || "?").charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <p className="text-xs text-[#6f7782]">
+                      <span className="font-medium text-[#1e1f21]">
+                        {taskDetail.creator.name || "Someone"}
+                      </span>{" "}
+                      created this task ·{" "}
+                      {new Date(taskDetail.createdAt).toLocaleDateString(
+                        "en-US",
+                        { month: "short", day: "numeric", year: "numeric" }
+                      )}
+                    </p>
+                  </div>
+                )}
                 {taskDetail?.comments?.map((comment) => {
                   const atts = (comment.attachments ?? []) as TaskAttachment[];
                   // Resolve display name + "via tracking link" badge
@@ -1675,9 +1909,13 @@ export function TaskDetailPanel({
                     comment.author?.name ||
                     comment.guestName ||
                     "Deleted user";
+                  const isOwn =
+                    !!comment.author?.id &&
+                    comment.author.id === sessionUser?.id;
                   return (
-                    <div key={comment.id} className="flex gap-3">
+                    <div key={comment.id} className="flex gap-3 group/comment">
                       <Avatar className="h-8 w-8">
+                        <AvatarImage src={comment.author?.image || undefined} />
                         <AvatarFallback
                           className={
                             isGuest
@@ -1701,12 +1939,62 @@ export function TaskDetailPanel({
                           <span className="text-xs text-black">
                             {new Date(comment.createdAt).toLocaleDateString()}
                           </span>
+                          {isOwn && editingCommentId !== comment.id && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="ml-auto opacity-0 group-hover/comment:opacity-100 data-[state=open]:opacity-100 text-[#9aa0a6] hover:text-[#1e1f21] transition-opacity"
+                                  aria-label="Comment options"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setEditingCommentId(comment.id);
+                                    setEditingCommentText(comment.content);
+                                  }}
+                                >
+                                  Edit comment
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-black"
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete comment
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
-                        {comment.content && comment.content.trim() && (
+                        {editingCommentId === comment.id ? (
+                          <textarea
+                            autoFocus
+                            value={editingCommentText}
+                            onChange={(e) =>
+                              setEditingCommentText(e.target.value)
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSaveCommentEdit(comment.id);
+                              } else if (e.key === "Escape") {
+                                e.preventDefault();
+                                setEditingCommentId(null);
+                              }
+                            }}
+                            onBlur={() => handleSaveCommentEdit(comment.id)}
+                            rows={2}
+                            className="mt-1 w-full text-sm border border-[#c4c7cf] rounded-md px-2 py-1.5 outline-none focus:border-[#1e1f21] resize-none"
+                          />
+                        ) : comment.content && comment.content.trim() ? (
                           <p className="text-sm text-black mt-1 whitespace-pre-wrap break-words">
                             {comment.content}
                           </p>
-                        )}
+                        ) : null}
                         {atts.length > 0 && (
                           <div className="mt-2 grid grid-cols-2 gap-1.5 max-w-md">
                             {atts.map((a, i) => {
@@ -1804,8 +2092,9 @@ export function TaskDetailPanel({
       <div className="px-5 py-3 border-t border-[#e8e8e8] bg-white flex-shrink-0">
         <div className="flex gap-2.5 items-start">
           <Avatar className="h-7 w-7 flex-shrink-0 mt-0.5">
+            <AvatarImage src={sessionUser?.image || undefined} />
             <AvatarFallback className="text-[11px] bg-[#1e1f21] text-white">
-              U
+              {(sessionUser?.name || "U").charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">

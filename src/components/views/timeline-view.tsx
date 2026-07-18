@@ -100,12 +100,17 @@ const COMPLETED_STYLE = { bg: "#C9CDD4", text: "#2B2B2B" };
 const TODAY_BLUE = "#335FB5"; // 2px today stripe + axis dot
 const WEEKEND_STRIPE = "#E8E9EA"; // weekend bands
 
-// Swimlane geometry — Asana's measured values: 34px bars on a 40px
-// lane pitch; two 12px/14px label lines fit inside.
+// Swimlane geometry — 28px bars on a 40px lane pitch. Slimmer than the
+// first 34px cut: the 6px clearance it left between lanes buried the
+// dependency arrows (which route through the inter-lane gaps at z-[5],
+// under the z-10 bars). 12px of air per lane keeps every elbow visible.
+// Labels are a single 12px line inside the bar.
 const LANE_HEIGHT = 40;
 const BAND_PADDING = 12;
 const COLLAPSED_BAND_HEIGHT = 36;
-const BAR_HEIGHT = 34;
+const BAR_HEIGHT = 28;
+/** Top inset that vertically centers a bar in its lane. */
+const BAR_TOP = (LANE_HEIGHT - BAR_HEIGHT) / 2;
 // Tasks with a due date but no start render as a narrow pill + label
 // outside (Asana's "Para entregar" style), not a full day-wide bar.
 const DUE_ONLY_TICK_W = 8;
@@ -166,8 +171,14 @@ function dependencyElbowPath(
   const sOutX = sx + sxOutDir * STUB;
   const eInX = ex + exInDir * STUB;
 
+  // Same-row straight shot is only legal when the segment actually leaves
+  // `sx` heading `sxOutDir` AND arrives at `ex` from the `exInDir` side —
+  // e.g. a forward FS. A same-lane FF/SS (stubs pointing the same way) or a
+  // backwards link would draw the line straight THROUGH the bars between
+  // the two endpoints, so those fall through to the gap detour below.
   if (Math.abs(sy - ey) < 1) {
-    return `M ${sx} ${sy} L ${ex} ${ey}`;
+    const straightOk = sxOutDir * (ex - sx) > 0 && exInDir * (sx - ex) > 0;
+    if (straightOk) return `M ${sx} ${sy} L ${ex} ${ey}`;
   }
 
   // The short 4-point elbow (out → drop at midX → in) is only legal when
@@ -180,9 +191,10 @@ function dependencyElbowPath(
   const midX = (sOutX + eInX) / 2;
   const leavesCorrectly = sxOutDir * (midX - sx) > 0;
   const arrivesCorrectly = exInDir * (midX - ex) > 0;
+  const sameRow = Math.abs(sy - ey) < 1;
 
   let pts: { x: number; y: number }[];
-  if (leavesCorrectly && arrivesCorrectly) {
+  if (!sameRow && leavesCorrectly && arrivesCorrectly) {
     pts = [
       { x: sx, y: sy },
       { x: midX, y: sy },
@@ -190,7 +202,13 @@ function dependencyElbowPath(
       { x: ex, y: ey },
     ];
   } else {
-    const midY = (sy + ey) / 2;
+    // Route the horizontal crossing through the inter-lane GAP adjacent to
+    // the source lane (bar-free by construction — bars are BAR_HEIGHT tall
+    // on a LANE_HEIGHT pitch, and the band's BAND_PADDING covers the last
+    // lane). (sy+ey)/2 landed exactly on an intermediate lane's centerline
+    // whenever the two lanes were an even distance apart, and same-row
+    // detours need a lane-boundary channel too.
+    const midY = sy + (ey >= sy ? 1 : -1) * (LANE_HEIGHT / 2);
     pts = [
       { x: sx, y: sy },
       { x: sOutX, y: sy },
@@ -272,6 +290,70 @@ export function TimelineView({
   // doesn't also open the task panel.
   const dragMovedRef = useRef(false);
 
+  // Optimistic date overrides — applied the instant a drag is released so
+  // the bar STAYS where the user dropped it while the PATCH +
+  // router.refresh() round-trip completes. Without this the bar snapped
+  // back to its old position on mouseup and only jumped to the new one
+  // seconds later when the refresh landed ("sticky" drag). Also fed by the
+  // server's cascadeShifts so dependent bars glide along immediately.
+  const [optimisticDates, setOptimisticDates] = useState<
+    Record<string, { startDate: string | null; dueDate: string | null }>
+  >({});
+  const patchesInFlightRef = useRef(0);
+
+  // Drop each override once fresh server data CONFIRMS it (incoming prop
+  // dates match) — clearing then is render-identical. A blanket clear was
+  // wrong twice over: an unrelated refresh that predates our PATCH would
+  // resurrect the snap-back, and a stale override would otherwise mask
+  // later external edits forever. Non-matching overrides get two strikes
+  // (while idle) before being dropped as stale.
+  const staleOverridesRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    setOptimisticDates((prev) => {
+      const ids = Object.keys(prev);
+      if (ids.length === 0) return prev;
+      const propDates = new Map<string, { s: string | null; d: string | null }>();
+      for (const sec of sections)
+        for (const t of sec.tasks)
+          propDates.set(t.id, {
+            s: t.startDate ? String(t.startDate).slice(0, 10) : null,
+            d: t.dueDate ? String(t.dueDate).slice(0, 10) : null,
+          });
+      const next: typeof prev = {};
+      let changed = false;
+      for (const id of ids) {
+        const o = prev[id];
+        const p = propDates.get(id);
+        const matches =
+          !!p &&
+          p.s === (o.startDate ? o.startDate.slice(0, 10) : null) &&
+          p.d === (o.dueDate ? o.dueDate.slice(0, 10) : null);
+        if (
+          matches ||
+          (patchesInFlightRef.current === 0 && staleOverridesRef.current.has(id))
+        ) {
+          changed = true;
+          staleOverridesRef.current.delete(id);
+          continue;
+        }
+        staleOverridesRef.current.add(id);
+        next[id] = o;
+      }
+      return changed ? next : prev;
+    });
+  }, [sections]);
+
+  const effectiveSections = useMemo(() => {
+    if (Object.keys(optimisticDates).length === 0) return sections;
+    return sections.map((section) => ({
+      ...section,
+      tasks: section.tasks.map((task) => {
+        const o = optimisticDates[task.id];
+        return o ? { ...task, startDate: o.startDate, dueDate: o.dueDate ?? task.dueDate } : task;
+      }),
+    }));
+  }, [sections, optimisticDates]);
+
   // ============================================
   // FILTER
   // ============================================
@@ -281,9 +363,9 @@ export function TimelineView({
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 6);
 
-    if (taskFilter === "all") return sections;
+    if (taskFilter === "all") return effectiveSections;
 
-    return sections.map((section) => ({
+    return effectiveSections.map((section) => ({
       ...section,
       tasks: section.tasks.filter((task) => {
         if (taskFilter === "incomplete") return !task.completed;
@@ -296,7 +378,7 @@ export function TimelineView({
         return true;
       }),
     }));
-  }, [sections, taskFilter]);
+  }, [effectiveSections, taskFilter]);
 
   // ============================================
   // ZOOM CONFIGURATION
@@ -550,7 +632,8 @@ export function TimelineView({
   }, [filteredSections, collapsedSections, taskSort]);
 
   // taskId → absolute canvas coordinates for dependency arrows.
-  // Y = bandTop + lane*LANE_HEIGHT + 18 (lane center). Null when the
+  // Y = bandTop + lane*LANE_HEIGHT + BAR_TOP + BAR_HEIGHT/2 (= +20, the
+  // lane center on the 40px pitch). Null when the
   // task is collapsed, undated, or outside the visible window.
   const getTaskScreenPos = useCallback(
     (taskId: string) => {
@@ -562,17 +645,30 @@ export function TimelineView({
         if (!task) return null;
         const pos = getTaskPosition(task);
         if (!pos) return null;
+        const yCenter = band.top + lane * LANE_HEIGHT + BAR_TOP + BAR_HEIGHT / 2;
+        // Milestones/approvals render as a 20px glyph centered on the DUE
+        // day's cell — anchor arrows to the glyph, not the (clamped) bar
+        // rect the renderer ignores for them.
+        if (task.taskType === "MILESTONE" || task.taskType === "APPROVAL") {
+          const due = dueDateToLocalMidnight(task.dueDate!);
+          const dueOffset = Math.min(
+            timelineRange.totalDays - 1,
+            Math.max(0, differenceInDays(due, timelineRange.start))
+          );
+          const centerX = (dueOffset + 0.5) * timelineRange.dayWidth;
+          return { xLeft: centerX - 10, xRight: centerX + 10, yCenter };
+        }
         // Due-only tasks render as a narrow tick — anchor arrows to it.
         const width = task.startDate ? pos.width : DUE_ONLY_TICK_W;
         return {
           xLeft: pos.left,
           xRight: pos.left + width,
-          yCenter: band.top + lane * LANE_HEIGHT + 4 + BAR_HEIGHT / 2,
+          yCenter,
         };
       }
       return null;
     },
-    [bandLayout, getTaskPosition]
+    [bandLayout, getTaskPosition, timelineRange]
   );
 
   // ============================================
@@ -627,8 +723,25 @@ export function TimelineView({
 
     const handleMouseMove = (e: MouseEvent) => {
       const dx = e.clientX - dragState.startX;
-      const snappedDays = Math.round(pixelsToDays(dx));
+      let snappedDays = Math.round(pixelsToDays(dx));
       if (snappedDays !== 0) dragMovedRef.current = true;
+      // Clamp handle overshoot in the PREVIEW too, mirroring the commit
+      // clamps — otherwise the ghost slides past the opposite edge and
+      // visibly jumps back on release.
+      if (dragState.handle !== "move") {
+        const s = dueDateToLocalMidnight(
+          dragState.originalStart ?? dragState.originalDue
+        );
+        const d = dueDateToLocalMidnight(dragState.originalDue);
+        const durationDays = Math.round(
+          (d.getTime() - s.getTime()) / 86400000
+        );
+        if (dragState.handle === "left") {
+          snappedDays = Math.min(snappedDays, durationDays);
+        } else {
+          snappedDays = Math.max(snappedDays, -durationDays);
+        }
+      }
       const snappedPx = snappedDays * pxPerDay;
       setDragState((prev) => (prev ? { ...prev, deltaX: snappedPx } : prev));
     };
@@ -672,18 +785,57 @@ export function TimelineView({
         }
       }
 
+      // Optimistic: pin the bar at its dropped position IMMEDIATELY, then
+      // persist in the background. The bar must never snap back while the
+      // server round-trip is pending.
+      const taskId = dragState.taskId;
+      setOptimisticDates((prev) => ({
+        ...prev,
+        [taskId]: {
+          startDate: body.startDate !== undefined ? body.startDate : dragState.originalStart,
+          dueDate: body.dueDate !== undefined ? body.dueDate : dragState.originalDue,
+        },
+      }));
+      setDragState(null);
+
+      patchesInFlightRef.current += 1;
       try {
-        const res = await fetch(`/api/tasks/${dragState.taskId}`, {
+        const res = await fetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error();
+        // Glide dependents along too — the server returns every task its
+        // cascade rescheduled, so their bars move without waiting for the
+        // refresh.
+        const updated = await res.json().catch(() => null);
+        const shifts: { taskId: string; newStart: string | null; newEnd: string | null }[] =
+          updated?.cascadeShifts ?? [];
+        if (shifts.length > 0) {
+          setOptimisticDates((prev) => {
+            const next = { ...prev };
+            for (const s of shifts) {
+              next[s.taskId] = {
+                startDate: s.newStart ? String(s.newStart).slice(0, 10) : null,
+                dueDate: s.newEnd ? String(s.newEnd).slice(0, 10) : null,
+              };
+            }
+            return next;
+          });
+        }
         router.refresh();
       } catch {
+        // Roll back only the failed bar.
+        setOptimisticDates((prev) => {
+          const next = { ...prev };
+          delete next[taskId];
+          return next;
+        });
         toast.error("Failed to update dates");
+      } finally {
+        patchesInFlightRef.current -= 1;
       }
-      setDragState(null);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
@@ -1114,7 +1266,7 @@ export function TimelineView({
           <div className="flex-1 flex flex-col" style={{ width: totalWidth }}>
             {/* Two sticky header rows */}
             <div
-              className="sticky top-0 bg-white border-b z-20 relative flex-shrink-0"
+              className="sticky top-0 bg-white border-b z-20 flex-shrink-0"
               style={{ height: HEADER_HEIGHT, width: totalWidth }}
             >
               {/* Top row — months (day/week zoom) or quarters (month zoom) */}
@@ -1308,7 +1460,7 @@ export function TimelineView({
                       const position = getTaskPosition(task);
                       if (!position) return null;
                       const lane = band.laneOf.get(task.id) ?? 0;
-                      const laneTop = lane * LANE_HEIGHT + 4;
+                      const laneTop = lane * LANE_HEIGHT + BAR_TOP;
 
                       const isMilestone = isTaskMilestone(task);
                       const isApproval = isTaskApproval(task);
@@ -1384,9 +1536,16 @@ export function TimelineView({
                       // renders as a narrow pill with its name + "Due X"
                       // OUTSIDE the bar ("Para entregar" pattern).
                       const isDueOnly = !task.startDate;
+                      // The tick only widens once the right-handle drag has
+                      // actually snapped a day — grabbing the handle must not
+                      // instantly balloon the 8px tick to a full-width bar.
                       const barWidth =
                         isDueOnly &&
-                        !(isResizing && dragState!.handle === "right")
+                        !(
+                          isResizing &&
+                          dragState!.handle === "right" &&
+                          dragState!.deltaX !== 0
+                        )
                           ? DUE_ONLY_TICK_W
                           : Math.max(renderWidth, 14);
                       const labelInside = !isDueOnly && renderWidth >= 80;
@@ -1444,9 +1603,10 @@ export function TimelineView({
                               {labelInside && (
                                 <span
                                   className={cn(
-                                    // Asana: 12px/14px regular, wraps two
-                                    // lines, tinted per bar hue.
-                                    "text-[12px] leading-[14px] font-normal line-clamp-2",
+                                    // Single 12px line inside the slimmer
+                                    // 28px bar, tinted per bar hue; long
+                                    // names truncate with an ellipsis.
+                                    "text-[12px] leading-[14px] font-normal truncate whitespace-nowrap min-w-0",
                                     task.completed && "line-through"
                                   )}
                                   style={{ color: barStyle.text }}
@@ -1461,13 +1621,13 @@ export function TimelineView({
                                 the task a duration; the tick body drags). */}
                             {!isDueOnly && (
                               <div
-                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l-lg z-10"
+                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-l z-10"
                                 onMouseDown={(e) => handleResizeStart(e, task.id, "left", task)}
                               />
                             )}
                             <div
                               className={cn(
-                                "absolute right-0 top-0 bottom-0 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r-lg z-10",
+                                "absolute right-0 top-0 bottom-0 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 bg-black/20 rounded-r z-10",
                                 isDueOnly ? "w-1" : "w-2"
                               )}
                               onMouseDown={(e) => handleResizeStart(e, task.id, "right", task)}
@@ -1483,7 +1643,9 @@ export function TimelineView({
                                 className="absolute pointer-events-none z-10 leading-tight"
                                 style={{
                                   left: renderLeft + barWidth + 6,
-                                  top: laneTop + 3,
+                                  // Centers the ~29px two-line block on the
+                                  // 28px bar.
+                                  top: laneTop - 1,
                                 }}
                               >
                                 <div
