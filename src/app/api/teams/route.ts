@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { getUserWorkspaceId } from "@/lib/auth-guards";
+import { notifyMembershipGranted } from "@/lib/membership-notifications";
 
 const createTeamSchema = z.object({
   name: z.string().min(1, "Team name is required"),
@@ -22,26 +24,20 @@ export async function POST(req: Request) {
     const body = await req.json();
     const data = createTeamSchema.parse(body);
 
-    // Get user's workspace
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        workspaceMembers: {
-          include: {
-            workspace: true,
-          },
-        },
-      },
-    });
-
-    if (!user || user.workspaceMembers.length === 0) {
+    // Resolve the workspace the user actually works in (their firm workspace,
+    // not the auto-generated personal singleton from signup). Creating the
+    // team under the wrong workspace would hide it from every teammate's
+    // Teams list, which is workspace-scoped. Mirrors getEffectiveAccess and
+    // the rest of the app (audit SEC-06) instead of a bare workspaceMembers[0].
+    let workspaceId: string;
+    try {
+      workspaceId = await getUserWorkspaceId(userId);
+    } catch {
       return NextResponse.json(
         { error: "User has no workspace" },
         { status: 400 }
       );
     }
-
-    const workspaceId = user.workspaceMembers[0].workspaceId;
 
     // Generate a random color for the team
     const colors = [
@@ -124,6 +120,22 @@ export async function POST(req: Request) {
       }
     }
 
+    // Let the added members know via their Inbox that they're now on the team
+    // (they didn't request it). Parity with the invite endpoint and with the
+    // project/portfolio member-add flows — without this, members seeded at
+    // creation time were added silently. Best-effort: notifyMembershipGranted
+    // never throws, so a failed notification can't roll back the team.
+    await Promise.all(
+      addedMemberIds.map((id) =>
+        notifyMembershipGranted({
+          userId: id,
+          type: "TEAM_INVITATION",
+          title: `You were added to ${team.name}`,
+          data: { teamId: team.id },
+        })
+      )
+    );
+
     return NextResponse.json(team, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -150,21 +162,15 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's workspace
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        workspaceMembers: {
-          select: { workspaceId: true },
-        },
-      },
-    });
-
-    if (!user || user.workspaceMembers.length === 0) {
+    // Scope to the user's real (firm) workspace — not an auto-generated
+    // personal singleton whose index-0 position would hide the firm's teams
+    // (audit SEC-06).
+    let workspaceId: string;
+    try {
+      workspaceId = await getUserWorkspaceId(userId);
+    } catch {
       return NextResponse.json([]);
     }
-
-    const workspaceId = user.workspaceMembers[0].workspaceId;
 
     // Get all teams the user can see
     const teams = await prisma.team.findMany({

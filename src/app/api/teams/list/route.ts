@@ -11,28 +11,16 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's workspace
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        workspaceMembers: {
-          include: {
-            workspace: true,
-          },
-        },
-      },
-    });
-
-    if (!user || user.workspaceMembers.length === 0) {
-      return NextResponse.json([]);
-    }
-
-    const workspaceId = user.workspaceMembers[0].workspaceId;
-
-    // Get all teams in the workspace that the user is a member of
+    // "My teams" = every team where I'm a member — the membership filter is
+    // the correct scope on its own. We deliberately do NOT filter by a single
+    // workspace: that was the bug. Team membership isn't bound to the user's
+    // "primary" workspace, so scoping to one workspace (previously the unstable
+    // workspaceMembers[0], which for multi-workspace users resolved to their
+    // personal signup singleton) dropped real teams from the list even though
+    // the user belongs to them. members.some.userId already guarantees the user
+    // only ever sees teams they're actually in.
     const teams = await prisma.team.findMany({
       where: {
-        workspaceId,
         members: {
           some: {
             userId,
