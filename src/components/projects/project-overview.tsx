@@ -220,6 +220,13 @@ interface ConnectedGoal {
   name: string;
   progress: number;
   status: string;
+  period?: string | null;
+  owner?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  } | null;
 }
 
 // Asana's semantic status palette (measured in the real app: the
@@ -580,6 +587,88 @@ export function ProjectOverview({
           });
         }
         toast.error("Couldn't remove the resource");
+      }
+    },
+    [project.id]
+  );
+
+  // ── Connected goals handlers ─────────────────────────────────────────
+
+  const connectGoal = useCallback(
+    async (objectiveId: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/projects/${project.id}/objectives`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ objectiveId }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error || "Couldn't connect the goal");
+        // Append if not already present (idempotent server-side).
+        setGoals((prev) =>
+          prev.some((g) => g.id === data.id) ? prev : [...prev, data]
+        );
+        toast.success("Goal connected");
+        return true;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't connect the goal");
+        return false;
+      }
+    },
+    [project.id]
+  );
+
+  const createAndConnectGoal = useCallback(
+    async (name: string): Promise<boolean> => {
+      try {
+        // One atomic call to the project endpoint: it creates the goal IN
+        // THE PROJECT'S WORKSPACE and connects it, so a multi-workspace user
+        // can't end up with an orphan goal in the wrong workspace + a 404.
+        const res = await fetch(`/api/projects/${project.id}/objectives`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim() }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error || "Couldn't create the goal");
+        setGoals((prev) =>
+          prev.some((g) => g.id === data.id) ? prev : [...prev, data]
+        );
+        toast.success("Goal created");
+        return true;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't create the goal");
+        return false;
+      }
+    },
+    [project.id]
+  );
+
+  const disconnectGoal = useCallback(
+    async (objectiveId: string) => {
+      let snapshot: { item: ConnectedGoal; index: number } | null = null;
+      setGoals((prev) => {
+        const index = prev.findIndex((g) => g.id === objectiveId);
+        if (index === -1) return prev;
+        snapshot = { item: prev[index], index };
+        return prev.filter((g) => g.id !== objectiveId);
+      });
+      try {
+        const res = await fetch(
+          `/api/projects/${project.id}/objectives?objectiveId=${objectiveId}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) throw new Error();
+      } catch {
+        if (snapshot) {
+          const { item, index } = snapshot;
+          setGoals((prev) => {
+            const next = [...prev];
+            next.splice(Math.min(index, next.length), 0, item);
+            return next;
+          });
+        }
+        toast.error("Couldn't disconnect the goal");
       }
     },
     [project.id]
@@ -1134,48 +1223,81 @@ export function ProjectOverview({
             )}
           </div>
           {goals.length === 0 ? (
-            <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center bg-white">
-              <Target className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-500 mb-3">
-                Link this project to a goal so leadership can trace impact
-                back to a strategic outcome.
+            /* Empty state — Asana's inline combobox lives right in the card:
+               type a goal to connect it, or create a new one. */
+            <div className="border border-slate-200 rounded-lg p-6 bg-white">
+              <p className="text-sm text-slate-500 text-center max-w-[380px] mx-auto mb-3">
+                Create or connect a goal to link this project to a larger
+                purpose.
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => router.push("/goals")}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Connect a goal
-              </Button>
+              {canEdit ? (
+                <div className="max-w-[440px] mx-auto">
+                  <ConnectGoalCombobox
+                    projectId={project.id}
+                    connectedIds={goals.map((g) => g.id)}
+                    onConnect={connectGoal}
+                    onCreate={createAndConnectGoal}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 text-center">
+                  No goals connected yet.
+                </p>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
               {goals.map((g) => (
-                <button
+                <div
                   key={g.id}
-                  onClick={() => router.push(`/goals/${g.id}`)}
-                  className="w-full flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-white hover:border-[#c9a84c] text-left transition-colors"
+                  className="group relative w-full flex items-center gap-3 p-3 pr-9 border border-slate-200 rounded-lg bg-white hover:border-[#c9a84c] transition-colors"
                 >
-                  <Target className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">
-                      {g.name}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden max-w-[160px]">
-                        <div
-                          className="h-full bg-[#c9a84c]"
-                          style={{ width: `${Math.min(100, g.progress)}%` }}
-                        />
+                  <button
+                    onClick={() => router.push(`/goals/${g.id}`)}
+                    className="flex flex-1 min-w-0 items-center gap-3 text-left"
+                  >
+                    <Target className="w-4 h-4 text-[#a8893a] flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {g.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden max-w-[160px]">
+                          <div
+                            className="h-full bg-[#c9a84c]"
+                            style={{ width: `${Math.min(100, g.progress)}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] text-slate-500 tabular-nums">
+                          {g.progress}%
+                        </span>
                       </div>
-                      <span className="text-[11px] text-slate-500 tabular-nums">
-                        {g.progress}%
-                      </span>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => void disconnectGoal(g.id)}
+                      title="Disconnect goal"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-slate-400 opacity-0 hover:bg-slate-100 hover:text-slate-600 focus-visible:opacity-100 group-hover:opacity-100"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               ))}
+              {/* Connect another, inline like Asana */}
+              {canEdit && (
+                <div className="pt-1">
+                  <ConnectGoalCombobox
+                    projectId={project.id}
+                    connectedIds={goals.map((g) => g.id)}
+                    onConnect={connectGoal}
+                    onCreate={createAndConnectGoal}
+                    compact
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2128,6 +2250,224 @@ function ResourceTile({
         >
           <X className="h-3.5 w-3.5" />
         </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Connected goals: inline connect/create combobox ───────────────────
+
+interface GoalOption {
+  id: string;
+  name: string;
+  period: string | null;
+  owner: { name: string | null; email: string | null; image: string | null } | null;
+}
+
+/** Asana's inline goal picker: type to search workspace goals, click one to
+ *  connect it, or "Create new goal" from the typed name — no navigation. */
+function ConnectGoalCombobox({
+  projectId,
+  connectedIds,
+  onConnect,
+  onCreate,
+  compact = false,
+}: {
+  projectId: string;
+  connectedIds: string[];
+  onConnect: (objectiveId: string) => Promise<boolean>;
+  onCreate: (name: string) => Promise<boolean>;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [allGoals, setAllGoals] = useState<GoalOption[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const prevOpenRef = useRef(false);
+
+  // Refetch the workspace's open goals EACH time the picker opens, so a goal
+  // created inline (or connected/created elsewhere, or disconnected and now
+  // reconnectable) always appears — the list was frozen after first open.
+  useEffect(() => {
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!justOpened) return;
+    let canceled = false;
+    fetch(`/api/objectives?openOnly=1`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (canceled || !Array.isArray(data)) return;
+        setAllGoals(
+          data.map((o: {
+            id: string;
+            name: string;
+            period: string | null;
+            owner: GoalOption["owner"];
+          }) => ({ id: o.id, name: o.name, period: o.period, owner: o.owner }))
+        );
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!canceled) setLoaded(true);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [open]);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open]);
+
+  const connectedSet = useMemo(() => new Set(connectedIds), [connectedIds]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return allGoals
+      .filter((g) => !connectedSet.has(g.id))
+      .filter((g) => !q || g.name.toLowerCase().includes(q));
+  }, [allGoals, connectedSet, query]);
+
+  const exactMatch = useMemo(
+    () =>
+      allGoals.some(
+        (g) => g.name.trim().toLowerCase() === query.trim().toLowerCase()
+      ),
+    [allGoals, query]
+  );
+
+  const doConnect = async (id: string) => {
+    if (busy) return;
+    setBusy(true);
+    const ok = await onConnect(id);
+    setBusy(false);
+    if (ok) {
+      setQuery("");
+      setOpen(false);
+    }
+  };
+
+  const doCreate = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    const ok = await onCreate(trimmed);
+    setBusy(false);
+    if (ok) {
+      setQuery("");
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false);
+            return;
+          }
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          // Enter mirrors the dropdown's visible priority: connect an exact
+          // existing match, else create the typed name, else connect the top
+          // result — same as Asana.
+          const q = query.trim();
+          if (exactMatch) {
+            const g = allGoals.find(
+              (x) => x.name.trim().toLowerCase() === q.toLowerCase()
+            );
+            if (g && !connectedSet.has(g.id)) void doConnect(g.id);
+          } else if (q) {
+            void doCreate(q);
+          } else if (filtered.length > 0) {
+            void doConnect(filtered[0].id);
+          }
+        }}
+        placeholder={compact ? "Connect another goal" : "Type a goal's name"}
+        className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#4573D2] focus:ring-1 focus:ring-[#4573D2]"
+      />
+      {open && (
+        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="max-h-64 overflow-y-auto py-1">
+            {!loaded ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              </div>
+            ) : filtered.length === 0 && (!query.trim() || exactMatch) ? (
+              <p className="px-3 py-2 text-xs text-slate-400">
+                {exactMatch ? "That goal is already connected." : "No goals to connect."}
+              </p>
+            ) : (
+              filtered.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void doConnect(g.id)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <Target className="h-4 w-4 shrink-0 text-[#a8893a]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-slate-800">{g.name}</p>
+                    {g.period && (
+                      <p className="truncate text-xs text-slate-400">
+                        {g.period}
+                      </p>
+                    )}
+                  </div>
+                  {g.owner && (
+                    <span
+                      className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#F1BD6C] text-[10px] font-medium text-[#6B4E16]"
+                      title={g.owner.name || g.owner.email || ""}
+                    >
+                      {g.owner.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={g.owner.image}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        (g.owner.name || g.owner.email || "?")
+                          .slice(0, 2)
+                          .charAt(0)
+                          .toUpperCase()
+                      )}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+          {/* Create-new row (Asana's "Crear objetivo nuevo") — uses the
+              typed text as the name, or "Untitled goal" when empty. Hidden
+              only when the text exactly matches an existing goal. */}
+          {!exactMatch && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void doCreate(query.trim() || "Untitled goal")}
+              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-sm text-[#4573D2] hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+              {query.trim() ? `Create goal “${query.trim()}”` : "Create new goal"}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getUserWorkspaceId, AuthorizationError, getErrorStatus } from "@/lib/auth-guards";
+import {
+  getUserWorkspaceId,
+  AuthorizationError,
+  NotFoundError,
+  getErrorStatus,
+} from "@/lib/auth-guards";
 
 const keyResultSeedSchema = z.object({
   name: z.string().min(1),
@@ -50,15 +55,10 @@ export async function GET(req: Request) {
     // counts against open goals only. Absent = unchanged.
     const openOnly = searchParams.get("openOnly") === "1";
 
-    // Get user's workspace
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
-
-    if (!workspaceMember) {
-      return NextResponse.json({ error: "No workspace found" }, { status: 404 });
-    }
+    // The user's real workspace. A bare findFirst can return the personal
+    // singleton workspace instead of the firm they were invited to (SEC-06),
+    // making goals list from / land in the wrong workspace.
+    const workspaceId = await getUserWorkspaceId(userId);
 
     // ── Privacy gate (Asana parity) ──────────────────────────
     // A user sees an objective when:
@@ -68,7 +68,7 @@ export async function GET(req: Request) {
     //
     // Workspace membership alone doesn't auto-grant access.
     const where: Record<string, unknown> = {
-      workspaceId: workspaceMember.workspaceId,
+      workspaceId,
       OR: [
         { ownerId: userId },
         { members: { some: { userId } } },
@@ -152,6 +152,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json(objectivesWithProgress);
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
+    }
     console.error("Error fetching objectives:", error);
     return NextResponse.json(
       { error: "Failed to fetch objectives" },
@@ -172,15 +176,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const data = createObjectiveSchema.parse(body);
 
-    // Get user's workspace
-    const workspaceMember = await prisma.workspaceMember.findFirst({
-      where: { userId },
-      select: { workspaceId: true },
-    });
-
-    if (!workspaceMember) {
-      return NextResponse.json({ error: "No workspace found" }, { status: 404 });
-    }
+    const workspaceId = await getUserWorkspaceId(userId);
 
     // Verify parentId belongs to user's workspace
     if (data.parentId) {
@@ -188,7 +184,7 @@ export async function POST(req: Request) {
         where: { id: data.parentId },
         select: { workspaceId: true },
       });
-      if (!parent || parent.workspaceId !== workspaceMember.workspaceId) {
+      if (!parent || parent.workspaceId !== workspaceId) {
         return NextResponse.json({ error: "Parent objective not found" }, { status: 404 });
       }
     }
@@ -199,7 +195,7 @@ export async function POST(req: Request) {
         where: { id: data.teamId },
         select: { workspaceId: true },
       });
-      if (!team || team.workspaceId !== workspaceMember.workspaceId) {
+      if (!team || team.workspaceId !== workspaceId) {
         return NextResponse.json({ error: "Team not found" }, { status: 404 });
       }
     }
@@ -210,7 +206,7 @@ export async function POST(req: Request) {
       const ownerMember = await prisma.workspaceMember.findFirst({
         where: {
           userId: data.ownerId,
-          workspaceId: workspaceMember.workspaceId,
+          workspaceId,
         },
         select: { userId: true },
       });
@@ -228,7 +224,7 @@ export async function POST(req: Request) {
         parentId: data.parentId,
         teamId: data.teamId,
         progressSource: data.progressSource || "MANUAL",
-        workspaceId: workspaceMember.workspaceId,
+        workspaceId,
         ownerId: resolvedOwnerId,
         // Template path: seed all KRs in the same transaction so the
         // created objective is immediately useful (progress = 0% across
@@ -282,6 +278,10 @@ export async function POST(req: Request) {
         { error: error.issues[0]?.message || "Validation error" },
         { status: 400 }
       );
+    }
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      const { status, message } = getErrorStatus(error);
+      return NextResponse.json({ error: message }, { status });
     }
 
     console.error("Error creating objective:", error);
