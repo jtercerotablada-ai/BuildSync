@@ -1606,6 +1606,299 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     workflowTemplateId: "inspection-cycle",
   },
   {
+    id: "broward-bsip-inspection",
+    name: "Broward BSIP inspection",
+    description:
+      "Broward County Building Safety Inspection Program (BSIP) recertification — the BORA-administered structural + electrical safety report a FL-licensed PE/architect must file at 40 years (30 near the coast) and every 10 years after. Structural and electrical field inspection with the Broward Building Safety Inspection Report form built in as checklists, plus an infrared thermography section included conditionally for when the AHJ requests it (delete it if not required). 5 status sections (Asana paradigm) with a 'Discipline' custom field plus a 'Severity' field for findings. ~23 parent tasks, 100+ subtasks, discipline-closeout milestones, an internal QC + PE-seal approval gate (ready to sign), and BORA/AHJ submittal. Inspection-cycle workflow rules pre-wired.",
+    icon: "ShieldCheck",
+    accent: "blue",
+    category: "engineering",
+    defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#335FB5" },
+    // Same Asana paradigm as the other inspection templates: sections are
+    // workflow STATUS, the trade (Structural / Electrical / Thermography)
+    // lives in the Discipline custom field, and each finding carries a
+    // Severity. Broward's BSIP is narrower than the Miami-Dade 40-year
+    // recert — structural + electrical only, with IR thermography added
+    // only when the local building official asks for it.
+    sections: ["To Do", "In Progress", "Under Review", "Approved", "Done"],
+    customFields: [
+      {
+        name: "Discipline",
+        type: "DROPDOWN",
+        options: [
+          { id: "engagement", label: "Engagement & Prep", color: "#888888" },
+          { id: "structural", label: "Structural", color: "#c9a84c" },
+          { id: "electrical", label: "Electrical", color: "#d4b65a" },
+          { id: "thermography", label: "Thermography (if required)", color: "#a8893a" },
+          { id: "report", label: "Report & Submittal", color: "#94a3b8" },
+        ],
+      },
+      {
+        name: "Severity",
+        type: "DROPDOWN",
+        options: [
+          { id: "critical", label: "Critical — immediate", color: "#dc2626" },
+          { id: "major", label: "Major — within 6 mo", color: "#f59e0b" },
+          { id: "minor", label: "Minor — within 12 mo", color: "#eab308" },
+          { id: "monitor", label: "Monitoring only", color: "#94a3b8" },
+          { id: "ok", label: "OK / Not applicable", color: "#10b981" },
+        ],
+      },
+    ],
+    tasks: [
+      // ── Engagement & Preparation ───────────────────────────────
+      {
+        section: "To Do",
+        name: "Project intake & contract",
+        customFieldValues: { Discipline: "engagement" },
+        subtasks: [
+          "Scope agreed with owner / property mgmt (Broward BSIP recertification)",
+          "Fee proposal issued & signed",
+          "Certificate of Insurance delivered",
+          "Retainer received",
+          "Project number assigned & folder set up",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Building documentation request",
+        customFieldValues: { Discipline: "engagement" },
+        subtasks: [
+          "As-built / original construction drawings",
+          "Prior BSIP / recertification report",
+          "Prior repair permits & closeout docs",
+          "Building age & Certificate of Occupancy date",
+          "Property management & on-site contact",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "BORA form & due-date confirmation",
+        customFieldValues: { Discipline: "engagement" },
+        subtasks: [
+          "Confirm Broward jurisdiction & local building official",
+          "Confirm cycle (initial 40-yr / 30-yr coastal, then every 10 yr)",
+          "Pull Broward BORA Building Safety Inspection Report form",
+          "Confirm Notice of Required Inspection due date & penalties",
+          "Confirm whether AHJ requires IR thermography this cycle",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Field team mobilization",
+        customFieldValues: { Discipline: "engagement" },
+        subtasks: [
+          "Schedule access windows with property mgmt",
+          "Tenant / resident notification letter",
+          "Lift / scaffold / ladder reservations",
+          "Equipment kit (camera, moisture meter, crack gauge, IR camera if required)",
+          "PPE check & site-specific safety briefing",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Pre-inspection package complete",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "engagement" },
+      },
+
+      // ── Structural Inspection ──────────────────────────────────
+      {
+        section: "To Do",
+        name: "Exterior structural walkthrough",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Façades, cladding & coping",
+          "Parapet walls",
+          "Columns, beams & expansion joints",
+          "Foundation wall above grade & weep system",
+          "Photo log with elevation tags & compass bearing",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Interior structural walkthrough",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Garage levels (slabs, columns, beams)",
+          "Mechanical rooms & equipment supports",
+          "Common corridors & ceilings",
+          "Stairwells & landings",
+          "Water intrusion mapping (staining, efflorescence, mold)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Balcony, terrace & railing inspection",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Railing anchorage & corrosion at base plates",
+          "Slab edge & soffit condition",
+          "Waterproofing membrane & traffic coating integrity",
+          "Drain inlets & overflow scuppers",
+          "Load-test sample railings per local AHJ requirement",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Roof & envelope condition",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Deck & structural condition",
+          "Parapet caps & flashings",
+          "Drainage & overflow scuppers",
+          "Mechanical equipment supports & curbs",
+          "Penetrations & roof-mounted attachments",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Structural distress documentation",
+        customFieldValues: { Discipline: "structural" },
+        subtasks: [
+          "Crack mapping (width, length, orientation)",
+          "Spalling & rebar exposure log",
+          "Corrosion zone tagging",
+          "Moisture-meter readings indexed",
+          "Photo log keyed to finding IDs",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Structural field inspection complete",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "structural" },
+      },
+
+      // ── Electrical Inspection ──────────────────────────────────
+      {
+        section: "To Do",
+        name: "Service equipment & main switchgear",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "Enclosure integrity & corrosion",
+          "Working clearance per NEC 110.26",
+          "Labels & arc-flash warnings",
+          "Meter bank condition & seals",
+          "Phase identification & legend accuracy",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Distribution panels & subpanels",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "Panel covers & dead-fronts in place",
+          "Breaker condition & circuit directory",
+          "Double-tapped breakers flagged",
+          "AIC ratings vs available fault current",
+          "Open knockouts & unused openings",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Branch circuits, GFCI & life safety",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "GFCI protection in wet locations",
+          "Receptacle covers in wet / outdoor zones",
+          "Common-area lighting operational",
+          "Exit signs & 90-min egress lighting battery test",
+          "Emergency / standby power & transfer switch (if present)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Grounding & bonding survey",
+        customFieldValues: { Discipline: "electrical" },
+        subtasks: [
+          "Grounding electrode system (GES) inspection",
+          "Bonding continuity at major equipment",
+          "Equipment grounding conductor verification",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Electrical field inspection complete",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "electrical" },
+      },
+
+      // ── Thermography (IR) — ONLY when the AHJ requires it ───────
+      {
+        section: "To Do",
+        name: "IR thermography scan — ONLY if Broward AHJ requires it (delete section otherwise)",
+        customFieldValues: { Discipline: "thermography" },
+        subtasks: [
+          "Confirm AHJ requested IR this cycle — if not, delete this task",
+          "Camera calibration cert in date; ambient / emissivity set",
+          "Main switchgear & service scan under load (each phase, line + load)",
+          "Distribution panel & breaker-pole scan under load",
+          "Hotspots (ΔT ≥ 10°C) documented with IR + visible photo pairs",
+          "Severity classified & repair priority assigned",
+        ],
+      },
+
+      // ── Report & Submittal ─────────────────────────────────────
+      {
+        section: "To Do",
+        name: "Findings consolidation",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Structural & electrical logs merged into master findings list",
+          "Severity normalized across trades",
+          "Photo logs cross-referenced to finding IDs",
+          "Prior-cycle comparison (delta vs last BSIP)",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Draft Broward BSIP report",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Executive summary & safe / unsafe determination",
+          "Structural section of BORA form filled",
+          "Electrical section of BORA form filled",
+          "Findings table with severity & required repairs",
+          "Photo appendix indexed (+ IR pairs if performed)",
+          "Internal QA/QC read-through",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Internal QC — PE seal review (ready to sign)",
+        type: "APPROVAL",
+        customFieldValues: { Discipline: "report" },
+      },
+      {
+        section: "To Do",
+        name: "BORA / AHJ submittal package",
+        customFieldValues: { Discipline: "report" },
+        subtasks: [
+          "Sealed report PDF + native files",
+          "BORA Building Safety Inspection Report form signed & sealed",
+          "Cover letter",
+          "Supporting photos & test reports",
+          "Submission fee paid",
+          "Submission receipt archived",
+        ],
+      },
+      {
+        section: "To Do",
+        name: "Report submitted to Broward AHJ",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "report" },
+      },
+      {
+        section: "To Do",
+        name: "Recertification approved",
+        type: "MILESTONE",
+        customFieldValues: { Discipline: "report" },
+      },
+    ],
+    workflowTemplateId: "inspection-cycle",
+  },
+  {
     id: "civil-site",
     name: "Civil / site engineering",
     description:
@@ -1784,10 +2077,14 @@ export const CATEGORY_LABELS: Record<ProjectTemplateCategory, string> = {
   productivity: "Productivity",
 };
 
-// "For you" surfaces a curated set — first 6 hand-picked from across
-// categories so the default tab feels relevant to an engineering firm.
+// "For you" surfaces a curated set hand-picked from across categories so
+// the default tab feels relevant to an engineering firm. The two Florida
+// recertification / Broward BSIP inspection playbooks sit up front because
+// recertification work is a core, recurring line of business here.
 export const FOR_YOU_TEMPLATE_IDS = [
   "structural-design",
+  "recertification-40yr",
+  "broward-bsip-inspection",
   "permit-submittal",
   "field-rfi",
   "submittal-log",
