@@ -17,10 +17,19 @@
  * centralizes the canonical rule so every route agrees with the page.
  *
  * Roles (ProjectRole): ADMIN > EDITOR > COMMENTER > VIEWER.
- *   - read:    owner | member | PUBLIC | ws OWNER/ADMIN | level >= 4
- *   - write:   owner | member role ADMIN or EDITOR
- *   - comment: owner | member role ADMIN, EDITOR or COMMENTER
- *   - manage:  owner | member role ADMIN   (add/remove members, delete)
+ *   - read:    owner | member | PUBLIC | ws OWNER/ADMIN | level >= 4 | team member
+ *   - write:   owner | member role ADMIN or EDITOR | team member
+ *   - comment: owner | member role ADMIN, EDITOR or COMMENTER | team member
+ *   - manage:  owner | member role ADMIN | ws OWNER/ADMIN   (add/remove members, delete)
+ *
+ * TEAM SHARING (Asana model): a project attached to a team (Project.teamId)
+ * is shared with that whole team — every member of the team gets Editor-level
+ * access (read + write + comment) WITHOUT an explicit ProjectMember row, and
+ * that access is dynamic (new team members gain it, removed members lose it).
+ * An explicit ProjectMember row always takes precedence over team access, so a
+ * deliberately-restricted VIEWER is never silently upgraded by the team. Team
+ * access never confers `canManage` (add/remove members, delete, settings) —
+ * that stays owner / project-ADMIN / workspace-manager.
  */
 
 import prisma from "@/lib/prisma";
@@ -43,6 +52,9 @@ export interface ProjectAccessResult {
   memberRole: ProjectRole | null;
   /** OWNER/ADMIN of the project's workspace, or Position level >= 4. */
   isWorkspaceManager: boolean;
+  /** Access derives from membership in the project's team (Project.teamId),
+   *  not an explicit ProjectMember row. Editor-level, never manage. */
+  isTeamMember: boolean;
   /** Can create/edit content (tasks, status): owner | ADMIN | EDITOR. */
   canWrite: boolean;
   /** Can post messages/comments: owner | ADMIN | EDITOR | COMMENTER. Superset of canWrite. */
@@ -57,6 +69,9 @@ interface MinimalProject {
   workspaceId: string;
   visibility: string;
   members: { userId: string; role: string }[];
+  /** The team this project is shared with, if any. Optional: when a caller's
+   *  select omits it, resolveProjectAccess fetches just this scalar lazily. */
+  teamId?: string | null;
 }
 
 /**
@@ -95,11 +110,49 @@ export async function resolveProjectAccess(
     }
   }
 
+  // Team sharing (Asana model): a member of the project's team gets access
+  // even without an explicit ProjectMember row. Explicit membership and
+  // ownership take precedence for the role, so we only consult the team for
+  // users who are neither — a deliberately-restricted VIEWER stays a VIEWER.
+  let isTeamMember = false;
+  if (!isOwner && !isMember) {
+    // The caller may not have selected teamId; fetch just that scalar when so
+    // (undefined = not selected, null = selected-but-no-team).
+    let teamId = project.teamId;
+    if (teamId === undefined) {
+      const p = await prisma.project.findUnique({
+        where: { id: project.id },
+        select: { teamId: true },
+      });
+      teamId = p?.teamId ?? null;
+    }
+    if (teamId) {
+      // Require the team to live in the PROJECT's workspace — never grant
+      // access across the workspace boundary even if a stale/mis-set teamId
+      // points at a team elsewhere (defense in depth; the write sinks also
+      // validate this).
+      const tm = await prisma.teamMember.findFirst({
+        where: {
+          userId,
+          teamId,
+          team: { workspaceId: project.workspaceId },
+        },
+        select: { userId: true },
+      });
+      if (tm) {
+        isTeamMember = true;
+        canRead = true;
+      }
+    }
+  }
+
   const canWrite =
-    isOwner || memberRole === "ADMIN" || memberRole === "EDITOR";
+    isOwner || memberRole === "ADMIN" || memberRole === "EDITOR" || isTeamMember;
   // Commenters can post messages/comments but NOT edit project content —
   // a superset of canWrite that also admits the COMMENTER role.
   const canComment = canWrite || memberRole === "COMMENTER";
+  // Team access is Editor-level only: managing membership/settings/deletion
+  // stays with the owner, project ADMINs, and workspace managers.
   const canManage = isOwner || memberRole === "ADMIN" || isWorkspaceManager;
 
   return {
@@ -114,6 +167,7 @@ export async function resolveProjectAccess(
     isMember,
     memberRole,
     isWorkspaceManager,
+    isTeamMember,
     canWrite,
     canComment,
     canManage,
@@ -137,6 +191,7 @@ export async function getProjectAccess(
       ownerId: true,
       workspaceId: true,
       visibility: true,
+      teamId: true,
       members: { select: { userId: true, role: true } },
     },
   });
@@ -154,6 +209,7 @@ export async function getProjectAccess(
       isMember: false,
       memberRole: null,
       isWorkspaceManager: false,
+      isTeamMember: false,
       canWrite: false,
       canComment: false,
       canManage: false,

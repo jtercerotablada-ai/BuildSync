@@ -179,6 +179,7 @@ export async function verifyTaskAccess(
           workspaceId: true,
           ownerId: true,
           visibility: true,
+          teamId: true,
           members: { select: { userId: true, role: true } },
         },
       },
@@ -240,6 +241,7 @@ export async function verifyProjectAccess(
       workspaceId: true,
       ownerId: true,
       visibility: true,
+      teamId: true,
       members: { select: { userId: true, role: true } },
     },
   });
@@ -297,6 +299,7 @@ export async function verifyBulkTaskAccess(userId: string, taskIds: string[]) {
           workspaceId: true,
           ownerId: true,
           visibility: true,
+          teamId: true,
           members: { select: { userId: true, role: true } },
         },
       },

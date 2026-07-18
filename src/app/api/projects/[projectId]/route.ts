@@ -116,6 +116,21 @@ export async function GET(
       }
     }
 
+    // Team sharing (Asana model): a member of the project's team has access,
+    // matching resolveProjectAccess (the rule every sub-route enforces). The
+    // team must be in the project's own workspace.
+    if (!hasAccess && project.teamId) {
+      const teamMembership = await prisma.teamMember.findFirst({
+        where: {
+          userId,
+          teamId: project.teamId,
+          team: { workspaceId: project.workspaceId },
+        },
+        select: { userId: true },
+      });
+      if (teamMembership) hasAccess = true;
+    }
+
     if (!hasAccess) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }

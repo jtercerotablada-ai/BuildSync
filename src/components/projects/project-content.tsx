@@ -129,6 +129,17 @@ interface Project {
   // Per-project view-tab customization (Asana's tab context menu). Empty for
   // projects whose tabs were never renamed / reordered / copied / hidden.
   viewPrefs?: ViewPref[];
+  // Team sharing (Asana model): the team this project is shared with and its
+  // members, who get access and show in "Project roles".
+  teamId?: string | null;
+  teamName?: string | null;
+  teamMembers?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+    role: string;
+  }[];
   owner: {
     id: string;
     name: string | null;
@@ -1704,6 +1715,8 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
             : null
         }
         canManage={canManageMembers}
+        sharedTeamId={project.teamId ?? null}
+        sharedTeamName={project.teamName ?? null}
         onMembersChange={() => router.refresh()}
       />
 

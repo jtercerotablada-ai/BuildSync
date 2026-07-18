@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
 
 export async function DELETE(
   _req: Request,
@@ -40,8 +41,11 @@ export async function DELETE(
         fieldId: true,
         project: {
           select: {
+            id: true,
             ownerId: true,
             workspaceId: true,
+            visibility: true,
+            teamId: true,
             members: { select: { userId: true, role: true } },
           },
         },
@@ -51,11 +55,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const member = link.project.members.find((m) => m.userId === userId);
-    const isOwner = link.project.ownerId === userId;
-    const canEdit =
-      isOwner || (member && (member.role === "ADMIN" || member.role === "EDITOR"));
-    if (!canEdit) {
+    // Canonical resolver so team-shared members (Editor-level) can unlink
+    // fields consistently with what they can add.
+    const access = await resolveProjectAccess(link.project, userId);
+    if (!access.canWrite) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

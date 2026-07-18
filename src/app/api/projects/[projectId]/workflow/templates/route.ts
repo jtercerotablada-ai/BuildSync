@@ -21,6 +21,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
 import {
   WORKFLOW_TEMPLATES,
   findTemplateById,
@@ -32,7 +33,12 @@ const bodySchema = z.object({
   templateId: z.string().min(1),
 });
 
-async function assertProjectAccess(projectId: string, userId: string) {
+// Applying a template mutates the project's workflow — a write action. Gate
+// it through the canonical resolver so it agrees with the rest of the app
+// (owner / project ADMIN·EDITOR / team-shared member) instead of a hand-rolled
+// check that both over-granted WORKSPACE-visibility read and ignored team
+// sharing.
+async function assertCanEditWorkflow(projectId: string, userId: string) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
@@ -40,36 +46,15 @@ async function assertProjectAccess(projectId: string, userId: string) {
       ownerId: true,
       visibility: true,
       workspaceId: true,
+      teamId: true,
       members: { select: { userId: true, role: true } },
     },
   });
   if (!project) return { ok: false as const, status: 404 };
-
-  const member = project.members.find((m) => m.userId === userId);
-  const isOwner = project.ownerId === userId;
-  const isMember = !!member;
-  if (isOwner || isMember || project.visibility === "PUBLIC") {
-    return { ok: true as const, project, member };
-  }
-  if (project.visibility === "WORKSPACE") {
-    const wsMember = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId: project.workspaceId },
-      },
-    });
-    if (wsMember) return { ok: true as const, project, member: null };
-  }
-  return { ok: false as const, status: 403 };
-}
-
-function canEditWorkflow(
-  project: { ownerId: string | null },
-  member: { role: string } | null,
-  userId: string
-): boolean {
-  if (project.ownerId === userId) return true;
-  if (!member) return false;
-  return member.role === "ADMIN" || member.role === "EDITOR";
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.ok) return { ok: false as const, status: access.status };
+  if (!access.canWrite) return { ok: false as const, status: 403 };
+  return { ok: true as const, project };
 }
 
 /**
@@ -102,20 +87,16 @@ export async function POST(
     }
 
     const { projectId } = await params;
-    const access = await assertProjectAccess(projectId, userId);
+    const access = await assertCanEditWorkflow(projectId, userId);
     if (!access.ok) {
-      return NextResponse.json(
-        { error: access.status === 404 ? "Not found" : "Forbidden" },
-        { status: access.status }
-      );
-    }
-    if (!canEditWorkflow(access.project, access.member ?? null, userId)) {
       return NextResponse.json(
         {
           error:
-            "You don't have permission to edit this project's workflow. Ask an editor or admin.",
+            access.status === 404
+              ? "Not found"
+              : "You don't have permission to edit this project's workflow. Ask an editor or admin.",
         },
-        { status: 403 }
+        { status: access.status }
       );
     }
 

@@ -89,6 +89,17 @@ interface ProjectShape {
   sections?: SectionRow[];
   startDate?: string | null;
   endDate?: string | null;
+  // Team sharing (Asana model): the team this project is shared with. Its
+  // members get access and are listed in "Project roles" as team members.
+  teamId?: string | null;
+  teamName?: string | null;
+  teamMembers?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+    role: string;
+  }[];
 }
 
 interface ProjectOverviewProps {
@@ -1000,8 +1011,23 @@ export function ProjectOverview({
         seen.add(m.user.id);
       }
     });
+    // Team-shared members (Asana model): everyone on the project's team has
+    // access. Show them after the explicit members, deduped — an explicit
+    // ProjectMember row (with its own role) always wins over the team label.
+    (project.teamMembers ?? []).forEach((tm) => {
+      if (!seen.has(tm.id)) {
+        roster.push({
+          id: tm.id,
+          name: tm.name,
+          email: tm.email,
+          image: tm.image,
+          role: project.teamName ? `${project.teamName} · Team member` : "Team member",
+        });
+        seen.add(tm.id);
+      }
+    });
     return roster;
-  }, [project.owner, project.members]);
+  }, [project.owner, project.members, project.teamMembers, project.teamName]);
 
   // True when at least one section has typed content. Drives the
   // Post button's enabled state + the cancel "discard?" prompt.

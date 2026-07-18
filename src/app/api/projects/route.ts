@@ -359,6 +359,22 @@ export async function POST(req: Request) {
       );
     }
 
+    // If sharing with a team at creation, that team must live in THIS
+    // workspace — otherwise its members would gain access to a project in a
+    // workspace they don't belong to (mirrors the /team PUT validation).
+    if (teamId) {
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { workspaceId: true },
+      });
+      if (!team || team.workspaceId !== targetWorkspaceId) {
+        return NextResponse.json(
+          { error: "Team not found in this workspace" },
+          { status: 404 }
+        );
+      }
+    }
+
     // Auto-generate the next human-readable project number for this
     // workspace. Format: TT-YYYY-NNN (3-digit zero-padded). Scoped to
     // the year + workspace so different workspaces keep independent

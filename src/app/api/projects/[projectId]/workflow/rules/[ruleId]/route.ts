@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
+import { resolveProjectAccess } from "@/lib/project-access";
 import { validateRuleTargets } from "../route";
 
 /**
@@ -68,6 +69,8 @@ async function assertRuleAccess(
               id: true,
               workspaceId: true,
               ownerId: true,
+              visibility: true,
+              teamId: true,
               members: { select: { userId: true, role: true } },
             },
           },
@@ -81,14 +84,12 @@ async function assertRuleAccess(
     return { ok: false as const, status: 404 };
   }
 
+  // Use the canonical resolver so team-shared members (Editor-level) can edit
+  // rules they're allowed to create — the POST handler already gates on
+  // resolveProjectAccess.canWrite, and this must agree.
   const project = rule.workflow.project;
-  const member = project.members.find((m) => m.userId === userId);
-  const isOwner = project.ownerId === userId;
-  const canEdit =
-    isOwner ||
-    (member && (member.role === "ADMIN" || member.role === "EDITOR"));
-
-  if (!canEdit) return { ok: false as const, status: 403 };
+  const access = await resolveProjectAccess(project, userId);
+  if (!access.canWrite) return { ok: false as const, status: 403 };
   return { ok: true as const, rule, project };
 }
 

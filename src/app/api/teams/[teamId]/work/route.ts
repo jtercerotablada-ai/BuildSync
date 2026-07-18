@@ -6,6 +6,7 @@ import {
   verifyProjectAccess,
   assertProjectInWorkspace,
   getErrorStatus,
+  AuthorizationError,
 } from "@/lib/auth-guards";
 
 // POST /api/teams/:teamId/work - Link work to team
@@ -44,13 +45,20 @@ export async function POST(
       }
       await assertProjectInWorkspace(workId, team.workspaceId);
 
-      // The caller must have WRITE access to the target project. Team
-      // membership alone is not enough — otherwise any team member could
-      // re-parent a private project they can't even open into their own
-      // team (audit SEC-02). Linking only *associates* the project with the
-      // team; it must never rename or overwrite the project's canonical
-      // name/description (audit DATA-01).
-      await verifyProjectAccess(userId, workId, { requireWrite: true });
+      // Attaching a project to a team now SHARES it with the whole team
+      // (every team member gets Editor-level access), so this is a manage-
+      // level action — require project MANAGE (owner / project ADMIN /
+      // workspace manager), matching /api/projects/[projectId]/team. Write
+      // access is deliberately not enough: an EDITOR (or a user with only
+      // team-derived write) must not be able to broaden a project's audience.
+      // Linking only *associates* the project with the team; it never renames
+      // or overwrites the project's canonical name/description (audit DATA-01).
+      const { access: workAccess } = await verifyProjectAccess(userId, workId);
+      if (!workAccess.canManage) {
+        throw new AuthorizationError(
+          "You don't have permission to change this project's team"
+        );
+      }
 
       const project = await prisma.project.update({
         where: { id: workId },
@@ -163,7 +171,14 @@ export async function DELETE(
     }
 
     await verifyTeamAccess(userId, teamId);
-    await verifyProjectAccess(userId, projectId, { requireWrite: true });
+    // Unlinking revokes the whole team's access to the project — a manage-
+    // level action, same bar as sharing it (see the POST handler above).
+    const { access: unlinkAccess } = await verifyProjectAccess(userId, projectId);
+    if (!unlinkAccess.canManage) {
+      throw new AuthorizationError(
+        "You don't have permission to change this project's team"
+      );
+    }
 
     // Scoped unlink: only clears teamId when the project actually belongs
     // to THIS team, so a stale/guessed id can't detach another team's work.

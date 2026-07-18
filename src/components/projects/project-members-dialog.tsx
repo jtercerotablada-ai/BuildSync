@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Loader2, Search, Trash2, ChevronDown, UserPlus, Crown, Mail } from "lucide-react";
+import { Loader2, Search, Trash2, ChevronDown, UserPlus, Crown, Mail, Users } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +55,15 @@ interface Props {
   /** Whether the current user may add/remove members and change roles. When
    *  false the dialog is read-only (the API 403s these mutations anyway). */
   canManage?: boolean;
+  /** The team this project is currently shared with (Asana model), if any. */
+  sharedTeamId?: string | null;
+  sharedTeamName?: string | null;
   onMembersChange?: () => void;
+}
+
+interface TeamOption {
+  id: string;
+  name: string;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -82,9 +90,16 @@ export function ProjectMembersDialog({
   projectId,
   owner,
   canManage = false,
+  sharedTeamId = null,
+  sharedTeamName = null,
   onMembersChange,
 }: Props) {
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  // Team sharing (Asana model): the whole team gets access.
+  const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [teamId, setTeamId] = useState<string | null>(sharedTeamId);
+  const [teamName, setTeamName] = useState<string | null>(sharedTeamName);
+  const [sharingTeam, setSharingTeam] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<WorkspaceUser[]>([]);
@@ -131,6 +146,81 @@ export function ProjectMembersDialog({
       cancelled = true;
     };
   }, [open, projectId]);
+
+  // Keep the shared-team state in sync with the props each time the dialog
+  // (re)opens — the parent refreshes them after a share/unshare.
+  useEffect(() => {
+    if (open) {
+      setTeamId(sharedTeamId);
+      setTeamName(sharedTeamName);
+    }
+  }, [open, sharedTeamId, sharedTeamName]);
+
+  // Load the teams the user can share with (only managers can share).
+  useEffect(() => {
+    if (!open || !canManage) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/teams`);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setTeams(
+            Array.isArray(data)
+              ? data.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name }))
+              : []
+          );
+        }
+      } catch {
+        /* ignore — the picker just stays empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, canManage]);
+
+  async function shareWithTeam(id: string, name: string) {
+    setSharingTeam(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/team`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId: id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to share");
+      setTeamId(data.teamId ?? id);
+      setTeamName(data.teamName ?? name);
+      toast.success(`Shared with ${data.teamName ?? name}`);
+      onMembersChange?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to share");
+    } finally {
+      setSharingTeam(false);
+    }
+  }
+
+  async function unshareTeam() {
+    setSharingTeam(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/team`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to unshare");
+      }
+      setTeamId(null);
+      setTeamName(null);
+      toast.success("Project no longer shared with a team");
+      onMembersChange?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to unshare");
+    } finally {
+      setSharingTeam(false);
+    }
+  }
 
   // Search workspace users (debounced)
   useEffect(() => {
@@ -358,6 +448,80 @@ export function ProjectMembersDialog({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Share with a team (Asana model): the whole team gets access.
+            Managers can pick/change/remove; others just see the shared team. */}
+        {(canManage || teamId) && (
+          <div className="px-4 md:px-6 pb-2 flex-shrink-0">
+            <p className="text-xs text-gray-500 mb-2">Shared with a team</p>
+            {teamId ? (
+              <div className="flex items-center gap-2 p-2 rounded bg-[#a8893a]/5 border border-[#a8893a]/20">
+                <span className="h-7 w-7 rounded-full bg-[#a8893a]/15 flex items-center justify-center flex-shrink-0">
+                  <Users className="h-4 w-4 text-[#a8893a]" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-900 truncate">
+                    {teamName || "Team"}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    Everyone on this team has access
+                  </p>
+                </div>
+                {canManage && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-gray-600 h-7"
+                    disabled={sharingTeam}
+                    onClick={unshareTeam}
+                  >
+                    {sharingTeam ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Remove"
+                    )}
+                  </Button>
+                )}
+              </div>
+            ) : canManage && teams.length > 0 ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    disabled={sharingTeam}
+                    className="w-full flex items-center gap-2 p-2 rounded border border-dashed border-gray-200 hover:bg-gray-50 text-left disabled:opacity-50"
+                  >
+                    <span className="h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <Users className="h-4 w-4 text-gray-500" />
+                    </span>
+                    <span className="flex-1 text-sm text-gray-600">
+                      Share this project with a team…
+                    </span>
+                    {sharingTeam ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-56 overflow-y-auto">
+                  {teams.map((t) => (
+                    <DropdownMenuItem
+                      key={t.id}
+                      onClick={() => shareWithTeam(t.id, t.name)}
+                    >
+                      <Users className="h-4 w-4 mr-2 text-gray-500" />
+                      {t.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : canManage ? (
+              <p className="text-xs text-gray-400 py-2 px-3 bg-gray-50 rounded">
+                No teams available to share with.
+              </p>
+            ) : null}
           </div>
         )}
 

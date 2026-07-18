@@ -119,6 +119,22 @@ export default async function ProjectPage({
       },
       views: true,
       viewPrefs: true,
+      // The team this project is shared with (Asana model): its members get
+      // access and appear in "Project roles" as team members.
+      team: {
+        select: {
+          id: true,
+          name: true,
+          workspaceId: true,
+          members: {
+            include: {
+              user: {
+                select: { id: true, name: true, email: true, image: true },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
@@ -138,8 +154,19 @@ export default async function ProjectPage({
   const isProjectOwner = project.ownerId === user.id;
   const isProjectMember = project.members.some((m) => m.userId === user.id);
   const isPublic = project.visibility === "PUBLIC";
+  // Team sharing: members of the project's team have access too (mirrors
+  // resolveProjectAccess, the canonical rule the API sub-routes enforce). Only
+  // honor a team that lives in the project's OWN workspace — never grant or
+  // display across the workspace boundary.
+  const sharedTeam =
+    project.team && project.team.workspaceId === project.workspaceId
+      ? project.team
+      : null;
+  const isProjectTeamMember =
+    sharedTeam?.members.some((m) => m.userId === user.id) ?? false;
 
-  let hasAccess = isProjectOwner || isProjectMember || isPublic;
+  let hasAccess =
+    isProjectOwner || isProjectMember || isPublic || isProjectTeamMember;
 
   if (!hasAccess) {
     const membership = await prisma.workspaceMember.findUnique({
@@ -226,6 +253,19 @@ export default async function ProjectPage({
       hidden: p.hidden,
       isDefault: p.isDefault,
       position: p.position,
+    })),
+    // Team sharing: drop the raw nested team (Date fields) and expose a flat
+    // shape the Overview uses to render team members in "Project roles". Uses
+    // the workspace-validated `sharedTeam` so a cross-workspace team is never
+    // surfaced.
+    team: undefined,
+    teamName: sharedTeam?.name ?? null,
+    teamMembers: (sharedTeam?.members ?? []).map((m) => ({
+      id: m.user.id,
+      name: m.user.name,
+      email: m.user.email,
+      image: m.user.image,
+      role: m.role,
     })),
   };
 
