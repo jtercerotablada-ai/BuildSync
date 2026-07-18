@@ -100,6 +100,7 @@ export function ProjectMembersDialog({
   const [teamId, setTeamId] = useState<string | null>(sharedTeamId);
   const [teamName, setTeamName] = useState<string | null>(sharedTeamName);
   const [sharingTeam, setSharingTeam] = useState(false);
+  const [teamsLoaded, setTeamsLoaded] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<WorkspaceUser[]>([]);
@@ -156,9 +157,15 @@ export function ProjectMembersDialog({
     }
   }, [open, sharedTeamId, sharedTeamName]);
 
-  // Load the teams the user can share with (only managers can share).
+  // Load the teams the user can share with (only managers can share). Track a
+  // loaded flag so the picker's empty-state ("No teams available") doesn't
+  // flash before the fetch resolves and then flip to the dropdown.
   useEffect(() => {
-    if (!open || !canManage) return;
+    if (!open) {
+      setTeamsLoaded(false);
+      return;
+    }
+    if (!canManage) return;
     let cancelled = false;
     (async () => {
       try {
@@ -173,6 +180,8 @@ export function ProjectMembersDialog({
         }
       } catch {
         /* ignore — the picker just stays empty */
+      } finally {
+        if (!cancelled) setTeamsLoaded(true);
       }
     })();
     return () => {
@@ -222,14 +231,23 @@ export function ProjectMembersDialog({
     }
   }
 
-  // Search workspace users (debounced)
+  // Search workspace users (debounced). Skip EMPTY queries entirely: without
+  // this the effect fired on open (and again when members loaded, since
+  // `members` is a dep) with q="", flashing the "Searching…" row on and off.
+  // That row lives outside the scroll area, so each flash grew then shrank the
+  // whole dialog — the "stretches and shrinks several times" jump on open.
   useEffect(() => {
     if (!open) return;
+    const q = query.trim();
+    if (!q) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
     const handle = setTimeout(async () => {
       setSearching(true);
       try {
-        const url = `/api/users/search?q=${encodeURIComponent(query)}`;
-        const res = await fetch(url);
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`);
         if (res.ok) {
           const users: WorkspaceUser[] = await res.json();
           // Exclude users already in the project (and the owner)
@@ -485,7 +503,16 @@ export function ProjectMembersDialog({
                   </Button>
                 )}
               </div>
-            ) : canManage && teams.length > 0 ? (
+            ) : !canManage ? null : !teamsLoaded ? (
+              // Loading placeholder — same footprint as the picker so the
+              // panel doesn't jump when the teams fetch resolves.
+              <div className="w-full flex items-center gap-2 p-2 rounded border border-dashed border-gray-200 opacity-60">
+                <span className="h-7 w-7 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <Users className="h-4 w-4 text-gray-400" />
+                </span>
+                <span className="flex-1 text-sm text-gray-400">Loading teams…</span>
+              </div>
+            ) : teams.length > 0 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -517,11 +544,11 @@ export function ProjectMembersDialog({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : canManage ? (
+            ) : (
               <p className="text-xs text-gray-400 py-2 px-3 bg-gray-50 rounded">
                 No teams available to share with.
               </p>
-            ) : null}
+            )}
           </div>
         )}
 
