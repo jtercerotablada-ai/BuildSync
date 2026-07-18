@@ -13,6 +13,9 @@ import {
   FileSpreadsheet,
   Trash2,
   Loader2,
+  Link2,
+  LayoutGrid,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -32,7 +35,9 @@ interface FileAttachment {
   taskId: string | null;
   taskName: string | null;
   messageId: string | null;
-  source: "task" | "message";
+  source: "task" | "message" | "resource";
+  /** For source "resource": whether it's an uploaded FILE or an external LINK. */
+  resourceType?: "FILE" | "LINK" | null;
   uploader: {
     id: string;
     name: string | null;
@@ -157,8 +162,16 @@ export function FilesView({ projectId }: FilesViewProps) {
     };
   }, [projectId, reloadKey]);
 
+  const isLink = (file: FileAttachment) =>
+    file.source === "resource" && file.resourceType === "LINK";
+
   const handleDownload = (file: FileAttachment) => {
     if (!file.url) return;
+    // A "Key resources" LINK is an external URL, not a blob — just open it.
+    if (isLink(file)) {
+      window.open(file.url, "_blank", "noopener,noreferrer");
+      return;
+    }
     // Force a download instead of opening a preview tab. Vercel Blob serves
     // browser-renderable types inline, so window.open just previewed them;
     // `?download=1` (and the download attr) makes it save to disk.
@@ -173,27 +186,33 @@ export function FilesView({ projectId }: FilesViewProps) {
   };
 
   const handleDelete = async (file: FileAttachment) => {
-    if (!file.taskId) return;
+    // Deletable when it's a task attachment OR an Overview key resource.
+    const endpoint =
+      file.source === "resource"
+        ? `/api/projects/${projectId}/resources/${file.id}`
+        : file.taskId
+          ? `/api/tasks/${file.taskId}/attachments/${file.id}`
+          : null;
+    if (!endpoint) return;
     if (!confirm(`Delete "${file.name}"?`)) return;
 
     try {
-      const res = await fetch(
-        `/api/tasks/${file.taskId}/attachments/${file.id}`,
-        { method: "DELETE" }
-      );
+      const res = await fetch(endpoint, { method: "DELETE" });
       if (res.ok) {
         setFiles((prev) => prev.filter((f) => f.id !== file.id));
-        toast.success("File deleted");
+        toast.success(isLink(file) ? "Link removed" : "File deleted");
       } else {
-        toast.error("Failed to delete file");
+        toast.error("Failed to delete");
       }
     } catch {
-      toast.error("Failed to delete file");
+      toast.error("Failed to delete");
     }
   };
 
   const openSource = (file: FileAttachment) => {
-    if (file.taskId) {
+    if (file.source === "resource") {
+      router.push(`/projects/${projectId}?view=overview`);
+    } else if (file.taskId) {
       window.open(`/tasks/${file.taskId}`, "_blank");
     } else if (file.messageId) {
       router.push(
@@ -257,8 +276,8 @@ function EmptyState() {
       <div className="text-center max-w-md px-6">
         <FilesIllustration />
         <h3 className="text-base font-medium text-slate-900">
-          All attachments from this project&apos;s tasks and messages will
-          appear here
+          All files from this project&apos;s tasks, messages and key resources
+          will appear here
         </h3>
       </div>
     </div>
@@ -314,8 +333,11 @@ function FileCard({
   onDelete: (f: FileAttachment) => void;
   onOpenSource: (f: FileAttachment) => void;
 }) {
+  const isLink = file.source === "resource" && file.resourceType === "LINK";
+  const isResource = file.source === "resource";
   const fileType = getFileType(file.mimeType);
-  const isImage = fileType === "image";
+  const isImage = fileType === "image" && !isLink;
+  const deletable = isResource || !!file.taskId;
 
   return (
     <div className="group relative border border-[#E0E1E3] rounded-[8px] overflow-hidden bg-white hover:shadow-md transition-shadow cursor-pointer">
@@ -332,6 +354,8 @@ function FileCard({
             decoding="async"
             className="w-full h-full object-cover"
           />
+        ) : isLink ? (
+          <Link2 className="w-7 h-7 text-slate-400" />
         ) : (
           getFileIcon(fileType)
         )}
@@ -344,8 +368,12 @@ function FileCard({
           {file.name}
         </p>
         <p className="text-xs text-slate-500 mt-0.5">
-          {formatFileSize(file.size)} ·{" "}
-          {format(new Date(file.createdAt), "MMM d")}
+          {isLink
+            ? `Link · ${format(new Date(file.createdAt), "MMM d")}`
+            : `${formatFileSize(file.size)} · ${format(
+                new Date(file.createdAt),
+                "MMM d"
+              )}`}
         </p>
         <button
           type="button"
@@ -354,12 +382,23 @@ function FileCard({
             onOpenSource(file);
           }}
           className="flex items-center gap-1 text-xs text-[#335FB5] mt-1 truncate max-w-full hover:underline"
-          title={file.taskName || "Open message"}
+          title={
+            isResource
+              ? "Open in Overview"
+              : file.source === "message"
+                ? "Open message"
+                : file.taskName || "Open task"
+          }
         >
           {file.source === "message" ? (
             <>
               <MessageSquare className="w-3 h-3 flex-shrink-0" />
               <span className="truncate">Message</span>
+            </>
+          ) : isResource ? (
+            <>
+              <LayoutGrid className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">Key resources</span>
             </>
           ) : (
             <span className="truncate">{file.taskName}</span>
@@ -369,18 +408,22 @@ function FileCard({
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
         <button
           className="p-1.5 bg-white rounded shadow hover:bg-slate-50"
-          title="Download"
+          title={isLink ? "Open link" : "Download"}
           onClick={(e) => {
             e.stopPropagation();
             onDownload(file);
           }}
         >
-          <Download className="w-3 h-3 text-slate-600" />
+          {isLink ? (
+            <ExternalLink className="w-3 h-3 text-slate-600" />
+          ) : (
+            <Download className="w-3 h-3 text-slate-600" />
+          )}
         </button>
-        {file.taskId && (
+        {deletable && (
           <button
             className="p-1.5 bg-white rounded shadow hover:bg-slate-50"
-            title="Delete"
+            title={isLink ? "Remove link" : "Delete"}
             onClick={(e) => {
               e.stopPropagation();
               onDelete(file);
