@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
@@ -14,6 +14,14 @@ import {
   CircleDot,
   Diamond,
   FileText,
+  File as FileIcon,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  Link2,
+  Download,
+  ExternalLink,
+  X,
+  Upload,
   Folder,
   MessageCircle,
   Activity as ActivityIcon,
@@ -30,6 +38,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 type ProjectStatusKey =
@@ -89,6 +102,15 @@ interface MilestoneRow {
   name: string;
   completed: boolean;
   dueDate: string | null;
+}
+
+interface ResourceRow {
+  id: string;
+  type: "FILE" | "LINK";
+  name: string;
+  url: string;
+  size: number | null;
+  mimeType: string | null;
 }
 
 interface PortfolioLite {
@@ -359,6 +381,27 @@ export function ProjectOverview({
   const [milestones, setMilestones] = useState<MilestoneRow[]>([]);
   const [portfolios, setPortfolios] = useState<PortfolioLite[]>([]);
   const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
+  // Key resources — curated files + links pinned on the Overview.
+  const [resources, setResources] = useState<ResourceRow[]>([]);
+  // Distinguishes "not loaded yet" from "genuinely empty" so the empty-state
+  // card doesn't flash before the tiles arrive on projects that have them.
+  const [resourcesLoaded, setResourcesLoaded] = useState(false);
+
+  useEffect(() => {
+    let canceled = false;
+    fetch(`/api/projects/${project.id}/resources`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (!canceled && Array.isArray(data)) setResources(data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!canceled) setResourcesLoaded(true);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [project.id]);
 
   useEffect(() => {
     let canceled = false;
@@ -453,6 +496,95 @@ export function ProjectOverview({
     },
     [router]
   );
+  // ── Key resources handlers ──────────────────────────────────────────
+  const [resourceUploading, setResourceUploading] = useState(false);
+
+  // Return a success boolean so the popover only closes/clears when the
+  // write actually landed — a failed add keeps the typed URL for a retry.
+  const uploadResourceFile = useCallback(
+    async (file: File): Promise<boolean> => {
+      if (resourceUploading) return false; // guard against a double submit
+      setResourceUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch(`/api/projects/${project.id}/resources`, {
+          method: "POST",
+          body: fd,
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error || "Upload failed");
+        setResources((prev) => [...prev, data]);
+        toast.success("Resource added");
+        return true;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Upload failed");
+        return false;
+      } finally {
+        setResourceUploading(false);
+      }
+    },
+    [project.id, resourceUploading]
+  );
+
+  const addResourceLink = useCallback(
+    async (url: string, name: string): Promise<boolean> => {
+      if (resourceUploading) return false;
+      setResourceUploading(true);
+      try {
+        const res = await fetch(`/api/projects/${project.id}/resources`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "LINK", url, name: name || undefined }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(data?.error || "Couldn't add the link");
+        setResources((prev) => [...prev, data]);
+        toast.success("Link added");
+        return true;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't add the link");
+        return false;
+      } finally {
+        setResourceUploading(false);
+      }
+    },
+    [project.id, resourceUploading]
+  );
+
+  const removeResource = useCallback(
+    async (id: string) => {
+      // Snapshot the removed item + its index so a failed delete re-inserts
+      // ONLY that item (a whole-list rollback would resurrect tiles a
+      // concurrent delete already removed).
+      let snapshot: { item: ResourceRow; index: number } | null = null;
+      setResources((prev) => {
+        const index = prev.findIndex((x) => x.id === id);
+        if (index === -1) return prev;
+        snapshot = { item: prev[index], index };
+        return prev.filter((x) => x.id !== id);
+      });
+      try {
+        const res = await fetch(
+          `/api/projects/${project.id}/resources/${id}`,
+          { method: "DELETE" }
+        );
+        if (!res.ok) throw new Error();
+      } catch {
+        if (snapshot) {
+          const { item, index } = snapshot;
+          setResources((prev) => {
+            const next = [...prev];
+            next.splice(Math.min(index, next.length), 0, item);
+            return next;
+          });
+        }
+        toast.error("Couldn't remove the resource");
+      }
+    },
+    [project.id]
+  );
+
   // Per-card expand — independent of pagination, so the structured blocks of
   // an update are viewable even when there are 3 or fewer updates (the
   // pagination toggle only appears at >3, previously stranding their content).
@@ -1120,34 +1252,85 @@ export function ProjectOverview({
           <h2 className="text-xl font-medium text-slate-900 mb-3">
             Key resources
           </h2>
-          <div className="border border-slate-200 rounded-lg p-6 bg-white text-center">
-            <p className="text-sm text-slate-500 max-w-[340px] mx-auto mb-4">
-              Align your team around a shared vision with a project brief and
-              supporting resources.
-            </p>
-            <div className="flex flex-col items-center gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(`/projects/${project.id}?view=notes`)
-                }
-                className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 hover:underline"
-              >
-                <FileText className="w-4 h-4 text-slate-400" />
-                Create project brief
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(`/projects/${project.id}?view=files`)
-                }
-                className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 hover:underline"
-              >
-                <Paperclip className="w-4 h-4 text-slate-400" />
-                Add links &amp; files
-              </button>
+
+          {!resourcesLoaded ? (
+            /* Reserve the row height so tiles don't cause a layout jump. */
+            <div className="h-[68px]" />
+          ) : resources.length === 0 ? (
+            /* Empty state — brief prompt + the two entry points. */
+            <div className="border border-slate-200 rounded-lg p-6 bg-white text-center">
+              <p className="text-sm text-slate-500 max-w-[340px] mx-auto mb-4">
+                Align your team around a shared vision with a project brief and
+                supporting resources.
+              </p>
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(`/projects/${project.id}?view=notes`)
+                  }
+                  className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 hover:underline"
+                >
+                  <FileText className="w-4 h-4 text-slate-400" />
+                  Create project brief
+                </button>
+                {canEdit && (
+                  <AddResourcePopover
+                    uploading={resourceUploading}
+                    onUploadFile={uploadResourceFile}
+                    onAddLink={addResourceLink}
+                    align="center"
+                  >
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900 hover:underline"
+                    >
+                      <Paperclip className="w-4 h-4 text-slate-400" />
+                      Add links &amp; files
+                    </button>
+                  </AddResourcePopover>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Populated — a row of tiles, like Asana. */
+            <div className="flex flex-wrap gap-3">
+              {canEdit && (
+                <AddResourcePopover
+                  uploading={resourceUploading}
+                  onUploadFile={uploadResourceFile}
+                  onAddLink={addResourceLink}
+                  align="start"
+                >
+                  <button
+                    type="button"
+                    title="Add links & files"
+                    className="flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-600"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </AddResourcePopover>
+              )}
+              <button
+                type="button"
+                onClick={() => router.push(`/projects/${project.id}?view=notes`)}
+                className="flex h-[68px] w-[200px] items-center gap-3 rounded-lg border border-dashed border-slate-300 px-3 text-left hover:border-slate-400 hover:bg-slate-50"
+              >
+                <FileText className="w-6 h-6 shrink-0 text-[#4573D2]" />
+                <span className="text-sm font-medium text-slate-700 leading-tight">
+                  Create project brief
+                </span>
+              </button>
+              {resources.map((r) => (
+                <ResourceTile
+                  key={r.id}
+                  resource={r}
+                  canEdit={canEdit}
+                  onRemove={() => removeResource(r.id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Milestones — Asana Overview section */}
@@ -1799,4 +1982,310 @@ const PLACEHOLDER_BY_TYPE: Record<SectionType, string> = {
     "What's coming up this week. Milestones due, decisions needed, key meetings, inspections scheduled.",
   CUSTOM: "",
 };
+
+// ─── Key resources: add popover + tile ──────────────────────────────────
+
+function formatBytes(bytes: number | null): string {
+  if (!bytes || bytes <= 0) return "";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
+/** Short type label shown on a file tile (Asana: "PDF · Download"). */
+function fileKindLabel(name: string, mimeType: string | null): string {
+  const ext = name.split(".").pop()?.toUpperCase();
+  if (ext && ext.length <= 5 && ext !== name.toUpperCase()) return ext;
+  if (mimeType?.startsWith("image/")) return "Image";
+  return "File";
+}
+
+/** Image tile shows a real thumbnail (Asana parity), falling back to the
+ *  green image icon if the blob fails to load. */
+function ImageThumb({ url }: { url: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <ImageIcon className="h-6 w-6 text-[#5DA182]" />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className="h-9 w-9 rounded object-cover"
+    />
+  );
+}
+
+function ResourceTileIcon({ resource }: { resource: ResourceRow }) {
+  if (resource.type === "LINK") {
+    return <Link2 className="h-6 w-6 text-[#4573D2]" />;
+  }
+  const mime = resource.mimeType || "";
+  if (mime.startsWith("image/")) {
+    return <ImageThumb url={resource.url} />;
+  }
+  if (mime.includes("spreadsheet") || mime.includes("excel") || mime.includes("csv")) {
+    return <FileSpreadsheet className="h-6 w-6 text-[#14865E]" />;
+  }
+  if (mime.includes("pdf")) {
+    return <FileIcon className="h-6 w-6 text-[#DE5F73]" />;
+  }
+  return <FileIcon className="h-6 w-6 text-slate-400" />;
+}
+
+function ResourceTile({
+  resource,
+  canEdit,
+  onRemove,
+}: {
+  resource: ResourceRow;
+  canEdit: boolean;
+  onRemove: () => void;
+}) {
+  const isLink = resource.type === "LINK";
+  // Link tiles show the destination host ("dropbox.com · Open") so two
+  // same-named links are distinguishable; file tiles read "PDF · Download"
+  // (kind + action, no size — matching Asana).
+  const linkHost = (() => {
+    try {
+      return new URL(resource.url).hostname.replace(/^www\./, "") || "Link";
+    } catch {
+      return "Link";
+    }
+  })();
+  const meta = isLink
+    ? `${linkHost} · Open`
+    : `${fileKindLabel(resource.name, resource.mimeType)} · Download`;
+
+  const open = async () => {
+    // Links open in a new tab.
+    if (isLink) {
+      window.open(resource.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    // Blob storage is a different origin, so the <a download> attribute is
+    // ignored and the file would save with its UUID-prefixed storage name.
+    // Fetch it into a same-origin object URL so it downloads with the clean
+    // original filename (falls back to a direct download link on error).
+    try {
+      const res = await fetch(resource.url);
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = resource.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+    } catch {
+      const sep = resource.url.includes("?") ? "&" : "?";
+      window.open(`${resource.url}${sep}download=1`, "_blank", "noopener");
+    }
+  };
+
+  return (
+    <div className="group relative flex h-[68px] w-[200px] items-center gap-3 rounded-lg border border-slate-200 px-3 hover:border-slate-300 hover:shadow-sm">
+      <button
+        type="button"
+        onClick={() => void open()}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        title={
+          isLink
+            ? resource.url
+            : [resource.name, formatBytes(resource.size)]
+                .filter(Boolean)
+                .join(" · ")
+        }
+      >
+        <span className="shrink-0">
+          <ResourceTileIcon resource={resource} />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium text-slate-800">
+            {resource.name}
+          </span>
+          <span className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
+            {isLink ? (
+              <ExternalLink className="h-3 w-3" />
+            ) : (
+              <Download className="h-3 w-3" />
+            )}
+            {meta}
+          </span>
+        </span>
+      </button>
+      {canEdit && (
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remove"
+          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded text-slate-400 opacity-0 hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Asana's "Add links & files" popover — Upload + Link tabs. */
+function AddResourcePopover({
+  children,
+  uploading,
+  onUploadFile,
+  onAddLink,
+  align = "start",
+}: {
+  children: React.ReactNode;
+  uploading: boolean;
+  onUploadFile: (file: File) => Promise<boolean>;
+  onAddLink: (url: string, name: string) => Promise<boolean>;
+  align?: "start" | "center" | "end";
+}) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"upload" | "link">("upload");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkName, setLinkName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const pickFile = () => fileInputRef.current?.click();
+
+  const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    // Only close on success — a rejected upload keeps the popover open.
+    if (await onUploadFile(file)) setOpen(false);
+  };
+
+  const submitLink = async () => {
+    if (!linkUrl.trim() || submitting) return; // in-flight guard: no double-post
+    setSubmitting(true);
+    try {
+      const ok = await onAddLink(linkUrl.trim(), linkName.trim());
+      if (ok) {
+        setLinkUrl("");
+        setLinkName("");
+        setOpen(false);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent align={align} className="w-[380px] p-0">
+        {/* Tabs — Upload + Link are the two that work without external
+            OAuth; the cloud-provider tabs Asana shows (Drive, Box…) need
+            integrations BuildSync doesn't have, so they're intentionally
+            left out rather than faked. */}
+        <div className="flex items-center gap-4 border-b border-slate-100 px-4">
+          <button
+            type="button"
+            onClick={() => setTab("upload")}
+            className={cn(
+              "-mb-px border-b-2 py-2.5 text-sm",
+              tab === "upload"
+                ? "border-[#4573D2] font-medium text-slate-900"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Upload
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("link")}
+            className={cn(
+              "-mb-px border-b-2 py-2.5 text-sm",
+              tab === "link"
+                ? "border-[#4573D2] font-medium text-slate-900"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Link
+          </button>
+        </div>
+
+        <div className="p-4">
+          {tab === "upload" ? (
+            <div>
+              <p className="mb-3 text-sm text-slate-500">
+                Select or drag files from your computer
+              </p>
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && (await onUploadFile(file))) setOpen(false);
+                }}
+                className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-slate-300 py-6"
+              >
+                <Upload className="h-5 w-5 text-slate-400" />
+                <button
+                  type="button"
+                  onClick={pickFile}
+                  disabled={uploading}
+                  className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {uploading ? "Uploading…" : "Choose a file"}
+                </button>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={onFileChosen}
+              />
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <div>
+                <label className="text-xs text-slate-500">Link URL</label>
+                <input
+                  autoFocus
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void submitLink()}
+                  placeholder="https://…"
+                  className="mt-0.5 h-9 w-full rounded-md border border-slate-200 px-2.5 text-sm outline-none focus:border-slate-300"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">
+                  Display name (optional)
+                </label>
+                <input
+                  value={linkName}
+                  onChange={(e) => setLinkName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void submitLink()}
+                  placeholder="e.g. Project drive"
+                  className="mt-0.5 h-9 w-full rounded-md border border-slate-200 px-2.5 text-sm outline-none focus:border-slate-300"
+                />
+              </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => void submitLink()}
+                  disabled={!linkUrl.trim() || uploading || submitting}
+                  className="h-8 rounded-md bg-[#4573D2] px-3 text-sm font-medium text-white hover:bg-[#335FB5] disabled:opacity-50"
+                >
+                  {uploading || submitting ? "Adding…" : "Add link"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 

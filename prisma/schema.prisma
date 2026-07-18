@@ -91,6 +91,7 @@ model User {
   objectiveMembers    ObjectiveMember[]    @relation("UserObjectiveMembers")
   workspaceNotes      WorkspaceNote[]      @relation("NoteAuthor")
   projectNotes        ProjectNote[]        @relation("ProjectNoteAuthor")
+  projectResources    ProjectResource[]    @relation("UserProjectResources")
   noteCollaborators   NoteCollaborator[]
   preferences         UserPreferences?
 
@@ -529,6 +530,7 @@ model Project {
   sections      Section[]
   tasks         Task[]
   projectNotes  ProjectNote[]
+  resources     ProjectResource[]
   // Tasks multi-homed INTO this project (their home is another project).
   taskProjects  TaskProject[]
   members       ProjectMember[]
@@ -1043,6 +1045,31 @@ model File {
 
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploader User    @relation("UserFiles", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+/// A curated item in the Overview's "Key resources" section — either an
+/// uploaded FILE or a pasted LINK. Distinct from task Attachments and the
+/// Files tab: this is the small, hand-picked set of briefs/specs/portals a
+/// project lead pins for the team (Asana parity).
+model ProjectResource {
+  id        String  @id @default(cuid())
+  /// "FILE" (uploaded to blob storage) or "LINK" (an external URL).
+  type      String  @default("FILE")
+  name      String
+  url       String
+  /// File-only metadata; null for links.
+  size      Int?
+  mimeType  String?
+  position  Int     @default(0)
+  createdAt DateTime @default(now())
+
+  projectId  String
+  uploaderId String?
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User?   @relation("UserProjectResources", fields: [uploaderId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
 }
