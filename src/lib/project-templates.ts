@@ -584,20 +584,22 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: "recertification-40yr",
     name: "Building recertification (Miami-Dade)",
     description:
-      "Realistic Miami-Dade 40/50-year Building Recertification workflow — the delivery process for an already-won engagement, from kickoff through the sealed reports and (if needed) the repair permit, matching the swimlane the firm runs. The notice, RFP and proposal are pre-project (negotiated before the job is awarded), so the project starts at kickoff. The field inspection itself — photos, photo reports, and Miami-Dade form auto-fill for Structural, Electrical, Thermography (IR), Illumination, and Guardrail — is done in CIVNEX, so this template tracks the PROJECT, not a field checklist: kickoff & scheduling, the CIVNEX inspection + the recertification reports, PE sign & seal, submittal to the jurisdiction, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role (Building Official / Owner / Engineer / Contractor / Inspector).",
+      "Realistic Miami-Dade 40/50-year Building Recertification workflow — the delivery process for an already-won engagement, from kickoff through the sealed reports and (if needed) the repair permit, matching the swimlane the firm runs. The notice, RFP and proposal are pre-project (negotiated before the job is awarded), so the project starts at kickoff. The field inspection itself — photos, field reports and the Miami-Dade forms for Structural, Electrical, Thermography (IR), Illumination, and Guardrail — is captured on site, so this template tracks the PROJECT, not a field checklist: kickoff & scheduling, the inspection + the recertification reports, PE sign & seal, submittal to the jurisdiction, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role (Building Official / Owner / Engineer / Contractor / Inspector).",
     icon: "FileCheck2",
     accent: "violet",
     category: "engineering",
     defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#a8893a" },
     // Sections mirror the real recertification PROCESS (the swimlane), not
     // kanban status — a recert moves phase by phase: Kickoff & scheduling →
-    // Inspection & Reports (captured in CIVNEX) → Building Official Review →
-    // Repairs (only if required) → Recertification Complete. The notice /
-    // RFP / proposal / award are pre-project (already won) so the project
-    // starts at kickoff, not at the notice. Who owns each
-    // step lives in the 'Responsible' field so the board can be grouped by
-    // role without losing the phase flow. Field checklists live in CIVNEX,
-    // NOT here — the app already takes the photos and auto-fills the forms.
+    // Inspection & Reports → Building Official Review → Repairs (only if
+    // required) → Recertification Complete. The notice / RFP / proposal /
+    // award are pre-project (already won) so the project starts at kickoff,
+    // not at the notice. Who owns each step lives in the 'Responsible' field
+    // so the board can be grouped by role without losing the phase flow. The
+    // field capture (photos + the jurisdiction forms) is handled by the
+    // firm's field-inspection app, NOT re-listed here as a checklist — this
+    // template tracks the project, and never names that app in any
+    // client-visible text.
     sections: [
       "Kickoff & scheduling",
       "Inspection & Reports",
@@ -644,30 +646,30 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
 
-      // ── Inspection & Reports (field work done in CIVNEX) ───────
+      // ── Inspection & Reports (field capture done on site) ──────
       {
         section: "Inspection & Reports",
-        name: "Structural inspection — photos & form in CIVNEX",
+        name: "Structural inspection — photos & form",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
-        name: "Electrical inspection — photos & form in CIVNEX",
+        name: "Electrical inspection — photos & form",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
-        name: "Thermography (IR) inspection — CIVNEX",
+        name: "Thermography (IR) inspection",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
-        name: "Illumination inspection — CIVNEX",
+        name: "Illumination inspection",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
-        name: "Guardrail inspection — CIVNEX",
+        name: "Guardrail inspection",
         customFieldValues: { Responsible: "inspector" },
       },
       {
@@ -678,7 +680,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
       {
         section: "Inspection & Reports",
-        name: "Generate recertification reports in CIVNEX",
+        name: "Generate recertification reports",
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
           "Aerial of the property",
@@ -743,12 +745,12 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
       {
         section: "Repairs (if required)",
-        name: "Re-inspect completed repairs in CIVNEX",
+        name: "Re-inspect completed repairs",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Repairs (if required)",
-        name: "Prepare updated reports in CIVNEX",
+        name: "Prepare updated reports",
         customFieldValues: { Responsible: "engineer" },
       },
       {
@@ -1219,16 +1221,17 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: "broward-bsip-inspection",
     name: "Broward BSIP recertification",
     description:
-      "Realistic Broward County Building Safety Inspection Program (BSIP) recertification workflow — the BORA delivery process for an already-won engagement, from kickoff through the sealed structural + electrical reports and (if needed) the repair permit. The notice, RFP and proposal are pre-project (negotiated before award), so the project starts at kickoff. The field inspection — photos, photo reports, and BSIP form auto-fill for Structural and Electrical, plus Thermography (IR) only when the local Building Official requires it — is done in CIVNEX, so this template tracks the PROJECT, not a field checklist: kickoff & scheduling, the CIVNEX inspection + reports, PE sign & seal, submittal to the AHJ, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role.",
+      "Realistic Broward County Building Safety Inspection Program (BSIP) recertification workflow — the BORA delivery process for an already-won engagement, from kickoff through the sealed structural + electrical reports and (if needed) the repair permit. The notice, RFP and proposal are pre-project (negotiated before award), so the project starts at kickoff. The field inspection — photos, field reports and the BSIP forms for Structural and Electrical, plus Thermography (IR) only when the local Building Official requires it — is captured on site, so this template tracks the PROJECT, not a field checklist: kickoff & scheduling, the inspection + reports, PE sign & seal, submittal to the AHJ, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role.",
     icon: "ShieldCheck",
     accent: "blue",
     category: "engineering",
     defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#335FB5" },
     // Same real-process paradigm as the Miami-Dade recert, scoped to
     // Broward's BSIP: structural + electrical, with IR thermography only
-    // when the AHJ asks for it. Field capture happens in CIVNEX (photos +
-    // auto-filled forms); sections are the process phases and 'Responsible'
-    // is the swimlane role. No field checklists here — that is CIVNEX's job.
+    // when the AHJ asks for it. Field capture (photos + the jurisdiction
+    // forms) is handled by the firm's field-inspection app; sections are the
+    // process phases and 'Responsible' is the swimlane role. No field
+    // checklists here, and no client-visible text names that app.
     sections: [
       "Kickoff & scheduling",
       "Inspection & Reports",
@@ -1275,20 +1278,20 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         ],
       },
 
-      // ── Inspection & Reports (field work done in CIVNEX) ───────
+      // ── Inspection & Reports (field capture done on site) ──────
       {
         section: "Inspection & Reports",
-        name: "Structural inspection — photos & form in CIVNEX",
+        name: "Structural inspection — photos & form",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
-        name: "Electrical inspection — photos & form in CIVNEX",
+        name: "Electrical inspection — photos & form",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
-        name: "Thermography (IR) — CIVNEX, only if AHJ requires it (skip otherwise)",
+        name: "Thermography (IR) — only if the AHJ requires it (skip otherwise)",
         customFieldValues: { Responsible: "inspector" },
       },
       {
@@ -1299,7 +1302,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
       {
         section: "Inspection & Reports",
-        name: "Generate BSIP reports in CIVNEX",
+        name: "Generate BSIP reports",
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
           "Aerial of the property",
@@ -1362,12 +1365,12 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
       {
         section: "Repairs (if required)",
-        name: "Re-inspect completed repairs in CIVNEX",
+        name: "Re-inspect completed repairs",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Repairs (if required)",
-        name: "Prepare updated reports in CIVNEX",
+        name: "Prepare updated reports",
         customFieldValues: { Responsible: "engineer" },
       },
       {
