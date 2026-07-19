@@ -795,12 +795,51 @@ export function GanttView({
 
   // ---------- Columns ----------
   const columns = useMemo(() => {
-    const startDate =
+    const anchorStart =
       zoomLevel === "day" || zoomLevel === "week"
         ? startOfWeek(currentDate, { weekStartsOn: 1 })
         : startOfQuarter(currentDate);
 
-    const cols = config.getColumns(startDate, config.range);
+    // Extend the window to cover EVERY dated task (MS Project / Asana
+    // behavior — same fix as the Timeline): the default range is a
+    // minimum, not a ceiling, so a plan longer than the window (e.g. the
+    // recert template's ~4 months at Days zoom) is never cut off. Grows
+    // left to the earliest task and right past the latest one; capped so
+    // a stray far-future date can't render a huge DOM.
+    let minTask: Date | null = null;
+    let maxTask: Date | null = null;
+    for (const s of sections) {
+      for (const t of s.tasks) {
+        if (!t.dueDate) continue;
+        const due = dueDateToLocalMidnight(t.dueDate);
+        let st = t.startDate ? dueDateToLocalMidnight(t.startDate) : due;
+        if (st > due) st = due;
+        if (!minTask || st < minTask) minTask = st;
+        if (!maxTask || due > maxTask) maxTask = due;
+      }
+    }
+    let startDate = anchorStart;
+    if (minTask && minTask < startDate) {
+      startDate =
+        zoomLevel === "day" || zoomLevel === "week"
+          ? startOfWeek(minTask, { weekStartsOn: 1 })
+          : startOfQuarter(minTask);
+    }
+    let count = config.range;
+    if (maxTask && maxTask > startDate) {
+      const days = differenceInDays(maxTask, startDate);
+      const needed =
+        zoomLevel === "day"
+          ? days + 14
+          : zoomLevel === "week"
+            ? Math.ceil(days / 7) + 4
+            : zoomLevel === "month"
+              ? Math.ceil(days / 28) + 2
+              : Math.ceil(days / 84) + 1;
+      count = Math.max(count, Math.min(needed, 500));
+    }
+
+    const cols = config.getColumns(startDate, count);
 
     return cols.map((date) => {
       let label = "";
@@ -817,7 +856,7 @@ export function GanttView({
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate, zoomLevel]);
+  }, [currentDate, zoomLevel, sections]);
 
   // ---------- Top header groups (months / quarters / years) ----------
   const headerGroups = useMemo(() => {
@@ -880,6 +919,32 @@ export function GanttView({
       columnWidths,
     };
   }, [columns, zoomLevel, config.columnWidth]);
+
+  // Keep the anchor (currentDate's week/quarter) at the left edge on
+  // mount, zoom change and arrow paging. The grid can now start well
+  // BEFORE the anchor when past-dated tasks extend the window backwards —
+  // without this, the view would open on that history instead of on
+  // today. Keyed so ordinary task edits (which rebuild bounds) never yank
+  // the user's scroll position. Mirrors the Timeline's effect.
+  const chartScrollRef = useRef<HTMLDivElement>(null);
+  const lastScrollKeyRef = useRef("");
+  useEffect(() => {
+    if (!bounds) return;
+    const key = `${zoomLevel}|${startOfDay(currentDate).getTime()}`;
+    if (lastScrollKeyRef.current === key) return;
+    lastScrollKeyRef.current = key;
+    const el = chartScrollRef.current;
+    if (!el) return;
+    const anchorStart =
+      zoomLevel === "day" || zoomLevel === "week"
+        ? startOfWeek(currentDate, { weekStartsOn: 1 })
+        : startOfQuarter(currentDate);
+    const px =
+      (differenceInDays(anchorStart, bounds.timelineStart) /
+        bounds.totalDays) *
+      bounds.totalWidth;
+    el.scrollLeft = Math.max(0, px);
+  }, [zoomLevel, currentDate, bounds]);
 
   // Header-group pixel widths — sum of member column widths so group
   // borders stay aligned with the proportional columns.
@@ -1015,10 +1080,15 @@ export function GanttView({
       if (!pos) return null;
       const yCenter = row * ROW_HEIGHT + ROW_HEIGHT / 2;
       // Milestones/approvals render as a 24px glyph centered on the span's
-      // right edge (markerLeft = left + width − 12) — anchor arrows to the
-      // glyph, not the invisible bar rect.
+      // right edge (markerLeft = left + width − 12, so center = left +
+      // width) — anchor arrows to the glyph, not the invisible bar rect.
+      // NOTE: the marker render uses pos.width for due-only tasks too (a
+      // full day cell), NOT the DUE_ONLY_W pill clamp — assuming the pill
+      // width here left a ~28px gap between arrowheads and the glyph at
+      // Days zoom (40px/day), invisible at Months only because dayWidth
+      // there happens to be ≈ DUE_ONLY_W.
       if (task.taskType === "MILESTONE" || task.taskType === "APPROVAL") {
-        const centerX = pos.left + (task.startDate ? pos.width : DUE_ONLY_W);
+        const centerX = pos.left + pos.width;
         return { xLeft: centerX - 12, xRight: centerX + 12, yCenter };
       }
       // Due-only tasks render as a slim pill — anchor arrows to it.
@@ -1513,7 +1583,7 @@ export function GanttView({
       </div>
 
       {/* ============ GRID ============ */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" ref={chartScrollRef}>
         {/* min-h-full so table + grid stretch to the viewport bottom —
             the grid must never stop short of the screen edge (Asana). */}
         <div className="flex min-w-max min-h-full">
