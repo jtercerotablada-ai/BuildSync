@@ -584,20 +584,22 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: "recertification-40yr",
     name: "Building recertification (Miami-Dade)",
     description:
-      "Realistic Miami-Dade 40/50-year Building Recertification workflow — the actual process from the Building Official's Notice through the sealed reports and (if needed) the repair permit, matching the swimlane the firm runs. The field inspection itself — photos, photo reports, and Miami-Dade form auto-fill for Structural, Electrical, Thermography (IR), Illumination, and Guardrail — is done in CIVNEX, so this template tracks the PROJECT, not a field checklist: notice & proposal, the CIVNEX inspection + the recertification reports, PE sign & seal, submittal to the jurisdiction, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role (Building Official / Owner / Engineer / Contractor / Inspector).",
+      "Realistic Miami-Dade 40/50-year Building Recertification workflow — the delivery process for an already-won engagement, from kickoff through the sealed reports and (if needed) the repair permit, matching the swimlane the firm runs. The notice, RFP and proposal are pre-project (negotiated before the job is awarded), so the project starts at kickoff. The field inspection itself — photos, photo reports, and Miami-Dade form auto-fill for Structural, Electrical, Thermography (IR), Illumination, and Guardrail — is done in CIVNEX, so this template tracks the PROJECT, not a field checklist: kickoff & scheduling, the CIVNEX inspection + the recertification reports, PE sign & seal, submittal to the jurisdiction, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role (Building Official / Owner / Engineer / Contractor / Inspector).",
     icon: "FileCheck2",
     accent: "violet",
     category: "engineering",
     defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#a8893a" },
     // Sections mirror the real recertification PROCESS (the swimlane), not
-    // kanban status — a recert moves phase by phase: Notice & Proposal →
+    // kanban status — a recert moves phase by phase: Kickoff & scheduling →
     // Inspection & Reports (captured in CIVNEX) → Building Official Review →
-    // Repairs (only if required) → Recertification Complete. Who owns each
+    // Repairs (only if required) → Recertification Complete. The notice /
+    // RFP / proposal / award are pre-project (already won) so the project
+    // starts at kickoff, not at the notice. Who owns each
     // step lives in the 'Responsible' field so the board can be grouped by
     // role without losing the phase flow. Field checklists live in CIVNEX,
     // NOT here — the app already takes the photos and auto-fills the forms.
     sections: [
-      "Notice & Proposal",
+      "Kickoff & scheduling",
       "Inspection & Reports",
       "Building Official Review",
       "Repairs (if required)",
@@ -617,36 +619,23 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
     ],
     tasks: [
-      // ── Notice & Proposal ──────────────────────────────────────
+      // ── Kickoff & scheduling ───────────────────────────────────
+      // The Notice of Recertification and the RFP / proposal / award are
+      // pre-project — already negotiated and won before the engagement
+      // exists — so the project STARTS here, at kickoff. The recert due
+      // date carries over from the notice as a reference, not a task.
       {
-        section: "Notice & Proposal",
-        name: "Notice of Recertification received",
-        type: "MILESTONE",
-        customFieldValues: { Responsible: "building_official" },
-      },
-      {
-        section: "Notice & Proposal",
-        name: "Request for Proposal (RFP) from owner",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Notice & Proposal",
-        name: "Submit inspection proposal",
+        section: "Kickoff & scheduling",
+        name: "Confirm scope & recertification due date",
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
-          "Confirm Miami-Dade folio, building age & recertification due date",
-          "Scope & fee proposal",
-          "Certificate of Insurance",
+          "Confirm Miami-Dade folio & building age",
+          "Recertification due date (from the Notice of Recertification)",
+          "Prior report, drawings & open permits on file",
         ],
       },
       {
-        section: "Notice & Proposal",
-        name: "Owner approves proposal",
-        type: "APPROVAL",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Notice & Proposal",
+        section: "Kickoff & scheduling",
         name: "Schedule site inspection",
         customFieldValues: { Responsible: "inspector" },
         subtasks: [
@@ -1286,7 +1275,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     id: "broward-bsip-inspection",
     name: "Broward BSIP recertification",
     description:
-      "Realistic Broward County Building Safety Inspection Program (BSIP) recertification workflow — the BORA process from the Notice of Required Inspection through the sealed structural + electrical reports and (if needed) the repair permit. The field inspection — photos, photo reports, and BSIP form auto-fill for Structural and Electrical, plus Thermography (IR) only when the local Building Official requires it — is done in CIVNEX, so this template tracks the PROJECT, not a field checklist: notice & proposal, the CIVNEX inspection + reports, PE sign & seal, submittal to the AHJ, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role.",
+      "Realistic Broward County Building Safety Inspection Program (BSIP) recertification workflow — the BORA delivery process for an already-won engagement, from kickoff through the sealed structural + electrical reports and (if needed) the repair permit. The notice, RFP and proposal are pre-project (negotiated before award), so the project starts at kickoff. The field inspection — photos, photo reports, and BSIP form auto-fill for Structural and Electrical, plus Thermography (IR) only when the local Building Official requires it — is done in CIVNEX, so this template tracks the PROJECT, not a field checklist: kickoff & scheduling, the CIVNEX inspection + reports, PE sign & seal, submittal to the AHJ, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role.",
     icon: "ShieldCheck",
     accent: "blue",
     category: "engineering",
@@ -1297,7 +1286,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     // auto-filled forms); sections are the process phases and 'Responsible'
     // is the swimlane role. No field checklists here — that is CIVNEX's job.
     sections: [
-      "Notice & Proposal",
+      "Kickoff & scheduling",
       "Inspection & Reports",
       "Building Official Review",
       "Repairs (if required)",
@@ -1317,36 +1306,23 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
     ],
     tasks: [
-      // ── Notice & Proposal ──────────────────────────────────────
+      // ── Kickoff & scheduling ───────────────────────────────────
+      // Notice + RFP / proposal / award are pre-project (already won), so
+      // the project STARTS at kickoff; the BSIP due date carries over from
+      // the notice as a reference, not a task.
       {
-        section: "Notice & Proposal",
-        name: "Notice of Required Inspection received",
-        type: "MILESTONE",
-        customFieldValues: { Responsible: "building_official" },
-      },
-      {
-        section: "Notice & Proposal",
-        name: "Request for Proposal (RFP) from owner",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Notice & Proposal",
-        name: "Submit inspection proposal",
+        section: "Kickoff & scheduling",
+        name: "Confirm scope & BSIP due date",
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
-          "Confirm Broward jurisdiction, building age & BSIP due date",
+          "Confirm Broward jurisdiction & building age",
+          "BSIP due date (from the Notice of Required Inspection)",
           "Confirm whether the AHJ requires IR thermography this cycle",
-          "Scope & fee proposal + Certificate of Insurance",
+          "Prior report, drawings & open permits on file",
         ],
       },
       {
-        section: "Notice & Proposal",
-        name: "Owner approves proposal",
-        type: "APPROVAL",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Notice & Proposal",
+        section: "Kickoff & scheduling",
         name: "Schedule site inspection",
         customFieldValues: { Responsible: "inspector" },
         subtasks: [
