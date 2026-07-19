@@ -44,6 +44,10 @@ const createProjectSchema = z.object({
         // set as the task's due date — lets a template ship a starting
         // schedule anchored on "today" that the engineer then adjusts.
         relativeDueDate: z.number().int().optional(),
+        // Names of other tasks in this payload that must finish before this
+        // one — materialized as finish-to-start TaskDependencies after all
+        // tasks are created. Unmatched names are skipped defensively.
+        dependsOn: z.array(z.string().min(1).max(200)).optional(),
         subtasks: z.array(z.string().min(1).max(200)).optional(),
         // Custom-field values keyed by field NAME (not id). Resolved
         // server-side after the customFields below are created.
@@ -536,6 +540,8 @@ export async function POST(req: Request) {
             created.sections.map((s) => [s.name, s])
           );
           const positionBySection = new Map<string, number>();
+          // name -> created parent id, for wiring dependencies in a 2nd pass
+          const parentIdByName = new Map<string, string>();
           for (const t of explicitTasks) {
             const section = sectionByName.get(t.section);
             if (!section) continue;
@@ -561,6 +567,7 @@ export async function POST(req: Request) {
               },
               select: { id: true },
             });
+            parentIdByName.set(t.name, parent.id);
             if (t.subtasks && t.subtasks.length > 0) {
               await tx.task.createMany({
                 data: t.subtasks.map((subName, i) => ({
@@ -587,6 +594,25 @@ export async function POST(req: Request) {
                   },
                 });
               }
+            }
+          }
+
+          // ── Wire finish-to-start dependencies (the "Blocked by" links /
+          // Gantt arrows) once every task exists, so a template can ship a
+          // pre-linked plan. Unresolved names are skipped defensively.
+          for (const t of explicitTasks) {
+            if (!t.dependsOn || t.dependsOn.length === 0) continue;
+            const dependentId = parentIdByName.get(t.name);
+            if (!dependentId) continue;
+            for (const blockerName of new Set(t.dependsOn)) {
+              const blockingId = parentIdByName.get(blockerName);
+              if (!blockingId || blockingId === dependentId) continue;
+              await tx.taskDependency.create({
+                data: {
+                  dependentTaskId: dependentId,
+                  blockingTaskId: blockingId,
+                },
+              });
             }
           }
         }

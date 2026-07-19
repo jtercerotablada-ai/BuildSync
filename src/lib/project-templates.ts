@@ -69,6 +69,11 @@ export interface ProjectTemplateTask {
    *  schedule anchored on "today" that the engineer then adjusts. Omit for
    *  no due date. */
   relativeDueDate?: number;
+  /** Names of OTHER parent tasks in this template that must finish before
+   *  this one starts — materialized as finish-to-start TaskDependencies
+   *  (the "Blocked by" links / Gantt arrows). Reference by exact task name;
+   *  unmatched names are skipped defensively. */
+  dependsOn?: string[];
   subtasks?: string[];
   customFieldValues?: Record<string, unknown>;
 }
@@ -645,6 +650,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Kickoff & scheduling",
         name: "Schedule site inspection",
+        dependsOn: ["Confirm scope & recertification due date"],
         relativeDueDate: 1,
         customFieldValues: { Responsible: "inspector" },
         subtasks: [
@@ -657,36 +663,42 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "Structural inspection — photos & form",
+        dependsOn: ["Schedule site inspection"],
         relativeDueDate: 2,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Electrical inspection — photos & form",
+        dependsOn: ["Schedule site inspection"],
         relativeDueDate: 2,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Thermography (IR) inspection",
+        dependsOn: ["Schedule site inspection"],
         relativeDueDate: 3,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Illumination inspection",
+        dependsOn: ["Schedule site inspection"],
         relativeDueDate: 3,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Guardrail inspection",
+        dependsOn: ["Schedule site inspection"],
         relativeDueDate: 4,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Field inspection complete",
+        dependsOn: ["Structural inspection — photos & form", "Electrical inspection — photos & form", "Thermography (IR) inspection", "Illumination inspection", "Guardrail inspection"],
         relativeDueDate: 4,
         type: "MILESTONE",
         customFieldValues: { Responsible: "inspector" },
@@ -694,6 +706,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "Generate recertification reports",
+        dependsOn: ["Field inspection complete"],
         relativeDueDate: 5,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
@@ -712,6 +725,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "PE review, sign & seal reports (ready to sign)",
+        dependsOn: ["Generate recertification reports"],
         relativeDueDate: 6,
         type: "APPROVAL",
         customFieldValues: { Responsible: "engineer" },
@@ -719,12 +733,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "Submit reports to owner",
+        dependsOn: ["PE review, sign & seal reports (ready to sign)"],
         relativeDueDate: 6,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Inspection & Reports",
         name: "Owner submits reports to Building Official",
+        dependsOn: ["Submit reports to owner"],
         relativeDueDate: 7,
         type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
@@ -734,12 +750,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Building Official Review",
         name: "Building Official reviews reports",
+        dependsOn: ["Owner submits reports to Building Official"],
         relativeDueDate: 28,
         customFieldValues: { Responsible: "building_official" },
       },
       {
         section: "Building Official Review",
         name: "Determination — repairs required?",
+        dependsOn: ["Building Official reviews reports"],
         relativeDueDate: 28,
         type: "APPROVAL",
         customFieldValues: { Responsible: "building_official" },
@@ -754,12 +772,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Repairs (if required)",
         name: "Repairs required — do this section only if the Building Official requires repairs (delete otherwise)",
+        dependsOn: ["Determination — repairs required?"],
         relativeDueDate: 28,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "Repairs designed, permitted & built (separate design / construction project)",
+        dependsOn: ["Repairs required — do this section only if the Building Official requires repairs (delete otherwise)"],
         relativeDueDate: 118,
         type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
@@ -767,18 +787,21 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Repairs (if required)",
         name: "Re-inspect completed repairs",
+        dependsOn: ["Repairs designed, permitted & built (separate design / construction project)"],
         relativeDueDate: 119,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Repairs (if required)",
         name: "Prepare updated reports",
+        dependsOn: ["Re-inspect completed repairs"],
         relativeDueDate: 120,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "PE review, sign & seal updated reports (ready to sign)",
+        dependsOn: ["Prepare updated reports"],
         relativeDueDate: 121,
         type: "APPROVAL",
         customFieldValues: { Responsible: "engineer" },
@@ -786,6 +809,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Repairs (if required)",
         name: "Owner resubmits updated reports to Building Official",
+        dependsOn: ["PE review, sign & seal updated reports (ready to sign)"],
         relativeDueDate: 121,
         customFieldValues: { Responsible: "owner" },
       },
@@ -794,6 +818,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Recertification Complete",
         name: "Recertification Complete",
+        dependsOn: ["Owner resubmits updated reports to Building Official"],
         relativeDueDate: 124,
         type: "MILESTONE",
         customFieldValues: { Responsible: "building_official" },
@@ -801,6 +826,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Recertification Complete",
         name: "Project closeout",
+        dependsOn: ["Recertification Complete"],
         relativeDueDate: 126,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
@@ -1299,6 +1325,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Kickoff & scheduling",
         name: "Schedule site inspection",
+        dependsOn: ["Confirm scope & BSIP due date"],
         relativeDueDate: 1,
         customFieldValues: { Responsible: "inspector" },
         subtasks: [
@@ -1311,24 +1338,28 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "Structural inspection — photos & form",
+        dependsOn: ["Schedule site inspection"],
         relativeDueDate: 2,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Electrical inspection — photos & form",
+        dependsOn: ["Schedule site inspection"],
         relativeDueDate: 2,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Thermography (IR) — only if the AHJ requires it (skip otherwise)",
+        dependsOn: ["Schedule site inspection"],
         relativeDueDate: 3,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Field inspection complete",
+        dependsOn: ["Structural inspection — photos & form", "Electrical inspection — photos & form", "Thermography (IR) — only if the AHJ requires it (skip otherwise)"],
         relativeDueDate: 4,
         type: "MILESTONE",
         customFieldValues: { Responsible: "inspector" },
@@ -1336,6 +1367,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "Generate BSIP reports",
+        dependsOn: ["Field inspection complete"],
         relativeDueDate: 5,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
@@ -1352,6 +1384,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "PE review, sign & seal reports (ready to sign)",
+        dependsOn: ["Generate BSIP reports"],
         relativeDueDate: 6,
         type: "APPROVAL",
         customFieldValues: { Responsible: "engineer" },
@@ -1359,12 +1392,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "Submit reports to owner",
+        dependsOn: ["PE review, sign & seal reports (ready to sign)"],
         relativeDueDate: 6,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Inspection & Reports",
         name: "Owner submits reports to Building Official (BORA)",
+        dependsOn: ["Submit reports to owner"],
         relativeDueDate: 7,
         type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
@@ -1374,12 +1409,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Building Official Review",
         name: "Building Official reviews reports",
+        dependsOn: ["Owner submits reports to Building Official (BORA)"],
         relativeDueDate: 28,
         customFieldValues: { Responsible: "building_official" },
       },
       {
         section: "Building Official Review",
         name: "Determination — repairs required?",
+        dependsOn: ["Building Official reviews reports"],
         relativeDueDate: 28,
         type: "APPROVAL",
         customFieldValues: { Responsible: "building_official" },
@@ -1394,12 +1431,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Repairs (if required)",
         name: "Repairs required — do this section only if the Building Official requires repairs (delete otherwise)",
+        dependsOn: ["Determination — repairs required?"],
         relativeDueDate: 28,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "Repairs designed, permitted & built (separate design / construction project)",
+        dependsOn: ["Repairs required — do this section only if the Building Official requires repairs (delete otherwise)"],
         relativeDueDate: 118,
         type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
@@ -1407,18 +1446,21 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Repairs (if required)",
         name: "Re-inspect completed repairs",
+        dependsOn: ["Repairs designed, permitted & built (separate design / construction project)"],
         relativeDueDate: 119,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Repairs (if required)",
         name: "Prepare updated reports",
+        dependsOn: ["Re-inspect completed repairs"],
         relativeDueDate: 120,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "PE review, sign & seal updated reports (ready to sign)",
+        dependsOn: ["Prepare updated reports"],
         relativeDueDate: 121,
         type: "APPROVAL",
         customFieldValues: { Responsible: "engineer" },
@@ -1426,6 +1468,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Repairs (if required)",
         name: "Owner resubmits updated reports to Building Official",
+        dependsOn: ["PE review, sign & seal updated reports (ready to sign)"],
         relativeDueDate: 121,
         customFieldValues: { Responsible: "owner" },
       },
@@ -1434,6 +1477,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Recertification Complete",
         name: "BSIP recertification complete",
+        dependsOn: ["Owner resubmits updated reports to Building Official"],
         relativeDueDate: 124,
         type: "MILESTONE",
         customFieldValues: { Responsible: "building_official" },
@@ -1441,6 +1485,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Recertification Complete",
         name: "Project closeout",
+        dependsOn: ["BSIP recertification complete"],
         relativeDueDate: 126,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
