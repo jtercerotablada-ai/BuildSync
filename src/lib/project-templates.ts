@@ -582,592 +582,269 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
   {
     id: "recertification-40yr",
-    name: "Building recertification",
+    name: "Building recertification (Miami-Dade)",
     description:
-      "Production-grade multi-discipline recertification playbook — Florida 40-year (Miami-Dade / Broward) and the post-Surfside Milestone Inspection cadence. Covers structural, electrical, thermography (IR), illumination survey, and parking lot + guardrail inspection. 5 status sections (Asana paradigm) with a 'Discipline' custom field tagging every task plus a 'Severity' field for findings. 38 parent tasks, 200+ subtasks, milestones at each discipline closeout, internal QC approval, and AHJ submittal. Inspection-cycle workflow rules pre-wired.",
+      "Realistic Miami-Dade 40/50-year Building Recertification workflow — the actual process from the Building Official's Notice through the sealed reports and (if needed) the repair permit, matching the swimlane the firm runs. The field inspection itself — photos, photo reports, and Miami-Dade form auto-fill for Structural, Electrical, Thermography (IR), Illumination, and Guardrail — is done in CIVNEX, so this template tracks the PROJECT, not a field checklist: notice & proposal, the CIVNEX inspection + the recertification reports, PE sign & seal, submittal to the jurisdiction, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role (Building Official / Owner / Engineer / Contractor / Inspector).",
     icon: "FileCheck2",
     accent: "violet",
     category: "engineering",
     defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#a8893a" },
-    // Asana paradigm: sections are workflow STATUS, not discipline. A
-    // finding flows To Do → In Progress → Under Review → Approved → Done.
-    // The discipline (which trade is doing the work) lives in the
-    // custom field below so the board can be grouped/filtered by trade
-    // without breaking the kanban flow.
-    sections: ["To Do", "In Progress", "Under Review", "Approved", "Done"],
+    // Sections mirror the real recertification PROCESS (the swimlane), not
+    // kanban status — a recert moves phase by phase: Notice & Proposal →
+    // Inspection & Reports (captured in CIVNEX) → Building Official Review →
+    // Repairs (only if required) → Recertification Complete. Who owns each
+    // step lives in the 'Responsible' field so the board can be grouped by
+    // role without losing the phase flow. Field checklists live in CIVNEX,
+    // NOT here — the app already takes the photos and auto-fills the forms.
+    sections: [
+      "Notice & Proposal",
+      "Inspection & Reports",
+      "Building Official Review",
+      "Repairs (if required)",
+      "Recertification Complete",
+    ],
     customFields: [
       {
-        name: "Discipline",
+        name: "Responsible",
         type: "DROPDOWN",
         options: [
-          { id: "engagement", label: "Engagement & Prep", color: "#888888" },
-          { id: "structural", label: "Structural", color: "#c9a84c" },
-          { id: "electrical", label: "Electrical", color: "#d4b65a" },
-          { id: "thermography", label: "Thermography (IR)", color: "#a8893a" },
-          { id: "illumination", label: "Illumination", color: "#4a4a4a" },
-          { id: "parking_guardrail", label: "Parking & Guardrail", color: "#0a0a0a" },
-          { id: "report", label: "Report & Submittal", color: "#94a3b8" },
-        ],
-      },
-      {
-        name: "Severity",
-        type: "DROPDOWN",
-        options: [
-          { id: "critical", label: "Critical — immediate", color: "#dc2626" },
-          { id: "major", label: "Major — within 6 mo", color: "#f59e0b" },
-          { id: "minor", label: "Minor — within 12 mo", color: "#eab308" },
-          { id: "monitor", label: "Monitoring only", color: "#94a3b8" },
-          { id: "ok", label: "OK / Not applicable", color: "#10b981" },
+          { id: "building_official", label: "Building Official", color: "#dc7633" },
+          { id: "owner", label: "Owner", color: "#2ecc71" },
+          { id: "engineer", label: "Engineer", color: "#2874a6" },
+          { id: "contractor", label: "Contractor", color: "#8e44ad" },
+          { id: "inspector", label: "Inspector", color: "#a8893a" },
         ],
       },
     ],
     tasks: [
-      // ── Engagement & Preparation ───────────────────────────────
+      // ── Notice & Proposal ──────────────────────────────────────
       {
-        section: "To Do",
-        name: "Project intake & contract",
-        customFieldValues: { Discipline: "engagement" },
-        subtasks: [
-          "Scope of work agreed with owner / property mgmt",
-          "Fee proposal issued & signed",
-          "Certificate of Insurance delivered",
-          "Retainer received",
-          "Project number assigned & folder set up",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Building documentation request",
-        customFieldValues: { Discipline: "engagement" },
-        subtasks: [
-          "As-built / original construction drawings",
-          "Prior recertification or milestone report",
-          "Prior repair permits & closeout docs",
-          "Deferred maintenance log",
-          "Building age & Certificate of Occupancy date",
-          "Property management & on-site contact",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "AHJ research & form selection",
-        customFieldValues: { Discipline: "engagement" },
-        subtasks: [
-          "Confirm jurisdiction (Miami-Dade / Broward / other)",
-          "Confirm inspection cycle (40-yr initial, 10-yr recurring)",
-          "Pull AHJ recertification form & checklist",
-          "Confirm due date & late-filing penalty",
-          "Confirm milestone-inspection trigger (FL SB 4-D, condos 3+ stories)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Field team mobilization",
-        customFieldValues: { Discipline: "engagement" },
-        subtasks: [
-          "Schedule access windows with property mgmt",
-          "Tenant / resident notification letter",
-          "Lift / scaffold / ladder reservations",
-          "PPE check (hard hat, harness, IR-safe PPE)",
-          "Equipment kit (camera, IR camera, lux meter, moisture meter, crack gauge)",
-          "Safety briefing & site-specific hazard review",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Pre-inspection package complete",
+        section: "Notice & Proposal",
+        name: "Notice of Recertification received",
         type: "MILESTONE",
-        customFieldValues: { Discipline: "engagement" },
+        customFieldValues: { Responsible: "building_official" },
       },
-
-      // ── Structural Inspection ──────────────────────────────────
       {
-        section: "To Do",
-        name: "Exterior structural walkthrough",
-        customFieldValues: { Discipline: "structural" },
+        section: "Notice & Proposal",
+        name: "Request for Proposal (RFP) from owner",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Notice & Proposal",
+        name: "Submit inspection proposal",
+        customFieldValues: { Responsible: "engineer" },
         subtasks: [
-          "Façades & cladding visual",
-          "Parapet walls & coping",
-          "Columns, beams & expansion joints",
-          "Foundation wall above grade & weep system",
-          "Photo log with elevation tags & compass bearing",
+          "Confirm Miami-Dade folio, building age & recertification due date",
+          "Scope & fee proposal",
+          "Certificate of Insurance",
         ],
       },
       {
-        section: "To Do",
-        name: "Interior structural walkthrough",
-        customFieldValues: { Discipline: "structural" },
-        subtasks: [
-          "Garage levels (slabs, columns, beams)",
-          "Mechanical rooms & equipment supports",
-          "Common corridors & ceilings",
-          "Stairwells & landings",
-          "Roof structure from inside (deck, joists, sheathing)",
-          "Water intrusion mapping (staining, efflorescence, mold)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Balcony & terrace inspection",
-        customFieldValues: { Discipline: "structural" },
-        subtasks: [
-          "Railing anchorage & corrosion at base plates",
-          "Slab edge & soffit condition",
-          "Waterproofing membrane integrity",
-          "Drain inlets & overflow scuppers",
-          "Traffic coating condition",
-          "Load-test sample railings per local AHJ requirement",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Roof inspection",
-        customFieldValues: { Discipline: "structural" },
-        subtasks: [
-          "Deck & structural condition",
-          "Parapet caps & flashings",
-          "Drainage & overflow scuppers",
-          "Mechanical equipment supports & curbs",
-          "Penetrations & roof-mounted attachments",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Parking garage post-tensioning check",
-        customFieldValues: { Discipline: "structural" },
-        subtasks: [
-          "Tendon tail condition & corrosion",
-          "Anchor wedge inspection",
-          "End cap presence & grout pocket",
-          "Slab cracking pattern (PT vs RC interpretation)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Distress documentation",
-        customFieldValues: { Discipline: "structural" },
-        subtasks: [
-          "Crack mapping (width, length, orientation)",
-          "Spalling & rebar exposure log",
-          "Corrosion zone tagging",
-          "Moisture-meter readings indexed",
-          "Photo log keyed to finding IDs",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Structural field inspection complete",
-        type: "MILESTONE",
-        customFieldValues: { Discipline: "structural" },
-      },
-
-      // ── Electrical Inspection ──────────────────────────────────
-      {
-        section: "To Do",
-        name: "Main switchgear inspection",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "Enclosure integrity & corrosion",
-          "Working clearance per NEC 110.26",
-          "Labels & arc-flash warnings",
-          "Door closures & padlocks",
-          "Phase identification & legend accuracy",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Service equipment & metering",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "Meter bank condition & seals",
-          "CT cabinets",
-          "Grounding electrode system (GES) inspection",
-          "Bonding jumpers continuity",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Distribution panels & subpanels",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "Panel covers & dead-fronts in place",
-          "Breaker condition & circuit directory",
-          "Double-tapped breakers flagged",
-          "AIC ratings vs available fault current",
-          "Open knockouts & unused openings",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Branch circuits & receptacles",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "GFCI protection in wet locations",
-          "Receptacle covers in wet / outdoor zones",
-          "Polarity test sample",
-          "Common-area circuits operational",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Emergency power & life safety",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "Generator load test (per NFPA 110)",
-          "Fuel tank level & integrity",
-          "Automatic transfer switch test",
-          "Exit signs illumination & battery backup",
-          "Emergency egress lighting 90-min battery test",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Grounding & bonding survey",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "GES resistance test (≤ 25 Ω target)",
-          "Bonding continuity at major equipment",
-          "Equipment grounding conductor verification",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Electrical field inspection complete",
-        type: "MILESTONE",
-        customFieldValues: { Discipline: "electrical" },
-      },
-
-      // ── Thermography (IR) Survey ───────────────────────────────
-      {
-        section: "To Do",
-        name: "IR camera calibration & setup",
-        customFieldValues: { Discipline: "thermography" },
-        subtasks: [
-          "Camera calibration cert in date",
-          "Ambient temperature & humidity recorded",
-          "Emissivity & reflected-T settings per surface",
-          "Load condition documented (≥ 40% nameplate load target)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Service entrance & main switchgear scan",
-        customFieldValues: { Discipline: "thermography" },
-        subtasks: [
-          "Each phase under load — line side",
-          "Each phase under load — load side",
-          "MCCB termination scan",
-          "Busbar joint scan",
-          "Neutral & ground connection scan",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Distribution panel scan",
-        customFieldValues: { Discipline: "thermography" },
-        subtasks: [
-          "Every panel under representative load",
-          "Breaker poles ΔT logged",
-          "Lug & conductor termination scan",
-          "Bus stab connections",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Motor, HVAC & elevator equipment scan",
-        customFieldValues: { Discipline: "thermography" },
-        subtasks: [
-          "HVAC compressors & contactors",
-          "Elevator motors & resistors",
-          "Pump & pool equipment motors",
-          "Lighting contactors & relays",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Thermography findings log",
-        customFieldValues: { Discipline: "thermography" },
-        subtasks: [
-          "Hot spots ≥ 10°C above baseline flagged",
-          "Severity classified by ΔT (NETA / IR convention)",
-          "Repair priority assigned",
-          "IR + visible photo pairs indexed",
-          "Re-scan plan after repairs",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "IR survey complete",
-        type: "MILESTONE",
-        customFieldValues: { Discipline: "thermography" },
-      },
-
-      // ── Illumination Survey ────────────────────────────────────
-      {
-        section: "To Do",
-        name: "Code & criteria establishment",
-        customFieldValues: { Discipline: "illumination" },
-        subtasks: [
-          "Code reference (IES RP-20 parking / local amendment)",
-          "Required foot-candles by zone (entry, drive aisle, stalls, egress)",
-          "Uniformity ratio targets (avg/min, max/min)",
-          "Egress illumination per IBC 1008 / NFPA 101",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Light meter calibration",
-        customFieldValues: { Discipline: "illumination" },
-        subtasks: [
-          "Photometer calibration cert (NIST traceable)",
-          "Cosine-corrected meter selected",
-          "Dusk + full-dark reading protocol agreed",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Parking lot illumination grid",
-        customFieldValues: { Discipline: "illumination" },
-        subtasks: [
-          "Grid layout sketched (typically 10' x 10' or 20' x 20')",
-          "Measurements at each grid point logged",
-          "Light pole bases inspected for corrosion",
-          "Fixture aim & lens condition",
-          "Burned-out or missing lamps inventoried",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Stairwell & egress illumination",
-        customFieldValues: { Discipline: "illumination" },
-        subtasks: [
-          "FC at egress path floor",
-          "Transfer time on simulated power loss",
-          "Battery backup duration sample test",
-          "Photoluminescent path-marking condition (if installed)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Common area illumination",
-        customFieldValues: { Discipline: "illumination" },
-        subtasks: [
-          "Lobby & elevator landing FC readings",
-          "Corridor FC readings",
-          "Lamp burnout inventory by area",
-          "Color-temperature consistency check",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Illumination findings log",
-        customFieldValues: { Discipline: "illumination" },
-        subtasks: [
-          "Deficient zones mapped on as-built plan",
-          "Recommended fixture, relamp, or aim adjustment",
-          "IES criteria vs measured comparison table",
-          "Photometric mock-up attached for major deficiencies",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Illumination survey complete",
-        type: "MILESTONE",
-        customFieldValues: { Discipline: "illumination" },
-      },
-
-      // ── Parking Lot & Guardrail Inspection ─────────────────────
-      {
-        section: "To Do",
-        name: "Pavement & surface condition",
-        customFieldValues: { Discipline: "parking_guardrail" },
-        subtasks: [
-          "Cracking, potholes, rutting",
-          "ADA accessible route slope & cross-slope",
-          "Striping & wayfinding paint",
-          "ADA stall count & van-accessible per IBC 1106",
-          "Drainage swales & catch basins",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Curbs, wheel stops & bumpers",
-        customFieldValues: { Discipline: "parking_guardrail" },
-        subtasks: [
-          "Curb height & damage",
-          "Wheel-stop attachment & displacement",
-          "Missing or broken units inventoried",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Vehicle guardrails & bollards",
-        customFieldValues: { Discipline: "parking_guardrail" },
-        subtasks: [
-          "Anchorage to slab inspected",
-          "Deflection on lateral push test",
-          "Height per IBC 1015.3 (≥ 42\")",
-          "Vehicle impact rating verified for ramp & garage applications",
-          "Corrosion at base plates & welds",
-          "Bollard at fuel / utility / glazing locations",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Pedestrian guardrails & handrails",
-        customFieldValues: { Discipline: "parking_guardrail" },
-        subtasks: [
-          "Top rail height (≥ 42\" guard, 34-38\" handrail)",
-          "Baluster spacing ≤ 4\" sphere",
-          "Anchorage condition at base",
-          "Load-test sample per local AHJ requirement",
-          "Continuous handrail at stairs both sides per IBC 1011",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Signage, pole bases & drainage",
-        customFieldValues: { Discipline: "parking_guardrail" },
-        subtasks: [
-          "ADA, fire-lane, & directional signage readability",
-          "Light pole bases for corrosion / impact damage",
-          "Catch basin grates secured",
-          "Swale / drainage flow verified",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Site & guardrail inspection complete",
-        type: "MILESTONE",
-        customFieldValues: { Discipline: "parking_guardrail" },
-      },
-
-      // ── Findings Compilation & Report ──────────────────────────
-      {
-        section: "To Do",
-        name: "Findings consolidation",
-        customFieldValues: { Discipline: "report" },
-        subtasks: [
-          "All discipline logs merged into master findings list",
-          "Severity normalized across trades",
-          "Photo logs cross-referenced to finding IDs",
-          "Prior-cycle comparison (delta vs last recertification)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Repair priority matrix & ROM cost",
-        customFieldValues: { Discipline: "report" },
-        subtasks: [
-          "Critical items priced (life-safety, immediate)",
-          "Major items priced (within 6 months)",
-          "Minor items priced (within 12 months)",
-          "Monitoring items listed (no immediate action)",
-          "Owner cost summary (ROM ±20%)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Recommendations memo",
-        customFieldValues: { Discipline: "report" },
-        subtasks: [
-          "Structural recommendations",
-          "Electrical + IR recommendations",
-          "Illumination & egress recommendations",
-          "Site / parking / guardrail recommendations",
-          "Recommended maintenance schedule going forward",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Draft narrative report",
-        customFieldValues: { Discipline: "report" },
-        subtasks: [
-          "Executive summary",
-          "Scope & methodology by discipline",
-          "Building description & history",
-          "Code & standard references",
-          "Findings by discipline with severity table",
-          "Appendices index",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Photo log & appendices assembly",
-        customFieldValues: { Discipline: "report" },
-        subtasks: [
-          "Indexed photo log by finding ID with captions",
-          "IR + visible photo pairs",
-          "Illumination grid map full size",
-          "As-built plan markups with finding locations",
-          "Test reports (load, IR, illumination)",
-          "Prior recertification report (reference)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Internal QC — PE seal review",
+        section: "Notice & Proposal",
+        name: "Owner approves proposal",
         type: "APPROVAL",
-        customFieldValues: { Discipline: "report" },
+        customFieldValues: { Responsible: "owner" },
       },
       {
-        section: "To Do",
-        name: "Client preview & comment cycle",
-        customFieldValues: { Discipline: "report" },
+        section: "Notice & Proposal",
+        name: "Schedule site inspection",
+        customFieldValues: { Responsible: "inspector" },
         subtasks: [
-          "Deliver draft to owner / property mgmt",
-          "Comment log received",
-          "Comments resolved or rejected with rationale",
-          "Version control of draft revisions",
+          "Coordinate access with property manager",
+          "Confirm units / areas to access",
         ],
       },
+
+      // ── Inspection & Reports (field work done in CIVNEX) ───────
       {
-        section: "To Do",
-        name: "AHJ submittal package",
-        customFieldValues: { Discipline: "report" },
-        subtasks: [
-          "Sealed report PDF + native files",
-          "AHJ recertification form filled & signed",
-          "Cover letter",
-          "Supporting drawings, test reports & photos",
-          "Submission fee paid",
-          "Submission receipt archived",
-        ],
+        section: "Inspection & Reports",
+        name: "Structural inspection — photos & form in CIVNEX",
+        customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "To Do",
-        name: "Report submitted to AHJ",
+        section: "Inspection & Reports",
+        name: "Electrical inspection — photos & form in CIVNEX",
+        customFieldValues: { Responsible: "inspector" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Thermography (IR) inspection — CIVNEX",
+        customFieldValues: { Responsible: "inspector" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Illumination inspection — CIVNEX",
+        customFieldValues: { Responsible: "inspector" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Guardrail inspection — CIVNEX",
+        customFieldValues: { Responsible: "inspector" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Field inspection complete",
         type: "MILESTONE",
-        customFieldValues: { Discipline: "report" },
+        customFieldValues: { Responsible: "inspector" },
       },
       {
-        section: "To Do",
-        name: "AHJ review & response cycle",
-        customFieldValues: { Discipline: "report" },
+        section: "Inspection & Reports",
+        name: "Generate recertification reports in CIVNEX",
+        customFieldValues: { Responsible: "engineer" },
         subtasks: [
-          "AHJ comment letter received",
-          "Comment-by-comment responses drafted",
-          "Re-submission package issued",
-          "Follow-up site visit scheduled (if requested)",
+          "Aerial of the property",
+          "Legal description",
+          "Structural — Field Visual Report",
+          "Structural cover letter",
+          "Electrical — Field Visual Report",
+          "Electrical cover letter",
+          "Thermography — Field Visual Report",
+          "Illumination report",
+          "Guardrail report",
+          "Observation summary",
         ],
       },
       {
-        section: "To Do",
-        name: "Recertification approved",
-        type: "MILESTONE",
-        customFieldValues: { Discipline: "report" },
+        section: "Inspection & Reports",
+        name: "PE review, sign & seal reports (ready to sign)",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "To Do",
-        name: "Owner repair tracking & closeout",
-        customFieldValues: { Discipline: "report" },
+        section: "Inspection & Reports",
+        name: "Submit reports to owner",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Owner submits reports to Building Official",
+        type: "MILESTONE",
+        customFieldValues: { Responsible: "owner" },
+      },
+
+      // ── Building Official Review ────────────────────────────────
+      {
+        section: "Building Official Review",
+        name: "Building Official reviews reports",
+        customFieldValues: { Responsible: "building_official" },
+      },
+      {
+        section: "Building Official Review",
+        name: "Determination — repairs required?",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "building_official" },
+      },
+
+      // ── Repairs (ONLY if the Building Official requires them) ────
+      {
+        section: "Repairs (if required)",
+        name: "Repairs branch — do only if repairs are required (delete section otherwise)",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "RFP for repair design",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Engineer submits repair-design proposal",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Owner approves design proposal",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Engineer prepares construction documents",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "RFP for construction",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Contractor submits construction proposal",
+        customFieldValues: { Responsible: "contractor" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Owner approves contractor proposal",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Contractor applies for permit",
+        customFieldValues: { Responsible: "contractor" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Permit approved",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "building_official" },
         subtasks: [
-          "Critical items repair tracked to closure",
-          "Major items repair tracked to closure",
-          "Follow-up permits issued where required",
-          "Final invoice issued",
-          "Lessons learned debrief",
-          "Calendar reminder for next 10-year cycle",
+          "If rejected: engineer revises construction documents & resubmit",
+        ],
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Commence construction / repairs",
+        customFieldValues: { Responsible: "contractor" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Repair inspections",
+        customFieldValues: { Responsible: "engineer" },
+        subtasks: [
+          "Contractor requests inspections",
+          "Engineer performs inspections",
+          "Building Official performs inspections",
+        ],
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Repairs complete & permit closed",
+        type: "MILESTONE",
+        customFieldValues: { Responsible: "contractor" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Prepare updated reports in CIVNEX",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "PE review, sign & seal updated reports (ready to sign)",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Owner resubmits UPDATED reports to Building Official",
+        customFieldValues: { Responsible: "owner" },
+      },
+
+      // ── Recertification Complete ────────────────────────────────
+      {
+        section: "Recertification Complete",
+        name: "Recertification Complete",
+        type: "MILESTONE",
+        customFieldValues: { Responsible: "building_official" },
+      },
+      {
+        section: "Recertification Complete",
+        name: "Project closeout",
+        customFieldValues: { Responsible: "engineer" },
+        subtasks: [
+          "Final invoice",
+          "Archive sealed reports & photos",
+          "Set reminder for next 10-year cycle",
         ],
       },
     ],
@@ -1607,293 +1284,256 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   },
   {
     id: "broward-bsip-inspection",
-    name: "Broward BSIP inspection",
+    name: "Broward BSIP recertification",
     description:
-      "Broward County Building Safety Inspection Program (BSIP) recertification — the BORA-administered structural + electrical safety report a FL-licensed PE/architect must file at 40 years (30 near the coast) and every 10 years after. Structural and electrical field inspection with the Broward Building Safety Inspection Report form built in as checklists, plus an infrared thermography section included conditionally for when the AHJ requests it (delete it if not required). 5 status sections (Asana paradigm) with a 'Discipline' custom field plus a 'Severity' field for findings. ~23 parent tasks, 100+ subtasks, discipline-closeout milestones, an internal QC + PE-seal approval gate (ready to sign), and BORA/AHJ submittal. Inspection-cycle workflow rules pre-wired.",
+      "Realistic Broward County Building Safety Inspection Program (BSIP) recertification workflow — the BORA process from the Notice of Required Inspection through the sealed structural + electrical reports and (if needed) the repair permit. The field inspection — photos, photo reports, and BSIP form auto-fill for Structural and Electrical, plus Thermography (IR) only when the local Building Official requires it — is done in CIVNEX, so this template tracks the PROJECT, not a field checklist: notice & proposal, the CIVNEX inspection + reports, PE sign & seal, submittal to the AHJ, the Building Official's review, the optional repair/permit branch, and closeout. Lean by design — typically one inspector. A 'Responsible' field tags each step by role.",
     icon: "ShieldCheck",
     accent: "blue",
     category: "engineering",
     defaults: { type: "RECERTIFICATION", gate: "PRE_DESIGN", color: "#335FB5" },
-    // Same Asana paradigm as the other inspection templates: sections are
-    // workflow STATUS, the trade (Structural / Electrical / Thermography)
-    // lives in the Discipline custom field, and each finding carries a
-    // Severity. Broward's BSIP is narrower than the Miami-Dade 40-year
-    // recert — structural + electrical only, with IR thermography added
-    // only when the local building official asks for it.
-    sections: ["To Do", "In Progress", "Under Review", "Approved", "Done"],
+    // Same real-process paradigm as the Miami-Dade recert, scoped to
+    // Broward's BSIP: structural + electrical, with IR thermography only
+    // when the AHJ asks for it. Field capture happens in CIVNEX (photos +
+    // auto-filled forms); sections are the process phases and 'Responsible'
+    // is the swimlane role. No field checklists here — that is CIVNEX's job.
+    sections: [
+      "Notice & Proposal",
+      "Inspection & Reports",
+      "Building Official Review",
+      "Repairs (if required)",
+      "Recertification Complete",
+    ],
     customFields: [
       {
-        name: "Discipline",
+        name: "Responsible",
         type: "DROPDOWN",
         options: [
-          { id: "engagement", label: "Engagement & Prep", color: "#888888" },
-          { id: "structural", label: "Structural", color: "#c9a84c" },
-          { id: "electrical", label: "Electrical", color: "#d4b65a" },
-          { id: "thermography", label: "Thermography (if required)", color: "#a8893a" },
-          { id: "report", label: "Report & Submittal", color: "#94a3b8" },
-        ],
-      },
-      {
-        name: "Severity",
-        type: "DROPDOWN",
-        options: [
-          { id: "critical", label: "Critical — immediate", color: "#dc2626" },
-          { id: "major", label: "Major — within 6 mo", color: "#f59e0b" },
-          { id: "minor", label: "Minor — within 12 mo", color: "#eab308" },
-          { id: "monitor", label: "Monitoring only", color: "#94a3b8" },
-          { id: "ok", label: "OK / Not applicable", color: "#10b981" },
+          { id: "building_official", label: "Building Official", color: "#dc7633" },
+          { id: "owner", label: "Owner", color: "#2ecc71" },
+          { id: "engineer", label: "Engineer", color: "#2874a6" },
+          { id: "contractor", label: "Contractor", color: "#8e44ad" },
+          { id: "inspector", label: "Inspector", color: "#335FB5" },
         ],
       },
     ],
     tasks: [
-      // ── Engagement & Preparation ───────────────────────────────
+      // ── Notice & Proposal ──────────────────────────────────────
       {
-        section: "To Do",
-        name: "Project intake & contract",
-        customFieldValues: { Discipline: "engagement" },
-        subtasks: [
-          "Scope agreed with owner / property mgmt (Broward BSIP recertification)",
-          "Fee proposal issued & signed",
-          "Certificate of Insurance delivered",
-          "Retainer received",
-          "Project number assigned & folder set up",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Building documentation request",
-        customFieldValues: { Discipline: "engagement" },
-        subtasks: [
-          "As-built / original construction drawings",
-          "Prior BSIP / recertification report",
-          "Prior repair permits & closeout docs",
-          "Building age & Certificate of Occupancy date",
-          "Property management & on-site contact",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "BORA form & due-date confirmation",
-        customFieldValues: { Discipline: "engagement" },
-        subtasks: [
-          "Confirm Broward jurisdiction & local building official",
-          "Confirm cycle (initial 40-yr / 30-yr coastal, then every 10 yr)",
-          "Pull Broward BORA Building Safety Inspection Report form",
-          "Confirm Notice of Required Inspection due date & penalties",
-          "Confirm whether AHJ requires IR thermography this cycle",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Field team mobilization",
-        customFieldValues: { Discipline: "engagement" },
-        subtasks: [
-          "Schedule access windows with property mgmt",
-          "Tenant / resident notification letter",
-          "Lift / scaffold / ladder reservations",
-          "Equipment kit (camera, moisture meter, crack gauge, IR camera if required)",
-          "PPE check & site-specific safety briefing",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Pre-inspection package complete",
+        section: "Notice & Proposal",
+        name: "Notice of Required Inspection received",
         type: "MILESTONE",
-        customFieldValues: { Discipline: "engagement" },
+        customFieldValues: { Responsible: "building_official" },
       },
-
-      // ── Structural Inspection ──────────────────────────────────
       {
-        section: "To Do",
-        name: "Exterior structural walkthrough",
-        customFieldValues: { Discipline: "structural" },
+        section: "Notice & Proposal",
+        name: "Request for Proposal (RFP) from owner",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Notice & Proposal",
+        name: "Submit inspection proposal",
+        customFieldValues: { Responsible: "engineer" },
         subtasks: [
-          "Façades, cladding & coping",
-          "Parapet walls",
-          "Columns, beams & expansion joints",
-          "Foundation wall above grade & weep system",
-          "Photo log with elevation tags & compass bearing",
+          "Confirm Broward jurisdiction, building age & BSIP due date",
+          "Confirm whether the AHJ requires IR thermography this cycle",
+          "Scope & fee proposal + Certificate of Insurance",
         ],
       },
       {
-        section: "To Do",
-        name: "Interior structural walkthrough",
-        customFieldValues: { Discipline: "structural" },
-        subtasks: [
-          "Garage levels (slabs, columns, beams)",
-          "Mechanical rooms & equipment supports",
-          "Common corridors & ceilings",
-          "Stairwells & landings",
-          "Water intrusion mapping (staining, efflorescence, mold)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Balcony, terrace & railing inspection",
-        customFieldValues: { Discipline: "structural" },
-        subtasks: [
-          "Railing anchorage & corrosion at base plates",
-          "Slab edge & soffit condition",
-          "Waterproofing membrane & traffic coating integrity",
-          "Drain inlets & overflow scuppers",
-          "Load-test sample railings per local AHJ requirement",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Roof & envelope condition",
-        customFieldValues: { Discipline: "structural" },
-        subtasks: [
-          "Deck & structural condition",
-          "Parapet caps & flashings",
-          "Drainage & overflow scuppers",
-          "Mechanical equipment supports & curbs",
-          "Penetrations & roof-mounted attachments",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Structural distress documentation",
-        customFieldValues: { Discipline: "structural" },
-        subtasks: [
-          "Crack mapping (width, length, orientation)",
-          "Spalling & rebar exposure log",
-          "Corrosion zone tagging",
-          "Moisture-meter readings indexed",
-          "Photo log keyed to finding IDs",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Structural field inspection complete",
-        type: "MILESTONE",
-        customFieldValues: { Discipline: "structural" },
-      },
-
-      // ── Electrical Inspection ──────────────────────────────────
-      {
-        section: "To Do",
-        name: "Service equipment & main switchgear",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "Enclosure integrity & corrosion",
-          "Working clearance per NEC 110.26",
-          "Labels & arc-flash warnings",
-          "Meter bank condition & seals",
-          "Phase identification & legend accuracy",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Distribution panels & subpanels",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "Panel covers & dead-fronts in place",
-          "Breaker condition & circuit directory",
-          "Double-tapped breakers flagged",
-          "AIC ratings vs available fault current",
-          "Open knockouts & unused openings",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Branch circuits, GFCI & life safety",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "GFCI protection in wet locations",
-          "Receptacle covers in wet / outdoor zones",
-          "Common-area lighting operational",
-          "Exit signs & 90-min egress lighting battery test",
-          "Emergency / standby power & transfer switch (if present)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Grounding & bonding survey",
-        customFieldValues: { Discipline: "electrical" },
-        subtasks: [
-          "Grounding electrode system (GES) inspection",
-          "Bonding continuity at major equipment",
-          "Equipment grounding conductor verification",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Electrical field inspection complete",
-        type: "MILESTONE",
-        customFieldValues: { Discipline: "electrical" },
-      },
-
-      // ── Thermography (IR) — ONLY when the AHJ requires it ───────
-      {
-        section: "To Do",
-        name: "IR thermography scan — ONLY if Broward AHJ requires it (delete section otherwise)",
-        customFieldValues: { Discipline: "thermography" },
-        subtasks: [
-          "Confirm AHJ requested IR this cycle — if not, delete this task",
-          "Camera calibration cert in date; ambient / emissivity set",
-          "Main switchgear & service scan under load (each phase, line + load)",
-          "Distribution panel & breaker-pole scan under load",
-          "Hotspots (ΔT ≥ 10°C) documented with IR + visible photo pairs",
-          "Severity classified & repair priority assigned",
-        ],
-      },
-
-      // ── Report & Submittal ─────────────────────────────────────
-      {
-        section: "To Do",
-        name: "Findings consolidation",
-        customFieldValues: { Discipline: "report" },
-        subtasks: [
-          "Structural & electrical logs merged into master findings list",
-          "Severity normalized across trades",
-          "Photo logs cross-referenced to finding IDs",
-          "Prior-cycle comparison (delta vs last BSIP)",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Draft Broward BSIP report",
-        customFieldValues: { Discipline: "report" },
-        subtasks: [
-          "Executive summary & safe / unsafe determination",
-          "Structural section of BORA form filled",
-          "Electrical section of BORA form filled",
-          "Findings table with severity & required repairs",
-          "Photo appendix indexed (+ IR pairs if performed)",
-          "Internal QA/QC read-through",
-        ],
-      },
-      {
-        section: "To Do",
-        name: "Internal QC — PE seal review (ready to sign)",
+        section: "Notice & Proposal",
+        name: "Owner approves proposal",
         type: "APPROVAL",
-        customFieldValues: { Discipline: "report" },
+        customFieldValues: { Responsible: "owner" },
       },
       {
-        section: "To Do",
-        name: "BORA / AHJ submittal package",
-        customFieldValues: { Discipline: "report" },
+        section: "Notice & Proposal",
+        name: "Schedule site inspection",
+        customFieldValues: { Responsible: "inspector" },
         subtasks: [
-          "Sealed report PDF + native files",
-          "BORA Building Safety Inspection Report form signed & sealed",
-          "Cover letter",
-          "Supporting photos & test reports",
-          "Submission fee paid",
-          "Submission receipt archived",
+          "Coordinate access with property manager",
+          "Confirm units / areas to access",
+        ],
+      },
+
+      // ── Inspection & Reports (field work done in CIVNEX) ───────
+      {
+        section: "Inspection & Reports",
+        name: "Structural inspection — photos & form in CIVNEX",
+        customFieldValues: { Responsible: "inspector" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Electrical inspection — photos & form in CIVNEX",
+        customFieldValues: { Responsible: "inspector" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Thermography (IR) — CIVNEX, only if AHJ requires it (skip otherwise)",
+        customFieldValues: { Responsible: "inspector" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Field inspection complete",
+        type: "MILESTONE",
+        customFieldValues: { Responsible: "inspector" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Generate BSIP reports in CIVNEX",
+        customFieldValues: { Responsible: "engineer" },
+        subtasks: [
+          "Aerial of the property",
+          "Legal description",
+          "Structural — Field Visual Report",
+          "Structural cover letter",
+          "Electrical — Field Visual Report",
+          "Electrical cover letter",
+          "Thermography — Field Visual Report (if performed)",
+          "Observation summary",
         ],
       },
       {
-        section: "To Do",
-        name: "Report submitted to Broward AHJ",
-        type: "MILESTONE",
-        customFieldValues: { Discipline: "report" },
+        section: "Inspection & Reports",
+        name: "PE review, sign & seal reports (ready to sign)",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "engineer" },
       },
       {
-        section: "To Do",
-        name: "Recertification approved",
+        section: "Inspection & Reports",
+        name: "Submit reports to owner",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Inspection & Reports",
+        name: "Owner submits reports to Building Official (BORA)",
         type: "MILESTONE",
-        customFieldValues: { Discipline: "report" },
+        customFieldValues: { Responsible: "owner" },
+      },
+
+      // ── Building Official Review ────────────────────────────────
+      {
+        section: "Building Official Review",
+        name: "Building Official reviews reports",
+        customFieldValues: { Responsible: "building_official" },
+      },
+      {
+        section: "Building Official Review",
+        name: "Determination — repairs required?",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "building_official" },
+      },
+
+      // ── Repairs (ONLY if the Building Official requires them) ────
+      {
+        section: "Repairs (if required)",
+        name: "Repairs branch — do only if repairs are required (delete section otherwise)",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "RFP for repair design",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Engineer submits repair-design proposal",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Owner approves design proposal",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Engineer prepares construction documents",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "RFP for construction",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Contractor submits construction proposal",
+        customFieldValues: { Responsible: "contractor" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Owner approves contractor proposal",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Contractor applies for permit",
+        customFieldValues: { Responsible: "contractor" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Permit approved",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "building_official" },
+        subtasks: [
+          "If rejected: engineer revises construction documents & resubmit",
+        ],
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Commence construction / repairs",
+        customFieldValues: { Responsible: "contractor" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Repair inspections",
+        customFieldValues: { Responsible: "engineer" },
+        subtasks: [
+          "Contractor requests inspections",
+          "Engineer performs inspections",
+          "Building Official performs inspections",
+        ],
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Repairs complete & permit closed",
+        type: "MILESTONE",
+        customFieldValues: { Responsible: "contractor" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Prepare updated reports in CIVNEX",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "PE review, sign & seal updated reports (ready to sign)",
+        type: "APPROVAL",
+        customFieldValues: { Responsible: "engineer" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Owner resubmits UPDATED reports to Building Official",
+        customFieldValues: { Responsible: "owner" },
+      },
+
+      // ── Recertification Complete ────────────────────────────────
+      {
+        section: "Recertification Complete",
+        name: "BSIP recertification complete",
+        type: "MILESTONE",
+        customFieldValues: { Responsible: "building_official" },
+      },
+      {
+        section: "Recertification Complete",
+        name: "Project closeout",
+        customFieldValues: { Responsible: "engineer" },
+        subtasks: [
+          "Final invoice",
+          "Archive sealed reports & photos",
+          "Set reminder for next inspection cycle",
+        ],
       },
     ],
     workflowTemplateId: "inspection-cycle",
