@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { notifyTaskMutated } from "@/lib/task-events";
 import { toast } from "sonner";
 import { AddColumnDropdown } from "@/components/tasks/add-column-dropdown";
 import { ColumnHeader } from "@/components/tasks/column-header-dropdown";
@@ -629,6 +630,10 @@ export function ListView({
       }
 
       toast.success(completed ? "Task marked incomplete" : "Task completed");
+      // Let an open task-detail panel refresh its dependency state (the
+      // "Blocked" chip on a dependent task clears when its blocker
+      // completes) without being closed and reopened.
+      notifyTaskMutated(taskId);
       router.refresh();
     } catch {
       toast.error("Failed to update task");

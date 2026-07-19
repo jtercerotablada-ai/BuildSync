@@ -48,6 +48,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { notifyTaskMutated } from "@/lib/task-events";
 
 type ProjectStatusKey =
   | "ON_TRACK"
@@ -553,6 +554,7 @@ export function ProjectOverview({
           body: JSON.stringify({ completed: !m.completed }),
         });
         if (!res.ok) throw new Error();
+        notifyTaskMutated(m.id);
         router.refresh();
       } catch {
         setMilestones((prev) =>

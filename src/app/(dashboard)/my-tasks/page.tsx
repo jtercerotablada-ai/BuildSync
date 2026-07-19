@@ -145,6 +145,7 @@ import { kanbanCollisionDetection } from "@/lib/kanban-collision-detection";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday } from "@/lib/date-only";
+import { notifyTaskMutated } from "@/lib/task-events";
 import { readTimeTracking, formatDays, parseDaysInput } from "@/lib/duration";
 import { toast } from "sonner";
 
@@ -2233,6 +2234,7 @@ export default function MyTasksPage() {
       }
       // Silent refetch in the background to pick up any side-effects (e.g.
       // server-side completedAt timestamp, dependent task unblock, etc.)
+      notifyTaskMutated(task.id);
       fetchTasks(true);
     } catch (error) {
       console.error("Error toggling task:", error);

@@ -48,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { dueDateToLocalMidnight } from "@/lib/date-only";
+import { notifyTaskMutated } from "@/lib/task-events";
 import { toast } from "sonner";
 
 // ============================================
@@ -471,8 +472,10 @@ export function BoardView({
                       body: JSON.stringify({ completed: !task.completed }),
                     })
                       .then((res) => {
-                        if (res.ok) router.refresh();
-                        else toast.error("Failed to update task");
+                        if (res.ok) {
+                          notifyTaskMutated(task.id);
+                          router.refresh();
+                        } else toast.error("Failed to update task");
                       })
                       .catch(() => toast.error("Failed to update task"));
                   }}
@@ -914,6 +917,7 @@ function SortableTaskCard({
         body: JSON.stringify({ completed: !task.completed }),
       });
       if (!res.ok) throw new Error();
+      notifyTaskMutated(task.id);
       router.refresh();
     } catch {
       toast.error("Failed to update task");

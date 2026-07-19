@@ -79,6 +79,7 @@ import {
 } from "@/components/tasks/comment-content";
 import { FileViewerModal } from "@/components/files/file-viewer-modal";
 import { downloadFile } from "@/lib/download";
+import { TASK_MUTATED_EVENT } from "@/lib/task-events";
 import {
   formatFileSize,
   formatRangeLabel,
@@ -362,6 +363,19 @@ export function TaskDetailPanel({
     setStagedMentions([]);
     setPendingCommentFiles([]);
     setEditingCommentId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId]);
+
+  // Live-sync with the view behind the panel: when ANY surface mutates a
+  // task (a list-row / board-card / gantt checkbox completing a blocker),
+  // silently refetch so derived state here — chiefly the "Blocked" chip,
+  // which clears when the last incomplete blocker completes — updates
+  // without closing and reopening the panel. Same-task refetches don't
+  // blank the panel (loadedTaskIdRef gate above).
+  useEffect(() => {
+    const handler = () => fetchTaskDetail();
+    window.addEventListener(TASK_MUTATED_EVENT, handler);
+    return () => window.removeEventListener(TASK_MUTATED_EVENT, handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 

@@ -48,6 +48,7 @@ import {
 } from "date-fns";
 import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
 import { sectionBarStyle } from "@/lib/section-bar-colors";
+import { notifyTaskMutated } from "@/lib/task-events";
 
 // ============================================
 // TYPES — kept identical to timeline-view.tsx so
@@ -1200,6 +1201,7 @@ export function GanttView({
         body: JSON.stringify({ completed: !task.completed }),
       });
       if (!res.ok) throw new Error();
+      notifyTaskMutated(task.id);
       router.refresh();
     } catch {
       toast.error("Failed to update task");
