@@ -238,12 +238,19 @@ function dependencyElbowPath(
       { x: ex, y: ey },
     ];
   } else {
-    const midY = (sy + ey) / 2;
+    // Route the horizontal crossing along the ROW BOUNDARY adjacent to the
+    // source (bar-free by construction — bars are BAR_HEIGHT tall centered
+    // in ROW_HEIGHT rows, and the svg renders UNDER the z-10 bars). The
+    // old (sy+ey)/2 midpoint landed exactly on an intermediate row's bar
+    // centerline whenever the two rows were an even distance apart, so the
+    // crossing vanished behind the bars and the arrow looked cut — the
+    // same fix the Timeline's elbows already got.
+    const crossY = ey > sy ? sy + ROW_HEIGHT / 2 : sy - ROW_HEIGHT / 2;
     pts = [
       { x: sx, y: sy },
       { x: sOutX, y: sy },
-      { x: sOutX, y: midY },
-      { x: eInX, y: midY },
+      { x: sOutX, y: crossY },
+      { x: eInX, y: crossY },
       { x: eInX, y: ey },
       { x: ex, y: ey },
     ];
@@ -1959,39 +1966,21 @@ export function GanttView({
                 />
               )}
 
-              {/* Dependency arrows */}
-              {showDependencies && dependencies.length > 0 && bounds && (
-                <svg
-                  className="absolute inset-0 pointer-events-none z-[5]"
-                  width={bounds.totalWidth}
-                  height={totalRows * ROW_HEIGHT}
-                >
-                  <defs>
-                    <marker
-                      id="gantt-dep-arrow-default"
-                      markerWidth="8"
-                      markerHeight="8"
-                      refX="6.5"
-                      refY="4"
-                      orient="auto"
-                    >
-                      <polygon points="0 0.5, 7 4, 0 7.5" fill="#94a3b8" />
-                    </marker>
-                    <marker
-                      id="gantt-dep-arrow-active"
-                      markerWidth="8"
-                      markerHeight="8"
-                      refX="6.5"
-                      refY="4"
-                      orient="auto"
-                    >
-                      <polygon points="0 0.5, 7 4, 0 7.5" fill="#a8893a" />
-                    </marker>
-                  </defs>
-                  {dependencies.map((dep) => {
+              {/* Dependency arrows — TWO stacked svgs over one shared
+                  geometry. The VISIBLE strokes render ABOVE the z-10 bars
+                  (z-20, fully pointer-events-none) so a leg passing an
+                  intermediate row's bar stays visible instead of being
+                  swallowed behind it (MS Project draws connectors over
+                  bars too); the fat CLICK targets stay BELOW the bars
+                  (z-[5]) so they can never steal a bar's mousedown/drag. */}
+              {showDependencies &&
+                dependencies.length > 0 &&
+                bounds &&
+                (() => {
+                  const depGeo = dependencies.flatMap((dep) => {
                     const blocking = getTaskScreenPos(dep.blockingTaskId);
                     const dependent = getTaskScreenPos(dep.dependentTaskId);
-                    if (!blocking || !dependent) return null;
+                    if (!blocking || !dependent) return [];
 
                     // FS = blocker right → dependent left; SS = left→left;
                     // FF = right→right; SF = left→right.
@@ -2040,64 +2029,105 @@ export function GanttView({
                       exInDir
                     );
 
-                    const isSelected = depMenu?.dep.id === dep.id;
                     const isActive =
-                      isSelected ||
+                      depMenu?.dep.id === dep.id ||
                       hoveredTask === dep.blockingTaskId ||
                       hoveredTask === dep.dependentTaskId ||
                       selectedTaskId === dep.blockingTaskId ||
                       selectedTaskId === dep.dependentTaskId;
 
-                    return (
-                      <g key={dep.id}>
-                        <path
-                          d={path}
-                          stroke={isActive ? "#a8893a" : "#94a3b8"}
-                          strokeWidth={isActive ? 2 : 1.5}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                          markerEnd={
-                            isActive
-                              ? "url(#gantt-dep-arrow-active)"
-                              : "url(#gantt-dep-arrow-default)"
-                          }
-                          opacity={isActive ? 1 : 0.9}
-                        />
-                        {/* Fat transparent hit area — a 1.5px line is
-                            unclickable. The parent <svg> is pointer-events-
-                            none, so only these paths take clicks. */}
-                        <path
-                          d={path}
-                          stroke="transparent"
-                          strokeWidth={12}
-                          fill="none"
-                          style={{
-                            pointerEvents: "stroke",
-                            cursor: "pointer",
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Convert the click to the SVG's own coordinate
-                            // space (= the timeline body's), so the pill
-                            // scrolls with the arrow instead of floating.
-                            const svg = e.currentTarget.ownerSVGElement;
-                            const box = svg?.getBoundingClientRect();
-                            setDepMenu({
-                              dep,
-                              x: box ? e.clientX - box.left : 0,
-                              y: box ? e.clientY - box.top : 0,
-                              // Not enough room below → open upwards.
-                              flipUp: window.innerHeight - e.clientY < 260,
-                              open: false,
-                            });
-                          }}
-                        />
-                      </g>
-                    );
-                  })}
-                </svg>
-              )}
+                    return [{ dep, path, isActive }];
+                  });
+
+                  return (
+                    <>
+                      {/* Click layer — fat transparent hit paths, under the
+                          bars. A 1.5px line is unclickable; the parent svg
+                          is pointer-events-none, so only these take clicks. */}
+                      <svg
+                        className="absolute inset-0 pointer-events-none z-[5]"
+                        width={bounds.totalWidth}
+                        height={totalRows * ROW_HEIGHT}
+                      >
+                        {depGeo.map(({ dep, path }) => (
+                          <path
+                            key={dep.id}
+                            d={path}
+                            stroke="transparent"
+                            strokeWidth={12}
+                            fill="none"
+                            style={{
+                              pointerEvents: "stroke",
+                              cursor: "pointer",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Convert the click to the SVG's own coordinate
+                              // space (= the timeline body's), so the pill
+                              // scrolls with the arrow instead of floating.
+                              const svg = e.currentTarget.ownerSVGElement;
+                              const box = svg?.getBoundingClientRect();
+                              setDepMenu({
+                                dep,
+                                x: box ? e.clientX - box.left : 0,
+                                y: box ? e.clientY - box.top : 0,
+                                // Not enough room below → open upwards.
+                                flipUp: window.innerHeight - e.clientY < 260,
+                                open: false,
+                              });
+                            }}
+                          />
+                        ))}
+                      </svg>
+                      {/* Visible layer — strokes + arrowheads, over the bars. */}
+                      <svg
+                        className="absolute inset-0 pointer-events-none z-20"
+                        width={bounds.totalWidth}
+                        height={totalRows * ROW_HEIGHT}
+                      >
+                        <defs>
+                          <marker
+                            id="gantt-dep-arrow-default"
+                            markerWidth="8"
+                            markerHeight="8"
+                            refX="6.5"
+                            refY="4"
+                            orient="auto"
+                          >
+                            <polygon points="0 0.5, 7 4, 0 7.5" fill="#94a3b8" />
+                          </marker>
+                          <marker
+                            id="gantt-dep-arrow-active"
+                            markerWidth="8"
+                            markerHeight="8"
+                            refX="6.5"
+                            refY="4"
+                            orient="auto"
+                          >
+                            <polygon points="0 0.5, 7 4, 0 7.5" fill="#a8893a" />
+                          </marker>
+                        </defs>
+                        {depGeo.map(({ dep, path, isActive }) => (
+                          <path
+                            key={dep.id}
+                            d={path}
+                            stroke={isActive ? "#a8893a" : "#94a3b8"}
+                            strokeWidth={isActive ? 2 : 1.5}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            fill="none"
+                            markerEnd={
+                              isActive
+                                ? "url(#gantt-dep-arrow-active)"
+                                : "url(#gantt-dep-arrow-default)"
+                            }
+                            opacity={isActive ? 1 : 0.9}
+                          />
+                        ))}
+                      </svg>
+                    </>
+                  );
+                })()}
 
               {/* Rows — mirror the left panel 1:1 */}
               {filteredSections.map((section) => {
