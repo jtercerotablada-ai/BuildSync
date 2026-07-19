@@ -419,12 +419,48 @@ export function TimelineView({
   // ============================================
 
   const columns = useMemo(() => {
-    const startDate =
+    const anchorStart =
       zoomLevel === "month"
         ? startOfMonth(currentDate)
         : startOfWeek(currentDate, { weekStartsOn: 1 });
 
-    const cols = config.getColumns(startDate, config.range);
+    // Extend the window to cover EVERY dated task (MS Project / Asana
+    // behavior: the plan is never cut off at an arbitrary horizon). The
+    // default range is a minimum, not a ceiling — the grid grows left to
+    // the earliest task and right past the latest one, and the user can
+    // still page further with the ‹ › arrows. Capped so a stray year-3000
+    // date can't render a hundred-thousand-column DOM.
+    let minTask: Date | null = null;
+    let maxTask: Date | null = null;
+    for (const s of sections) {
+      for (const t of s.tasks) {
+        if (!t.dueDate) continue;
+        const due = dueDateToLocalMidnight(t.dueDate);
+        let st = t.startDate ? dueDateToLocalMidnight(t.startDate) : due;
+        if (st > due) st = due;
+        if (!minTask || st < minTask) minTask = st;
+        if (!maxTask || due > maxTask) maxTask = due;
+      }
+    }
+    let startDate = anchorStart;
+    if (minTask && minTask < startDate) {
+      startDate =
+        zoomLevel === "month"
+          ? startOfMonth(minTask)
+          : startOfWeek(minTask, { weekStartsOn: 1 });
+    }
+    let count = config.range;
+    if (maxTask && maxTask > startDate) {
+      const needed =
+        zoomLevel === "day"
+          ? differenceInDays(maxTask, startDate) + 14
+          : zoomLevel === "week"
+            ? Math.ceil(differenceInDays(maxTask, startDate) / 7) + 4
+            : Math.ceil(differenceInDays(maxTask, startDate) / 28) + 2;
+      count = Math.max(count, Math.min(needed, 500));
+    }
+
+    const cols = config.getColumns(startDate, count);
 
     return cols.map((date) => {
       let label = "";
@@ -443,7 +479,7 @@ export function TimelineView({
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDate, zoomLevel]);
+  }, [currentDate, zoomLevel, sections]);
 
   // ============================================
   // TOP HEADER GROUPS (months at day/week zoom, quarters at month zoom)
@@ -500,6 +536,31 @@ export function TimelineView({
     });
     return { start, end, totalWidth, totalDays, dayWidth, columnWidths };
   }, [columns, zoomLevel, currentDate, config.columnWidth]);
+
+  // Keep the anchor (currentDate's week/month) at the left edge on mount,
+  // zoom change and arrow paging. The grid can now start well BEFORE the
+  // anchor when past-dated tasks extend the window backwards — without
+  // this, the view would open on that history instead of on today. Keyed
+  // so ordinary section/task edits (which rebuild timelineRange) never
+  // yank the user's scroll position.
+  const canvasScrollRef = useRef<HTMLDivElement>(null);
+  const lastScrollKeyRef = useRef("");
+  useEffect(() => {
+    const key = `${zoomLevel}|${startOfDay(currentDate).getTime()}`;
+    if (lastScrollKeyRef.current === key) return;
+    lastScrollKeyRef.current = key;
+    const el = canvasScrollRef.current;
+    if (!el) return;
+    const anchorStart =
+      zoomLevel === "month"
+        ? startOfMonth(currentDate)
+        : startOfWeek(currentDate, { weekStartsOn: 1 });
+    const px =
+      (differenceInDays(anchorStart, timelineRange.start) /
+        timelineRange.totalDays) *
+      timelineRange.totalWidth;
+    el.scrollLeft = Math.max(0, px);
+  }, [zoomLevel, currentDate, timelineRange]);
 
   // Header-group pixel widths — sum of member column widths so group
   // borders stay aligned with the proportional columns.
@@ -1264,7 +1325,7 @@ export function TimelineView({
       {/* ============================================ */}
       {/* SWIMLANE TIMELINE */}
       {/* ============================================ */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" ref={canvasScrollRef}>
         {/* min-h-full so gutter + canvas stretch to the viewport bottom —
             the grid must never stop short of the screen edge (Asana). */}
         <div className="flex min-w-max min-h-full">
