@@ -47,6 +47,7 @@ import {
   isWeekend,
 } from "date-fns";
 import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
+import { sectionBarStyle } from "@/lib/section-bar-colors";
 
 // ============================================
 // TYPES — kept identical to timeline-view.tsx so
@@ -127,13 +128,14 @@ function dependencyLabel(type: DependencyType): string {
 }
 
 // ============================================
-// PALETTE — cloned from Asana's Gantt (measured in the real app):
-// every bar is the same blue (no priority coloring), today is a 2px
-// blue stripe, weekends are pale gray bands.
+// PALETTE — bars are colored BY SECTION (Asana's "Color: by section")
+// via the shared palette in lib/section-bar-colors, matching the
+// Timeline view — one flat blue for every bar read as an
+// undifferentiated wall. Completed bars go neutral gray. Today is a
+// 2px blue stripe, weekends are pale gray bands.
 // ============================================
 
-const BAR_FILL = "#79ABFF"; // Asana TaskCell blue
-const BAR_FILL_COMPLETED = "#C3D3F0"; // muted blue for done tasks
+const BAR_FILL_COMPLETED = "#C9CDD4"; // neutral gray for done tasks
 const TODAY_BLUE = "#335FB5"; // today stripe + axis dot
 const WEEKEND_STRIPE = "#E8E9EA"; // weekend bands
 const DATE_OVERDUE = "#B4304C"; // red due text
@@ -414,6 +416,16 @@ export function GanttView({
     // `sections` after a dependency edit in the task panel).
      
   }, [projectId, sections]);
+
+  // Section → palette index for per-section bar colors. Indexed off the
+  // base sections prop (not the filtered list) so filtering never
+  // reshuffles a section's color — and it matches the Timeline view's
+  // color for the same section.
+  const sectionColorIdx = useMemo(() => {
+    const m = new Map<string, number>();
+    sections.forEach((s, i) => m.set(s.id, i));
+    return m;
+  }, [sections]);
 
   // ---------- Filter + row sort ----------
   const filteredSections = useMemo(() => {
@@ -2088,6 +2100,10 @@ export function GanttView({
               {/* Rows — mirror the left panel 1:1 */}
               {filteredSections.map((section) => {
                 const isCollapsed = collapsedSections.has(section.id);
+                // Per-section bar hue (shared with the Timeline view).
+                const sectionFill = sectionBarStyle(
+                  sectionColorIdx.get(section.id) ?? 0
+                ).bg;
                 return (
                   <div key={section.id} className="flex-shrink-0">
                     {/* Section header row — carries Asana's section summary
@@ -2125,15 +2141,15 @@ export function GanttView({
                           >
                             <div
                               className="h-[8px]"
-                              style={{ backgroundColor: BAR_FILL }}
+                              style={{ backgroundColor: sectionFill }}
                             />
                             <div
                               className="absolute left-0 top-0 w-[3px] h-[14px] rounded-b"
-                              style={{ backgroundColor: BAR_FILL }}
+                              style={{ backgroundColor: sectionFill }}
                             />
                             <div
                               className="absolute right-0 top-0 w-[3px] h-[14px] rounded-b"
-                              style={{ backgroundColor: BAR_FILL }}
+                              style={{ backgroundColor: sectionFill }}
                             />
                           </div>
                         );
@@ -2147,10 +2163,10 @@ export function GanttView({
                           const isMilestone = task.taskType === "MILESTONE";
                           const isApproval = task.taskType === "APPROVAL";
                           const dueSoon = isTaskDueSoon(task);
-                          // Asana colors every bar the same project blue.
+                          // Bars take their section's hue; done goes gray.
                           const barColor = task.completed
                             ? BAR_FILL_COMPLETED
-                            : BAR_FILL;
+                            : sectionFill;
                           const isDueOnly = !task.startDate;
 
                           const isResizing =
@@ -2205,8 +2221,8 @@ export function GanttView({
                                   >
                                     <Diamond
                                       className="w-6 h-6"
-                                      fill={BAR_FILL}
-                                      color={BAR_FILL}
+                                      fill={barColor}
+                                      color={barColor}
                                     />
                                   </div>
                                 ) : isApproval ? (
@@ -2218,8 +2234,8 @@ export function GanttView({
                                   >
                                     <ThumbsUp
                                       className="w-6 h-6"
-                                      fill={BAR_FILL}
-                                      color={BAR_FILL}
+                                      fill={barColor}
+                                      color={barColor}
                                     />
                                   </div>
                                 ) : (

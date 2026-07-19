@@ -41,6 +41,7 @@ import {
   isWeekend,
 } from "date-fns";
 import { daysFromToday, dueDateToLocalMidnight } from "@/lib/date-only";
+import { sectionBarStyle } from "@/lib/section-bar-colors";
 
 // ============================================
 // TYPES
@@ -85,17 +86,12 @@ interface TimelineViewProps {
 type ZoomLevel = "day" | "week" | "month";
 
 // ============================================
-// BAR PALETTE — Asana Timeline hues measured in the real app
-// (TaskCell--colorOrange/Blue/Purple/CoolGray + their label tints).
-// Deterministic rule: priority picks the hue.
+// BAR PALETTE — bars are colored BY SECTION (Asana's "Color: by section"),
+// via the shared palette in lib/section-bar-colors. The old rule keyed a
+// few hues off priority, which template tasks never set — so real projects
+// rendered as one wall of identical blue. Completed stays neutral gray.
 // ============================================
 
-const BAR_STYLE: Record<string, { bg: string; text: string }> = {
-  NONE: { bg: "#79ABFF", text: "#142B51" }, // Asana blue (default)
-  LOW: { bg: "#AAAAAA", text: "#2B2B2B" }, // cool gray
-  MEDIUM: { bg: "#E39EF2", text: "#3F1F47" }, // purple
-  HIGH: { bg: "#FEA06A", text: "#4B1F00" }, // orange
-};
 const COMPLETED_STYLE = { bg: "#C9CDD4", text: "#2B2B2B" };
 const TODAY_BLUE = "#335FB5"; // 2px today stripe + axis dot
 const WEEKEND_STRIPE = "#E8E9EA"; // weekend bands
@@ -559,6 +555,15 @@ export function TimelineView({
   // SWIMLANE LAYOUT — greedy first-fit lane packing per section band
   // ============================================
 
+  // Section → palette index for per-section bar colors. Indexed off the
+  // FULL sections prop (not filteredSections) so filtering never
+  // reshuffles a section's color.
+  const sectionColorIdx = useMemo(() => {
+    const m = new Map<string, number>();
+    sections.forEach((s, i) => m.set(s.id, i));
+    return m;
+  }, [sections]);
+
   const bandLayout = useMemo(() => {
     type Band = {
       section: Section;
@@ -572,20 +577,97 @@ export function TimelineView({
     const bands: Band[] = [];
     let top = 0;
 
+    // Pixel-space geometry mirrors getTaskPosition + the render's label
+    // rules, so a lane reserves room for the TEXT too. The old day-range
+    // packing only looked at the bar itself, letting a milestone glyph or
+    // a narrow bar share a lane while its overflowing name plowed straight
+    // through the neighbor's label.
+    const {
+      start: tlStart,
+      end: tlEnd,
+      totalDays,
+      totalWidth,
+      dayWidth,
+    } = timelineRange;
+    // Rough text-width estimate (avg glyph ≈ 0.6em) + breathing room.
+    const estText = (s: string, fontPx: number) => s.length * fontPx * 0.6 + 8;
+    const LANE_GAP_PX = 12;
+
     for (const section of filteredSections) {
       const collapsed = collapsedSections.has(section.id);
 
       // Sort dated tasks by the chosen order (Asana's "Ordenar") and
-      // first-fit into lanes so overlapping [start,due] ranges stack
-      // vertically. First-fit is safe with any input order — a lane only
-      // accepts a task starting after the lane's last end.
+      // first-fit into lanes so overlapping [left,right] pixel extents
+      // stack vertically. First-fit is safe with any input order — a lane
+      // only accepts a task starting after the lane's last extent.
       const dated = section.tasks
         .filter((t) => t.dueDate)
-        .map((t) => {
+        .flatMap((t) => {
           const end = dueDateToLocalMidnight(t.dueDate!);
           let start = t.startDate ? dueDateToLocalMidnight(t.startDate) : end;
           if (start > end) start = end;
-          return { task: t, start: start.getTime(), end: end.getTime() };
+
+          // Mirror getTaskPosition's cull: an off-window task renders no
+          // bar and anchors no arrow, so it must not consume a lane —
+          // clamping its extent onto the window edge would pile every
+          // off-window task at the same pixel, each opening an EMPTY lane.
+          if (end < tlStart || start >= tlEnd) return [];
+
+          // Occupied pixel extent, INCLUDING any label drawn outside the
+          // bar (milestone/approval two-line labels, due-only ticks, and
+          // bars too narrow for an inside label).
+          const startOffset = Math.min(
+            totalDays - 1,
+            Math.max(0, differenceInDays(start, tlStart))
+          );
+          const endOffset = Math.min(
+            totalDays - 1,
+            Math.max(0, differenceInDays(end, tlStart))
+          );
+          const isMarker =
+            t.taskType === "MILESTONE" || t.taskType === "APPROVAL";
+          const isDueOnly = !t.startDate;
+          let leftPx: number;
+          let rightPx: number;
+          let labelOutside = true;
+          if (isMarker) {
+            // 20px glyph centered on the due day + two-line label right.
+            const centerX = (endOffset + 0.5) * dayWidth;
+            leftPx = centerX - 10;
+            rightPx =
+              centerX +
+              10 +
+              6 +
+              Math.max(estText(t.name, 11), estText("Due MMM 28", 10));
+          } else {
+            leftPx = (startOffset / totalDays) * totalWidth;
+            const barW = isDueOnly
+              ? DUE_ONLY_TICK_W
+              : Math.max(
+                  ((endOffset - startOffset + 1) / totalDays) * totalWidth,
+                  14
+                );
+            const labelInside = !isDueOnly && barW >= 80;
+            labelOutside = !labelInside;
+            rightPx = labelInside
+              ? leftPx + barW
+              : leftPx +
+                barW +
+                6 +
+                (isDueOnly
+                  ? Math.max(estText(t.name, 12), estText("Due MMM 28", 11))
+                  : estText(t.name, 12));
+          }
+          return [
+            {
+              task: t,
+              start: start.getTime(),
+              end: end.getTime(),
+              leftPx,
+              rightPx,
+              labelOutside,
+            },
+          ];
         })
         .sort((a, b) => {
           if (taskSort === "due") return a.end - b.end || a.start - b.start;
@@ -599,14 +681,23 @@ export function TimelineView({
         });
 
       const laneEnds: number[] = [];
+      const laneLabelOutside: boolean[] = [];
       const laneOf = new Map<string, number>();
       for (const item of dated) {
-        let lane = laneEnds.findIndex((laneEnd) => laneEnd < item.start);
+        // The air gap is only needed when the lane's LAST item drew text
+        // outside its bar — two label-inside bars may sit flush, so a
+        // back-to-back cascade chain stays on one flowing lane.
+        let lane = laneEnds.findIndex(
+          (laneEnd, i) =>
+            laneEnd + (laneLabelOutside[i] ? LANE_GAP_PX : 0) <= item.leftPx
+        );
         if (lane === -1) {
           lane = laneEnds.length;
-          laneEnds.push(item.end);
+          laneEnds.push(item.rightPx);
+          laneLabelOutside.push(item.labelOutside);
         } else {
-          laneEnds[lane] = item.end;
+          laneEnds[lane] = item.rightPx;
+          laneLabelOutside[lane] = item.labelOutside;
         }
         laneOf.set(item.task.id, lane);
       }
@@ -629,7 +720,7 @@ export function TimelineView({
     }
 
     return { bands, totalHeight: top };
-  }, [filteredSections, collapsedSections, taskSort]);
+  }, [filteredSections, collapsedSections, taskSort, timelineRange]);
 
   // taskId → absolute canvas coordinates for dependency arrows.
   // Y = bandTop + lane*LANE_HEIGHT + BAR_TOP + BAR_HEIGHT/2 (= +20, the
@@ -1467,7 +1558,9 @@ export function TimelineView({
                       const dueSoon = isTaskDueSoon(task);
                       const barStyle = task.completed
                         ? COMPLETED_STYLE
-                        : BAR_STYLE[task.priority] || BAR_STYLE.NONE;
+                        : sectionBarStyle(
+                            sectionColorIdx.get(band.section.id) ?? 0
+                          );
 
                       // Live drag preview
                       const isResizing = !!dragState && dragState.taskId === task.id;
