@@ -40,6 +40,10 @@ const createProjectSchema = z.object({
         section: z.string().min(1).max(80),
         name: z.string().min(1).max(200),
         type: z.enum(["TASK", "MILESTONE", "APPROVAL"]).optional(),
+        // Days from the project start date (today, unless overridden) to
+        // set as the task's due date — lets a template ship a starting
+        // schedule anchored on "today" that the engineer then adjusts.
+        relativeDueDate: z.number().int().optional(),
         subtasks: z.array(z.string().min(1).max(200)).optional(),
         // Custom-field values keyed by field NAME (not id). Resolved
         // server-side after the customFields below are created.
@@ -537,6 +541,14 @@ export async function POST(req: Request) {
             if (!section) continue;
             const parentPosition = positionBySection.get(section.id) ?? 0;
             positionBySection.set(section.id, parentPosition + 1);
+            // Anchor the task's due date on the project start (today unless
+            // the caller passed a start date) + the template's relative
+            // offset in days, so the project opens with a real schedule.
+            let dueDate: Date | null = null;
+            if (typeof t.relativeDueDate === "number") {
+              dueDate = new Date(created.startDate ?? new Date());
+              dueDate.setDate(dueDate.getDate() + t.relativeDueDate);
+            }
             const parent = await tx.task.create({
               data: {
                 name: t.name,
@@ -545,6 +557,7 @@ export async function POST(req: Request) {
                 creatorId: userId,
                 position: parentPosition * 1000,
                 taskType: t.type ?? "TASK",
+                dueDate,
               },
               select: { id: true },
             });

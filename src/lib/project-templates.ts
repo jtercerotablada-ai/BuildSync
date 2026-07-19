@@ -64,6 +64,11 @@ export interface ProjectTemplateTask {
   section: string;
   name: string;
   type?: "TASK" | "MILESTONE" | "APPROVAL";
+  /** Days from the project start date (today, unless the creator picks a
+   *  start) to set as this task's due date. Lets a template ship a starting
+   *  schedule anchored on "today" that the engineer then adjusts. Omit for
+   *  no due date. */
+  relativeDueDate?: number;
   subtasks?: string[];
   customFieldValues?: Record<string, unknown>;
 }
@@ -629,6 +634,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Kickoff & scheduling",
         name: "Confirm scope & recertification due date",
+        relativeDueDate: 0,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
           "Confirm Miami-Dade folio & building age",
@@ -639,6 +645,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Kickoff & scheduling",
         name: "Schedule site inspection",
+        relativeDueDate: 2,
         customFieldValues: { Responsible: "inspector" },
         subtasks: [
           "Coordinate access with property manager",
@@ -650,37 +657,44 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "Structural inspection — photos & form",
+        relativeDueDate: 7,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Electrical inspection — photos & form",
+        relativeDueDate: 7,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Thermography (IR) inspection",
+        relativeDueDate: 7,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Illumination inspection",
+        relativeDueDate: 7,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Guardrail inspection",
+        relativeDueDate: 7,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Field inspection complete",
+        relativeDueDate: 7,
         type: "MILESTONE",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Generate recertification reports",
+        relativeDueDate: 14,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
           "Aerial of the property",
@@ -698,17 +712,20 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "PE review, sign & seal reports (ready to sign)",
+        relativeDueDate: 18,
         type: "APPROVAL",
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Inspection & Reports",
         name: "Submit reports to owner",
+        relativeDueDate: 19,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Inspection & Reports",
         name: "Owner submits reports to Building Official",
+        relativeDueDate: 21,
         type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
       },
@@ -717,11 +734,13 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Building Official Review",
         name: "Building Official reviews reports",
+        relativeDueDate: 35,
         customFieldValues: { Responsible: "building_official" },
       },
       {
         section: "Building Official Review",
         name: "Determination — repairs required?",
+        relativeDueDate: 45,
         type: "APPROVAL",
         customFieldValues: { Responsible: "building_official" },
       },
@@ -735,33 +754,39 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Repairs (if required)",
         name: "Repairs required — do this section only if the Building Official requires repairs (delete otherwise)",
+        relativeDueDate: 45,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "Repairs designed, permitted & built (separate design / construction project)",
+        relativeDueDate: 90,
         type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
       },
       {
         section: "Repairs (if required)",
         name: "Re-inspect completed repairs",
+        relativeDueDate: 95,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Repairs (if required)",
         name: "Prepare updated reports",
+        relativeDueDate: 100,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "PE review, sign & seal updated reports (ready to sign)",
+        relativeDueDate: 102,
         type: "APPROVAL",
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "Owner resubmits updated reports to Building Official",
+        relativeDueDate: 103,
         customFieldValues: { Responsible: "owner" },
       },
 
@@ -769,12 +794,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Recertification Complete",
         name: "Recertification Complete",
+        relativeDueDate: 110,
         type: "MILESTONE",
         customFieldValues: { Responsible: "building_official" },
       },
       {
         section: "Recertification Complete",
         name: "Project closeout",
+        relativeDueDate: 112,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
           "Final invoice",
@@ -1260,6 +1287,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Kickoff & scheduling",
         name: "Confirm scope & BSIP due date",
+        relativeDueDate: 0,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
           "Confirm Broward jurisdiction & building age",
@@ -1271,6 +1299,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Kickoff & scheduling",
         name: "Schedule site inspection",
+        relativeDueDate: 2,
         customFieldValues: { Responsible: "inspector" },
         subtasks: [
           "Coordinate access with property manager",
@@ -1282,27 +1311,32 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "Structural inspection — photos & form",
+        relativeDueDate: 7,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Electrical inspection — photos & form",
+        relativeDueDate: 7,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Thermography (IR) — only if the AHJ requires it (skip otherwise)",
+        relativeDueDate: 7,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Field inspection complete",
+        relativeDueDate: 7,
         type: "MILESTONE",
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Inspection & Reports",
         name: "Generate BSIP reports",
+        relativeDueDate: 14,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
           "Aerial of the property",
@@ -1318,17 +1352,20 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Inspection & Reports",
         name: "PE review, sign & seal reports (ready to sign)",
+        relativeDueDate: 18,
         type: "APPROVAL",
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Inspection & Reports",
         name: "Submit reports to owner",
+        relativeDueDate: 19,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Inspection & Reports",
         name: "Owner submits reports to Building Official (BORA)",
+        relativeDueDate: 21,
         type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
       },
@@ -1337,11 +1374,13 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Building Official Review",
         name: "Building Official reviews reports",
+        relativeDueDate: 35,
         customFieldValues: { Responsible: "building_official" },
       },
       {
         section: "Building Official Review",
         name: "Determination — repairs required?",
+        relativeDueDate: 45,
         type: "APPROVAL",
         customFieldValues: { Responsible: "building_official" },
       },
@@ -1355,33 +1394,39 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Repairs (if required)",
         name: "Repairs required — do this section only if the Building Official requires repairs (delete otherwise)",
+        relativeDueDate: 45,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "Repairs designed, permitted & built (separate design / construction project)",
+        relativeDueDate: 90,
         type: "MILESTONE",
         customFieldValues: { Responsible: "owner" },
       },
       {
         section: "Repairs (if required)",
         name: "Re-inspect completed repairs",
+        relativeDueDate: 95,
         customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Repairs (if required)",
         name: "Prepare updated reports",
+        relativeDueDate: 100,
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "PE review, sign & seal updated reports (ready to sign)",
+        relativeDueDate: 102,
         type: "APPROVAL",
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
         name: "Owner resubmits updated reports to Building Official",
+        relativeDueDate: 103,
         customFieldValues: { Responsible: "owner" },
       },
 
@@ -1389,12 +1434,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       {
         section: "Recertification Complete",
         name: "BSIP recertification complete",
+        relativeDueDate: 110,
         type: "MILESTONE",
         customFieldValues: { Responsible: "building_official" },
       },
       {
         section: "Recertification Complete",
         name: "Project closeout",
+        relativeDueDate: 112,
         customFieldValues: { Responsible: "engineer" },
         subtasks: [
           "Final invoice",
