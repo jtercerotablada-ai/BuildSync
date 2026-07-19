@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -903,6 +904,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                       });
                       if (res.ok) {
                         toast.success('Project renamed');
+                        notifySidebarRefresh();
                         router.refresh();
                       } else {
                         const err = await res.json().catch(() => ({}));
@@ -927,6 +929,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                     if (res.ok) {
                       const data = await res.json();
                       toast.success('Project duplicated');
+                      notifySidebarRefresh();
                       router.push(`/projects/${data.id}`);
                     } else {
                       const err = await res.json().catch(() => ({}));
@@ -949,6 +952,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                     });
                     if (res.ok) {
                       toast.success('Project archived');
+                      notifySidebarRefresh();
                       router.push('/projects/all');
                     } else {
                       const err = await res.json().catch(() => ({}));
@@ -967,6 +971,7 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
                       const res = await fetch(`/api/projects/${project.id}`, { method: 'DELETE' });
                       if (res.ok) {
                         toast.success('Project deleted');
+                        notifySidebarRefresh();
                         router.push('/projects/all');
                       } else {
                         const err = await res.json().catch(() => ({}));

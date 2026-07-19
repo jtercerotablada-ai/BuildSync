@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getTemplateById, allTemplates, type TemplateDefinition } from "@/lib/templates-data";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 
 // Color options for project — strict monochrome + gold palette.
 const colorOptions = [
@@ -213,6 +214,7 @@ export default function NewProjectPage() {
       return response.json();
     },
     onSuccess: (project) => {
+      notifySidebarRefresh();
       router.push(`/projects/${project.id}`);
     },
   });

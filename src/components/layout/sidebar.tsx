@@ -24,8 +24,9 @@ import {
   FolderOpen,
   ChevronRight,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
+import { SIDEBAR_REFRESH_EVENT } from "@/lib/open-create-project";
 import {
   canAccessSection,
   type AppSection,
@@ -183,38 +184,49 @@ export function Sidebar({
     { id: string; name: string; color?: string }[]
   >([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [pRes, tRes] = await Promise.all([
-          fetch("/api/projects"),
-          fetch("/api/teams/list"),
-        ]);
-        if (!cancelled && pRes.ok) {
-          const data = await pRes.json();
-          setProjects(
-            Array.isArray(data)
-              ? data.map((p: { id: string; name: string; color?: string }) => ({
-                  id: p.id,
-                  name: p.name,
-                  color: p.color || "#c9a84c",
-                }))
-              : []
-          );
-        }
-        if (!cancelled && tRes.ok) {
-          const data = await tRes.json();
-          if (Array.isArray(data)) setTeams(data);
-        }
-      } catch {
-        /* silent — nav still renders */
+  // Fetch the sidebar's project + team lists. Extracted so it can run both
+  // on mount AND whenever a mutation elsewhere fires SIDEBAR_REFRESH_EVENT
+  // (create / rename / archive / duplicate / delete) — otherwise the cached
+  // lists go stale until a full page reload (e.g. a deleted project lingered
+  // in the Projects dropdown).
+  const loadNav = useCallback(async () => {
+    try {
+      const [pRes, tRes] = await Promise.all([
+        fetch("/api/projects"),
+        fetch("/api/teams/list"),
+      ]);
+      if (pRes.ok) {
+        const data = await pRes.json();
+        setProjects(
+          Array.isArray(data)
+            ? data.map((p: { id: string; name: string; color?: string }) => ({
+                id: p.id,
+                name: p.name,
+                color: p.color || "#c9a84c",
+              }))
+            : []
+        );
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      if (tRes.ok) {
+        const data = await tRes.json();
+        if (Array.isArray(data)) setTeams(data);
+      }
+    } catch {
+      /* silent — nav still renders */
+    }
   }, []);
+
+  useEffect(() => {
+    loadNav();
+  }, [loadNav]);
+
+  // Refetch when any project/team mutation broadcasts a change so the nav
+  // stays in sync without a reload.
+  useEffect(() => {
+    const handler = () => loadNav();
+    window.addEventListener(SIDEBAR_REFRESH_EVENT, handler);
+    return () => window.removeEventListener(SIDEBAR_REFRESH_EVENT, handler);
+  }, [loadNav]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

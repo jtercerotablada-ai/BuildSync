@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { ACCENT_BG, resolveTemplateIcon } from "./template-visuals";
 import type { ProjectTemplate } from "@/lib/project-templates";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 
 interface ConfirmTemplateDialogProps {
   template: ProjectTemplate | null;
@@ -103,6 +104,7 @@ export function ConfirmTemplateDialog({
       }
 
       toast.success(`Project "${trimmed}" created`);
+      notifySidebarRefresh();
       onCreated();
       router.push(`/projects/${project.id}`);
     } catch (err) {

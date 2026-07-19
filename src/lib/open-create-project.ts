@@ -31,3 +31,17 @@ export function openCreateProjectGallery(detail: OpenCreateProjectDetail = {}) {
     })
   );
 }
+
+/**
+ * Signal that the set of projects/teams changed (create, rename, archive,
+ * duplicate, delete) so persistent client chrome — chiefly the Sidebar,
+ * which caches its lists and only fetched them once on mount — can refetch
+ * WITHOUT a full page reload. Same window-CustomEvent pattern as above;
+ * fire it right after a successful mutation.
+ */
+export const SIDEBAR_REFRESH_EVENT = "buildsync:sidebar-refresh";
+
+export function notifySidebarRefresh() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(SIDEBAR_REFRESH_EVENT));
+}

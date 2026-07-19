@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { notifySidebarRefresh } from "@/lib/open-create-project";
 import {
   Dialog,
   DialogContent,
@@ -237,6 +238,7 @@ export function CreateProjectDialog({
         });
         if (!response.ok) throw new Error("Failed to update project");
         toast.success("Project updated");
+        notifySidebarRefresh();
         onOpenChange(false);
         onProjectUpdated?.();
       } else {
@@ -249,6 +251,7 @@ export function CreateProjectDialog({
         if (!response.ok) throw new Error("Failed to create project");
         const project = await response.json();
         toast.success(`Project ${project.projectNumber ?? ""} created`.trim());
+        notifySidebarRefresh();
         onOpenChange(false);
         resetForm();
         onProjectCreated?.();
