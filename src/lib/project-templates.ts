@@ -725,82 +725,26 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
 
       // ── Repairs (ONLY if the Building Official requires them) ────
+      // The actual repair DESIGN and CONSTRUCTION are separate engagements
+      // (each with its own proposal/award) tracked as their own project(s),
+      // not modeled here. This branch only carries the checkpoints the
+      // recertification needs to close: repairs done -> re-inspect ->
+      // updated sealed report -> resubmit.
       {
         section: "Repairs (if required)",
-        name: "Repairs branch — do only if repairs are required (delete section otherwise)",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "RFP for repair design",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Engineer submits repair-design proposal",
+        name: "Repairs required — do this section only if the Building Official requires repairs (delete otherwise)",
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
-        name: "Owner approves design proposal",
-        type: "APPROVAL",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Engineer prepares construction documents",
-        customFieldValues: { Responsible: "engineer" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "RFP for construction",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Contractor submits construction proposal",
-        customFieldValues: { Responsible: "contractor" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Owner approves contractor proposal",
-        type: "APPROVAL",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Contractor applies for permit",
-        customFieldValues: { Responsible: "contractor" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Permit approved",
-        type: "APPROVAL",
-        customFieldValues: { Responsible: "building_official" },
-        subtasks: [
-          "If rejected: engineer revises construction documents & resubmit",
-        ],
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Commence construction / repairs",
-        customFieldValues: { Responsible: "contractor" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Repair inspections",
-        customFieldValues: { Responsible: "engineer" },
-        subtasks: [
-          "Contractor requests inspections",
-          "Engineer performs inspections",
-          "Building Official performs inspections",
-        ],
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Repairs complete & permit closed",
+        name: "Repairs designed, permitted & built (separate design / construction project)",
         type: "MILESTONE",
-        customFieldValues: { Responsible: "contractor" },
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Re-inspect completed repairs in CIVNEX",
+        customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Repairs (if required)",
@@ -815,7 +759,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
       {
         section: "Repairs (if required)",
-        name: "Owner resubmits UPDATED reports to Building Official",
+        name: "Owner resubmits updated reports to Building Official",
         customFieldValues: { Responsible: "owner" },
       },
 
@@ -1400,82 +1344,26 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
 
       // ── Repairs (ONLY if the Building Official requires them) ────
+      // The actual repair DESIGN and CONSTRUCTION are separate engagements
+      // (each with its own proposal/award) tracked as their own project(s),
+      // not modeled here. This branch only carries the checkpoints the
+      // recertification needs to close: repairs done -> re-inspect ->
+      // updated sealed report -> resubmit.
       {
         section: "Repairs (if required)",
-        name: "Repairs branch — do only if repairs are required (delete section otherwise)",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "RFP for repair design",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Engineer submits repair-design proposal",
+        name: "Repairs required — do this section only if the Building Official requires repairs (delete otherwise)",
         customFieldValues: { Responsible: "engineer" },
       },
       {
         section: "Repairs (if required)",
-        name: "Owner approves design proposal",
-        type: "APPROVAL",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Engineer prepares construction documents",
-        customFieldValues: { Responsible: "engineer" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "RFP for construction",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Contractor submits construction proposal",
-        customFieldValues: { Responsible: "contractor" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Owner approves contractor proposal",
-        type: "APPROVAL",
-        customFieldValues: { Responsible: "owner" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Contractor applies for permit",
-        customFieldValues: { Responsible: "contractor" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Permit approved",
-        type: "APPROVAL",
-        customFieldValues: { Responsible: "building_official" },
-        subtasks: [
-          "If rejected: engineer revises construction documents & resubmit",
-        ],
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Commence construction / repairs",
-        customFieldValues: { Responsible: "contractor" },
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Repair inspections",
-        customFieldValues: { Responsible: "engineer" },
-        subtasks: [
-          "Contractor requests inspections",
-          "Engineer performs inspections",
-          "Building Official performs inspections",
-        ],
-      },
-      {
-        section: "Repairs (if required)",
-        name: "Repairs complete & permit closed",
+        name: "Repairs designed, permitted & built (separate design / construction project)",
         type: "MILESTONE",
-        customFieldValues: { Responsible: "contractor" },
+        customFieldValues: { Responsible: "owner" },
+      },
+      {
+        section: "Repairs (if required)",
+        name: "Re-inspect completed repairs in CIVNEX",
+        customFieldValues: { Responsible: "inspector" },
       },
       {
         section: "Repairs (if required)",
@@ -1490,7 +1378,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
       },
       {
         section: "Repairs (if required)",
-        name: "Owner resubmits UPDATED reports to Building Official",
+        name: "Owner resubmits updated reports to Building Official",
         customFieldValues: { Responsible: "owner" },
       },
 
