@@ -228,6 +228,40 @@ export function compressionDouble(sec: AngleDouble, mat: Material, ci: CompDoubl
   };
 }
 
+/* ── SHEAR (Ch. G) — single-angle leg shear, G4 + G2.2 Cv2 ────────────── */
+export const PHI_V = 0.9; // G1: φv for angles (Ch. G)
+export interface ShearResult {
+  clause: string;
+  legWidth: number;   // b of the leg resisting shear (in)
+  htw: number;        // b/t slenderness of that leg
+  Cv2: number;        // web-shear coefficient (G2.2)
+  Aw: number;         // shear area (in²), ×2 for double angles
+  Vn: number;         // nominal shear (kips)
+  phiVn: number;      // design shear φv·Vn (kips)
+}
+/**
+ * AISC 360-16 §G4: Vn = 0.6·Fy·b·t·Cv2 with kv = 1.2 and h/tw = b/t, where b is
+ * the width of the leg resisting shear. Cv2 per §G2.2 (G2-9…G2-11). Double angles
+ * take two resisting legs (×2). φv = 0.90.
+ */
+export function shear(sec: AngleSingle | AngleDouble, mat: Material): ShearResult {
+  const isDouble = sec.family === '2L';
+  const tLeg = isDouble ? ((sec as AngleDouble).tSingle ?? sec.t) : sec.t;
+  const b = Math.max(sec.d, sec.b);           // deeper leg lies in the shear plane
+  const kv = 1.2;
+  const htw = b / tLeg;
+  const c1 = 1.10 * Math.sqrt((kv * E) / mat.Fy);
+  const c2 = 1.37 * Math.sqrt((kv * E) / mat.Fy);
+  let Cv2: number;
+  if (htw <= c1) Cv2 = 1.0;                                   // G2-9
+  else if (htw <= c2) Cv2 = c1 / htw;                         // G2-10
+  else Cv2 = (1.51 * kv * E) / (htw * htw * mat.Fy);          // G2-11
+  const nLeg = isDouble ? 2 : 1;
+  const Aw = b * tLeg * nLeg;
+  const Vn = 0.6 * mat.Fy * Aw * Cv2;
+  return { clause: 'G4', legWidth: b, htw, Cv2, Aw, Vn, phiVn: PHI_V * Vn };
+}
+
 /* ── FLEXURE — SINGLE angle (F10) ─────────────────────────────────────── */
 export type BendAxis = 'geometric' | 'principal-w' | 'principal-z';
 export interface FlexSingleInputs {
