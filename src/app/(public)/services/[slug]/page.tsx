@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { company, services, serviceBySlug } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
+import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 
 type Params = { slug: string };
@@ -227,10 +228,16 @@ export default async function ServiceDetailPage({
         </div>
       </section>
 
+      {/* ── Toolchain, only where it is actually the subject ── */}
+      {service.slug === 'bim-coordination' ? <SoftwareBand n="05" /> : null}
+
       {/* ── Related ── */}
       <section className="mp-section mp-surface--concrete">
         <div className="mp-shell">
-          <SectionHeading n="05" label="Related expertise" />
+          <SectionHeading
+            n={service.slug === 'bim-coordination' ? '06' : '05'}
+            label="Related expertise"
+          />
           <div className="mp-more">
             {related.map((r) => (
               <Link key={r.slug} href={`/services/${r.slug}`}>
@@ -245,7 +252,7 @@ export default async function ServiceDetailPage({
         </div>
       </section>
 
-      <ContactCTA n="06" />
+      <ContactCTA n={service.slug === 'bim-coordination' ? '07' : '06'} />
     </>
   );
 }

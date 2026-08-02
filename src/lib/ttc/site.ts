@@ -36,10 +36,20 @@ export const company = {
     line2: 'We protect existing ones.',
     body: 'Tercero Tablada provides structural engineering, building evaluation and BIM coordination for new and existing buildings throughout South Florida.',
   },
+  /**
+   * Two real brand assets, both supplied by the client — never redraw either.
+   *   lockup* = full horizontal signature (TT monogram + wordmark + tagline).
+   *             This is the primary mark; use it wherever there is width.
+   *   mark*   = monogram only, for tight spots (favicons, small chips).
+   * The `dark` variants are for LIGHT backgrounds and the `light` variants
+   * are white, for DARK backgrounds only.
+   */
   logo: {
-    /** Dark + gold monogram — for LIGHT backgrounds. Also the schema.org logo. */
+    lockupDark: '/ttc/img/logo-horizontal.png',
+    lockupLight: '/ttc/img/logo-white-wide.png',
+    /** Intrinsic size of both lockups, for correct aspect + no layout shift. */
+    lockupSize: { w: 2172, h: 827 },
     dark: '/ttc/img/logo-square.png',
-    /** White monogram — for DARK backgrounds only. */
     light: '/ttc/img/logo-white.png',
   },
 } as const;
@@ -737,6 +747,21 @@ export const contactServiceOptions = [
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   IMAGERY
+   ═══════════════════════════════════════════════════════════════════════════
+   Licensed stock architecture used as texture and atmosphere only. Credits
+   live in public/ttc/img/IMAGE-CREDITS.md. Nothing here is presented as a
+   Tercero Tablada project — see the rules at the top of this file.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export const imagery = {
+  hero: {
+    src: '/ttc/img/hero-bg.jpg',
+    alt: '',
+  },
+} as const;
+
+/* ═══════════════════════════════════════════════════════════════════════════
    THE TWO PATHS — new structures vs. existing buildings
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -749,6 +774,13 @@ export type Path = {
   capabilities: string[];
   cta: { href: string; label: string };
   art: 'new' | 'existing';
+  /**
+   * Architectural photography used as MATERIAL, not as portfolio. These are
+   * licensed stock crops (see public/ttc/img/IMAGE-CREDITS.md) shown behind
+   * the technical line-art — they are never captioned as the firm's work.
+   * Swap for real project photography when it exists.
+   */
+  photo: { src: string; alt: string };
 };
 
 export const paths: Path[] = [
@@ -769,6 +801,10 @@ export const paths: Path[] = [
     ],
     cta: { href: '/services', label: 'Explore design services' },
     art: 'new',
+    photo: {
+      src: '/ttc/img/projects/project-02.jpg',
+      alt: 'Glass curtain wall meeting a cast concrete mass, seen from below',
+    },
   },
   {
     n: '02',
@@ -787,6 +823,10 @@ export const paths: Path[] = [
     ],
     cta: { href: '/existing-buildings', label: 'Explore existing-building services' },
     art: 'existing',
+    photo: {
+      src: '/ttc/img/projects/project-01.jpg',
+      alt: 'Reinforced-concrete residential towers in service',
+    },
   },
 ];
 
@@ -814,6 +854,29 @@ export const bim = {
 } as const;
 
 export type BimLayerId = (typeof bim.layers)[number]['id'];
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SOFTWARE & OPEN STANDARDS
+   ═══════════════════════════════════════════════════════════════════════════
+   Third-party brand marks, used nominatively to say which tools the practice
+   works in. Only list software actually in use, and keep the logo files as
+   supplied — never recolour or redraw someone else's mark.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export const software = {
+  eyebrow: 'Software & open standards',
+  title: 'The model has to survive the hand-off.',
+  body: 'We work in the tools the rest of the project team already uses, and exchange through open formats so the model does not become a dead end when it leaves our office.',
+  items: [
+    { name: 'Revit', role: 'Structural modelling', logo: '/ttc/img/software/revit.svg' },
+    { name: 'Navisworks', role: 'Clash detection', logo: '/ttc/img/software/navisworks.png' },
+    { name: 'Autodesk', role: 'Platform', logo: '/ttc/img/software/autodesk.svg' },
+    { name: 'CYPE', role: 'Structural analysis', logo: '/ttc/img/software/cype.png' },
+    { name: 'BCF', role: 'Issue exchange', logo: '/ttc/img/software/bcf.svg' },
+    { name: 'buildingSMART', role: 'IFC / openBIM', logo: '/ttc/img/software/buildingsmart.png' },
+  ],
+  note: 'Product names and logos are the property of their respective owners and are shown to identify the software used in our workflow.',
+} as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PROCESSES

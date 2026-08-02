@@ -4,6 +4,7 @@ import { StatementSection } from '@/components/ttc/mp/StatementSection';
 import { TwoPaths } from '@/components/ttc/mp/TwoPaths';
 import { CoreExpertise } from '@/components/ttc/mp/CoreExpertise';
 import { BIMExperience } from '@/components/ttc/mp/BIMExperience';
+import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
 import { SelectedExperience } from '@/components/ttc/mp/SelectedExperience';
 import { ProcessTimeline } from '@/components/ttc/mp/ProcessTimeline';
 import { EngineeringProcess } from '@/components/ttc/mp/EngineeringProcess';
@@ -35,13 +36,14 @@ export default function HomePage() {
       <TwoPaths />
       <CoreExpertise />
       <BIMExperience />
-      <SelectedExperience n="05" limit={4} />
-      <ProcessTimeline />
-      <EngineeringProcess n="07" />
-      <CredentialsBar n="08" />
-      <LeadershipProfile n="09" />
-      <SouthFloridaMap n="10" />
-      <ContactCTA n="11" />
+      <SoftwareBand n="05" />
+      <SelectedExperience n="06" limit={6} />
+      <ProcessTimeline n="07" />
+      <EngineeringProcess n="08" />
+      <CredentialsBar n="09" />
+      <LeadershipProfile n="10" />
+      <SouthFloridaMap n="11" />
+      <ContactCTA n="12" />
     </>
   );
 }

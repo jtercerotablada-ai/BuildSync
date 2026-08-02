@@ -149,6 +149,120 @@ body:has(.mp)::before {
   display: none;
 }
 
+/* ── Large displays ───────────────────────────────────────────────────────
+   Below ~1500px the fluid clamps are still climbing, so laptops are already
+   handled. Past that every clamp has hit its ceiling: the container stops at
+   1440 and the type stops growing, so on a 1920 or 2560 monitor the whole
+   site collapses into a narrow column floating in the middle of the screen.
+   These steps re-open the ceiling — container, gutters, type and section
+   rhythm all scale together, so the page keeps the same proportions instead
+   of just gaining empty margins.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (min-width: 1500px) {
+  .mp {
+    --mp-w: 1660px;
+    --mp-w-wide: 1820px;
+    --mp-w-narrow: 1320px;
+    --mp-pad: clamp(3.5rem, 4.4vw, 6rem);
+
+    --mp-t-display: clamp(6.25rem, 5.6vw, 8rem);
+    --mp-t-h1: clamp(4.5rem, 4.2vw, 6rem);
+    --mp-t-h2: clamp(3.4rem, 3.2vw, 4.5rem);
+    --mp-t-h3: clamp(1.75rem, 1.55vw, 2.25rem);
+    --mp-t-h4: clamp(1.25rem, 1.05vw, 1.5rem);
+    --mp-t-lead: clamp(1.3125rem, 1.05vw, 1.5rem);
+    --mp-t-body: clamp(1.0625rem, 0.86vw, 1.1875rem);
+    --mp-t-small: clamp(0.875rem, 0.72vw, 1rem);
+    --mp-t-label: clamp(0.6875rem, 0.56vw, 0.8125rem);
+
+    --mp-section-y: clamp(8.5rem, 6.6vw, 11rem);
+    --mp-section-y-lg: clamp(11rem, 8.4vw, 14rem);
+    --mp-header-h: 100px;
+  }
+  .mp-header__lockup {
+    height: clamp(58px, 3.4vw, 68px);
+  }
+  .mp-tool__plate {
+    --plate-h: clamp(46px, 3vw, 58px);
+  }
+
+  /* Section headlines carry their own clamps — re-open those too. */
+  .mp-statement__title {
+    font-size: clamp(5.25rem, 4.8vw, 7rem);
+  }
+  .mp-close__title {
+    font-size: clamp(4.75rem, 4.4vw, 6.5rem);
+  }
+  .mp-path__title {
+    font-size: clamp(2.5rem, 2.3vw, 3.25rem);
+  }
+  .mp-bim__title {
+    font-size: clamp(3rem, 2.8vw, 4rem);
+  }
+  .mp-lead__title {
+    font-size: clamp(2.9rem, 2.7vw, 3.9rem);
+  }
+  .mp-service__title {
+    font-size: clamp(2rem, 1.85vw, 2.6rem);
+  }
+  .mp-statement__title,
+  .mp-hero__title,
+  .mp-close__title {
+    letter-spacing: -0.038em;
+  }
+
+  /* More columns once there is room, instead of wider and wider cards. */
+  .mp-work,
+  .mp-svcgrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .mp-work__item:nth-child(2n),
+  .mp-svccard:nth-child(2n) {
+    border-inline-end: 1px solid var(--mp-line);
+  }
+  .mp-work__item:nth-child(3n),
+  .mp-svccard:nth-child(3n) {
+    border-inline-end: 0;
+  }
+  .mp-stages {
+    grid-auto-columns: minmax(0, 1fr);
+    overflow-x: visible;
+  }
+  .mp-stages__hint {
+    display: none;
+  }
+  .mp-creds {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .mp-cred:nth-child(3n) {
+    border-inline-end: 1px solid var(--mp-line);
+  }
+  .mp-cred:nth-child(6n) {
+    border-inline-end: 0;
+  }
+  .mp-hero__art svg {
+    max-height: min(70svh, 780px);
+  }
+}
+
+@media (min-width: 2000px) {
+  .mp {
+    --mp-w: 1880px;
+    --mp-w-wide: 2040px;
+    --mp-pad: 6.5rem;
+    --mp-t-display: 8.75rem;
+    --mp-t-h1: 6.5rem;
+    --mp-section-y: 12rem;
+    --mp-section-y-lg: 15rem;
+  }
+  .mp-statement__title {
+    font-size: 7.75rem;
+  }
+  .mp-close__title {
+    font-size: 7rem;
+  }
+}
+
 /* ═══ 01 · BASE & PRIMITIVES ══════════════════════════════════════════════ */
 
 .mp :where(h1, h2, h3, h4) {
@@ -642,40 +756,23 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
 .mp-header__logo {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
   text-decoration: none;
   color: inherit;
   flex: none;
 }
-.mp-header__mark {
-  width: 34px;
-  height: 34px;
+/* The lockup is a 2172×827 bitmap; height drives it and width follows the
+   intrinsic ratio, so it never distorts and reserves its box before load. */
+.mp-header__lockup {
+  height: clamp(34px, 3.8vw, 58px);
+  width: auto;
   object-fit: contain;
   flex: none;
 }
-.mp-header__mark--dark {
+.mp-header__lockup--dark {
   display: var(--hdr-mark-dark);
 }
-.mp-header__mark--light {
+.mp-header__lockup--light {
   display: var(--hdr-mark-light);
-}
-.mp-header__wordmark {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-}
-.mp-header__name {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-.mp-header__sub {
-  font-family: var(--mp-mono);
-  font-size: 0.5625rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: currentColor;
-  opacity: 0.62;
 }
 
 .mp-header__nav {
@@ -866,21 +963,12 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
   border-block-end: 1px solid var(--mp-line-dark);
 }
 .mp-footer__brand-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
   margin-block-end: var(--mp-6);
 }
 .mp-footer__brand-logo img {
-  width: 38px;
-  height: 38px;
+  width: auto;
+  height: clamp(48px, 5vw, 68px);
   object-fit: contain;
-}
-.mp-footer__brand-name {
-  font-size: 1.0625rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
 }
 .mp-footer__tag {
   color: var(--mp-snow-2);
@@ -979,6 +1067,45 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
     ),
     linear-gradient(180deg, #121416 0%, #0b0c0d 62%, #0b0c0d 100%);
 }
+/* Architectural crop occupying the right of the hero, desaturated and faded
+   into the graphite from both edges so the headline column stays pure and
+   the drawing reads on top of it. Sits under the technical grid. */
+.mp-hero__photo {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: min(62%, 1200px);
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mp-hero__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 30%;
+  filter: grayscale(1) contrast(1.1) brightness(0.4);
+  opacity: 0.44;
+  mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      #000 46%,
+      #000 88%,
+      transparent 100%
+    ),
+    linear-gradient(to bottom, transparent 0%, #000 24%, #000 72%, transparent 100%);
+  -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0%,
+      #000 46%,
+      #000 88%,
+      transparent 100%
+    ),
+    linear-gradient(to bottom, transparent 0%, #000 24%, #000 72%, transparent 100%);
+  mask-composite: intersect;
+  -webkit-mask-composite: source-in;
+}
+
 .mp-hero__grid {
   position: absolute;
   inset: 0;
@@ -1232,17 +1359,56 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
   color: var(--mp-gold-ink);
 }
 .mp-path__art {
+  position: relative;
   margin-block: var(--mp-6);
   aspect-ratio: 16 / 9;
+  border: 1px solid var(--mp-line);
+  background: var(--mp-graphite);
+  overflow: hidden;
+  isolation: isolate;
+}
+.mp-path__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.05) brightness(0.62);
+  transform: scale(1.02);
+  transition: transform var(--mp-dur-slow) var(--mp-ease),
+    filter var(--mp-dur-slow) var(--mp-ease);
+}
+.mp-path:hover .mp-path__photo {
+  transform: scale(1.05);
+  filter: grayscale(0.75) contrast(1.05) brightness(0.66);
+}
+/* Scrim between photo and drawing. Without it a bright sky washes the white
+   line-art out, so the two panels read at different strengths. */
+.mp-path__art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(11, 12, 13, 0.58) 0%,
+    rgba(11, 12, 13, 0.42) 45%,
+    rgba(11, 12, 13, 0.72) 100%
+  );
+  pointer-events: none;
+}
+/* The line-art reads as a drawing laid over the built thing. */
+.mp-path__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--mp-line);
-  background: rgba(11, 12, 13, 0.015);
-  color: var(--mp-ink-2);
-  overflow: hidden;
+  color: var(--mp-snow);
+  opacity: 0.94;
 }
-.mp-path__art svg {
+.mp-path__overlay svg {
   width: 100%;
   height: 100%;
 }
@@ -1550,6 +1716,78 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--mp-snow-3);
+}
+
+/* ── Software & open standards ───────────────────────────────────────────── */
+.mp-tools {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  list-style: none;
+  margin: var(--mp-12) 0 0;
+  padding: 0;
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-tool {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  padding: var(--mp-6) var(--mp-3);
+  border-inline-end: 1px solid var(--mp-line);
+  border-block-end: 1px solid var(--mp-line);
+  text-align: center;
+}
+.mp-tool:last-child {
+  border-inline-end: 0;
+}
+.mp-tool__plate {
+  --plate-h: clamp(34px, 3.4vw, 46px);
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: var(--plate-h);
+}
+/* Explicit px caps, not percentages: a percentage max-height against a grid
+   area let the square PNGs (160×160) size from width alone and spill over
+   the labels below. */
+.mp-tool__plate img {
+  max-width: min(100%, 130px);
+  max-height: var(--plate-h);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  /* Several marks ship on an opaque white plate; multiply drops it into the
+     concrete band without touching the artwork itself. */
+  mix-blend-mode: multiply;
+  /* Desaturated so six unrelated brand palettes read as one band; the mark
+     itself is never altered, only filtered, and hover restores it. */
+  filter: grayscale(1) contrast(0.92);
+  opacity: 0.62;
+  transition: filter var(--mp-dur-slow) var(--mp-ease),
+    opacity var(--mp-dur-slow) var(--mp-ease);
+}
+.mp-tool:hover .mp-tool__plate img {
+  filter: none;
+  opacity: 1;
+}
+.mp-tool__name {
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--mp-ink);
+}
+.mp-tool__role {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--mp-ink-3);
+}
+.mp-tools__note {
+  margin-block-start: var(--mp-6);
+  font-size: 0.6875rem;
+  line-height: 1.7;
+  color: var(--mp-ink-3);
+  max-width: 78ch;
 }
 
 /* ═══ 11 · SELECTED EXPERIENCE ════════════════════════════════════════════ */
@@ -2793,6 +3031,24 @@ a.mp-info__value:hover {
     order: -1;
     max-height: 34svh;
   }
+  .mp-hero__photo {
+    width: 100%;
+  }
+  .mp-hero__photo img {
+    opacity: 0.34;
+    mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 46%,
+      transparent 86%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 0%,
+      #000 46%,
+      transparent 86%
+    );
+  }
   .mp-hero__art svg {
     max-height: 34svh;
   }
@@ -2816,6 +3072,12 @@ a.mp-info__value:hover {
   }
   .mp-work__item:nth-child(2n),
   .mp-svccard:nth-child(2n) {
+    border-inline-end: 0;
+  }
+  .mp-tools {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .mp-tool:nth-child(3n) {
     border-inline-end: 0;
   }
   .mp-step {
@@ -2863,6 +3125,12 @@ a.mp-info__value:hover {
   .mp-cred {
     border-inline-end: 0 !important;
   }
+  .mp-tools {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mp-tool:nth-child(2n) {
+    border-inline-end: 0;
+  }
   .mp-footer__cols {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--mp-8);
@@ -2896,8 +3164,8 @@ a.mp-info__value:hover {
   .mp {
     --mp-pad: 1rem;
   }
-  .mp-header__sub {
-    display: none;
+  .mp-header__lockup {
+    height: 26px;
   }
 }
 

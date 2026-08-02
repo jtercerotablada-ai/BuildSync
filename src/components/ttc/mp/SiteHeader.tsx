@@ -146,28 +146,26 @@ export function SiteHeader() {
             className="mp-header__logo"
             aria-label={`${company.name} — home`}
           >
+            {/* The real horizontal lockup already contains the wordmark and
+                the tagline — do not pair the monogram with typed text. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={company.logo.dark}
+              src={company.logo.lockupDark}
               alt=""
-              width={34}
-              height={34}
-              className="mp-header__mark mp-header__mark--dark"
+              width={company.logo.lockupSize.w}
+              height={company.logo.lockupSize.h}
+              className="mp-header__lockup mp-header__lockup--dark"
               aria-hidden="true"
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={company.logo.light}
+              src={company.logo.lockupLight}
               alt=""
-              width={34}
-              height={34}
-              className="mp-header__mark mp-header__mark--light"
+              width={company.logo.lockupSize.w}
+              height={company.logo.lockupSize.h}
+              className="mp-header__lockup mp-header__lockup--light"
               aria-hidden="true"
             />
-            <span className="mp-header__wordmark">
-              <span className="mp-header__name">{company.name}</span>
-              <span className="mp-header__sub">{company.discipline}</span>
-            </span>
           </Link>
 
           <nav className="mp-header__nav" aria-label="Primary">

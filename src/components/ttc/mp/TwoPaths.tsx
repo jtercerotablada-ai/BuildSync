@@ -47,8 +47,23 @@ export function TwoPaths() {
                 </h3>
               </div>
 
+              {/* Photograph carries the material; the line-art sits on top as
+                  the engineering read of it. The image is decorative — the
+                  panel's meaning is in the heading and the list. */}
               <div className="mp-path__art">
-                <PathArt kind={p.art} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  className="mp-path__photo"
+                  src={p.photo.src}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  width={1800}
+                  height={1200}
+                />
+                <span className="mp-path__overlay" aria-hidden="true">
+                  <PathArt kind={p.art} />
+                </span>
               </div>
 
               <p className="mp-path__lede">{p.lede}</p>

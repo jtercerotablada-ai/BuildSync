@@ -10,6 +10,7 @@ import {
   Reveal,
 } from './primitives';
 import { HERO_GEOMETRY } from './art';
+import { imagery } from '@/lib/ttc/site';
 
 const CAPABILITIES = [
   'Reinforced concrete',
@@ -29,6 +30,19 @@ export function Hero() {
   return (
     <section className="mp-hero mp-surface--graphite" aria-labelledby="mp-hero-title">
       <div className="mp-hero__bg" aria-hidden="true" />
+      {/* Architectural crop, heavily treated — it gives the graphite band a
+          material to be made of. Decorative: nothing depends on seeing it. */}
+      <div className="mp-hero__photo" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imagery.hero.src}
+          alt=""
+          fetchPriority="low"
+          decoding="async"
+          width={1920}
+          height={2400}
+        />
+      </div>
       <motion.div
         className="mp-hero__grid"
         aria-hidden="true"

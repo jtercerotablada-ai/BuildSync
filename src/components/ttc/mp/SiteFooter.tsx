@@ -19,22 +19,11 @@ export function SiteFooter() {
             <div className="mp-footer__brand-logo">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={company.logo.light}
-                alt=""
-                width={38}
-                height={38}
-                aria-hidden="true"
+                src={company.logo.lockupLight}
+                alt={company.legalName}
+                width={company.logo.lockupSize.w}
+                height={company.logo.lockupSize.h}
               />
-              <span className="mp-footer__brand-name">
-                {company.name}
-                <br />
-                <span
-                  className="mp-mono"
-                  style={{ fontSize: '0.5625rem', opacity: 0.7 }}
-                >
-                  {company.discipline}
-                </span>
-              </span>
             </div>
             <p className="mp-footer__tag">{company.positioning.body}</p>
           </div>
