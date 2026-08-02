@@ -78,6 +78,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/maintenance", request.url));
   }
 
+  // Retired /v2 preview routes → permanent redirect to the real public pages.
+  // The editorial redesign now lives on /, /services, /about, /contact, /projects.
+  if (pathname === "/v2" || pathname.startsWith("/v2/")) {
+    const dest = pathname === "/v2" ? "/" : pathname.slice(3);
+    return NextResponse.redirect(new URL(dest, request.url), 308);
+  }
+
   // Skip public routes
   if (isPublicRoute(pathname)) {
     return NextResponse.next();
