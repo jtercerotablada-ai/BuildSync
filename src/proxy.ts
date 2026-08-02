@@ -14,7 +14,6 @@ const publicPrefixes = [
   "/api/contact",
   "/resources",
   "/api/load-gen",
-  "/v2/",
 ];
 
 // TTC public pages (marketing / informational) - no auth required
@@ -26,7 +25,6 @@ const publicExactRoutes = [
   "/contact",
   "/logo-styles",
   "/hero-poc",
-  "/v2",
 ];
 
 function isPublicRoute(pathname: string): boolean {

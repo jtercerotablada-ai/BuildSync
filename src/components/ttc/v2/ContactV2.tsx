@@ -335,7 +335,7 @@ export default function ContactV2() {
 
                 <Link
                   className="v2-btn v2-btn--line v2-info__services-link"
-                  href="/v2/services"
+                  href="/services"
                 >
                   See what we do <i>→</i>
                 </Link>

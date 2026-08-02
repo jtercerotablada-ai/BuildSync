@@ -178,7 +178,7 @@ export function AboutV2() {
           <Reveal delay={0.12} className="v2-cta__row">
             <p>Tell us about the project. We&apos;ll scope the structural work and start the analysis —
               coordinated in BIM and stamped by a Registered P.E.</p>
-            <Link href="/v2/contact" className="v2-btn v2-btn--solid v2-btn--lg"><span>Request a Consultation</span><i>→</i></Link>
+            <Link href="/contact" className="v2-btn v2-btn--solid v2-btn--lg"><span>Request a Consultation</span><i>→</i></Link>
           </Reveal>
         </div>
       </section>

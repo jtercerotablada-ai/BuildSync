@@ -414,7 +414,7 @@ export default function ServicesV2() {
               permit-ready, P.E.-stamped documentation — reinforced concrete, recertification or independent review.
               Miami-Dade &amp; Broward, FL · info@tercerotablada.com
             </p>
-            <Link href="/v2/contact" className="v2-btn v2-btn--solid v2-btn--lg"><span>Request a Consultation</span><i>→</i></Link>
+            <Link href="/contact" className="v2-btn v2-btn--solid v2-btn--lg"><span>Request a Consultation</span><i>→</i></Link>
           </Reveal>
         </div>
       </section>

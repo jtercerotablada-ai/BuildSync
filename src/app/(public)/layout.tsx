@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import { Playfair_Display, Inter } from 'next/font/google';
+import { Playfair_Display, Inter, Bricolage_Grotesque, IBM_Plex_Mono } from 'next/font/google';
 import { LanguageProvider } from '@/components/ttc/language-provider';
-import { TTCHeader } from '@/components/ttc/ttc-header';
-import { TTCFooter } from '@/components/ttc/ttc-footer';
-import { FxElements } from '@/components/ttc/fx-elements';
+import { V2Chrome } from '@/components/ttc/v2/V2Chrome';
 import { SmoothScroll } from '@/components/ttc/smooth-scroll';
 import 'leaflet/dist/leaflet.css';
 import './ttc-globals.css';
@@ -25,13 +23,28 @@ const inter = Inter({
   weight: ['300', '400', '500', '600', '700', '800', '900'],
 });
 
+// v2 editorial type system — display + technical mono
+const v2display = Bricolage_Grotesque({
+  subsets: ['latin'],
+  variable: '--v2-display',
+  weight: ['400', '500', '600', '700', '800'],
+  display: 'swap',
+});
+
+const v2mono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  variable: '--v2-mono',
+  weight: ['400', '500', '600'],
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: {
     default: 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.',
     template: '%s · Tercero Tablada',
   },
   description:
-    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Structural engineering firm. Reinforced-concrete building design (ACI 318 / Florida Building Code) — foundations, columns, beams, slabs and shear walls. Permit-ready, stamped by a Registered P.E.',
+    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Structural engineering firm led by a Registered P.E. Reinforced-concrete building design (ACI 318 / Florida Building Code), full structural analysis, BIM coordination, 40-Year & milestone recertification, building-safety inspection and independent peer review. Permit-ready, P.E.-stamped across Miami-Dade & Broward.',
   metadataBase: new URL('https://ttcivilstructural.com'),
   openGraph: {
     siteName: 'Tercero Tablada',
@@ -51,10 +64,10 @@ const organizationSchema = {
   name: 'Tercero Tablada Civil & Structural Engineering Inc.',
   alternateName: 'Tercero Tablada',
   url: 'https://ttcivilstructural.com',
-  logo: 'https://ttcivilstructural.com/ttc/img/logo-white.png',
+  logo: 'https://ttcivilstructural.com/ttc/img/logo-square.png',
   email: 'info@tercerotablada.com',
   description:
-    'Structural engineering firm. Registered P.E. Specializes in the structural design of reinforced-concrete buildings (ACI 318 / Florida Building Code) — foundations, columns, beams, slabs and shear walls, delivered permit-ready and P.E.-stamped.',
+    'Structural engineering firm led by a Registered P.E. Reinforced-concrete building design (ACI 318 / Florida Building Code) — foundations, columns, beams, slabs and shear walls — plus full structural analysis, BIM coordination, 40-Year and milestone recertification, building-safety inspection and independent structural peer review. Delivered permit-ready and P.E.-stamped across Miami-Dade & Broward.',
   knowsAbout: [
     'Reinforced Concrete Design',
     'Structural Engineering',
@@ -65,6 +78,14 @@ const organizationSchema = {
     'Columns and Beams',
     'Concrete Slabs',
     'Shear Walls',
+    'Structural Analysis',
+    'ASCE 7 Wind and Seismic Loads',
+    'BIM Coordination',
+    'ISO 19650',
+    'Building Recertification',
+    '40-Year Recertification',
+    'Building-Safety Inspection',
+    'Structural Peer Review',
   ],
   areaServed: [
     'Miami-Dade County, Florida',
@@ -87,6 +108,11 @@ const organizationSchema = {
   ],
   serviceType: [
     'Reinforced Concrete Design',
+    'Structural Design & Analysis',
+    'BIM / Digital Construction',
+    'Building Recertification',
+    'Building-Safety Inspection',
+    'Structural Peer Review',
   ],
 };
 
@@ -96,17 +122,14 @@ export default function PublicLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`${playfair.variable} ${inter.variable}`}>
+    <div className={`v2 ${playfair.variable} ${inter.variable} ${v2display.variable} ${v2mono.variable}`}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
       />
       <LanguageProvider>
         <SmoothScroll />
-        <FxElements />
-        <TTCHeader />
-        <main>{children}</main>
-        <TTCFooter />
+        <V2Chrome>{children}</V2Chrome>
       </LanguageProvider>
     </div>
   );

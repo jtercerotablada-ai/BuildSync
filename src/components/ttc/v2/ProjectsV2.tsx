@@ -223,7 +223,7 @@ export function ProjectsV2() {
           <Reveal delay={0.12} className="v2-cta__row">
             <p>Send the structure, scope and timeline. We&apos;ll respond with an approach, the governing
               codes and a stamped path to permit — across Miami-Dade &amp; Broward.</p>
-            <Link href="/v2/contact" className="v2-btn v2-btn--solid v2-btn--lg"><span>Request a Consultation</span><i>→</i></Link>
+            <Link href="/contact" className="v2-btn v2-btn--solid v2-btn--lg"><span>Request a Consultation</span><i>→</i></Link>
           </Reveal>
         </div>
       </section>
