@@ -85,38 +85,67 @@ function Gauge({ ratio }: { ratio: number }) {
 
 /* dimensioned angle section */
 function AngleSVG({ d, b, t, isDouble, orientation }: { d: number; b: number; t: number; isDouble: boolean; orientation?: string }) {
-  const W = 260, H = 210, pad = 34;
-  const sc = (Math.min(W, H) - 2 * pad) / Math.max(d, b, 1);
-  const INK = 'var(--lux-ink)', FILL = 'rgba(201,168,76,0.10)', GOLD = 'var(--lux-gold)';
-  const Lpath = (ox: number, oy: number, mirror: number) => {
-    const bb = b * sc * mirror, dd = d * sc, tt = t * sc;
-    const pts = [[0, 0], [bb, 0], [bb, tt], [Math.sign(mirror) * tt, tt], [Math.sign(mirror) * tt, dd], [0, dd]];
-    return pts.map((p) => `${(ox + p[0]).toFixed(1)},${(oy - p[1]).toFixed(1)}`).join(' ');
+  const INK = 'var(--lux-ink)', FILL = 'rgba(201,168,76,0.12)', DIM = 'var(--lux-muted)';
+  const W = 300, H = 248, mL = 66, mR = 46, mT = 26, mB = 50;
+  const AH = (x: number, y: number, dir: 'u' | 'd' | 'l' | 'r', k: string) => {
+    const s = 3;
+    const p = dir === 'u' ? `${x},${y} ${x - s},${y + 2.4 * s} ${x + s},${y + 2.4 * s}`
+      : dir === 'd' ? `${x},${y} ${x - s},${y - 2.4 * s} ${x + s},${y - 2.4 * s}`
+      : dir === 'l' ? `${x},${y} ${x + 2.4 * s},${y - s} ${x + 2.4 * s},${y + s}`
+      : `${x},${y} ${x - 2.4 * s},${y - s} ${x - 2.4 * s},${y + s}`;
+    return <polygon key={k} points={p} fill={DIM} />;
   };
-  const baseY = H - pad;
+  const Lpoly = (ox: number, baseY: number, bw: number, dh: number, tt: number, m = 1) =>
+    [[ox, baseY], [ox + m * bw, baseY], [ox + m * bw, baseY - tt],
+      [ox + m * tt, baseY - tt], [ox + m * tt, baseY - dh], [ox, baseY - dh]]
+      .map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+
   if (!isDouble) {
-    const ox = (W - b * sc) / 2;
+    const sc = Math.min((W - mL - mR) / b, (H - mT - mB) / d);
+    const bw = b * sc, dh = d * sc, tt = t * sc, ox = mL, baseY = H - mB;
+    const dimX = ox - 28, dimY = baseY + 28, midY = baseY - dh / 2, midX = ox + bw / 2;
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} className="stl-svg" role="img" aria-label="angle section">
-        <polygon points={Lpath(ox, baseY, 1)} fill={FILL} stroke={INK} strokeWidth={1.4} strokeLinejoin="round" />
-        {/* vertical dim */}
-        <line x1={ox - 12} y1={baseY} x2={ox - 12} y2={baseY - d * sc} stroke={GOLD} strokeWidth={0.7} />
-        <text x={ox - 16} y={baseY - d * sc / 2} textAnchor="middle" className="stl-dim" transform={`rotate(-90 ${ox - 16} ${baseY - d * sc / 2})`}>{fmt(d, 2)}</text>
-        {/* horizontal dim */}
-        <line x1={ox} y1={baseY + 12} x2={ox + b * sc} y2={baseY + 12} stroke={GOLD} strokeWidth={0.7} />
-        <text x={ox + b * sc / 2} y={baseY + 22} textAnchor="middle" className="stl-dim">{fmt(b, 2)}</text>
-        <text x={ox + t * sc + 4} y={baseY - d * sc + 12} className="stl-dim">t = {fmt(t, 3)}</text>
+      <svg viewBox={`0 0 ${W} ${H}`} className="stl-svg" role="img" aria-label="angle section with dimensions">
+        <polygon points={Lpoly(ox, baseY, bw, dh, tt)} fill={FILL} stroke={INK} strokeWidth={1.5} strokeLinejoin="round" />
+        {/* height dimension (vertical leg) */}
+        <line x1={ox} y1={baseY - dh} x2={dimX - 5} y2={baseY - dh} stroke={DIM} strokeWidth={0.5} />
+        <line x1={ox} y1={baseY} x2={dimX - 5} y2={baseY} stroke={DIM} strokeWidth={0.5} />
+        <line x1={dimX} y1={baseY - dh} x2={dimX} y2={baseY} stroke={DIM} strokeWidth={0.7} />
+        {AH(dimX, baseY - dh + 0.4, 'u', 'vu')}{AH(dimX, baseY - 0.4, 'd', 'vd')}
+        <text x={dimX - 7} y={midY} textAnchor="middle" className="stl-dim" transform={`rotate(-90 ${dimX - 7} ${midY})`}>{fmt(d, 2)} in</text>
+        {/* width dimension (horizontal leg) */}
+        <line x1={ox} y1={baseY} x2={ox} y2={dimY + 5} stroke={DIM} strokeWidth={0.5} />
+        <line x1={ox + bw} y1={baseY} x2={ox + bw} y2={dimY + 5} stroke={DIM} strokeWidth={0.5} />
+        <line x1={ox} y1={dimY} x2={ox + bw} y2={dimY} stroke={DIM} strokeWidth={0.7} />
+        {AH(ox + 0.4, dimY, 'l', 'hl')}{AH(ox + bw - 0.4, dimY, 'r', 'hr')}
+        <text x={midX} y={dimY + 13} textAnchor="middle" className="stl-dim">{fmt(b, 2)} in</text>
+        {/* thickness callout */}
+        <line x1={ox + tt} y1={baseY - tt} x2={ox + tt + 12} y2={baseY - tt - 12} stroke={DIM} strokeWidth={0.5} />
+        <text x={ox + tt + 15} y={baseY - tt - 13} className="stl-dim" dominantBaseline="middle">t = {fmt(t, 3)} in</text>
       </svg>
     );
   }
-  const cx = W / 2, gap = 9;
+
+  // double angle — back-to-back, dimensioned
+  const sc = Math.min((W - mL - mR) / (2 * b), (H - mT - mB) / d);
+  const bw = b * sc, dh = d * sc, tt = t * sc, gapPx = 8, cx = W / 2, baseY = H - mB;
+  const rOx = cx + gapPx / 2, leftMost = cx - gapPx / 2 - bw;
+  const dimX = leftMost - 26, midY = baseY - dh / 2;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="stl-svg" role="img" aria-label="double angle section">
-      <polygon points={Lpath(cx - gap, baseY, -1)} fill={FILL} stroke={INK} strokeWidth={1.3} strokeLinejoin="round" />
-      <polygon points={Lpath(cx + gap, baseY, 1)} fill={FILL} stroke={INK} strokeWidth={1.3} strokeLinejoin="round" />
-      <line x1={cx} y1={pad} x2={cx} y2={baseY} stroke={GOLD} strokeWidth={0.7} strokeDasharray="4 3" />
-      <line x1={cx - b * sc - gap} y1={baseY + 12} x2={cx + b * sc + gap} y2={baseY + 12} stroke={GOLD} strokeWidth={0.7} />
-      <text x={cx} y={baseY + 22} textAnchor="middle" className="stl-dim">2L {fmt(d, 0)}×{fmt(b, 0)}×{fmt(t, 3)} {orientation && orientation !== 'equal' ? orientation : ''}</text>
+    <svg viewBox={`0 0 ${W} ${H}`} className="stl-svg" role="img" aria-label="double angle section with dimensions">
+      <polygon points={Lpoly(rOx, baseY, bw, dh, tt, 1)} fill={FILL} stroke={INK} strokeWidth={1.4} strokeLinejoin="round" />
+      <polygon points={Lpoly(cx - gapPx / 2, baseY, bw, dh, tt, -1)} fill={FILL} stroke={INK} strokeWidth={1.4} strokeLinejoin="round" />
+      <line x1={cx} y1={mT} x2={cx} y2={baseY + 6} stroke={DIM} strokeWidth={0.6} strokeDasharray="4 3" />
+      {/* height dimension */}
+      <line x1={leftMost} y1={baseY - dh} x2={dimX - 5} y2={baseY - dh} stroke={DIM} strokeWidth={0.5} />
+      <line x1={leftMost} y1={baseY} x2={dimX - 5} y2={baseY} stroke={DIM} strokeWidth={0.5} />
+      <line x1={dimX} y1={baseY - dh} x2={dimX} y2={baseY} stroke={DIM} strokeWidth={0.7} />
+      {AH(dimX, baseY - dh + 0.4, 'u', 'du')}{AH(dimX, baseY - 0.4, 'd', 'dd')}
+      <text x={dimX - 7} y={midY} textAnchor="middle" className="stl-dim" transform={`rotate(-90 ${dimX - 7} ${midY})`}>{fmt(d, 2)} in</text>
+      {/* thickness callout */}
+      <line x1={rOx + tt} y1={baseY - tt} x2={rOx + tt + 12} y2={baseY - tt - 12} stroke={DIM} strokeWidth={0.5} />
+      <text x={rOx + tt + 15} y={baseY - tt - 13} className="stl-dim" dominantBaseline="middle">t = {fmt(t, 3)} in</text>
+      <text x={cx} y={baseY + 30} textAnchor="middle" className="stl-dim">2L {fmt(d, 0)}×{fmt(b, 0)}×{fmt(t, 3)}{orientation && orientation !== 'equal' ? ` ${orientation}` : ''}</text>
     </svg>
   );
 }
@@ -309,7 +338,7 @@ export function AngleDesignCalculator() {
               <>
                 <div className="stl-field"><label htmlFor="ang-search">Shape filter</label><input id="ang-search" type="search" placeholder="e.g. L4X4 or L6X4" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
                 <div className="stl-field"><label htmlFor="ang-des">Shape — AISC ({sList.length})</label>
-                  <select id="ang-des" size={6} value={single.designation} onChange={(e) => setSDesig(e.target.value)} className="stl-listbox">
+                  <select id="ang-des" size={6} value={single.designation} onChange={(e) => setSDesig(e.target.value)} className="stl-listbox" data-lenis-prevent>
                     {sList.slice(0, 400).map((e) => <option key={e.designation} value={e.designation}>{e.designation}</option>)}
                   </select>
                 </div>
@@ -317,7 +346,7 @@ export function AngleDesignCalculator() {
             ) : (
               <>
                 <div className="stl-field"><label htmlFor="ang-base">Base angle</label>
-                  <select id="ang-base" size={5} value={baseDesig} onChange={(e) => setBaseDesig(e.target.value)} className="stl-listbox">
+                  <select id="ang-base" size={5} value={baseDesig} onChange={(e) => setBaseDesig(e.target.value)} className="stl-listbox" data-lenis-prevent>
                     {BASES.map((b) => <option key={b.designation} value={b.designation}>{b.designation}</option>)}
                   </select>
                 </div>
