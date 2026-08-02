@@ -1,6 +1,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { legal, primaryNav } from "@/lib/ttc/site";
 
 // Public routes that don't require authentication
 const publicPrefixes = [
@@ -14,18 +15,32 @@ const publicPrefixes = [
   "/api/contact",
   "/resources",
   "/api/load-gen",
+  // Marketing: /services and every /services/<slug> detail page.
+  // Safe as a prefix — the authenticated app has no /services route.
+  "/services",
 ];
 
-// TTC public pages (marketing / informational) - no auth required
-const publicExactRoutes = [
-  "/",
-  "/projects",
-  "/services",
-  "/about",
-  "/contact",
-  "/logo-styles",
-  "/hero-poc",
-];
+// TTC public pages (marketing / informational) - no auth required.
+//
+// Derived from the site config so that adding a page to the marketing nav or
+// footer can never leave it stranded behind the login redirect. Anything not
+// covered by the nav is listed explicitly below.
+//
+// NOTE: /projects must stay an EXACT match. The authenticated app owns
+// /projects/all, /projects/new and /projects/[id]; only the marketing index
+// itself is public.
+const publicExactRoutes = Array.from(
+  new Set<string>([
+    "/",
+    "/projects",
+    "/about",
+    "/contact",
+    "/existing-buildings",
+    "/logo-styles",
+    ...primaryNav.map((item) => item.href),
+    ...legal.links.map((link) => link.href),
+  ]),
+).filter((href) => href !== "/projects/all" && href !== "/projects/new");
 
 function isPublicRoute(pathname: string): boolean {
   if (publicExactRoutes.includes(pathname)) {

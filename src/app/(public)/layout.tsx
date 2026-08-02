@@ -1,118 +1,146 @@
 import type { Metadata } from 'next';
-import { Playfair_Display, Inter, Bricolage_Grotesque, IBM_Plex_Mono } from 'next/font/google';
-import { LanguageProvider } from '@/components/ttc/language-provider';
-import { V2Chrome } from '@/components/ttc/v2/V2Chrome';
+import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
+import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { SmoothScroll } from '@/components/ttc/smooth-scroll';
-import 'leaflet/dist/leaflet.css';
-import './ttc-globals.css';
-import './ttc-fx-pro.css';
-import './ttc-sections-pro.css';
-import './ttc-pop.css';
-import './ttc-refresh-2026.css';
+import { company, contact, municipalities, services } from '@/lib/ttc/site';
+import './mp.css';
 
-const playfair = Playfair_Display({
+/* ── Type system ──────────────────────────────────────────────────────────
+   Two families, per the brand rule: the Geist superfamily carries everything
+   structural (sans for reading, mono for technical labels, numerals and
+   section indices), and Instrument Serif appears only as an italic accent on
+   single words.
+
+   mp.css is the ONLY stylesheet the public site loads. The five legacy
+   sheets (ttc-globals, ttc-pop, ttc-refresh-2026, ttc-fx-pro,
+   ttc-sections-pro — ~12,000 lines between them) and the Leaflet CSS served
+   the retired chrome and are no longer referenced by any public page, so
+   they no longer ship. Same for LanguageProvider: nothing under (public)
+   consumes useTranslation any more.
+   ────────────────────────────────────────────────────────────────────────── */
+
+const mpSans = Geist({
   subsets: ['latin'],
-  variable: '--font-playfair',
+  variable: '--mp-font-sans',
   display: 'swap',
 });
 
-const inter = Inter({
+const mpMono = Geist_Mono({
   subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-  weight: ['300', '400', '500', '600', '700', '800', '900'],
-});
-
-// v2 editorial type system — display + technical mono
-const v2display = Bricolage_Grotesque({
-  subsets: ['latin'],
-  variable: '--v2-display',
-  weight: ['400', '500', '600', '700', '800'],
+  variable: '--mp-font-mono',
+  weight: ['400', '500'],
   display: 'swap',
 });
 
-const v2mono = IBM_Plex_Mono({
+const mpSerif = Instrument_Serif({
   subsets: ['latin'],
-  variable: '--v2-mono',
-  weight: ['400', '500', '600'],
+  variable: '--mp-font-serif',
+  weight: ['400'],
+  style: ['normal', 'italic'],
   display: 'swap',
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(company.url),
   title: {
-    default: 'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.',
-    template: '%s · Tercero Tablada',
+    default: `${company.name} · ${company.discipline}`,
+    template: `%s · ${company.name}`,
   },
-  description:
-    'TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC. — Structural engineering firm led by a Registered P.E. Reinforced-concrete building design (ACI 318 / Florida Building Code), full structural analysis, BIM coordination, 40-Year & milestone recertification, building-safety inspection and independent peer review. Permit-ready, P.E.-stamped across Miami-Dade & Broward.',
-  metadataBase: new URL('https://ttcivilstructural.com'),
+  description: company.description,
+  applicationName: company.name,
+  authors: [{ name: company.legalName, url: company.url }],
   openGraph: {
-    siteName: 'Tercero Tablada',
+    siteName: company.name,
     type: 'website',
     locale: 'en_US',
-    alternateLocale: ['es_ES'],
+    url: company.url,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${company.name} · ${company.discipline}`,
+    description: company.description,
   },
   robots: {
     index: true,
     follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large' },
   },
+  formatDetection: { telephone: false },
 };
 
-const organizationSchema = {
+/* ── Structured data ──────────────────────────────────────────────────────
+   Organization + ProfessionalService + WebSite. `address` is intentionally
+   omitted until a real office address exists — an invented or partial address
+   is worse than none. Add it in `site.ts` and it flows through here.
+   ────────────────────────────────────────────────────────────────────────── */
+
+const structuredData = {
   '@context': 'https://schema.org',
-  '@type': 'Organization',
-  name: 'Tercero Tablada Civil & Structural Engineering Inc.',
-  alternateName: 'Tercero Tablada',
-  url: 'https://ttcivilstructural.com',
-  logo: 'https://ttcivilstructural.com/ttc/img/logo-square.png',
-  email: 'info@tercerotablada.com',
-  description:
-    'Structural engineering firm led by a Registered P.E. Reinforced-concrete building design (ACI 318 / Florida Building Code) — foundations, columns, beams, slabs and shear walls — plus full structural analysis, BIM coordination, 40-Year and milestone recertification, building-safety inspection and independent structural peer review. Delivered permit-ready and P.E.-stamped across Miami-Dade & Broward.',
-  knowsAbout: [
-    'Reinforced Concrete Design',
-    'Structural Engineering',
-    'ACI 318',
-    'Florida Building Code',
-    'Structural Design',
-    'Foundations',
-    'Columns and Beams',
-    'Concrete Slabs',
-    'Shear Walls',
-    'Structural Analysis',
-    'ASCE 7 Wind and Seismic Loads',
-    'BIM Coordination',
-    'ISO 19650',
-    'Building Recertification',
-    '40-Year Recertification',
-    'Building-Safety Inspection',
-    'Structural Peer Review',
-  ],
-  areaServed: [
-    'Miami-Dade County, Florida',
-    'Broward County, Florida',
-    'Miami', 'Miami Beach', 'Coral Gables', 'Hialeah', 'Miami Springs',
-    'North Miami', 'North Miami Beach', 'Opa-locka', 'South Miami',
-    'Homestead', 'Miami Shores', 'Bal Harbour', 'Bay Harbor Islands',
-    'Surfside', 'West Miami', 'Florida City', 'Biscayne Park', 'El Portal',
-    'Golden Beach', 'Pinecrest', 'Indian Creek', 'Medley', 'North Bay Village',
-    'Key Biscayne', 'Sweetwater', 'Virginia Gardens', 'Hialeah Gardens',
-    'Aventura', 'Sunny Isles Beach', 'Miami Lakes', 'Palmetto Bay',
-    'Miami Gardens', 'Doral', 'Cutler Bay',
-    'Fort Lauderdale', 'Hollywood', 'Pembroke Pines', 'Miramar', 'Coral Springs',
-    'Pompano Beach', 'Davie', 'Sunrise', 'Plantation', 'Deerfield Beach',
-    'Lauderhill', 'Weston', 'Tamarac', 'Margate', 'Coconut Creek',
-    'Oakland Park', 'North Lauderdale', 'Hallandale Beach', 'Dania Beach', 'Cooper City',
-    'Parkland', 'Lauderdale Lakes', 'Wilton Manors', 'West Park', 'Southwest Ranches',
-    'Pembroke Park', 'Lauderdale-by-the-Sea', 'Lighthouse Point', 'Hillsboro Beach',
-    'Sea Ranch Lakes', 'Lazy Lake',
-  ],
-  serviceType: [
-    'Reinforced Concrete Design',
-    'Structural Design & Analysis',
-    'BIM / Digital Construction',
-    'Building Recertification',
-    'Building-Safety Inspection',
-    'Structural Peer Review',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${company.url}/#organization`,
+      name: company.legalName,
+      alternateName: company.name,
+      url: company.url,
+      logo: `${company.url}${company.logo.dark}`,
+      email: contact.email,
+      description: company.description,
+      areaServed: [
+        'Miami-Dade County, Florida',
+        'Broward County, Florida',
+        ...municipalities,
+      ],
+      knowsAbout: [
+        'Structural Engineering',
+        'Reinforced Concrete Design',
+        'Structural Analysis',
+        'Foundation Design',
+        'Building Recertification',
+        'Building Safety Inspection',
+        'Structural Condition Assessment',
+        'Repair Recommendations',
+        'BIM Coordination',
+        'Structural Peer Review',
+        'Engineering Compliance',
+      ],
+    },
+    {
+      '@type': 'ProfessionalService',
+      '@id': `${company.url}/#practice`,
+      name: company.legalName,
+      url: company.url,
+      image: `${company.url}${company.logo.dark}`,
+      email: contact.email,
+      description: company.description,
+      parentOrganization: { '@id': `${company.url}/#organization` },
+      areaServed: [
+        { '@type': 'AdministrativeArea', name: 'Miami-Dade County, Florida' },
+        { '@type': 'AdministrativeArea', name: 'Broward County, Florida' },
+      ],
+      serviceType: services.map((s) => s.title),
+      hasOfferCatalog: {
+        '@type': 'OfferCatalog',
+        name: 'Structural engineering services',
+        itemListElement: services.map((s) => ({
+          '@type': 'Offer',
+          itemOffered: {
+            '@type': 'Service',
+            name: s.title,
+            description: s.summary,
+            url: `${company.url}/services/${s.slug}`,
+          },
+        })),
+      },
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${company.url}/#website`,
+      url: company.url,
+      name: company.name,
+      publisher: { '@id': `${company.url}/#organization` },
+      inLanguage: 'en-US',
+    },
   ],
 };
 
@@ -122,15 +150,21 @@ export default function PublicLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`v2 ${playfair.variable} ${inter.variable} ${v2display.variable} ${v2mono.variable}`}>
+    <div
+      className={`mp ${mpSans.variable} ${mpMono.variable} ${mpSerif.variable}`}
+    >
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      <LanguageProvider>
-        <SmoothScroll />
-        <V2Chrome>{children}</V2Chrome>
-      </LanguageProvider>
+      {/* Motion serialises its `initial` state (opacity: 0) into the server
+          HTML. Without JavaScript nothing would ever reveal it, so reset every
+          animated element to its final state. */}
+      <noscript>
+        <style>{`.mp .mp-reveal{opacity:1!important;transform:none!important}`}</style>
+      </noscript>
+      <SmoothScroll />
+      <SiteChrome>{children}</SiteChrome>
     </div>
   );
 }
