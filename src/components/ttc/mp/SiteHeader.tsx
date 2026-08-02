@@ -15,8 +15,10 @@ import { EASE } from './primitives';
  * the correct appearance is present on the very first paint, survives a
  * JS-disabled visit, and needs no per-route allow-list.
  *
- * JavaScript contributes exactly two class toggles, both written straight to
+ * JavaScript contributes exactly three class toggles, all written straight to
  * the DOM through a ref:
+ *   .is-floating   — the page has moved at all, so something is now sliding
+ *                    under the header and it needs a backing
  *   .is-stuck      — we have scrolled past the dark hero
  *   .is-menu-open  — the mobile menu is covering the page
  */
@@ -56,6 +58,7 @@ export function SiteHeader() {
     // position tells the two apart.
     const update = (rect: DOMRectReadOnly | DOMRect) => {
       header.classList.toggle('is-stuck', rect.top <= header.offsetHeight);
+      header.classList.toggle('is-floating', window.scrollY > 4);
     };
     const io = new IntersectionObserver(
       ([entry]) => update(entry.boundingClientRect),
@@ -64,8 +67,9 @@ export function SiteHeader() {
     io.observe(sentinel);
     update(sentinel.getBoundingClientRect());
 
-    // IntersectionObserver only fires on threshold crossings; a resize or an
-    // in-page anchor jump can move the edge without one.
+    // IntersectionObserver only fires on threshold crossings; the floating
+    // state changes on the very first pixel of scroll, so it needs the
+    // listener regardless.
     const onScroll = () => update(sentinel.getBoundingClientRect());
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll, { passive: true });
@@ -73,6 +77,7 @@ export function SiteHeader() {
       io.disconnect();
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
+      header.classList.remove('is-floating');
     };
   }, [pathname]);
 

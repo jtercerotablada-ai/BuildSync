@@ -702,7 +702,7 @@ body:has(.mp)::before {
   allow-list to maintain.
 */
 .mp-header {
-  --hdr-bg: rgba(246, 244, 239, 0.86);
+  --hdr-bg: rgba(246, 244, 239, 0.97);
   --hdr-blur: saturate(1.4) blur(14px);
   --hdr-fg: var(--mp-ink);
   --hdr-line: var(--mp-line);
@@ -742,6 +742,28 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
   --hdr-btn-line: rgba(246, 244, 239, 0.4);
   --hdr-mark-dark: none;
   --hdr-mark-light: block;
+}
+
+/*
+  Third state. Fully transparent is only honest at the very top, where nothing
+  is behind the header yet. The moment the page moves, hero copy slides under
+  it and the logo lands on top of the headline — unreadable, and on a phone
+  the collision is head-on because the hero is tight.
+
+  So once scrolled, the header takes a graphite backing while the dark hero is
+  still behind it, and only switches to the paper backing after the hero is
+  gone. Transparent → dark → paper, instead of transparent → paper.
+
+  Both backings are near-opaque ON PURPOSE. The blur is a bonus for browsers
+  that support backdrop-filter, not the thing keeping the logo legible —
+  anywhere it is unsupported or disabled the alpha alone still has to do the
+  job. Do not trade opacity for the frosted look.
+*/
+body:has([data-mp-dark-hero])
+  .mp-header.is-floating:not(.is-stuck):not(.is-menu-open) {
+  --hdr-bg: rgba(11, 12, 13, 0.96);
+  --hdr-blur: saturate(1.2) blur(16px);
+  --hdr-line: rgba(246, 244, 239, 0.14);
 }
 .mp-header__inner {
   width: 100%;
