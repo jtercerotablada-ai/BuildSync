@@ -8,10 +8,10 @@ import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 export const metadata: Metadata = {
   title: 'Contact',
   description:
-    'Contact Tercero Tablada Civil & Structural Engineering. Describe your project, building or compliance requirement and an engineer will define the appropriate structural scope and next steps.',
+    'Contact Tercero Tablada Civil & Structural Engineering Inc. Describe your project, building or compliance requirement and an engineer will define the appropriate structural scope and next steps.',
   alternates: { canonical: '/contact' },
   openGraph: {
-    title: 'Contact · Tercero Tablada',
+    title: 'Contact · Tercero Tablada Civil & Structural Engineering Inc.',
     description:
       'Tell us about your project, building or compliance requirement. We will define the engineering scope and next steps.',
     url: '/contact',

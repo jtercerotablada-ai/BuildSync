@@ -2175,12 +2175,14 @@ body:has([data-mp-dark-hero]) .mp-header:not(.is-stuck):not(.is-menu-open),
   background: var(--mp-paper);
   font-family: var(--mp-mono);
   font-size: 0.5938rem;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
+  line-height: 1.5;
   text-transform: uppercase;
   color: var(--mp-ink-3);
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: var(--mp-3);
+  gap: 0.2rem var(--mp-3);
 }
 .mp-lead__title {
   font-size: clamp(1.75rem, 3.4vw, 2.9rem);
@@ -3029,7 +3031,7 @@ a.mp-info__value:hover {
   }
   .mp-hero__art {
     order: -1;
-    max-height: 34svh;
+    max-height: 28svh;
   }
   .mp-hero__photo {
     width: 100%;
@@ -3050,14 +3052,24 @@ a.mp-info__value:hover {
     );
   }
   .mp-hero__art svg {
-    max-height: 34svh;
+    max-height: 28svh;
   }
   .mp-hero {
     min-height: 0;
-    padding-block-start: calc(var(--mp-header-h) + var(--mp-8));
+    padding-block-start: calc(var(--mp-header-h) + var(--mp-4));
   }
   .mp-hero__body {
-    padding-block-end: var(--mp-8);
+    padding-block-end: var(--mp-6);
+    gap: var(--mp-6);
+  }
+  .mp-hero__eyebrow {
+    margin-block-end: var(--mp-4);
+  }
+  .mp-hero__sub {
+    margin-block-start: var(--mp-4);
+  }
+  .mp-cta-row {
+    margin-block-start: var(--mp-6);
   }
   .mp-statement__grid,
   .mp-paths,
@@ -3106,7 +3118,59 @@ a.mp-info__value:hover {
 
 @media (max-width: 640px) {
   .mp {
-    --mp-t-label: 0.6563rem;
+    /* The mono micro-labels were being made SMALLER on phones than on
+       desktop — backwards. At arm's length 10.5px uppercase mono with wide
+       tracking is a squint; 12px is the floor. */
+    --mp-t-label: 0.75rem;
+  }
+  /* The right-hand section meta is supplementary. On a phone it drops to its
+     own line under the label and reads as a stray second heading, so it goes. */
+  .mp-sechead__meta {
+    display: none;
+  }
+  .mp-tool__role,
+  .mp-cred__note,
+  .mp-work__specs dd {
+    font-size: 0.8125rem;
+  }
+  /* Everything below is hard-coded under 11px in the desktop sheet. On a
+     phone that is below the comfortable floor, so raise it in one place
+     rather than tuning each rule. */
+  .mp-work__specs dt,
+  .mp-tool__name,
+  .mp-cred__k,
+  .mp-creds__seal-mark,
+  .mp-stages__hint,
+  .mp-work__status,
+  .mp-chip,
+  .mp-bim__hint,
+  .mp-bim__mode button,
+  .mp-geo__code,
+  .mp-geo__note,
+  .mp-geo__coords,
+  .mp-geo__caption,
+  .mp-info__label,
+  .mp-field__label,
+  .mp-field__opt,
+  .mp-field__error,
+  .mp-svccard__track,
+  .mp-standards li,
+  .mp-stage__deliverable dt,
+  .mp-stage__n,
+  .mp-hero__caps li,
+  .mp-close__meta,
+  .mp-breadcrumbs,
+  .mp-phero__fact dt,
+  .mp-lead__caption,
+  .mp-footer__bottom {
+    font-size: 0.6875rem;
+  }
+  .mp-tools__note,
+  .mp-form__note,
+  .mp-disclaimer,
+  .mp-footer__notice,
+  .mp-work__note {
+    font-size: 0.8125rem;
   }
   .mp-hero__foot-inner {
     flex-direction: column;

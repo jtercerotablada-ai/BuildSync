@@ -10,10 +10,10 @@ import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 export const metadata: Metadata = {
   title: 'About',
   description:
-    'Tercero Tablada Civil & Structural Engineering — a South Florida structural practice covering new reinforced-concrete design and the evaluation of existing buildings, with direct engineering accountability on every project.',
+    'Tercero Tablada Civil & Structural Engineering Inc. — a South Florida structural practice covering new reinforced-concrete design and the evaluation of existing buildings, with direct engineering accountability on every project.',
   alternates: { canonical: '/about' },
   openGraph: {
-    title: 'About · Tercero Tablada',
+    title: 'About · Tercero Tablada Civil & Structural Engineering Inc.',
     description:
       'A South Florida structural practice covering new construction and existing buildings, with direct engineering accountability.',
     url: '/about',
@@ -77,7 +77,7 @@ export default function AboutPage() {
           'not a deliverable.',
         ]}
         plainTitle="Structure is a responsibility, not a deliverable."
-        sub="Tercero Tablada is a structural engineering practice serving Miami-Dade and Broward. We engineer new reinforced-concrete buildings and evaluate the ones already standing — with the reasoning behind every conclusion written down."
+        sub="Tercero Tablada Civil & Structural Engineering Inc. is a structural engineering practice serving Miami-Dade and Broward. We engineer new reinforced-concrete buildings and evaluate the ones already standing — with the reasoning behind every conclusion written down."
         facts={[
           { k: 'Discipline', v: 'Civil & structural' },
           { k: 'Focus', v: 'Concrete, existing buildings, BIM' },

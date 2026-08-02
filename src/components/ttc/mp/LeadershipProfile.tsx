@@ -21,8 +21,13 @@ export function LeadershipProfile({ n = '09' }: { n?: string }) {
   const f = leadership.fallback;
   const published = leadership.published;
 
+  // SVG text does not wrap — the practice name is supplied pre-broken, the
+  // way it would actually be set in a drawing title block.
   const titleBlockRows = [
-    { k: 'Practice', v: company.name },
+    {
+      k: 'Practice',
+      v: ['Tercero Tablada', 'Civil & Structural Engineering Inc.'],
+    },
     { k: 'Discipline', v: company.discipline },
     { k: 'Service area', v: contact.serviceAreaLabel },
     { k: 'Responsibility', v: 'Engineer of record' },

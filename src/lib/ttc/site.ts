@@ -23,8 +23,18 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const company = {
+  /**
+   * The firm is named "Tercero Tablada Civil & Structural Engineering Inc."
+   * — that is the name, not a legal long-form of a shorter brand. `name` is
+   * therefore the full name and is what belongs in page titles, metadata,
+   * schema.org, alt text and any sentence that names the practice.
+   *
+   * `shortName` exists ONLY for places where the full name genuinely cannot
+   * fit (a drawing title block, a compact chip). Never reach for it just to
+   * make a line shorter.
+   */
   legalName: 'Tercero Tablada Civil & Structural Engineering Inc.',
-  name: 'Tercero Tablada',
+  name: 'Tercero Tablada Civil & Structural Engineering Inc.',
   shortName: 'Tercero Tablada',
   discipline: 'Civil & Structural Engineering',
   url: 'https://ttcivilstructural.com',
@@ -34,7 +44,7 @@ export const company = {
   positioning: {
     line1: 'We design new structures.',
     line2: 'We protect existing ones.',
-    body: 'Tercero Tablada provides structural engineering, building evaluation and BIM coordination for new and existing buildings throughout South Florida.',
+    body: 'Tercero Tablada Civil & Structural Engineering Inc. provides structural engineering, building evaluation and BIM coordination for new and existing buildings throughout South Florida.',
   },
   /**
    * Two real brand assets, both supplied by the client — never redraw either.
@@ -1171,7 +1181,7 @@ export const leadership: {
     eyebrow: 'Practice leadership',
     title: 'One engineer stays responsible for the work.',
     body: [
-      'Tercero Tablada is a structural practice built around direct engineering accountability. The engineer who sets the design basis is the engineer who reviews the drawings and answers the questions that come back from the field.',
+      'Tercero Tablada Civil & Structural Engineering Inc. is a structural practice built around direct engineering accountability. The engineer who sets the design basis is the engineer who reviews the drawings and answers the questions that come back from the field.',
       'That is the whole operating model: no anonymous hand-offs between a proposal and a drawing set, and no work released that has not been read line by line.',
     ],
     pillars: [

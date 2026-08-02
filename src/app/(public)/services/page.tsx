@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     'BIM coordination',
   ],
   openGraph: {
-    title: 'Expertise · Tercero Tablada',
+    title: 'Expertise · Tercero Tablada Civil & Structural Engineering Inc.',
     description:
       'Seven structural engineering services for new construction and existing buildings across Miami-Dade and Broward.',
     url: '/services',

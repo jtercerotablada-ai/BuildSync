@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     'Representative structural engineering engagements — project types, structural systems, scope and deliverables for new construction and existing buildings across South Florida.',
   alternates: { canonical: '/projects' },
   openGraph: {
-    title: 'Work · Tercero Tablada',
+    title: 'Work · Tercero Tablada Civil & Structural Engineering Inc.',
     description:
       'Representative structural engineering engagements — systems, scope and deliverables across South Florida.',
     url: '/projects',

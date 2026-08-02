@@ -15,12 +15,13 @@ import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 
 export const metadata: Metadata = {
   title:
-    'Structural Engineering in South Florida | Tercero Tablada Civil & Structural Engineering',
+    'Tercero Tablada Civil & Structural Engineering Inc. | South Florida',
   description:
     'Structural engineering for South Florida — reinforced-concrete design, building recertification, building safety inspections and BIM coordination for new and existing buildings across Miami-Dade and Broward.',
   alternates: { canonical: '/' },
   openGraph: {
-    title: 'Engineering structures that endure | Tercero Tablada',
+    title:
+      'Engineering structures that endure | Tercero Tablada Civil & Structural Engineering Inc.',
     description:
       'Reinforced-concrete design, building recertification, safety inspections and BIM coordination for projects across South Florida.',
     url: '/',

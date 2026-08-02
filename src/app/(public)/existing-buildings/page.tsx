@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     'existing building evaluation',
   ],
   openGraph: {
-    title: 'Existing Buildings · Tercero Tablada',
+    title: 'Existing Buildings · Tercero Tablada Civil & Structural Engineering Inc.',
     description:
       'Recertification, safety inspections and structural condition assessments for buildings already standing in South Florida.',
     url: '/existing-buildings',

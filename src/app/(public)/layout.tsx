@@ -43,7 +43,7 @@ const mpSerif = Instrument_Serif({
 export const metadata: Metadata = {
   metadataBase: new URL(company.url),
   title: {
-    default: `${company.name} · ${company.discipline}`,
+    default: company.name,
     template: `%s · ${company.name}`,
   },
   description: company.description,
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: `${company.name} · ${company.discipline}`,
+    title: company.name,
     description: company.description,
   },
   robots: {
@@ -81,7 +81,7 @@ const structuredData = {
       '@type': 'Organization',
       '@id': `${company.url}/#organization`,
       name: company.legalName,
-      alternateName: company.name,
+      alternateName: company.shortName,
       url: company.url,
       logo: `${company.url}${company.logo.dark}`,
       email: contact.email,

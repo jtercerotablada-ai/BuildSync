@@ -968,59 +968,82 @@ export function BimModel({
    A drawing title block is honest, on-brand, and does not read as a gap.
    ══════════════════════════════════════════════════════════════════════════ */
 
+const TB_LINE = 15;
+const TB_PAD = 20;
+const TB_GAP = 13;
+
+/** Stacks the rows top-down, allowing any row to be several lines tall. */
+function layOutTitleBlock(rows: { k: string; v: string | string[] }[]) {
+  return rows.reduce<
+    {
+      k: string;
+      lines: string[];
+      labelY: number;
+      firstValueY: number;
+      ruleY: number;
+    }[]
+  >((acc, r) => {
+    const previous = acc[acc.length - 1];
+    const labelY = previous ? previous.ruleY + TB_GAP + TB_LINE : 78;
+    const lines = Array.isArray(r.v) ? r.v : [r.v];
+    const firstValueY = labelY + TB_GAP;
+    const ruleY = firstValueY + (lines.length - 1) * TB_LINE + TB_PAD;
+    return [...acc, { k: r.k, lines, labelY, firstValueY, ruleY }];
+  }, []);
+}
+
 export function TitleBlock({
   rows,
 }: {
-  rows: { k: string; v: string }[];
+  /** `v` may be a single string or several lines — SVG text does not wrap. */
+  rows: { k: string; v: string | string[] }[];
 }) {
-  const top = 34;
-  const rowH = 46;
+  const laidOut = layOutTitleBlock(rows);
+
   return (
-    <svg viewBox="0 0 360 440" fill="none" aria-hidden="true">
+    <svg viewBox="0 0 360 460" fill="none" aria-hidden="true">
       <Grid id="mp-tb-grid" size={20} opacity={0.14} />
-      <rect width="360" height="440" fill="url(#mp-tb-grid)" />
-      {/* outer frame with corner ticks */}
+      <rect width="360" height="460" fill="url(#mp-tb-grid)" />
       <rect
         x="24"
         y="24"
         width="312"
-        height="392"
+        height="412"
         stroke="currentColor"
         strokeWidth="1.2"
         strokeOpacity="0.45"
       />
       <g stroke={GOLD} strokeWidth="1.4">
-        <path d="M24 52V24h28M336 52V24h-28M24 388v28h28M336 388v28h-28" fill="none" />
+        <path d="M24 52V24h28M336 52V24h-28M24 408v28h28M336 408v28h-28" fill="none" />
       </g>
-      {/* rows */}
-      <g>
-        {rows.map((r, i) => {
-          const y = top + 46 + i * rowH;
-          return (
-            <g key={r.k}>
-              <line
-                x1="48"
-                y1={y}
-                x2="312"
-                y2={y}
-                stroke="currentColor"
-                strokeWidth="0.9"
-                strokeOpacity="0.3"
-              />
-              <text x="48" y={y - 22} className="mp-art__t mp-art__t--gold">
-                {r.k}
-              </text>
-              <text x="48" y={y - 7} className="mp-art__tv">
-                {r.v}
-              </text>
-            </g>
-          );
-        })}
-      </g>
-      {/* centre marks */}
+
+      {laidOut.map((r) => (
+        <g key={r.k}>
+          <text x="48" y={r.labelY} className="mp-art__t mp-art__t--gold">
+            {r.k}
+          </text>
+          <text x="48" y={r.firstValueY + 10} className="mp-art__tv">
+            {r.lines.map((line, i) => (
+              <tspan key={line} x="48" dy={i === 0 ? 0 : TB_LINE}>
+                {line}
+              </tspan>
+            ))}
+          </text>
+          <line
+            x1="48"
+            y1={r.ruleY}
+            x2="312"
+            y2={r.ruleY}
+            stroke="currentColor"
+            strokeWidth="0.9"
+            strokeOpacity="0.3"
+          />
+        </g>
+      ))}
+
       <g stroke={GOLD} strokeWidth="1" strokeOpacity="0.6">
-        <line x1="180" y1="392" x2="180" y2="404" />
-        <line x1="174" y1="398" x2="186" y2="398" />
+        <line x1="180" y1="412" x2="180" y2="424" />
+        <line x1="174" y1="418" x2="186" y2="418" />
       </g>
     </svg>
   );

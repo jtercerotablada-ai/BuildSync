@@ -48,10 +48,11 @@ export function StatementSection() {
           <div className="mp-statement__aside">
             <Reveal delay={0.1}>
               <p>
-                Tercero Tablada provides structural engineering, building
-                evaluation and BIM coordination for new and existing buildings
-                throughout South Florida — one practice covering design,
-                assessment, coordination and compliance.
+                Tercero Tablada Civil &amp; Structural Engineering Inc.
+                provides structural engineering, building evaluation and BIM
+                coordination for new and existing buildings throughout South
+                Florida — one practice covering design, assessment,
+                coordination and compliance.
               </p>
             </Reveal>
             <Reveal delay={0.18} className="mp-statement__marks">
