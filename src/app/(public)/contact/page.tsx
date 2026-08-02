@@ -1,71 +1,151 @@
-'use client';
+import type { Metadata } from 'next';
+import { company, contact, services } from '@/lib/ttc/site';
+import { PageHero } from '@/components/ttc/mp/PageHero';
+import { ContactForm } from '@/components/ttc/mp/ContactForm';
+import { SouthFloridaMap } from '@/components/ttc/mp/SouthFloridaMap';
+import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 
-import React from 'react';
-import { useTranslation } from '@/components/ttc/language-provider';
-import { ContactForm } from '@/components/ttc/contact-form';
+export const metadata: Metadata = {
+  title: 'Contact',
+  description:
+    'Contact Tercero Tablada Civil & Structural Engineering. Describe your project, building or compliance requirement and an engineer will define the appropriate structural scope and next steps.',
+  alternates: { canonical: '/contact' },
+  openGraph: {
+    title: 'Contact · Tercero Tablada',
+    description:
+      'Tell us about your project, building or compliance requirement. We will define the engineering scope and next steps.',
+    url: '/contact',
+    type: 'website',
+  },
+};
 
 export default function ContactPage() {
-  const { t } = useTranslation();
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: company.url },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Contact',
+        item: `${company.url}/contact`,
+      },
+    ],
+  };
 
   return (
     <>
-      <section className="page-hero">
-        <div className="container">
-          <span className="section__label">{t('section.getInTouch')}</span>
-          <h1 className="page-hero__title">{t('contact.title')}</h1>
-          <p className="page-hero__subtitle">{t('contact.subtitle')}</p>
-        </div>
-      </section>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
-      <section className="section contact-page">
-        <div className="container">
-          <div className="contact__grid">
-            <div className="contact__info" data-aos="fade-right">
-              <h2 className="section__title">{t('contact.heading')}</h2>
-              <div className="contact__details">
-                <div className="contact__item" data-aos="fade-up" data-aos-delay={0}>
-                  <div className="contact__item-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                  </div>
-                  <div>
-                    <strong>{t('contact.mainOffice')}</strong>
-                    <p>123 Engineering Blvd, Suite 100<br />Your City, State 00000</p>
-                  </div>
+      <PageHero
+        eyebrow="Start a project"
+        crumbs={[{ href: '/', label: 'Home' }, { label: 'Contact' }]}
+        titleLines={[
+          'Bring us the structure.',
+          <span key="l2">
+            We’ll carry the{' '}
+            <span className="mp-serif">responsibility.</span>
+          </span>,
+        ]}
+        plainTitle="Bring us the structure. We’ll carry the responsibility."
+        sub="Tell us about your project, building or compliance requirement. We will help define the appropriate engineering scope and next steps."
+        art="peer"
+      />
+
+      <section
+        className="mp-section mp-surface--paper"
+        aria-labelledby="mp-contact-title"
+      >
+        <div className="mp-shell">
+          <SectionHeading n="01" label="Inquiry" meta="Reviewed by an engineer" />
+          <h2 id="mp-contact-title" className="mp-form__hp">
+            Project inquiry
+          </h2>
+
+          <div className="mp-contact__grid">
+            <ContactForm />
+
+            <aside>
+              <div className="mp-info">
+                <div className="mp-info__block">
+                  <span className="mp-info__label">Email</span>
+                  <a
+                    className="mp-info__value"
+                    href={`mailto:${contact.email}`}
+                  >
+                    {contact.email}
+                  </a>
+                  <span className="mp-info__meta">
+                    Best for scope, drawings and permit questions. Attachments
+                    are welcome by email.
+                  </span>
                 </div>
-                <div className="contact__item" data-aos="fade-up" data-aos-delay={100}>
-                  <div className="contact__item-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                      <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
-                    </svg>
+
+                {contact.phone ? (
+                  <div className="mp-info__block">
+                    <span className="mp-info__label">Phone</span>
+                    <a className="mp-info__value" href={contact.phone.href}>
+                      {contact.phone.display}
+                    </a>
                   </div>
-                  <div>
-                    <strong>{t('contact.phone')}</strong>
-                    <p><a href="tel:+10000000000">+1 (000) 000-0000</a></p>
+                ) : null}
+
+                {contact.address ? (
+                  <div className="mp-info__block">
+                    <span className="mp-info__label">Office</span>
+                    <span className="mp-info__value">
+                      {contact.address.line1}
+                    </span>
+                    <span className="mp-info__meta">
+                      {contact.address.line2
+                        ? `${contact.address.line2}, `
+                        : ''}
+                      {contact.address.city}, {contact.address.state}{' '}
+                      {contact.address.zip}
+                    </span>
                   </div>
+                ) : null}
+
+                <div className="mp-info__block">
+                  <span className="mp-info__label">Service area</span>
+                  <span className="mp-info__value">
+                    {contact.serviceAreaLabel}
+                  </span>
+                  <span className="mp-info__meta">
+                    On-site inspection and coordination across South Florida.
+                  </span>
                 </div>
-                <div className="contact__item" data-aos="fade-up" data-aos-delay={200}>
-                  <div className="contact__item-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                      <path d="M22 6l-10 7L2 6" />
-                    </svg>
-                  </div>
-                  <div>
-                    <strong>Email</strong>
-                    <p><a href="mailto:info@tercerotablada.com">info@tercerotablada.com</a></p>
-                  </div>
+
+                <div className="mp-info__block">
+                  <span className="mp-info__label">What we cover</span>
+                  <ul className="mp-standards">
+                    {services.map((s) => (
+                      <li key={s.slug}>{s.shortTitle}</li>
+                    ))}
+                  </ul>
+                  <span className="mp-info__meta">
+                    {contact.responseNote}
+                  </span>
                 </div>
               </div>
-
-              {/* Social section hidden until real URLs are available */}
-            </div>
-            <ContactForm />
+            </aside>
           </div>
+
+          <Reveal delay={0.08}>
+            <p className="mp-disclaimer">
+              Descriptions on this site are general. The scope, sequence and
+              deliverables for any specific building are confirmed in writing
+              before work begins, and requirements vary by jurisdiction.
+            </p>
+          </Reveal>
         </div>
       </section>
+
+      <SouthFloridaMap n="02" />
     </>
   );
 }

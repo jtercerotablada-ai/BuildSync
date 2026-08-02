@@ -1,90 +1,75 @@
-'use client';
+import type { Metadata } from 'next';
+import { company, engagements, projects } from '@/lib/ttc/site';
+import { PageHero } from '@/components/ttc/mp/PageHero';
+import { SelectedExperience } from '@/components/ttc/mp/SelectedExperience';
+import { EngineeringProcess } from '@/components/ttc/mp/EngineeringProcess';
+import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 
-import React from 'react';
-import { useTranslation } from '@/components/ttc/language-provider';
-import { ProjectCard } from '@/components/ttc/project-card';
-
-/**
- * "Our Work" — capability gallery. These are the areas of work the firm
- * takes on (reinforced-concrete design, recertification, safety inspection),
- * illustrated with representative imagery — not claimed, named case studies
- * (we don't fabricate client work). Swap in real project photos when available.
- */
-
-interface Capability {
-  image: string;
-  en: { category: string; title: string; desc: string };
-  es: { category: string; title: string; desc: string };
-}
-
-const CAPABILITIES: Capability[] = [
-  {
-    image: '/ttc/img/projects/project-02.jpg',
-    en: { category: 'Reinforced Concrete', title: 'Concrete Building Design', desc: 'Foundations, columns, beams, slabs, and shear walls per ACI 318 & the Florida Building Code.' },
-    es: { category: 'Concreto Armado', title: 'Diseño de Edificios de Concreto', desc: 'Cimentaciones, columnas, vigas, losas y muros según ACI 318 y el Código de Florida.' },
+export const metadata: Metadata = {
+  title: 'Work',
+  description:
+    'Representative structural engineering engagements — project types, structural systems, scope and deliverables for new construction and existing buildings across South Florida.',
+  alternates: { canonical: '/projects' },
+  openGraph: {
+    title: 'Work · Tercero Tablada',
+    description:
+      'Representative structural engineering engagements — systems, scope and deliverables across South Florida.',
+    url: '/projects',
+    type: 'website',
   },
-  {
-    image: '/ttc/img/projects/project-05.jpg',
-    en: { category: 'Reinforced Concrete', title: 'Foundation & Slab Design', desc: 'Shallow and deep foundations, mat foundations, and reinforced or post-tensioned slabs.' },
-    es: { category: 'Concreto Armado', title: 'Cimentaciones y Losas', desc: 'Cimentaciones superficiales y profundas, losas de cimentación y losas armadas o postensadas.' },
-  },
-  {
-    image: '/ttc/img/projects/project-01.jpg',
-    en: { category: 'Recertification', title: '30-Year Recertification', desc: 'Structural & electrical recertification for Miami-Dade — 25 years for coastal buildings.' },
-    es: { category: 'Recertificacion', title: 'Recertificación de 30 Años', desc: 'Recertificación estructural y eléctrica para Miami-Dade — 25 años en zona costera.' },
-  },
-  {
-    image: '/ttc/img/projects/project-09.jpg',
-    en: { category: 'Building Safety', title: 'Building Safety Inspection', desc: 'Broward’s BSIP for buildings three stories and taller, under Florida Statute 553.899.' },
-    es: { category: 'Seguridad', title: 'Inspección de Seguridad', desc: 'El BSIP de Broward para edificios de tres pisos o más, bajo el Estatuto de Florida 553.899.' },
-  },
-  {
-    image: '/ttc/img/projects/project-10.jpg',
-    en: { category: 'Building Safety', title: 'Milestone Inspection', desc: 'Phase 1 & 2 milestone inspections for condominiums and cooperatives (SB-4-D).' },
-    es: { category: 'Seguridad', title: 'Inspección Milestone', desc: 'Inspecciones milestone Fase 1 y 2 para condominios y cooperativas (SB-4-D).' },
-  },
-  {
-    image: '/ttc/img/projects/project-07.jpg',
-    en: { category: 'Structural', title: 'Structural Review', desc: 'Independent peer review and value engineering of existing structural designs.' },
-    es: { category: 'Estructural', title: 'Revisión Estructural', desc: 'Revisión independiente e ingeniería de valor de diseños estructurales existentes.' },
-  },
-];
+};
 
 export default function ProjectsPage() {
-  const { t, language } = useTranslation();
-  const es = language === 'es';
+  const usingReal = projects.length > 0;
+  const count = usingReal ? projects.length : engagements.length;
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: company.url },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Work',
+        item: `${company.url}/projects`,
+      },
+    ],
+  };
 
   return (
     <>
-      <section className="page-hero">
-        <div className="container">
-          <span className="section__label">{t('section.portfolio')}</span>
-          <h1 className="page-hero__title">{t('projects.title')}</h1>
-          <p className="page-hero__subtitle">{t('projects.subtitle')}</p>
-        </div>
-      </section>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
-      <section className="section projects-page">
-        <div className="container">
-          <div className="projects__grid projects__grid--full">
-            {CAPABILITIES.map((c, i) => {
-              const copy = es ? c.es : c.en;
-              return (
-                <ProjectCard
-                  key={c.image}
-                  image={c.image}
-                  category={copy.category}
-                  title={copy.title}
-                  description={copy.desc}
-                  index={i + 1}
-                  total={CAPABILITIES.length}
-                  delay={(i % 4) * 100}
-                />
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      <PageHero
+        eyebrow={usingReal ? 'Selected work' : 'Representative capabilities'}
+        crumbs={[{ href: '/', label: 'Home' }, { label: 'Work' }]}
+        titleLines={[
+          'The frame behind',
+          <span key="l2">
+            the <span className="mp-serif">project.</span>
+          </span>,
+        ]}
+        plainTitle="The frame behind the project."
+        sub={
+          usingReal
+            ? 'Structural engagements across South Florida — the system, the scope, and what was delivered.'
+            : 'Engagement profiles describing the structural systems we work with, the scope each one carries, and the documents that come out of it. Anonymized by default; named case studies are published only with client permission.'
+        }
+        facts={[
+          { k: 'Profiles', v: String(count).padStart(2, '0') },
+          { k: 'Coverage', v: 'Miami-Dade & Broward' },
+          { k: 'Systems', v: 'Reinforced concrete, steel' },
+        ]}
+        art="bim"
+      />
+
+      <SelectedExperience n="01" showLink={false} />
+      <EngineeringProcess n="02" />
+      <ContactCTA n="03" />
     </>
   );
 }

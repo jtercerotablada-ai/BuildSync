@@ -20,6 +20,9 @@ export function SmoothScroll() {
       touchMultiplier: 1.6,
     });
 
+    // Exposed so UI that must freeze the page (the mobile menu) can pause it.
+    (window as unknown as { __ttcLenis?: Lenis }).__ttcLenis = lenis;
+
     let rafId = 0;
     const raf = (time: number) => {
       lenis.raf(time);
@@ -45,6 +48,7 @@ export function SmoothScroll() {
       document.removeEventListener('click', onClick);
       cancelAnimationFrame(rafId);
       lenis.destroy();
+      delete (window as unknown as { __ttcLenis?: Lenis }).__ttcLenis;
     };
   }, []);
 
