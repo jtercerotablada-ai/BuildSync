@@ -94,6 +94,28 @@ function statusVisual(s: ProjectStatusKey) {
   return STATUS_VISUAL[s] || STATUS_VISUAL.ON_TRACK;
 }
 
+const STATUS_ORDER: ProjectStatusKey[] = [
+  "ON_TRACK",
+  "AT_RISK",
+  "OFF_TRACK",
+  "ON_HOLD",
+  "COMPLETE",
+];
+
+/** Default block-builder template shown when composing a new update.
+ *  Mirrors the project Overview composer + the API's section types. */
+const DEFAULT_COMPOSER_SECTIONS: StatusSection[] = [
+  { id: "summary", type: "SUMMARY", label: "Summary", content: "" },
+  {
+    id: "accomplished",
+    type: "ACCOMPLISHED",
+    label: "What we've accomplished",
+    content: "",
+  },
+  { id: "blocked", type: "BLOCKED", label: "What's blocked", content: "" },
+  { id: "next_steps", type: "NEXT_STEPS", label: "Next steps", content: "" },
+];
+
 interface StatusSection {
   id: string;
   type: string;
@@ -229,16 +251,32 @@ export function ProjectStatusModal({
   project,
   variant,
   onClose,
+  canEdit = false,
+  onPosted,
 }: {
   project: StatusModalProject;
   variant: "modal" | "panel";
   onClose: () => void;
+  /** When true, the "Update status" composer is available. */
+  canEdit?: boolean;
+  /** Called after a new update posts, so the page can refetch the row. */
+  onPosted?: () => void;
 }) {
   const router = useRouter();
   const [updates, setUpdates] = useState<ProjectStatusUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<UpcomingTask[]>([]);
+
+  // Composer state (Asana "Update status" / "New status update").
+  const [composing, setComposing] = useState(false);
+  const [postStatus, setPostStatus] = useState<ProjectStatusKey>(
+    project.status
+  );
+  const [postSections, setPostSections] = useState<StatusSection[]>(() =>
+    DEFAULT_COMPOSER_SECTIONS.map((s) => ({ ...s }))
+  );
+  const [posting, setPosting] = useState(false);
 
   // Status-update history. Keyed per project at the callsite so a fresh
   // mount always starts in `loading` from useState — no setState-in-effect.
@@ -317,6 +355,56 @@ export function ProjectStatusModal({
   };
   const openProject = () =>
     router.push(`/projects/${project.id}?view=overview`);
+
+  const startComposing = () => {
+    setPostStatus(project.status);
+    setPostSections(DEFAULT_COMPOSER_SECTIONS.map((s) => ({ ...s })));
+    setComposing(true);
+  };
+
+  const composerHasContent = postSections.some((s) => s.content.trim());
+
+  const submitUpdate = async () => {
+    if (!composerHasContent || posting) return;
+    setPosting(true);
+    try {
+      const res = await fetch(
+        `/api/projects/${project.id}/status-updates`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: postStatus,
+            sections: postSections.map((s) => ({
+              id: s.id,
+              type: s.type,
+              label: s.label,
+              content: s.content,
+            })),
+            syncProjectStatus: true,
+          }),
+        }
+      );
+      if (!res.ok) {
+        toast.error(
+          res.status === 403
+            ? "You don't have permission to post here"
+            : "Couldn't post the update"
+        );
+        return;
+      }
+      const created: ProjectStatusUpdate = await res.json();
+      setUpdates((prev) => [created, ...prev]);
+      setSelectedId(created.id);
+      setComposing(false);
+      toast.success("Status updated");
+      onPosted?.();
+    } catch {
+      toast.error("Couldn't post the update");
+    } finally {
+      setPosting(false);
+    }
+  };
 
   // ── PANEL variant: progress view ──────────────────────────
   if (variant === "panel") {
@@ -462,15 +550,17 @@ export function ProjectStatusModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0">
           <h2 className="font-semibold text-[15px] text-gray-900 truncate">
-            Status of {project.name}
+            {composing ? "New status update" : `Status of ${project.name}`}
           </h2>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={openProject}
-              className="hidden sm:inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-700 border rounded-md px-2.5 py-1.5 hover:bg-gray-50"
-            >
-              Update status
-            </button>
+            {!composing && canEdit && (
+              <button
+                onClick={startComposing}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md px-2.5 py-1.5"
+              >
+                Update status
+              </button>
+            )}
             <button
               onClick={onClose}
               aria-label="Close"
@@ -481,7 +571,83 @@ export function ProjectStatusModal({
           </div>
         </div>
 
-        {/* Body: sidebar + main pane */}
+        {/* Body: composer, or sidebar + main pane */}
+        {composing ? (
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-400 font-medium mb-2">
+                  Status
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {STATUS_ORDER.map((s) => {
+                    const v = statusVisual(s);
+                    const on = postStatus === s;
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setPostStatus(s)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm",
+                          on
+                            ? "border-gray-900 bg-gray-900 text-white"
+                            : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "w-2 h-2 rounded-full",
+                            on ? "bg-white" : v.dot
+                          )}
+                        />
+                        {v.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {postSections.map((s, i) => (
+                <div key={s.id}>
+                  <label className="block text-sm font-semibold text-gray-900 mb-1">
+                    {s.label}
+                  </label>
+                  <textarea
+                    value={s.content}
+                    onChange={(e) =>
+                      setPostSections((prev) =>
+                        prev.map((p, j) =>
+                          j === i ? { ...p, content: e.target.value } : p
+                        )
+                      )
+                    }
+                    rows={s.type === "SUMMARY" ? 3 : 2}
+                    placeholder={`Add ${s.label.toLowerCase()}…`}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-[#c9a84c] focus:ring-1 focus:ring-[#c9a84c]/40 outline-none resize-y"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-end gap-2 px-6 py-3 border-t flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setComposing(false)}
+                className="text-sm text-gray-600 px-3 py-1.5 rounded-md hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitUpdate}
+                disabled={!composerHasContent || posting}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-black rounded-md px-3 py-1.5 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {posting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Post update
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="flex-1 flex min-h-0">
           {/* Left sidebar — update history */}
           <aside className="hidden md:flex w-[236px] flex-col border-r bg-gray-50/60 overflow-y-auto flex-shrink-0">
@@ -700,6 +866,7 @@ export function ProjectStatusModal({
             )}
           </div>
         </div>
+        )}
       </div>
     </>
   );

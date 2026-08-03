@@ -1637,6 +1637,8 @@ export default function PortfolioDetailPage() {
           key={statusModalProject.id}
           project={statusModalProject}
           variant="modal"
+          canEdit={canEditPortfolio}
+          onPosted={fetchPortfolio}
           onClose={() => setStatusModalProject(null)}
         />
       )}
