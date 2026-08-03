@@ -24,6 +24,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { requestTeamInvite } from '@/lib/team-invite';
 import { ChevronDown, Plus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -97,7 +98,11 @@ export function PeopleWidget({ onInvite }: PeopleWidgetProps) {
     if (onInvite) {
       onInvite();
     } else {
-      router.push('/team?invite=true');
+      // Canonical teams flow: flag the invite intent, then land on /teams,
+      // which forwards to the user's team overview and auto-opens the
+      // invite dialog there.
+      requestTeamInvite();
+      router.push('/teams');
     }
   };
 

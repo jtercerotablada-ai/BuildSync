@@ -16,6 +16,7 @@ import { useAIPanel } from "@/contexts/ai-panel-context";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { requestTeamInvite } from "@/lib/team-invite";
 import { useEffect, useState } from "react";
 
 interface HeaderProps {
@@ -126,7 +127,10 @@ export function Header({ onCreateTask, onCreateProject, onCreatePortfolio, onCre
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => router.push("/team?invite=true")}
+              onClick={() => {
+                requestTeamInvite();
+                router.push("/teams");
+              }}
               className="cursor-pointer"
             >
               <UserPlus className="mr-2 h-4 w-4 text-gray-500" />

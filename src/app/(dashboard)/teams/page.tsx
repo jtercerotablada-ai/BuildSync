@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { peekTeamInvite, consumeTeamInvite } from "@/lib/team-invite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,14 +53,28 @@ export default function TeamsPage() {
       .then((r) => r.json())
       .then((data) => {
         if (canceled) return;
-        setTeams(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setTeams(list);
+        // "Invite teammate" entry point (Home People widget + header menu)
+        // routes here with a pending invite intent. Forward to the actual
+        // team's overview, which consumes the intent and auto-opens the
+        // invite dialog; if there are no teams yet, drop the intent and send
+        // them to create one first.
+        if (peekTeamInvite()) {
+          if (list.length > 0) {
+            router.replace(`/teams/${list[0].id}`);
+          } else {
+            consumeTeamInvite();
+            router.replace("/teams/new");
+          }
+        }
       })
       .catch(() => !canceled && setTeams([]))
       .finally(() => !canceled && setLoading(false));
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [router]);
 
   const filtered = teams.filter((t) =>
     search.trim()

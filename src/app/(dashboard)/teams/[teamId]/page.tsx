@@ -55,6 +55,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { consumeTeamInvite } from "@/lib/team-invite";
 import { toast } from "sonner";
 import {
   InviteTeamModal,
@@ -170,6 +171,15 @@ export default function TeamOverviewPage() {
       // ignore
     }
   }, [teamId]);
+
+  // "Invite teammate" entry point (Home People widget + header menu) routes
+  // through /teams and lands here with a pending invite intent — consume it
+  // once on mount and auto-open the invite dialog. The intent rides in
+  // sessionStorage (not a URL param) so the read is reliable across the soft
+  // navigation that got us here.
+  useEffect(() => {
+    if (consumeTeamInvite()) setShowInvite(true);
+  }, []);
 
   function toggleStar() {
     if (typeof window === "undefined") return;
