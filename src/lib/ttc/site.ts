@@ -155,8 +155,6 @@ export type Service = {
   considerations: string[];
   /** Reference standards. Kept short; this is not a code list. */
   standards: string[];
-  /** Photograph for the page hero. See `imagery` for the licensing rules. */
-  photo: { src: string; alt: string };
   /** Line-art key used by the diagram registry in `mp/art.tsx`. Still used on
    *  the service CARDS and the home expertise pane, where there is no photo. */
   art:
@@ -186,10 +184,6 @@ export const services: Service[] = [
       'Architects carrying a project through permitting',
       'General contractors and concrete subcontractors',
     ],
-    photo: {
-      src: '/ttc/img/projects/project-12.jpg',
-      alt: 'Coffered concrete soffit meeting a glass tower',
-    },
     capabilities: [
       'Foundations',
       'Columns & beams',
@@ -272,10 +266,6 @@ export const services: Service[] = [
       'Owners evaluating feasibility or structural options',
       'Contractors assessing constructability of a system',
     ],
-    photo: {
-      src: '/ttc/img/projects/project-06.jpg',
-      alt: 'Concrete and steel composite bridge spanning a river',
-    },
     capabilities: [
       '3D modelling',
       'Wind & seismic demand',
@@ -358,10 +348,6 @@ export const services: Service[] = [
       'Contractors requiring model-based deliverables',
       'Owners who want the as-designed model to survive into operations',
     ],
-    photo: {
-      src: '/ttc/img/projects/project-02.jpg',
-      alt: 'Glass curtain wall meeting a cast concrete mass',
-    },
     capabilities: [
       'Structural modelling',
       'Model federation',
@@ -444,10 +430,6 @@ export const services: Service[] = [
       'Property managers',
       'Building owners and asset managers',
     ],
-    photo: {
-      src: '/ttc/img/projects/project-01.jpg',
-      alt: 'Reinforced-concrete residential towers in service',
-    },
     capabilities: [
       'Notice review',
       'Site inspection',
@@ -536,10 +518,6 @@ export const services: Service[] = [
       'Owners of aging or coastal buildings',
       'Managers preparing capital plans',
     ],
-    photo: {
-      src: '/ttc/img/projects/project-09.jpg',
-      alt: 'Facade of a large institutional building in service',
-    },
     capabilities: [
       'Structural inspection',
       'Balcony & railing review',
@@ -616,10 +594,6 @@ export const services: Service[] = [
       'Buyers performing structural due diligence',
       'Associations responding to inspection findings',
     ],
-    photo: {
-      src: '/ttc/img/hero-bg.jpg',
-      alt: 'Upward view between two older city buildings',
-    },
     capabilities: [
       'Field assessment',
       'Deterioration mapping',
@@ -696,10 +670,6 @@ export const services: Service[] = [
       'Design teams seeking an independent check',
       'Lenders and insurers requiring third-party review',
     ],
-    photo: {
-      src: '/ttc/img/projects/project-12.jpg',
-      alt: 'Coffered concrete soffit meeting a glass tower',
-    },
     capabilities: [
       'Drawing review',
       'Calculation check',
@@ -795,9 +765,23 @@ export const contactServiceOptions = [
    Tercero Tablada project — see the rules at the top of this file.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * ONE PLACEMENT PER IMAGE. Only six of the fourteen stock photographs clear
+ * the bar for this firm — the rest are a Kampala hillside, a UK industrial
+ * shed, a Barcelona street, a Hamburg container port, a Lebanese villa, and a
+ * bridge under snow, which is not South Florida. Six images, six placements,
+ * no repeats.
+ *
+ * Pages without an image of their own open on the plain graphite band. That is
+ * deliberate: showing the same photograph twice reads as thin, an empty band
+ * does not. Add real project photography here and the pages fill themselves.
+ */
 export const imagery = {
-  hero: { src: '/ttc/img/hero-bg.jpg', alt: '' },
-  /** Page-hero photographs for the routes that are not a single service. */
+  /** Home hero. */
+  hero: {
+    src: '/ttc/img/hero-bg.jpg',
+    alt: 'Upward view between two older city buildings',
+  },
   pages: {
     services: {
       src: '/ttc/img/team.jpg',
@@ -808,16 +792,8 @@ export const imagery = {
       alt: 'Facade of a large institutional building in service',
     },
     work: {
-      src: '/ttc/img/team.jpg',
-      alt: 'Reinforced-concrete frame under construction with a tower crane',
-    },
-    about: {
-      src: '/ttc/img/hero-bg.jpg',
-      alt: 'Upward view between two older city buildings',
-    },
-    contact: {
-      src: '/ttc/img/projects/project-02.jpg',
-      alt: 'Glass curtain wall meeting a cast concrete mass',
+      src: '/ttc/img/projects/project-12.jpg',
+      alt: 'Coffered concrete soffit meeting a glass tower',
     },
   },
 } as const;

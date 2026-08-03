@@ -2,33 +2,36 @@
 
 ## How photography is used on this site
 
-Architectural photography appears **as material and atmosphere only** — behind
-the technical line-art in the hero and in the two "paths" panels. It is never
-captioned, framed or implied to be a Tercero Tablada project. The work section
-shows anonymized *representative engagements* rendered as drawings, precisely
-so that no stock photograph is ever mistaken for the firm's portfolio.
+Architectural photography appears **as material and atmosphere only** — as the
+hero of a page, never captioned, framed or implied to be a Tercero Tablada
+project. The work section shows anonymized *representative engagements*
+rendered as drawings, precisely so that no stock photograph is ever mistaken
+for the firm's portfolio.
 
 Replace these with real Tercero Tablada project photography when it exists:
 that removes the attribution obligation below and makes the site genuinely the
 firm's own.
 
-## In use
+## In use — one placement each
 
-Attribution is also published on the site itself at `/credits`, which is what
+Only six of the fourteen images clear the bar for this firm. Each is used in
+exactly ONE place; repeating a photograph across pages reads as thin, so pages
+without an image of their own open on the plain graphite band instead.
+
+Attribution is also published on the site at `/credits`, which is what
 CC BY / CC BY-SA actually require for this medium — a page a visitor can reach,
 not only a file in the repository. Keep the two in sync.
 
-| File | Where | Author | License |
-|------|-------|--------|---------|
-| hero-bg.jpg | Home hero · About · Condition assessments | unattributed at import | see note |
-| team.jpg | Expertise · Work | PortlandAppraisalBlog | CC BY-SA 4.0 |
-| projects/project-01.jpg | Existing-buildings path · Building recertification | Antti Leppänen | CC BY 4.0 |
-| projects/project-02.jpg | New-structures path · BIM coordination · Contact | Jonathan Simcoe | CC0 |
-| projects/project-06.jpg | Structural analysis & foundations | Asopotnik | CC BY-SA 4.0 |
-| projects/project-09.jpg | Existing buildings · Safety inspections | Wikimedia contributor | CC BY-SA 2.0 |
-| projects/project-12.jpg | Reinforced concrete design · Peer review | Dietmar Rabich | CC BY-SA 4.0 |
+| File | Where (exactly one) | Author | License |
+|------|---------------------|--------|---------|
+| hero-bg.jpg | Home hero | unattributed at import | see note |
+| projects/project-02.jpg | Home — "Design new structures" | Jonathan Simcoe | CC0 |
+| projects/project-01.jpg | Home — "Evaluate existing buildings" | Antti Leppänen | CC BY 4.0 |
+| team.jpg | Expertise | PortlandAppraisalBlog | CC BY-SA 4.0 |
+| projects/project-09.jpg | Existing Buildings | Wikimedia contributor | CC BY-SA 2.0 |
+| projects/project-12.jpg | Work | Dietmar Rabich | CC BY-SA 4.0 |
 
-Source URLs are listed on `/credits` (`src/app/(public)/credits/page.tsx`).
+Source URLs live on `/credits` (`src/app/(public)/credits/page.tsx`).
 
 **Note on `hero-bg.jpg`:** predates the credits table and arrived without
 attribution metadata. Confirm its source and licence, or replace it with owned
@@ -38,20 +41,28 @@ photography.
 not an adaptation), which is fine — but do not composite them into a new
 graphic and publish that without checking the licence terms.
 
-## Retained but NOT used on the site
+## Pages with no photograph
 
-Imported for an earlier design and no longer referenced by any page. Kept only
-so the choice can be revisited; do not reintroduce them as project photography.
+About, Contact, all seven service detail pages and the legal pages open on the
+plain graphite band. They are waiting for real Tercero Tablada photography —
+adding it to `imagery.pages` (or to a service's `photo`) is all that is needed.
 
-| File | Author | License |
-|------|--------|---------|
-| projects/project-03.jpg | James Emmans | CC BY-SA 2.0 |
-| projects/project-04.jpg | Aklaklakl | CC BY-SA 4.0 |
-| projects/project-05.jpg | Micheal Kaluba | CC BY-SA 4.0 |
-| projects/project-07.jpg | Philip Jeffrey | CC BY-SA 2.0 |
-| projects/project-08.jpg | PattayaPatrol | CC BY-SA 4.0 |
-| projects/project-10.jpg | Matti Blume | CC BY-SA |
-| projects/project-11.jpg | Wikimedia Commons | CC BY-SA 3.0 DE |
+## Reviewed and rejected
+
+Every remaining image was looked at and ruled out for this firm — kept only so
+the decision is not re-litigated. Do not reintroduce them as project
+photography.
+
+| File | Subject | Why not |
+|------|---------|---------|
+| projects/project-03.jpg | UK industrial estate | flat, blue metal shed, no structure visible |
+| projects/project-04.jpg | Villa in Lebanon | residential, landscaped, reads as an estate agent |
+| projects/project-05.jpg | Office block, Kampala | dirt roads, banana plants — wrong region entirely |
+| projects/project-06.jpg | Bridge over the Mura | genuinely structural, but under SNOW — not South Florida |
+| projects/project-07.jpg | UK multi-storey car park | road signage, one-way markings, dull |
+| projects/project-08.jpg | Pattaya rooftops | urban jumble, no subject |
+| projects/project-10.jpg | Barcelona street | pedestrians, graffiti, shopfronts |
+| projects/project-11.jpg | Hamburg container port | hazy aerial, logistics not buildings |
 
 ## Software marks
 

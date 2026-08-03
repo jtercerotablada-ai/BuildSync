@@ -21,46 +21,38 @@ export const metadata: Metadata = {
 const CREDITS = [
   {
     file: 'hero-bg.jpg',
-    used: 'Home hero · About · Structural condition assessments',
+    used: 'Home hero',
     author: 'Unattributed at time of import',
     licence: 'Provenance being confirmed',
     source: null,
   },
   {
-    file: 'team.jpg',
-    used: 'Expertise · Work',
-    author: 'PortlandAppraisalBlog',
-    licence: 'CC BY-SA 4.0',
-    source:
-      'https://commons.wikimedia.org/wiki/File:HollywoodHUB_under_construction_with_tower_crane_at_Hollywood_Transit_Center,_Portland,_Oregon_(January_2026).jpg',
-  },
-  {
-    file: 'projects/project-01.jpg',
-    used: 'Existing buildings path · Building recertification',
-    author: 'Antti Leppänen',
-    licence: 'CC BY 4.0',
-    source:
-      'https://commons.wikimedia.org/wiki/File:Merihaka_apartment_high-rises.JPG',
-  },
-  {
     file: 'projects/project-02.jpg',
-    used: 'New structures path · BIM coordination · Contact',
+    used: 'Home — "Design new structures"',
     author: 'Jonathan Simcoe',
     licence: 'CC0 1.0 (public domain)',
     source:
       'https://commons.wikimedia.org/wiki/File:Glass_building_corner_(Unsplash).jpg',
   },
   {
-    file: 'projects/project-06.jpg',
-    used: 'Structural analysis & foundations',
-    author: 'Asopotnik',
+    file: 'projects/project-01.jpg',
+    used: 'Home — "Evaluate existing buildings"',
+    author: 'Antti Leppänen',
+    licence: 'CC BY 4.0',
+    source:
+      'https://commons.wikimedia.org/wiki/File:Merihaka_apartment_high-rises.JPG',
+  },
+  {
+    file: 'team.jpg',
+    used: 'Expertise',
+    author: 'PortlandAppraisalBlog',
     licence: 'CC BY-SA 4.0',
     source:
-      'https://commons.wikimedia.org/wiki/File:Highway_bridge_over_Mura_River.jpg',
+      'https://commons.wikimedia.org/wiki/File:HollywoodHUB_under_construction_with_tower_crane_at_Hollywood_Transit_Center,_Portland,_Oregon_(January_2026).jpg',
   },
   {
     file: 'projects/project-09.jpg',
-    used: 'Existing buildings · Building safety inspections',
+    used: 'Existing Buildings',
     author: 'Wikimedia Commons contributor',
     licence: 'CC BY-SA 2.0',
     source:
@@ -68,7 +60,7 @@ const CREDITS = [
   },
   {
     file: 'projects/project-12.jpg',
-    used: 'Reinforced concrete design · Peer review',
+    used: 'Work',
     author: 'Dietmar Rabich',
     licence: 'CC BY-SA 4.0',
     source:
@@ -84,7 +76,7 @@ export default function CreditsPage() {
         crumbs={[{ href: '/', label: 'Home' }, { label: 'Image Credits' }]}
         titleLines={['Image Credits']}
         plainTitle="Image Credits"
-        sub="The architectural photography on this site is licensed from third-party photographers and shown as material, not as a portfolio. None of it depicts a Tercero Tablada Civil & Structural Engineering Inc. project."
+        sub="The architectural photography on this site is licensed from third-party photographers and shown as material, not as a portfolio. Each image appears in exactly one place, and none of it depicts a Tercero Tablada Civil & Structural Engineering Inc. project."
       />
 
       <section className="mp-section mp-surface--paper">
