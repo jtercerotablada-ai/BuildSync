@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { dueDateToLocalMidnight, startOfLocalDay, daysFromToday, toDateOnlyISO } from '@/lib/date-only';
-import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
+import { TaskDetailPanel } from '@/components/tasks/task-detail-panel';
 import { DueDatePicker } from '@/components/tasks/due-date-picker';
 
 interface Task {
@@ -555,13 +555,15 @@ export function MyTasksWidget() {
         )}
       </div>
 
-      {/* ========== TASK DETAIL MODAL ========== */}
-      <TaskDetailModal
-        taskId={selectedTaskId}
-        open={!!selectedTaskId}
-        onOpenChange={(open) => !open && setSelectedTaskId(null)}
-        onTaskUpdate={fetchTasks}
-      />
+      {/* ===== TASK DETAIL — shared panel, centered (Phase 2 consolidation) ===== */}
+      {selectedTaskId && (
+        <TaskDetailPanel
+          taskId={selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+          onUpdate={fetchTasks}
+          presentation="centered"
+        />
+      )}
     </div>
   );
 }

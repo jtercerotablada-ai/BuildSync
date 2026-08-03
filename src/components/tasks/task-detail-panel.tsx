@@ -97,6 +97,10 @@ interface TaskDetailPanelProps {
   onClose: () => void;
   onUpdate?: () => void;
   onAttachmentsChange?: () => void;
+  /** How the panel is presented. "slideover" (default) is the right-side
+   *  drawer used by project / task-detail views; "centered" is a centered
+   *  modal with a click-to-close backdrop, used by the Home My-Tasks widget. */
+  presentation?: "slideover" | "centered";
 }
 
 interface TaskAttachment {
@@ -258,6 +262,7 @@ export function TaskDetailPanel({
   onClose,
   onUpdate,
   onAttachmentsChange,
+  presentation = "slideover",
 }: TaskDetailPanelProps) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -888,7 +893,20 @@ export function TaskDetailPanel({
   const dueDateInfo = formatDueDateLabel(taskDetail?.dueDate || null);
 
   return (
-    <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[500px] z-50 border-l border-[#e8e8e8] bg-white rounded-t-2xl md:rounded-none flex flex-col shadow-[-12px_0_32px_-12px_rgba(0,0,0,0.06)] md:shadow-2xl transition-transform duration-200 animate-in slide-in-from-bottom md:slide-in-from-right text-[#1e1f21]">
+    <>
+      {presentation === "centered" && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 animate-in fade-in"
+          onClick={onClose}
+        />
+      )}
+      <div
+        className={cn(
+          presentation === "centered"
+            ? "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-[560px] max-h-[88vh] border border-[#e8e8e8] bg-white rounded-2xl flex flex-col overflow-hidden shadow-2xl text-[#1e1f21] animate-in fade-in zoom-in-95 duration-200"
+            : "fixed inset-0 md:inset-auto md:right-0 md:top-0 md:bottom-0 w-full md:w-[500px] z-50 border-l border-[#e8e8e8] bg-white rounded-t-2xl md:rounded-none flex flex-col shadow-[-12px_0_32px_-12px_rgba(0,0,0,0.06)] md:shadow-2xl transition-transform duration-200 animate-in slide-in-from-bottom md:slide-in-from-right text-[#1e1f21]"
+        )}
+      >
       {/* ── Mobile drag handle ──────────────────────────────── */}
       <div className="md:hidden flex justify-center py-2">
         <div className="w-10 h-1 rounded-full bg-gray-300" />
@@ -2475,7 +2493,8 @@ export function TaskDetailPanel({
           onClose={() => setCommentViewer(null)}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
