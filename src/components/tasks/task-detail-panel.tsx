@@ -54,6 +54,7 @@ import {
   Calendar,
   ArrowLeftRight,
   ChevronDown,
+  Layers,
   ShieldAlert,
   UserPlus2,
   ListPlus,
@@ -101,6 +102,12 @@ interface TaskDetailPanelProps {
    *  drawer used by project / task-detail views; "centered" is a centered
    *  modal with a click-to-close backdrop, used by the Home My-Tasks widget. */
   presentation?: "slideover" | "centered";
+  /** Personal My-Tasks sections. When supplied (by /my-tasks), the panel
+   *  shows a "Section" row that moves the task between the user's personal
+   *  buckets via onMoveToSection. Absent everywhere else. */
+  personalSections?: { id: string; name: string }[];
+  currentSectionId?: string | null;
+  onMoveToSection?: (sectionId: string) => void | Promise<void>;
 }
 
 interface TaskAttachment {
@@ -263,6 +270,9 @@ export function TaskDetailPanel({
   onUpdate,
   onAttachmentsChange,
   presentation = "slideover",
+  personalSections = [],
+  currentSectionId = null,
+  onMoveToSection,
 }: TaskDetailPanelProps) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -1242,6 +1252,49 @@ export function TaskDetailPanel({
                 }
               />
             </PropertyRow>
+
+            {/* Personal My-Tasks section — only when the parent (the
+                /my-tasks page) supplies its personal sections. Moves the
+                task between the user's My Tasks buckets via onMoveToSection. */}
+            {personalSections.length > 0 && onMoveToSection && (
+              <PropertyRow label="Section">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 -ml-1.5 px-1.5 py-0.5 rounded text-[13px] text-[#1e1f21] hover:bg-[#f3f4f6] cursor-pointer"
+                    >
+                      <Layers className="h-3.5 w-3.5 text-[#6f7782]" />
+                      {personalSections.find((s) => s.id === currentSectionId)
+                        ?.name ?? "Recently assigned"}
+                      <ChevronDown className="h-3 w-3 text-[#9aa0a6]" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[200px]">
+                    {personalSections.map((s) => (
+                      <DropdownMenuItem
+                        key={s.id}
+                        onClick={() => {
+                          if (s.id !== currentSectionId) onMoveToSection(s.id);
+                        }}
+                        className="text-[13px]"
+                      >
+                        {s.id === currentSectionId && (
+                          <Check className="h-3.5 w-3.5 text-[#6f7782]" />
+                        )}
+                        <span
+                          className={
+                            s.id === currentSectionId ? "font-medium" : ""
+                          }
+                        >
+                          {s.name}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </PropertyRow>
+            )}
 
             <PropertyRow label="Due date">
               <DueDatePicker
