@@ -91,6 +91,7 @@ import { PortfolioShareDialog } from "@/components/portfolios/portfolio-share-di
 import { PortfolioCustomizeDrawer } from "@/components/portfolios/portfolio-customize-drawer";
 import { MessagesView } from "@/components/views/messages-view";
 import { DueDatePicker } from "@/components/tasks/due-date-picker";
+import { ProjectStatusModal } from "@/components/portfolios/project-status-modal";
 import { useUiState } from "@/hooks/use-ui-state";
 import {
   COLUMN_DEFS,
@@ -1632,7 +1633,7 @@ export default function PortfolioDetailPage() {
       />
     </div>
       {statusModalProject && (
-        <PortfolioStatusView
+        <ProjectStatusModal
           key={statusModalProject.id}
           project={statusModalProject}
           variant="modal"
@@ -1640,7 +1641,7 @@ export default function PortfolioDetailPage() {
         />
       )}
       {progressPanelProject && (
-        <PortfolioStatusView
+        <ProjectStatusModal
           key={progressPanelProject.id}
           project={progressPanelProject}
           variant="panel"
@@ -1780,176 +1781,6 @@ const PortfolioCellCtx = React.createContext<{
   canEdit: boolean;
 } | null>(null);
 
-interface ProjectStatusUpdate {
-  id: string;
-  status: PortfolioStatus;
-  summary: string;
-  createdAt: string;
-  author: { id: string; name: string | null; image: string | null } | null;
-}
-
-// Asana parity: clicking a project's Status cell opens this centered (variant
-// "modal"); its Progress cell opens it as a right slide-over (variant "panel").
-// Both show the project's latest status update (status + summary).
-function PortfolioStatusView({
-  project,
-  variant,
-  onClose,
-}: {
-  project: Project;
-  variant: "modal" | "panel";
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const [updates, setUpdates] = useState<ProjectStatusUpdate[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // `loading` starts true from useState and this view is keyed by
-  // project id at the callsite, so each project gets a fresh mount —
-  // no synchronous setLoading(true) needed here (which would trip the
-  // "setState in effect → cascading render" lint + an extra render).
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/projects/${project.id}/status-updates`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => {
-        if (!cancelled) setUpdates(Array.isArray(d) ? d : []);
-      })
-      .catch(() => {
-        if (!cancelled) setUpdates([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [project.id]);
-
-  const latest = updates[0] || null;
-
-  const bodyEl = (
-    <>
-      <div className="flex items-center justify-between px-5 py-3 border-b">
-        <div className="flex items-center gap-2 min-w-0">
-          <div
-            className="w-3.5 h-3.5 rounded flex-shrink-0"
-            style={{ backgroundColor: project.color }}
-          />
-          <h2 className="font-semibold text-[15px] text-gray-900 truncate">
-            {project.name}
-          </h2>
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            onClick={() => router.push(`/projects/${project.id}`)}
-            className="text-xs text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100"
-          >
-            View project
-          </button>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 text-lg leading-none"
-          >
-            ×
-          </button>
-        </div>
-      </div>
-      <div className="flex-1 overflow-auto px-5 py-4">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-          </div>
-        ) : !latest ? (
-          <div className="text-center py-12">
-            <p className="text-sm text-gray-500 mb-3">No status updates yet.</p>
-            <button
-              onClick={() => router.push(`/projects/${project.id}`)}
-              className="text-sm text-[#a8893a] hover:underline"
-            >
-              Post a status update
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Avatar className="h-7 w-7">
-                <AvatarImage src={latest.author?.image || ""} />
-                <AvatarFallback className="text-xs bg-gray-200">
-                  {latest.author?.name?.charAt(0) || "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="text-sm">
-                <span className="font-medium text-gray-900">
-                  {latest.author?.name || "Someone"}
-                </span>
-                <span className="text-gray-400">
-                  {" · "}
-                  {new Date(latest.createdAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-[80px_1fr] gap-y-2 items-center text-sm">
-              <div className="text-gray-500">Status</div>
-              <div>
-                <Badge className={cn(statusMeta(latest.status).chip, "text-xs")}>
-                  {statusMeta(latest.status).label}
-                </Badge>
-              </div>
-              <div className="text-gray-500">Project</div>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <div
-                  className="w-2.5 h-2.5 rounded flex-shrink-0"
-                  style={{ backgroundColor: project.color }}
-                />
-                <span className="text-gray-800 truncate">{project.name}</span>
-              </div>
-            </div>
-            <div className="pt-1">
-              <h3 className="text-sm font-semibold text-gray-900 mb-1.5">
-                Summary
-              </h3>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {latest.summary || "—"}
-              </p>
-            </div>
-            {updates.length > 1 && (
-              <button
-                onClick={() => router.push(`/projects/${project.id}`)}
-                className="text-xs text-[#a8893a] hover:underline pt-1"
-              >
-                See all {updates.length} updates
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </>
-  );
-
-  if (variant === "modal") {
-    return (
-      <>
-        <div
-          className="fixed inset-0 z-40 bg-black/50 animate-in fade-in"
-          onClick={onClose}
-        />
-        <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-[600px] max-h-[85vh] bg-white rounded-2xl border flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-          {bodyEl}
-        </div>
-      </>
-    );
-  }
-  return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-[440px] bg-white border-l flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
-      {bodyEl}
-    </div>
-  );
-}
 
 // Render a single data cell for the given column key.
 function ProjectDataCell({
