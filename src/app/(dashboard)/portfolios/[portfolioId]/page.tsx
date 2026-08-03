@@ -44,6 +44,12 @@ import {
   Calendar,
   Trash2,
   GripVertical,
+  List as ListIcon,
+  CalendarRange,
+  LayoutDashboard,
+  Activity,
+  Users,
+  MessageSquare,
   Star,
   UserPlus,
   SlidersHorizontal,
@@ -1175,12 +1181,30 @@ export default function PortfolioDetailPage() {
           {/* Tabs directly under header (Asana style) */}
           <Tabs defaultValue="list" className="w-full">
             <TabsList className="flex-wrap h-auto bg-transparent border-b rounded-none w-full justify-start p-0 gap-0">
-              <TabsTrigger value="list" className={PF_TAB_CLS}>List</TabsTrigger>
-              <TabsTrigger value="timeline" className={PF_TAB_CLS}>Timeline</TabsTrigger>
-              <TabsTrigger value="panel" className={PF_TAB_CLS}>Panel</TabsTrigger>
-              <TabsTrigger value="progress" className={PF_TAB_CLS}>Progress</TabsTrigger>
-              <TabsTrigger value="workload" className={PF_TAB_CLS}>Workload</TabsTrigger>
-              <TabsTrigger value="messages" className={PF_TAB_CLS}>Messages</TabsTrigger>
+              <TabsTrigger value="list" className={PF_TAB_CLS}>
+                <ListIcon className="h-4 w-4" />
+                <span>List</span>
+              </TabsTrigger>
+              <TabsTrigger value="timeline" className={PF_TAB_CLS}>
+                <CalendarRange className="h-4 w-4" />
+                <span>Timeline</span>
+              </TabsTrigger>
+              <TabsTrigger value="panel" className={PF_TAB_CLS}>
+                <LayoutDashboard className="h-4 w-4" />
+                <span>Panel</span>
+              </TabsTrigger>
+              <TabsTrigger value="progress" className={PF_TAB_CLS}>
+                <Activity className="h-4 w-4" />
+                <span>Progress</span>
+              </TabsTrigger>
+              <TabsTrigger value="workload" className={PF_TAB_CLS}>
+                <Users className="h-4 w-4" />
+                <span>Workload</span>
+              </TabsTrigger>
+              <TabsTrigger value="messages" className={PF_TAB_CLS}>
+                <MessageSquare className="h-4 w-4" />
+                <span>Messages</span>
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="list" className="mt-4">
