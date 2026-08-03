@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { paths } from '@/lib/ttc/site';
-import { PathArt } from './art';
 import { Reveal, SectionHeading, TextLink } from './primitives';
 
 /**
@@ -47,9 +46,9 @@ export function TwoPaths() {
                 </h3>
               </div>
 
-              {/* Photograph carries the material; the line-art sits on top as
-                  the engineering read of it. The image is decorative — the
-                  panel's meaning is in the heading and the list. */}
+              {/* Photograph only. A line-art overlay on top of a real building
+                  fought the image; the panel's meaning is already carried by
+                  the number, the heading and the capability list. */}
               <div className="mp-path__art">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -61,9 +60,6 @@ export function TwoPaths() {
                   width={1800}
                   height={1200}
                 />
-                <span className="mp-path__overlay" aria-hidden="true">
-                  <PathArt kind={p.art} />
-                </span>
               </div>
 
               <p className="mp-path__lede">{p.lede}</p>

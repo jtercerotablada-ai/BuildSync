@@ -240,9 +240,6 @@ body:has(.mp)::before {
   .mp-cred:nth-child(6n) {
     border-inline-end: 0;
   }
-  .mp-hero__art svg {
-    max-height: min(70svh, 780px);
-  }
 }
 
 @media (min-width: 2000px) {
@@ -1089,43 +1086,50 @@ body:has([data-mp-dark-hero])
     ),
     linear-gradient(180deg, #121416 0%, #0b0c0d 62%, #0b0c0d 100%);
 }
-/* Architectural crop occupying the right of the hero, desaturated and faded
-   into the graphite from both edges so the headline column stays pure and
-   the drawing reads on top of it. Sits under the technical grid. */
+/* The photograph is the hero visual, not a texture behind one. It holds the
+   right of the band at full bleed and dissolves into the graphite across the
+   headline column, so the copy sits on flat colour and stays readable while
+   the building is genuinely visible. */
+/* The photograph is the hero visual, not a texture behind one. It runs the
+   full band and a directional scrim buries the left third in graphite, so the
+   copy always sits on flat colour while the building stays genuinely visible
+   on the right. Scrim rather than a soft mask: legibility must not depend on
+   where the bright parts of the photo happen to fall. */
 .mp-hero__photo {
   position: absolute;
-  inset-block: 0;
-  inset-inline-end: 0;
-  width: min(62%, 1200px);
+  inset: 0;
   z-index: -2;
   overflow: hidden;
   pointer-events: none;
+  transform-origin: 72% 40%;
 }
 .mp-hero__photo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 50% 30%;
-  filter: grayscale(1) contrast(1.1) brightness(0.4);
-  opacity: 0.44;
-  mask-image: linear-gradient(
+  object-position: 62% 30%;
+  filter: grayscale(1) contrast(1.12) brightness(0.72);
+}
+.mp-hero__photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
       to right,
-      transparent 0%,
-      #000 46%,
-      #000 88%,
-      transparent 100%
+      var(--mp-graphite) 0%,
+      var(--mp-graphite) 34%,
+      rgba(11, 12, 13, 0.72) 52%,
+      rgba(11, 12, 13, 0.18) 78%,
+      rgba(11, 12, 13, 0.1) 100%
     ),
-    linear-gradient(to bottom, transparent 0%, #000 24%, #000 72%, transparent 100%);
-  -webkit-mask-image: linear-gradient(
-      to right,
-      transparent 0%,
-      #000 46%,
-      #000 88%,
-      transparent 100%
-    ),
-    linear-gradient(to bottom, transparent 0%, #000 24%, #000 72%, transparent 100%);
-  mask-composite: intersect;
-  -webkit-mask-composite: source-in;
+    linear-gradient(
+      to bottom,
+      rgba(11, 12, 13, 0.6) 0%,
+      transparent 20%,
+      transparent 66%,
+      rgba(11, 12, 13, 0.88) 100%
+    );
 }
 
 .mp-hero__grid {
@@ -1152,13 +1156,19 @@ body:has([data-mp-dark-hero])
   );
 }
 
+/* Single column now. `.mp-hero__body` also carries `.mp-shell`, so the width
+   cap has to go on the CONTENT, not on this element — capping the shell itself
+   shrinks the container and `margin-inline: auto` then centres the copy over
+   the photograph. */
 .mp-hero__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-  gap: clamp(2rem, 5vw, 5rem);
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   flex: 1;
   padding-block-end: var(--mp-12);
+}
+.mp-hero__body > * {
+  max-width: min(100%, 58ch);
 }
 .mp-hero__eyebrow {
   color: var(--mp-snow-2);
@@ -1183,29 +1193,6 @@ body:has([data-mp-dark-hero])
   font-size: var(--mp-t-lead);
   line-height: 1.55;
   color: var(--mp-snow-2);
-}
-.mp-hero__art {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 0;
-}
-.mp-hero__art svg {
-  width: 100%;
-  height: auto;
-  max-height: min(66svh, 640px);
-  color: var(--mp-snow);
-}
-.mp-hero__svgtext {
-  font-family: var(--mp-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  fill: var(--mp-snow-3);
-}
-.mp-hero__svgtext--gold {
-  fill: var(--mp-gold);
 }
 
 .mp-hero__foot {
@@ -1383,57 +1370,30 @@ body:has([data-mp-dark-hero])
 .mp-path__art {
   position: relative;
   margin-block: var(--mp-6);
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 3 / 2;
   border: 1px solid var(--mp-line);
   background: var(--mp-graphite);
   overflow: hidden;
   isolation: isolate;
 }
+/* No overlay to protect any more, so the image can be read at full strength.
+   Monochrome keeps the two panels in the same material family. */
 .mp-path__photo {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: grayscale(1) contrast(1.05) brightness(0.62);
-  transform: scale(1.02);
+  filter: grayscale(1) contrast(1.04);
+  transform: scale(1.01);
   transition: transform var(--mp-dur-slow) var(--mp-ease),
     filter var(--mp-dur-slow) var(--mp-ease);
 }
 .mp-path:hover .mp-path__photo {
-  transform: scale(1.05);
-  filter: grayscale(0.75) contrast(1.05) brightness(0.66);
+  transform: scale(1.045);
+  filter: grayscale(0.55) contrast(1.04);
 }
-/* Scrim between photo and drawing. Without it a bright sky washes the white
-   line-art out, so the two panels read at different strengths. */
-.mp-path__art::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(
-    180deg,
-    rgba(11, 12, 13, 0.58) 0%,
-    rgba(11, 12, 13, 0.42) 45%,
-    rgba(11, 12, 13, 0.72) 100%
-  );
-  pointer-events: none;
-}
-/* The line-art reads as a drawing laid over the built thing. */
-.mp-path__overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--mp-snow);
-  opacity: 0.94;
-}
-.mp-path__overlay svg {
-  width: 100%;
-  height: 100%;
-}
+
 .mp-path__lede {
   color: var(--mp-ink-3);
   line-height: 1.68;
@@ -3047,38 +3007,37 @@ a.mp-info__value:hover {
 
 @media (max-width: 900px) {
   .mp-hero__body {
-    grid-template-columns: minmax(0, 1fr);
     align-items: start;
-    gap: var(--mp-8);
   }
-  .mp-hero__art {
-    order: -1;
-    max-height: 28svh;
+  .mp-hero__body > * {
+    max-width: 100%;
   }
+  /* On a phone the photograph runs full width behind the copy, so the mask
+     flips to vertical: image at the top, flat graphite under the text. */
   .mp-hero__photo {
     width: 100%;
   }
   .mp-hero__photo img {
-    opacity: 0.34;
-    mask-image: linear-gradient(
+    object-position: 56% 22%;
+    filter: grayscale(1) contrast(1.12) brightness(0.62);
+  }
+  /* Vertical scrim on a phone: image reads at the top, flat graphite under
+     the headline and the buttons. */
+  .mp-hero__photo::after {
+    background: linear-gradient(
       to bottom,
-      #000 0%,
-      #000 46%,
-      transparent 86%
-    );
-    -webkit-mask-image: linear-gradient(
-      to bottom,
-      #000 0%,
-      #000 46%,
-      transparent 86%
+      rgba(11, 12, 13, 0.5) 0%,
+      rgba(11, 12, 13, 0.28) 18%,
+      rgba(11, 12, 13, 0.86) 44%,
+      var(--mp-graphite) 62%,
+      var(--mp-graphite) 100%
     );
   }
-  .mp-hero__art svg {
-    max-height: 28svh;
-  }
+  /* No drawing eating the top third any more, so the hero can open on the
+     image and bring the headline in under it. */
   .mp-hero {
     min-height: 0;
-    padding-block-start: calc(var(--mp-header-h) + var(--mp-4));
+    padding-block-start: calc(var(--mp-header-h) + 22svh);
   }
   .mp-hero__body {
     padding-block-end: var(--mp-6);
