@@ -26,12 +26,22 @@ import {
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
+import { useUiState } from "@/hooks/use-ui-state";
 import { SIDEBAR_REFRESH_EVENT } from "@/lib/open-create-project";
 import {
   canAccessSection,
   type AppSection,
   type EffectiveAccess,
 } from "@/lib/access-control";
+
+// Drag-to-resize bounds for the expanded sidebar (desktop only). The
+// default matches the historic fixed width so users who never drag see
+// no change. Persisted per-user via useUiState("sidebarWidth").
+const MIN_SIDEBAR_WIDTH = 200;
+const MAX_SIDEBAR_WIDTH = 480;
+const DEFAULT_SIDEBAR_WIDTH = 240;
+const clampSidebarWidth = (w: number) =>
+  Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(w)));
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -173,6 +183,71 @@ export function Sidebar({
   const [projectsDropdownOpen, setProjectsDropdownOpen] = useState(false);
   const projectsDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Drag-to-resize width (Asana-style). Persisted per-user + across
+  // devices via useUiState; the debounced PATCH collapses a whole drag
+  // into a single network write. Only applies to the expanded rail on
+  // desktop — collapsed width (w-16) and the mobile overlay (w-[270px])
+  // are unaffected.
+  const { value: storedWidth, setValue: setStoredWidth } = useUiState<number>(
+    "sidebarWidth",
+    DEFAULT_SIDEBAR_WIDTH
+  );
+  const sidebarWidth = clampSidebarWidth(
+    typeof storedWidth === "number" ? storedWidth : DEFAULT_SIDEBAR_WIDTH
+  );
+  const [resizing, setResizing] = useState(false);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(sidebarWidth);
+
+  const startResize = useCallback(
+    (e: React.MouseEvent) => {
+      // Ignore the secondary button; only left-drag resizes.
+      if (e.button !== 0) return;
+      e.preventDefault();
+      resizeStartX.current = e.clientX;
+      resizeStartWidth.current = sidebarWidth;
+      setResizing(true);
+    },
+    [sidebarWidth]
+  );
+
+  const nudgeWidth = useCallback(
+    (delta: number) => {
+      setStoredWidth((prev) =>
+        clampSidebarWidth(
+          (typeof prev === "number" ? prev : DEFAULT_SIDEBAR_WIDTH) + delta
+        )
+      );
+    },
+    [setStoredWidth]
+  );
+
+  // While a drag is active, track the pointer on the window (so it keeps
+  // working past the thin handle) and lock the cursor / text-selection.
+  useEffect(() => {
+    if (!resizing) return;
+    const onMove = (e: MouseEvent) => {
+      setStoredWidth(
+        clampSidebarWidth(
+          resizeStartWidth.current + (e.clientX - resizeStartX.current)
+        )
+      );
+    };
+    const stop = () => setResizing(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", stop);
+    const prevCursor = document.body.style.cursor;
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", stop);
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevSelect;
+    };
+  }, [resizing, setStoredWidth]);
+
   // Inline collapsible lists (Asana-style) — click the section row to
   // expand/collapse the user's projects / teams right in the sidebar.
   const [projectsOpen, setProjectsOpen] = useState(true);
@@ -244,12 +319,27 @@ export function Sidebar({
   return (
     <TooltipProvider delayDuration={300}>
       <aside
+        style={{
+          // Size the rail on desktop via an explicit flex-basis. A plain
+          // width (w-*) collapses to 0 here: the aside sits in a flex row
+          // next to <main>, which claims the free space and shrinks a
+          // width/auto-basis item down. A fixed basis with no grow/shrink
+          // holds. This is ignored on mobile, where the aside is
+          // position:fixed and sized by the w-* classes below.
+          flex: collapsed ? "0 0 4rem" : `0 0 ${sidebarWidth}px`,
+        }}
         className={cn(
-          "flex h-full flex-col border-r border-gray-200/80 bg-[#fafafa] transition-all duration-200 ease-out overflow-hidden",
+          "relative flex h-full flex-col border-r border-gray-200/80 bg-[#fafafa] overflow-hidden",
+          // Only animate opacity (mobile fade). We deliberately do NOT
+          // transition the flex-basis / width: animating the basis stalls
+          // mid-flight during page-load layout churn and can leave the
+          // rail stuck at its start size, and during a resize drag we want
+          // the width to track the cursor 1:1 anyway.
+          "transition-[opacity] duration-200 ease-out",
           "max-md:fixed max-md:top-0 max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:shadow-2xl max-md:pt-14",
           collapsed
             ? "w-16 max-md:w-0 max-md:border-0 max-md:opacity-0 max-md:pointer-events-none"
-            : "w-[240px] max-md:w-[270px] max-md:opacity-100"
+            : "w-[270px] md:w-auto max-md:opacity-100"
         )}
       >
         <ScrollArea className="flex-1 pt-2" style={{ paddingLeft: collapsed ? 0 : undefined, paddingRight: collapsed ? 0 : undefined }}>
@@ -526,6 +616,43 @@ export function Sidebar({
             </Link>
           )}
         </div>
+
+        {/* Drag handle — Asana-style resize grip on the right edge.
+            Desktop only; the collapsed rail and mobile overlay have no
+            handle. Double-click resets to the default width; ←/→ nudge
+            it for keyboard users. */}
+        {!collapsed && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            aria-valuenow={sidebarWidth}
+            aria-valuemin={MIN_SIDEBAR_WIDTH}
+            aria-valuemax={MAX_SIDEBAR_WIDTH}
+            tabIndex={0}
+            onMouseDown={startResize}
+            onDoubleClick={() => setStoredWidth(DEFAULT_SIDEBAR_WIDTH)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowLeft") {
+                e.preventDefault();
+                nudgeWidth(-16);
+              } else if (e.key === "ArrowRight") {
+                e.preventDefault();
+                nudgeWidth(16);
+              }
+            }}
+            className="group absolute right-0 top-0 z-20 hidden h-full w-1.5 cursor-col-resize md:block"
+          >
+            <span
+              className={cn(
+                "absolute right-0 top-0 h-full w-[2px] transition-colors",
+                resizing
+                  ? "bg-blue-500"
+                  : "bg-transparent group-hover:bg-blue-400/60"
+              )}
+            />
+          </div>
+        )}
       </aside>
     </TooltipProvider>
   );
