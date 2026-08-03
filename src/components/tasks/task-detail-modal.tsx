@@ -211,10 +211,17 @@ export function TaskDetailModal({
     currentTaskIdRef.current = taskId;
   }, [taskId]);
 
+  // Which task the modal currently displays. Refetches for the SAME task
+  // (after adding a comment, subtask, dependency, collaborator, or
+  // attachment) keep the content on screen instead of flashing the whole
+  // panel back to the loading skeleton on every save — that flash was the
+  // reported "parpadeo". Mirrors task-detail-panel.tsx's loadedTaskIdRef gate.
+  const loadedTaskIdRef = useRef<string | null>(null);
+
   const fetchTask = useCallback(async () => {
     if (!taskId) return;
 
-    setLoading(true);
+    if (loadedTaskIdRef.current !== taskId) setLoading(true);
     try {
       const response = await fetch(`/api/tasks/${taskId}`);
       // If the user switched to a different task while this was in flight,
@@ -226,6 +233,7 @@ export function TaskDetailModal({
       setTask(data);
       setName(data.name);
       setDescription(data.description || '');
+      loadedTaskIdRef.current = taskId;
     } catch (error) {
       if (taskId !== currentTaskIdRef.current) return;
       toast.error('Failed to load task');
