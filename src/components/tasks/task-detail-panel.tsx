@@ -285,6 +285,12 @@ export function TaskDetailPanel({
   const [newSubtaskName, setNewSubtaskName] = useState("");
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
+  // ── Subtask inline rename (click the name to edit) ─────────────
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskName, setEditingSubtaskName] = useState("");
+  // Escape reverts without saving; every other blur commits — the flag
+  // lets the shared onBlur handler tell the two apart.
+  const cancelSubtaskEditRef = useRef(false);
 
   // ── File attachment upload ────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -574,6 +580,45 @@ export function TaskDetailPanel({
         block: "center",
       });
     }, 50);
+  }
+
+  // Subtasks are child tasks, so rename/delete go through the standard
+  // task endpoints — same as the completion toggle in the row below.
+  async function handleRenameSubtask(subtaskId: string, currentName: string) {
+    const name = editingSubtaskName.trim();
+    setEditingSubtaskId(null);
+    if (!name || name === currentName) return;
+    try {
+      const res = await fetch(`/api/tasks/${subtaskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        fetchTaskDetail();
+        onUpdate?.();
+      } else {
+        toast.error("Failed to rename subtask");
+      }
+    } catch {
+      toast.error("Failed to rename subtask");
+    }
+  }
+
+  async function handleDeleteSubtask(subtaskId: string) {
+    if (!confirm("Delete this subtask?")) return;
+    try {
+      const res = await fetch(`/api/tasks/${subtaskId}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchTaskDetail();
+        onUpdate?.();
+        toast.success("Subtask deleted");
+      } else {
+        toast.error("Failed to delete subtask");
+      }
+    } catch {
+      toast.error("Failed to delete subtask");
+    }
   }
 
   async function handleConvertTo(
@@ -1847,16 +1892,46 @@ export function TaskDetailPanel({
                       )}
                     </div>
                   </button>
-                  <span
-                    className={cn(
-                      "text-[13px] flex-1",
-                      subtask.completed
-                        ? "line-through text-[#9aa0a6]"
-                        : "text-[#1e1f21]"
-                    )}
-                  >
-                    {subtask.name}
-                  </span>
+                  {editingSubtaskId === subtask.id ? (
+                    <input
+                      type="text"
+                      value={editingSubtaskName}
+                      onChange={(e) => setEditingSubtaskName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.currentTarget.blur();
+                        } else if (e.key === "Escape") {
+                          cancelSubtaskEditRef.current = true;
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      onBlur={() => {
+                        if (cancelSubtaskEditRef.current) {
+                          cancelSubtaskEditRef.current = false;
+                          setEditingSubtaskId(null);
+                          return;
+                        }
+                        handleRenameSubtask(subtask.id, subtask.name);
+                      }}
+                      className="flex-1 text-[13px] bg-transparent outline-none text-[#1e1f21]"
+                      autoFocus
+                    />
+                  ) : (
+                    <span
+                      onClick={() => {
+                        setEditingSubtaskId(subtask.id);
+                        setEditingSubtaskName(subtask.name);
+                      }}
+                      className={cn(
+                        "text-[13px] flex-1 cursor-text",
+                        subtask.completed
+                          ? "line-through text-[#9aa0a6]"
+                          : "text-[#1e1f21]"
+                      )}
+                    >
+                      {subtask.name}
+                    </span>
+                  )}
                   {subtask.assignee && (
                     <Avatar
                       className="h-5 w-5 flex-shrink-0"
@@ -1868,6 +1943,14 @@ export function TaskDetailPanel({
                       </AvatarFallback>
                     </Avatar>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSubtask(subtask.id)}
+                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-[#9aa0a6] hover:text-[#e2564f] transition-opacity"
+                    title="Delete subtask"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ))}
               {isAddingSubtask ? (
