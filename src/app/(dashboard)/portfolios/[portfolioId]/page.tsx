@@ -44,12 +44,6 @@ import {
   Calendar,
   Trash2,
   GripVertical,
-  List as ListIcon,
-  CalendarRange,
-  LayoutDashboard,
-  Activity,
-  Users,
-  MessageSquare,
   Star,
   UserPlus,
   SlidersHorizontal,
@@ -97,6 +91,13 @@ import {
   type ColumnKey,
   type PortfolioPrivacy as PortfolioPrivacyType,
 } from "./customize-shared";
+
+// Portfolio view tabs — styled to match the PROJECT view tabs: small,
+// left-aligned, gold underline on the active tab, NO icons. Overrides the
+// shadcn TabsTrigger defaults (which stretch full-width via flex-1 and use a
+// pill/box active state).
+const PF_TAB_CLS =
+  "flex-none h-auto rounded-none border-0 border-b-2 border-transparent bg-transparent px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium text-slate-600 shadow-none transition-colors hover:text-slate-900 data-[state=active]:border-[#c9a84c] data-[state=active]:bg-transparent data-[state=active]:text-[#a8893a] data-[state=active]:shadow-none";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -1174,30 +1175,12 @@ export default function PortfolioDetailPage() {
           {/* Tabs directly under header (Asana style) */}
           <Tabs defaultValue="list" className="w-full">
             <TabsList className="flex-wrap h-auto bg-transparent border-b rounded-none w-full justify-start p-0 gap-0">
-              <TabsTrigger value="list">
-                <ListIcon className="h-3.5 w-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">List</span>
-              </TabsTrigger>
-              <TabsTrigger value="timeline">
-                <CalendarRange className="h-3.5 w-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Timeline</span>
-              </TabsTrigger>
-              <TabsTrigger value="panel">
-                <LayoutDashboard className="h-3.5 w-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Panel</span>
-              </TabsTrigger>
-              <TabsTrigger value="progress">
-                <Activity className="h-3.5 w-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Progress</span>
-              </TabsTrigger>
-              <TabsTrigger value="workload">
-                <Users className="h-3.5 w-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Workload</span>
-              </TabsTrigger>
-              <TabsTrigger value="messages">
-                <MessageSquare className="h-3.5 w-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Messages</span>
-              </TabsTrigger>
+              <TabsTrigger value="list" className={PF_TAB_CLS}>List</TabsTrigger>
+              <TabsTrigger value="timeline" className={PF_TAB_CLS}>Timeline</TabsTrigger>
+              <TabsTrigger value="panel" className={PF_TAB_CLS}>Panel</TabsTrigger>
+              <TabsTrigger value="progress" className={PF_TAB_CLS}>Progress</TabsTrigger>
+              <TabsTrigger value="workload" className={PF_TAB_CLS}>Workload</TabsTrigger>
+              <TabsTrigger value="messages" className={PF_TAB_CLS}>Messages</TabsTrigger>
             </TabsList>
 
             <TabsContent value="list" className="mt-4">
