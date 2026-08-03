@@ -54,6 +54,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'yearly',
       priority: 0.2,
     },
+    {
+      url: `${base}/credits`,
+      lastModified: now,
+      changeFrequency: 'yearly',
+      priority: 0.1,
+    },
   ];
 
   const serviceRoutes: MetadataRoute.Sitemap = services.map((s) => ({

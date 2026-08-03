@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { company } from '@/lib/ttc/site';
+import { company, imagery } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { LeadershipProfile } from '@/components/ttc/mp/LeadershipProfile';
 import { CredentialsBar } from '@/components/ttc/mp/CredentialsBar';
@@ -83,7 +83,7 @@ export default function AboutPage() {
           { k: 'Focus', v: 'Concrete, existing buildings, BIM' },
           { k: 'Region', v: 'South Florida' },
         ]}
-        art="rebar"
+        photo={imagery.pages.about}
       />
 
       {/* ── Approach ── */}

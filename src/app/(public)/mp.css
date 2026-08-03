@@ -2429,11 +2429,52 @@ body:has([data-mp-dark-hero])
     transparent 78%
   );
 }
+/* Same photographic treatment as the home hero, so every page opens the same
+   way: image across the band, directional scrim burying the left third so the
+   copy sits on flat colour regardless of what the photo is doing. */
+.mp-phero__photo {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mp-phero__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 60% 34%;
+  filter: grayscale(1) contrast(1.12) brightness(0.66);
+}
+.mp-phero__photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to right,
+      var(--mp-graphite) 0%,
+      var(--mp-graphite) 32%,
+      rgba(11, 12, 13, 0.74) 50%,
+      rgba(11, 12, 13, 0.22) 78%,
+      rgba(11, 12, 13, 0.14) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(11, 12, 13, 0.62) 0%,
+      transparent 24%,
+      transparent 62%,
+      rgba(11, 12, 13, 0.9) 100%
+    );
+}
+
 .mp-phero__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
-  gap: clamp(2rem, 5vw, 4.5rem);
+  grid-template-columns: minmax(0, 1fr);
   align-items: end;
+}
+.mp-phero__grid > * {
+  max-width: min(100%, 62ch);
 }
 .mp-phero__title {
   font-size: var(--mp-t-h1);
@@ -2451,17 +2492,6 @@ body:has([data-mp-dark-hero])
   font-size: var(--mp-t-lead);
   line-height: 1.6;
   color: var(--mp-snow-2);
-}
-.mp-phero__art {
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
-  color: var(--mp-snow);
-}
-.mp-phero__art svg {
-  width: 100%;
-  max-width: 380px;
-  height: auto;
 }
 .mp-phero__facts {
   display: flex;
@@ -2966,8 +2996,7 @@ a.mp-info__value:hover {
   .mp-bim__grid,
   .mp-lead__grid,
   .mp-geo__grid,
-  .mp-contact__grid,
-  .mp-phero__grid {
+  .mp-contact__grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .mp-expertise__sticky {
@@ -2975,12 +3004,6 @@ a.mp-info__value:hover {
   }
   .mp-service__art {
     display: flex;
-  }
-  .mp-phero__art {
-    justify-content: flex-start;
-  }
-  .mp-phero__art svg {
-    max-width: 300px;
   }
   .mp-split {
     grid-template-columns: minmax(0, 1fr);
@@ -3038,6 +3061,26 @@ a.mp-info__value:hover {
   .mp-hero {
     min-height: 0;
     padding-block-start: calc(var(--mp-header-h) + 22svh);
+  }
+  .mp-phero {
+    padding-block-start: calc(var(--mp-header-h) + 16svh);
+  }
+  .mp-phero__grid > * {
+    max-width: 100%;
+  }
+  .mp-phero__photo img {
+    object-position: 56% 28%;
+    filter: grayscale(1) contrast(1.12) brightness(0.6);
+  }
+  .mp-phero__photo::after {
+    background: linear-gradient(
+      to bottom,
+      rgba(11, 12, 13, 0.52) 0%,
+      rgba(11, 12, 13, 0.3) 14%,
+      rgba(11, 12, 13, 0.88) 40%,
+      var(--mp-graphite) 58%,
+      var(--mp-graphite) 100%
+    );
   }
   .mp-hero__body {
     padding-block-end: var(--mp-6);

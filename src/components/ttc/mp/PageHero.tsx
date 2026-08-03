@@ -2,9 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ServiceArt, type ArtKind } from './art';
+import { motion, useReducedMotion } from 'motion/react';
 import {
   DarkHeroSentinel,
+  EASE,
   Reveal,
   RevealText,
   TechnicalEyebrow,
@@ -13,9 +14,15 @@ import {
 export type Crumb = { href?: string; label: string };
 
 /**
- * Shared opening band for every internal page. Same surface and rhythm as the
- * home hero so the system reads as one site, but each page supplies its own
- * headline, facts and diagram — the structure varies, the language does not.
+ * Shared opening band for every internal page — same surface, rhythm and
+ * photographic treatment as the home hero, so the whole site opens the same
+ * way. Each page supplies its own headline, facts and photograph.
+ *
+ * There is no line-art here any more. A drawing sitting next to a headline at
+ * the top of every page read as decoration; the diagrams now appear only where
+ * they carry information and have no photograph competing with them — the
+ * service cards, the home expertise pane, the BIM viewer and the service-area
+ * plate.
  */
 export function PageHero({
   eyebrow,
@@ -23,7 +30,7 @@ export function PageHero({
   plainTitle,
   sub,
   facts,
-  art,
+  photo,
   crumbs,
 }: {
   eyebrow: string;
@@ -32,11 +39,31 @@ export function PageHero({
   plainTitle: string;
   sub?: string;
   facts?: { k: string; v: string }[];
-  art?: ArtKind;
+  photo?: { src: string; alt: string };
   crumbs?: Crumb[];
 }) {
+  const reduce = useReducedMotion();
   return (
     <section className="mp-phero" aria-labelledby="mp-phero-title">
+      {photo ? (
+        <motion.div
+          className="mp-phero__photo"
+          aria-hidden="true"
+          initial={reduce ? false : { opacity: 0, scale: 1.04 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1.4, ease: EASE }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photo.src}
+            alt=""
+            fetchPriority="high"
+            decoding="async"
+            width={1800}
+            height={1350}
+          />
+        </motion.div>
+      ) : null}
       <div className="mp-phero__grid-bg" aria-hidden="true" />
       <div className="mp-shell">
         {crumbs?.length ? (
@@ -92,11 +119,6 @@ export function PageHero({
             ) : null}
           </div>
 
-          {art ? (
-            <Reveal delay={0.16} className="mp-phero__art">
-              <ServiceArt kind={art} />
-            </Reveal>
-          ) : null}
         </div>
       </div>
       <DarkHeroSentinel />

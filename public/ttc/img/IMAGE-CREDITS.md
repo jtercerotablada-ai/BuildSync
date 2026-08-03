@@ -14,19 +14,29 @@ firm's own.
 
 ## In use
 
-| File | Where | Author | License | Source |
-|------|-------|--------|---------|--------|
-| hero-bg.jpg | Home hero — background crop | unattributed at time of import | see note | — |
-| projects/project-01.jpg | Two paths — "Evaluate existing buildings" | Antti Leppänen | CC BY 4.0 | https://commons.wikimedia.org/wiki/File:Merihaka_apartment_high-rises.JPG |
-| projects/project-02.jpg | Two paths — "Design new structures" | Jonathan Simcoe (jdsimcoe) | CC0 (public domain) | https://commons.wikimedia.org/wiki/File:Glass_building_corner_(Unsplash).jpg |
+Attribution is also published on the site itself at `/credits`, which is what
+CC BY / CC BY-SA actually require for this medium — a page a visitor can reach,
+not only a file in the repository. Keep the two in sync.
 
-**Note on `hero-bg.jpg`:** this file predates the credits table and arrived
-without attribution metadata. Confirm its source and licence before the site
-is promoted commercially, or replace it with owned photography.
+| File | Where | Author | License |
+|------|-------|--------|---------|
+| hero-bg.jpg | Home hero · About · Condition assessments | unattributed at import | see note |
+| team.jpg | Expertise · Work | PortlandAppraisalBlog | CC BY-SA 4.0 |
+| projects/project-01.jpg | Existing-buildings path · Building recertification | Antti Leppänen | CC BY 4.0 |
+| projects/project-02.jpg | New-structures path · BIM coordination · Contact | Jonathan Simcoe | CC0 |
+| projects/project-06.jpg | Structural analysis & foundations | Asopotnik | CC BY-SA 4.0 |
+| projects/project-09.jpg | Existing buildings · Safety inspections | Wikimedia contributor | CC BY-SA 2.0 |
+| projects/project-12.jpg | Reinforced concrete design · Peer review | Dietmar Rabich | CC BY-SA 4.0 |
 
-**CC BY 4.0 requires attribution.** `project-01.jpg` is credited in this file,
-which is published in the repository. If a more visible credit is required,
-add a line to the site footer.
+Source URLs are listed on `/credits` (`src/app/(public)/credits/page.tsx`).
+
+**Note on `hero-bg.jpg`:** predates the credits table and arrived without
+attribution metadata. Confirm its source and licence, or replace it with owned
+photography.
+
+**CC BY-SA is share-alike.** These are displayed unmodified (a CSS filter is
+not an adaptation), which is fine — but do not composite them into a new
+graphic and publish that without checking the licence terms.
 
 ## Retained but NOT used on the site
 
@@ -38,14 +48,10 @@ so the choice can be revisited; do not reintroduce them as project photography.
 | projects/project-03.jpg | James Emmans | CC BY-SA 2.0 |
 | projects/project-04.jpg | Aklaklakl | CC BY-SA 4.0 |
 | projects/project-05.jpg | Micheal Kaluba | CC BY-SA 4.0 |
-| projects/project-06.jpg | Asopotnik | CC BY-SA 4.0 |
 | projects/project-07.jpg | Philip Jeffrey | CC BY-SA 2.0 |
 | projects/project-08.jpg | PattayaPatrol | CC BY-SA 4.0 |
-| projects/project-09.jpg | Wikimedia Commons | CC BY-SA 2.0 |
 | projects/project-10.jpg | Matti Blume | CC BY-SA |
 | projects/project-11.jpg | Wikimedia Commons | CC BY-SA 3.0 DE |
-| projects/project-12.jpg | Dietmar Rabich | CC BY-SA 4.0 |
-| team.jpg | PortlandAppraisalBlog | CC BY-SA 4.0 |
 
 ## Software marks
 

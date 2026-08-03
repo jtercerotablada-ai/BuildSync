@@ -155,7 +155,10 @@ export type Service = {
   considerations: string[];
   /** Reference standards. Kept short; this is not a code list. */
   standards: string[];
-  /** Line-art key used by the diagram registry in `mp/art.tsx`. */
+  /** Photograph for the page hero. See `imagery` for the licensing rules. */
+  photo: { src: string; alt: string };
+  /** Line-art key used by the diagram registry in `mp/art.tsx`. Still used on
+   *  the service CARDS and the home expertise pane, where there is no photo. */
   art:
     | 'rebar'
     | 'frame'
@@ -183,6 +186,10 @@ export const services: Service[] = [
       'Architects carrying a project through permitting',
       'General contractors and concrete subcontractors',
     ],
+    photo: {
+      src: '/ttc/img/projects/project-12.jpg',
+      alt: 'Coffered concrete soffit meeting a glass tower',
+    },
     capabilities: [
       'Foundations',
       'Columns & beams',
@@ -265,6 +272,10 @@ export const services: Service[] = [
       'Owners evaluating feasibility or structural options',
       'Contractors assessing constructability of a system',
     ],
+    photo: {
+      src: '/ttc/img/projects/project-06.jpg',
+      alt: 'Concrete and steel composite bridge spanning a river',
+    },
     capabilities: [
       '3D modelling',
       'Wind & seismic demand',
@@ -347,6 +358,10 @@ export const services: Service[] = [
       'Contractors requiring model-based deliverables',
       'Owners who want the as-designed model to survive into operations',
     ],
+    photo: {
+      src: '/ttc/img/projects/project-02.jpg',
+      alt: 'Glass curtain wall meeting a cast concrete mass',
+    },
     capabilities: [
       'Structural modelling',
       'Model federation',
@@ -429,6 +444,10 @@ export const services: Service[] = [
       'Property managers',
       'Building owners and asset managers',
     ],
+    photo: {
+      src: '/ttc/img/projects/project-01.jpg',
+      alt: 'Reinforced-concrete residential towers in service',
+    },
     capabilities: [
       'Notice review',
       'Site inspection',
@@ -517,6 +536,10 @@ export const services: Service[] = [
       'Owners of aging or coastal buildings',
       'Managers preparing capital plans',
     ],
+    photo: {
+      src: '/ttc/img/projects/project-09.jpg',
+      alt: 'Facade of a large institutional building in service',
+    },
     capabilities: [
       'Structural inspection',
       'Balcony & railing review',
@@ -593,6 +616,10 @@ export const services: Service[] = [
       'Buyers performing structural due diligence',
       'Associations responding to inspection findings',
     ],
+    photo: {
+      src: '/ttc/img/hero-bg.jpg',
+      alt: 'Upward view between two older city buildings',
+    },
     capabilities: [
       'Field assessment',
       'Deterioration mapping',
@@ -669,6 +696,10 @@ export const services: Service[] = [
       'Design teams seeking an independent check',
       'Lenders and insurers requiring third-party review',
     ],
+    photo: {
+      src: '/ttc/img/projects/project-12.jpg',
+      alt: 'Coffered concrete soffit meeting a glass tower',
+    },
     capabilities: [
       'Drawing review',
       'Calculation check',
@@ -765,9 +796,29 @@ export const contactServiceOptions = [
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const imagery = {
-  hero: {
-    src: '/ttc/img/hero-bg.jpg',
-    alt: '',
+  hero: { src: '/ttc/img/hero-bg.jpg', alt: '' },
+  /** Page-hero photographs for the routes that are not a single service. */
+  pages: {
+    services: {
+      src: '/ttc/img/team.jpg',
+      alt: 'Reinforced-concrete frame under construction with a tower crane',
+    },
+    existingBuildings: {
+      src: '/ttc/img/projects/project-09.jpg',
+      alt: 'Facade of a large institutional building in service',
+    },
+    work: {
+      src: '/ttc/img/team.jpg',
+      alt: 'Reinforced-concrete frame under construction with a tower crane',
+    },
+    about: {
+      src: '/ttc/img/hero-bg.jpg',
+      alt: 'Upward view between two older city buildings',
+    },
+    contact: {
+      src: '/ttc/img/projects/project-02.jpg',
+      alt: 'Glass curtain wall meeting a cast concrete mass',
+    },
   },
 } as const;
 
@@ -1270,5 +1321,6 @@ export const legal = {
   links: [
     { href: '/privacy', label: 'Privacy Policy' },
     { href: '/terms', label: 'Terms of Use' },
+    { href: '/credits', label: 'Image Credits' },
   ],
 } as const;

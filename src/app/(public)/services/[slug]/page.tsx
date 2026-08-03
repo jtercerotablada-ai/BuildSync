@@ -111,7 +111,7 @@ export default async function ServiceDetailPage({
           { k: 'Applies to', v: service.track === 'new' ? 'New construction' : 'Existing buildings' },
           { k: 'Basis', v: service.standards.slice(0, 2).join(' · ') },
         ]}
-        art={service.art}
+        photo={service.photo}
       />
 
       {/* ── The problem ── */}

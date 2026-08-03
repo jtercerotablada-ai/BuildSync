@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { company, services } from '@/lib/ttc/site';
+import { company, imagery, services } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ServiceArt } from '@/components/ttc/mp/art';
 import { ProcessTimeline } from '@/components/ttc/mp/ProcessTimeline';
@@ -87,7 +87,7 @@ export default function ExistingBuildingsPage() {
           { k: 'Coverage', v: 'Miami-Dade & Broward' },
           { k: 'Output', v: 'Reports, scopes, reinspections' },
         ]}
-        art="recert"
+        photo={imagery.pages.existingBuildings}
       />
 
       {/* ── When to bring in an engineer ── */}

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { company, contact, services } from '@/lib/ttc/site';
+import { company, contact, imagery, services } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactForm } from '@/components/ttc/mp/ContactForm';
 import { SouthFloridaMap } from '@/components/ttc/mp/SouthFloridaMap';
@@ -53,7 +53,7 @@ export default function ContactPage() {
         ]}
         plainTitle="Bring us the structure. We’ll carry the responsibility."
         sub="Tell us about your project, building or compliance requirement. We will help define the appropriate engineering scope and next steps."
-        art="peer"
+        photo={imagery.pages.contact}
       />
 
       <section

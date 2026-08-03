@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { company, engagements, projects } from '@/lib/ttc/site';
+import { company, engagements, imagery, projects } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { SelectedExperience } from '@/components/ttc/mp/SelectedExperience';
 import { EngineeringProcess } from '@/components/ttc/mp/EngineeringProcess';
@@ -64,7 +64,7 @@ export default function ProjectsPage() {
           { k: 'Coverage', v: 'Miami-Dade & Broward' },
           { k: 'Systems', v: 'Reinforced concrete, steel' },
         ]}
-        art="bim"
+        photo={imagery.pages.work}
       />
 
       <SelectedExperience n="01" showLink={false} />
