@@ -7775,6 +7775,11 @@ function TaskDetailPanel({
   >([]);
   const [taskDetail, setTaskDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // Only show the loading spinner on the INITIAL load of this task (or a
+  // task switch). Same-task refetches (after adding a comment/subtask/dep)
+  // keep the content on screen instead of flashing back to the spinner —
+  // the same "parpadeo" gate already in task-detail-panel.tsx / -modal.tsx.
+  const loadedTaskIdRef = useRef<string | null>(null);
   const [liked, setLiked] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
   const [name, setName] = useState(task.name);
@@ -8036,7 +8041,7 @@ function TaskDetailPanel({
   }, [linkedProjectId]);
 
   async function fetchTaskDetail() {
-    setLoading(true);
+    if (loadedTaskIdRef.current !== task.id) setLoading(true);
     try {
       const [res, likeRes] = await Promise.all([
         fetch(`/api/tasks/${task.id}`),
@@ -8047,6 +8052,7 @@ function TaskDetailPanel({
         setTaskDetail(data);
         setName(data.name);
         setDescription(data.description || "");
+        loadedTaskIdRef.current = task.id;
       }
       if (likeRes.ok) {
         const likeData = await likeRes.json();
