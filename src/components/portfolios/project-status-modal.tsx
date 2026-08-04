@@ -1,28 +1,29 @@
 "use client";
 
 /**
- * ProjectStatusModal — Asana-parity "Status of <project>" surface for the
- * portfolio List view. Replaces the old thin PortfolioStatusView.
+ * ProjectStatusModal — Asana-parity "Status of <project>" surfaces for the
+ * portfolio List view (replaces the old thin PortfolioStatusView).
  *
- * Two presentations behind ONE component (same {project, variant, onClose}
- * contract the portfolio page already mounts, keyed per project id):
- *  - variant "modal"  → clicking a row's STATUS cell. Full Asana layout:
- *      header ("Status of X" + "Update status" + copy-link/expand + close),
- *      a left sidebar listing every past update (click to switch), and a
- *      main pane with a status-colored accent bar, headline, author, the
- *      Status/Project field rows, the structured `sections` blocks (or a
- *      plaintext summary fallback), and a "What's next?" table of the
- *      project's upcoming tasks (next 2 weeks).
- *  - variant "panel"  → clicking a row's PROGRESS cell. A right slide-over
- *      progress view: % complete, task counts, date range, and the latest
- *      status card.
+ * ONE component, same {project, variant, onClose} contract the portfolio page
+ * mounts (keyed per project id), two presentations that share the status-card
+ * body + the "Update status" composer:
  *
- * Data is all read-only + already-served: GET /api/projects/[id]/status-updates
- * (returns the structured `sections` the old viewer discarded) and
- * GET /api/tasks?projectId=…&completed=false (client-filtered to the window).
- * Posting a new update / commenting / reactions / followers are follow-up
- * phases that need backend — this component deliberately ships no dead
- * stub controls for them.
+ *  - variant "modal" → row STATUS cell. Centered dialog: header
+ *      ("Status of X" + Update status + close), a left sidebar of every past
+ *      update (click to switch), and a main pane with a status-colored accent
+ *      bar + the shared status body (headline, author, Status/Project rows,
+ *      the structured `sections` blocks, and a "What's next?" upcoming-tasks
+ *      table).
+ *  - variant "panel" → row PROGRESS cell. Right slide-over project summary
+ *      (matches Asana's progress fly-out): View-project header, name + date
+ *      range, "Latest status" + Update status, the SAME status card, "See all
+ *      updates", Description, and Members.
+ *
+ * Read-only, already-served data: GET status-updates (keeps the `sections`
+ * the old viewer discarded), GET /api/tasks for What's-next, and GET
+ * /api/projects/[id] for the panel's description + members. Posting reuses the
+ * existing POST /status-updates. Comments / reactions / followers need backend
+ * and are intentionally not shipped as dead stub controls.
  */
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -32,10 +33,11 @@ import {
   Link2,
   Maximize2,
   X,
-  CheckCircle2,
-  AlertTriangle,
   CalendarDays,
   ArrowUpRight,
+  AlignLeft,
+  Users,
+  Target,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -146,6 +148,16 @@ interface UpcomingTask {
   assignee: { id: string; name: string | null; image: string | null } | null;
 }
 
+interface ProjectMember {
+  id: string;
+  user: { id: string; name: string | null; image: string | null } | null;
+}
+
+interface ProjectDetail {
+  description: string | null;
+  members: ProjectMember[];
+}
+
 /** Structural subset of the portfolio page's `Project` — passing the full
  *  object type-checks by structural typing. */
 export interface StatusModalProject {
@@ -164,12 +176,23 @@ export interface StatusModalProject {
   };
 }
 
+// ── Container styles (shared by content + composer screens) ──
+
+const MODAL_CONTAINER =
+  "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-[900px] h-[85vh] max-h-[720px] bg-white rounded-2xl border flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200";
+const PANEL_CONTAINER =
+  "fixed inset-y-0 right-0 z-50 w-full max-w-[460px] bg-white border-l flex flex-col shadow-2xl animate-in slide-in-from-right duration-200";
+
 // ── Date helpers ────────────────────────────────────────────
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
+}
+
+function isToday(iso: string): boolean {
+  return new Date(iso).toDateString() === new Date().toDateString();
 }
 
 /** "Just now" / "5 minutes ago" / "2 hours ago" / "Yesterday" / "Aug 3". */
@@ -214,6 +237,19 @@ function longDate(iso: string): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+/** Project date range pill: "Today – Aug 31" / "Aug 3 – Aug 31". */
+function dateRangeLabel(
+  start: string | null | undefined,
+  end: string | null | undefined
+): string | null {
+  const s = start ? (isToday(start) ? "Today" : monthDay(start)) : null;
+  const e = end ? monthDay(end) : null;
+  if (s && e) return `${s} – ${e}`;
+  if (s) return s;
+  if (e) return `Due ${e}`;
+  return null;
 }
 
 /** Task date pill: "Aug 3 – 7" (same month), "Aug 30 – Sep 4" (cross), or a
@@ -267,6 +303,7 @@ export function ProjectStatusModal({
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<UpcomingTask[]>([]);
+  const [detail, setDetail] = useState<ProjectDetail | null>(null);
 
   // Composer state (Asana "Update status" / "New status update").
   const [composing, setComposing] = useState(false);
@@ -301,10 +338,9 @@ export function ProjectStatusModal({
     };
   }, [project.id]);
 
-  // Upcoming tasks for "What's next?" (modal only). Non-completed project
-  // tasks, client-filtered to the next 14 days — matches the app convention.
+  // Upcoming tasks for "What's next?". Non-completed project tasks,
+  // client-filtered to the next 14 days — matches the app convention.
   useEffect(() => {
-    if (variant !== "modal") return;
     let cancelled = false;
     fetch(`/api/tasks?projectId=${project.id}&completed=false`)
       .then((r) => (r.ok ? r.json() : []))
@@ -314,6 +350,25 @@ export function ProjectStatusModal({
       .catch(() => {
         if (!cancelled) setTasks([]);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  // Project detail (description + members) — panel only.
+  useEffect(() => {
+    if (variant !== "panel") return;
+    let cancelled = false;
+    fetch(`/api/projects/${project.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        setDetail({
+          description: d.description ?? null,
+          members: Array.isArray(d.members) ? d.members : [],
+        });
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -406,468 +461,535 @@ export function ProjectStatusModal({
     }
   };
 
-  // ── PANEL variant: progress view ──────────────────────────
-  if (variant === "panel") {
-    const st = project.stats;
-    const pct = Math.max(0, Math.min(100, Math.round(st?.progress ?? 0)));
-    return (
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-[440px] bg-white border-l flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
-        <div className="flex items-center justify-between px-5 py-3 border-b">
-          <div className="flex items-center gap-2 min-w-0">
-            <div
-              className="w-3.5 h-3.5 rounded flex-shrink-0"
-              style={{ backgroundColor: project.color }}
-            />
-            <h2 className="font-semibold text-[15px] text-gray-900 truncate">
-              {project.name}
-            </h2>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              onClick={openProject}
-              className="text-xs text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100"
-            >
-              View project
-            </button>
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-auto px-5 py-4 space-y-5">
-          {/* Progress */}
-          <div>
-            <div className="flex items-baseline justify-between mb-1.5">
-              <span className="text-xs uppercase tracking-wider text-gray-400 font-medium">
-                Progress
-              </span>
-              <span className="text-2xl font-semibold text-gray-900 tabular-nums">
-                {pct}%
-              </span>
-            </div>
-            <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-[#c9a84c] transition-all"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Task counts */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-lg border p-3">
-              <div className="text-lg font-semibold text-gray-900 tabular-nums">
-                {st?.total ?? 0}
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">Total tasks</div>
-            </div>
-            <div className="rounded-lg border p-3">
-              <div className="flex items-center gap-1 text-lg font-semibold text-gray-900 tabular-nums">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                {st?.completed ?? 0}
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">Completed</div>
-            </div>
-            <div className="rounded-lg border p-3">
-              <div className="flex items-center gap-1 text-lg font-semibold text-gray-900 tabular-nums">
-                <AlertTriangle
-                  className={cn(
-                    "h-4 w-4",
-                    (st?.overdue ?? 0) > 0 ? "text-red-500" : "text-gray-300"
-                  )}
-                />
-                {st?.overdue ?? 0}
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">Overdue</div>
-            </div>
-          </div>
-
-          {/* Date range */}
-          {(project.startDate || project.endDate) && (
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <CalendarDays className="h-4 w-4 text-gray-400" />
-              <span>
-                {project.startDate ? monthDay(project.startDate) : "—"}
-                {" – "}
-                {project.endDate ? monthDay(project.endDate) : "—"}
-              </span>
-            </div>
-          )}
-
-          {/* Latest status */}
-          <div>
-            <div className="text-xs uppercase tracking-wider text-gray-400 font-medium mb-2">
-              Latest status
-            </div>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-              </div>
-            ) : !selected ? (
-              <p className="text-sm text-gray-500">No status updates yet.</p>
-            ) : (
-              <div
-                className={cn(
-                  "rounded-lg border border-t-4 p-3 bg-white",
-                  statusVisual(selected.status).accent.replace("bg-", "border-t-")
-                )}
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Badge className={cn(statusVisual(selected.status).chip, "text-xs")}>
-                    {statusVisual(selected.status).label}
-                  </Badge>
-                  <span className="text-[11px] text-gray-400">
-                    {formatRelativeTime(selected.createdAt)}
-                  </span>
-                </div>
-                <p className="text-sm font-medium text-gray-900 mb-1">
-                  {headlineOf(selected)}
-                </p>
-                <p className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-4">
-                  {selected.summary || "—"}
-                </p>
-              </div>
-            )}
-          </div>
+  // ── Shared: the selected update's body (headline → what's next) ──
+  const statusBody = selected ? (
+    <>
+      {/* Headline + actions */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <h3 className="text-lg font-semibold text-gray-900 leading-snug">
+          {headlineOf(selected)}
+        </h3>
+        <div className="flex items-center gap-0.5 flex-shrink-0 text-gray-400">
+          <button
+            onClick={copyLink}
+            title="Copy link"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 hover:text-gray-700"
+          >
+            <Link2 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={openProject}
+            title="Open in project"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 hover:text-gray-700"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
         </div>
       </div>
-    );
-  }
 
-  // ── MODAL variant: full Asana status layout ───────────────
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-40 bg-black/50 animate-in fade-in"
-        onClick={onClose}
-      />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-[900px] h-[85vh] max-h-[720px] bg-white rounded-2xl border flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0">
-          <h2 className="font-semibold text-[15px] text-gray-900 truncate">
-            {composing ? "New status update" : `Status of ${project.name}`}
-          </h2>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {!composing && canEdit && (
-              <button
-                onClick={startComposing}
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md px-2.5 py-1.5"
-              >
-                Update status
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+      {/* Author */}
+      <div className="flex items-center gap-2 mb-4">
+        <Avatar className="h-7 w-7">
+          <AvatarImage src={selected.author?.image || ""} />
+          <AvatarFallback className="text-xs bg-gray-200">
+            {selected.author?.name?.charAt(0) || "?"}
+          </AvatarFallback>
+        </Avatar>
+        <div className="text-sm">
+          <span className="font-medium text-gray-900">
+            {selected.author?.name || "Someone"}
+          </span>
+          <span className="text-gray-400">
+            {" · "}
+            {formatRelativeTime(selected.createdAt)}
+          </span>
         </div>
+      </div>
 
-        {/* Body: composer, or sidebar + main pane */}
-        {composing ? (
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-gray-400 font-medium mb-2">
-                  Status
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {STATUS_ORDER.map((s) => {
-                    const v = statusVisual(s);
-                    const on = postStatus === s;
-                    return (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setPostStatus(s)}
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm",
-                          on
-                            ? "border-gray-900 bg-gray-900 text-white"
-                            : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "w-2 h-2 rounded-full",
-                            on ? "bg-white" : v.dot
-                          )}
-                        />
-                        {v.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              {postSections.map((s, i) => (
-                <div key={s.id}>
-                  <label className="block text-sm font-semibold text-gray-900 mb-1">
-                    {s.label}
-                  </label>
-                  <textarea
-                    value={s.content}
-                    onChange={(e) =>
-                      setPostSections((prev) =>
-                        prev.map((p, j) =>
-                          j === i ? { ...p, content: e.target.value } : p
-                        )
-                      )
-                    }
-                    rows={s.type === "SUMMARY" ? 3 : 2}
-                    placeholder={`Add ${s.label.toLowerCase()}…`}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-[#c9a84c] focus:ring-1 focus:ring-[#c9a84c]/40 outline-none resize-y"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center justify-end gap-2 px-6 py-3 border-t flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setComposing(false)}
-                className="text-sm text-gray-600 px-3 py-1.5 rounded-md hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={submitUpdate}
-                disabled={!composerHasContent || posting}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-black rounded-md px-3 py-1.5 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {posting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Post update
-              </button>
-            </div>
-          </div>
-        ) : (
-        <div className="flex-1 flex min-h-0">
-          {/* Left sidebar — update history */}
-          <aside className="hidden md:flex w-[236px] flex-col border-r bg-gray-50/60 overflow-y-auto flex-shrink-0">
-            {loading ? (
-              <div className="flex items-center justify-center py-10">
-                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
-              </div>
-            ) : updates.length === 0 ? (
-              <p className="text-xs text-gray-400 px-4 py-6">No updates yet.</p>
-            ) : (
-              updates.map((u) => {
-                const v = statusVisual(u.status);
-                const active = u.id === (selected?.id ?? null);
-                return (
-                  <button
-                    key={u.id}
-                    onClick={() => setSelectedId(u.id)}
-                    className={cn(
-                      "text-left px-4 py-3 border-b border-gray-100 hover:bg-white transition-colors",
-                      active && "bg-white border-l-2 border-l-[#c9a84c]"
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[13px] font-medium text-gray-900 truncate">
-                        {headlineOf(u)}
-                      </span>
-                      <span className="text-[11px] text-gray-400 flex-shrink-0">
-                        {formatDayLabel(u.createdAt)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className={cn("w-1.5 h-1.5 rounded-full", v.dot)} />
-                      <span className="text-[11px] text-gray-500">
-                        {v.label}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </aside>
+      {/* Field rows */}
+      <div className="grid grid-cols-[92px_1fr] gap-y-2.5 items-center text-sm mb-5">
+        <div className="text-gray-500">Status</div>
+        <div>
+          <Badge className={cn(statusVisual(selected.status).chip, "text-xs")}>
+            {statusVisual(selected.status).label}
+          </Badge>
+        </div>
+        <div className="text-gray-500">Project</div>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div
+            className="w-2.5 h-2.5 rounded flex-shrink-0"
+            style={{ backgroundColor: project.color }}
+          />
+          <span className="text-gray-800 truncate">{project.name}</span>
+        </div>
+      </div>
 
-          {/* Main pane */}
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            {loading ? (
-              <div className="flex-1 flex items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-              </div>
-            ) : !selected ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
-                <p className="text-sm text-gray-500 mb-3">
-                  No status updates yet.
+      {/* Summary / structured sections */}
+      <div className="space-y-4">
+        {selected.sections &&
+        selected.sections.some((s) => s.content.trim()) ? (
+          selected.sections
+            .filter((s) => s.content.trim())
+            .map((s) => (
+              <div key={s.id}>
+                <h4 className="text-sm font-semibold text-gray-900 mb-1">
+                  {s.label}
+                </h4>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {s.content}
                 </p>
-                <button
-                  onClick={openProject}
-                  className="text-sm text-[#a8893a] hover:underline"
-                >
-                  Post a status update
-                </button>
               </div>
-            ) : (
-              <>
-                {/* Status-colored accent bar */}
-                <div
-                  className={cn(
-                    "h-1 flex-shrink-0",
-                    statusVisual(selected.status).accent
-                  )}
-                />
-                <div className="flex-1 overflow-y-auto px-6 py-5">
-                  {/* Headline + actions */}
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900 leading-snug">
-                      {headlineOf(selected)}
-                    </h3>
-                    <div className="flex items-center gap-0.5 flex-shrink-0 text-gray-400">
-                      <button
-                        onClick={copyLink}
-                        title="Copy link"
-                        className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 hover:text-gray-700"
-                      >
-                        <Link2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={openProject}
-                        title="Open in project"
-                        className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 hover:text-gray-700"
-                      >
-                        <Maximize2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Author */}
-                  <div className="flex items-center gap-2 mb-4">
-                    <Avatar className="h-7 w-7">
-                      <AvatarImage src={selected.author?.image || ""} />
-                      <AvatarFallback className="text-xs bg-gray-200">
-                        {selected.author?.name?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="text-sm">
-                      <span className="font-medium text-gray-900">
-                        {selected.author?.name || "Someone"}
-                      </span>
-                      <span className="text-gray-400">
-                        {" · "}
-                        {formatRelativeTime(selected.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Field rows */}
-                  <div className="grid grid-cols-[92px_1fr] gap-y-2.5 items-center text-sm mb-5">
-                    <div className="text-gray-500">Status</div>
-                    <div>
-                      <Badge
-                        className={cn(statusVisual(selected.status).chip, "text-xs")}
-                      >
-                        {statusVisual(selected.status).label}
-                      </Badge>
-                    </div>
-                    <div className="text-gray-500">Project</div>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div
-                        className="w-2.5 h-2.5 rounded flex-shrink-0"
-                        style={{ backgroundColor: project.color }}
-                      />
-                      <span className="text-gray-800 truncate">
-                        {project.name}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Summary / structured sections */}
-                  <div className="space-y-4">
-                    {selected.sections &&
-                    selected.sections.some((s) => s.content.trim()) ? (
-                      selected.sections
-                        .filter((s) => s.content.trim())
-                        .map((s) => (
-                          <div key={s.id}>
-                            <h4 className="text-sm font-semibold text-gray-900 mb-1">
-                              {s.label}
-                            </h4>
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                              {s.content}
-                            </p>
-                          </div>
-                        ))
-                    ) : (
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-900 mb-1">
-                          Summary
-                        </h4>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                          {selected.summary || "—"}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* What's next? — upcoming tasks */}
-                  <div className="mt-6">
-                    <h4 className="text-base font-semibold text-gray-900 mb-2">
-                      What&apos;s next?
-                    </h4>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />
-                        Upcoming tasks in 2 weeks
-                      </span>
-                      <span className="text-gray-300">·</span>
-                      <span>Starting: {longDate(new Date().toISOString())}</span>
-                    </div>
-                    {upcoming.length === 0 ? (
-                      <p className="text-sm text-gray-400 border rounded-lg px-3 py-4">
-                        No tasks scheduled in the next two weeks.
-                      </p>
-                    ) : (
-                      <div className="border rounded-lg divide-y overflow-hidden">
-                        {upcoming.map((t) => (
-                          <button
-                            key={t.id}
-                            onClick={() => router.push(`/tasks/${t.id}`)}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50"
-                          >
-                            <span className="flex-1 text-sm text-gray-800 truncate">
-                              {t.name}
-                            </span>
-                            <span className="text-xs text-gray-500 tabular-nums flex-shrink-0">
-                              {taskRange(t.startDate, t.dueDate)}
-                            </span>
-                            <Avatar className="h-5 w-5 flex-shrink-0">
-                              <AvatarImage src={t.assignee?.image || ""} />
-                              <AvatarFallback className="text-[9px] bg-gray-200">
-                                {t.assignee?.name?.charAt(0) || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Open full status view in project */}
-                  <button
-                    onClick={openProject}
-                    className="mt-5 inline-flex items-center gap-1 text-sm text-[#a8893a] hover:underline"
-                  >
-                    Open in project
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </>
-            )}
+            ))
+        ) : (
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 mb-1">Summary</h4>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {selected.summary || "—"}
+            </p>
           </div>
+        )}
+      </div>
+
+      {/* What's next? — upcoming tasks */}
+      <div className="mt-6">
+        <h4 className="text-base font-semibold text-gray-900 mb-2">
+          What&apos;s next?
+        </h4>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mb-2">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-gray-300" />
+            Upcoming tasks in 2 weeks
+          </span>
+          <span className="text-gray-300">·</span>
+          <span>Starting: {longDate(new Date().toISOString())}</span>
         </div>
+        {upcoming.length === 0 ? (
+          <p className="text-sm text-gray-400 border rounded-lg px-3 py-4">
+            No tasks scheduled in the next two weeks.
+          </p>
+        ) : (
+          <div className="border rounded-lg divide-y overflow-hidden">
+            {upcoming.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => router.push(`/tasks/${t.id}`)}
+                className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50"
+              >
+                <span className="flex-1 text-sm text-gray-800 truncate">
+                  {t.name}
+                </span>
+                <span className="text-xs text-gray-500 tabular-nums flex-shrink-0">
+                  {taskRange(t.startDate, t.dueDate)}
+                </span>
+                <Avatar className="h-5 w-5 flex-shrink-0">
+                  <AvatarImage src={t.assignee?.image || ""} />
+                  <AvatarFallback className="text-[9px] bg-gray-200">
+                    {t.assignee?.name?.charAt(0) || "?"}
+                  </AvatarFallback>
+                </Avatar>
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </>
+  ) : null;
+
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center text-center px-6 py-12">
+      <p className="text-sm text-gray-500 mb-3">No status updates yet.</p>
+      {canEdit ? (
+        <button
+          onClick={startComposing}
+          className="text-sm text-[#a8893a] hover:underline"
+        >
+          Post a status update
+        </button>
+      ) : (
+        <button
+          onClick={openProject}
+          className="text-sm text-[#a8893a] hover:underline"
+        >
+          View project
+        </button>
+      )}
+    </div>
+  );
+
+  // ── Composer screen (shared by both variants) ─────────────
+  if (composing) {
+    const composerScreen = (
+      <div className={variant === "modal" ? MODAL_CONTAINER : PANEL_CONTAINER}>
+        <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0">
+          <h2 className="font-semibold text-[15px] text-gray-900 truncate">
+            New status update
+          </h2>
+          <button
+            onClick={() => setComposing(false)}
+            aria-label="Close"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-gray-400 font-medium mb-2">
+              Status
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {STATUS_ORDER.map((s) => {
+                const v = statusVisual(s);
+                const on = postStatus === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setPostStatus(s)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm",
+                      on
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "w-2 h-2 rounded-full",
+                        on ? "bg-white" : v.dot
+                      )}
+                    />
+                    {v.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {postSections.map((s, i) => (
+            <div key={s.id}>
+              <label className="block text-sm font-semibold text-gray-900 mb-1">
+                {s.label}
+              </label>
+              <textarea
+                value={s.content}
+                onChange={(e) =>
+                  setPostSections((prev) =>
+                    prev.map((p, j) =>
+                      j === i ? { ...p, content: e.target.value } : p
+                    )
+                  )
+                }
+                rows={s.type === "SUMMARY" ? 3 : 2}
+                placeholder={`Add ${s.label.toLowerCase()}…`}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:border-[#c9a84c] focus:ring-1 focus:ring-[#c9a84c]/40 outline-none resize-y"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-end gap-2 px-6 py-3 border-t flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setComposing(false)}
+            className="text-sm text-gray-600 px-3 py-1.5 rounded-md hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submitUpdate}
+            disabled={!composerHasContent || posting}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-black rounded-md px-3 py-1.5 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {posting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Post update
+          </button>
+        </div>
+      </div>
+    );
+    return variant === "modal" ? (
+      <>
+        <div className="fixed inset-0 z-40 bg-black/50 animate-in fade-in" />
+        {composerScreen}
+      </>
+    ) : (
+      composerScreen
+    );
+  }
+
+  // ── MODAL variant ─────────────────────────────────────────
+  if (variant === "modal") {
+    return (
+      <>
+        <div
+          className="fixed inset-0 z-40 bg-black/50 animate-in fade-in"
+          onClick={onClose}
+        />
+        <div className={MODAL_CONTAINER}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0">
+            <h2 className="font-semibold text-[15px] text-gray-900 truncate">
+              Status of {project.name}
+            </h2>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {canEdit && (
+                <button
+                  onClick={startComposing}
+                  className="inline-flex items-center gap-1.5 text-[13px] font-medium text-white bg-black hover:bg-gray-800 rounded-md px-2.5 py-1.5"
+                >
+                  Update status
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Body: sidebar + main pane */}
+          <div className="flex-1 flex min-h-0">
+            <aside className="hidden md:flex w-[236px] flex-col border-r bg-gray-50/60 overflow-y-auto flex-shrink-0">
+              {loading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                </div>
+              ) : updates.length === 0 ? (
+                <p className="text-xs text-gray-400 px-4 py-6">No updates yet.</p>
+              ) : (
+                updates.map((u) => {
+                  const v = statusVisual(u.status);
+                  const active = u.id === (selected?.id ?? null);
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => setSelectedId(u.id)}
+                      className={cn(
+                        "text-left px-4 py-3 border-b border-gray-100 hover:bg-white transition-colors",
+                        active && "bg-white border-l-2 border-l-[#c9a84c]"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[13px] font-medium text-gray-900 truncate">
+                          {headlineOf(u)}
+                        </span>
+                        <span className="text-[11px] text-gray-400 flex-shrink-0">
+                          {formatDayLabel(u.createdAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className={cn("w-1.5 h-1.5 rounded-full", v.dot)} />
+                        <span className="text-[11px] text-gray-500">
+                          {v.label}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </aside>
+
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+              {loading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : !selected ? (
+                <div className="flex-1 flex items-center justify-center">
+                  {emptyState}
+                </div>
+              ) : (
+                <>
+                  <div
+                    className={cn(
+                      "h-1 flex-shrink-0",
+                      statusVisual(selected.status).accent
+                    )}
+                  />
+                  <div className="flex-1 overflow-y-auto px-6 py-5">
+                    {statusBody}
+                    <button
+                      onClick={openProject}
+                      className="mt-5 inline-flex items-center gap-1 text-sm text-[#a8893a] hover:underline"
+                    >
+                      Open in project
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ── PANEL variant: Asana progress fly-out (project summary) ──
+  return (
+    <div className={PANEL_CONTAINER}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0">
+        <button
+          onClick={openProject}
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-700 border rounded-md px-2.5 py-1 hover:bg-gray-50"
+        >
+          View project
+        </button>
+        <div className="flex items-center gap-1 text-gray-400">
+          <button
+            onClick={copyLink}
+            title="Copy link"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 hover:text-gray-700"
+          >
+            <Link2 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 hover:text-gray-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-4">
+        {/* Project name + date range */}
+        <div className="flex items-center gap-2 mb-1">
+          <div
+            className="w-4 h-4 rounded flex-shrink-0"
+            style={{ backgroundColor: project.color }}
+          />
+          <h2 className="font-semibold text-[17px] text-gray-900 truncate">
+            {project.name}
+          </h2>
+        </div>
+        {dateRangeLabel(project.startDate, project.endDate) && (
+          <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-5">
+            <CalendarDays className="h-3.5 w-3.5" />
+            {dateRangeLabel(project.startDate, project.endDate)}
+          </div>
+        )}
+
+        {/* Latest status */}
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[15px] font-semibold text-gray-900">
+            Latest status
+          </h3>
+          {canEdit && (
+            <button
+              onClick={startComposing}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-700 border rounded-md px-2.5 py-1 hover:bg-gray-50"
+            >
+              Update status
+            </button>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+          </div>
+        ) : !selected ? (
+          <div className="border rounded-xl">{emptyState}</div>
+        ) : (
+          <div
+            className={cn(
+              "border rounded-xl border-t-4 p-4",
+              statusVisual(selected.status).accent.replace("bg-", "border-t-")
+            )}
+          >
+            {statusBody}
+          </div>
+        )}
+
+        {/* See all updates */}
+        {updates.length > 0 && (
+          <button
+            onClick={openProject}
+            className="mt-3 inline-flex items-center gap-1 text-sm text-[#335FB5] hover:underline"
+          >
+            See all updates
+          </button>
+        )}
+
+        {/* Description */}
+        <div className="mt-6">
+          <h3 className="flex items-center gap-1.5 text-[15px] font-semibold text-gray-900 mb-1.5">
+            <AlignLeft className="h-4 w-4 text-gray-400" />
+            Description
+          </h3>
+          {detail === null ? (
+            <div className="h-3 w-40 rounded bg-gray-100 animate-pulse" />
+          ) : detail.description ? (
+            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {detail.description}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-400">No description.</p>
+          )}
+        </div>
+
+        {/* Members */}
+        <div className="mt-6">
+          <h3 className="flex items-center gap-1.5 text-[15px] font-semibold text-gray-900 mb-2">
+            <Users className="h-4 w-4 text-gray-400" />
+            Members
+          </h3>
+          {detail === null ? (
+            <div className="h-7 w-7 rounded-full bg-gray-100 animate-pulse" />
+          ) : (
+            <div className="flex items-center flex-wrap gap-1.5">
+              {detail.members.length > 0 ? (
+                detail.members.map((m) => (
+                  <Avatar
+                    key={m.id}
+                    className="h-7 w-7"
+                    title={m.user?.name || ""}
+                  >
+                    <AvatarImage src={m.user?.image || ""} />
+                    <AvatarFallback className="text-xs bg-gray-200">
+                      {m.user?.name?.charAt(0) || "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                ))
+              ) : project.owner ? (
+                <Avatar className="h-7 w-7" title={project.owner.name || ""}>
+                  <AvatarImage src={project.owner.image || ""} />
+                  <AvatarFallback className="text-xs bg-gray-200">
+                    {project.owner.name?.charAt(0) || "?"}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <span className="text-sm text-gray-400">No members.</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Connected goals — links to the project overview's goal connector */}
+        <div className="mt-6">
+          <h3 className="flex items-center gap-1.5 text-[15px] font-semibold text-gray-900 mb-1.5">
+            <Target className="h-4 w-4 text-gray-400" />
+            Connected goals
+          </h3>
+          <div className="rounded-xl border bg-gray-50/60 px-4 py-4">
+            <p className="text-sm text-gray-500 mb-2.5">
+              Connect a goal to link this project to a bigger purpose.
+            </p>
+            <button
+              onClick={openProject}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-700 border bg-white rounded-md px-2.5 py-1.5 hover:bg-gray-50"
+            >
+              <Target className="h-3.5 w-3.5" />
+              Add goal
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

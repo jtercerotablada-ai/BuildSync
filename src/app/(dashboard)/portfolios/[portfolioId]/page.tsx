@@ -1647,6 +1647,8 @@ export default function PortfolioDetailPage() {
           key={progressPanelProject.id}
           project={progressPanelProject}
           variant="panel"
+          canEdit={canEditPortfolio}
+          onPosted={fetchPortfolio}
           onClose={() => setProgressPanelProject(null)}
         />
       )}
