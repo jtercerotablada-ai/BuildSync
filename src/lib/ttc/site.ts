@@ -795,16 +795,40 @@ export const imagery = {
     contact: photo.miamiBrickell,
   },
 
-  /** Service detail pages, keyed by slug. */
+  /**
+   * ONE PHOTOGRAPH PER SERVICE, keyed by slug — and this is the one place the
+   * "one placement per asset" rule is deliberately relaxed. A service's
+   * photograph appears on its card (home and Expertise), on its row in the
+   * Existing Buildings index, and on its detail page. That is not a repeat: it
+   * is the service's identity image, and seeing the same picture on the card
+   * you clicked and the page you land on is what makes the click feel answered.
+   *
+   * These replaced the line-art diagrams. The diagrams were accurate and
+   * completely inert — "algo creado por un ingeniero recién graduado" was the
+   * verdict, and it was right. Do not put them back on the cards.
+   */
   services: {
     'reinforced-concrete-design': photo.rebarCageUp,
-    'structural-analysis': photo.concreteSkyForms,
-    'bim-coordination': photo.concreteFins,
-    'building-recertification': photo.midriseModern,
+    'structural-analysis': photo.analysisTowersUp,
+    'bim-coordination': photo.bimWireframeModel,
+    'building-recertification': photo.recertBalconiesBw,
     'building-safety-inspections': photo.inspectBalconyPair,
     'structural-condition-assessments': photo.inspectWall,
-    'peer-review': photo.concreteRamp,
+    'peer-review': photo.peerTowerBw,
   } as Record<string, Photo>,
+
+  /**
+   * Backdrops for sections that used to be pure SVG plates.
+   * `southFlorida` replaces a drawn "PLAN DIAGRAM — NOT TO SCALE", which was a
+   * decorative rectangle admitting in its own caption that it was not a map.
+   * The aerial is the actual territory; the county names stay as typography, so
+   * no information was traded away for atmosphere.
+   */
+  sections: {
+    southFlorida: photo.southFloridaAerial,
+    leadership: photo.concreteRamp,
+    bim: photo.concreteFins,
+  },
 
   /** Representative engagement profiles on the Work page, keyed by `n`. */
   engagements: {
@@ -1379,7 +1403,15 @@ export const serviceArea = {
       coords: '26.12° N · 80.14° W',
     },
   ],
-  note: 'Plan diagram — service area representation, not to scale.',
+  /**
+   * This used to read "Plan diagram — service area representation, not to
+   * scale", which described the drawing that sat above it. The drawing is gone
+   * and a real aerial is there instead, so the caption now says the one thing a
+   * photograph genuinely cannot: coverage is a jurisdictional boundary, not
+   * whatever happens to be inside the frame. The wording avoids "above"/"beside":
+   * the county list sits to the right on desktop and below on mobile.
+   */
+  note: 'South Florida from the air. Coverage is defined by jurisdiction, not by the frame of a photograph.',
 } as const;
 
 /* Kept for local SEO (`areaServed`). Not rendered as a visible list. */

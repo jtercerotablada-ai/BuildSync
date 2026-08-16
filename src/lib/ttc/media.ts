@@ -85,10 +85,6 @@ export const photo = {
     'concrete-beam-column', 2000, 3000,
     'Cast concrete beam meeting a column at a haunched junction',
   ),
-  concreteSkyForms: p(
-    'concrete-sky-forms', 2000, 3000,
-    'Angular concrete forms against an open sky',
-  ),
   concreteFins: p(
     'concrete-fins', 2000, 1331,
     'Rhythm of vertical concrete fins across a facade',
@@ -108,6 +104,32 @@ export const photo = {
   concreteSteppedGold: p(
     'concrete-stepped-gold', 2000, 1333,
     'Stepped concrete facade in late afternoon light',
+  ),
+
+  /* ── Chosen to replace line-art on the service cards ─────────────────
+     These carry a card on their own. The diagrams they replaced explained a
+     service accurately and moved nobody; a photograph has to do the opposite,
+     so these are picked for drama first and legibility of subject second. The
+     card's title and summary carry the meaning. */
+  analysisTowersUp: p(
+    'analysis-towers-up', 2000, 1333,
+    'Looking straight up the gap between two concrete towers',
+  ),
+  bimWireframeModel: p(
+    'bim-wireframe-model', 2000, 2500,
+    'Wireframe model of a building’s structure and services',
+  ),
+  recertBalconiesBw: p(
+    'recert-balconies-bw', 2000, 3557,
+    'Grid of concrete balcony openings up an existing building',
+  ),
+  peerTowerBw: p(
+    'peer-tower-bw', 2000, 1333,
+    'Fluted concrete tower seen from its base against a flat sky',
+  ),
+  southFloridaAerial: p(
+    'south-florida-aerial', 2000, 1125,
+    'Aerial across the South Florida built fabric toward the coast',
   ),
 
   /* ── Reinforcement ──────────────────────────────────────────────────── */
@@ -196,10 +218,6 @@ export const photo = {
   midriseBalconies: p(
     'midrise-balconies', 2000, 1348,
     'Cantilevered balconies stacked up an existing residential building',
-  ),
-  midriseModern: p(
-    'midrise-modern', 2000, 1328,
-    'Facade of a mid-rise residential building with recessed balconies',
   ),
   midriseGlassBalconies: p(
     'midrise-glass-balconies', 2000, 2500,

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { company, imagery, services } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
-import { ServiceArt } from '@/components/ttc/mp/art';
+import { Img } from '@/components/ttc/mp/media';
 import { ProcessTimeline } from '@/components/ttc/mp/ProcessTimeline';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
@@ -133,8 +133,11 @@ export default function ExistingBuildingsPage() {
                   <span className="mp-secnum">{s.n}</span>
                   <span className="mp-svccard__track">Existing buildings</span>
                 </div>
-                <div className="mp-svccard__art" aria-hidden="true">
-                  <ServiceArt kind={s.art} />
+                <div className="mp-svccard__photo" aria-hidden="true">
+                  <Img
+                    photo={imagery.services[s.slug]}
+                    sizes="(max-width: 720px) 100vw, 50vw"
+                  />
                 </div>
                 <h3 className="mp-svccard__title">{s.title}</h3>
                 <p className="mp-svccard__desc">{s.summary}</p>

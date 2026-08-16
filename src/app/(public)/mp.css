@@ -26,6 +26,7 @@
      18  Internal pages (page hero, breadcrumbs, service detail, prose)
      19  Contact & form
      19b Photography, video & typologies
+     19c Photography in place of the line-art
      20  Responsive
      21  Reduced motion / print
    ══════════════════════════════════════════════════════════════════════════ */
@@ -3414,6 +3415,214 @@ a.mp-info__value:hover {
   .mp-typo__link:hover .mp-typo__img,
   .mp-work__item:hover .mp-work__photo img,
   .mp-gal__cell:hover img {
+    transform: none;
+  }
+}
+
+/* ═══ 19c · PHOTOGRAPHY IN PLACE OF THE LINE-ART ══════════════════════════
+   The service cards, the expertise pane, the service-area plate and the
+   practice record all used to be SVG drawings. They were accurate and they
+   were inert — the verdict was "algo creado por un ingeniero recién
+   graduado", and it was right. A diagram explains; it does not persuade.
+
+   The line-art is NOT deleted: `art.tsx` still holds it and the engagement
+   cards still fall back to it when an engagement has no photograph. Do not
+   put it back on the service cards.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── Service cards (Expertise index, Existing Buildings index) ───────────── */
+
+.mp-svccard__photo {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--mp-line-soft);
+  background: rgba(11, 12, 13, 0.05);
+  margin-block-end: var(--mp-6);
+}
+.mp-svccard__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.7) contrast(1.06);
+  transition:
+    transform 900ms var(--mp-ease),
+    filter var(--mp-dur-slow) var(--mp-ease);
+}
+.mp-svccard:hover .mp-svccard__photo img,
+.mp-svccard:focus-visible .mp-svccard__photo img {
+  transform: scale(1.04);
+  filter: saturate(0.95) contrast(1.08);
+}
+
+/* ── Core expertise: sticky pane + the inline images below 1180px ───────── */
+
+/* The pane was sized for a square diagram with a meta strip under it. A
+   photograph wants the whole frame, so the image fills to the strip and the
+   strip sits over it rather than beside it. */
+.mp-expertise__viewport-inner {
+  padding: 0;
+  inset: 0;
+}
+.mp-expertise__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.72) contrast(1.05);
+}
+.mp-expertise__vmeta {
+  background: rgba(11, 12, 13, 0.82);
+  color: var(--mp-snow);
+  border-block-start: 0;
+}
+.mp-expertise__vmeta b {
+  color: var(--mp-gold);
+}
+
+.mp-service__photo {
+  display: none;
+  margin-block: var(--mp-4) var(--mp-6);
+  border: 1px solid var(--mp-line-soft);
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+}
+.mp-service__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.72) contrast(1.05);
+}
+@media (max-width: 1180px) {
+  .mp-service__photo {
+    display: block;
+  }
+}
+
+/* ── Service area: the territory, not a drawing of it ───────────────────── */
+
+.mp-geo__photo {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--mp-line);
+}
+.mp-geo__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.78) contrast(1.05);
+}
+/* A gold hairline along the foot, the one mark kept from the old plate — it
+   ties the photograph back into the drawing language without redrawing it. */
+.mp-geo__photo::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: 2px;
+  background: var(--mp-gold);
+}
+
+/* ── Practice record: real type over a photograph ───────────────────────── */
+
+.mp-lead__record {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+.mp-lead__record-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.4) contrast(1.05) brightness(0.42);
+}
+/* A fixed scrim, not a lower image opacity: the record has to stay readable
+   wherever the bright parts of the photograph happen to fall. Same rule as the
+   hero and the video bands. */
+.mp-lead__record::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    to bottom,
+    rgba(11, 12, 13, 0.55) 0%,
+    rgba(11, 12, 13, 0.78) 45%,
+    rgba(11, 12, 13, 0.6) 100%
+  );
+}
+.mp-lead__record-list {
+  height: 100%;
+  margin: 0;
+  padding: clamp(1.5rem, 3.5vw, 3rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(0.75rem, 1.8vw, 1.5rem);
+}
+.mp-lead__record-list > div {
+  border-block-end: 1px solid var(--mp-line-dark);
+  padding-block-end: clamp(0.5rem, 1.2vw, 0.9rem);
+}
+.mp-lead__record-list > div:last-child {
+  border-block-end: 0;
+}
+.mp-lead__record-list dt {
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-gold);
+  margin-block-end: var(--mp-2);
+}
+.mp-lead__record-list dd {
+  margin: 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.4;
+  color: var(--mp-snow);
+}
+
+/* ── BIM stage: give the wireframe something to be a model OF ───────────── */
+
+.mp-bim__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+.mp-bim__backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.25) contrast(1.1) brightness(0.3);
+}
+/* The wireframe is thin white line — it needs the backdrop pushed well down,
+   and a flat scrim does that more predictably than lowering the image opacity,
+   which would let bright patches punch through the strokes. */
+.mp-bim__backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    120% 100% at 50% 45%,
+    rgba(11, 12, 13, 0.72) 0%,
+    rgba(11, 12, 13, 0.92) 70%,
+    var(--mp-graphite) 100%
+  );
+}
+.mp-bim__canvas,
+.mp-bim__controls,
+.mp-bim__hint {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-svccard:hover .mp-svccard__photo img {
     transform: none;
   }
 }

@@ -1,14 +1,21 @@
 'use client';
 
 import React from 'react';
-import { serviceArea } from '@/lib/ttc/site';
-import { SouthFloridaPlate } from './art';
+import { imagery, serviceArea } from '@/lib/ttc/site';
+import { Img } from './media';
 import { Reveal, SectionHeading } from './primitives';
 
 /**
- * Service-area plate. Deliberately a schematic plan diagram rather than a
- * cartographic map: it reads as a drawing, carries real coordinates, and does
- * not pretend to a geographic precision it does not have. Labelled as such.
+ * Service area — the territory, photographed from the air.
+ *
+ * This was a drawn "PLAN DIAGRAM — NOT TO SCALE": a rectangle with two dashed
+ * county lines, captioned with its own disclaimer that it was not really a map.
+ * It answered "where do you work?" with a decorative shape. The aerial answers
+ * it with the place.
+ *
+ * Nothing was traded away for atmosphere: the county names, their notes and
+ * their coordinates were the only information the plate carried, and they are
+ * all still here as typography beside the photograph.
  */
 export function SouthFloridaMap({ n = '10' }: { n?: string }) {
   return (
@@ -17,12 +24,15 @@ export function SouthFloridaMap({ n = '10' }: { n?: string }) {
       aria-labelledby="mp-geo-title"
     >
       <div className="mp-shell">
-        <SectionHeading n={n} label={serviceArea.eyebrow} meta="Plan diagram" />
+        <SectionHeading n={n} label={serviceArea.eyebrow} meta="Miami-Dade & Broward" />
 
         <div className="mp-geo__grid">
           <Reveal>
-            <div className="mp-geo__plate mp-frame">
-              <SouthFloridaPlate />
+            <div className="mp-geo__photo">
+              <Img
+                photo={imagery.sections.southFlorida}
+                sizes="(max-width: 900px) 100vw, 50vw"
+              />
             </div>
             <p className="mp-geo__caption">{serviceArea.note}</p>
           </Reveal>

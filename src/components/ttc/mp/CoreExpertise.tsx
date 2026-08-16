@@ -2,15 +2,21 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { coreExpertise } from '@/lib/ttc/site';
-import { ServiceArt } from './art';
+import { coreExpertise, imagery } from '@/lib/ttc/site';
+import { Img } from './media';
 import { EASE, Reveal, SectionHeading, TextLink } from './primitives';
 
 /**
- * Editorial expertise section: the diagram pane is sticky and swaps as each
+ * Editorial expertise section: the image pane is sticky and swaps as each
  * service scrolls into the reading zone. Below 1180px the sticky pane is
- * removed by CSS and each service renders its own diagram inline, so the
+ * removed by CSS and each service renders its own image inline, so the
  * information is identical without the scroll choreography.
+ *
+ * This used to swap line-art diagrams. Each was an accurate little drawing of
+ * the service, and together they made the section read like a textbook — the
+ * one part of the page a visitor felt nothing looking at. Photography carries
+ * it now; the meaning still lives in the title, summary and capability list
+ * beside it, which is why the images are `aria-hidden`.
  */
 export function CoreExpertise({ n = '03' }: { n?: string }) {
   const [active, setActive] = useState(0);
@@ -66,7 +72,11 @@ export function CoreExpertise({ n = '03' }: { n?: string }) {
                   exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 1.01 }}
                   transition={{ duration: 0.42, ease: EASE }}
                 >
-                  <ServiceArt kind={current.art} />
+                  <Img
+                    photo={imagery.services[current.slug]}
+                    className="mp-expertise__img"
+                    sizes="(max-width: 1180px) 100vw, 44vw"
+                  />
                 </motion.div>
               </AnimatePresence>
               <div className="mp-expertise__vmeta">
@@ -93,8 +103,11 @@ export function CoreExpertise({ n = '03' }: { n?: string }) {
                     <h3 className="mp-service__title">{s.title}</h3>
                   </div>
 
-                  <div className="mp-service__art" aria-hidden="true">
-                    <ServiceArt kind={s.art} />
+                  <div className="mp-service__photo" aria-hidden="true">
+                    <Img
+                      photo={imagery.services[s.slug]}
+                      sizes="(max-width: 1180px) 100vw, 50vw"
+                    />
                   </div>
 
                   <p className="mp-service__desc">{s.summary}</p>

@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { company, contact, leadership } from '@/lib/ttc/site';
-import { TitleBlock } from './art';
+import { company, contact, imagery, leadership } from '@/lib/ttc/site';
+import { Img } from './media';
 import { Reveal, SectionHeading } from './primitives';
 
 /**
@@ -21,13 +21,17 @@ export function LeadershipProfile({ n = '09' }: { n?: string }) {
   const f = leadership.fallback;
   const published = leadership.published;
 
-  // SVG text does not wrap — the practice name is supplied pre-broken, the
-  // way it would actually be set in a drawing title block.
-  const titleBlockRows = [
-    {
-      k: 'Practice',
-      v: ['Tercero Tablada', 'Civil & Structural Engineering Inc.'],
-    },
+  /**
+   * The practice record shown until a real bio and portrait exist.
+   *
+   * This was an SVG drawing title block on graph paper. Two things were wrong
+   * with it: it looked like a student exercise, and the text inside it was SVG
+   * — unselectable, unsearchable, and awkward for a screen reader. It is real
+   * markup now, set over a photograph. When `leadership.published` flips true
+   * the portrait takes this slot and none of it renders.
+   */
+  const recordRows = [
+    { k: 'Practice', v: company.name },
     { k: 'Discipline', v: company.discipline },
     { k: 'Service area', v: contact.serviceAreaLabel },
     { k: 'Responsibility', v: 'Engineer of record' },
@@ -60,8 +64,20 @@ export function LeadershipProfile({ n = '09' }: { n?: string }) {
                   decoding="async"
                 />
               ) : (
-                <div className="mp-lead__composition" aria-hidden="true">
-                  <TitleBlock rows={titleBlockRows} />
+                <div className="mp-lead__record">
+                  <Img
+                    photo={imagery.sections.leadership}
+                    className="mp-lead__record-bg"
+                    sizes="(max-width: 900px) 100vw, 42vw"
+                  />
+                  <dl className="mp-lead__record-list">
+                    {recordRows.map((r) => (
+                      <div key={r.k}>
+                        <dt>{r.k}</dt>
+                        <dd>{r.v}</dd>
+                      </div>
+                    ))}
+                  </dl>
                 </div>
               )}
               <figcaption className="mp-lead__caption">

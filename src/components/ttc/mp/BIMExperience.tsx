@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { bim } from '@/lib/ttc/site';
+import { bim, imagery } from '@/lib/ttc/site';
 import { BimModel } from './art';
+import { Img } from './media';
 import {
   AnimatedLine,
   ButtonLink,
@@ -72,6 +73,15 @@ export function BIMExperience({ n = '04' }: { n?: string }) {
 
           <Reveal delay={0.1}>
             <div className="mp-bim__stage">
+              {/* The wireframe used to sit on flat black, which read as an
+                  empty viewport rather than a model of something. A darkened
+                  photograph of real structure behind it gives it a subject. */}
+              <div className="mp-bim__backdrop" aria-hidden="true">
+                <Img
+                  photo={imagery.sections.bim}
+                  sizes="(max-width: 1180px) 100vw, 56vw"
+                />
+              </div>
               <div className="mp-bim__canvas">
                 <BimModel layers={layers} solid={solid} />
               </div>

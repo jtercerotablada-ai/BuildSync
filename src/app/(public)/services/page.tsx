@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { company, imagery, services } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { VideoBand } from '@/components/ttc/mp/VideoBand';
-import { ServiceArt } from '@/components/ttc/mp/art';
+import { Img } from '@/components/ttc/mp/media';
 import { EngineeringProcess } from '@/components/ttc/mp/EngineeringProcess';
 import { CredentialsBar } from '@/components/ttc/mp/CredentialsBar';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
@@ -104,8 +104,11 @@ export default function ServicesPage() {
                     {trackLabel[s.track]}
                   </span>
                 </div>
-                <div className="mp-svccard__art" aria-hidden="true">
-                  <ServiceArt kind={s.art} />
+                <div className="mp-svccard__photo" aria-hidden="true">
+                  <Img
+                    photo={imagery.services[s.slug]}
+                    sizes="(max-width: 720px) 100vw, (max-width: 1180px) 50vw, 33vw"
+                  />
                 </div>
                 <h3 className="mp-svccard__title">{s.title}</h3>
                 <p className="mp-svccard__desc">{s.summary}</p>
