@@ -3121,6 +3121,20 @@ a.mp-info__value:hover {
   background: var(--mp-graphite);
   color: var(--mp-snow);
   padding-block: var(--mp-24);
+
+  /* A band is a dark surface, but it is not `.mp-surface--charcoal`,
+     `.mp-phero` or `.mp-footer` — the three places that carried this token
+     block — so it never got it. `--mp-ink-3` stayed at #52554f, an ink chosen
+     for paper at 5.9:1, and the section eyebrow rendered in it: 2.58:1 against
+     bare graphite, and 1.00:1 measured against the brightest frame of
+     existing-midrise.mp4, where the label and the video were the same colour.
+     Dark surface, dark-surface tokens. */
+  --mp-line: var(--mp-line-dark);
+  --mp-ink: var(--mp-snow);
+  --mp-ink-2: var(--mp-snow-2);
+  --mp-ink-3: var(--mp-snow-2);
+  --mp-ink-faint: var(--mp-snow-3);
+  --mp-gold-ink: var(--mp-gold);
 }
 .mp-band__media {
   position: absolute;
@@ -3403,6 +3417,30 @@ a.mp-info__value:hover {
 @media (max-width: 1180px) {
   .mp-service__photo {
     display: block;
+  }
+
+  /* The band scrim is directional: opaque under the text column, clearing to
+     0.22 at the far edge so the footage is actually visible. That geometry is
+     only true side-by-side. Below this breakpoint `.mp-band__inner` stacks and
+     the copy runs the full width, so it crosses into the 0.22 end — and on
+     `--right`, which clears to the LEFT, the copy starts there. Measured at
+     375px against the brightest frame of existing-midrise.mp4: body copy
+     2.27:1, the fact labels 1.26:1 and 1.44:1, and even snow-white values only
+     4.18:1. Stacked layout has no protected side, so it gets a flat vertical
+     scrim instead of a directional one. */
+  .mp-band__media::after,
+  .mp-band--right .mp-band__media::after {
+    background: linear-gradient(
+      to bottom,
+      rgba(11, 12, 13, 0.82) 0%,
+      rgba(11, 12, 13, 0.88) 45%,
+      rgba(11, 12, 13, 0.93) 100%
+    );
+  }
+  /* snow-3 clears 4.5:1 on flat graphite, but only reaches 4.48:1 through the
+     scrim above the brightest frame. One step up settles it at 7.3:1. */
+  .mp-band__facts dt {
+    color: var(--mp-snow-2);
   }
 }
 
