@@ -77,7 +77,7 @@ export default function HomePage() {
           </React.Fragment>,
         ]}
         plainTitle="Thousands of buildings. One deadline each."
-        body="South Florida's recertification requirements reach every building of a certain age, and most boards meet the process exactly once. We run it end to end — inspection, findings, repair scope, reinspection, submission."
+        body="South Florida's recertification requirements reach most buildings once they pass a set age — and then return every ten years, for the life of the structure. We run it end to end — inspection, findings, repair scope, reinspection, submission."
         facts={[
           { k: 'Service area', v: 'Miami-Dade & Broward' },
           { k: 'Runs from', v: 'County notice to submission' },

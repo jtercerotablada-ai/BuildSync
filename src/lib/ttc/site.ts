@@ -490,6 +490,8 @@ export const services: Service[] = [
     ],
     considerations: [
       'Requirements vary by jurisdiction, building age and construction type — the sequence above is typical, not universal.',
+      'Recertification is not a one-time event. After the first report the building is due again every ten years, for the life of the structure.',
+      'Single-family homes, duplexes and buildings below the size threshold fall outside the program; applicability is confirmed case by case.',
       'Recertification covers the structural scope; electrical recertification is a separate discipline.',
       'A report documents observed conditions. No engineer can guarantee how a reviewing office will act on it.',
       'Concealed conditions may require additional investigation before conclusions can be drawn.',
@@ -1073,7 +1075,12 @@ export const software = {
 export const recertificationProcess = {
   eyebrow: 'Building recertification',
   title: 'A clear path from notice to compliance.',
-  lede: 'Most owners meet this process once. We run it end to end so the board knows what happens next at every stage.',
+  /* This said "Most owners meet this process once." It is not once: under
+     Miami-Dade §8-11(f) and the Broward Building Safety Inspection Program the
+     first recertification is followed by another every ten years for the life
+     of the structure, and F.S. 553.899 milestone inspections recur on the same
+     ten-year cycle. A board reading "once" would plan capital wrong. */
+  lede: 'The first notice is the one nobody is ready for — and it comes back every ten years. We run it end to end so the board knows what happens next at every stage.',
   steps: [
     {
       n: '01',
