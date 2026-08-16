@@ -777,10 +777,10 @@ export const contactServiceOptions = [
  * add a photograph — do not reuse one, because the same crop showing up twice
  * is the single fastest way to make a site look thin.
  *
- * The home page opens on VIDEO rather than a still. Three more silent loops
+ * The home page opens on VIDEO rather than a still. Four more silent loops
  * carry the sections that are about movement — a frame going up, a coastline
- * of existing buildings, and a model assembling itself. Everything else is
- * photography.
+ * of existing buildings, structure seen from underneath, and a model
+ * assembling itself. Everything else is photography.
  */
 export const imagery = {
   /** Home hero — a clip, with its poster doing the work when it cannot play. */
@@ -827,7 +827,6 @@ export const imagery = {
   sections: {
     southFlorida: photo.southFloridaAerial,
     leadership: photo.concreteRamp,
-    bim: photo.concreteFins,
   },
 
   /** Representative engagement profiles on the Work page, keyed by `n`. */
@@ -840,10 +839,15 @@ export const imagery = {
     '06': photo.rebarCageTower,
   } as Record<string, Photo>,
 
-  /** Full-bleed clips used inside the page body. */
+  /**
+   * Clips used inside the page body. `design`, `existing` and `practice` are
+   * full-bleed bands; `bim` sits in the bordered stage on the home page, where
+   * an SVG wireframe used to be.
+   */
   clips: {
     design: video.craneSky,
     existing: video.existingMidrise,
+    practice: video.structureGeometry,
     bim: video.bimAssembly,
   },
 
@@ -1021,29 +1025,23 @@ export const paths: Path[] = [
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   BIM — layer viewer configuration
+   BIM — section copy
+   ═══════════════════════════════════════════════════════════════════════════
+   `layers` used to live here: six ids driving the toggles on an inline SVG
+   wireframe. The drawing was removed and the section now runs the model clip
+   instead, so the list had nothing left to switch on and went with it.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const bim = {
   eyebrow: 'BIM / Digital coordination',
   title: 'Structural clarity from concept to coordination.',
   body: 'We use coordinated digital models to improve communication, reduce conflicts and produce clearer structural deliverables.',
-  layers: [
-    { id: 'foundations', label: 'Foundations' },
-    { id: 'columns', label: 'Columns' },
-    { id: 'slabs', label: 'Slabs' },
-    { id: 'walls', label: 'Shear Walls' },
-    { id: 'framing', label: 'Framing' },
-    { id: 'coordination', label: 'Coordination' },
-  ],
   notes: [
     'One model as the design source, not a drafting by-product.',
     'Conflicts found and resolved in coordination, not in the field.',
     'Drawings, schedules and quantities derived from the same model.',
   ],
 } as const;
-
-export type BimLayerId = (typeof bim.layers)[number]['id'];
 
 /* ═══════════════════════════════════════════════════════════════════════════
    SOFTWARE & OPEN STANDARDS

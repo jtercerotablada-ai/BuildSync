@@ -1,9 +1,6 @@
-'use client';
-
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { bim, imagery } from '@/lib/ttc/site';
-import { BimModel } from './art';
-import { Img } from './media';
+import { VideoLoop } from './media';
 import {
   AnimatedLine,
   ButtonLink,
@@ -11,31 +8,22 @@ import {
   SectionHeading,
 } from './primitives';
 
-type LayerState = Record<string, boolean>;
-
-const ALL_ON: LayerState = bim.layers.reduce<LayerState>((acc, l) => {
-  acc[l.id] = true;
-  return acc;
-}, {});
-
 /**
- * BIM is demonstrated, not listed. The model is a single inline SVG whose
- * layers are toggled with real <button aria-pressed> controls, plus a
- * wireframe / solid switch. No 3D engine, no model download, no WebGL — the
- * interaction costs a few CSS opacity transitions.
+ * BIM is shown, not listed — and shown with a model rather than a drawing of
+ * one.
+ *
+ * This section used to hold an inline SVG wireframe with six layer toggles and
+ * a wireframe/solid switch. It is gone for the same reason the line-art was
+ * taken off the service cards: a diagram an engineer drew of a model is not a
+ * model. It read as thin next to photography of real structure, and the
+ * interactivity was demonstrating the drawing, not the practice.
+ *
+ * The clip is the thing itself — a structure assembling floor plate by floor
+ * plate. Nothing left to toggle, no state to hold, so this is a plain server
+ * component now; `VideoLoop` carries the only client code, and its poster is
+ * what a reduced-motion visitor gets.
  */
 export function BIMExperience({ n = '04' }: { n?: string }) {
-  const [layers, setLayers] = useState<LayerState>(ALL_ON);
-  const [solid, setSolid] = useState(false);
-
-  const activeCount = useMemo(
-    () => Object.values(layers).filter(Boolean).length,
-    [layers],
-  );
-
-  const toggle = (id: string) =>
-    setLayers((prev) => ({ ...prev, [id]: !prev[id] }));
-
   return (
     <section
       className="mp-section mp-section--lg mp-surface--graphite mp-grain"
@@ -43,7 +31,7 @@ export function BIMExperience({ n = '04' }: { n?: string }) {
       style={{ position: 'relative' }}
     >
       <div className="mp-shell" style={{ position: 'relative', zIndex: 1 }}>
-        <SectionHeading n={n} label={bim.eyebrow} meta="Interactive" />
+        <SectionHeading n={n} label={bim.eyebrow} meta="Coordination" />
 
         <div className="mp-bim__grid">
           <div>
@@ -58,8 +46,8 @@ export function BIMExperience({ n = '04' }: { n?: string }) {
 
             <Reveal delay={0.14}>
               <ul className="mp-bim__notes">
-                {bim.notes.map((n) => (
-                  <li key={n}>{n}</li>
+                {bim.notes.map((note) => (
+                  <li key={note}>{note}</li>
                 ))}
               </ul>
             </Reveal>
@@ -73,62 +61,8 @@ export function BIMExperience({ n = '04' }: { n?: string }) {
 
           <Reveal delay={0.1}>
             <div className="mp-bim__stage">
-              {/* The wireframe used to sit on flat black, which read as an
-                  empty viewport rather than a model of something. A darkened
-                  photograph of real structure behind it gives it a subject. */}
-              <div className="mp-bim__backdrop" aria-hidden="true">
-                <Img
-                  photo={imagery.sections.bim}
-                  sizes="(max-width: 1180px) 100vw, 56vw"
-                />
-              </div>
-              <div className="mp-bim__canvas">
-                <BimModel layers={layers} solid={solid} />
-              </div>
-
-              <div className="mp-bim__controls">
-                <span className="mp-form__hp" id="mp-bim-controls-label">
-                  Structural model layers
-                </span>
-                {bim.layers.map((l) => (
-                  <button
-                    key={l.id}
-                    type="button"
-                    className="mp-chip"
-                    aria-pressed={layers[l.id]}
-                    onClick={() => toggle(l.id)}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-
-                <div
-                  className="mp-bim__mode"
-                  role="group"
-                  aria-label="Model display mode"
-                >
-                  <button
-                    type="button"
-                    aria-pressed={!solid}
-                    onClick={() => setSolid(false)}
-                  >
-                    Wireframe
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={solid}
-                    onClick={() => setSolid(true)}
-                  >
-                    Solid
-                  </button>
-                </div>
-              </div>
+              <VideoLoop clip={imagery.clips.bim} className="mp-bim__clip" />
             </div>
-
-            <p className="mp-bim__hint" role="status">
-              {activeCount} of {bim.layers.length} layers visible ·{' '}
-              {solid ? 'Solid' : 'Wireframe'}
-            </p>
             <AnimatedLine delay={0.2} />
           </Reveal>
         </div>

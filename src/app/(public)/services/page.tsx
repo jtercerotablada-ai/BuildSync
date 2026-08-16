@@ -122,9 +122,8 @@ export default function ServicesPage() {
       </section>
 
       {/* The one clip on this page, and the only place it is used on the site:
-          the model assembling floor by floor. Seven services, one structure —
-          which is exactly what a coordinated model is, and what no service card
-          can show on its own. */}
+          structure seen from underneath, which is what the seven services above
+          have in common and what no service card can show on its own. */}
       <VideoBand
         n="02"
         eyebrow="One practice"
@@ -141,7 +140,7 @@ export default function ServicesPage() {
           { k: 'Existing buildings', v: 'Recertification · Inspection · Assessment' },
         ]}
         cta={{ href: '/contact', label: 'Start a project' }}
-        clip={imagery.clips.bim}
+        clip={imagery.clips.practice}
       />
       <EngineeringProcess n="03" />
       <CredentialsBar n="04" />

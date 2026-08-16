@@ -85,10 +85,6 @@ export const photo = {
     'concrete-beam-column', 2000, 3000,
     'Cast concrete beam meeting a column at a haunched junction',
   ),
-  concreteFins: p(
-    'concrete-fins', 2000, 1331,
-    'Rhythm of vertical concrete fins across a facade',
-  ),
   concreteVault: p(
     'concrete-vault', 2000, 1333,
     'Pair of curved concrete shells meeting overhead',
@@ -274,13 +270,20 @@ export const video = {
     'existing-midrise',
     'Aerial pass over white mid-rise residential buildings in South Florida',
   ),
+  structureGeometry: v(
+    'structure-geometry',
+    'Looking up into the coffered structure of a large building',
+  ),
   /* The only clip that is not photography, and the only one that earns the
      exception: it is a structural model assembling floor plate by floor plate,
-     which is the one thing on this site a camera cannot be pointed at. The
-     source runs 5.25 s one-way, so it ships as a palindrome — forward, then
-     reversed with the duplicated frames dropped at both the turn and the loop
-     point. The model builds and unbuilds; it never snaps back to a bare top
-     plate. 250 frames, 10.4 s, seamless. */
+     which is the one thing on this site a camera cannot be pointed at. It
+     replaced the inline SVG wireframe in the home BIM stage — a drawing of a
+     model, which is not a model.
+
+     The source runs 5.25 s one-way, so it ships as a palindrome — forward,
+     then reversed with the duplicated frames dropped at both the turn and the
+     loop point. The model builds and unbuilds; it never snaps back to a bare
+     top plate. 250 frames, 10.4 s, seamless. */
   bimAssembly: v(
     'bim-assembly',
     'A structural model assembling floor plate by floor plate, seen in wireframe',

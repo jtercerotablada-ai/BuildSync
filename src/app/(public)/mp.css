@@ -1600,106 +1600,14 @@ body:has([data-mp-dark-hero])
   border: 1px solid var(--mp-line-dark);
   background: rgba(246, 244, 239, 0.02);
 }
-.mp-bim__canvas {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(1rem, 3vw, 2.5rem);
-  color: var(--mp-snow);
-}
-.mp-bim__canvas svg {
+/* The clip fills the stage at its own 16:9 and the border frames it. Everything
+   that used to live in this block — the 1:1 SVG canvas, the layer chips, the
+   wireframe/solid switch and the "n of 6 layers visible" readout — went with
+   the drawing they controlled. */
+.mp-bim__clip {
+  display: block;
   width: 100%;
-  height: 100%;
-}
-.mp-bim-layer {
-  transition: opacity var(--mp-dur-slow) var(--mp-ease);
-}
-.mp-bim-layer[data-on='false'] {
-  opacity: 0;
-  pointer-events: none;
-}
-.mp-bim-fill {
-  transition: fill-opacity var(--mp-dur-slow) var(--mp-ease);
-}
-.mp-bim__controls {
-  border-block-start: 1px solid var(--mp-line-dark);
-  padding: var(--mp-4);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-.mp-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 40px;
-  padding: 0.5rem 0.85rem;
-  background: transparent;
-  border: 1px solid var(--mp-line-dark);
-  color: var(--mp-snow-2);
-  font-family: var(--mp-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color var(--mp-dur) var(--mp-ease),
-    border-color var(--mp-dur) var(--mp-ease),
-    background var(--mp-dur) var(--mp-ease);
-}
-.mp-chip::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  flex: none;
-  border: 1px solid currentColor;
-  transition: background var(--mp-dur) var(--mp-ease);
-}
-.mp-chip[aria-pressed='true'] {
-  color: var(--mp-snow);
-  border-color: rgba(246, 244, 239, 0.4);
-}
-.mp-chip[aria-pressed='true']::before {
-  background: var(--mp-gold);
-  border-color: var(--mp-gold);
-}
-.mp-chip:hover {
-  color: var(--mp-snow);
-}
-.mp-bim__mode {
-  margin-inline-start: auto;
-  display: inline-flex;
-  border: 1px solid var(--mp-line-dark);
-}
-.mp-bim__mode button {
-  min-height: 40px;
-  padding: 0.5rem 0.9rem;
-  background: transparent;
-  border: 0;
-  color: var(--mp-snow-3);
-  font-family: var(--mp-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color var(--mp-dur) var(--mp-ease),
-    background var(--mp-dur) var(--mp-ease);
-}
-.mp-bim__mode button[aria-pressed='true'] {
-  background: var(--mp-gold);
-  color: var(--mp-graphite);
-}
-.mp-bim__hint {
-  margin-block-start: var(--mp-3);
-  font-family: var(--mp-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--mp-snow-3);
+  height: auto;
 }
 
 /* ── Software & open standards ───────────────────────────────────────────── */
@@ -3586,40 +3494,9 @@ a.mp-info__value:hover {
   color: var(--mp-snow);
 }
 
-/* ── BIM stage: give the wireframe something to be a model OF ───────────── */
-
-.mp-bim__backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-}
-.mp-bim__backdrop img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: saturate(0.25) contrast(1.1) brightness(0.3);
-}
-/* The wireframe is thin white line — it needs the backdrop pushed well down,
-   and a flat scrim does that more predictably than lowering the image opacity,
-   which would let bright patches punch through the strokes. */
-.mp-bim__backdrop::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    120% 100% at 50% 45%,
-    rgba(11, 12, 13, 0.72) 0%,
-    rgba(11, 12, 13, 0.92) 70%,
-    var(--mp-graphite) 100%
-  );
-}
-.mp-bim__canvas,
-.mp-bim__controls,
-.mp-bim__hint {
-  position: relative;
-  z-index: 1;
-}
+/* The BIM stage used a darkened photograph behind the wireframe, to give a
+   thin white line something to be a model OF. The clip carries its own
+   environment, so the backdrop and its scrim are gone. */
 
 @media (prefers-reduced-motion: reduce) {
   .mp-svccard:hover .mp-svccard__photo img {
@@ -3816,9 +3693,6 @@ a.mp-info__value:hover {
   .mp-creds__seal-mark,
   .mp-stages__hint,
   .mp-work__status,
-  .mp-chip,
-  .mp-bim__hint,
-  .mp-bim__mode button,
   .mp-geo__code,
   .mp-geo__note,
   .mp-geo__coords,
@@ -3886,16 +3760,6 @@ a.mp-info__value:hover {
     margin-inline-start: 0;
     flex-basis: 100%;
   }
-  .mp-bim__controls {
-    gap: 0.4rem;
-  }
-  .mp-bim__mode {
-    margin-inline-start: 0;
-    width: 100%;
-  }
-  .mp-bim__mode button {
-    flex: 1;
-  }
 }
 
 @media (max-width: 380px) {
@@ -3927,7 +3791,6 @@ a.mp-info__value:hover {
   .mp-header,
   .mp-menu,
   .mp-hero__scroll,
-  .mp-bim__controls,
   .mp-ghost,
   .mp-grain::after {
     display: none !important;
@@ -3944,7 +3807,6 @@ a.mp-info__value:hover {
 
 @media (forced-colors: active) {
   .mp-btn,
-  .mp-chip,
   .mp-field__input {
     border: 1px solid ButtonBorder;
   }
