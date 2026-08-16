@@ -248,7 +248,7 @@ export type PhotoKey = keyof typeof photo;
 /* ═══════════════════════════════════════════════════════════════════════════
    VIDEO
    ═══════════════════════════════════════════════════════════════════════════
-   Short silent loops, H.264, 1920-wide, trimmed to 11–12 s and encoded to sit
+   Short silent loops, H.264, 1920-wide, trimmed to 10–12 s and encoded to sit
    under ~3 MB each. Every one ships with a poster frame: the poster is what a
    reduced-motion visitor sees, what paints before the clip is buffered, and
    what a data-saver connection is left with. A loop that only works when it
@@ -274,9 +274,16 @@ export const video = {
     'existing-midrise',
     'Aerial pass over white mid-rise residential buildings in South Florida',
   ),
-  structureGeometry: v(
-    'structure-geometry',
-    'Looking up into the coffered structure of a large building',
+  /* The only clip that is not photography, and the only one that earns the
+     exception: it is a structural model assembling floor plate by floor plate,
+     which is the one thing on this site a camera cannot be pointed at. The
+     source runs 5.25 s one-way, so it ships as a palindrome — forward, then
+     reversed with the duplicated frames dropped at both the turn and the loop
+     point. The model builds and unbuilds; it never snaps back to a bare top
+     plate. 250 frames, 10.4 s, seamless. */
+  bimAssembly: v(
+    'bim-assembly',
+    'A structural model assembling floor plate by floor plate, seen in wireframe',
   ),
   craneSky: v('crane-sky', 'Two tower cranes crossing against an open sky'),
 } as const;

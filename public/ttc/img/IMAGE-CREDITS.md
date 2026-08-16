@@ -16,11 +16,19 @@ firm's own.
 
 ## `site/` and `video/` — Pexels, no attribution required
 
-The 43 photographs in `public/ttc/img/site/` and the 4 clips in
+The 43 photographs in `public/ttc/img/site/` and 3 of the 4 clips in
 `public/ttc/video/` are **Pexels-licensed**: free for commercial use,
 modification allowed, **no attribution required and no share-alike**. They do
 not appear on `/credits`, because nothing is owed — that page exists for the
 Creative Commons images listed further down, which genuinely require it.
+
+**The fourth clip, `bim-assembly.mp4`, is not Pexels.** It comes from the
+firm's own paid **Artlist / Artgrid** subscription (source title *3d Glowing
+Transform Sci Fi*, Finn Moeller). That licence also allows commercial use with
+**no attribution required**, so it adds nothing to `/credits` — but it is a
+different licence with different terms, and assets are only covered if they
+were downloaded while the subscription was active. Record the provenance of any
+future Artgrid clip here for the same reason.
 
 What the Pexels licence still forbids, and what therefore applies here:
 

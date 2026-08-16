@@ -779,7 +779,7 @@ export const contactServiceOptions = [
  *
  * The home page opens on VIDEO rather than a still. Three more silent loops
  * carry the sections that are about movement — a frame going up, a coastline
- * of existing buildings, structure seen from underneath. Everything else is
+ * of existing buildings, and a model assembling itself. Everything else is
  * photography.
  */
 export const imagery = {
@@ -844,7 +844,7 @@ export const imagery = {
   clips: {
     design: video.craneSky,
     existing: video.existingMidrise,
-    bim: video.structureGeometry,
+    bim: video.bimAssembly,
   },
 
   /**

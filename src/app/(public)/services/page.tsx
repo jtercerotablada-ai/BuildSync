@@ -122,8 +122,9 @@ export default function ServicesPage() {
       </section>
 
       {/* The one clip on this page, and the only place it is used on the site:
-          structure seen from underneath, which is what the seven services above
-          have in common and what no service card can show on its own. */}
+          the model assembling floor by floor. Seven services, one structure —
+          which is exactly what a coordinated model is, and what no service card
+          can show on its own. */}
       <VideoBand
         n="02"
         eyebrow="One practice"

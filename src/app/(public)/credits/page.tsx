@@ -15,8 +15,11 @@ export const metadata: Metadata = {
  * The photography on this site is licensed, not owned.
  *
  * As of the move to the Pexels media set, NOTHING ON THE SITE REQUIRES
- * ATTRIBUTION any more: every photograph and clip now displayed is
+ * ATTRIBUTION any more: every photograph and every clip but one is
  * Pexels-licensed — commercial use, no attribution, no share-alike. The
+ * exception is `bim-assembly.mp4`, licensed through the firm's own Artlist /
+ * Artgrid subscription, which likewise carries no attribution requirement, so
+ * it does not add a row below either. The
  * Creative Commons files listed below are no longer shown on any page; they
  * remain in the repository and are still reachable by direct URL, which is why
  * their attribution is kept here rather than deleted. Removing the files is
