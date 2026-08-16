@@ -4,10 +4,12 @@ import React from 'react';
 import {
   engagements,
   engagementsNote,
+  imagery,
   projects,
   type Engagement,
 } from '@/lib/ttc/site';
 import { ServiceArt } from './art';
+import { Img } from './media';
 import { Reveal, SectionHeading, TextLink } from './primitives';
 
 /**
@@ -54,9 +56,21 @@ export function SelectedExperience({
               delay={(i % 2) * 0.07}
               className="mp-work__item"
             >
-              <div className="mp-work__art" aria-hidden="true">
-                <ServiceArt kind={e.art} />
-              </div>
+              {/* Photograph where one exists, line-art where it does not.
+                  Never both: a technical overlay on a real building fights
+                  the image and neither reads. */}
+              {imagery.engagements[e.n] ? (
+                <div className="mp-work__photo" aria-hidden="true">
+                  <Img
+                    photo={imagery.engagements[e.n]}
+                    sizes="(max-width: 900px) 100vw, 46vw"
+                  />
+                </div>
+              ) : (
+                <div className="mp-work__art" aria-hidden="true">
+                  <ServiceArt kind={e.art} />
+                </div>
+              )}
 
               <div className="mp-work__head">
                 <span className="mp-secnum">{e.n}</span>

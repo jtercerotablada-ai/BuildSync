@@ -3,6 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'motion/react';
+import type { Photo } from '@/lib/ttc/media';
+import { Img } from './media';
 import {
   DarkHeroSentinel,
   EASE,
@@ -39,7 +41,7 @@ export function PageHero({
   plainTitle: string;
   sub?: string;
   facts?: { k: string; v: string }[];
-  photo?: { src: string; alt: string };
+  photo?: Photo;
   crumbs?: Crumb[];
 }) {
   const reduce = useReducedMotion();
@@ -53,15 +55,7 @@ export function PageHero({
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1.4, ease: EASE }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={photo.src}
-            alt=""
-            fetchPriority="high"
-            decoding="async"
-            width={1800}
-            height={1350}
-          />
+          <Img photo={photo} priority sizes="100vw" />
         </motion.div>
       ) : null}
       <div className="mp-phero__grid-bg" aria-hidden="true" />

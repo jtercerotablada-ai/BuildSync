@@ -1,7 +1,9 @@
+import React from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { company, imagery, services } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
+import { VideoBand } from '@/components/ttc/mp/VideoBand';
 import { ServiceArt } from '@/components/ttc/mp/art';
 import { EngineeringProcess } from '@/components/ttc/mp/EngineeringProcess';
 import { CredentialsBar } from '@/components/ttc/mp/CredentialsBar';
@@ -116,9 +118,30 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      <EngineeringProcess n="02" />
-      <CredentialsBar n="03" />
-      <ContactCTA n="04" />
+      {/* The one clip on this page, and the only place it is used on the site:
+          structure seen from underneath, which is what the seven services above
+          have in common and what no service card can show on its own. */}
+      <VideoBand
+        n="02"
+        eyebrow="One practice"
+        titleLines={[
+          'Seven services.',
+          <React.Fragment key="l2">
+            One <span className="mp-serif">load path.</span>
+          </React.Fragment>,
+        ]}
+        plainTitle="Seven services. One load path."
+        body="Analysis, detailing, coordination and review are not separate products — they are the same structure examined at four distances. Engaging one of them gets you an engineer who has already thought about the other three."
+        facts={[
+          { k: 'New structures', v: 'Design · Analysis · Detailing' },
+          { k: 'Existing buildings', v: 'Recertification · Inspection · Assessment' },
+        ]}
+        cta={{ href: '/contact', label: 'Start a project' }}
+        clip={imagery.clips.bim}
+      />
+      <EngineeringProcess n="03" />
+      <CredentialsBar n="04" />
+      <ContactCTA n="05" />
     </>
   );
 }

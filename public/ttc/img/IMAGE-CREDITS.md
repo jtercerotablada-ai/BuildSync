@@ -2,15 +2,56 @@
 
 ## How photography is used on this site
 
-Architectural photography appears **as material and atmosphere only** — as the
-hero of a page, never captioned, framed or implied to be a Tercero Tablada
-project. The work section shows anonymized *representative engagements*
-rendered as drawings, precisely so that no stock photograph is ever mistaken
-for the firm's portfolio.
+Architectural photography appears **as material, atmosphere and typology** —
+never captioned, framed or implied to be a Tercero Tablada project. The work
+section shows anonymized *representative engagements*, and the "What we design"
+section shows *typologies*, precisely so that no stock photograph is ever
+mistaken for the firm's portfolio.
 
 Replace these with real Tercero Tablada project photography when it exists:
 that removes the attribution obligation below and makes the site genuinely the
 firm's own.
+
+---
+
+## `site/` and `video/` — Pexels, no attribution required
+
+The 43 photographs in `public/ttc/img/site/` and the 4 clips in
+`public/ttc/video/` are **Pexels-licensed**: free for commercial use,
+modification allowed, **no attribution required and no share-alike**. They do
+not appear on `/credits`, because nothing is owed — that page exists for the
+Creative Commons images listed further down, which genuinely require it.
+
+What the Pexels licence still forbids, and what therefore applies here:
+
+- Do not redistribute them as a stock library of their own.
+- Do not use identifiable people or brands in a way that implies endorsement.
+  (`inspect-*` show people; they illustrate *an inspection*, never a Tercero
+  Tablada employee, and no caption on the site names them.)
+
+**The rule that matters more than the licence:** these illustrate the KIND of
+structure described. A photograph of a house under "Single-family residences"
+says *this is the sort of building we engineer*, not *we engineered this one*.
+The typologies section prints that distinction in its own footnote and the Work
+page repeats it under the gallery. Keep both.
+
+Each file is allocated to exactly ONE placement in `src/lib/ttc/site.ts`
+(`imagery`, `typologies`, `paths`). Adding a placement means adding a
+photograph — never reusing one.
+
+Renditions: every photograph ships as `name.jpg` (2000w) and `name@sm.jpg`
+(900w), served through a `srcset`. Clips ship as `name.mp4` plus
+`name-poster.jpg`; the poster is what reduced-motion visitors see and what
+paints before the clip arrives, so it is art-directed to work alone.
+
+---
+
+## Legacy Creative Commons images — attribution required
+
+The originals below predate the Pexels set. Attribution for these **is**
+published at `/credits`, which is what CC BY / CC BY-SA require for this
+medium — a page a visitor can reach, not only a file in the repository. Keep
+the two in sync.
 
 ## In use — one placement each
 

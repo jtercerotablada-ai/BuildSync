@@ -1,8 +1,12 @@
+import React from 'react';
 import type { Metadata } from 'next';
+import { imagery } from '@/lib/ttc/site';
 import { Hero } from '@/components/ttc/mp/Hero';
 import { StatementSection } from '@/components/ttc/mp/StatementSection';
 import { TwoPaths } from '@/components/ttc/mp/TwoPaths';
+import { Typologies } from '@/components/ttc/mp/Typologies';
 import { CoreExpertise } from '@/components/ttc/mp/CoreExpertise';
+import { VideoBand } from '@/components/ttc/mp/VideoBand';
 import { BIMExperience } from '@/components/ttc/mp/BIMExperience';
 import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
 import { SelectedExperience } from '@/components/ttc/mp/SelectedExperience';
@@ -29,22 +33,66 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * The page alternates light body sections with dark bands, and the two video
+ * bands are the loudest things on it — one per half of the practice, placed so
+ * they never touch. Adding a third would turn a considered rhythm into a
+ * slideshow; if a section needs emphasis, give it a photograph instead.
+ */
 export default function HomePage() {
   return (
     <>
       <Hero />
       <StatementSection />
       <TwoPaths />
-      <CoreExpertise />
-      <BIMExperience />
-      <SoftwareBand n="05" />
-      <SelectedExperience n="06" limit={6} />
-      <ProcessTimeline n="07" />
-      <EngineeringProcess n="08" />
-      <CredentialsBar n="09" />
-      <LeadershipProfile n="10" />
-      <SouthFloridaMap n="11" />
-      <ContactCTA n="12" />
+      <Typologies n="03" />
+      <CoreExpertise n="04" />
+      <VideoBand
+        n="05"
+        eyebrow="New structures"
+        titleLines={[
+          'Engineered before',
+          <React.Fragment key="l2">
+            it is <span className="mp-serif">poured.</span>
+          </React.Fragment>,
+        ]}
+        plainTitle="Engineered before it is poured"
+        body="Every load path is resolved, checked and detailed on paper first — because a column that cannot be reinforced, or a transfer beam discovered in the field, is the most expensive kind of late."
+        facts={[
+          { k: 'Governing codes', v: 'ACI 318 · ASCE 7 · FBC' },
+          { k: 'Issued as', v: 'Permit-ready drawing set' },
+        ]}
+        cta={{ href: '/services', label: 'Design services' }}
+        clip={imagery.clips.design}
+      />
+      <BIMExperience n="06" />
+      <SoftwareBand n="07" />
+      <VideoBand
+        n="08"
+        eyebrow="Existing buildings"
+        titleLines={[
+          'Thousands of buildings.',
+          <React.Fragment key="l2">
+            One <span className="mp-serif">deadline</span> each.
+          </React.Fragment>,
+        ]}
+        plainTitle="Thousands of buildings. One deadline each."
+        body="South Florida's recertification requirements reach every building of a certain age, and most boards meet the process exactly once. We run it end to end — inspection, findings, repair scope, reinspection, submission."
+        facts={[
+          { k: 'Service area', v: 'Miami-Dade & Broward' },
+          { k: 'Runs from', v: 'County notice to submission' },
+        ]}
+        cta={{ href: '/existing-buildings', label: 'Existing-building services' }}
+        clip={imagery.clips.existing}
+        align="right"
+      />
+      <SelectedExperience n="09" limit={6} />
+      <ProcessTimeline n="10" />
+      <EngineeringProcess n="11" />
+      <CredentialsBar n="12" />
+      <LeadershipProfile n="13" />
+      <SouthFloridaMap n="14" />
+      <ContactCTA n="15" />
     </>
   );
 }

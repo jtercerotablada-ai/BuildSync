@@ -3,6 +3,7 @@ import { company, engagements, imagery, projects } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { SelectedExperience } from '@/components/ttc/mp/SelectedExperience';
 import { EngineeringProcess } from '@/components/ttc/mp/EngineeringProcess';
+import { Gallery } from '@/components/ttc/mp/Gallery';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 
 export const metadata: Metadata = {
@@ -69,7 +70,11 @@ export default function ProjectsPage() {
 
       <SelectedExperience n="01" showLink={false} />
       <EngineeringProcess n="02" />
-      <ContactCTA n="03" />
+      {/* The wall of material closes the page rather than opening it: the
+          engagement profiles are the substance here, and an uncaptioned grid
+          of architecture at the top would read as a portfolio it is not. */}
+      <Gallery n="03" />
+      <ContactCTA n="04" />
     </>
   );
 }

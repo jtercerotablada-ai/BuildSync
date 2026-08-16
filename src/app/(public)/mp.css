@@ -25,6 +25,7 @@
      17  Closing CTA
      18  Internal pages (page hero, breadcrumbs, service detail, prose)
      19  Contact & form
+     19b Photography, video & typologies
      20  Responsive
      21  Reduced motion / print
    ══════════════════════════════════════════════════════════════════════════ */
@@ -2975,6 +2976,446 @@ a.mp-info__value:hover {
   font-size: 0.8125rem;
   line-height: 1.6;
   color: var(--mp-ink-3);
+}
+
+/* ═══ 19b · PHOTOGRAPHY, VIDEO & TYPOLOGIES ═══════════════════════════════
+   Added when the site stopped being a drawing set and started showing the
+   buildings it is about. Three ideas, in the order they appear on the page:
+
+     · the hero and the two dark bands run silent video behind a fixed scrim
+     · "What we design" is a photographic grid of typologies
+     · the Work page closes on an uncaptioned wall of material
+
+   The scrims are FIXED gradients, never a blur or an opacity on the media
+   itself. Text legibility must not depend on where the bright parts of a
+   photograph or a moving frame happen to fall.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── Shared: a quiet footnote under a section ────────────────────────────── */
+
+.mp-note {
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: var(--mp-ink-faint);
+  max-width: 76ch;
+  margin-block-start: var(--mp-8);
+}
+.mp-note a {
+  color: var(--mp-gold-ink);
+  text-underline-offset: 3px;
+}
+.mp-surface--graphite .mp-note,
+.mp-surface--charcoal .mp-note {
+  color: var(--mp-snow-3);
+}
+.mp-surface--graphite .mp-note a {
+  color: var(--mp-gold);
+}
+
+.mp-sechead--dark {
+  border-block-end-color: var(--mp-line-dark);
+}
+.mp-sechead--dark .mp-sechead__label {
+  color: var(--mp-snow-2);
+}
+.mp-sechead--dark .mp-sechead__meta {
+  color: var(--mp-snow-3);
+}
+
+/* ── Hero: video sits in the same layer the photograph used to ───────────── */
+
+.mp-hero__photo--video video,
+.mp-hero__photo--video img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 42%;
+  /* Not full greyscale: the water and sky are the reason this clip is here.
+     Desaturated enough to sit under the graphite palette, not so far that
+     South Florida stops reading as South Florida. */
+  filter: saturate(0.55) contrast(1.08) brightness(0.62);
+}
+
+/* ═══ Typologies ═════════════════════════════════════════════════════════ */
+
+.mp-typo-sec {
+  position: relative;
+  overflow: clip;
+}
+
+.mp-typo-intro {
+  max-width: 62ch;
+  margin-block-end: clamp(2.5rem, 5vw, 4.5rem);
+}
+.mp-typo-intro__title {
+  font-size: var(--mp-t-h2);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: var(--mp-track-tight);
+  color: var(--mp-ink);
+  margin: 0 0 var(--mp-6);
+}
+.mp-typo-intro__lede {
+  font-size: var(--mp-t-lead);
+  line-height: 1.6;
+  color: var(--mp-ink-3);
+  margin: 0;
+}
+
+.mp-typo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-typo__card {
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-typo__link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--mp-8) 0 var(--mp-12);
+  color: inherit;
+  text-decoration: none;
+}
+
+.mp-typo__media {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background: rgba(11, 12, 13, 0.04);
+  margin-block-end: var(--mp-6);
+}
+.mp-typo__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.82) contrast(1.04);
+  transition:
+    transform 900ms var(--mp-ease),
+    filter var(--mp-dur-slow) var(--mp-ease);
+}
+.mp-typo__link:hover .mp-typo__img,
+.mp-typo__link:focus-visible .mp-typo__img {
+  transform: scale(1.035);
+  filter: saturate(1) contrast(1.06);
+}
+
+/* Number and track label sit ON the photograph, on their own plate, so they
+   are legible over any crop without darkening the whole image. */
+.mp-typo__num {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  padding: var(--mp-2) var(--mp-3);
+  background: var(--mp-graphite);
+  color: var(--mp-gold);
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+}
+.mp-typo__track {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  padding: var(--mp-2) var(--mp-3);
+  background: rgba(11, 12, 13, 0.86);
+  color: var(--mp-snow-2);
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.mp-typo__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: var(--mp-4);
+}
+.mp-typo__title {
+  font-size: var(--mp-t-h3);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: var(--mp-track-tight);
+  color: var(--mp-ink);
+}
+.mp-typo__lede {
+  font-size: var(--mp-t-body);
+  line-height: 1.65;
+  color: var(--mp-ink-3);
+}
+.mp-typo__delivers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-2);
+  margin-block-start: auto;
+  padding-block-start: var(--mp-4);
+}
+.mp-typo__delivers > span {
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mp-ink-faint);
+  border: 1px solid var(--mp-line);
+  padding: 0.3rem 0.5rem;
+}
+.mp-typo__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mp-2);
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-gold-ink);
+  padding-block-start: var(--mp-2);
+}
+.mp-typo__cta i {
+  font-style: normal;
+  transition: transform var(--mp-dur) var(--mp-ease);
+}
+.mp-typo__link:hover .mp-typo__cta i,
+.mp-typo__link:focus-visible .mp-typo__cta i {
+  transform: translateX(4px);
+}
+
+@media (min-width: 720px) {
+  .mp-typo {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(1.5rem, 3vw, 3rem);
+  }
+}
+@media (min-width: 1080px) {
+  .mp-typo {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ═══ Video band ═════════════════════════════════════════════════════════ */
+
+.mp-band {
+  position: relative;
+  min-height: clamp(520px, 78svh, 860px);
+  display: flex;
+  align-items: center;
+  isolation: isolate;
+  overflow: clip;
+  background: var(--mp-graphite);
+  color: var(--mp-snow);
+  padding-block: var(--mp-24);
+}
+.mp-band__media {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.mp-band__video,
+.mp-band__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.5) contrast(1.06) brightness(0.66);
+}
+.mp-band__media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to right,
+      var(--mp-graphite) 0%,
+      rgba(11, 12, 13, 0.9) 30%,
+      rgba(11, 12, 13, 0.42) 62%,
+      rgba(11, 12, 13, 0.22) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(11, 12, 13, 0.55) 0%,
+      transparent 28%,
+      transparent 70%,
+      rgba(11, 12, 13, 0.72) 100%
+    );
+}
+.mp-band--right .mp-band__media::after {
+  background:
+    linear-gradient(
+      to left,
+      var(--mp-graphite) 0%,
+      rgba(11, 12, 13, 0.9) 30%,
+      rgba(11, 12, 13, 0.42) 62%,
+      rgba(11, 12, 13, 0.22) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(11, 12, 13, 0.55) 0%,
+      transparent 28%,
+      transparent 70%,
+      rgba(11, 12, 13, 0.72) 100%
+    );
+}
+
+.mp-band__inner {
+  width: 100%;
+}
+.mp-band__col {
+  max-width: 54ch;
+}
+.mp-band--right .mp-band__col {
+  margin-inline-start: auto;
+}
+.mp-band__title {
+  font-size: var(--mp-t-h1);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: var(--mp-track-tight);
+  color: var(--mp-snow);
+  margin: var(--mp-6) 0 var(--mp-8);
+}
+.mp-band__body {
+  font-size: var(--mp-t-lead);
+  line-height: 1.6;
+  color: var(--mp-snow-2);
+  margin: 0;
+}
+.mp-band__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mp-8);
+  margin: var(--mp-8) 0 0;
+  padding-block-start: var(--mp-6);
+  border-block-start: 1px solid var(--mp-line-dark);
+}
+.mp-band__facts dt {
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-snow-3);
+  margin-block-end: var(--mp-2);
+}
+.mp-band__facts dd {
+  margin: 0;
+  font-size: var(--mp-t-small);
+  color: var(--mp-snow);
+}
+.mp-band__cta {
+  margin-block-start: var(--mp-8);
+}
+
+/* ═══ Work cards: photograph instead of line-art ═════════════════════════ */
+
+.mp-work__photo {
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border: 1px solid var(--mp-line-soft);
+  margin-block-end: var(--mp-6);
+  background: rgba(11, 12, 13, 0.04);
+}
+.mp-work__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.78) contrast(1.05);
+  transition:
+    transform 900ms var(--mp-ease),
+    filter var(--mp-dur-slow) var(--mp-ease);
+}
+.mp-work__item:hover .mp-work__photo img {
+  transform: scale(1.03);
+  filter: saturate(0.95) contrast(1.07);
+}
+
+/* ═══ Gallery — the material ═════════════════════════════════════════════ */
+
+.mp-gal-sec {
+  overflow: clip;
+}
+.mp-gal__lede {
+  font-size: var(--mp-t-lead);
+  line-height: 1.6;
+  color: var(--mp-snow-2);
+  max-width: 58ch;
+  margin: 0 0 clamp(2rem, 4vw, 3.5rem);
+}
+/* Twelve uniform tiles. The count and the column steps are chosen together:
+   12 divides by 4, 3 and 2, so the wall closes on a straight edge at every
+   breakpoint. `aspect-ratio` on the cell rather than a fixed row height keeps
+   the tiles square-ish at any width without a media query per step. */
+.mp-gal {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding-inline: 2px;
+}
+.mp-gal__cell {
+  position: relative;
+  overflow: hidden;
+  background: var(--mp-charcoal);
+  aspect-ratio: 4 / 3;
+}
+.mp-gal__cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.62) contrast(1.05) brightness(0.92);
+  transition:
+    transform 1100ms var(--mp-ease),
+    filter var(--mp-dur-slow) var(--mp-ease);
+}
+.mp-gal__cell:hover img {
+  transform: scale(1.05);
+  filter: saturate(1) contrast(1.06) brightness(1);
+}
+.mp-gal__note {
+  margin-block-start: var(--mp-12);
+}
+
+@media (min-width: 720px) {
+  .mp-gal {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1180px) {
+  .mp-gal {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ── Large displays: keep the new sections growing with the rest ────────── */
+
+@media (min-width: 1500px) {
+  .mp-typo-intro__title {
+    font-size: clamp(2.6rem, 2.5vw, 3.9rem);
+  }
+  .mp-band {
+    min-height: clamp(640px, 74svh, 940px);
+  }
+}
+@media (min-width: 2000px) {
+  .mp-typo__media {
+    aspect-ratio: 3 / 4;
+  }
+}
+
+/* A visitor who asked for less motion gets stills everywhere — `VideoLoop`
+   never mounts a <video> for them. These only cover the hover transforms,
+   which are cheap but still motion. */
+@media (prefers-reduced-motion: reduce) {
+  .mp-typo__link:hover .mp-typo__img,
+  .mp-work__item:hover .mp-work__photo img,
+  .mp-gal__cell:hover img {
+    transform: none;
+  }
 }
 
 /* ═══ 20 · RESPONSIVE ═════════════════════════════════════════════════════ */

@@ -23,7 +23,7 @@ const ALL_ON: LayerState = bim.layers.reduce<LayerState>((acc, l) => {
  * wireframe / solid switch. No 3D engine, no model download, no WebGL — the
  * interaction costs a few CSS opacity transitions.
  */
-export function BIMExperience() {
+export function BIMExperience({ n = '04' }: { n?: string }) {
   const [layers, setLayers] = useState<LayerState>(ALL_ON);
   const [solid, setSolid] = useState(false);
 
@@ -42,7 +42,7 @@ export function BIMExperience() {
       style={{ position: 'relative' }}
     >
       <div className="mp-shell" style={{ position: 'relative', zIndex: 1 }}>
-        <SectionHeading n="04" label={bim.eyebrow} meta="Interactive" />
+        <SectionHeading n={n} label={bim.eyebrow} meta="Interactive" />
 
         <div className="mp-bim__grid">
           <div>

@@ -16,7 +16,12 @@
  *     never a "profile forthcoming" placeholder.
  *   • `projects` is empty until real, publishable work exists. Until then the
  *     work page renders `engagements` (anonymized, representative scope).
+ *   • Photographs and video come from `media.ts` and illustrate TYPOLOGIES and
+ *     SERVICES — never a specific job. Read that file's rules before adding a
+ *     placement; the "one placement per asset" rule is enforced by hand.
  */
+
+import { photo, video, type Photo } from './media';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    COMPANY
@@ -766,37 +771,166 @@ export const contactServiceOptions = [
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * ONE PLACEMENT PER IMAGE. Only six of the fourteen stock photographs clear
- * the bar for this firm — the rest are a Kampala hillside, a UK industrial
- * shed, a Barcelona street, a Hamburg container port, a Lebanese villa, and a
- * bridge under snow, which is not South Florida. Six images, six placements,
- * no repeats.
+ * ONE PLACEMENT PER IMAGE — still the rule. The catalogue now lives in
+ * `media.ts`; this section only allocates it. Every asset below appears
+ * exactly once across the whole site. If you want a photograph in a new place,
+ * add a photograph — do not reuse one, because the same crop showing up twice
+ * is the single fastest way to make a site look thin.
  *
- * Pages without an image of their own open on the plain graphite band. That is
- * deliberate: showing the same photograph twice reads as thin, an empty band
- * does not. Add real project photography here and the pages fill themselves.
+ * The home page opens on VIDEO rather than a still. Three more silent loops
+ * carry the sections that are about movement — a frame going up, a coastline
+ * of existing buildings, structure seen from underneath. Everything else is
+ * photography.
  */
 export const imagery = {
-  /** Home hero. */
-  hero: {
-    src: '/ttc/img/hero-bg.jpg',
-    alt: 'Upward view between two older city buildings',
-  },
+  /** Home hero — a clip, with its poster doing the work when it cannot play. */
+  hero: video.heroMiami,
+
+  /** One photograph per page hero. */
   pages: {
-    services: {
-      src: '/ttc/img/team.jpg',
-      alt: 'Reinforced-concrete frame under construction with a tower crane',
-    },
-    existingBuildings: {
-      src: '/ttc/img/projects/project-09.jpg',
-      alt: 'Facade of a large institutional building in service',
-    },
-    work: {
-      src: '/ttc/img/projects/project-12.jpg',
-      alt: 'Coffered concrete soffit meeting a glass tower',
-    },
+    services: photo.concreteBeamColumn,
+    existingBuildings: photo.miamiResidentialTowers,
+    work: photo.miamiCondoAerial,
+    about: photo.concreteStair,
+    contact: photo.miamiBrickell,
   },
+
+  /** Service detail pages, keyed by slug. */
+  services: {
+    'reinforced-concrete-design': photo.rebarCageUp,
+    'structural-analysis': photo.concreteSkyForms,
+    'bim-coordination': photo.concreteFins,
+    'building-recertification': photo.midriseModern,
+    'building-safety-inspections': photo.inspectBalconyPair,
+    'structural-condition-assessments': photo.inspectWall,
+    'peer-review': photo.concreteRamp,
+  } as Record<string, Photo>,
+
+  /** Representative engagement profiles on the Work page, keyed by `n`. */
+  engagements: {
+    '01': photo.frameUnderConstruction,
+    '02': photo.midriseGlassBalconies,
+    '03': photo.miamiTowersUp,
+    '04': photo.rebarBundles,
+    '05': photo.frameSlabEdges,
+    '06': photo.rebarCageTower,
+  } as Record<string, Photo>,
+
+  /** Full-bleed clips used inside the page body. */
+  clips: {
+    design: video.craneSky,
+    existing: video.existingMidrise,
+    bim: video.structureGeometry,
+  },
+
+  /**
+   * Closing gallery on the Work page — atmosphere, deliberately uncaptioned.
+   *
+   * TWELVE, and the count is load-bearing: the grid runs 4 / 3 / 2 columns and
+   * twelve divides by all three, so the wall closes on a straight edge at every
+   * breakpoint instead of trailing a hole. Add or remove in pairs of six.
+   */
+  gallery: [
+    photo.houseConcreteCarport,
+    photo.frameGolden,
+    photo.housePalm,
+    photo.concreteVault,
+    photo.midriseClean,
+    photo.rebarSlabCrew,
+    photo.concreteSteppedGold,
+    photo.frameTower,
+    photo.houseDarkBrick,
+    photo.miamiSkylineTeal,
+    photo.houseWhiteTree,
+    photo.miamiBeachDusk,
+  ],
 } as const;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WHAT WE DESIGN — building typologies
+   ═══════════════════════════════════════════════════════════════════════════
+   The single most common question a visitor arrives with is "do you do MY kind
+   of building?" — and until now the site answered it only in the language of
+   engineering services (analysis, detailing, peer review). This section answers
+   it in the language of buildings.
+
+   ⚠ These are TYPOLOGIES, not projects. Each carries a photograph of the kind
+   of structure described, never a claim that the practice built that one. The
+   section prints that distinction in its own footnote; do not remove it, and do
+   not retitle this "Projects", "Portfolio" or "Our work". When real project
+   photography exists it belongs in `projects`, which has its own honest frame.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export type Typology = {
+  n: string;
+  title: string;
+  /** One sentence, in the client's language, not the code's. */
+  lede: string;
+  /** What the practice actually issues for this kind of building. */
+  delivers: string[];
+  /** Which half of the practice it belongs to. */
+  track: ServiceTrack;
+  /** Where to go for the detail. */
+  href: string;
+  photo: Photo;
+};
+
+export const typologies: Typology[] = [
+  {
+    n: '01',
+    title: 'Single-family residences',
+    lede: 'New houses engineered from the footing up — foundations sized to the soil report, a frame that carries wind, and drawings a local builder can price and build.',
+    delivers: ['Foundation design', 'Framing & load path', 'Wind & uplift', 'Permit drawing set'],
+    track: 'new',
+    href: '/services/reinforced-concrete-design',
+    photo: photo.houseConcreteGarden,
+  },
+  {
+    n: '02',
+    title: 'Townhouses & duplexes',
+    lede: 'Party walls, shared foundations and repeated bays — the structure resolved once and detailed so the repetition stays a saving instead of a risk.',
+    delivers: ['Party-wall structure', 'Repeated bay detailing', 'Lateral system', 'Unit-to-unit separation'],
+    track: 'new',
+    href: '/services/structural-analysis',
+    photo: photo.houseTownhouses,
+  },
+  {
+    n: '03',
+    title: 'Mid-rise reinforced concrete',
+    lede: 'Flat plates, shear-wall cores and cantilevered balconies — the system South Florida is built from, engineered as one continuous load path.',
+    delivers: ['Flat-plate & beam framing', 'Shear-wall core', 'Balcony cantilevers', 'Reinforcement detailing'],
+    track: 'new',
+    href: '/services/reinforced-concrete-design',
+    photo: photo.frameCurvedBalconies,
+  },
+  {
+    n: '04',
+    title: 'Mixed-use & commercial frames',
+    lede: 'Long spans over ground-floor retail, transfer structure where the grid changes, and coordination with everyone whose services run through it.',
+    delivers: ['Transfer structure', 'Long-span framing', 'BIM coordination', 'Model-derived drawings'],
+    track: 'new',
+    href: '/services/bim-coordination',
+    photo: photo.frameCurvedCrane,
+  },
+  {
+    n: '05',
+    title: 'Foundations on difficult sites',
+    lede: 'Tight lots, poor bearing, high water table and neighbours close enough to matter — the substructure engineered against the geotechnical report, not around it.',
+    delivers: ['Mat & spread footings', 'Deep foundations', 'Settlement & uplift checks', 'Reactions schedule'],
+    track: 'new',
+    href: '/services/structural-analysis',
+    photo: photo.rebarMatWorkers,
+  },
+  {
+    n: '06',
+    title: 'Repairs to existing structures',
+    lede: 'Balconies, facades, slabs and columns that have been in service for decades — condition documented, repairs engineered, and the paperwork the county asks for.',
+    delivers: ['Condition assessment', 'Repair scope & details', 'Recertification report', 'Reinspection'],
+    track: 'existing',
+    href: '/existing-buildings',
+    photo: photo.inspectRoofHelmets,
+  },
+];
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE TWO PATHS — new structures vs. existing buildings
@@ -812,12 +946,13 @@ export type Path = {
   cta: { href: string; label: string };
   art: 'new' | 'existing';
   /**
-   * Architectural photography used as MATERIAL, not as portfolio. These are
-   * licensed stock crops (see public/ttc/img/IMAGE-CREDITS.md) shown behind
-   * the technical line-art — they are never captioned as the firm's work.
-   * Swap for real project photography when it exists.
+   * Architectural photography used as MATERIAL, not as portfolio — never
+   * captioned as the firm's work. Swap for real project photography when it
+   * exists; the component does not change.
    */
-  photo: { src: string; alt: string };
+  photo: Photo;
+  /** Silent loop shown in place of the still where one earns its bandwidth. */
+  clip?: (typeof video)[keyof typeof video];
 };
 
 export const paths: Path[] = [
@@ -838,10 +973,7 @@ export const paths: Path[] = [
     ],
     cta: { href: '/services', label: 'Explore design services' },
     art: 'new',
-    photo: {
-      src: '/ttc/img/projects/project-02.jpg',
-      alt: 'Glass curtain wall meeting a cast concrete mass, seen from below',
-    },
+    photo: photo.frameColumnsSky,
   },
   {
     n: '02',
@@ -860,10 +992,7 @@ export const paths: Path[] = [
     ],
     cta: { href: '/existing-buildings', label: 'Explore existing-building services' },
     art: 'existing',
-    photo: {
-      src: '/ttc/img/projects/project-01.jpg',
-      alt: 'Reinforced-concrete residential towers in service',
-    },
+    photo: photo.midriseBalconies,
   },
 ];
 

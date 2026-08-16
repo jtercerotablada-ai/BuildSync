@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { company, services, serviceBySlug } from '@/lib/ttc/site';
+import { company, imagery, services, serviceBySlug } from '@/lib/ttc/site';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
 import { SoftwareBand } from '@/components/ttc/mp/SoftwareBand';
@@ -111,6 +111,7 @@ export default async function ServiceDetailPage({
           { k: 'Applies to', v: service.track === 'new' ? 'New construction' : 'Existing buildings' },
           { k: 'Basis', v: service.standards.slice(0, 2).join(' · ') },
         ]}
+        photo={imagery.services[service.slug]}
       />
 
       {/* ── The problem ── */}

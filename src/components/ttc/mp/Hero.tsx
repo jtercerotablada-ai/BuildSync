@@ -9,6 +9,7 @@ import {
   RevealText,
   Reveal,
 } from './primitives';
+import { VideoLoop } from './media';
 import { imagery } from '@/lib/ttc/site';
 
 const CAPABILITIES = [
@@ -19,11 +20,17 @@ const CAPABILITIES = [
 ];
 
 /**
- * The photograph is the hero. It used to sit behind a self-drawing SVG
- * section, but a technical overlay on top of a real building fights it —
- * neither reads properly. The line-art now lives only where there is no
- * photograph (service diagrams, the BIM viewer, the service-area plate,
- * the leadership title block), and the image is left alone.
+ * The hero is a slow aerial pass over the South Florida waterfront. It says
+ * where the practice works before a word is read, which a still of an
+ * anonymous facade never did.
+ *
+ * It is still the same layer as the old photograph — same scrim, same grid,
+ * same crop — so legibility does not depend on the clip arriving. `VideoLoop`
+ * paints the poster first and only upgrades to video on the client; reduced
+ * motion keeps the poster permanently. See `media.tsx`.
+ *
+ * The line-art lives only where there is no photograph (service diagrams, the
+ * BIM viewer, the service-area plate, the leadership title block).
  */
 export function Hero() {
   const reduce = useReducedMotion();
@@ -31,24 +38,16 @@ export function Hero() {
   return (
     <section className="mp-hero mp-surface--graphite" aria-labelledby="mp-hero-title">
       <div className="mp-hero__bg" aria-hidden="true" />
-      {/* Architectural crop. Decorative — the headline carries the meaning —
-          but it is now the thing you actually look at. */}
+      {/* Decorative — the headline carries the meaning — but it is the thing
+          you actually look at. */}
       <motion.div
-        className="mp-hero__photo"
+        className="mp-hero__photo mp-hero__photo--video"
         aria-hidden="true"
         initial={reduce ? false : { opacity: 0, scale: 1.04 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 1.6, ease: EASE }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imagery.hero.src}
-          alt=""
-          fetchPriority="high"
-          decoding="async"
-          width={1920}
-          height={2400}
-        />
+        <VideoLoop clip={imagery.hero} priority />
       </motion.div>
       <motion.div
         className="mp-hero__grid"

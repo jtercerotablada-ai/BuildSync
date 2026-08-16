@@ -12,11 +12,19 @@ export const metadata: Metadata = {
 };
 
 /**
- * The photography on this site is licensed, not owned. CC BY and CC BY-SA both
- * require attribution "in a manner reasonable to the medium" — for a website
- * that means a page a visitor can actually reach, not only a file in the
- * repository. When real Tercero Tablada project photography replaces these,
- * this page can go with them.
+ * The photography on this site is licensed, not owned.
+ *
+ * As of the move to the Pexels media set, NOTHING ON THE SITE REQUIRES
+ * ATTRIBUTION any more: every photograph and clip now displayed is
+ * Pexels-licensed — commercial use, no attribution, no share-alike. The
+ * Creative Commons files listed below are no longer shown on any page; they
+ * remain in the repository and are still reachable by direct URL, which is why
+ * their attribution is kept here rather than deleted. Removing the files is
+ * what retires this page.
+ *
+ * CC BY and CC BY-SA both require attribution "in a manner reasonable to the
+ * medium" — for a website that means a page a visitor can actually reach, not
+ * only a file in the repository.
  */
 const CREDITS = [
   {
@@ -76,12 +84,27 @@ export default function CreditsPage() {
         crumbs={[{ href: '/', label: 'Home' }, { label: 'Image Credits' }]}
         titleLines={['Image Credits']}
         plainTitle="Image Credits"
-        sub="The architectural photography on this site is licensed from third-party photographers and shown as material, not as a portfolio. Each image appears in exactly one place, and none of it depicts a Tercero Tablada Civil & Structural Engineering Inc. project."
+        sub="The architectural photography on this site is licensed from third-party photographers and shown as material and typology, never as a portfolio. Each image appears in exactly one place, and none of it depicts a Tercero Tablada Civil & Structural Engineering Inc. project."
       />
 
       <section className="mp-section mp-surface--paper">
         <div className="mp-shell mp-shell--narrow">
           <SectionHeading n="01" label="Photography" meta="Licensed" />
+
+          <div className="mp-prose" style={{ marginBlockEnd: 'var(--mp-12)' }}>
+            <p>
+              The photography and video currently shown across this site are
+              licensed under the <strong>Pexels licence</strong>: free for
+              commercial use, modification permitted, and{' '}
+              <strong>no attribution required</strong>. They are not listed
+              individually here because nothing is owed for them.
+            </p>
+            <p>
+              The Creative Commons images below are <strong>no longer displayed
+              on any page</strong>. They remain in the repository and are still
+              reachable by direct URL, so their attribution stays published.
+            </p>
+          </div>
 
           <div className="mp-work__specs" style={{ marginBlockEnd: 'var(--mp-12)' }}>
             {CREDITS.map((c) => (
@@ -126,10 +149,12 @@ export default function CreditsPage() {
 
             <h2>Replacing these</h2>
             <p>
-              Every image above stands in for photography{' '}
+              Every image on this site stands in for photography{' '}
               {company.name} does not yet own. As real project photography
-              becomes available it replaces these files, the attribution
-              obligation disappears with them, and this page can be retired.
+              becomes available it replaces these files one at a time, in{' '}
+              <code>src/lib/ttc/media.ts</code>, without touching a component —
+              and each replacement makes the site more genuinely the firm&rsquo;s
+              own.
             </p>
           </div>
         </div>

@@ -12,7 +12,7 @@ import { EASE, Reveal, SectionHeading, TextLink } from './primitives';
  * removed by CSS and each service renders its own diagram inline, so the
  * information is identical without the scroll choreography.
  */
-export function CoreExpertise() {
+export function CoreExpertise({ n = '03' }: { n?: string }) {
   const [active, setActive] = useState(0);
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
   const reduce = useReducedMotion();
@@ -46,7 +46,7 @@ export function CoreExpertise() {
     >
       <div className="mp-shell">
         <SectionHeading
-          n="03"
+          n={n}
           label="Core expertise"
           meta={`${String(active + 1).padStart(2, '0')} / ${String(coreExpertise.length).padStart(2, '0')}`}
         />
