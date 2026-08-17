@@ -12,7 +12,13 @@ const FROM = process.env.EMAIL_FROM || "TERCERO TABLADA CIVIL AND STRUCTURAL ENG
 const APP_URL = process.env.APP_URL || "http://localhost:3000";
 
 export async function sendVerificationEmail(email: string, token: string) {
-  const verifyUrl = `${APP_URL}/verify-email?token=${token}`;
+  /* Lands on /onboarding, not /verify-email.
+     A signup has no password yet, and /onboarding is where one is set. Sending
+     the link to /verify-email stamped emailVerified and then CONSUMED the
+     token, which destroyed the only credential /onboarding accepts — the user
+     was verified, still had no password, and had no way left to set one.
+     Redeeming the token at /onboarding now does both at once. */
+  const verifyUrl = `${APP_URL}/onboarding?token=${token}`;
 
   try {
     await getResend().emails.send({

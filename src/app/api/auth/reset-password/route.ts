@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
     const user = await prisma.user.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
-      select: { id: true },
+      select: { id: true, emailVerified: true, name: true },
     });
 
     if (!user) {
@@ -49,11 +49,45 @@ export async function POST(req: Request) {
 
     const hashedPassword = await hash(password, 12);
 
-    await prisma.user.update({
-      where: { id: user.id },
-      // Stamp passwordChangedAt so any JWT issued before now is rejected on
-      // its next use — the reset actually evicts existing sessions (AUTH-03).
-      data: { password: hashedPassword, passwordChangedAt: new Date() },
+    /* Everywhere else, setting a FIRST password and attaching a workspace
+       happen together — onboarding does both in one transaction, and so does
+       the invite accept path. Reset never had to, because forgot-password used
+       to refuse rows with no password. Opening that gate (so accounts stranded
+       by the broken signup can recover) made this the one door that sets a
+       first password WITHOUT a workspace, and the result signs in to a
+       dashboard that 403s: getUserWorkspaceId throws "No workspace found".
+       Onboarding cannot repair it either — it now refuses any account that
+       already has a password. So backfill here, in the same transaction. */
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          // Stamp passwordChangedAt so any JWT issued before now is rejected on
+          // its next use — the reset actually evicts existing sessions (AUTH-03).
+          passwordChangedAt: new Date(),
+          /* Receiving the link proves the address is theirs, so verify it here
+             if it was not already. Otherwise an account recovering from the
+             broken signup would set a password and STILL be turned away by the
+             `!user.emailVerified` gate in auth.ts — a reset that changes nothing
+             the user can observe. */
+          ...(user.emailVerified ? {} : { emailVerified: new Date() }),
+        },
+      });
+
+      const membership = await tx.workspaceMember.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!membership) {
+        await tx.workspace.create({
+          data: {
+            name: `${user.name?.trim() || email.split("@")[0]}'s Workspace`,
+            ownerId: user.id,
+            members: { create: { userId: user.id, role: "OWNER" } },
+          },
+        });
+      }
     });
 
     await consumeToken(token);

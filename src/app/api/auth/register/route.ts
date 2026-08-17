@@ -39,14 +39,36 @@ export async function POST(req: Request) {
     });
 
     if (existingUser) {
-      // If user exists but has no password, they can continue to onboarding
+      /* A row with no password is a signup that never finished. Registering
+         again is the ONLY move such a person has — the link expires in an hour
+         (tokens.ts) and /api/auth/resend-verification sits behind a login — so
+         this branch has to actually re-send. It used to return the reassuring
+         message and mint nothing, which made an expired link a permanent dead
+         end and turned the "we've sent it a link" screen into a lie. */
       if (!existingUser.password) {
-        return NextResponse.json(
-          { message: "If this email is not already registered, a verification email has been sent." },
-          { status: 200 }
-        );
+        // Same 2-minute throttle as resend-verification: a token minted less
+        // than 2 minutes ago still expires more than 58 minutes from now.
+        const recentToken = await prisma.verificationToken.findFirst({
+          where: {
+            identifier: `email-verify:${normalizedEmail}`,
+            expires: { gt: new Date(Date.now() + 58 * 60 * 1000) },
+          },
+        });
+
+        if (!recentToken) {
+          try {
+            const token = await createToken(`email-verify:${normalizedEmail}`);
+            await sendVerificationEmail(normalizedEmail, token);
+          } catch (emailError) {
+            console.error("Failed to resend verification email:", emailError);
+          }
+        }
       }
-      // Return generic response to prevent email enumeration
+
+      /* Identical body and status for "resent", "throttled" and "already a
+         full account", so the response still cannot be used to probe which
+         addresses exist. The 201-vs-200 split below is the remaining tell and
+         is tracked separately. */
       return NextResponse.json(
         { message: "If this email is not already registered, a verification email has been sent." },
         { status: 200 }

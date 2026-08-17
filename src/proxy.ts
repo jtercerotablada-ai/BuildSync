@@ -10,6 +10,12 @@ const publicPrefixes = [
   "/forgot-password",
   "/reset-password",
   "/verify-email",
+  // Signup finishes here, and by definition the visitor has no session yet —
+  // they are holding an emailed token instead. Both were behind the auth wall,
+  // so the post-registration link bounced to /login and the flow died.
+  // The route handler is the real gate: it demands a valid email-verify token.
+  "/onboarding",
+  "/api/users/onboarding",
   "/api/auth",
   "/api/my-tasks/calendar-feed",
   "/api/contact",

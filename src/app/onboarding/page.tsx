@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { User, Camera, Eye, EyeOff } from "lucide-react";
+import { validatePassword } from "@/lib/password-policy";
 
 const COMPANY_NAME = "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.";
 
@@ -174,6 +175,13 @@ function OnboardingForm() {
   const emailFromParams = searchParams.get("email");
   const email = emailFromParams || session?.user?.email || "";
 
+  /* The email-verify token from the link in the signup email. This is the whole
+     credential for a brand-new account: the visitor has no session and no
+     password yet. It was never read here, so the POST below went out without it
+     and the API refused every self-service signup. The server derives the
+     address from the token itself, so a token-based arrival needs no ?email=. */
+  const token = searchParams.get("token");
+
   // Only prefill name/avatar from the session when it belongs to the SAME
   // email being onboarded. Otherwise (e.g. an admin opening a signup link
   // for someone else while logged in) we'd wrongly seed the other person's
@@ -224,13 +232,20 @@ function OnboardingForm() {
       return;
     }
 
-    if (!password || password.length < 8) {
-      setError("Password must be at least 8 characters");
+    /* Use the SERVER's rule, not a looser copy of it. The client checked
+       length only while validatePassword also demands an uppercase letter, a
+       digit and a symbol, so a password the meter called "Good" came back as a
+       server error on submit — on the very first screen of the product. */
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      setError(pwCheck.message);
       return;
     }
 
-    if (!email) {
-      setError("Email is required. Please go back to registration.");
+    // A token identifies the account on its own — the server reads the address
+    // out of it. Only demand an email when there is no token to go on.
+    if (!email && !token) {
+      setError("This link is missing its verification code. Please use the link from your email.");
       return;
     }
 
@@ -245,19 +260,27 @@ function OnboardingForm() {
           name: name.trim(),
           password,
           image: avatarPreview,
-          email,
+          // Only send an address when there is no token. With a token the
+          // server reads the address out of it, and sending the session's
+          // address alongside only creates a mismatch to argue about.
+          ...(token ? { token } : { email }),
         }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const data = await response.json();
         setError(data.error || "Something went wrong");
         return;
       }
 
-      // Sign in with the new credentials
+      /* Sign in with the address the SERVER confirmed, not the one in the URL.
+         On a token arrival there is no ?email= at all, and the server is the
+         only side that knows which account the token belongs to. */
+      const signInEmail = data?.user?.email || email;
+
       const signInResult = await signIn("credentials", {
-        email,
+        email: signInEmail,
         password,
         redirect: false,
       });

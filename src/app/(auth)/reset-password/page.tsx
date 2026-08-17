@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 import { CheckCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { validatePassword } from "@/lib/password-policy";
 
 function getPasswordStrength(password: string): number {
   let score = 0;
@@ -44,8 +45,11 @@ function ResetPasswordForm() {
       return;
     }
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+    // Same shared rule the API enforces, so the form cannot accept a password
+    // the server will bounce. See src/lib/password-policy.ts.
+    const pwCheck = validatePassword(password);
+    if (!pwCheck.valid) {
+      setError(pwCheck.message);
       return;
     }
 

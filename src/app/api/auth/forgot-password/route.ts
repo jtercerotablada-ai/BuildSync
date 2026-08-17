@@ -36,8 +36,15 @@ export async function POST(req: Request) {
       select: { id: true, password: true },
     });
 
-    // No user or OAuth-only user (no password) → return success silently
-    if (!user || !user.password) {
+    /* Only an unknown address is answered silently.
+       This used to skip rows with no password too, on the assumption they were
+       OAuth-only and had nothing to reset. That assumption is what sealed the
+       trap: every account left password-less by the broken signup asked for a
+       reset, was told "a reset link has been sent", and got nothing — with no
+       other way to ever set a password. A reset link proves control of the
+       address, which is exactly the right to set a FIRST password as much as a
+       replacement one. */
+    if (!user) {
       return successResponse;
     }
 

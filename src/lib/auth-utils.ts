@@ -91,18 +91,7 @@ export async function getEffectiveAccess(
   };
 }
 
-export function validatePassword(password: string): { valid: boolean; message: string } {
-  if (!password || password.length < 8) {
-    return { valid: false, message: "Password must be at least 8 characters long" };
-  }
-  if (!/[A-Z]/.test(password)) {
-    return { valid: false, message: "Password must contain at least one uppercase letter" };
-  }
-  if (!/[0-9]/.test(password)) {
-    return { valid: false, message: "Password must contain at least one number" };
-  }
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-    return { valid: false, message: "Password must contain at least one special character" };
-  }
-  return { valid: true, message: "" };
-}
+/* Moved to ./password-policy so client screens can share the SAME rule — this
+   module is server-only (Prisma, getServerSession). Re-exported so the existing
+   server-side imports of `validatePassword` from here keep working. */
+export { validatePassword } from "./password-policy";
