@@ -158,6 +158,21 @@ export type Service = {
   deliverables: string[];
   /** Honest caveats — what changes the scope, what we do not promise. */
   considerations: string[];
+  /**
+   * When the obligation is triggered. Only the two existing-building services
+   * carry one, because only they are driven by a statute or a county code
+   * rather than by a client's programme.
+   *
+   * THESE NUMBERS ARE REGULATORY AND THEY MOVE — the milestone trigger changed
+   * twice between 2022 and 2023 alone. `source` names the authority so the next
+   * person can re-check rather than guess, and `note` carries the caveat that
+   * has to travel with any published threshold. Re-verify before amending.
+   */
+  timing?: {
+    source: string;
+    note: string;
+    rows: { k: string; v: string }[];
+  };
   /** Reference standards. Kept short; this is not a code list. */
   standards: string[];
   /** Line-art key used by the diagram registry in `mp/art.tsx`. Still used on
@@ -488,6 +503,24 @@ export const services: Service[] = [
       'Written repair recommendations where applicable',
       'Reinspection documentation after repairs',
     ],
+    timing: {
+      source:
+        'Miami-Dade County Code §8-11(f) · Broward County Building Safety Inspection Program',
+      note: 'A county obligation, and separate from the state milestone inspection — a building in Miami-Dade or Broward can owe both, on different deadlines and in different reports. Applicability is confirmed for your building before we start.',
+      rows: [
+        { k: 'First due at', v: '30 years' },
+        {
+          k: 'On the coast',
+          v: '25 years — condominium or cooperative, three stories or more, within 3 miles of the coastline',
+        },
+        { k: 'Then', v: 'Every 10 years, for the life of the structure' },
+        { k: 'Time to comply', v: '90 days from the date of the county notice' },
+        {
+          k: 'Outside the program',
+          v: 'Single-family homes, duplexes, and buildings at 10 occupant load or less and 2,000 sq ft or less',
+        },
+      ],
+    },
     considerations: [
       'Requirements vary by jurisdiction, building age and construction type — the sequence above is typical, not universal.',
       'Recertification is not a one-time event. After the first report the building is due again every ten years, for the life of the structure.',
@@ -567,6 +600,29 @@ export const services: Service[] = [
       'Recommended follow-up or further investigation scope',
       'Signed and sealed documents where the scope requires it',
     ],
+    timing: {
+      source: 'Florida Statute 553.899',
+      note: 'A state obligation, and separate from county recertification — a building in Miami-Dade or Broward can owe both, on different deadlines and in different reports. Applicability is confirmed for your building before we start.',
+      rows: [
+        {
+          k: 'Applies to',
+          v: 'Condominium and cooperative buildings of three habitable stories or more',
+        },
+        {
+          k: 'First due',
+          v: 'By 31 December of the year the building reaches 30 years of age',
+        },
+        {
+          k: 'On the coast',
+          v: '25 years where the local enforcement agency requires it for proximity to salt water',
+        },
+        { k: 'Then', v: 'Every 10 years' },
+        {
+          k: 'Phase two',
+          v: 'Only where phase one finds substantial structural deterioration',
+        },
+      ],
+    },
     considerations: [
       'Visual inspection covers accessible, observable conditions. Concealed deterioration may require testing or selective demolition.',
       'Milestone inspection requirements depend on building age, height and location; applicability is confirmed case by case.',
@@ -1080,7 +1136,7 @@ export const recertificationProcess = {
      first recertification is followed by another every ten years for the life
      of the structure, and F.S. 553.899 milestone inspections recur on the same
      ten-year cycle. A board reading "once" would plan capital wrong. */
-  lede: 'The first notice is the one nobody is ready for — and it comes back every ten years. We run it end to end so the board knows what happens next at every stage.',
+  lede: 'The first notice lands at 30 years — 25 on the coast — and comes back every ten years after that. We run it end to end so the board knows what happens next at every stage.',
   steps: [
     {
       n: '01',

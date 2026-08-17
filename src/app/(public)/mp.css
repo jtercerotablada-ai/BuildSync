@@ -2667,6 +2667,53 @@ body:has([data-mp-dark-hero])
   color: var(--mp-ink);
 }
 
+/* Regulatory trigger table inside a callout — the "when it applies" block on
+   the two existing-building services. Rows stack on narrow screens so a
+   45-character value never has to share a line with its label. */
+.mp-timing {
+  margin: 0;
+  border-block-start: 1px solid var(--mp-line);
+}
+.mp-timing > div {
+  display: grid;
+  grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+  gap: var(--mp-4);
+  padding-block: 0.7rem;
+  border-block-end: 1px solid var(--mp-line);
+}
+.mp-timing dt {
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+.mp-timing dd {
+  margin: 0;
+  font-size: var(--mp-t-small);
+  color: var(--mp-ink);
+}
+.mp-timing__note {
+  margin-block: var(--mp-4) 0;
+  font-size: var(--mp-t-small);
+  line-height: 1.6;
+  color: var(--mp-ink-2);
+}
+.mp-timing__src {
+  margin-block: var(--mp-3) 0;
+  font-family: var(--mp-mono);
+  font-size: var(--mp-t-label);
+  letter-spacing: var(--mp-track-label);
+  text-transform: uppercase;
+  color: var(--mp-ink-3);
+}
+@media (max-width: 700px) {
+  .mp-timing > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+}
+
 /* Cross-links between services */
 .mp-more {
   display: grid;

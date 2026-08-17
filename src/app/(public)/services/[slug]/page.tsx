@@ -143,13 +143,42 @@ export default async function ServiceDetailPage({
             <Reveal>
               <h2 className="mp-split__title">What the work covers</h2>
             </Reveal>
-            <Reveal delay={0.06}>
-              <ol className="mp-speclist">
-                {service.scope.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ol>
-            </Reveal>
+            <div>
+              <Reveal delay={0.06}>
+                <ol className="mp-speclist">
+                  {service.scope.map((s) => (
+                    <li key={s}>{s}</li>
+                  ))}
+                </ol>
+              </Reveal>
+
+              {/* The two existing-building services are triggered by a statute
+                  or a county code, not by the client's programme, so the first
+                  question an owner has is "does this reach my building, and
+                  when". Answering it with the actual numbers is worth more than
+                  a paragraph saying it depends — but the numbers move, so the
+                  authority is printed next to them. */}
+              {service.timing ? (
+                <Reveal delay={0.1}>
+                  <div
+                    className="mp-callout"
+                    style={{ marginBlockStart: 'var(--mp-12)' }}
+                  >
+                    <h3>When it applies</h3>
+                    <dl className="mp-timing">
+                      {service.timing.rows.map((r) => (
+                        <div key={r.k}>
+                          <dt>{r.k}</dt>
+                          <dd>{r.v}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="mp-timing__note">{service.timing.note}</p>
+                    <p className="mp-timing__src">{service.timing.source}</p>
+                  </div>
+                </Reveal>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>
