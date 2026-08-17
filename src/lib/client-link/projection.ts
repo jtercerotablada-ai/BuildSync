@@ -124,12 +124,6 @@ export interface ClientDocument {
   createdAt: Date;
 }
 
-export interface ClientContact {
-  id: string;
-  name: string;
-  role: string;
-}
-
 /** A future site visit tagged to the firm's inspector. Never carries a time. */
 export interface ClientInspection {
   id: string;
@@ -203,7 +197,6 @@ export interface ClientProjectView {
   activity: ClientActivityEvent[];
   /** Omitted entirely when no status update carries a clientSummary. */
   latestUpdate?: { summary: string; postedAt: Date };
-  contacts: ClientContact[];
 }
 
 /** Turn ENUM_LIKE_THIS into "Enum like this" for display. */
@@ -634,7 +627,6 @@ export async function buildClientProjectView(
     whatWeNeedFromYou,
     documents,
     updates,
-    members,
     rootTasks,
     sectionRows,
     upcomingInspections,
@@ -676,20 +668,6 @@ export async function buildClientProjectView(
       where: { projectId, clientSummary: { not: null } },
       select: { id: true, clientSummary: true, createdAt: true },
       orderBy: { createdAt: "desc" },
-    }),
-    prisma.projectMember.findMany({
-      where: { projectId },
-      select: {
-        id: true,
-        user: {
-          select: {
-            name: true,
-            jobTitle: true,
-            position: true,
-            customTitle: true,
-          },
-        },
-      },
     }),
     // Root, non-private tasks only — the denominator of the progress ring.
     // Matches the internal convention and never touches earned value/budget.
@@ -788,22 +766,6 @@ export async function buildClientProjectView(
     ),
 
     activity,
-
-    // Name and role only. No email address reaches this page — publishing a
-    // staff inbox on an unauthenticated URL is how you get harvested.
-    contacts: members
-      .filter((m) => m.user.name?.trim())
-      .map((m) => ({
-        id: m.id,
-        // Trimmed: some rows carry a trailing space, and this is the one
-        // place it would be shown to a client.
-        name: (m.user.name as string).trim(),
-        role:
-          m.user.customTitle ||
-          (m.user.position ? humanize(m.user.position) : null) ||
-          m.user.jobTitle ||
-          "Project team",
-      })),
   };
 
   if (latest?.clientSummary) {
