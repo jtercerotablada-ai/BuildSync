@@ -278,8 +278,21 @@ export async function POST(
 
       // 3. Optional project membership — bound to the chosen
       //    company with the chosen role.
+      //
+      //    SKIPPED for CLIENT invitations. A client must never hold a
+      //    ProjectMember row on an internal project: such a row satisfies
+      //    canRead (and at this `|| "EDITOR"` default, canWrite) in
+      //    src/lib/project-access.ts, and src/proxy.ts only redirects
+      //    CLIENTs away from /projects/* PAGES — the /api/projects/*
+      //    handlers, which serialize Project.budget, stay reachable.
+      //    The project members API now refuses to bind a project onto a
+      //    client's invitation, but rows minted BEFORE that fix can still
+      //    be sitting PENDING, and this is where they would land.
+      //    Clients get a scoped project link (/p/<token>) instead.
       let redirect = "/home";
-      if (projectIdToBind) {
+      let boundProjectId: string | null = null;
+      const isClientInvitation = invitation.role === "CLIENT";
+      if (projectIdToBind && !isClientInvitation) {
         await tx.projectMember.upsert({
           where: {
             userId_projectId: { userId, projectId: projectIdToBind },
@@ -297,6 +310,7 @@ export async function POST(
             companyId: companyIdToBind,
           },
         });
+        boundProjectId = projectIdToBind;
         redirect = `/projects/${projectIdToBind}`;
       }
 
@@ -323,14 +337,14 @@ export async function POST(
         boundPortfolioId = portfolioIdToBind;
         // Only land the accepter on the portfolio when no project bind
         // already claimed the redirect target.
-        if (!projectIdToBind) {
+        if (!boundProjectId) {
           redirect = `/portfolios/${portfolioIdToBind}`;
         }
       }
 
       // Land the accepter on the team when nothing higher-priority
       // (project / portfolio) already claimed the redirect target.
-      if (boundTeamId && !projectIdToBind && !boundPortfolioId) {
+      if (boundTeamId && !boundProjectId && !boundPortfolioId) {
         redirect = `/teams/${boundTeamId}`;
       }
 
@@ -366,7 +380,7 @@ export async function POST(
         userId,
         redirect,
         boundPortfolioId,
-        boundProjectId: projectIdToBind,
+        boundProjectId,
         boundTeamId,
       };
     });
@@ -380,7 +394,11 @@ export async function POST(
           userId: invitation.inviterId,
           type: "PROJECT_INVITATION",
           title: `${invitation.email} accepted your invitation`,
-          message: invitation.projectId
+          // boundProjectId, NOT invitation.projectId — a CLIENT invitation
+          // can carry a projectId whose bind we deliberately skipped above.
+          // Reading the invitation here would tell the inviter the client
+          // was added to the project when they were not.
+          message: txResult.boundProjectId
             ? `They've been added to the project too.`
             : null,
           data: {

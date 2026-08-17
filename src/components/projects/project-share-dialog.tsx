@@ -117,6 +117,18 @@ interface Props {
 
 // All four native ProjectRole values, in Asana's display order. Used for
 // both the invite Select and the per-row dropdown — no lossy mapping.
+//
+// STAFF ONLY — there is deliberately no client option here, and none must be
+// added. ProjectRole has no CLIENT member; a client is a WORKSPACE role, and
+// this dialog grants workspace access. src/proxy.ts only redirects workspace
+// role CLIENT away from /projects/*, so a client admitted through this box
+// would land on the internal cockpit and see the project budget, staff hours,
+// internal notes and the team's private messages. Clients get a scoped,
+// revocable project link (/p/<token>) instead.
+//
+// The API refuses client invitations regardless of what this UI sends — see
+// the CLIENT_INVITE_ERROR guards in
+// src/app/api/projects/[projectId]/members/route.ts.
 const ROLE_ORDER: ProjectRole[] = ["ADMIN", "EDITOR", "COMMENTER", "VIEWER"];
 
 const VISIBILITY_META: Record<
@@ -200,9 +212,13 @@ export function ProjectShareDialog({
       if (res.ok) {
         const data = await res.json();
         setWorkspaceUsers(
-          (Array.isArray(data) ? data : []).map(
-            (m: { user: WorkspaceUser }) => m.user
-          )
+          (Array.isArray(data) ? data : [])
+            // Clients are not invitable here — the members API rejects them
+            // (see CLIENT_INVITE_ERROR). Drop them from the suggestions so
+            // staff never pick a name that can only fail on submit. The role
+            // already ships with each row; this costs no extra request.
+            .filter((m: { role?: string }) => m.role !== "CLIENT")
+            .map((m: { user: WorkspaceUser }) => m.user)
         );
       }
     } catch (err) {
@@ -498,6 +514,13 @@ export function ProjectShareDialog({
                   )}
                 </Button>
               </div>
+
+              {/* Steer staff away from using this box for clients — the API
+                  rejects them, so say so before they type an email. */}
+              <p className="text-xs text-gray-500">
+                Invites give access to the internal project. Clients get a
+                project link instead.
+              </p>
 
               <label className="flex items-start gap-2 cursor-pointer select-none pt-1">
                 <Checkbox

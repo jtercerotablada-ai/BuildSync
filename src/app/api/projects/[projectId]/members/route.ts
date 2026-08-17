@@ -15,6 +15,27 @@ import { sendInvitationEmail } from "@/lib/email";
 import { PROJECT_ROLE_META } from "@/lib/people-types";
 import type { ProjectRole } from "@prisma/client";
 
+/**
+ * Clients never enter a project through the Share dialog. They are given a
+ * scoped, revocable project link (/p/<token>) instead.
+ *
+ * Why this guard exists: `src/proxy.ts` only redirects workspace role CLIENT
+ * away from /projects/*, so anyone landing on the internal project page with
+ * any other workspace role sees the firm's cost basis (Project.budget is
+ * serialized on every tab), staff hours, internal notes, the team's private
+ * messages and other clients' portfolios. This route used to put clients
+ * exactly there.
+ *
+ * Note there is NO client-shaped field in the request body to reject — the
+ * dialog only ever sends a ProjectRole (ADMIN/EDITOR/COMMENTER/VIEWER) plus
+ * a userId or email. "Is this person a client?" is therefore answered from
+ * server state: an existing CLIENT workspace membership, or a still-PENDING
+ * CLIENT invitation minted by /api/admin/clients.
+ */
+const CLIENT_INVITE_ERROR =
+  "Clients are given a project link, not workspace access. " +
+  "Use “Client access” on the project page.";
+
 const addMemberSchema = z
   .object({
     // Add an existing workspace user by id …
@@ -315,6 +336,35 @@ export async function POST(
       // role on accept (the accept route already handles the project bind)
       // and send the invitation email.
       if (!targetUserId) {
+        // GUARD 1 — this email was already invited to the workspace AS A
+        // CLIENT. inviteByEmail() REUSES a pending row, so without this it
+        // would stamp an internal projectId + an EDITOR projectRole onto a
+        // client's invitation; accepting it would then hand them a
+        // ProjectMember row.
+        //
+        // Deliberately NOT filtered by status. A DECLINED or EXPIRED client
+        // invitation is still proof that this email belongs to a client, and
+        // it must not be laundered into a MEMBER invitation by re-inviting
+        // from this dialog. It also keeps us off a P2002: inviteByEmail()'s
+        // own reuse lookup only matches PENDING, so a non-pending row would
+        // send it down the create branch and straight into the
+        // @@unique([email, workspaceId]) constraint — surfacing as an opaque
+        // 500 instead of this message.
+        const clientInvite = await prisma.workspaceInvitation.findFirst({
+          where: {
+            email,
+            workspaceId: project.workspaceId,
+            role: "CLIENT",
+          },
+          select: { id: true },
+        });
+        if (clientInvite) {
+          return NextResponse.json(
+            { error: CLIENT_INVITE_ERROR },
+            { status: 400 }
+          );
+        }
+
         return inviteByEmail({
           email,
           projectId,
@@ -334,13 +384,28 @@ export async function POST(
         userId: targetUserId!,
         workspaceId: project.workspaceId,
       },
-      select: { id: true },
+      select: { id: true, role: true },
     });
 
     if (!targetMembership) {
       return NextResponse.json(
         { error: "User is not a member of this workspace" },
         { status: 404 }
+      );
+    }
+
+    // GUARD 2 — the target is already in the workspace as a CLIENT. This is
+    // the single choke point for BOTH ways of naming an existing user: the
+    // typeahead's `userId` and an `email` that resolved to a workspace
+    // member. Giving a client a ProjectMember row would satisfy canRead —
+    // and at the EDITOR default below, canWrite — in
+    // src/lib/project-access.ts, which every /api/projects/* handler
+    // honours. src/proxy.ts only redirects CLIENTs away from PAGE requests,
+    // so that API surface would stay reachable to them.
+    if (targetMembership.role === "CLIENT") {
+      return NextResponse.json(
+        { error: CLIENT_INVITE_ERROR },
+        { status: 400 }
       );
     }
 
