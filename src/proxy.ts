@@ -117,6 +117,23 @@ function isHostNeutral(pathname: string): boolean {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/ttc/") ||
     pathname.startsWith("/api/health") ||
+    // NextAuth's own endpoints must answer on whichever host asked.
+    //
+    // SessionProvider is mounted in the ROOT layout, so every marketing page
+    // polls /api/auth/session too, and one of the public components
+    // (ttc/language-provider) calls useSession outright. Redirecting that poll
+    // to the app host sent a credentialed same-origin fetch across origins:
+    // the app host's cookies are not sent from the apex, and the browser will
+    // not let the marketing page read the reply. Every public page load was
+    // firing a session request that could only fail.
+    //
+    // Answering in place is also the CORRECT answer. Cookies are host-scoped,
+    // so the apex genuinely has no session and returns null — which is the
+    // truth for an anonymous visitor. Nobody can sign in here either: /login
+    // and every app route still redirect to the app host, and NEXTAUTH_URL
+    // points there, so callbacks land there. The isolation this split exists
+    // for — the app's DOM and storage living on their own origin — is intact.
+    pathname.startsWith("/api/auth") ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
     pathname === "/favicon.ico" ||
