@@ -122,6 +122,9 @@ model User {
   formsAsDefaultAssignee Form[]           @relation("FormDefaultAssignee")
   formSubmissions        FormSubmission[] @relation("FormSubmitter")
 
+  // Password-less client share links this user minted.
+  createdShareLinks ProjectShareLink[] @relation("CreatedShareLinks")
+
 }
 
 // ============ PREFERENCIAS DE USUARIO ============
@@ -548,6 +551,9 @@ model Project {
   objectives    ObjectiveProject[]
   keyResults    KeyResultProject[]
   statusUpdates StatusUpdate[]
+
+  // Password-less, read-only client links to this project (/p/<token>).
+  shareLinks ProjectShareLink[] @relation("ProjectShareLinks")
 
   // TTC Civil Structural - Client relations
   clientAccesses  ClientProjectAccess[] @relation("ClientAccesses")
@@ -1072,6 +1078,10 @@ model File {
   size      Int
   mimeType  String
   createdAt DateTime @default(now())
+  /// Opt-in, per file: does this document appear on the password-less
+  /// client link (/p/<token>)? Defaults false — sharing is never
+  /// implicit. Read only by @/lib/client-link/projection.
+  sharedWithClient Boolean @default(false)
 
   projectId  String
   uploaderId String
@@ -1662,6 +1672,11 @@ model StatusUpdate {
   // Null on rows posted before the block builder existed; the
   // renderer falls back to `summary` when this is null.
   sections  Json?
+  /// The client-facing paraphrase of this update, written deliberately
+  /// by the firm. Null means "nothing to show the client" — the public
+  /// link omits the block entirely rather than falling back to
+  /// `summary`, which is internal prose and must never leak.
+  clientSummary String?
   createdAt DateTime      @default(now())
 
   projectId String
@@ -1670,6 +1685,41 @@ model StatusUpdate {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+}
+
+// ============ CLIENT SHARE LINKS ============
+
+/// A password-less, read-only link handed to a building owner so they can
+/// follow one project without an account. One link, one project.
+///
+/// The plaintext token is NEVER stored — only its SHA-256, exactly like a
+/// password digest. It is shown once at creation and cannot be recovered;
+/// to re-send you mint a new link, which is the semantics the firm wants
+/// (a new board president's link must not resurrect the old one's).
+///
+/// What the holder of a valid token may see is decided in exactly one
+/// place: @/lib/client-link/projection.
+model ProjectShareLink {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  projectId   String
+  /// Human label so staff can tell links apart ("Board president", "Owner rep").
+  label       String
+  /// Optional — who it was sent to. Recorded for the firm's own audit only;
+  /// never rendered on the public page.
+  email       String?
+  createdById String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  lastSeenAt  DateTime?
+  viewCount   Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  project   Project @relation("ProjectShareLinks", fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("CreatedShareLinks", fields: [createdById], references: [id])
+
+  @@index([projectId])
+  @@index([tokenHash])
 }
 
 // ============ BASE DE CONOCIMIENTO ============
