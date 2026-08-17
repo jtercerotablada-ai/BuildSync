@@ -866,7 +866,7 @@ export const imagery = {
    * verdict, and it was right. Do not put them back on the cards.
    */
   services: {
-    'reinforced-concrete-design': photo.rebarCageUp,
+    'reinforced-concrete-design': photo.concreteFrameSlabs,
     'structural-analysis': photo.analysisTowersUp,
     'bim-coordination': photo.bimWireframeModel,
     'building-recertification': photo.recertBalconiesBw,

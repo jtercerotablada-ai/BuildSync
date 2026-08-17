@@ -129,9 +129,13 @@ export const photo = {
   ),
 
   /* ── Reinforcement ──────────────────────────────────────────────────── */
-  rebarCageUp: p(
-    'rebar-cage-up', 2000, 2667,
-    'Looking up the inside of a column reinforcement cage against the sky',
+  /* Replaced `rebar-cage-up`, which was loose column bars shot against the sky.
+     Juan's read, and he is right: it looked like a steel yard, not like design.
+     A cast frame shows the thing the service actually produces — flat slabs,
+     columns and edge beams standing before anything is clad. */
+  concreteFrameSlabs: p(
+    'concrete-frame-slabs', 2000, 1333,
+    'Cast concrete frame under construction — flat slabs, columns and edge beams before cladding',
   ),
   rebarMatWorkers: p(
     'rebar-mat-workers', 2000, 1333,
