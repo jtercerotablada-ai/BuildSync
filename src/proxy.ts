@@ -60,6 +60,102 @@ function isPublicRoute(pathname: string): boolean {
  */
 const MAINTENANCE_MODE = false;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   HOST SPLIT — marketing on the apex, the authenticated app on its own host
+   ═══════════════════════════════════════════════════════════════════════════
+   One deployment serves both. Which half a request gets is decided here by
+   Host, not by path, so the public site and the app stop sharing an origin —
+   an XSS on the marketing site can then no longer read the app's DOM or
+   storage. Cookies are already host-scoped (nothing sets `domain`), so the
+   session does not follow across.
+
+   INERT BY DEFAULT. Both vars must be set before anything is redirected, so
+   this can ship before DNS moves and be switched on — or off — from the Vercel
+   dashboard without a deploy.
+
+     APP_HOST=app.ttcivilstructural.com
+     PUBLIC_HOST=ttcivilstructural.com
+
+   Two deliberate safety properties:
+
+   1. It only acts when the request's Host is one of the two configured hosts.
+      `vercel pull` writes project env vars into `.env.local`, which is exactly
+      how MAINTENANCE_MODE once redirected every local request (see above). If
+      APP_HOST leaks into a local `.env.local`, `localhost:3002` matches
+      neither host and falls straight through. Preview URLs on *.vercel.app are
+      immune for the same reason.
+
+   2. The redirects are 307, not 308. This is a config flip that may well be
+      reverted mid-rollout, and a browser that has cached a permanent redirect
+      to the wrong host is a genuinely painful thing to undo. Nothing on the
+      app host is indexed, so there is no SEO argument for 308 here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const APP_HOST = (process.env.APP_HOST ?? "").trim().toLowerCase();
+const PUBLIC_HOST = (process.env.PUBLIC_HOST ?? "").trim().toLowerCase();
+
+/** Paths that belong to the marketing site. Everything else is the app.
+ *
+ *  Marketing is the CLOSED set on purpose. The app grows new routes constantly
+ *  and an app-route allowlist would silently leak each new one onto the public
+ *  host; the marketing surface is small, known, and already enumerated above.
+ *  Note `publicExactRoutes` is exact-match, which is what keeps the marketing
+ *  `/projects` index separate from the app's `/projects/all`. */
+const marketingPrefixes = ["/services", "/resources", "/api/contact", "/api/load-gen"];
+
+function isMarketingRoute(pathname: string): boolean {
+  if (publicExactRoutes.includes(pathname)) return true;
+  return marketingPrefixes.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
+/** Served identically on both hosts — redirecting these would break asset
+ *  loading, health checks and crawlers for no benefit. */
+function isHostNeutral(pathname: string): boolean {
+  return (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/ttc/") ||
+    pathname.startsWith("/api/health") ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml" ||
+    pathname === "/favicon.ico" ||
+    pathname === "/icon.svg"
+  );
+}
+
+/** Returns a redirect when the request reached the wrong host, else null. */
+function hostSplit(request: NextRequest): NextResponse | null {
+  if (!APP_HOST || !PUBLIC_HOST) return null;
+
+  const host = (request.headers.get("host") ?? "")
+    .toLowerCase()
+    .split(":")[0];
+
+  const isAppHost = host === APP_HOST;
+  const isPublicHost = host === PUBLIC_HOST || host === `www.${PUBLIC_HOST}`;
+  // Anything else — localhost, a preview deployment, a bare IP — is left alone.
+  if (!isAppHost && !isPublicHost) return null;
+
+  const { pathname, search } = request.nextUrl;
+  if (isHostNeutral(pathname)) return null;
+
+  const marketing = isMarketingRoute(pathname);
+  if (isAppHost && marketing) {
+    return NextResponse.redirect(
+      `https://${PUBLIC_HOST}${pathname}${search}`,
+      307,
+    );
+  }
+  if (isPublicHost && !marketing) {
+    return NextResponse.redirect(
+      `https://${APP_HOST}${pathname}${search}`,
+      307,
+    );
+  }
+  return null;
+}
+
 function isMaintenanceActive(): boolean {
   if (!MAINTENANCE_MODE) return false;
   if (process.env.MAINTENANCE_MODE_OFF === "true") return false;
@@ -92,6 +188,12 @@ export async function proxy(request: NextRequest) {
     }
     return NextResponse.redirect(new URL("/maintenance", request.url));
   }
+
+  // ── Host split ──────────────────────────────────────────────────
+  // Runs before everything else so a request is on the right host before any
+  // other rule reasons about it. No-op until APP_HOST and PUBLIC_HOST are set.
+  const wrongHost = hostSplit(request);
+  if (wrongHost) return wrongHost;
 
   // Retired /v2 preview routes → permanent redirect to the real public pages.
   // The editorial redesign now lives on /, /services, /about, /contact, /projects.
