@@ -17,7 +17,6 @@ interface ProfileData {
   jobTitle: string | null;
   bio: string | null;
   emailVerified: string | null;
-  hasOAuth: boolean;
   hasPassword: boolean;
   createdAt: string;
 }

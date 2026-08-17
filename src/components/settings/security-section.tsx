@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +9,6 @@ import { Eye, EyeOff, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 interface SecuritySectionProps {
-  hasOAuth: boolean;
   hasPassword: boolean;
 }
 
@@ -24,7 +24,7 @@ function getPasswordStrength(password: string): number {
 const strengthLabels = ["", "Weak", "Fair", "Good", "Strong"];
 const strengthColors = ["", "bg-black", "bg-[#a8893a]", "bg-[#a8893a]", "bg-[#c9a84c]"];
 
-export function SecuritySection({ hasOAuth, hasPassword }: SecuritySectionProps) {
+export function SecuritySection({ hasPassword }: SecuritySectionProps) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -72,16 +72,25 @@ export function SecuritySection({ hasOAuth, hasPassword }: SecuritySectionProps)
 
   return (
     <div className="space-y-6">
-      {hasOAuth && !hasPassword && (
+      {/* This used to read "Signed in with Google", and it was the ONLY thing
+          rendered for a user without a password — the change-password form
+          below is gated on `hasPassword`. So an account with no password and no
+          Google link saw an empty Security tab and had no way out of it.
+          Google is gone, that combination is now the only one, and the panel
+          points at the recovery flow that can actually set a password. */}
+      {!hasPassword && (
         <div className="flex items-start gap-3 rounded-lg border border-[#c9a84c]/30 bg-[#c9a84c]/10 p-4">
           <Shield className="h-5 w-5 text-[#a8893a] mt-0.5" />
           <div>
             <p className="text-sm font-medium text-[#a8893a]">
-              Signed in with Google
+              No password set
             </p>
             <p className="text-sm text-[#a8893a]">
-              Your account uses Google authentication. You don&apos;t have a
-              password set.
+              This account has no password yet. Use{" "}
+              <Link href="/forgot-password" className="underline font-medium">
+                Forgot password
+              </Link>{" "}
+              to set one — the link is sent to your account email.
             </p>
           </div>
         </div>

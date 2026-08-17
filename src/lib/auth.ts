@@ -1,6 +1,5 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { compare } from "bcryptjs";
 import prisma from "./prisma";
@@ -16,13 +15,13 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
     newUser: "/onboarding",
   },
+  /* Email + password is the ONLY way in. Google sign-in was removed on
+     2026-08-16: the button had never worked, because the provider was gated on
+     GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET and neither was ever set in Vercel.
+     That gate is also what makes the removal safe — an inactive provider can
+     have created no accounts, so there is no user out there holding a
+     password-less Google row who would now be locked out. */
   providers: [
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? [GoogleProvider({
-          clientId: process.env.GOOGLE_CLIENT_ID,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        })]
-      : []),
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -87,15 +86,12 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async signIn({ user, account }) {
-      if (account?.provider === "google" && user.email) {
-        await prisma.user.updateMany({
-          where: { email: user.email, emailVerified: null },
-          data: { emailVerified: new Date() },
-        });
-      }
-      return true;
-    },
+    /* The `signIn` callback is gone with Google. All it did was auto-verify the
+       email of a user arriving through the OAuth provider, on the reasoning
+       that Google had already proved the address. With credentials as the only
+       provider that shortcut has no caller, and returning true unconditionally
+       is exactly what NextAuth does by default. Email verification for
+       password signups runs through /api/auth/verify-email instead. */
     async session({ session, token }) {
       // A token flagged invalid (password changed after it was issued)
       // resolves to a signed-out session. getCurrentUser() keys off email,

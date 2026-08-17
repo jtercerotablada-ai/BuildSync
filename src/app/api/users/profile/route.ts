@@ -21,9 +21,9 @@ export async function GET() {
         bio: true,
         emailVerified: true,
         createdAt: true,
-        accounts: {
-          select: { provider: true },
-        },
+        // Selected only to derive `hasPassword` below. It is destructured off
+        // before the response is built and never leaves the server.
+        password: true,
       },
     });
 
@@ -31,18 +31,18 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const hasOAuth = user.accounts.some((a) => a.provider === "google");
-    const dbUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { password: true },
-    });
-    const hasPassword = !!dbUser?.password;
+    /* Was two round-trips to the same row — one selecting `accounts` to compute
+       a Google `hasOAuth` flag, a second selecting `password`. Google sign-in is
+       gone, so `hasOAuth` was permanently false and the accounts join bought
+       nothing; folding `password` into the first select drops the second query.
+       Destructuring also replaces the old `accounts: undefined` trick, which
+       relied on JSON.stringify dropping undefined keys rather than on the field
+       actually being absent. */
+    const { password, ...safeUser } = user;
 
     return NextResponse.json({
-      ...user,
-      accounts: undefined,
-      hasOAuth,
-      hasPassword,
+      ...safeUser,
+      hasPassword: !!password,
     });
   } catch (error) {
     console.error("Error fetching profile:", error);

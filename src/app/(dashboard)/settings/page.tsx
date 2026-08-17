@@ -29,7 +29,6 @@ interface ProfileData {
   jobTitle: string | null;
   bio: string | null;
   emailVerified: string | null;
-  hasOAuth: boolean;
   hasPassword: boolean;
   createdAt: string;
 }
@@ -140,7 +139,6 @@ export default function SettingsPage() {
             )}
             {activeTab === "security" && (
               <SecuritySection
-                hasOAuth={profile?.hasOAuth ?? false}
                 hasPassword={profile?.hasPassword ?? true}
               />
             )}

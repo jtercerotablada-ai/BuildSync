@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
     if (!user?.password) {
       return NextResponse.json(
-        { error: "You signed in with Google. Set a password from security settings." },
+        { error: "This account has no password yet. Use 'Forgot password' on the sign-in page to set one." },
         { status: 400 }
       );
     }

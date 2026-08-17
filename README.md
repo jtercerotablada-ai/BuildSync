@@ -46,8 +46,11 @@ A modern project management application inspired by Asana, built with Next.js 16
    The `.env` file is already configured for local development. For production, update:
    - `DATABASE_URL` - Your PostgreSQL connection string
    - `NEXTAUTH_SECRET` - A secure random string
-   - `NEXTAUTH_URL` - Your app URL
-   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` - For Google OAuth (optional)
+   - `NEXTAUTH_URL` - Your app URL (the host the app is served from, not the marketing apex)
+   - `APP_URL` - Base for absolute links sent by email; must match `NEXTAUTH_URL`
+   - `APP_HOST` / `PUBLIC_HOST` - Optional. Split the authenticated app onto its own host
+
+   Sign-in is email + password only. Google OAuth was removed on 2026-08-16.
 
 4. **Run database migrations**:
    ```bash
