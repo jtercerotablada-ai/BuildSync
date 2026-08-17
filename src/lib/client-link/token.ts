@@ -21,10 +21,24 @@ export function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token, "utf8").digest("hex");
 }
 
-/** Constant-time compare of two hex hashes of equal length. */
+/**
+ * Constant-time compare of two SHA-256 hex digests.
+ *
+ * Total by construction: returns false for anything that is not a pair of
+ * well-formed digests rather than throwing. `Buffer.from(s, "hex")` does NOT
+ * reject invalid hex — it truncates at the first bad character — so two
+ * strings of equal JS length can decode to buffers of different byte length,
+ * and timingSafeEqual then throws ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH. This
+ * function guards a public, unauthenticated route, where a thrown error is a
+ * 500 and a 500 is a signal. It must fail closed and quietly.
+ */
 export function hashesMatch(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  const bufA = Buffer.from(a, "hex");
+  const bufB = Buffer.from(b, "hex");
+  // Compare decoded byte length, not string length: that is what
+  // timingSafeEqual actually requires, and it is what invalid hex corrupts.
+  if (bufA.length !== bufB.length || bufA.length !== 32) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 /** A token is well-formed if it is exactly the hex we mint. Cheap pre-filter. */
