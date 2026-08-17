@@ -111,6 +111,11 @@ interface ProjectOverviewProps {
   onManageMembers?: () => void;
   // Open the task detail panel (milestone rows use it).
   onTaskClick?: (taskId: string) => void;
+  // "Client access" panel, injected by ProjectContent only when the
+  // current user passes the project-admin gate. Passed as a node rather
+  // than rendered here so the permission decision stays in one place
+  // alongside the other gates (canManageMembers / canEditProject).
+  clientAccessSlot?: React.ReactNode;
 }
 
 interface MilestoneRow {
@@ -339,6 +344,7 @@ export function ProjectOverview({
   project,
   onManageMembers,
   onTaskClick,
+  clientAccessSlot,
 }: ProjectOverviewProps) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -1633,6 +1639,10 @@ export function ProjectOverview({
             </button>
           </div>
         </div>
+
+        {/* Client access — the /p/<token> link. Renders only for users the
+            parent has cleared; null for everyone else. */}
+        {clientAccessSlot}
       </div>
 
       {/* Right Sidebar — Status + Activity */}

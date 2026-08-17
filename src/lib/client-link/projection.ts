@@ -337,10 +337,12 @@ export async function buildClientProjectView(
     // Name and role only. No email address reaches this page — publishing a
     // staff inbox on an unauthenticated URL is how you get harvested.
     contacts: members
-      .filter((m) => m.user.name)
+      .filter((m) => m.user.name?.trim())
       .map((m) => ({
         id: m.id,
-        name: m.user.name as string,
+        // Trimmed: some rows carry a trailing space, and this is the one
+        // place it would be shown to a client.
+        name: (m.user.name as string).trim(),
         role:
           m.user.customTitle ||
           (m.user.position ? humanize(m.user.position) : null) ||
