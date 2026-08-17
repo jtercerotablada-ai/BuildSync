@@ -2,6 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { legal, primaryNav } from "@/lib/ttc/site";
+import { isNonContributorRole } from "@/lib/workspace-roles";
 
 // Public routes that don't require authentication
 const publicPrefixes = [
@@ -55,18 +56,30 @@ function isPublicRoute(pathname: string): boolean {
   return publicPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
-/* ── The CLIENT API allowlist ──────────────────────────────────────────────
+/* ── The non-contributor API allowlist ─────────────────────────────────────
    The entire server surface the (client) portal calls. Everything else under
-   /api/ is internal, and a workspace-role CLIENT is denied here, at the edge.
+   /api/ is internal, and a read-only workspace role — see
+   NON_CONTRIBUTOR_ROLES in @/lib/workspace-roles, currently {GUEST, CLIENT} —
+   is denied here, at the edge.
+
+   The list is named for the client portal because that is the only UI a
+   non-contributor role has: there is no (guest) route group, no guest layout
+   and no guest-only endpoint anywhere in src/app. GUEST therefore adds no
+   entries — it inherits this list unchanged, which for a GUEST means the three
+   /api/users/* self-service routes plus /api/invite/ (accepting an invitation
+   addressed to their own email). The /api/client/* entries are inert for a
+   GUEST rather than a grant: each of those handlers re-checks
+   ClientProjectAccess via verifyClientAccess (src/lib/auth-guards.ts:370), and
+   a GUEST holds no such row, so they 403 in the handler.
 
    WHY THIS EXISTS: the role gate below has always been PAGE-only, while
    config.matcher runs middleware over /api/* too — and no API handler checks
-   WorkspaceRole. requireWorkspaceContributor (src/lib/auth-guards.ts:418) is
+   WorkspaceRole. requireWorkspaceContributor (src/lib/auth-guards.ts:417) is
    the guard for this and is wired into 4 of 173 route files. So a signed-in
-   client could call the internal JSON API directly and get 2xx, including
-   POST /api/projects, which asserts only that a WorkspaceMember row EXISTS
-   and then writes ownerId=self — the first link in a chain that ends with the
-   client minting a full internal MEMBER account on an email they control.
+   non-contributor could call the internal JSON API directly and get 2xx,
+   including POST /api/projects, which asserts only that a WorkspaceMember row
+   EXISTS and then writes ownerId=self — the first link in a chain that ends
+   with them minting a full internal MEMBER account on an email they control.
 
    ALLOWLIST, NOT BLOCKLIST: internal routes are added constantly and a
    blocklist silently exposes each new one. The portal's surface is small and
@@ -76,7 +89,7 @@ function isPublicRoute(pathname: string): boolean {
    isPublicRoute() before this gate ever runs. */
 const clientApiPrefixes = [
   // Portal data. Each handler still re-checks ClientProjectAccess via
-  // verifyClientAccess (src/lib/auth-guards.ts:369) — this only stops being a
+  // verifyClientAccess (src/lib/auth-guards.ts:370) — this only stops being a
   // 403; it grants nothing.
   "/api/client/",
   // Accepting an invitation addressed to THEIR OWN email; the handler returns
@@ -98,6 +111,42 @@ export function isClientApi(pathname: string): boolean {
     clientApiExact.includes(pathname) ||
     clientApiPrefixes.some((p) => pathname.startsWith(p))
   );
+}
+
+/**
+ * The whole /api/ role gate, as one pure decision. True ⇒ answer 403.
+ *
+ * Exported so the rule is unit-testable role-by-role without a DB, a request
+ * or a JWT; `proxy()` below does nothing with the result but return the 403,
+ * so testing this function tests the gate.
+ *
+ * ── THE SET, NOT AN EQUALITY TEST ─────────────────────────────────────────
+ * This shipped as `userRole === "CLIENT"`, which left GUEST — the codebase's
+ * OTHER read-only role, sitting right next to CLIENT in NON_CONTRIBUTOR_ROLES
+ * since before this gate existed — running the full escalation chain described
+ * above. A GUEST is assignable through shipped admin UI today (the role picker
+ * in components/settings/workspace-section.tsx and app/(dashboard)/people, via
+ * api/workspace/invitations:54 and api/workspace/members:64), so that was a
+ * live hole, not a theoretical one.
+ *
+ * The membership test and NON_CONTRIBUTOR_ROLES must therefore name the SAME
+ * roles, and the only way to guarantee that is to read the same set — hence
+ * the import rather than a second literal here. See @/lib/workspace-roles.
+ *
+ * Contributors (OWNER / ADMIN / MEMBER / WORKER) and users with no role yet
+ * (null, mid-onboarding) fall through untouched.
+ *
+ * SCOPE: /api/ only. Page routing for these roles is unchanged and is handled
+ * by the redirect rules below — deliberately, because CLIENT has a portal to
+ * be sent to and GUEST does not.
+ */
+export function isApiForbiddenForRole(
+  role: string | null | undefined,
+  pathname: string,
+): boolean {
+  if (!isNonContributorRole(role)) return false;
+  if (!pathname.startsWith("/api/")) return false;
+  return !isClientApi(pathname);
 }
 
 /**
@@ -301,16 +350,21 @@ export async function proxy(request: NextRequest) {
   // Role-based redirects for authenticated users
   const userRole = (token as Record<string, unknown>).role as string | undefined;
 
-  if (userRole === "CLIENT") {
-    // API: default-deny. 403 rather than 404 because the caller is
-    // authenticated and a route's existence is not a secret; what they lack is
-    // a ROLE. Hiding a specific RECORD behind a 404 remains the handler's job.
-    if (pathname.startsWith("/api/") && !isClientApi(pathname)) {
-      return NextResponse.json(
-        { error: "Forbidden", code: "client-role" },
-        { status: 403 },
-      );
-    }
+  // API: default-deny for every read-only workspace role. 403 rather than 404
+  // because the caller is authenticated and a route's existence is not a
+  // secret; what they lack is a ROLE. Hiding a specific RECORD behind a 404
+  // remains the handler's job.
+  //
+  // `code` was "client-role" while the gate was CLIENT-only. It now fires for
+  // GUEST too, where that label would be a lie to whoever is reading the
+  // response in devtools. Renamed rather than kept: a repo-wide grep for
+  // "client-role" returns only this line — no client, test or log consumer —
+  // so nothing keys off the old string.
+  if (isApiForbiddenForRole(userRole, pathname)) {
+    return NextResponse.json(
+      { error: "Forbidden", code: "non-contributor-role" },
+      { status: 403 },
+    );
   }
 
   // CLIENT role users accessing internal dashboard should be sent to

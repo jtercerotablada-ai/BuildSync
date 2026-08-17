@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { resolveProjectAccess } from "@/lib/project-access";
+import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 
 /**
  * Verify user is a member of the workspace. Returns the membership record.
@@ -388,13 +389,11 @@ export async function getUserRole(userId: string): Promise<string> {
   return member?.role || "GUEST";
 }
 
-/**
- * Workspace roles that are read-only by design (Asana parity: a "guest" or
- * external "client" can view what they're shared but never author content).
- * GUEST is our viewer role; CLIENT is the external-portal role. Both must be
- * blocked from write verbs on core workspace-content routes.
- */
-const NON_CONTRIBUTOR_ROLES = new Set(["GUEST", "CLIENT"]);
+/* NON_CONTRIBUTOR_ROLES now lives in @/lib/workspace-roles (imported at the top
+   of this file). It moved out because src/proxy.ts needs the identical list for
+   its default-deny /api/ gate and, being Edge middleware, cannot import this
+   module — line 1 here is the Prisma client. See that file for why the two
+   enforcement points drifting apart is a security bug, not a style nit. */
 
 /**
  * Assert the caller may CREATE / UPDATE / DELETE workspace content. Contributors

@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { isClientApi } from "./proxy";
+import { isApiForbiddenForRole, isClientApi } from "./proxy";
+import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 
 /**
  * The CLIENT API allowlist.
@@ -112,6 +115,177 @@ describe("isClientApi", () => {
     it("denies page paths — the gate only ever consults this for /api/", () => {
       expect(isClientApi("/client/dashboard")).toBe(false);
       expect(isClientApi("/home")).toBe(false);
+    });
+  });
+});
+
+/**
+ * Read the WorkspaceRole enum straight out of the Prisma schema.
+ *
+ * Parsing the schema instead of hardcoding a role list is the point: it makes
+ * the schema the arbiter, so adding a role in schema.prisma and forgetting to
+ * classify it fails this suite instead of silently defaulting to "contributor"
+ * — which is the permissive side, and therefore the dangerous default.
+ */
+function workspaceRolesFromPrismaSchema(): string[] {
+  const schema = readFileSync(
+    join(__dirname, "..", "prisma", "schema.prisma"),
+    "utf8",
+  );
+  const block = /enum\s+WorkspaceRole\s*\{([^}]*)\}/.exec(schema);
+  if (!block) throw new Error("WorkspaceRole enum not found in schema.prisma");
+  const roles = block[1]
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, "").trim())
+    .filter((line) => /^[A-Z_]+$/.test(line));
+  if (roles.length === 0) throw new Error("WorkspaceRole enum parsed empty");
+  return roles;
+}
+
+/**
+ * The /api/ role gate.
+ *
+ * The bug this suite exists to prevent a repeat of: the gate shipped as
+ * `userRole === "CLIENT"` while NON_CONTRIBUTOR_ROLES already read
+ * {GUEST, CLIENT}. One equality test against a two-element set — GUEST kept
+ * full access to the internal JSON API and could still run the escalation
+ * chain from POST /api/projects to minting a workspace MEMBER.
+ *
+ * So the assertions below never name GUEST or CLIENT as literals. They derive
+ * the expectation from NON_CONTRIBUTOR_ROLES, which is the same object the
+ * middleware and requireWorkspaceContributor both consume. Add a role to that
+ * set and these tests demand the gate already denies it; hardcode a role in
+ * the gate instead of using the set and they fail.
+ */
+describe("isApiForbiddenForRole", () => {
+  const allRoles = workspaceRolesFromPrismaSchema();
+
+  it("sees a WorkspaceRole enum that still contains the known roles", () => {
+    // Guards the parser itself: a regex that silently matched nothing would
+    // make every it.each below vacuous and this file would pass while
+    // asserting exactly nothing.
+    expect(allRoles).toEqual(
+      expect.arrayContaining(["OWNER", "ADMIN", "MEMBER", "GUEST", "WORKER", "CLIENT"]),
+    );
+  });
+
+  it("classifies every role in the schema as contributor or non-contributor", () => {
+    // The drift detector. A role added to schema.prisma is inert here until
+    // someone decides which side of NON_CONTRIBUTOR_ROLES it belongs on, and
+    // the deciding is what this test forces. Update the expected list in the
+    // SAME commit that adds the role.
+    expect([...allRoles].sort()).toEqual([
+      "ADMIN",
+      "CLIENT",
+      "GUEST",
+      "MEMBER",
+      "OWNER",
+      "WORKER",
+    ]);
+  });
+
+  it("denies exactly the roles NON_CONTRIBUTOR_ROLES names — no more, no less", () => {
+    // THE assertion. Not "denies GUEST and CLIENT" (a literal restates the
+    // bug) but "the gate's verdict and the shared set agree on every role the
+    // schema defines". Whichever list someone edits without the other, the
+    // two sides stop agreeing here.
+    const deniedByGate = allRoles
+      .filter((role) => isApiForbiddenForRole(role, "/api/projects"))
+      .sort();
+    const expected = allRoles.filter((r) => NON_CONTRIBUTOR_ROLES.has(r)).sort();
+
+    expect(deniedByGate).toEqual(expected);
+    // ...and that the shared set is not itself empty or full, either of which
+    // would make the equality above trivially true.
+    expect(expected.length).toBeGreaterThan(0);
+    expect(expected.length).toBeLessThan(allRoles.length);
+  });
+
+  it("denies the escalation chain for EVERY non-contributor role", () => {
+    // The regression the whole task is about: this must hold for GUEST, not
+    // just CLIENT.
+    for (const role of NON_CONTRIBUTOR_ROLES) {
+      expect(isApiForbiddenForRole(role, "/api/projects")).toBe(true);
+      expect(isApiForbiddenForRole(role, "/api/projects/x/members")).toBe(true);
+      expect(isApiForbiddenForRole(role, "/api/workspace/invitations")).toBe(true);
+      expect(isApiForbiddenForRole(role, "/api/tasks")).toBe(true);
+    }
+  });
+
+  describe("contributors are untouched", () => {
+    // The gate must fire ONLY on non-contributor roles. If any of these start
+    // returning true the internal app is broken for staff.
+    const contributors = workspaceRolesFromPrismaSchema().filter(
+      (r) => !NON_CONTRIBUTOR_ROLES.has(r),
+    );
+
+    it.each(contributors)("%s may reach the internal API", (role) => {
+      expect(isApiForbiddenForRole(role, "/api/projects")).toBe(false);
+      expect(isApiForbiddenForRole(role, "/api/tasks")).toBe(false);
+      expect(isApiForbiddenForRole(role, "/api/workspace/knowledge")).toBe(false);
+    });
+
+    it("covers OWNER, ADMIN, MEMBER and WORKER specifically", () => {
+      // Belt and braces: if NON_CONTRIBUTOR_ROLES were ever widened to swallow
+      // a staff role, the it.each above would just stop testing it. This
+      // notices.
+      expect(contributors.sort()).toEqual(["ADMIN", "MEMBER", "OWNER", "WORKER"]);
+    });
+  });
+
+  describe("the allowlist applies to every non-contributor role", () => {
+    // Step 3: GUEST has no UI of its own — no (guest) route group, no guest
+    // layout, no guest-only endpoint — so it adds NO entries and inherits the
+    // portal list unchanged. These pin that inheritance.
+    it.each([...NON_CONTRIBUTOR_ROLES])(
+      "%s keeps self-service and invite-accept",
+      (role) => {
+        expect(isApiForbiddenForRole(role, "/api/users/profile")).toBe(false);
+        expect(isApiForbiddenForRole(role, "/api/users/preferences")).toBe(false);
+        expect(isApiForbiddenForRole(role, "/api/users/password")).toBe(false);
+        expect(isApiForbiddenForRole(role, "/api/invite/abc123")).toBe(false);
+        expect(isApiForbiddenForRole(role, "/api/invite/abc123/accept")).toBe(false);
+      },
+    );
+
+    it("lets the portal surface through for every non-contributor role", () => {
+      // /api/client/* passing the EDGE gate is not a grant of client data to a
+      // GUEST: each handler re-checks ClientProjectAccess via verifyClientAccess
+      // (src/lib/auth-guards.ts:370), and a GUEST holds no such row.
+      for (const role of NON_CONTRIBUTOR_ROLES) {
+        expect(isApiForbiddenForRole(role, "/api/client")).toBe(false);
+        expect(isApiForbiddenForRole(role, "/api/client/projects")).toBe(false);
+      }
+    });
+  });
+
+  describe("scope: /api/ only, and roles outside the set", () => {
+    it("never fires on page paths, even for a non-contributor", () => {
+      // Page routing for these roles is handled by the redirect rules, not
+      // here. CLIENT has a portal to be sent to; GUEST does not.
+      for (const role of NON_CONTRIBUTOR_ROLES) {
+        expect(isApiForbiddenForRole(role, "/home")).toBe(false);
+        expect(isApiForbiddenForRole(role, "/projects/all")).toBe(false);
+        expect(isApiForbiddenForRole(role, "/client/dashboard")).toBe(false);
+      }
+    });
+
+    it("lets a user with no role yet through", () => {
+      // getPrimaryWorkspaceRole (auth-guards.ts:55) returns null — NOT "GUEST"
+      // — when the user has no WorkspaceMember row, and that null is what sits
+      // in the JWT mid-signup. Treating absence as a read-only role would 403
+      // the whole onboarding flow.
+      expect(isApiForbiddenForRole(null, "/api/projects")).toBe(false);
+      expect(isApiForbiddenForRole(undefined, "/api/projects")).toBe(false);
+      expect(isApiForbiddenForRole("", "/api/projects")).toBe(false);
+    });
+
+    it("is case-sensitive on the role, matching the Prisma enum exactly", () => {
+      // token.role is copied verbatim from the DB enum. A lowercase value can
+      // only come from a bug, and failing open on it would be the wrong call —
+      // but it also must not accidentally match and 403 a contributor.
+      expect(isApiForbiddenForRole("guest", "/api/projects")).toBe(false);
+      expect(isApiForbiddenForRole("Client", "/api/projects")).toBe(false);
     });
   });
 });
