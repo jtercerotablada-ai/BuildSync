@@ -94,13 +94,18 @@ export default async function PortalProjectPage({
     notFound();
   }
 
-  // Check access
-  const hasAccess =
-    project.ownerId === user.id ||
-    project.members.some((m) => m.userId === user.id) ||
-    project.visibility === "PUBLIC";
+  // Check access.
+  //
+  // PUBLIC used to grant read on its own here, with no workspace comparison —
+  // so any signed-in user of ANY workspace could open this project through the
+  // portal. PUBLIC means "everyone in THIS workspace", never "everyone with an
+  // account"; both PUBLIC and WORKSPACE now require the viewer to be in the
+  // project's own workspace.
+  const isOwner = project.ownerId === user.id;
+  const isMember = project.members.some((m) => m.userId === user.id);
 
-  if (!hasAccess && project.visibility === "WORKSPACE") {
+  let isInProjectWorkspace = false;
+  if (!isOwner && !isMember) {
     const workspaceMember = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -108,12 +113,18 @@ export default async function PortalProjectPage({
           workspaceId: project.workspaceId,
         },
       },
+      select: { userId: true },
     });
+    isInProjectWorkspace = !!workspaceMember;
+  }
 
-    if (!workspaceMember) {
-      notFound();
-    }
-  } else if (!hasAccess) {
+  const hasAccess =
+    isOwner ||
+    isMember ||
+    (isInProjectWorkspace &&
+      (project.visibility === "PUBLIC" || project.visibility === "WORKSPACE"));
+
+  if (!hasAccess) {
     notFound();
   }
 

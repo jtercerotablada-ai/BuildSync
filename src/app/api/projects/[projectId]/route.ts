@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { getLevel } from "@/lib/people-types";
+import { getProjectAccess, resolveProjectAccess } from "@/lib/project-access";
 
 const updateProjectSchema = z.object({
   name: z.string().min(1).optional(),
@@ -86,52 +86,15 @@ export async function GET(
     }
 
     // ── Per-workspace access control ─────────────────────────
-    // Resolve role + level for the workspace THIS PROJECT lives in
-    // — not the user's "primary" workspace, which could differ if
-    // they belong to multiple workspaces (own + invited firm).
-    const isProjectOwner = project.ownerId === userId;
-    const isProjectMember = project.members.some((m) => m.userId === userId);
-    const isPublic = project.visibility === "PUBLIC";
+    // Delegated to resolveProjectAccess so this endpoint cannot drift from the
+    // project page and the sub-routes. It used to keep its own copy of the
+    // rule, and that copy let `visibility === "PUBLIC"` short-circuit the
+    // workspace check entirely — any signed-in user of ANY workspace could
+    // read the full project payload by id. resolveProjectAccess scopes PUBLIC
+    // to the owning workspace.
+    const access = await resolveProjectAccess(project, userId);
 
-    let hasAccess = isProjectOwner || isProjectMember || isPublic;
-
-    if (!hasAccess) {
-      const membership = await prisma.workspaceMember.findUnique({
-        where: {
-          userId_workspaceId: {
-            userId,
-            workspaceId: project.workspaceId,
-          },
-        },
-        include: { user: { select: { position: true } } },
-      });
-      if (membership) {
-        const role = membership.role;
-        const level = getLevel(membership.user.position);
-        // OWNER / ADMIN of THIS workspace, or Position L4+ inside
-        // it, see any project in the workspace.
-        const seesAll =
-          role === "OWNER" || role === "ADMIN" || level >= 4;
-        if (seesAll) hasAccess = true;
-      }
-    }
-
-    // Team sharing (Asana model): a member of the project's team has access,
-    // matching resolveProjectAccess (the rule every sub-route enforces). The
-    // team must be in the project's own workspace.
-    if (!hasAccess && project.teamId) {
-      const teamMembership = await prisma.teamMember.findFirst({
-        where: {
-          userId,
-          teamId: project.teamId,
-          team: { workspaceId: project.workspaceId },
-        },
-        select: { userId: true },
-      });
-      if (teamMembership) hasAccess = true;
-    }
-
-    if (!hasAccess) {
+    if (!access.ok) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
@@ -168,26 +131,35 @@ export async function PATCH(
     const body = await req.json();
     const data = updateProjectSchema.parse(body);
 
-    // Check if user has edit access
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      include: {
-        members: true,
-      },
-    });
+    // Canonical access resolution (scopes PUBLIC to the owning workspace, so a
+    // cross-tenant caller gets 404 here rather than a read they can act on).
+    const access = await getProjectAccess(projectId, userId);
 
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    const member = project.members.find((m) => m.userId === userId);
+    // Edit rule unchanged: project owner, or a member with ADMIN/EDITOR.
     const canEdit =
-      project.ownerId === userId ||
-      (member && ["ADMIN", "EDITOR"].includes(member.role));
+      access.isOwner ||
+      access.memberRole === "ADMIN" ||
+      access.memberRole === "EDITOR";
 
     if (!canEdit) {
       return NextResponse.json(
         { error: "You don't have permission to edit this project" },
+        { status: 403 }
+      );
+    }
+
+    // Visibility is an ACCESS-CONTROL field, not project content. An EDITOR
+    // could previously flip a project to PUBLIC and widen who can read it —
+    // privilege escalation dressed up as an ordinary edit. Restrict it to the
+    // people who already manage the project's membership: owner, project
+    // ADMIN, or a workspace OWNER/ADMIN (access.canManage).
+    if (data.visibility !== undefined && !access.canManage) {
+      return NextResponse.json(
+        { error: "Only a project admin can change visibility" },
         { status: 403 }
       );
     }

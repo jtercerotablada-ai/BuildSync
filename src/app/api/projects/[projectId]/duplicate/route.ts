@@ -33,8 +33,12 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Any user who can read the project may duplicate it into their own.
-    await verifyProjectAccess(userId, projectId);
+    // Duplicating forks the ENTIRE project — every section and task — into a
+    // new project the caller OWNS. Read access is not enough for that: a
+    // VIEWER/COMMENTER (or anyone who could merely open a PUBLIC project)
+    // could otherwise take a full copy of the plan and own it outright.
+    // Require the same write capability the source project's editors have.
+    await verifyProjectAccess(userId, projectId, { requireWrite: true });
 
     const source = await prisma.project.findUnique({
       where: { id: projectId },

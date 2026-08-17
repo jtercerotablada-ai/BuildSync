@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { ProjectContent } from "@/components/projects/project-content";
 import { getLevel } from "@/lib/people-types";
+import { canReadProject } from "@/lib/project-access";
 
 // Shared task shape for both the project's own tasks and the tasks
 // multi-homed INTO it — keeps the two queries structurally identical.
@@ -82,8 +83,21 @@ export default async function ProjectPage({
     return null;
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  // Defence in depth: never even LOAD a project the viewer has no possible
+  // claim on. The OR below is a superset of every grant path canReadProject
+  // recognises (workspace membership, ownership, project membership, team
+  // sharing), so it can only reject users the gate further down would reject
+  // anyway — while making a cross-tenant id guess miss at the query level.
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      OR: [
+        { workspace: { members: { some: { userId: user.id } } } },
+        { ownerId: user.id },
+        { members: { some: { userId: user.id } } },
+        { team: { members: { some: { userId: user.id } } } },
+      ],
+    },
     include: {
       owner: {
         select: {
@@ -153,7 +167,6 @@ export default async function ProjectPage({
   // users don't get leaked access via their OWNER status elsewhere.
   const isProjectOwner = project.ownerId === user.id;
   const isProjectMember = project.members.some((m) => m.userId === user.id);
-  const isPublic = project.visibility === "PUBLIC";
   // Team sharing: members of the project's team have access too (mirrors
   // resolveProjectAccess, the canonical rule the API sub-routes enforce). Only
   // honor a team that lives in the project's OWN workspace — never grant or
@@ -165,10 +178,13 @@ export default async function ProjectPage({
   const isProjectTeamMember =
     sharedTeam?.members.some((m) => m.userId === user.id) ?? false;
 
-  let hasAccess =
-    isProjectOwner || isProjectMember || isPublic || isProjectTeamMember;
-
-  if (!hasAccess) {
+  // Resolve the viewer's standing in the PROJECT's workspace. This lookup used
+  // to be skipped whenever the project was PUBLIC — which is exactly how a
+  // signed-in user of a DIFFERENT workspace could open it. PUBLIC is now
+  // scoped to the owning workspace, so the membership must be known first.
+  let isWorkspaceManager = false;
+  const viewerWorkspaceIds: string[] = [];
+  if (!isProjectOwner && !isProjectMember && !isProjectTeamMember) {
     const membership = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -179,13 +195,23 @@ export default async function ProjectPage({
       include: { user: { select: { position: true } } },
     });
     if (membership) {
+      viewerWorkspaceIds.push(project.workspaceId);
       const role = membership.role;
       const level = getLevel(membership.user.position);
-      if (role === "OWNER" || role === "ADMIN" || level >= 4) {
-        hasAccess = true;
-      }
+      isWorkspaceManager = role === "OWNER" || role === "ADMIN" || level >= 4;
     }
   }
+
+  // One shared decision with the API routes — see canReadProject's comment.
+  const hasAccess = canReadProject({
+    visibility: project.visibility,
+    projectWorkspaceId: project.workspaceId,
+    viewerWorkspaceIds,
+    isOwner: isProjectOwner,
+    isMember: isProjectMember,
+    isWorkspaceManager,
+    isTeamMember: isProjectTeamMember,
+  });
 
   if (!hasAccess) {
     notFound();

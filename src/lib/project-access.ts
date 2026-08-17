@@ -5,8 +5,11 @@
  * WHY THIS EXISTS
  * The project page (src/app/(dashboard)/projects/[projectId]/page.tsx) and
  * GET /api/projects/[projectId] enforce one rule: a user can READ a project
- * only if they own it, are a member, it's PUBLIC, or they are an
- * OWNER/ADMIN of the project's workspace (or Position level >= 4). Crucially,
+ * only if they own it, are a member, it's PUBLIC *and they are in the
+ * project's workspace*, or they are an
+ * OWNER/ADMIN of the project's workspace (or Position level >= 4). Both of
+ * those callers now delegate the decision to `canReadProject` below instead of
+ * keeping private copies of it. Crucially,
  * `visibility === "WORKSPACE"` is NOT an auto-grant for ordinary workspace
  * members — that default was deliberately removed from the page.
  *
@@ -17,7 +20,8 @@
  * centralizes the canonical rule so every route agrees with the page.
  *
  * Roles (ProjectRole): ADMIN > EDITOR > COMMENTER > VIEWER.
- *   - read:    owner | member | PUBLIC | ws OWNER/ADMIN | level >= 4 | team member
+ *   - read:    owner | member | PUBLIC *within the project's own workspace* |
+ *              ws OWNER/ADMIN | level >= 4 | team member
  *   - write:   owner | member role ADMIN or EDITOR | team member
  *   - comment: owner | member role ADMIN, EDITOR or COMMENTER | team member
  *   - manage:  owner | member role ADMIN | ws OWNER/ADMIN   (add/remove members, delete)
@@ -63,6 +67,58 @@ export interface ProjectAccessResult {
   canManage: boolean;
 }
 
+/** Everything the read decision depends on, and nothing else. */
+export interface ProjectReadDecisionInput {
+  /** Project.visibility: "PRIVATE" | "WORKSPACE" | "PUBLIC". */
+  visibility: string;
+  /** The workspace the project lives in. */
+  projectWorkspaceId: string;
+  /**
+   * Workspaces the VIEWER belongs to. In practice resolveProjectAccess only
+   * ever looks up the one membership that matters — (viewer, project's
+   * workspace) — so this is `[projectWorkspaceId]` or `[]`. It is modelled as
+   * a list because that is the honest question: "is the project's workspace
+   * one of the viewer's?"
+   */
+  viewerWorkspaceIds: readonly string[];
+  isOwner: boolean;
+  isMember: boolean;
+  /** OWNER/ADMIN of the PROJECT's workspace, or Position level >= 4 there. */
+  isWorkspaceManager: boolean;
+  /** Member of the project's team (team validated to be in the same workspace). */
+  isTeamMember: boolean;
+}
+
+/**
+ * THE read decision, as a pure function — no Prisma, no session, no I/O.
+ *
+ * Every read gate in the app (this module's resolver, the dashboard project
+ * page, GET /api/projects/:id) must route through here. They each used to
+ * carry their own copy of the rule, and that is precisely how the PUBLIC hole
+ * below survived in three places at once.
+ *
+ * SECURITY — do not "simplify" the PUBLIC branch back to a bare
+ * `visibility === "PUBLIC"`. PUBLIC means "everyone in THIS workspace", never
+ * "everyone with an account". Without the workspace comparison, any
+ * authenticated user of ANY workspace could open any PUBLIC project — a
+ * cross-tenant read. `project-access.test.ts` fails loudly if that regresses.
+ *
+ * `isWorkspaceManager` is only ever computed from a membership in the
+ * PROJECT's workspace, so it cannot cross the tenant boundary either.
+ */
+export function canReadProject(input: ProjectReadDecisionInput): boolean {
+  if (input.isOwner || input.isMember) return true;
+  if (input.isTeamMember) return true;
+  if (input.isWorkspaceManager) return true;
+  if (
+    input.visibility === "PUBLIC" &&
+    input.viewerWorkspaceIds.includes(input.projectWorkspaceId)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 interface MinimalProject {
   id: string;
   ownerId: string | null;
@@ -88,12 +144,17 @@ export async function resolveProjectAccess(
   const member = project.members.find((m) => m.userId === userId);
   const isMember = !!member;
   const memberRole = (member?.role as ProjectRole | undefined) ?? null;
-  const isPublic = project.visibility === "PUBLIC";
 
   let isWorkspaceManager = false;
-  let canRead = isOwner || isMember || isPublic;
+  // Workspaces the viewer is known to belong to. We only ever look up the one
+  // that matters (the project's), so this is [] or [project.workspaceId].
+  const viewerWorkspaceIds: string[] = [];
 
-  if (!canRead) {
+  // The membership lookup used to be skipped whenever the project was PUBLIC,
+  // because PUBLIC alone granted read. It no longer does — PUBLIC is scoped to
+  // the project's own workspace now — so the lookup must run for every
+  // non-owner/non-member viewer, PUBLIC included.
+  if (!isOwner && !isMember) {
     const membership = await prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: { userId, workspaceId: project.workspaceId },
@@ -101,12 +162,12 @@ export async function resolveProjectAccess(
       include: { user: { select: { position: true } } },
     });
     if (membership) {
+      viewerWorkspaceIds.push(project.workspaceId);
       const level = getLevel(membership.user.position);
       isWorkspaceManager =
         membership.role === "OWNER" ||
         membership.role === "ADMIN" ||
         level >= 4;
-      if (isWorkspaceManager) canRead = true;
     }
   }
 
@@ -141,10 +202,19 @@ export async function resolveProjectAccess(
       });
       if (tm) {
         isTeamMember = true;
-        canRead = true;
       }
     }
   }
+
+  const canRead = canReadProject({
+    visibility: project.visibility,
+    projectWorkspaceId: project.workspaceId,
+    viewerWorkspaceIds,
+    isOwner,
+    isMember,
+    isWorkspaceManager,
+    isTeamMember,
+  });
 
   const canWrite =
     isOwner || memberRole === "ADMIN" || memberRole === "EDITOR" || isTeamMember;
