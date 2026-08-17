@@ -25,6 +25,13 @@ const publicPrefixes = [
   // Marketing: /services and every /services/<slug> detail page.
   // Safe as a prefix — the authenticated app has no /services route.
   "/services",
+  // Password-less client project links: /p/<token>. The visitor is a
+  // building owner with no account, so there is no session to check here;
+  // the token IS the credential and the page re-validates it (unknown,
+  // revoked and expired all 404) on every request via resolveShareLink.
+  // The trailing slash keeps this from ever matching a future /projects
+  // or /portal route by prefix.
+  "/p/",
 ];
 
 // TTC public pages (marketing / informational) - no auth required.
@@ -49,7 +56,8 @@ const publicExactRoutes = Array.from(
   ]),
 ).filter((href) => href !== "/projects/all" && href !== "/projects/new");
 
-function isPublicRoute(pathname: string): boolean {
+/** Exported for tests — pure string matching, no request needed. */
+export function isPublicRoute(pathname: string): boolean {
   if (publicExactRoutes.includes(pathname)) {
     return true;
   }

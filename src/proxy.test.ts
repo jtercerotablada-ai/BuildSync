@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { isApiForbiddenForRole, isClientApi } from "./proxy";
+import { isApiForbiddenForRole, isClientApi, isPublicRoute } from "./proxy";
 import { NON_CONTRIBUTOR_ROLES } from "@/lib/workspace-roles";
 
 /**
@@ -287,5 +287,44 @@ describe("isApiForbiddenForRole", () => {
       expect(isApiForbiddenForRole("guest", "/api/projects")).toBe(false);
       expect(isApiForbiddenForRole("Client", "/api/projects")).toBe(false);
     });
+  });
+});
+
+/**
+ * The client share link route.
+ *
+ * /p/<token> is reached by a building owner who has no account and never
+ * will. If it is not public the middleware bounces them to /login and the
+ * whole feature is dead on arrival; if the prefix is too greedy it opens
+ * something else by accident. The token itself is validated in
+ * @/lib/client-link/access — this only pins the edge decision.
+ */
+describe("isPublicRoute — client share links", () => {
+  const token = "a".repeat(64);
+
+  it("lets a share link through without a session", () => {
+    expect(isPublicRoute(`/p/${token}`)).toBe(true);
+  });
+
+  it("is public regardless of how malformed the token is", () => {
+    // The page must 404 on a bad token, not redirect to /login — a redirect
+    // would tell a prober that the path exists but they are unauthenticated.
+    expect(isPublicRoute("/p/not-a-real-token")).toBe(true);
+    expect(isPublicRoute("/p/")).toBe(true);
+  });
+
+  it("does not open any other route by prefix", () => {
+    // The trailing slash in the "/p/" prefix is what keeps these private.
+    expect(isPublicRoute("/portal")).toBe(false);
+    expect(isPublicRoute("/portal/admin")).toBe(false);
+    expect(isPublicRoute("/profile/abc")).toBe(false);
+    expect(isPublicRoute("/projects/all")).toBe(false);
+    expect(isPublicRoute("/p")).toBe(false);
+  });
+
+  it("keeps the authenticated app behind the wall", () => {
+    expect(isPublicRoute("/dashboard")).toBe(false);
+    expect(isPublicRoute("/my-tasks")).toBe(false);
+    expect(isPublicRoute("/api/projects")).toBe(false);
   });
 });

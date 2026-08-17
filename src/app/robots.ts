@@ -23,6 +23,9 @@ export default function robots(): MetadataRoute.Robots {
           '/knowledge',
           '/client',
           '/portal',
+          // Client share links. The token is the credential, so these must
+          // never be crawled into an index.
+          '/p/',
           '/admin',
           '/logo-styles',
         ],
