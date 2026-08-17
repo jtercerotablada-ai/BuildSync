@@ -55,6 +55,51 @@ function isPublicRoute(pathname: string): boolean {
   return publicPrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
+/* ── The CLIENT API allowlist ──────────────────────────────────────────────
+   The entire server surface the (client) portal calls. Everything else under
+   /api/ is internal, and a workspace-role CLIENT is denied here, at the edge.
+
+   WHY THIS EXISTS: the role gate below has always been PAGE-only, while
+   config.matcher runs middleware over /api/* too — and no API handler checks
+   WorkspaceRole. requireWorkspaceContributor (src/lib/auth-guards.ts:418) is
+   the guard for this and is wired into 4 of 173 route files. So a signed-in
+   client could call the internal JSON API directly and get 2xx, including
+   POST /api/projects, which asserts only that a WorkspaceMember row EXISTS
+   and then writes ownerId=self — the first link in a chain that ends with the
+   client minting a full internal MEMBER account on an email they control.
+
+   ALLOWLIST, NOT BLOCKLIST: internal routes are added constantly and a
+   blocklist silently exposes each new one. The portal's surface is small and
+   stable.
+
+   /api/auth/* is deliberately absent: it is a publicPrefix and returns at
+   isPublicRoute() before this gate ever runs. */
+const clientApiPrefixes = [
+  // Portal data. Each handler still re-checks ClientProjectAccess via
+  // verifyClientAccess (src/lib/auth-guards.ts:369) — this only stops being a
+  // 403; it grants nothing.
+  "/api/client/",
+  // Accepting an invitation addressed to THEIR OWN email; the handler returns
+  // 409 for any other address. This does NOT make a pre-existing rogue MEMBER
+  // invitation safe — those must be revoked in the database.
+  "/api/invite/",
+];
+const clientApiExact = [
+  "/api/client",
+  "/api/users/profile",
+  "/api/users/preferences",
+  "/api/users/password",
+];
+
+/** True when `pathname` belongs to the client portal's own API surface.
+ *  Exported so the allowlist is unit-testable without a DB. */
+export function isClientApi(pathname: string): boolean {
+  return (
+    clientApiExact.includes(pathname) ||
+    clientApiPrefixes.some((p) => pathname.startsWith(p))
+  );
+}
+
 /**
  * Maintenance mode — when true, every request from the public web
  * lands on /maintenance. Localhost (`next dev`) is NEVER affected
@@ -255,6 +300,18 @@ export async function proxy(request: NextRequest) {
 
   // Role-based redirects for authenticated users
   const userRole = (token as Record<string, unknown>).role as string | undefined;
+
+  if (userRole === "CLIENT") {
+    // API: default-deny. 403 rather than 404 because the caller is
+    // authenticated and a route's existence is not a secret; what they lack is
+    // a ROLE. Hiding a specific RECORD behind a 404 remains the handler's job.
+    if (pathname.startsWith("/api/") && !isClientApi(pathname)) {
+      return NextResponse.json(
+        { error: "Forbidden", code: "client-role" },
+        { status: 403 },
+      );
+    }
+  }
 
   // CLIENT role users accessing internal dashboard should be sent to
   // their client portal. The actual internal dashboard lives under
