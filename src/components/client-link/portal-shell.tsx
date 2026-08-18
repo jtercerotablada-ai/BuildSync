@@ -1,23 +1,45 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowRight,
+  Bell,
+  Briefcase,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  HelpCircle,
+  Home,
+  ListChecks,
+  Lock,
+  Mail,
+  Menu,
+  MessageSquare,
+  SearchCheck,
+  ShieldQuestion,
+  User,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { company } from "@/lib/ttc/site";
 
 /**
- * The app shell around the client project page: a fixed left sidebar and a
- * sticky top bar, with the server-rendered project content passed as children.
+ * The app shell around the client project workspace: a fixed 283px enterprise
+ * navigation rail and a thin 60px global toolbar, with the server-rendered
+ * workspace passed as children.
  *
- * IMPORTANT — this is chrome, not auth. There is no account, no inbox and no
- * multi-project list on a password-less single-project link, so:
- *   • the sidebar is IN-PAGE navigation — every item smooth-scrolls to a real
- *     section on this one page (or is honestly marked "Soon");
- *   • the "user" is the share link's own label (e.g. "Board president"), the
- *     only identity this page legitimately knows. No fabricated name ever.
- *   • notifications is a static, badge-less affordance that only says the firm
- *     will email about updates.
+ * IMPORTANT — this is chrome, not auth. A password-less link knows exactly one
+ * project and one identity (the link's own label), so:
+ *   • sidebar items are hash links into the workspace TABS (#overview,
+ *     #action-items, …) — the tab strip owns the state, the rail follows it;
+ *   • the project selector shows the one project this link opens and says so,
+ *     rather than pretending to be a switcher;
+ *   • the "user" is the share link's label (e.g. "Board president") — no
+ *     fabricated name, no fabricated notification count, ever.
  *
- * All identity/meta values are passed in already-resolved and client-safe; this
- * component fetches nothing.
+ * All values arrive already resolved and client-safe; this fetches nothing.
  */
 
 export interface PortalViewer {
@@ -25,10 +47,9 @@ export interface PortalViewer {
   label: string | null;
 }
 
-export interface PortalMeta {
-  projectNumber: string | null;
-  typeLabel: string | null;
-  status: { label: string; tone: "positive" | "neutral" };
+export interface PortalProjectRef {
+  number: string | null;
+  name: string;
 }
 
 /** First-two-word (or first-two-letter) initials. Empty when there is no name. */
@@ -39,183 +60,63 @@ function initialsFrom(label: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-/* ── Minimalist line icons (consistent 24-grid, 1.7 stroke) ──────────── */
-type IconProps = { className?: string };
-const ic = {
-  dashboard: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
-      <rect x="13.5" y="3.5" width="7" height="5" rx="1.5" />
-      <rect x="13.5" y="11.5" width="7" height="9" rx="1.5" />
-      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
-    </svg>
-  ),
-  projects: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <path d="M4 20V7.5L11 4l7 3.5V20" />
-      <path d="M4 20h16" />
-      <path d="M9 20v-5h4v5" />
-      <path d="M8 10h.01M14 10h.01" />
-    </svg>
-  ),
-  documents: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <path d="M6 3.5h7l5 5V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z" />
-      <path d="M13 3.5V9h5" />
-      <path d="M8.5 13.5h7M8.5 16.5h5" />
-    </svg>
-  ),
-  messages: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 3.5V6a1 1 0 0 1 1-1Z" />
-      <path d="M8.5 9.5h7M8.5 12.5h4" />
-    </svg>
-  ),
-  inspections: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <rect x="4" y="5" width="16" height="16" rx="2" />
-      <path d="M4 9h16M8 3.5v3M16 3.5v3" />
-      <path d="m9 14 2 2 4-4" />
-    </svg>
-  ),
-  account: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <circle cx="12" cy="8.5" r="3.5" />
-      <path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" />
-    </svg>
-  ),
-  bell: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5Z" />
-      <path d="M10 20a2 2 0 0 0 4 0" />
-    </svg>
-  ),
-  menu: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" {...p}>
-      <path d="M4 7h16M4 12h16M4 17h16" />
-    </svg>
-  ),
-  close: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" {...p}>
-      <path d="M6 6l12 12M18 6L6 18" />
-    </svg>
-  ),
-  caret: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  ),
-  mail: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
-      <path d="m4 7 8 6 8-6" />
-    </svg>
-  ),
-  lock: (p: IconProps) => (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...p}>
-      <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
-    </svg>
-  ),
+/** Which rail item lights up for each workspace tab. Inside a project the
+ *  rail highlights "Projects" for the project-level tabs, per the reference. */
+const RAIL_FOR_TAB: Record<string, string> = {
+  overview: "projects",
+  progress: "projects",
+  activity: "projects",
+  "action-items": "tasks",
+  documents: "documents",
+  inspections: "inspections",
 };
 
-type NavKey = "dashboard" | "projects" | "documents" | "inspections";
-
-/** id on the page → nav key it lights up. Order matters (top → bottom).
- *  The hero IS the top of the page, so the overview region stays "Dashboard";
- *  "Projects" still scrolls to the hero on click but does not claim the top. */
-const SPY: { key: NavKey; id: string }[] = [
-  { key: "dashboard", id: "p-top" },
-  { key: "documents", id: "documents" },
-  { key: "inspections", id: "inspections" },
+const NAV: { key: string; label: string; hash: string; icon: LucideIcon }[] = [
+  { key: "home", label: "Home", hash: "overview", icon: Home },
+  { key: "projects", label: "Projects", hash: "overview", icon: Briefcase },
+  { key: "tasks", label: "Tasks", hash: "action-items", icon: ListChecks },
+  { key: "documents", label: "Documents", hash: "documents", icon: FileText },
 ];
-
-const NAV: { key: NavKey; label: string; target: string; icon: (p: IconProps) => React.ReactElement }[] = [
-  { key: "dashboard", label: "Dashboard", target: "p-top", icon: ic.dashboard },
-  { key: "projects", label: "Projects", target: "hero", icon: ic.projects },
-  { key: "documents", label: "Documents", target: "documents", icon: ic.documents },
-  { key: "inspections", label: "Inspections", target: "inspections", icon: ic.inspections },
-];
-
-function StatusChip({ status }: { status: PortalMeta["status"] }) {
-  const cls = status.tone === "positive" ? "p-pill--gold" : "p-pill--neutral";
-  return (
-    <span className={`p-pill ${cls}`}>
-      <span aria-hidden className="p-pill__dot" />
-      {status.label}
-    </span>
-  );
-}
 
 export function PortalShell({
   viewer,
-  meta,
+  project,
   contactEmail,
   children,
 }: {
   viewer: PortalViewer;
-  meta: PortalMeta;
+  project: PortalProjectRef;
   contactEmail: string;
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [active, setActive] = useState<NavKey>("dashboard");
-  const [menu, setMenu] = useState<null | "user" | "account">(null);
+  const [rail, setRail] = useState("projects");
+  const [menu, setMenu] = useState<null | "user" | "account" | "help" | "crumb">(null);
   const userWrapRef = useRef<HTMLDivElement>(null);
   const accountWrapRef = useRef<HTMLDivElement>(null);
+  const helpWrapRef = useRef<HTMLDivElement>(null);
+  const crumbWrapRef = useRef<HTMLDivElement>(null);
 
   const name = viewer.label?.trim() || "";
   const initials = initialsFrom(name);
   const hasName = initials.length > 0;
 
-  const prefersReducedMotion = useCallback(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-    []
-  );
-
-  const goTo = useCallback(
-    (id: string) => {
-      setDrawerOpen(false);
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.scrollIntoView({
-        behavior: prefersReducedMotion() ? "auto" : "smooth",
-        block: "start",
-      });
-    },
-    [prefersReducedMotion]
-  );
-
-  // Scroll-spy: light the nav item for the last section past the top band.
+  // Follow the tab strip: the hash is the single source of truth.
   useEffect(() => {
-    let ticking = false;
-    const recompute = () => {
-      const line = 150;
-      let current: NavKey = "dashboard";
-      for (const { key, id } of SPY) {
-        const el = document.getElementById(id);
-        if (!el) continue;
-        if (el.getBoundingClientRect().top - line <= 0) current = key;
-      }
-      setActive(current);
+    const apply = () => {
+      const raw = window.location.hash.replace(/^#/, "");
+      setRail(RAIL_FOR_TAB[raw] ?? "projects");
     };
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        recompute();
-        ticking = false;
-      });
-    };
-    recompute();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, []);
+
+  const goTab = useCallback((hash: string) => {
+    setDrawerOpen(false);
+    // Assign (don't replace) so the hashchange event fires for the tab strip.
+    window.location.hash = hash;
+    window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
   // Lock body scroll while the mobile drawer is open.
@@ -231,9 +132,10 @@ export function PortalShell({
   // Close popovers on outside click / Escape.
   useEffect(() => {
     if (!menu) return;
+    const wraps = [userWrapRef, accountWrapRef, helpWrapRef, crumbWrapRef];
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (userWrapRef.current?.contains(t) || accountWrapRef.current?.contains(t)) return;
+      if (wraps.some((w) => w.current?.contains(t))) return;
       setMenu(null);
     };
     const onKey = (e: KeyboardEvent) => {
@@ -251,27 +153,27 @@ export function PortalShell({
     <>
       <div className="flex items-center gap-2.5">
         <span className="p-avatar" aria-hidden>
-          {hasName ? initials : <ic.account />}
+          {hasName ? initials : <User size={16} strokeWidth={1.8} />}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[color:var(--ink-900)]">
+          <p className="truncate text-[13px] font-semibold text-[color:var(--ink-900)]">
             {hasName ? name : "Private view"}
           </p>
           <p className="text-[11px] text-[color:var(--ink-500)]">Private project link</p>
         </div>
       </div>
-      <div className="my-3 h-px bg-[color:var(--line)]" />
+      <div className="my-3 h-px bg-[color:var(--line-soft)]" />
       <p className="flex items-start gap-2 text-[12px] leading-relaxed text-[color:var(--ink-600)]">
-        <span className="mt-0.5 text-[color:var(--gold-600)]">
-          <ic.lock />
+        <span className="mt-0.5 shrink-0 text-[color:var(--gold)]">
+          <Lock size={14} strokeWidth={1.8} aria-hidden />
         </span>
         <span>This link is private to you. Please don&rsquo;t forward it.</span>
       </p>
       <a
         href={`mailto:${contactEmail}`}
-        className="mt-3 flex items-center gap-2 rounded-lg border border-[color:var(--line)] px-3 py-2 text-[12px] font-semibold text-[color:var(--gold-ink)] transition-colors hover:bg-[color:var(--gold-wash)]"
+        className="mt-3 flex items-center gap-2 rounded-lg border border-[color:var(--line)] px-3 py-2 text-[12px] font-semibold text-[color:var(--gold)] transition-colors hover:bg-[color:var(--gold-pale)]"
       >
-        <ic.mail />
+        <Mail size={14} strokeWidth={1.8} aria-hidden />
         <span className="truncate">{contactEmail}</span>
       </a>
     </>
@@ -286,18 +188,19 @@ export function PortalShell({
       {/* ── Sidebar ──────────────────────────────────────────────── */}
       <aside
         className={`p-sidebar ${drawerOpen ? "p-sidebar--open" : ""}`}
-        aria-label="Portal"
+        aria-label="Portal navigation"
       >
         <div className="p-brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/ttc/img/logo-square.png"
             alt=""
-            width={48}
-            height={48}
+            width={62}
+            height={62}
             className="p-brand__logo"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 pt-0.5">
+            <p className="p-brand__full">{company.name}</p>
             <p className="p-brand__name">{company.shortName}</p>
             <p className="p-brand__disc">{company.discipline}</p>
           </div>
@@ -307,28 +210,26 @@ export function PortalShell({
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
           >
-            <ic.close />
+            <X size={19} strokeWidth={1.8} />
           </button>
         </div>
 
         <nav className="p-nav" aria-label="Sections">
           {NAV.map((item) => {
             const Icon = item.icon;
-            const isActive = active === item.key;
+            const isActive = rail === item.key;
             return (
               <a
                 key={item.key}
-                href={`#${item.target}`}
+                href={`#${item.hash}`}
                 aria-current={isActive ? "page" : undefined}
                 className={`p-nav-item ${isActive ? "p-nav-item--active" : ""}`}
                 onClick={(e) => {
                   e.preventDefault();
-                  // Let the scroll-spy own the active state so the overview
-                  // region reads as "Dashboard" even after a "Projects" click.
-                  goTo(item.target);
+                  goTab(item.hash);
                 }}
               >
-                <Icon />
+                <Icon size={19} strokeWidth={1.7} aria-hidden />
                 {item.label}
               </a>
             );
@@ -340,10 +241,23 @@ export function PortalShell({
             aria-disabled="true"
             title="Direct messaging with your engineer is coming soon."
           >
-            <ic.messages />
+            <MessageSquare size={19} strokeWidth={1.7} aria-hidden />
             Messages
             <span className="p-nav-item__soon">Soon</span>
           </span>
+
+          <a
+            href="#inspections"
+            aria-current={rail === "inspections" ? "page" : undefined}
+            className={`p-nav-item ${rail === "inspections" ? "p-nav-item--active" : ""}`}
+            onClick={(e) => {
+              e.preventDefault();
+              goTab("inspections");
+            }}
+          >
+            <SearchCheck size={19} strokeWidth={1.7} aria-hidden />
+            Inspections
+          </a>
 
           <div className="p-nav__divider" />
 
@@ -355,7 +269,7 @@ export function PortalShell({
               aria-expanded={menu === "account"}
               onClick={() => setMenu(menu === "account" ? null : "account")}
             >
-              <ic.account />
+              <User size={19} strokeWidth={1.7} aria-hidden />
               Account
             </button>
             {menu === "account" && (
@@ -371,25 +285,20 @@ export function PortalShell({
           </div>
         </nav>
 
+        {/* Support card — the honest version: email is the help center. */}
         <div className="p-side-foot">
-          <div className="p-blueprint" aria-hidden>
-            {/* Faint architectural line motif — a watermark, not a diagram. */}
-            <svg viewBox="0 0 220 140" fill="none" stroke="var(--gold-600)" strokeWidth="1">
-              <g opacity="0.28">
-                <path d="M10 138V54l40-20 40 20v84" />
-                <path d="M50 34V16M42 20l8-4 8 4" />
-                <path d="M10 70h80M10 86h80M10 102h80M10 118h80" />
-                <path d="M30 138v-14h12v14M58 138v-14h12v14" />
-                <path d="M22 62h8M60 62h8M22 78h8M60 78h8M22 94h8M60 94h8" />
-                <path d="M104 138V78l30-14 30 14v60" />
-                <path d="M134 64V50" />
-                <path d="M104 92h60M104 106h60M104 120h60" />
-                <path d="M118 138v-12h10v12M146 138v-12h10v12" />
-                <path d="M170 138V96l22-10 22 10v42" />
-                <path d="M170 108h44M170 122h44" />
-              </g>
-            </svg>
-          </div>
+          <a href={`mailto:${contactEmail}`} className="p-help">
+            <span className="p-help__icon" aria-hidden>
+              <ShieldQuestion size={19} strokeWidth={1.7} />
+            </span>
+            <span className="min-w-0">
+              <span className="p-help__title block">Need help?</span>
+              <span className="p-help__copy block">
+                Questions about this project? Contact our team.
+              </span>
+            </span>
+            <ArrowRight size={16} strokeWidth={1.8} className="p-help__arrow" aria-hidden />
+          </a>
         </div>
       </aside>
 
@@ -410,43 +319,102 @@ export function PortalShell({
             aria-expanded={drawerOpen}
             onClick={() => setDrawerOpen(true)}
           >
-            <ic.menu />
+            <Menu size={20} strokeWidth={1.8} />
           </button>
 
-          <div className="min-w-0 flex-1">
-            <h1 className="p-topbar__title">Client Portal</h1>
-            <div className="p-topbar__meta">
-              {meta.projectNumber && (
-                <span className="p-pill p-pill--neutral p-ref">{meta.projectNumber}</span>
-              )}
-              {meta.typeLabel && (
-                <>
-                  <span aria-hidden className="p-topbar__sep">
-                    ·
+          <p className="p-topbar__title">Client Portal</p>
+
+          {/* Project control — one project per link, and it says so. */}
+          <div ref={crumbWrapRef} className="relative min-w-0">
+            <button
+              type="button"
+              className="p-crumb"
+              aria-haspopup="dialog"
+              aria-expanded={menu === "crumb"}
+              onClick={() => setMenu(menu === "crumb" ? null : "crumb")}
+            >
+              <CalendarDays size={14} strokeWidth={1.8} aria-hidden />
+              {project.number && <span className="p-crumb__num">{project.number}</span>}
+              <ChevronRight size={13} strokeWidth={2} className="p-crumb__sep" aria-hidden />
+              <span className="p-crumb__name">{project.name}</span>
+              <ChevronDown size={14} strokeWidth={1.8} className="p-crumb__caret" aria-hidden />
+            </button>
+            {menu === "crumb" && (
+              <div
+                role="dialog"
+                aria-label="Projects on this link"
+                className="p-menu"
+                style={{ left: 0, top: "calc(100% + 8px)", minWidth: 300 }}
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[color:var(--ink-400)]">
+                  Your projects
+                </p>
+                <div className="mt-2 flex items-center gap-2.5 rounded-lg bg-[color:var(--gold-pale)] px-3 py-2.5">
+                  <Check size={15} strokeWidth={2.2} className="shrink-0 text-[color:var(--gold)]" aria-hidden />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-semibold text-[color:var(--ink-900)]">
+                      {project.name}
+                    </span>
+                    {project.number && (
+                      <span className="block text-[11px] text-[color:var(--ink-500)]">
+                        {project.number}
+                      </span>
+                    )}
                   </span>
-                  <span className="text-[13.5px] font-medium text-[color:var(--ink-600)]">
-                    {meta.typeLabel}
-                  </span>
-                </>
-              )}
-              <span aria-hidden className="p-topbar__sep">
-                ·
-              </span>
-              <StatusChip status={meta.status} />
-            </div>
+                </div>
+                <p className="mt-2.5 text-[11.5px] leading-relaxed text-[color:var(--ink-500)]">
+                  This private link opens this project only.
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Notifications — static, badge-less, honest. */}
+          <div className="flex-1" />
+
+          {/* Notifications — badge-less and honest: updates arrive by email. */}
           <button
             type="button"
             className="p-iconbtn hidden sm:grid"
             aria-label="We&rsquo;ll email you about updates"
           >
-            <ic.bell />
+            <Bell size={19} strokeWidth={1.7} />
             <span className="p-tip" role="tooltip">
               We&rsquo;ll email you about updates
             </span>
           </button>
+
+          <div ref={helpWrapRef} className="relative hidden sm:block">
+            <button
+              type="button"
+              className="p-iconbtn"
+              aria-haspopup="dialog"
+              aria-expanded={menu === "help"}
+              aria-label="Help"
+              onClick={() => setMenu(menu === "help" ? null : "help")}
+            >
+              <HelpCircle size={19} strokeWidth={1.7} />
+            </button>
+            {menu === "help" && (
+              <div
+                role="dialog"
+                aria-label="Help"
+                className="p-menu"
+                style={{ right: 0, top: "calc(100% + 8px)" }}
+              >
+                <p className="text-[13px] font-semibold text-[color:var(--ink-900)]">Need help?</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--ink-500)]">
+                  Our team answers questions about this project directly.
+                </p>
+                <a
+                  href={`mailto:${contactEmail}`}
+                  className="mt-3 flex items-center gap-2 rounded-lg border border-[color:var(--line)] px-3 py-2 text-[12px] font-semibold text-[color:var(--gold)] transition-colors hover:bg-[color:var(--gold-pale)]"
+                >
+                  <Mail size={14} strokeWidth={1.8} aria-hidden />
+                  <span className="truncate">{contactEmail}</span>
+                </a>
+              </div>
+            )}
+          </div>
 
           {/* User chip — the share link's own label, never a fabricated name. */}
           <div ref={userWrapRef} className="relative">
@@ -455,18 +423,16 @@ export function PortalShell({
               className="p-userchip"
               aria-haspopup="dialog"
               aria-expanded={menu === "user"}
-              aria-label={hasName ? `Signed in as ${name}` : "Private view"}
+              aria-label={hasName ? `Viewing as ${name}` : "Private view"}
               onClick={() => setMenu(menu === "user" ? null : "user")}
             >
               <span className="p-avatar" aria-hidden>
-                {hasName ? initials : <ic.account />}
+                {hasName ? initials : <User size={16} strokeWidth={1.8} />}
               </span>
-              <span className="p-userchip__name hidden sm:block">
+              <span className="p-userchip__name hidden md:block">
                 {hasName ? name : "Private view"}
               </span>
-              <span className="text-[color:var(--ink-400)]">
-                <ic.caret />
-              </span>
+              <ChevronDown size={15} strokeWidth={1.8} className="text-[color:var(--ink-400)]" aria-hidden />
             </button>
             {menu === "user" && (
               <div
@@ -482,7 +448,6 @@ export function PortalShell({
         </header>
 
         <main id="p-main" className="flex-1">
-          <span id="p-top" aria-hidden className="block h-0 scroll-mt-[88px]" />
           {children}
         </main>
       </div>

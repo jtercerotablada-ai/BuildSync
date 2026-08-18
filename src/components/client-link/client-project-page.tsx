@@ -1,7 +1,8 @@
-import Image from "next/image";
 import {
-  CalendarCheck2,
+  Activity,
+  Building2,
   CalendarDays,
+  CalendarCheck2,
   Check,
   CheckCircle2,
   ClipboardList,
@@ -20,31 +21,23 @@ import type {
   ClientProjectView,
   ClientStage,
 } from "@/lib/client-link/projection";
-import { heroImageFor } from "@/lib/client-link/hero-image";
 import { company, contact } from "@/lib/ttc/site";
 import { PortalShell } from "./portal-shell";
+import { PortalTabs } from "./portal-tabs";
 
 /**
- * The client-facing project page.
+ * The client-facing project workspace.
  *
- * Presentation only: it renders a ClientProjectView (and the share link's own
- * label, for the viewer chip) and reaches for nothing else. Keeping the data
- * fetch in the route and the markup here means this component can be
- * server-rendered against a real projection in a test without a request, and
- * it keeps the "one place decides what a client sees" rule honest — this file
- * has no database access to abuse.
+ * Presentation only: it renders a ClientProjectView (plus the share link's own
+ * label) and reaches for nothing else — this file has no database access to
+ * abuse, which keeps the "one place decides what a client sees" rule honest.
  *
- * House style is warm near-white paper + charcoal ink + architectural gold
- * (#b98a2e), with the deep gold #8a6d24 for text and #7a5f1e for the large
- * display numerals. Green appears ONLY for a completed stage and red ONLY for a
- * genuinely overdue action item — both muted, both paired with a label/shape so
- * status is never colour alone. The friendly status enum the projection
- * collapsed to lives in the top bar; there are no red/green traffic lights for
- * the firm's own status.
- *
- * Scale is tuned for a wide (1600–1920px) executive desktop and reflows down.
- * The app shell (sidebar + top bar) is in <PortalShell>; everything below is
- * the project content it wraps.
+ * Visual spec: the approved 1672×941 enterprise reference. One clean sans,
+ * white cards on near-white ground, restrained gold, pale-green health, quiet
+ * blue accents. Every number on screen is real projection data; where the
+ * reference shows a value that does not exist yet (document status workflow,
+ * client uploads, messaging) the surface renders a professional empty state or
+ * an honest "Soon" — never a fabricated value or a dead control.
  */
 
 const GATE_SEQUENCE = [
@@ -66,7 +59,7 @@ const GATE_LABEL: Record<string, string> = {
 const TYPE_LABEL: Record<string, string> = {
   CONSTRUCTION: "Construction",
   DESIGN: "Design",
-  RECERTIFICATION: "Building recertification",
+  RECERTIFICATION: "Building Recertification",
   PERMIT: "Permit",
 };
 
@@ -105,19 +98,6 @@ function dueLabel(due: Date | null): string | null {
   return `Due in ${n} ${n === 1 ? "day" : "days"}`;
 }
 
-/** "~4.5 months to go" (or weeks when close); null when there is no end date. */
-function monthsToGoLabel(end: Date | null): string | null {
-  if (!end) return null;
-  const ms = end.getTime() - Date.now();
-  if (ms <= 0) return null;
-  const days = ms / 86_400_000;
-  if (days < 45) {
-    const weeks = Math.max(1, Math.round(days / 7));
-    return weeks === 1 ? "~1 week to go" : `~${weeks} weeks to go`;
-  }
-  return `~${(days / 30.44).toFixed(1)} months to go`;
-}
-
 /** Compact relative time for the activity feed. */
 function timeAgo(at: Date): string {
   const diff = Date.now() - at.getTime();
@@ -132,7 +112,7 @@ function timeAgo(at: Date): string {
   return `${Math.floor(months / 12)}y ago`;
 }
 
-/** A short, monochrome kind tag for a document chip (PDF / IMG / DWG / …). */
+/** A short kind tag for a document (PDF / IMG / DWG / …). */
 function fileKind(mimeType: string, name: string): string {
   const m = mimeType.toLowerCase();
   const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
@@ -151,140 +131,6 @@ function fileKind(mimeType: string, name: string): string {
   if (ext === "dwg" || ext === "dxf") return "DWG";
   return "FILE";
 }
-
-/* ── Small presentational atoms ────────────────────────────────────── */
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="p-h2">{children}</h2>;
-}
-
-function CountBadge({ n }: { n: number }) {
-  return (
-    <span className="grid h-6 min-w-[1.5rem] place-items-center rounded-full bg-[color:var(--gold-tint)] px-2 text-[12px] font-semibold text-[color:var(--gold-ink)]">
-      {n}
-    </span>
-  );
-}
-
-/** Gold progress ring with the percent as a large, deep-gold serif numeral. */
-function ProgressRing({ percent }: { percent: number }) {
-  const r = 36;
-  const circumference = 2 * Math.PI * r;
-  const clamped = Math.min(100, Math.max(0, percent));
-  const offset = circumference * (1 - clamped / 100);
-  return (
-    <svg
-      width="86"
-      height="86"
-      viewBox="0 0 86 86"
-      className="shrink-0"
-      role="img"
-      aria-label={`${percent}% complete`}
-    >
-      <circle cx="43" cy="43" r={r} fill="none" strokeWidth="6.5" className="p-ring-track" />
-      <circle
-        cx="43"
-        cy="43"
-        r={r}
-        fill="none"
-        strokeWidth="6.5"
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        transform="rotate(-90 43 43)"
-        className="p-ring-fill"
-        style={{ "--c": `${circumference}` } as React.CSSProperties}
-      />
-      <text
-        x="43"
-        y="45"
-        textAnchor="middle"
-        dominantBaseline="central"
-        style={{
-          fill: "var(--gold-deep)",
-          fontFamily: "var(--font-display), Georgia, serif",
-          fontSize: "31px",
-        }}
-      >
-        {percent}%
-      </text>
-    </svg>
-  );
-}
-
-/** A calendar chip for an inspection date — tinted month over a serif day. */
-function DateChip({ date }: { date: Date }) {
-  const month = date
-    .toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
-    .toUpperCase();
-  const day = date.toLocaleDateString("en-US", { day: "numeric", timeZone: "UTC" });
-  return (
-    <span className="p-cal" aria-hidden>
-      <span className="p-cal__mon">{month}</span>
-      <span className="p-cal__day">{day}</span>
-    </span>
-  );
-}
-
-/**
- * One metric card. Every card shares the same anatomy — a visual on the left
- * (an icon badge, or the ring for progress) and a label / value / subline stack
- * on the right — so the four read as a set rather than four different cards.
- */
-function StatCard({
-  label,
-  icon: Icon,
-  visual,
-  trailing,
-  children,
-}: {
-  label: string;
-  icon?: LucideIcon;
-  visual?: React.ReactNode;
-  trailing?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="p-card p-stat">
-      {visual ?? (
-        Icon && (
-          <span className="p-stat__icon" aria-hidden>
-            <Icon size={23} strokeWidth={1.6} />
-          </span>
-        )
-      )}
-      <div className="p-stat__content">
-        <div className="flex items-center justify-between gap-2">
-          <p className="p-metric-label">{label}</p>
-          {trailing}
-        </div>
-        <div className="mt-1.5">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-/** An elegant, minimal empty state — icon, one short line, generous space. */
-function EmptyState({
-  icon,
-  children,
-}: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-      <span className="grid h-12 w-12 place-items-center rounded-full bg-[color:var(--surface-sunk)] text-[color:var(--ink-400)] ring-1 ring-[color:var(--line)]">
-        {icon}
-      </span>
-      <p className="max-w-[23rem] text-[13.5px] leading-relaxed text-[color:var(--ink-500)]">
-        {children}
-      </p>
-    </div>
-  );
-}
-
-/* ── Stage stepper — done / current / upcoming, precise connectors ───── */
 
 /**
  * Icon per stage, matched on the client-facing label the projection produced.
@@ -309,103 +155,698 @@ function stageIcon(label: string): LucideIcon {
   return STAGE_ICON[label.trim().toLowerCase()] ?? Clock3;
 }
 
-/** The node glyph. `current` (the furthest-along incomplete step) is the one
- *  solid gold marker; a non-current `active` section reads as in-progress
- *  behind it; `done` swaps its icon for a check; `upcoming` is quiet.
- *  Fill, border and glyph all differ per state, so colour is never the only
- *  signal — and the label carries the state word for assistive tech. */
-function StepNode({
-  state,
-  current,
-  label,
-}: {
-  state: ClientStage["state"];
-  current: boolean;
-  label: string;
-}) {
-  const Icon = state === "done" ? Check : stageIcon(label);
-  const variant =
-    state === "done"
-      ? "p-node--done"
-      : current
-        ? "p-node--current"
-        : state === "active"
-          ? "p-node--active"
-          : "p-node--upcoming";
-  return (
-    <span className={`p-node ${variant}`} aria-hidden>
-      <Icon size={19} strokeWidth={state === "done" ? 2.6 : 1.8} />
-    </span>
-  );
-}
+/** Client-safe "what happens next" copy per canonical stage. UI copy, not
+ *  data — it explains the process, it never asserts a project-specific fact. */
+const WHAT_NEXT: Record<string, string> = {
+  kickoff:
+    "We finalize scope and scheduling, then book the field inspection. You will be notified once the inspection is on the calendar.",
+  "inspection & reports":
+    "We complete the field inspection and prepare the signed & sealed reports. You will be notified when the package is submitted to the Building Official.",
+  "city review":
+    "The Building Official reviews the submitted package. You will be notified if additional information is required.",
+  repairs:
+    "Any required repairs are designed, permitted and built, then verified by re-inspection before the final submittal.",
+  recertified:
+    "The recertification is complete. Final documents are released to you on this page for your records.",
+};
 
-function Stepper({ steps }: { steps: ClientStage[] }) {
-  const currentIndex = steps.findIndex((s) => s.current);
-  const started = (s: ClientStage) => s.state === "done" || s.state === "active";
+function whatNext(label: string): string {
   return (
-    <ol className="flex items-start">
-      {steps.map((s, i) => {
-        // The progress line runs up to the current step, not past it.
-        const leftFill = i > 0 && i - 1 < currentIndex && started(steps[i - 1]);
-        const rightFill = i < currentIndex && started(s);
-        const stateWord =
-          s.state === "done" ? "Completed" : s.current ? "Current" : s.state === "active" ? "In progress" : "Upcoming";
-        return (
-          <li key={`${s.label}-${i}`} className="p-step">
-            <div className="p-step__track">
-              <span
-                className={`p-step__seg ${i === 0 ? "p-step__seg--hidden" : leftFill ? "p-step__seg--fill" : ""}`}
-              />
-              <StepNode state={s.state} current={s.current} label={s.label} />
-              <span
-                className={`p-step__seg ${i === steps.length - 1 ? "p-step__seg--hidden" : rightFill ? "p-step__seg--fill" : ""}`}
-              />
-            </div>
-            <span
-              className={`p-step__label ${
-                s.current
-                  ? "p-step__label--current"
-                  : s.state === "active"
-                    ? "p-step__label--active"
-                    : s.state === "done"
-                      ? "p-step__label--done"
-                      : ""
-              }`}
-            >
-              {/* Non-colour status cue for assistive tech and clarity. */}
-              <span className="sr-only">{stateWord}: </span>
-              {s.label}
-            </span>
-            {s.total > 0 && (
-              <span
-                className={`p-step__count ${s.current ? "p-step__count--current" : ""}`}
-              >
-                {s.done} of {s.total}
-              </span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
+    WHAT_NEXT[label.trim().toLowerCase()] ??
+    "We will keep this page updated as the project moves to the next stage."
   );
 }
 
 /** The gate-derived fallback rail — only used when a project has no
- *  client-visible sections. No task tallies exist here, so counts are 0/0
- *  (the UI omits them) and the current gate is the one `active` marker. */
+ *  client-visible sections. No task tallies exist here (0/0 → the UI omits
+ *  counts) and the current gate is the one `current` marker. */
 function gateSteps(gate: string | null): ClientStage[] {
   const current = gate ? GATE_SEQUENCE.indexOf(gate as never) : -1;
   return GATE_SEQUENCE.map((g, i) => {
     const state: ClientStage["state"] =
-      current === -1 ? "upcoming" : i < current ? "done" : i === current ? "active" : "upcoming";
+      current === -1 ? "upcoming" : i < current ? "done" : "upcoming";
     return {
       label: GATE_LABEL[g],
-      state,
+      state: i === current ? "active" : state,
       done: 0,
       total: 0,
       current: i === current,
     };
   });
+}
+
+/* ── Small presentational atoms ────────────────────────────────────── */
+
+function CardHead({
+  title,
+  action,
+}: {
+  title: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="p-card__head">
+      <h2 className="p-h">{title}</h2>
+      {action}
+    </div>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="p-empty">
+      <span className="p-empty__icon" aria-hidden>
+        <Icon size={18} strokeWidth={1.7} />
+      </span>
+      <p className="p-empty__title">{title}</p>
+      <p className="p-empty__copy">{children}</p>
+    </div>
+  );
+}
+
+/** Gold progress ring, 84px, with the percentage as accessible text. */
+function ProgressRing({ percent }: { percent: number }) {
+  const r = 35;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.min(100, Math.max(0, percent));
+  const offset = c * (1 - clamped / 100);
+  return (
+    <svg
+      width="84"
+      height="84"
+      viewBox="0 0 84 84"
+      className="shrink-0"
+      role="img"
+      aria-label={`${percent}% complete`}
+    >
+      <circle cx="42" cy="42" r={r} fill="none" strokeWidth="7" className="p-ring-track" />
+      <circle
+        cx="42"
+        cy="42"
+        r={r}
+        fill="none"
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={offset}
+        transform="rotate(-90 42 42)"
+        className="p-ring-fill"
+        style={{ "--c": `${c}` } as React.CSSProperties}
+      />
+      <text
+        x="42"
+        y="43"
+        textAnchor="middle"
+        dominantBaseline="central"
+        style={{
+          fill: "var(--ink-900)",
+          fontSize: "19px",
+          fontWeight: 700,
+          letterSpacing: "-0.01em",
+        }}
+      >
+        {percent}%
+      </text>
+    </svg>
+  );
+}
+
+function StatusBadge({
+  status,
+  small,
+}: {
+  status: ClientProjectView["status"];
+  small?: boolean;
+}) {
+  const tone = status.tone === "positive" ? "p-badge--green" : "p-badge--gray";
+  return (
+    <span className={`p-badge ${tone} ${small ? "p-badge--sm" : ""}`}>
+      <span aria-hidden className="p-badge__dot" />
+      {status.label}
+    </span>
+  );
+}
+
+/* ── Timeline ──────────────────────────────────────────────────────── */
+
+function segClass(steps: ClientStage[], i: number, currentIndex: number): string {
+  // Segment between node i-1 and node i.
+  if (currentIndex !== -1 && i > currentIndex) return "p-tl__seg--dash";
+  const prev = steps[i - 1];
+  if (prev.state === "done") return "p-tl__seg--done";
+  if (prev.state === "active") return "p-tl__seg--gold";
+  return "";
+}
+
+function TimelineNode({ step }: { step: ClientStage }) {
+  const Icon = step.state === "done" ? Check : stageIcon(step.label);
+  const cls = step.current
+    ? "p-tl__node--current"
+    : step.state === "done"
+      ? "p-tl__node--done"
+      : step.state === "active"
+        ? "p-tl__node--active"
+        : "p-tl__node--upcoming";
+  return (
+    <span className={`p-tl__node ${cls}`} aria-hidden>
+      <Icon size={step.state === "done" ? 16 : 15} strokeWidth={step.state === "done" ? 2.6 : 1.8} />
+    </span>
+  );
+}
+
+function Timeline({ steps }: { steps: ClientStage[] }) {
+  const currentIndex = steps.findIndex((s) => s.current);
+  const hasActive = steps.some((s) => s.state === "active" && !s.current);
+  return (
+    <>
+      <ol className="p-tl">
+        {steps.map((s, i) => {
+          const stateWord = s.current
+            ? "Current"
+            : s.state === "done"
+              ? "Completed"
+              : s.state === "active"
+                ? "In progress"
+                : "Upcoming";
+          return (
+            <li key={`${s.label}-${i}`} className="p-tl__step">
+              <div className="p-tl__track">
+                <span
+                  className={`p-tl__seg ${i === 0 ? "p-tl__seg--hide" : segClass(steps, i, currentIndex)}`}
+                />
+                <TimelineNode step={s} />
+                <span
+                  className={`p-tl__seg ${
+                    i === steps.length - 1
+                      ? "p-tl__seg--hide"
+                      : segClass(steps, i + 1, currentIndex)
+                  }`}
+                />
+              </div>
+              <span
+                className={`p-tl__label ${
+                  s.current ? "p-tl__label--current" : s.state === "done" ? "p-tl__label--done" : ""
+                }`}
+              >
+                <span className="sr-only">{stateWord}: </span>
+                {s.label}
+              </span>
+              {s.total > 0 && (
+                <span className="p-tl__date">
+                  {s.done} of {s.total} tasks
+                </span>
+              )}
+              {s.current && <span className="p-tl__flag">Current</span>}
+            </li>
+          );
+        })}
+      </ol>
+      <div className="p-legend" aria-hidden>
+        <span className="p-legend__item">
+          <span className="p-legend__dot" style={{ background: "var(--green)" }} />
+          Completed
+        </span>
+        {hasActive && (
+          <span className="p-legend__item">
+            <span
+              className="p-legend__dot"
+              style={{ background: "var(--surface)", border: "2px solid var(--green)" }}
+            />
+            In progress
+          </span>
+        )}
+        <span className="p-legend__item">
+          <span className="p-legend__dot" style={{ background: "var(--gold)" }} />
+          Current
+        </span>
+        <span className="p-legend__item">
+          <span className="p-legend__dot" style={{ background: "var(--ink-300)" }} />
+          Upcoming
+        </span>
+      </div>
+    </>
+  );
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────── */
+
+function HealthCard({ view }: { view: ClientProjectView }) {
+  const positive = view.status.tone === "positive";
+  return (
+    <section className="p-card" aria-label="Project health">
+      <CardHead title="Project Health" />
+      <div className="mt-4 flex items-center gap-4">
+        <span className={`p-bigicon ${positive ? "p-bigicon--green" : "p-bigicon--gray"}`} aria-hidden>
+          <ShieldCheck size={26} strokeWidth={1.7} />
+        </span>
+        <div className="min-w-0">
+          <p className="p-kpi">{view.status.label}</p>
+          <p className="p-sub mt-1">{view.friendlySentence}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProgressCard({ view }: { view: ClientProjectView }) {
+  return (
+    <section className="p-card" aria-label="Overall progress">
+      <CardHead title="Overall Progress" />
+      {view.progress ? (
+        <div className="mt-3 flex items-center gap-4">
+          <ProgressRing percent={view.progress.percent} />
+          <div className="min-w-0">
+            <p className="p-kpi">
+              {view.progress.done} of {view.progress.total} tasks
+            </p>
+            <p className="p-sub mt-0.5">completed</p>
+            <a href="#progress" className="p-link mt-2">
+              View progress <span aria-hidden>→</span>
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <EmptyState icon={CheckCircle2} title="Not started yet">
+            Progress will appear here once work begins.
+          </EmptyState>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MilestoneCard({ view }: { view: ClientProjectView }) {
+  // The next incomplete milestone by due date (undated ones last).
+  const next = [...view.milestones]
+    .filter((m) => !m.completed)
+    .sort((a, b) => {
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate.getTime() - b.dueDate.getTime();
+    })[0];
+  return (
+    <section className="p-card" aria-label="Next milestone">
+      <CardHead title="Next Milestone" />
+      {next ? (
+        <div className="mt-4 flex items-center gap-4">
+          <span className="p-bigicon p-bigicon--gold" aria-hidden>
+            <CalendarDays size={25} strokeWidth={1.7} />
+          </span>
+          <div className="min-w-0">
+            <p className="p-kpi truncate">{next.name}</p>
+            <p className="p-sub mt-1">{formatDate(next.dueDate)}</p>
+            <a href="#progress" className="p-link mt-2">
+              View timeline <span aria-hidden>→</span>
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 flex items-center gap-4">
+          <span className="p-bigicon p-bigicon--gold" aria-hidden>
+            <CalendarDays size={25} strokeWidth={1.7} />
+          </span>
+          <div className="min-w-0">
+            <p className="p-kpi">To be scheduled</p>
+            <p className="p-sub mt-1">
+              We&rsquo;ll post the next milestone here once it&rsquo;s on the calendar.
+            </p>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TimelineCard({ steps }: { steps: ClientStage[] }) {
+  return (
+    <section className="p-card" aria-label="Project timeline">
+      <CardHead title="Project Timeline" />
+      <Timeline steps={steps} />
+    </section>
+  );
+}
+
+function CurrentStageCard({ view }: { view: ClientProjectView }) {
+  const label = view.currentStage?.label;
+  if (!label) {
+    return (
+      <section className="p-card" aria-label="Current stage">
+        <CardHead title="Current Stage" />
+        <EmptyState icon={Flag} title="Not started yet">
+          The current stage will appear here once the project is underway.
+        </EmptyState>
+      </section>
+    );
+  }
+  const Icon = stageIcon(label);
+  return (
+    <section className="p-card" aria-label="Current stage">
+      <CardHead title="Current Stage" />
+      <div className="mt-4 flex items-center gap-4">
+        <span className="p-bigicon p-bigicon--gold" aria-hidden>
+          <Icon size={25} strokeWidth={1.7} />
+        </span>
+        <div className="min-w-0">
+          <p className="p-kpi">{label}</p>
+          {view.currentStage?.subline && (
+            <p className="p-sub mt-1">{view.currentStage.subline}</p>
+          )}
+        </div>
+      </div>
+      <div className="my-4 h-px bg-[color:var(--line-soft)]" />
+      <p className="text-[12px] font-semibold text-[color:var(--ink-900)]">
+        What happens next?
+      </p>
+      <p className="p-sub mt-1.5">{whatNext(label)}</p>
+      <a href="#progress" className="p-link mt-3">
+        View full timeline <span aria-hidden>→</span>
+      </a>
+    </section>
+  );
+}
+
+function ActionItemsCard({
+  view,
+  full,
+}: {
+  view: ClientProjectView;
+  full?: boolean;
+}) {
+  const items = view.whatWeNeedFromYou;
+  return (
+    <section className="p-card" aria-label="Your action items">
+      <CardHead
+        title="Your Action Items"
+        action={items.length > 0 ? <span className="p-count">{items.length}</span> : undefined}
+      />
+      {items.length === 0 ? (
+        <EmptyState icon={CheckCircle2} title="You're all caught up">
+          Nothing is required from you right now. Anything we need will appear
+          here.
+        </EmptyState>
+      ) : (
+        <>
+          <ul className="mt-3 flex flex-col gap-2">
+            {items.map((item) => {
+              const label = dueLabel(item.dueDate);
+              const overdue = (dayCount(item.dueDate) ?? 0) < 0;
+              return (
+                <li key={item.id} className="p-act">
+                  <span className={`p-act__icon ${overdue ? "p-act__icon--red" : ""}`} aria-hidden>
+                    <ClipboardList size={17} strokeWidth={1.7} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="p-act__name">{item.name}</p>
+                    {(label || item.dueDate) && (
+                      <p className={`p-act__due ${overdue ? "p-act__due--red" : ""}`}>
+                        {label}
+                        {item.dueDate && (
+                          <>
+                            <span className="p-dotsep" aria-hidden>
+                              ·
+                            </span>
+                            {formatDate(item.dueDate)}
+                          </>
+                        )}
+                      </p>
+                    )}
+                    {full && item.description && (
+                      <p className="p-sub mt-1">{item.description}</p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {!full && (
+            <a href="#action-items" className="p-link mt-3.5">
+              View all action items <span aria-hidden>→</span>
+            </a>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function DocumentsCard({
+  view,
+  full,
+}: {
+  view: ClientProjectView;
+  full?: boolean;
+}) {
+  const docs = full ? view.documents : view.documents.slice(0, 5);
+  return (
+    <section className="p-card" aria-label="Documents">
+      <CardHead
+        title="Documents"
+        action={
+          !full && view.documents.length > 0 ? (
+            <a href="#documents" className="p-link">
+              View all documents <span aria-hidden>→</span>
+            </a>
+          ) : undefined
+        }
+      />
+      {docs.length === 0 ? (
+        <EmptyState icon={FileText} title="No documents shared yet">
+          Documents released to you will appear here.
+        </EmptyState>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="p-table">
+            <thead>
+              <tr>
+                <th scope="col">Document</th>
+                <th scope="col">Type</th>
+                <th scope="col">Size</th>
+                <th scope="col">Updated</th>
+                <th scope="col">
+                  <span className="sr-only">Shared by</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {docs.map((d) => {
+                const kind = fileKind(d.mimeType, d.name);
+                return (
+                  <tr key={d.id}>
+                    <td>
+                      <a
+                        href={d.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-doc__name hover:text-[color:var(--gold-strong)]"
+                      >
+                        <span
+                          className={`p-doc__kind ${kind === "PDF" ? "" : "p-doc__kind--generic"}`}
+                          aria-hidden
+                        >
+                          <FileText size={14} strokeWidth={1.8} />
+                        </span>
+                        <span className="truncate">{d.name}</span>
+                        <ExternalLink
+                          size={12}
+                          strokeWidth={1.8}
+                          className="shrink-0 text-[color:var(--ink-300)]"
+                          aria-hidden
+                        />
+                      </a>
+                    </td>
+                    <td>{kind}</td>
+                    <td>{formatSize(d.size)}</td>
+                    <td>{formatDate(d.createdAt)}</td>
+                    <td className="text-[color:var(--ink-400)]">by {company.shortName}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function InspectionsCard({
+  view,
+  full,
+}: {
+  view: ClientProjectView;
+  full?: boolean;
+}) {
+  const list = view.upcomingInspections;
+  return (
+    <section className="p-card" aria-label="Upcoming inspections">
+      <CardHead
+        title="Upcoming Inspections"
+        action={
+          !full && list.length > 0 ? (
+            <a href="#inspections" className="p-link">
+              View all
+            </a>
+          ) : undefined
+        }
+      />
+      {list.length === 0 ? (
+        <EmptyState icon={CalendarCheck2} title="No inspections scheduled">
+          We&rsquo;ll notify you when the next inspection is on the calendar.
+        </EmptyState>
+      ) : (
+        <div className="mt-2">
+          {list.map((insp) => {
+            const month = insp.dueDate
+              .toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
+              .toUpperCase();
+            const day = insp.dueDate.toLocaleDateString("en-US", {
+              day: "numeric",
+              timeZone: "UTC",
+            });
+            return (
+              <div key={insp.id} className="p-insp">
+                <span className="p-cal" aria-hidden>
+                  <span className="p-cal__mon">{month}</span>
+                  <span className="p-cal__day">{day}</span>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="p-insp__name">{insp.name}</p>
+                  <p className="p-insp__where">{formatDate(insp.dueDate)}</p>
+                </div>
+                <span className="p-badge p-badge--blue p-badge--sm shrink-0">
+                  <span aria-hidden className="p-badge__dot" />
+                  Upcoming
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function BallCard({ view }: { view: ClientProjectView }) {
+  const onClient = view.whoHasTheBall.side === "CLIENT";
+  return (
+    <section className="p-card" aria-label="Who has the ball">
+      <CardHead title="Who has the ball?" />
+      <div className="mt-4 flex items-start gap-4">
+        <span className={`p-bigicon ${onClient ? "p-bigicon--gold" : "p-bigicon--blue"}`} aria-hidden>
+          {onClient ? (
+            <User size={25} strokeWidth={1.7} />
+          ) : (
+            <Building2 size={25} strokeWidth={1.7} />
+          )}
+        </span>
+        <div className="min-w-0">
+          <p className="p-kpi">{onClient ? "Waiting on you" : company.shortName}</p>
+          <p className="p-sub mt-1">{view.whoHasTheBall.reason}</p>
+          <span
+            className={`p-badge p-badge--sm mt-2.5 ${onClient ? "p-badge--gold" : "p-badge--blue"}`}
+          >
+            <span aria-hidden className="p-badge__dot" />
+            {onClient ? "Action needed" : "With our team"}
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ActivityCard({
+  view,
+  full,
+}: {
+  view: ClientProjectView;
+  full?: boolean;
+}) {
+  const events = full ? view.activity : view.activity.slice(0, 5);
+  return (
+    <section className="p-card" aria-label="Recent activity">
+      <CardHead
+        title="Recent Activity"
+        action={
+          !full && view.activity.length > 0 ? (
+            <a href="#activity" className="p-link">
+              View all
+            </a>
+          ) : undefined
+        }
+      />
+      {events.length === 0 ? (
+        <EmptyState icon={Activity} title="No recent activity">
+          Project updates will appear here.
+        </EmptyState>
+      ) : (
+        <div className="p-feed">
+          {events.map((e) => (
+            <div key={e.id} className="p-ev">
+              <span className="p-ev__icon p-ev__icon--gold" aria-hidden>
+                <Activity size={13} strokeWidth={1.9} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="p-ev__title">{e.text}</p>
+                <p className="p-ev__when">
+                  {timeAgo(e.at)} · by {e.actor}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ── Stage detail list (Progress tab) ──────────────────────────────── */
+
+function StageList({ steps }: { steps: ClientStage[] }) {
+  return (
+    <section className="p-card" aria-label="Stage detail">
+      <CardHead title="Stage Detail" />
+      <ul className="mt-3 flex flex-col gap-2">
+        {steps.map((s, i) => {
+          const Icon = stageIcon(s.label);
+          const badge = s.current
+            ? { cls: "p-badge--gold", word: "Current" }
+            : s.state === "done"
+              ? { cls: "p-badge--green", word: "Completed" }
+              : s.state === "active"
+                ? { cls: "p-badge--green", word: "In progress" }
+                : { cls: "p-badge--gray", word: "Upcoming" };
+          return (
+            <li key={`${s.label}-${i}`} className="p-act">
+              <span className="p-act__icon" aria-hidden>
+                <Icon size={17} strokeWidth={1.7} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="p-act__name">{s.label}</p>
+                {s.total > 0 && (
+                  <p className="p-act__due">
+                    {s.done} of {s.total} tasks completed
+                  </p>
+                )}
+              </div>
+              <span className={`p-badge p-badge--sm shrink-0 ${badge.cls}`}>
+                <span aria-hidden className="p-badge__dot" />
+                {badge.word}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
 
 /* ── The page ──────────────────────────────────────────────────────── */
@@ -417,411 +858,131 @@ export function ClientProjectPage({
   view: ClientProjectView;
   viewerLabel?: string | null;
 }) {
-  const actionCount = view.whatWeNeedFromYou.length;
-  const nextAction = view.whatWeNeedFromYou[0] ?? null;
-  const monthsLabel = monthsToGoLabel(view.endDate);
   const typeLabel = view.type ? (TYPE_LABEL[view.type] ?? view.type) : null;
   const steps: ClientStage[] = view.stages ?? gateSteps(view.gate);
-  const ballOnClient = view.whoHasTheBall.side === "CLIENT";
+
+  const overview = (
+    <div className="p-grid">
+      <div className="p-colmain">
+        <div className="p-row3">
+          <HealthCard view={view} />
+          <ProgressCard view={view} />
+          <MilestoneCard view={view} />
+        </div>
+        <TimelineCard steps={steps} />
+        <div className="p-row2">
+          <CurrentStageCard view={view} />
+          <ActionItemsCard view={view} />
+        </div>
+        <DocumentsCard view={view} />
+      </div>
+      <div className="p-colrail">
+        <InspectionsCard view={view} />
+        <BallCard view={view} />
+        <ActivityCard view={view} />
+      </div>
+    </div>
+  );
+
+  const progress = (
+    <div className="p-colmain mt-[18px]">
+      <TimelineCard steps={steps} />
+      <div className="p-row2">
+        <CurrentStageCard view={view} />
+        <StageList steps={steps} />
+      </div>
+    </div>
+  );
 
   return (
     <PortalShell
       viewer={{ label: viewerLabel ?? null }}
-      meta={{
-        projectNumber: view.projectNumber,
-        typeLabel,
-        status: { label: view.status.label, tone: view.status.tone },
-      }}
+      project={{ number: view.projectNumber, name: view.name }}
       contactEmail={contact.email}
     >
-      <div className="w-full px-5 py-6 sm:px-7 sm:py-7 lg:px-8 lg:py-8">
-        <div className="flex flex-col gap-5 sm:gap-6">
-          {/* ── HERO ────────────────────────────────────────────── */}
-          <section
-            id="hero"
-            className="p-card p-reveal scroll-mt-[96px] overflow-hidden"
-          >
-            <div className="p-hero">
-              {/* A licensed architectural photograph from the firm's own curated
-                  set, picked deterministically per project. Decorative — empty
-                  alt, no caption — because it is NOT a photo of the client's
-                  property; see hero-image.ts. A real Project.coverImageUrl
-                  would take precedence here once that column exists. */}
-              <div className="p-hero__media">
-                <Image
-                  src={heroImageFor(view.id)}
-                  alt=""
-                  fill
-                  priority
-                  sizes="(max-width: 640px) 100vw, 420px"
-                  className="object-cover"
-                />
-                <span className="p-hero__wash" aria-hidden />
-                <span
-                  className="p-hero__accent"
-                  style={{ background: view.coverColor }}
-                  aria-hidden
-                />
-              </div>
-
-              {/* Project info */}
-              <div className="p-hero__body">
-                <h1 className="p-display p-hero__title">{view.name}</h1>
-                <p className="p-hero__sentence">{view.friendlySentence}</p>
-                {view.location && (
-                  <p className="p-hero__loc">
-                    <MapPin size={15} strokeWidth={1.8} aria-hidden />
-                    {view.location}
-                  </p>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* ── FOUR METRICS ────────────────────────────────────── */}
-          <div className="p-reveal p-reveal2 grid grid-cols-2 gap-4 sm:gap-5 xl:grid-cols-4">
-            <StatCard
-              label="Overall Progress"
-              visual={
-                view.progress ? (
-                  <ProgressRing percent={view.progress.percent} />
-                ) : undefined
-              }
-              icon={CheckCircle2}
-            >
-              {view.progress ? (
-                <>
-                  <p className="p-stat__value">
-                    {view.progress.done} of {view.progress.total}
-                  </p>
-                  <p className="p-stat__sub">
-                    {monthsLabel ? `tasks done · ${monthsLabel}` : "tasks done"}
-                  </p>
-                </>
-              ) : (
-                <p className="p-stat__value p-stat__value--quiet">Not started yet</p>
-              )}
-            </StatCard>
-
-            <StatCard label="Current Stage" icon={Flag}>
-              <p className="p-stat__value">{view.currentStage?.label ?? "—"}</p>
-              {view.currentStage?.subline && (
-                <p className="p-stat__sub">{view.currentStage.subline}</p>
-              )}
-            </StatCard>
-
-            <StatCard
-              label="Next Action"
-              icon={ClipboardList}
-              trailing={actionCount > 0 ? <CountBadge n={actionCount} /> : undefined}
-            >
-              {nextAction ? (
-                <>
-                  <p className="p-stat__value p-stat__value--sm line-clamp-2">
-                    {nextAction.name}
-                  </p>
-                  <a href="#action-items" className="p-link mt-2">
-                    <span className="p-link__ul">View action items</span>
-                    <span className="p-link__arrow" aria-hidden>→</span>
-                  </a>
-                </>
-              ) : (
-                <p className="p-stat__value p-stat__value--quiet">
-                  You&rsquo;re all caught up
-                </p>
-              )}
-            </StatCard>
-
-            <StatCard label="Target Completion" icon={CalendarDays}>
-              <p className="p-stat__value">{formatDate(view.endDate)}</p>
-              <p className="p-stat__sub">
-                {monthsLabel ? "On the current schedule" : "Not yet on the calendar"}
-              </p>
-            </StatCard>
-          </div>
-
-          {/* ── STAGE STEPPER ───────────────────────────────────── */}
-          <section className="p-card p-reveal p-reveal3 p-6 sm:p-7">
-            <div className="flex items-center justify-between gap-3">
-              <SectionTitle>Project stages</SectionTitle>
-              {view.currentStage && (
-                <span className="hidden items-center gap-2.5 sm:flex">
-                  <span className="text-[13px] text-[color:var(--ink-400)]">
-                    Current stage
-                  </span>
-                  <span className="p-pill p-pill--gold">
-                    <span aria-hidden className="p-pill__dot" />
-                    {view.currentStage.label}
-                  </span>
-                </span>
-              )}
-            </div>
-            <div className="mt-7">
-              <Stepper steps={steps} />
-            </div>
-          </section>
-
-          {/* ── BODY: action / documents / rail ─────────────────── */}
-          <div className="p-body p-reveal p-reveal4">
-            {/* PRIMARY — What we need from you */}
-            <section
-              id="action-items"
-              className="p-area-action p-card scroll-mt-[96px] overflow-hidden"
-            >
-              <div className="border-l-[3px] border-[color:var(--gold-500)] p-6 sm:p-7">
-                <div className="flex items-center justify-between gap-2">
-                  <SectionTitle>What we need from you</SectionTitle>
-                  {actionCount > 0 && <CountBadge n={actionCount} />}
-                </div>
-
-                {actionCount === 0 ? (
-                  <div className="mt-1">
-                    <EmptyState
-                      icon={
-                        <CheckCircle2 size={22} strokeWidth={1.6} aria-hidden />
-                      }
-                    >
-                      Nothing right now — there is no action waiting on you. We
-                      will post anything we need here.
-                    </EmptyState>
-                  </div>
-                ) : (
-                  <>
-                    <p className="mt-2 text-[14px] text-[color:var(--ink-600)]">
-                      These items are waiting on you before we can move forward.
-                    </p>
-                    <ul className="mt-5 space-y-3.5">
-                      {view.whatWeNeedFromYou.map((item) => {
-                        const label = dueLabel(item.dueDate);
-                        const overdue = (dayCount(item.dueDate) ?? 0) < 0;
-                        return (
-                          <li
-                            key={item.id}
-                            className={`p-row flex items-start gap-4 px-5 py-4 ${
-                              overdue ? "p-row--alert" : "p-row--tinted"
-                            }`}
-                          >
-                            <span
-                              aria-hidden
-                              className="mt-0.5 h-9 w-1 shrink-0 rounded-full"
-                              style={{
-                                background: overdue
-                                  ? "var(--alert-dot)"
-                                  : "var(--gold-400)",
-                              }}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[15px] font-medium leading-snug text-[color:var(--ink-900)]">
-                                {item.name}
-                              </p>
-                              {item.description && (
-                                <p className="mt-1 text-[13px] leading-snug text-[color:var(--ink-500)]">
-                                  {item.description}
-                                </p>
-                              )}
-                            </div>
-                            {label && (
-                              <span
-                                className={`p-pill shrink-0 ${overdue ? "p-pill--alert" : "p-pill--gold"}`}
-                              >
-                                <span aria-hidden className="p-pill__dot" />
-                                {label}
-                              </span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </>
-                )}
-              </div>
-            </section>
-
-            {/* Recent documents */}
-            <section
-              id="documents"
-              className="p-area-docs p-card scroll-mt-[96px] p-6 sm:p-7"
-            >
-              <SectionTitle>Recent documents</SectionTitle>
-              {view.documents.length === 0 ? (
-                <EmptyState
-                  icon={
-                    <FileText size={22} strokeWidth={1.6} aria-hidden />
-                  }
-                >
-                  No documents have been shared yet. Anything we release to you
-                  will appear here.
-                </EmptyState>
-              ) : (
-                <ul className="mt-4 flex flex-col gap-1">
-                  {view.documents.map((d) => (
-                    <li key={d.id}>
-                      <a
-                        href={d.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-row group flex items-center gap-3.5 px-3 py-3"
-                      >
-                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[color:var(--gold-tint)] text-[10.5px] font-bold tracking-wide text-[color:var(--gold-ink)]">
-                          {fileKind(d.mimeType, d.name)}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[14.5px] font-medium text-[color:var(--ink-800)] transition-colors group-hover:text-[color:var(--gold-ink)]">
-                            {d.name}
-                          </span>
-                          <span className="mt-0.5 block text-[12.5px] text-[color:var(--ink-400)]">
-                            {formatDate(d.createdAt)} · {formatSize(d.size)}
-                          </span>
-                        </span>
-                        <span
-                          aria-hidden
-                          className="shrink-0 text-[color:var(--ink-300)] transition-all group-hover:text-[color:var(--gold-600)]"
-                        >
-                          <ExternalLink size={16} strokeWidth={1.8} />
-                        </span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            {/* RAIL — inspections / who has the ball / activity */}
-            <div className="p-area-rail">
-              {/* Upcoming inspections */}
-              <section
-                id="inspections"
-                className="p-card scroll-mt-[96px] p-6 sm:p-7"
-              >
-                <SectionTitle>Upcoming inspections</SectionTitle>
-                {view.upcomingInspections.length === 0 ? (
-                  <EmptyState
-                    icon={
-                      <CalendarCheck2 size={22} strokeWidth={1.6} aria-hidden />
-                    }
-                  >
-                    No inspections are scheduled right now. We&rsquo;ll list any
-                    site visit here once it&rsquo;s on the calendar.
-                  </EmptyState>
-                ) : (
-                  <ul className="mt-4 space-y-3">
-                    {view.upcomingInspections.map((insp) => (
-                      <li key={insp.id} className="flex items-center gap-3.5">
-                        <DateChip date={insp.dueDate} />
-                        <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium text-[color:var(--ink-800)]">
-                          {insp.name}
-                        </span>
-                        <span className="p-pill p-pill--gold shrink-0">
-                          <span aria-hidden className="p-pill__dot" />
-                          Upcoming
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-
-              {/* Who has the ball */}
-              <section className="p-card p-6 sm:p-7">
-                <SectionTitle>Who has the ball</SectionTitle>
-                <div
-                  className={`mt-4 flex items-center gap-4 rounded-xl border p-4 ${
-                    ballOnClient
-                      ? "border-[color:var(--gold-100)] bg-[color:var(--gold-wash)]"
-                      : "border-[color:var(--line)] bg-[color:var(--surface-2)]"
-                  }`}
-                >
-                  <span
-                    className={`grid h-12 w-12 shrink-0 place-items-center rounded-full ${
-                      ballOnClient
-                        ? "bg-[color:var(--surface)] text-[color:var(--gold-ink)] ring-2 ring-[color:var(--gold-400)]"
-                        : "bg-[color:var(--surface)] ring-1 ring-[color:var(--line-strong)]"
-                    }`}
-                  >
-                    {view.whoHasTheBall.side === "US" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src="/ttc/img/logo-square.png"
-                        alt=""
-                        width={28}
-                        height={28}
-                        className="h-7 w-7 rounded-full object-contain"
-                      />
-                    ) : (
-                      <User size={22} strokeWidth={1.7} aria-hidden />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[16px] font-semibold text-[color:var(--ink-900)]">
-                      {view.whoHasTheBall.side === "US"
-                        ? "Waiting on Us"
-                        : "Waiting on Client"}
-                    </p>
-                    <p className="mt-0.5 text-[13px] leading-snug text-[color:var(--ink-500)]">
-                      {view.whoHasTheBall.reason}
-                    </p>
-                  </div>
-                  <span
-                    className={`p-pill shrink-0 ${ballOnClient ? "p-pill--gold" : "p-pill--neutral"}`}
-                  >
-                    <span aria-hidden className="p-pill__dot" />
-                    {ballOnClient ? "Action needed" : "With our team"}
-                  </span>
-                </div>
-              </section>
-
-              {/* Project activity */}
-              <section id="activity" className="p-card scroll-mt-[96px] p-6 sm:p-7">
-                <SectionTitle>Project activity</SectionTitle>
-                {view.activity.length === 0 ? (
-                  <EmptyState
-                    icon={
-                      <Clock3 size={22} strokeWidth={1.6} aria-hidden />
-                    }
-                  >
-                    No activity to show yet. Milestones, documents and updates
-                    will appear here as the project moves.
-                  </EmptyState>
-                ) : (
-                  <ul className="p-timeline mt-5 space-y-4 pl-1">
-                    {view.activity.map((e) => (
-                      <li key={e.id} className="flex gap-4">
-                        <span aria-hidden className="p-tl-dot" />
-                        <div className="min-w-0 flex-1 -mt-0.5">
-                          <p className="text-[14px] leading-snug text-[color:var(--ink-800)]">
-                            {e.text}
-                          </p>
-                          <p className="mt-0.5 text-[12.5px] text-[color:var(--ink-400)]">
-                            {timeAgo(e.at)} · by {e.actor}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </div>
-          </div>
-
-          {/* ── FOOTER / private-portal notice ──────────────────── */}
-          <footer className="mt-2 border-t border-[color:var(--line)] pt-6">
-            <p className="text-[12.5px] leading-relaxed text-[color:var(--ink-400)]">
-              {/* company.name already ends in "Inc." — don't add a second period. */}
-              Prepared by {company.name} This page is private to you — please do
-              not forward the link.
-            </p>
-            <p className="mt-1.5 text-[12.5px] text-[color:var(--ink-400)]">
-              Questions about this project? Email{" "}
-              <a
-                href={`mailto:${contact.email}`}
-                className="font-medium text-[color:var(--gold-ink)] hover:underline"
-              >
-                {contact.email}
-              </a>
-              .
-            </p>
-          </footer>
+      <div className="p-work">
+        {/* ── Project workspace header ─────────────────────────── */}
+        <h1 className="p-ptitle">{view.name}</h1>
+        <div className="p-meta">
+          {view.projectNumber && (
+            <span className="p-chip p-chip--num">
+              <CalendarDays size={13} strokeWidth={1.8} aria-hidden />
+              {view.projectNumber}
+            </span>
+          )}
+          {typeLabel && (
+            <span className="p-chip">
+              <Landmark size={13} strokeWidth={1.8} aria-hidden />
+              {typeLabel}
+            </span>
+          )}
+          {view.location && (
+            <span className="p-chip">
+              <MapPin size={13} strokeWidth={1.8} aria-hidden />
+              {view.location}
+            </span>
+          )}
+          <StatusBadge status={view.status} />
         </div>
+        <p className="p-desc">
+          Monitor progress, key milestones, documents, and required actions for
+          this project.
+        </p>
+
+        {/* ── Tabs + panels — all real surfaces over the same data ── */}
+        <PortalTabs
+          tabs={[
+            { key: "overview", label: "Overview" },
+            { key: "progress", label: "Progress" },
+            { key: "action-items", label: "Action Items" },
+            { key: "documents", label: "Documents" },
+            { key: "inspections", label: "Inspections" },
+            {
+              key: "messages",
+              label: "Messages",
+              disabled: true,
+              disabledHint: "Direct messaging with your engineer is coming soon.",
+            },
+            { key: "activity", label: "Activity" },
+          ]}
+          panels={{
+            overview,
+            progress,
+            "action-items": (
+              <div className="p-colmain mt-[18px]">
+                <ActionItemsCard view={view} full />
+              </div>
+            ),
+            documents: (
+              <div className="p-colmain mt-[18px]">
+                <DocumentsCard view={view} full />
+              </div>
+            ),
+            inspections: (
+              <div className="p-colmain mt-[18px]">
+                <InspectionsCard view={view} full />
+              </div>
+            ),
+            activity: (
+              <div className="p-colmain mt-[18px]">
+                <ActivityCard view={view} full />
+              </div>
+            ),
+          }}
+        />
+
+        {/* ── Footer / private-portal notice ───────────────────── */}
+        <footer className="p-foot">
+          <p>
+            {/* company.name already ends in "Inc." — don't add a second period. */}
+            Prepared by {company.name} This page is private to you — please do
+            not forward the link.
+          </p>
+          <p className="mt-0.5">
+            Questions about this project? Email{" "}
+            <a href={`mailto:${contact.email}`}>{contact.email}</a>.
+          </p>
+        </footer>
       </div>
     </PortalShell>
   );
