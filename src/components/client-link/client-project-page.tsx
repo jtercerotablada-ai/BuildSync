@@ -12,6 +12,7 @@ import {
   Flag,
   Landmark,
   MapPin,
+  MessageSquare,
   ShieldCheck,
   User,
   Wrench,
@@ -22,6 +23,7 @@ import type {
   ClientStage,
 } from "@/lib/client-link/projection";
 import { company, contact } from "@/lib/ttc/site";
+import { PortalComposer } from "./portal-composer";
 import { PortalShell } from "./portal-shell";
 import { PortalTabs } from "./portal-tabs";
 
@@ -808,6 +810,84 @@ function ActivityCard({
   );
 }
 
+/* ── Messages — the firm's @cliente-tagged project-chat messages ───── */
+
+function MessagesCard({ view, token }: { view: ClientProjectView; token: string }) {
+  const msgs = view.messages;
+  return (
+    <section className="p-card" aria-label="Messages">
+      <CardHead title="Messages" />
+      {msgs.length === 0 ? (
+        <EmptyState icon={MessageSquare} title="No messages yet">
+          When our team posts an update addressed to you — or you write to us
+          below — it appears here.
+        </EmptyState>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-3">
+          {msgs.map((m) => {
+            const mine = m.from === "CLIENT";
+            return (
+              <li
+                key={m.id}
+                className={`flex items-start gap-3 ${mine ? "flex-row-reverse" : ""}`}
+              >
+                {mine ? (
+                  <span
+                    aria-hidden
+                    className="mt-0.5 grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full bg-[color:var(--gold)] text-[11px] font-bold text-white"
+                  >
+                    {m.authorName
+                      .trim()
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((w) => w[0])
+                      .join("")
+                      .toUpperCase()}
+                  </span>
+                ) : (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src="/ttc/img/logo-square.png"
+                    alt=""
+                    width={30}
+                    height={30}
+                    className="mt-0.5 h-[30px] w-[30px] shrink-0 rounded-full border border-[color:var(--line)] bg-white object-contain"
+                  />
+                )}
+                <div
+                  className={`min-w-0 max-w-[85%] rounded-lg border px-3.5 py-2.5 ${
+                    mine
+                      ? "rounded-tr-none border-[color:var(--gold-pale-line)] bg-[color:var(--gold-pale)]"
+                      : "rounded-tl-none border-[color:var(--line-soft)] bg-[color:var(--surface-2)]"
+                  }`}
+                >
+                  <p className="flex items-baseline gap-2">
+                    <span className="text-[12.5px] font-semibold text-[color:var(--ink-900)]">
+                      {mine ? "You" : m.authorName}
+                    </span>
+                    {!mine && m.authorName !== company.shortName && (
+                      <span className="text-[11px] text-[color:var(--ink-400)]">
+                        {company.shortName}
+                      </span>
+                    )}
+                    <span className="text-[11px] text-[color:var(--ink-400)]">
+                      {timeAgo(m.at)}
+                    </span>
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-[color:var(--ink-600)]">
+                    {m.content}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <PortalComposer token={token} />
+    </section>
+  );
+}
+
 /* ── Stage detail list (Progress tab) ──────────────────────────────── */
 
 function StageList({ steps }: { steps: ClientStage[] }) {
@@ -854,9 +934,12 @@ function StageList({ steps }: { steps: ClientStage[] }) {
 export function ClientProjectPage({
   view,
   viewerLabel,
+  token,
 }: {
   view: ClientProjectView;
   viewerLabel?: string | null;
+  /** The share-link token from the URL — the reply box POSTs with it. */
+  token: string;
 }) {
   const typeLabel = view.type ? (TYPE_LABEL[view.type] ?? view.type) : null;
   const steps: ClientStage[] = view.stages ?? gateSteps(view.gate);
@@ -937,12 +1020,7 @@ export function ClientProjectPage({
             { key: "action-items", label: "Action Items" },
             { key: "documents", label: "Documents" },
             { key: "inspections", label: "Inspections" },
-            {
-              key: "messages",
-              label: "Messages",
-              disabled: true,
-              disabledHint: "Direct messaging with your engineer is coming soon.",
-            },
+            { key: "messages", label: "Messages" },
             { key: "activity", label: "Activity" },
           ]}
           panels={{
@@ -961,6 +1039,11 @@ export function ClientProjectPage({
             inspections: (
               <div className="p-colmain mt-[18px]">
                 <InspectionsCard view={view} full />
+              </div>
+            ),
+            messages: (
+              <div className="p-colmain mt-[18px]">
+                <MessagesCard view={view} token={token} />
               </div>
             ),
             activity: (

@@ -131,6 +131,45 @@ export interface ClientInspection {
   dueDate: Date;
 }
 
+/** One message on the client thread — the firm's (tagged @cliente) or the
+ *  client's own reply, posted through the share link. */
+export interface ClientMessage {
+  id: string;
+  content: string;
+  at: Date;
+  /** Who is speaking: the firm, or the client themselves via this link. */
+  from: "FIRM" | "CLIENT";
+  /** Display name: the real author (Juan's call — the client should see WHO
+   *  wrote it), or the reply's own link label. Never an email address. */
+  authorName: string;
+}
+
+/**
+ * The message-visibility rule, in one pure, testable place: a project-chat
+ * message reaches the client ONLY when the firm explicitly tagged it with
+ * @cliente (or @client — the check is a case-insensitive "@client" substring,
+ * which matches both). Everything else in the internal chat stays internal.
+ *
+ * This is opt-in per message by construction: the default for a new message is
+ * invisible, and no bulk setting can flip old messages into the portal. The
+ * SQL query narrows on the same substring; this function is the final gate
+ * re-applied to every row, so the two can never drift apart silently.
+ */
+export const CLIENT_MESSAGE_TAG = "@client";
+export function isClientTaggedMessage(content: string): boolean {
+  return content.toLowerCase().includes(CLIENT_MESSAGE_TAG);
+}
+
+/** A message reaches the client thread when the firm tagged it — or when the
+ *  client themselves sent it through a share link (clientLinkId set by the
+ *  public reply endpoint, and only by it). */
+export function isClientVisibleMessage(m: {
+  content: string;
+  clientLinkId: string | null;
+}): boolean {
+  return m.clientLinkId !== null || isClientTaggedMessage(m.content);
+}
+
 /** The friendly, non-alarming translation of the firm's private status. */
 export interface ClientStatusBadge {
   label: string;
@@ -202,6 +241,8 @@ export interface ClientProjectView {
   whatWeNeedFromYou: ClientActionItem[];
   documents: ClientDocument[];
   upcomingInspections: ClientInspection[];
+  /** Project-chat messages the firm tagged @cliente — nothing else, ever. */
+  messages: ClientMessage[];
   whoHasTheBall: ClientBallHolder;
   activity: ClientActivityEvent[];
   /** Omitted entirely when no status update carries a clientSummary. */
@@ -684,6 +725,7 @@ export async function buildClientProjectView(
     rootTasks,
     sectionRows,
     upcomingInspections,
+    taggedMessages,
   ] = await Promise.all([
     // Milestones only, and never a private one. No assignee, no priority:
     // who inside the firm is doing it is not the client's business, and a
@@ -740,6 +782,29 @@ export async function buildClientProjectView(
       orderBy: { position: "asc" },
     }),
     buildUpcomingInspections(projectId),
+    // The client thread: messages the firm tagged @cliente, plus the client's
+    // own replies (clientLinkId is set only by the public reply endpoint).
+    // author is an explicit nested select of NAME ONLY — the client may see
+    // who on the team wrote to them (Juan's call), never an email or id.
+    prisma.message.findMany({
+      where: {
+        projectId,
+        OR: [
+          { content: { contains: CLIENT_MESSAGE_TAG, mode: "insensitive" } },
+          { clientLinkId: { not: null } },
+        ],
+      },
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
+        clientLinkId: true,
+        clientAuthorLabel: true,
+        author: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
   ]);
 
   const status = toClientStatus(project.status);
@@ -810,6 +875,22 @@ export async function buildClientProjectView(
     documents: documentViews,
 
     upcomingInspections,
+
+    // Chronological (oldest → newest, like a chat), re-gated through the pure
+    // rule so the SQL narrowing and the policy can never drift apart.
+    messages: taggedMessages
+      .filter((m) => isClientVisibleMessage(m))
+      .reverse()
+      .map((m) => ({
+        id: m.id,
+        content: m.content,
+        at: m.createdAt,
+        from: m.clientLinkId !== null ? ("CLIENT" as const) : ("FIRM" as const),
+        authorName:
+          m.clientLinkId !== null
+            ? m.clientAuthorLabel || "Client"
+            : m.author?.name || "Tercero Tablada",
+      })),
 
     whoHasTheBall: computeWhoHasTheBall(
       whatWeNeedFromYou.length,

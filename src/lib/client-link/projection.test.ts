@@ -22,6 +22,9 @@ import {
   gateCurrentStage,
   computeWhoHasTheBall,
   buildClientActivityFeed,
+  isClientTaggedMessage,
+  isClientVisibleMessage,
+  CLIENT_MESSAGE_TAG,
 } from "./projection";
 
 describe("CLIENT_PROJECT_SELECT", () => {
@@ -366,5 +369,50 @@ describe("buildClientActivityFeed", () => {
     // Newest first: 2026-08-10 leads.
     expect(feed[0].at.getTime()).toBe(d("2026-08-10").getTime());
     expect(feed[0].at.getTime()).toBeGreaterThan(feed[1].at.getTime());
+  });
+});
+
+describe("isClientTaggedMessage — the chat visibility gate", () => {
+  it("admits a message ONLY when the firm typed the @cliente/@client tag", () => {
+    expect(isClientTaggedMessage("Hola @cliente, la inspección quedó confirmada")).toBe(true);
+    expect(isClientTaggedMessage("Reminder for the @client about documents")).toBe(true);
+  });
+
+  it("is case-insensitive, so @Cliente and @CLIENT still reach the client", () => {
+    expect(isClientTaggedMessage("@Cliente por favor confirmar la fecha")).toBe(true);
+    expect(isClientTaggedMessage("hey @CLIENTE — update attached")).toBe(true);
+  });
+
+  it("rejects everything untagged — internal chat stays internal by default", () => {
+    expect(isClientTaggedMessage("El budget se pasó, hablar con el subcontratista")).toBe(false);
+    expect(isClientTaggedMessage("")).toBe(false);
+    // Mentioning the WORD client without the @ tag is not an opt-in.
+    expect(isClientTaggedMessage("call the client tomorrow")).toBe(false);
+    expect(isClientTaggedMessage("cliente quiere otra fecha")).toBe(false);
+  });
+
+  it("the tag constant is the @client prefix both spellings share", () => {
+    // The SQL contains-filter and this function both build on this value;
+    // pinning it stops either side drifting to a rule the other doesn't apply.
+    expect(CLIENT_MESSAGE_TAG).toBe("@client");
+  });
+});
+
+describe("isClientVisibleMessage — the two-way thread gate", () => {
+  it("admits the firm's tagged messages and the client's own replies", () => {
+    expect(
+      isClientVisibleMessage({ content: "@cliente inspection confirmed", clientLinkId: null })
+    ).toBe(true);
+    // A client reply is visible even without the tag — clientLinkId is set
+    // ONLY by the public reply endpoint, so it is proof of origin.
+    expect(
+      isClientVisibleMessage({ content: "Thanks, works for us", clientLinkId: "lnk_1" })
+    ).toBe(true);
+  });
+
+  it("keeps plain internal chat internal", () => {
+    expect(
+      isClientVisibleMessage({ content: "internal: negotiate the sub's quote", clientLinkId: null })
+    ).toBe(false);
   });
 });

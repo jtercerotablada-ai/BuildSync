@@ -159,6 +159,9 @@ export async function GET(
         createdAt: m.createdAt.toISOString(),
         updatedAt: m.updatedAt.toISOString(),
         author: m.author,
+        // Set only on replies posted through a client share link (authorId is
+        // null there) — the feed labels these "<label> (Client)".
+        clientAuthorLabel: m.clientAuthorLabel,
         reactions: Object.values(reactionsByEmoji).sort(
           (a, b) => b.count - a.count
         ),

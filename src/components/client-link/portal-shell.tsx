@@ -4,20 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Bell,
-  Briefcase,
   CalendarDays,
   Check,
   ChevronDown,
   ChevronRight,
-  FileText,
   HelpCircle,
-  Home,
-  ListChecks,
+  LayoutDashboard,
   Lock,
   Mail,
   Menu,
   MessageSquare,
-  SearchCheck,
   ShieldQuestion,
   User,
   X,
@@ -60,22 +56,17 @@ function initialsFrom(label: string): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-/** Which rail item lights up for each workspace tab. Inside a project the
- *  rail highlights "Projects" for the project-level tabs, per the reference. */
+/** Which rail item lights up for each workspace tab. The portal is ONE
+ *  surface (its sections are the workspace tabs), so the rail carries just
+ *  that surface plus its inbox — Juan's call: duplicating every tab in the
+ *  rail was noise on a single-project link. */
 const RAIL_FOR_TAB: Record<string, string> = {
-  overview: "projects",
-  progress: "projects",
-  activity: "projects",
-  "action-items": "tasks",
-  documents: "documents",
-  inspections: "inspections",
+  messages: "messages",
 };
 
 const NAV: { key: string; label: string; hash: string; icon: LucideIcon }[] = [
-  { key: "home", label: "Home", hash: "overview", icon: Home },
-  { key: "projects", label: "Projects", hash: "overview", icon: Briefcase },
-  { key: "tasks", label: "Tasks", hash: "action-items", icon: ListChecks },
-  { key: "documents", label: "Documents", hash: "documents", icon: FileText },
+  { key: "portal", label: "Client Portal", hash: "overview", icon: LayoutDashboard },
+  { key: "messages", label: "Messages", hash: "messages", icon: MessageSquare },
 ];
 
 export function PortalShell({
@@ -90,7 +81,7 @@ export function PortalShell({
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [rail, setRail] = useState("projects");
+  const [rail, setRail] = useState("portal");
   const [menu, setMenu] = useState<null | "user" | "account" | "help" | "crumb">(null);
   const userWrapRef = useRef<HTMLDivElement>(null);
   const accountWrapRef = useRef<HTMLDivElement>(null);
@@ -105,7 +96,7 @@ export function PortalShell({
   useEffect(() => {
     const apply = () => {
       const raw = window.location.hash.replace(/^#/, "");
-      setRail(RAIL_FOR_TAB[raw] ?? "projects");
+      setRail(RAIL_FOR_TAB[raw] ?? "portal");
     };
     apply();
     window.addEventListener("hashchange", apply);
@@ -234,30 +225,6 @@ export function PortalShell({
               </a>
             );
           })}
-
-          {/* Messages: a two-way inbox does not exist — honestly deferred. */}
-          <span
-            className="p-nav-item p-nav-item--disabled"
-            aria-disabled="true"
-            title="Direct messaging with your engineer is coming soon."
-          >
-            <MessageSquare size={19} strokeWidth={1.7} aria-hidden />
-            Messages
-            <span className="p-nav-item__soon">Soon</span>
-          </span>
-
-          <a
-            href="#inspections"
-            aria-current={rail === "inspections" ? "page" : undefined}
-            className={`p-nav-item ${rail === "inspections" ? "p-nav-item--active" : ""}`}
-            onClick={(e) => {
-              e.preventDefault();
-              goTab("inspections");
-            }}
-          >
-            <SearchCheck size={19} strokeWidth={1.7} aria-hidden />
-            Inspections
-          </a>
 
           <div className="p-nav__divider" />
 

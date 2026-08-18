@@ -32,6 +32,10 @@ const publicPrefixes = [
   // The trailing slash keeps this from ever matching a future /projects
   // or /portal route by prefix.
   "/p/",
+  // The share link's ONE write endpoint (the client reply box). Same trust
+  // model as the page: the token in the path is the credential, and the
+  // route 404s identically for unknown/revoked/expired links.
+  "/api/p/",
 ];
 
 // TTC public pages (marketing / informational) - no auth required.

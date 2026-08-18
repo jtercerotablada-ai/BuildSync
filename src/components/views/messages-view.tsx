@@ -104,6 +104,8 @@ interface MessageRow {
   isPinned: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Present only on replies a client posted through a share link. */
+  clientAuthorLabel?: string | null;
   author: {
     id: string;
     name: string | null;
@@ -1665,7 +1667,10 @@ function MessageItem({
   const replyCount = message.replyCount ?? 0;
   const hasThread = !isReply && replyCount > 0;
   const m = message;
-  const authorName = m.author?.name || m.author?.email || "Unknown";
+  // A client reply from a share link has no User row — its label IS the author.
+  const authorName = m.clientAuthorLabel
+    ? `${m.clientAuthorLabel} (Client)`
+    : m.author?.name || m.author?.email || "Unknown";
   const initial = (authorName).charAt(0).toUpperCase();
   const wasEdited = m.updatedAt !== m.createdAt;
 

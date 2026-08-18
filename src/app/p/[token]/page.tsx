@@ -36,5 +36,5 @@ export default async function Page({
   // `link.label` is the ONLY identity a password-less link legitimately knows
   // (e.g. "Board president"). It is already resolved and client-safe — passing
   // it is presentational, not a new read, and this route stays Prisma-free.
-  return <ClientProjectPage view={view} viewerLabel={link.label} />;
+  return <ClientProjectPage view={view} viewerLabel={link.label} token={token} />;
 }

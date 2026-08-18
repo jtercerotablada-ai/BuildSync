@@ -1241,6 +1241,14 @@ model Message {
   portfolioId String?
   authorId    String?
 
+  // Set ONLY by the public share-link reply endpoint: which client link sent
+  // this message, and the label to display internally ("Board president
+  // (Client)"). authorId stays null for these — a password-less client has no
+  // User row, and these two columns are what keep them from rendering as
+  // "Unknown" in the project chat.
+  clientLinkId      String?
+  clientAuthorLabel String?
+
   // Threading — replies point at the root they belong to. Roots
   // have parentMessageId = null. We don't support nested-nested
   // (replies-to-replies) on purpose; flatter threads read better.

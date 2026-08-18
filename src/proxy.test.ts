@@ -322,6 +322,15 @@ describe("isPublicRoute — client share links", () => {
     expect(isPublicRoute("/p")).toBe(false);
   });
 
+  it("opens the reply endpoint — and ONLY it — under /api/p/", () => {
+    // The client reply box POSTs here with the token as its credential.
+    expect(isPublicRoute(`/api/p/${token}/messages`)).toBe(true);
+    // The trailing slash keeps every other /api route private.
+    expect(isPublicRoute("/api/p")).toBe(false);
+    expect(isPublicRoute("/api/projects")).toBe(false);
+    expect(isPublicRoute("/api/portfolios")).toBe(false);
+  });
+
   it("keeps the authenticated app behind the wall", () => {
     expect(isPublicRoute("/dashboard")).toBe(false);
     expect(isPublicRoute("/my-tasks")).toBe(false);
