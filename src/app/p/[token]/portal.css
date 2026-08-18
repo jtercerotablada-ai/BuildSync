@@ -219,7 +219,7 @@
 
 /* ── Stage stepper — larger nodes, precise connectors ──────────────── */
 .p-step { position: relative; display: flex; min-width: 0; flex: 1 1 0%; flex-direction: column; align-items: center; }
-.p-step__track { position: relative; display: flex; align-items: center; width: 100%; height: 34px; }
+.p-step__track { position: relative; display: flex; align-items: center; width: 100%; height: 44px; }
 .p-step__seg { height: 2.5px; flex: 1 1 0%; background: var(--line-strong); border-radius: 2px; }
 .p-step__seg--fill { background: var(--gold-300); }
 .p-step__seg--hidden { visibility: hidden; }
@@ -229,31 +229,41 @@
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   flex: 0 0 auto;
   background: var(--surface);
+  transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
 }
-.p-node--upcoming { border: 2px solid var(--line-strong); }
-.p-node--upcoming .p-node__dot { width: 8px; height: 8px; border-radius: 999px; background: var(--ink-300); }
 
-.p-node--done { background: var(--ok-wash); border: 2px solid rgba(79, 125, 92, 0.34); color: var(--ok-ink); }
+/* Not started — quiet outline, muted glyph. */
+.p-node--upcoming {
+  border: 1.5px solid var(--line-strong);
+  color: var(--ink-300);
+}
 
-/* In-progress-behind: a half-filled marker, no halo — clearly distinct from
-   both the prominent current step and a quiet upcoming one. */
-.p-node--active { border: 2px solid var(--gold-400); background: var(--surface); overflow: hidden; }
-.p-node--active svg { width: 34px; height: 34px; }
+/* Finished — green wash and a check instead of the stage glyph. */
+.p-node--done {
+  background: var(--ok-wash);
+  border: 1.5px solid rgba(79, 125, 92, 0.34);
+  color: var(--ok-ink);
+}
 
+/* Underway, but not the furthest along — gold outline, gold glyph, no fill. */
+.p-node--active {
+  border: 2px solid var(--gold-400);
+  background: var(--gold-wash);
+  color: var(--gold-ink);
+}
+
+/* The current step — the only SOLID marker on the rail, so it is found first. */
 .p-node--current {
-  border: 2.5px solid var(--gold-500);
-  box-shadow: 0 0 0 5px var(--gold-wash);
+  border: none;
+  background: var(--gold-500);
+  color: #fff;
+  box-shadow: 0 0 0 5px var(--gold-wash), 0 6px 16px -6px rgba(184, 138, 46, 0.7);
 }
-.p-node--current .p-node__dot {
-  width: 11px; height: 11px; border-radius: 999px; background: var(--gold-500);
-  animation: p-pulse 2600ms ease-in-out infinite;
-}
-@keyframes p-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
 .p-step__label {
   margin-top: 13px;
@@ -555,8 +565,16 @@
 }
 .p-iconbtn:hover { background: rgba(27, 24, 21, 0.05); color: var(--ink-800); }
 .p-iconbtn:focus-visible { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--gold-400); }
+/* The drawer controls exist only while the sidebar is off-canvas. Both need an
+   explicit media query rather than Tailwind's `lg:hidden`: that utility and
+   `.p-iconbtn` have equal specificity, and this stylesheet loads last, so the
+   `display: grid` above would win and leak the control onto desktop. */
 .p-hamburger { display: grid; }
-@media (min-width: 1024px) { .p-hamburger { display: none; } }
+.p-drawer-close { display: grid; }
+@media (min-width: 1024px) {
+  .p-hamburger,
+  .p-drawer-close { display: none; }
+}
 
 /* Tooltip (bell) */
 .p-tip {
@@ -631,28 +649,152 @@
 }
 @keyframes p-menu-in { from { opacity: 0; transform: translateY(-6px) scale(0.985); } }
 
-/* ── Hero image panel — architectural, derived from Project.color ──── */
-.p-hero-panel {
+/* ── Hero — photograph left, project identity right ─────────────────── */
+.p-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+}
+@media (min-width: 640px) {
+  .p-hero {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 28px;
+    padding: 20px;
+  }
+}
+
+.p-hero__media {
   position: relative;
   overflow: hidden;
   border-radius: 13px;
-  background: var(--panel-color, var(--gold-600));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), var(--shadow-sm);
+  height: 148px;
+  width: 100%;
+  flex: 0 0 auto;
+  background: var(--surface-sunk);
+  box-shadow: var(--shadow-sm);
 }
-.p-hero-panel::before {
-  /* depth wash over the flat colour so it reads as a designed surface */
-  content: "";
+@media (min-width: 640px) {
+  .p-hero__media { height: auto; min-height: 172px; width: 300px; }
+}
+@media (min-width: 1280px) { .p-hero__media { width: 380px; } }
+
+/* Warm the photograph into the paper palette instead of letting it shout. */
+.p-hero__wash {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(155deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0) 42%),
-    linear-gradient(155deg, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.24) 100%);
+    linear-gradient(180deg, rgba(27, 24, 21, 0) 45%, rgba(27, 24, 21, 0.3) 100%),
+    linear-gradient(115deg, rgba(184, 138, 46, 0.14) 0%, rgba(184, 138, 46, 0) 60%);
+  box-shadow: inset 0 0 0 1px rgba(27, 24, 21, 0.1);
+  border-radius: inherit;
 }
-.p-hero-panel svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* The project's own colour, as a thin signature edge on the image. */
+.p-hero__accent {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  width: 100%;
+  opacity: 0.9;
+}
+
+.p-hero__body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2px 4px 6px 0;
+}
+.p-hero__title {
+  font-size: 28px;
+  line-height: 1.06;
+}
+@media (min-width: 640px) { .p-hero__title { font-size: 38px; } }
+@media (min-width: 1600px) { .p-hero__title { font-size: 42px; } }
+
+.p-hero__sentence {
+  margin-top: 12px;
+  max-width: 62ch;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--ink-600);
+}
+.p-hero__loc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 13.5px;
+  color: var(--ink-500);
+}
+.p-hero__loc svg { color: var(--gold-600); flex: 0 0 auto; }
+
+/* ── Metric cards — one anatomy for all four ───────────────────────── */
+.p-stat {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 22px;
+  min-height: 136px;
+}
+@media (min-width: 1280px) { .p-stat { padding: 22px 26px; min-height: 148px; } }
+
+.p-stat__icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+  border-radius: 15px;
+  background: var(--gold-wash);
+  color: var(--gold-600);
+  box-shadow: inset 0 0 0 1px var(--gold-100);
+}
+.p-stat__content { min-width: 0; flex: 1 1 auto; }
+
+.p-stat__value {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 27px;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+}
+@media (min-width: 1600px) { .p-stat__value { font-size: 30px; } }
+/* Prose-length values (an action item's name) read better in the UI sans. */
+.p-stat__value--sm {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+.p-stat__value--quiet { color: var(--ink-500); }
+
+.p-stat__sub {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-500);
+}
 
 /* ── Body layout — primary / documents / rail ──────────────────────── */
 .p-body { display: grid; gap: 20px; align-items: start; }
-.p-area-rail { display: grid; gap: 20px; align-content: start; }
+/* The rail is a grid inside a grid track. Its implicit column is `auto`, which
+   sizes to its widest child's min-content and would push past the track — so
+   pin it to minmax(0,1fr) and let the rows inside truncate instead. Same
+   min-width:0 guard on the other two areas. */
+.p-area-rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  align-content: start;
+}
+.p-area-action,
+.p-area-docs,
+.p-area-rail { min-width: 0; }
 @media (min-width: 640px) { .p-body, .p-area-rail { gap: 24px; } }
 
 @media (min-width: 1024px) {

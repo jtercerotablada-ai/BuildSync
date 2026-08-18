@@ -303,7 +303,7 @@ export function PortalShell({
           </div>
           <button
             type="button"
-            className="p-iconbtn ml-auto lg:hidden"
+            className="p-iconbtn p-drawer-close ml-auto"
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
           >

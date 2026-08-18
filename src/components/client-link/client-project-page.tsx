@@ -1,7 +1,26 @@
+import Image from "next/image";
+import {
+  CalendarCheck2,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  ExternalLink,
+  FileText,
+  Flag,
+  Landmark,
+  MapPin,
+  ShieldCheck,
+  User,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import type {
   ClientProjectView,
   ClientStage,
 } from "@/lib/client-link/projection";
+import { heroImageFor } from "@/lib/client-link/hero-image";
 import { company, contact } from "@/lib/ttc/site";
 import { PortalShell } from "./portal-shell";
 
@@ -207,31 +226,40 @@ function DateChip({ date }: { date: Date }) {
   );
 }
 
-/** Generic person glyph — the client side of "who has the ball". Never a name. */
-function ClientGlyph() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5z" />
-    </svg>
-  );
-}
-
+/**
+ * One metric card. Every card shares the same anatomy — a visual on the left
+ * (an icon badge, or the ring for progress) and a label / value / subline stack
+ * on the right — so the four read as a set rather than four different cards.
+ */
 function StatCard({
   label,
+  icon: Icon,
+  visual,
   trailing,
   children,
 }: {
   label: string;
+  icon?: LucideIcon;
+  visual?: React.ReactNode;
   trailing?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="p-card flex min-h-[148px] flex-col p-5 sm:p-6">
-      <div className="flex items-center justify-between gap-2">
-        <p className="p-metric-label">{label}</p>
-        {trailing}
+    <div className="p-card p-stat">
+      {visual ?? (
+        Icon && (
+          <span className="p-stat__icon" aria-hidden>
+            <Icon size={23} strokeWidth={1.6} />
+          </span>
+        )
+      )}
+      <div className="p-stat__content">
+        <div className="flex items-center justify-between gap-2">
+          <p className="p-metric-label">{label}</p>
+          {trailing}
+        </div>
+        <div className="mt-1.5">{children}</div>
       </div>
-      <div className="mt-4 flex flex-1 flex-col justify-center">{children}</div>
     </div>
   );
 }
@@ -258,46 +286,55 @@ function EmptyState({
 
 /* ── Stage stepper — done / current / upcoming, precise connectors ───── */
 
+/**
+ * Icon per stage, matched on the client-facing label the projection produced.
+ * A section we don't recognise still renders — it just gets the neutral clock —
+ * so the rail stays driven by the real Sections rather than by this map.
+ */
+const STAGE_ICON: Record<string, LucideIcon> = {
+  kickoff: Flag,
+  "inspection & reports": FileText,
+  "city review": Landmark,
+  repairs: Wrench,
+  recertified: ShieldCheck,
+  // Gate-fallback labels, for projects with no client-visible sections.
+  "pre-design": Flag,
+  design: FileText,
+  permitting: Landmark,
+  construction: Wrench,
+  closeout: ShieldCheck,
+};
+
+function stageIcon(label: string): LucideIcon {
+  return STAGE_ICON[label.trim().toLowerCase()] ?? Clock3;
+}
+
 /** The node glyph. `current` (the furthest-along incomplete step) is the one
- *  prominent gold marker; a non-current `active` section reads as
- *  in-progress-behind; `done` shows a check; `upcoming` is a quiet gray dot.
- *  Every state carries a distinct SHAPE, so colour is never the only signal. */
+ *  solid gold marker; a non-current `active` section reads as in-progress
+ *  behind it; `done` swaps its icon for a check; `upcoming` is quiet.
+ *  Fill, border and glyph all differ per state, so colour is never the only
+ *  signal — and the label carries the state word for assistive tech. */
 function StepNode({
   state,
   current,
+  label,
 }: {
   state: ClientStage["state"];
   current: boolean;
+  label: string;
 }) {
-  if (state === "done") {
-    return (
-      <span className="p-node p-node--done" aria-hidden>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m5 12.5 4.5 4.5L19 7" />
-        </svg>
-      </span>
-    );
-  }
-  if (current) {
-    return (
-      <span className="p-node p-node--current" aria-hidden>
-        <span className="p-node__dot" />
-      </span>
-    );
-  }
-  if (state === "active") {
-    // In progress, but not the current step — a half-filled marker.
-    return (
-      <span className="p-node p-node--active" aria-hidden>
-        <svg width="34" height="34" viewBox="0 0 34 34">
-          <path d="M17 7a10 10 0 0 0 0 20Z" fill="var(--gold-500)" />
-        </svg>
-      </span>
-    );
-  }
+  const Icon = state === "done" ? Check : stageIcon(label);
+  const variant =
+    state === "done"
+      ? "p-node--done"
+      : current
+        ? "p-node--current"
+        : state === "active"
+          ? "p-node--active"
+          : "p-node--upcoming";
   return (
-    <span className="p-node p-node--upcoming" aria-hidden>
-      <span className="p-node__dot" />
+    <span className={`p-node ${variant}`} aria-hidden>
+      <Icon size={19} strokeWidth={state === "done" ? 2.6 : 1.8} />
     </span>
   );
 }
@@ -319,7 +356,7 @@ function Stepper({ steps }: { steps: ClientStage[] }) {
               <span
                 className={`p-step__seg ${i === 0 ? "p-step__seg--hidden" : leftFill ? "p-step__seg--fill" : ""}`}
               />
-              <StepNode state={s.state} current={s.current} />
+              <StepNode state={s.state} current={s.current} label={s.label} />
               <span
                 className={`p-step__seg ${i === steps.length - 1 ? "p-step__seg--hidden" : rightFill ? "p-step__seg--fill" : ""}`}
               />
@@ -404,126 +441,102 @@ export function ClientProjectPage({
             id="hero"
             className="p-card p-reveal scroll-mt-[96px] overflow-hidden"
           >
-            <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-stretch sm:gap-6 sm:p-4">
-              {/* Architectural panel derived from Project.color — a deliberate
-                  design element, swappable for a real <img> when a
-                  Project.coverImageUrl column exists. Never a stock photo. */}
-              <div
-                className="p-hero-panel h-24 w-full sm:h-auto sm:min-h-[124px] sm:w-[288px] sm:shrink-0"
-                style={{ "--panel-color": view.coverColor } as React.CSSProperties}
-                aria-hidden
-              >
-                <svg viewBox="0 0 300 160" preserveAspectRatio="xMidYMid slice" fill="none" stroke="#ffffff">
-                  <g opacity="0.22" strokeWidth="1.1">
-                    <path d="M40 160V54l46-22 46 22v106" />
-                    <path d="M86 32V16M78 20l8-4 8 4" />
-                    <path d="M40 78h92M40 100h92M40 122h92M40 144h92" />
-                    <path d="M56 160v-20h16v20M100 160v-20h16v20" />
-                    <path d="M170 160V86l40-18 40 18v74" />
-                    <path d="M170 108h80M170 130h80M170 152h80" />
-                    <path d="M188 160v-16h14v16M228 160v-16h14v16" />
-                  </g>
-                </svg>
+            <div className="p-hero">
+              {/* A licensed architectural photograph from the firm's own curated
+                  set, picked deterministically per project. Decorative — empty
+                  alt, no caption — because it is NOT a photo of the client's
+                  property; see hero-image.ts. A real Project.coverImageUrl
+                  would take precedence here once that column exists. */}
+              <div className="p-hero__media">
+                <Image
+                  src={heroImageFor(view.id)}
+                  alt=""
+                  fill
+                  priority
+                  sizes="(max-width: 640px) 100vw, 420px"
+                  className="object-cover"
+                />
+                <span className="p-hero__wash" aria-hidden />
+                <span
+                  className="p-hero__accent"
+                  style={{ background: view.coverColor }}
+                  aria-hidden
+                />
               </div>
 
               {/* Project info */}
-              <div className="relative flex min-w-0 flex-1 flex-col justify-center py-1 pr-1 sm:pr-6">
-                <svg
-                  aria-hidden
-                  className="pointer-events-none absolute right-0 top-0 hidden h-full w-1/3 sm:block"
-                  viewBox="0 0 220 200"
-                  fill="none"
-                  preserveAspectRatio="xMaxYMid slice"
-                >
-                  <g stroke="var(--ink-900)" strokeWidth="1" opacity="0.045">
-                    <path d="M220 30H90M220 62H70M220 94H95M220 126H70M220 158H100" />
-                    <path d="M150 200V56l35-20 35 20v144" />
-                    <path d="M150 92h70M150 126h70M150 160h70" />
-                  </g>
-                </svg>
-
-                <h1 className="p-display text-[27px] leading-[1.04] sm:text-[37px]">
-                  {view.name}
-                </h1>
+              <div className="p-hero__body">
+                <h1 className="p-display p-hero__title">{view.name}</h1>
+                <p className="p-hero__sentence">{view.friendlySentence}</p>
                 {view.location && (
-                  <p className="mt-2.5 flex items-center gap-1.5 text-[14px] text-[color:var(--ink-600)]">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="text-[color:var(--gold-600)]">
-                      <path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10Z" />
-                      <circle cx="12" cy="11" r="2.2" />
-                    </svg>
+                  <p className="p-hero__loc">
+                    <MapPin size={15} strokeWidth={1.8} aria-hidden />
                     {view.location}
                   </p>
                 )}
-                <p className="relative mt-3 max-w-2xl text-[15px] leading-relaxed text-[color:var(--ink-600)]">
-                  {view.friendlySentence}
-                </p>
               </div>
             </div>
           </section>
 
           {/* ── FOUR METRICS ────────────────────────────────────── */}
           <div className="p-reveal p-reveal2 grid grid-cols-2 gap-4 sm:gap-5 xl:grid-cols-4">
-            <StatCard label="Overall Progress">
-              {view.progress ? (
-                <div className="flex items-center gap-4">
+            <StatCard
+              label="Overall Progress"
+              visual={
+                view.progress ? (
                   <ProgressRing percent={view.progress.percent} />
-                  <div className="min-w-0">
-                    <p className="text-[15px] font-semibold text-[color:var(--ink-900)]">
-                      {view.progress.done} of {view.progress.total} done
-                    </p>
-                    {monthsLabel && (
-                      <p className="mt-1 text-[13px] text-[color:var(--ink-500)]">
-                        {monthsLabel}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                ) : undefined
+              }
+              icon={CheckCircle2}
+            >
+              {view.progress ? (
+                <>
+                  <p className="p-stat__value">
+                    {view.progress.done} of {view.progress.total}
+                  </p>
+                  <p className="p-stat__sub">
+                    {monthsLabel ? `tasks done · ${monthsLabel}` : "tasks done"}
+                  </p>
+                </>
               ) : (
-                <p className="text-[15px] text-[color:var(--ink-500)]">Not started yet</p>
+                <p className="p-stat__value p-stat__value--quiet">Not started yet</p>
               )}
             </StatCard>
 
-            <StatCard label="Current Stage">
-              <p className="text-[22px] font-semibold leading-tight tracking-[-0.01em] text-[color:var(--ink-900)]">
-                {view.currentStage?.label ?? "—"}
-              </p>
+            <StatCard label="Current Stage" icon={Flag}>
+              <p className="p-stat__value">{view.currentStage?.label ?? "—"}</p>
               {view.currentStage?.subline && (
-                <p className="mt-1.5 text-[13px] text-[color:var(--ink-500)]">
-                  {view.currentStage.subline}
-                </p>
+                <p className="p-stat__sub">{view.currentStage.subline}</p>
               )}
             </StatCard>
 
             <StatCard
               label="Next Action"
+              icon={ClipboardList}
               trailing={actionCount > 0 ? <CountBadge n={actionCount} /> : undefined}
             >
               {nextAction ? (
                 <>
-                  <p className="line-clamp-3 text-[15px] font-medium leading-snug text-[color:var(--ink-900)]">
+                  <p className="p-stat__value p-stat__value--sm line-clamp-2">
                     {nextAction.name}
                   </p>
-                  <a href="#action-items" className="p-link mt-2.5">
+                  <a href="#action-items" className="p-link mt-2">
                     <span className="p-link__ul">View action items</span>
                     <span className="p-link__arrow" aria-hidden>→</span>
                   </a>
                 </>
               ) : (
-                <p className="text-[15px] text-[color:var(--ink-500)]">
+                <p className="p-stat__value p-stat__value--quiet">
                   You&rsquo;re all caught up
                 </p>
               )}
             </StatCard>
 
-            <StatCard label="Target Completion">
-              <p className="text-[22px] font-semibold leading-tight tracking-[-0.01em] text-[color:var(--ink-900)]">
-                {formatDate(view.endDate)}
+            <StatCard label="Target Completion" icon={CalendarDays}>
+              <p className="p-stat__value">{formatDate(view.endDate)}</p>
+              <p className="p-stat__sub">
+                {monthsLabel ? "On the current schedule" : "Not yet on the calendar"}
               </p>
-              {monthsLabel && (
-                <p className="mt-1.5 text-[13px] text-[color:var(--ink-500)]">
-                  On the current schedule
-                </p>
-              )}
             </StatCard>
           </div>
 
@@ -565,9 +578,7 @@ export function ClientProjectPage({
                   <div className="mt-1">
                     <EmptyState
                       icon={
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
+                        <CheckCircle2 size={22} strokeWidth={1.6} aria-hidden />
                       }
                     >
                       Nothing right now — there is no action waiting on you. We
@@ -635,10 +646,7 @@ export function ClientProjectPage({
               {view.documents.length === 0 ? (
                 <EmptyState
                   icon={
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                      <path d="M7 3.5h6l4.5 4.5V20a.5.5 0 0 1-.5.5H7a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5Z" />
-                      <path d="M13 3.5V9h4.5" />
-                    </svg>
+                    <FileText size={22} strokeWidth={1.6} aria-hidden />
                   }
                 >
                   No documents have been shared yet. Anything we release to you
@@ -669,9 +677,7 @@ export function ClientProjectPage({
                           aria-hidden
                           className="shrink-0 text-[color:var(--ink-300)] transition-all group-hover:text-[color:var(--gold-600)]"
                         >
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M7 17 17 7M9 7h8v8" />
-                          </svg>
+                          <ExternalLink size={16} strokeWidth={1.8} />
                         </span>
                       </a>
                     </li>
@@ -691,10 +697,7 @@ export function ClientProjectPage({
                 {view.upcomingInspections.length === 0 ? (
                   <EmptyState
                     icon={
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        <rect x="4" y="5" width="16" height="16" rx="2" />
-                        <path d="M4 9h16M8 3.5v3M16 3.5v3" />
-                      </svg>
+                      <CalendarCheck2 size={22} strokeWidth={1.6} aria-hidden />
                     }
                   >
                     No inspections are scheduled right now. We&rsquo;ll list any
@@ -745,7 +748,7 @@ export function ClientProjectPage({
                         className="h-7 w-7 rounded-full object-contain"
                       />
                     ) : (
-                      <ClientGlyph />
+                      <User size={22} strokeWidth={1.7} aria-hidden />
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -773,10 +776,7 @@ export function ClientProjectPage({
                 {view.activity.length === 0 ? (
                   <EmptyState
                     icon={
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        <path d="M12 7v5l3 2" />
-                        <circle cx="12" cy="12" r="8.5" />
-                      </svg>
+                      <Clock3 size={22} strokeWidth={1.6} aria-hidden />
                     }
                   >
                     No activity to show yet. Milestones, documents and updates
