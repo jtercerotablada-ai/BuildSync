@@ -121,10 +121,11 @@ const ic = {
 
 type NavKey = "dashboard" | "projects" | "documents" | "inspections";
 
-/** id on the page → nav key it lights up. Order matters (top → bottom). */
+/** id on the page → nav key it lights up. Order matters (top → bottom).
+ *  The hero IS the top of the page, so the overview region stays "Dashboard";
+ *  "Projects" still scrolls to the hero on click but does not claim the top. */
 const SPY: { key: NavKey; id: string }[] = [
   { key: "dashboard", id: "p-top" },
-  { key: "projects", id: "hero" },
   { key: "documents", id: "documents" },
   { key: "inspections", id: "inspections" },
 ];
@@ -292,12 +293,11 @@ export function PortalShell({
           <img
             src="/ttc/img/logo-square.png"
             alt=""
-            width={40}
-            height={40}
+            width={48}
+            height={48}
             className="p-brand__logo"
           />
           <div className="min-w-0">
-            <p className="p-brand__legal">{company.name}</p>
             <p className="p-brand__name">{company.shortName}</p>
             <p className="p-brand__disc">{company.discipline}</p>
           </div>
@@ -323,7 +323,8 @@ export function PortalShell({
                 className={`p-nav-item ${isActive ? "p-nav-item--active" : ""}`}
                 onClick={(e) => {
                   e.preventDefault();
-                  setActive(item.key);
+                  // Let the scroll-spy own the active state so the overview
+                  // region reads as "Dashboard" even after a "Projects" click.
                   goTo(item.target);
                 }}
               >
@@ -423,7 +424,7 @@ export function PortalShell({
                   <span aria-hidden className="p-topbar__sep">
                     ·
                   </span>
-                  <span className="text-[12px] font-medium text-[color:var(--ink-600)]">
+                  <span className="text-[13.5px] font-medium text-[color:var(--ink-600)]">
                     {meta.typeLabel}
                   </span>
                 </>
