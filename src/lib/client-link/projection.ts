@@ -143,11 +143,20 @@ export interface ClientProgress {
   percent: number;
 }
 
-export type StageState = "done" | "current" | "upcoming";
+export type StageState = "done" | "active" | "upcoming";
 
 export interface ClientStage {
+  /** Client-facing label — a relabel where one is approved, else the real
+   *  Section name. Internal lane names are dropped upstream and never appear. */
   label: string;
+  /** Per-stage state derived from THIS section's own task completion, never
+   *  from position: done = all done, active = some done, upcoming = none done. */
   state: StageState;
+  /** Real non-private task tallies for the section (0/0 for the gate fallback). */
+  done: number;
+  total: number;
+  /** True for the single furthest-along incomplete stage — the current step. */
+  current: boolean;
 }
 
 export interface ClientCurrentStage {
@@ -185,7 +194,7 @@ export interface ClientProjectView {
   friendlySentence: string;
   /** Task-count completion, or null when the project has no root tasks yet. */
   progress: ClientProgress | null;
-  /** The real Section-derived rail for recertifications; null → gate fallback. */
+  /** The real Section-derived rail (every project type); null → gate fallback. */
   stages: ClientStage[] | null;
   /** The one stage to name in the stat card (works for rail OR gate fallback). */
   currentStage: ClientCurrentStage | null;
@@ -263,14 +272,26 @@ export function computeProgress(
   return { done, total, percent: Math.round((done / total) * 100) };
 }
 
-/** Canonical recertification phase order + the client-facing relabel. */
-const RECERT_STAGES: { key: string; label: string }[] = [
-  { key: "kickoff & scheduling", label: "Kickoff" },
-  { key: "inspection & reports", label: "Inspection & Reports" },
-  { key: "building official review", label: "City Review" },
-  { key: "repairs (if required)", label: "Repairs" },
-  { key: "recertification complete", label: "Recertified" },
-];
+/**
+ * Approved client relabels for known section names — OPTIONAL. A section whose
+ * normalized name is not here renders its OWN real name, so a renamed or newly
+ * added section shows up automatically instead of being silently dropped.
+ * Keyed by normalized (trim + lowercase) Section.name.
+ */
+const SECTION_RELABEL: Record<string, string> = {
+  "kickoff & scheduling": "Kickoff",
+  "building official review": "City Review",
+  "repairs (if required)": "Repairs",
+  "recertification complete": "Recertified",
+};
+
+/**
+ * The three internal field-inspection lanes. These are the firm's own workflow
+ * swim-lanes, NOT client phases, and their names must never reach the client —
+ * so they are the ONLY sections dropped from the rail, matched by normalized
+ * name. Everything else the project defines is a real client phase.
+ */
+const INTERNAL_SECTION_LANES = new Set(["scheduled", "performed", "report issued"]);
 
 export interface StageSectionInput {
   name: string;
@@ -278,47 +299,80 @@ export interface StageSectionInput {
 }
 
 /**
- * Build the real, client-labeled stage rail from a recertification project's
- * Section rows. Only the canonical recert phases are surfaced, in canonical
- * order — a project also carries internal field-inspection lanes (Scheduled /
- * Performed / Report Issued) that are not client phases and are dropped here.
+ * Build the client stage rail from a project's REAL Section rows, in their real
+ * `position` order (the caller passes them ordered). The rail is 100% driven by
+ * the sections that exist:
  *
- * `current` is the first phase with an incomplete non-private task; phases
- * before it are `done`, phases after are `upcoming`. Returns null when none of
- * the canonical phases are present, so the caller can fall back to the gate
- * rail rather than render nothing.
+ *   • which sections appear  — every section except the three internal lanes;
+ *   • their labels           — an approved relabel if one exists, else the real
+ *                              Section name;
+ *   • their per-stage state  — from each section's OWN non-private task tally,
+ *                              never from position:
+ *                                done     = total > 0 && done === total
+ *                                active   = done > 0 && done < total
+ *                                upcoming = done === 0
+ *   • the CURRENT step       — the furthest-along partially-done section
+ *                              (highest index with 0 < done < total); if none is
+ *                              partial, the first incomplete one; if all are
+ *                              complete, the last.
+ *
+ * Each stage carries its real { done, total } so the UI can print "5 of 20".
+ * Returns null only when there is no client-visible section at all, so the
+ * caller can fall back to the gate rail rather than render nothing.
  */
-export function computeRecertStages(sections: StageSectionInput[]): {
+export function computeSectionStages(sections: StageSectionInput[]): {
   stages: ClientStage[];
   currentStage: ClientCurrentStage | null;
 } | null {
-  const byName = new Map<string, StageSectionInput>();
-  for (const s of sections) byName.set(s.name.trim().toLowerCase(), s);
+  const visible = sections.filter(
+    (s) => !INTERNAL_SECTION_LANES.has(s.name.trim().toLowerCase())
+  );
+  if (visible.length === 0) return null;
 
-  const ordered: { label: string; tasks: { completed: boolean }[] }[] = [];
-  for (const phase of RECERT_STAGES) {
-    const match = byName.get(phase.key);
-    if (match) ordered.push({ label: phase.label, tasks: match.tasks });
-  }
-  if (ordered.length === 0) return null;
-
-  const currentIdx = ordered.findIndex((s) => s.tasks.some((t) => !t.completed));
-
-  const stages: ClientStage[] = ordered.map((s, i) => {
+  const staged = visible.map((s) => {
+    const total = s.tasks.length;
+    const done = s.tasks.filter((t) => t.completed).length;
     let state: StageState;
-    if (currentIdx === -1 || i < currentIdx) state = "done";
-    else if (i === currentIdx) state = "current";
+    if (total > 0 && done === total) state = "done";
+    else if (done > 0) state = "active";
     else state = "upcoming";
-    return { label: s.label, state };
+    const label = SECTION_RELABEL[s.name.trim().toLowerCase()] ?? s.name;
+    return { label, state, done, total };
   });
 
-  const currentStage: ClientCurrentStage | null =
-    currentIdx === -1
-      ? { label: ordered[ordered.length - 1].label, subline: "Complete" }
-      : {
-          label: ordered[currentIdx].label,
-          subline: `Step ${currentIdx + 1} of ${ordered.length}`,
-        };
+  const isComplete = (x: { done: number; total: number }) =>
+    x.total > 0 && x.done === x.total;
+  const isPartial = (x: { done: number; total: number }) =>
+    x.done > 0 && x.done < x.total;
+
+  const incomplete = staged
+    .map((s, i) => ({ i, s }))
+    .filter(({ s }) => !isComplete(s));
+
+  let currentIdx: number;
+  if (incomplete.length === 0) {
+    // Everything is done — the current step is the final section.
+    currentIdx = staged.length - 1;
+  } else {
+    const partials = incomplete.filter(({ s }) => isPartial(s));
+    currentIdx = partials.length
+      ? partials[partials.length - 1].i // furthest-along in-progress section
+      : incomplete[0].i; // nothing started yet → the first incomplete section
+  }
+
+  const stages: ClientStage[] = staged.map((s, i) => ({
+    label: s.label,
+    state: s.state,
+    done: s.done,
+    total: s.total,
+    current: i === currentIdx,
+  }));
+
+  const cur = staged[currentIdx];
+  const currentStage: ClientCurrentStage =
+    incomplete.length === 0
+      ? { label: cur.label, subline: "Complete" }
+      : { label: cur.label, subline: `Step ${currentIdx + 1} of ${staged.length}` };
 
   return { stages, currentStage };
 }
@@ -691,16 +745,14 @@ export async function buildClientProjectView(
   const status = toClientStatus(project.status);
   const progress = computeProgress(rootTasks);
 
-  // The real rail for recertifications; anything else falls back to the
-  // generic gate rail so the rail is never empty.
-  const recert =
-    project.type === "RECERTIFICATION"
-      ? computeRecertStages(
-          sectionRows.map((s) => ({ name: s.name, tasks: s.tasks }))
-        )
-      : null;
-  const stages = recert?.stages ?? null;
-  const currentStage = recert?.currentStage ?? gateCurrentStage(project.gate);
+  // The real rail is driven by the project's Section rows for EVERY project
+  // type. gateCurrentStage remains only as the fallback for a project that has
+  // no client-visible sections at all, so the rail is never empty.
+  const sectionRail = computeSectionStages(
+    sectionRows.map((s) => ({ name: s.name, tasks: s.tasks }))
+  );
+  const stages = sectionRail?.stages ?? null;
+  const currentStage = sectionRail?.currentStage ?? gateCurrentStage(project.gate);
 
   const milestoneViews: ClientMilestone[] = milestones.map((m) => ({
     id: m.id,

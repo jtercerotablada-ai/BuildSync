@@ -18,7 +18,7 @@ import {
   toClientStatus,
   friendlySentence,
   computeProgress,
-  computeRecertStages,
+  computeSectionStages,
   gateCurrentStage,
   computeWhoHasTheBall,
   buildClientActivityFeed,
@@ -175,72 +175,117 @@ describe("computeProgress", () => {
   });
 });
 
-describe("computeRecertStages", () => {
-  it("returns null when no canonical recert phase is present", () => {
+describe("computeSectionStages", () => {
+  /** `done` completed tasks out of `total` — the shape the projection passes in. */
+  const mk = (done: number, total: number) =>
+    Array.from({ length: total }, (_, i) => ({ completed: i < done }));
+
+  it("returns null when there is no client-visible section", () => {
+    // Only the three internal lanes → nothing a client should see.
     expect(
-      computeRecertStages([{ name: "Some ad-hoc lane", tasks: [] }])
+      computeSectionStages([
+        { name: "Scheduled", tasks: mk(1, 1) },
+        { name: "Performed", tasks: [] },
+        { name: "Report Issued", tasks: [] },
+      ])
     ).toBeNull();
+    expect(computeSectionStages([])).toBeNull();
   });
 
-  it("labels the canonical phases and drops internal lanes", () => {
-    const result = computeRecertStages([
-      { name: "Kickoff & scheduling", tasks: [{ completed: true }, { completed: false }] },
-      { name: "Inspection & Reports", tasks: [{ completed: false }] },
-      { name: "Building Official Review", tasks: [] },
-      { name: "Repairs (if required)", tasks: [] },
-      { name: "Recertification Complete", tasks: [] },
-      // Internal field-inspection lanes — must NOT appear on the client rail.
-      { name: "Performed", tasks: [{ completed: true }] },
-      { name: "Report Issued", tasks: [{ completed: true }] },
-    ]);
-    expect(result).not.toBeNull();
-    expect(result!.stages.map((s) => s.label)).toEqual([
+  // The exact production shape of TT-2026-006, per the ground-truth counts.
+  const TT_2026_006 = [
+    { name: "Kickoff & scheduling", tasks: mk(2, 7) },
+    { name: "Inspection & Reports", tasks: mk(5, 20) },
+    { name: "Building Official Review", tasks: mk(0, 2) },
+    { name: "Repairs (if required)", tasks: mk(0, 6) },
+    { name: "Recertification Complete", tasks: mk(0, 5) },
+    // Internal field-inspection lanes — must NEVER reach the client.
+    { name: "Scheduled", tasks: mk(3, 3) },
+    { name: "Performed", tasks: mk(1, 4) },
+    { name: "Report Issued", tasks: mk(0, 2) },
+  ];
+
+  it("relabels the client phases and drops the three internal lanes", () => {
+    const r = computeSectionStages(TT_2026_006)!;
+    expect(r.stages.map((s) => s.label)).toEqual([
       "Kickoff",
       "Inspection & Reports",
       "City Review",
       "Repairs",
       "Recertified",
     ]);
+    const joined = r.stages.map((s) => s.label).join("|").toLowerCase();
+    for (const lane of ["scheduled", "performed", "report issued"]) {
+      expect(joined).not.toContain(lane);
+    }
   });
 
-  it("marks the first phase with an incomplete task as current", () => {
-    const result = computeRecertStages([
-      { name: "Kickoff & scheduling", tasks: [{ completed: true }, { completed: false }] },
-      { name: "Inspection & Reports", tasks: [{ completed: false }] },
-      { name: "Recertification Complete", tasks: [] },
-    ]);
-    expect(result!.stages.map((s) => s.state)).toEqual([
-      "current",
-      "upcoming",
-      "upcoming",
-    ]);
-    expect(result!.currentStage).toEqual({ label: "Kickoff", subline: "Step 1 of 3" });
+  it("marks Inspection & Reports ACTIVE (not Upcoming) — it is 5/20 underway", () => {
+    const r = computeSectionStages(TT_2026_006)!;
+    const inspection = r.stages[1];
+    expect(inspection.label).toBe("Inspection & Reports");
+    expect(inspection.state).toBe("active");
+    expect(inspection.state).not.toBe("upcoming");
   });
 
-  it("marks earlier fully-complete phases done and the next as current", () => {
-    const result = computeRecertStages([
-      { name: "Kickoff & scheduling", tasks: [{ completed: true }] },
-      { name: "Inspection & Reports", tasks: [{ completed: true }, { completed: false }] },
-      { name: "Recertification Complete", tasks: [{ completed: false }] },
+  it("carries each section's real done/total", () => {
+    const r = computeSectionStages(TT_2026_006)!;
+    expect(r.stages.map((s) => [s.done, s.total])).toEqual([
+      [2, 7],
+      [5, 20],
+      [0, 2],
+      [0, 6],
+      [0, 5],
     ]);
-    expect(result!.stages.map((s) => s.state)).toEqual([
-      "done",
-      "current",
-      "upcoming",
-    ]);
-    expect(result!.currentStage).toEqual({
+  });
+
+  it("picks the furthest-along in-progress section as the current step", () => {
+    const r = computeSectionStages(TT_2026_006)!;
+    // Kickoff (2/7) is in progress but behind; Inspection (5/20) is further.
+    expect(r.stages[0].current).toBe(false);
+    expect(r.stages[0].state).toBe("active");
+    expect(r.stages[1].current).toBe(true);
+    expect(r.currentStage).toEqual({
       label: "Inspection & Reports",
-      subline: "Step 2 of 3",
+      subline: "Step 2 of 5",
     });
   });
 
-  it("marks every phase done and reports Complete when nothing is incomplete", () => {
-    const result = computeRecertStages([
-      { name: "Kickoff & scheduling", tasks: [{ completed: true }] },
-      { name: "Recertification Complete", tasks: [{ completed: true }] },
-    ]);
-    expect(result!.stages.every((s) => s.state === "done")).toBe(true);
-    expect(result!.currentStage).toEqual({ label: "Recertified", subline: "Complete" });
+  it("derives state from each section's own tally, not from position", () => {
+    const r = computeSectionStages([
+      { name: "A", tasks: mk(3, 3) }, // all done → done
+      { name: "B", tasks: mk(0, 4) }, // none done → upcoming, even before an active one
+      { name: "C", tasks: mk(2, 5) }, // partly done → active
+    ])!;
+    expect(r.stages.map((s) => s.state)).toEqual(["done", "upcoming", "active"]);
+    expect(r.stages.map((s) => s.current)).toEqual([false, false, true]);
+    expect(r.currentStage).toEqual({ label: "C", subline: "Step 3 of 3" });
+  });
+
+  it("surfaces a section with no approved relabel under its real name", () => {
+    const r = computeSectionStages([
+      { name: "Kickoff & scheduling", tasks: mk(1, 1) },
+      { name: "Owner Coordination", tasks: mk(0, 3) }, // brand-new, not in the map
+    ])!;
+    expect(r.stages.map((s) => s.label)).toEqual(["Kickoff", "Owner Coordination"]);
+  });
+
+  it("makes the first incomplete section current when nothing has started", () => {
+    const r = computeSectionStages([
+      { name: "Kickoff & scheduling", tasks: mk(0, 3) },
+      { name: "Inspection & Reports", tasks: mk(0, 5) },
+    ])!;
+    expect(r.stages.map((s) => s.current)).toEqual([true, false]);
+    expect(r.currentStage).toEqual({ label: "Kickoff", subline: "Step 1 of 2" });
+  });
+
+  it("marks every section done and reports Complete when all are complete", () => {
+    const r = computeSectionStages([
+      { name: "Kickoff & scheduling", tasks: mk(1, 1) },
+      { name: "Recertification Complete", tasks: mk(2, 2) },
+    ])!;
+    expect(r.stages.every((s) => s.state === "done")).toBe(true);
+    expect(r.currentStage).toEqual({ label: "Recertified", subline: "Complete" });
   });
 });
 
