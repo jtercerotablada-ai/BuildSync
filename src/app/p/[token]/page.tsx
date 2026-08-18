@@ -33,5 +33,8 @@ export default async function Page({
   // Telemetry for the firm ("has the owner opened it yet?"). Cannot throw.
   await recordVisit(link.id);
 
-  return <ClientProjectPage view={view} />;
+  // `link.label` is the ONLY identity a password-less link legitimately knows
+  // (e.g. "Board president"). It is already resolved and client-safe — passing
+  // it is presentational, not a new read, and this route stays Prisma-free.
+  return <ClientProjectPage view={view} viewerLabel={link.label} />;
 }
