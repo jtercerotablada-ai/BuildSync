@@ -106,7 +106,18 @@ export function ClientAccessPanel({ projectId }: Props) {
       setLabel("");
       setEmail("");
       setFormOpen(false);
-      toast.success("Client link created");
+      // The mint response says whether the portal email went out — surface
+      // it so staff know if the client already has the link or still needs
+      // it copied to them by hand.
+      if (data.link?.emailSent) {
+        toast.success(`Link created and emailed to ${data.link.email}`);
+      } else if (data.link?.emailError) {
+        toast.warning(
+          "Link created, but the email failed — copy it and send it yourself."
+        );
+      } else {
+        toast.success("Client link created");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create link");
     } finally {

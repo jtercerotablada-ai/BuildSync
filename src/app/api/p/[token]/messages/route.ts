@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveShareLink } from "@/lib/client-link/access";
+import { sendClientReplyNotification } from "@/lib/email";
 import prisma from "@/lib/prisma";
 
 /**
@@ -74,6 +75,33 @@ export async function POST(
       clientAuthorLabel: link.label,
     },
   });
+
+  // Tell the firm without making the client wait on it. A client reply has
+  // no authorId and mentions nobody, so WITHOUT this email no internal
+  // notification would ever fire — the reply would sit unread until someone
+  // happened to open the project chat.
+  void (async () => {
+    try {
+      const project = await prisma.project.findUnique({
+        where: { id: link.projectId },
+        select: {
+          id: true,
+          name: true,
+          owner: { select: { email: true } },
+        },
+      });
+      if (project?.owner?.email) {
+        await sendClientReplyNotification(project.owner.email, {
+          projectId: project.id,
+          projectName: project.name,
+          label: link.label,
+          content,
+        });
+      }
+    } catch (err) {
+      console.error("[client reply] owner notification failed:", err);
+    }
+  })();
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

@@ -13,6 +13,7 @@ import { getCurrentUserId } from "@/lib/auth-utils";
 import { verifyProjectAccess, getErrorStatus } from "@/lib/auth-guards";
 import { rateLimit } from "@/lib/rate-limit";
 import { mintToken } from "@/lib/client-link/token";
+import { sendClientPortalLinkEmail } from "@/lib/email";
 import { requireProjectAdmin, originFrom } from "@/lib/client-link/guard";
 
 const DEFAULT_EXPIRY_DAYS = 90;
@@ -71,6 +72,33 @@ export async function POST(
       },
     });
 
+    // If the firm entered the client's address, hand them the link by email
+    // right now — the mint moment is the ONLY time the plaintext exists, so
+    // this is the only email that can ever carry the URL. Failure is reported
+    // in the response but never rolls back the link.
+    let emailSent = false;
+    let emailError: string | null = null;
+    if (link.email) {
+      try {
+        const project = await prisma.project.findUnique({
+          where: { id: projectId },
+          select: { name: true, projectNumber: true },
+        });
+        const base = (process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
+        await sendClientPortalLinkEmail(link.email, {
+          projectName: project?.name ?? "Your project",
+          projectNumber: project?.projectNumber ?? null,
+          label: link.label,
+          url: `${base}/p/${token}`,
+          expiresAt: link.expiresAt,
+        });
+        emailSent = true;
+      } catch (err) {
+        emailError = err instanceof Error ? err.message : "Email failed";
+        console.error("[share-links POST] portal email failed:", err);
+      }
+    }
+
     // The ONLY time the plaintext leaves the server. No endpoint can return
     // it again — re-sending means minting a new link, which is the semantics
     // the firm wants anyway.
@@ -85,6 +113,8 @@ export async function POST(
           lastSeenAt: null,
           viewCount: 0,
           revokedAt: null,
+          emailSent,
+          emailError,
         },
         url: `${originFrom(req)}/p/${token}`,
       },
