@@ -9,8 +9,8 @@ export function CtaBand() {
   const es = language === 'es';
   const title = es ? 'Construyamos juntos.' : 'Let’s build together.';
   const sub = es
-    ? 'Habla con un P.E. registrado sobre el diseño de concreto armado, tu recertificación o una inspección de seguridad — sin compromiso.'
-    : 'Talk to a Registered P.E. about reinforced-concrete design, your recertification, or a building safety inspection — no obligation.';
+    ? 'Habla con un P.E. registrado sobre el diseño estructural de tu edificio de concreto armado — sin compromiso.'
+    : 'Talk to a Registered P.E. about the structural design of your reinforced-concrete building — no obligation.';
   const btn = es ? 'Solicitar una consulta' : 'Request a consultation';
 
   return (

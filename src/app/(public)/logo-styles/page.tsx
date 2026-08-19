@@ -134,11 +134,11 @@ function CompanyText({
 const variants: Variant[] = [
   {
     id: 'v1',
-    label: '01 — Outline Cuadrado + Divider',
-    mood: 'Formal · Clásico',
+    label: '01 — Square Outline + Divider',
+    mood: 'Formal · Classic',
     analysis:
-      'La base. Marco fino + hairline divisor vertical entre el badge y la razón social separa los dos elementos sin agregar peso visual.',
-    bestFor: 'Header del sitio, papelería formal, firma de email',
+      'The baseline. Thin frame plus a vertical hairline between the badge and the company name separates the two elements without adding visual weight.',
+    bestFor: 'Site header, formal stationery, email signature',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <rect x="0.75" y="0.75" width="54.5" height="54.5" stroke={GOLD} strokeWidth="1.5" fill="none" rx="3" />
@@ -151,11 +151,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v2',
-    label: '02 — Sólido Dorado (Layered)',
-    mood: 'Bold · Alto contraste',
+    label: '02 — Solid Gold (Layered)',
+    mood: 'Bold · High contrast',
     analysis:
-      'Cuadro relleno con un borde interno más oscuro de 0.5px. La capa interior agrega profundidad sin perder la pureza del oro.',
-    bestFor: 'Tarjetas de presentación, papelería premium, watermarks',
+      'Filled square with a 0.5px darker inner border. The inner layer adds depth without diluting the gold tone.',
+    bestFor: 'Business cards, premium stationery, watermarks',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <rect x="0" y="0" width="56" height="56" fill={GOLD} rx="3" />
@@ -168,11 +168,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v3',
-    label: '03 — Sin Marco + Ancla',
-    mood: 'Aireado · Mínimo',
+    label: '03 — Frameless + Anchor',
+    mood: 'Airy · Minimal',
     analysis:
-      'Sin caja contenedora. Una línea dorada corta bajo las T sustituye al marco; ancla el monograma sin enjaularlo.',
-    bestFor: 'Versión "lite" en headers transparentes, marcas de agua sutiles',
+      'No containing box. A short gold line beneath the Ts replaces the frame; it anchors the monogram without caging it.',
+    bestFor: '"Lite" header version on transparent backgrounds, subtle watermarks',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <Crown />
@@ -184,11 +184,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v4',
-    label: '04 — Círculo Doble',
+    label: '04 — Double Circle',
     mood: 'Premium · Stamp',
     analysis:
-      'Anillo dorado + anillo interior fino. Lectura como medalla o sello — comunica autoridad técnica y certificación.',
-    bestFor: 'Sellos de aprobación, watermarks en planos, badges',
+      'Gold ring plus a thin inner ring. Reads as a medal or seal — communicates technical authority and certification.',
+    bestFor: 'Approval seals, drawing watermarks, badges',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <circle cx="28" cy="28" r="27" stroke={GOLD} strokeWidth="1.5" fill="none" />
@@ -201,11 +201,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v5',
-    label: '05 — Hexágono (Flat-top)',
-    mood: 'Técnico · Moderno',
+    label: '05 — Hexagon (Flat-top)',
+    mood: 'Technical · Modern',
     analysis:
-      'Hexágono con vértices arriba/abajo (no a los lados) — referencia directa a tornillos, tuercas y planos isométricos.',
-    bestFor: 'Marca técnica, ingeniería industrial, signage exterior',
+      'Hexagon with vertices on top/bottom (not on the sides) — a direct reference to bolts, nuts, and isometric drawings.',
+    bestFor: 'Technical branding, industrial engineering, exterior signage',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <polygon points="14,1 42,1 55,28 42,55 14,55 1,28" stroke={GOLD} strokeWidth="1.5" fill="none" />
@@ -217,11 +217,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v6',
-    label: '06 — TT Doble Oro + Cresta',
-    mood: 'Premium · Heráldico',
+    label: '06 — Dual Gold TT + Crest',
+    mood: 'Premium · Heraldic',
     analysis:
-      'Ambas T en oro. Un punto dorado entre los dos picos de la corona refuerza la unión simbólica de los dos apellidos.',
-    bestFor: 'Comunicación de prestigio, premios, certificaciones internas',
+      'Both Ts in gold. A gold dot between the two crown peaks reinforces the symbolic union of the two surnames.',
+    bestFor: 'Prestige communication, awards, internal certifications',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <rect x="0.75" y="0.75" width="54.5" height="54.5" stroke={GOLD} strokeWidth="1.5" fill="none" rx="3" />
@@ -234,11 +234,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v7',
-    label: '07 — Brackets con Serifs',
-    mood: 'Editorial · Refinado',
+    label: '07 — Brackets with Serifs',
+    mood: 'Editorial · Refined',
     analysis:
-      'Corchetes con pequeños remates horizontales en los extremos. Sugieren tipografía con serif sin alterar el cuerpo del monograma.',
-    bestFor: 'Publicaciones técnicas, white papers, contenido escrito formal',
+      'Brackets with small horizontal serifs at the tips. They suggest a serif typeface without altering the monogram itself.',
+    bestFor: 'Technical publications, white papers, formal written content',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <path d="M 8 1 L 1 1 L 1 55 L 8 55" stroke={GOLD} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -256,11 +256,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v8',
-    label: '08 — Líneas Sup/Inf (Pillars)',
-    mood: 'Arquitectónico · Simétrico',
+    label: '08 — Top/Bottom Lines (Pillars)',
+    mood: 'Architectural · Symmetric',
     analysis:
-      'Línea bajo el TT (cimentación) y línea sobre la corona (techo). Las T quedan "entre dos plantas" — referencia a estructuras verticales.',
-    bestFor: 'Proyectos verticales, torres residenciales, branding arquitectónico',
+      'Line below the TT (foundation) and line above the crown (roof). The Ts sit "between two floors" — a reference to vertical structures.',
+    bestFor: 'Vertical projects, residential towers, architectural branding',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <line x1="6" y1="3" x2="50" y2="3" stroke={GOLD} strokeWidth="1.2" strokeLinecap="round" opacity="0.8" />
@@ -273,11 +273,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v9',
-    label: '09 — Doble Marco + Esquinas',
-    mood: 'Sello · Certificación',
+    label: '09 — Double Frame + Corners',
+    mood: 'Seal · Certification',
     analysis:
-      'Marco exterior + borde interior + pequeñas marcas en las 4 esquinas. Lectura como sello oficial o estampilla de validación.',
-    bestFor: 'Documentos firmados, planos sellados, dictámenes técnicos',
+      'Outer frame plus inner border plus small marks at the 4 corners. Reads as an official seal or validation stamp.',
+    bestFor: 'Signed documents, stamped drawings, technical opinions',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <rect x="0.75" y="0.75" width="54.5" height="54.5" stroke={GOLD} strokeWidth="1.5" fill="none" rx="3" />
@@ -295,11 +295,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v10',
-    label: '10 — Chaflán Pronunciado',
-    mood: 'Industrial · Estructural',
+    label: '10 — Pronounced Chamfer',
+    mood: 'Industrial · Structural',
     analysis:
-      'Esquinas cortadas a 10px (vs 6px de la versión anterior). El corte más agresivo evoca placas de acero biseladas o piezas mecanizadas.',
-    bestFor: 'Estructura metálica, naves industriales, marca técnica pesada',
+      'Corners cut at 10px (vs 6px of the previous version). The more aggressive cut evokes beveled steel plates or machined parts.',
+    bestFor: 'Steel structures, industrial buildings, heavy technical branding',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <polygon points="10,0 46,0 56,10 56,46 46,56 10,56 0,46 0,10" stroke={GOLD} strokeWidth="1.5" fill="none" />
@@ -312,10 +312,10 @@ const variants: Variant[] = [
   {
     id: 'v11',
     label: '11 — Tick Marks + Crosshair',
-    mood: 'Plano · Topográfico',
+    mood: 'Drawing · Topographic',
     analysis:
-      'Marcas de esquina más prominentes (10px) + pequeñas cruces de registro en el centro de cada lado. Lectura como recuadro de plano CAD.',
-    bestFor: 'Documentación técnica, branding de drawings, ingeniería digital',
+      'More prominent corner marks (10px) plus small registration crosses in the middle of each edge. Reads as a CAD drawing border.',
+    bestFor: 'Technical documentation, drawing branding, digital engineering',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <path d="M 0 10 L 0 0 L 10 0" stroke={GOLD} strokeWidth="1.5" fill="none" strokeLinecap="round" />
@@ -339,11 +339,11 @@ const variants: Variant[] = [
   },
   {
     id: 'v12',
-    label: '12 — Sello Oro (Luxury)',
-    mood: 'Luxury · Inverso',
+    label: '12 — Gold Seal (Luxury)',
+    mood: 'Luxury · Inverted',
     analysis:
-      'Marco dorado grueso, interior oscuro, TT con T blanca + T dorada. Acabado tipo lingote o joya — la versión más formal de la familia.',
-    bestFor: 'Awards, edición limitada, comunicación de alto valor',
+      'Thick gold frame, dark interior, TT with one white T and one gold T. Bullion or jewelry-like finish — the most formal of the family.',
+    bestFor: 'Awards, limited editions, high-value communication',
     svg: (
       <svg viewBox="0 0 290 60" xmlns="http://www.w3.org/2000/svg" fill="none">
         <rect x="0" y="0" width="56" height="56" fill={GOLD} rx="4" />
@@ -384,7 +384,7 @@ export default function LogoStylesPage() {
         }}
       >
         <p style={{ color: GOLD, fontSize: '11px', letterSpacing: '3px', textTransform: 'uppercase', margin: '0 0 16px' }}>
-          Logo Style Explorer · v3 (kerning + refinamientos)
+          Logo Style Explorer · v3 (kerning + refinements)
         </p>
         <h1
           style={{
@@ -397,13 +397,13 @@ export default function LogoStylesPage() {
             lineHeight: 1.1,
           }}
         >
-          12 Variantes con Análisis
+          12 Variants with Analysis
         </h1>
         <p style={{ color: textMuted, fontSize: '15px', maxWidth: '680px', margin: '0 auto 16px', lineHeight: 1.6 }}>
-          Las dos T ahora se tocan exactamente en el borde gracias a un letter-spacing de −2.5 que cancela los sidebearings de Inter Bold. Cada variante agrega un detalle de diseño específico — abajo está el análisis y el caso de uso recomendado.
+          The two Ts now touch exactly at the edge thanks to a letter-spacing of −2.5 that cancels the Inter Bold sidebearings. Each variant adds a specific design detail — the analysis and recommended use case sit below.
         </p>
         <p style={{ color: GOLD, fontSize: '12px', fontFamily: 'monospace', margin: '0 auto 32px', opacity: 0.8 }}>
-          TT centrada en x=28 · letter-spacing=−2.5 · columnas corona x=21/35
+          TT centered at x=28 · letter-spacing=−2.5 · crown columns x=21/35
         </p>
 
         <div style={{ display: 'inline-flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -429,7 +429,7 @@ export default function LogoStylesPage() {
                 fontFamily: 'inherit',
               }}
             >
-              FONDO OSCURO
+              DARK BACKGROUND
             </button>
             <button
               onClick={() => setBg('light')}
@@ -445,7 +445,7 @@ export default function LogoStylesPage() {
                 fontFamily: 'inherit',
               }}
             >
-              FONDO CLARO
+              LIGHT BACKGROUND
             </button>
           </div>
           <button
@@ -463,7 +463,7 @@ export default function LogoStylesPage() {
               fontFamily: 'inherit',
             }}
           >
-            {showAnalysis ? 'OCULTAR ANÁLISIS' : 'MOSTRAR ANÁLISIS'}
+            {showAnalysis ? 'HIDE ANALYSIS' : 'SHOW ANALYSIS'}
           </button>
         </div>
       </section>
@@ -520,7 +520,7 @@ export default function LogoStylesPage() {
                 <div style={{ borderTop: `1px solid ${cardBorder}`, paddingTop: '14px' }}>
                   <p style={{ color: textBody, fontSize: '12px', margin: '0 0 10px', lineHeight: 1.55 }}>{v.analysis}</p>
                   <p style={{ color: textMuted, fontSize: '11px', margin: 0, lineHeight: 1.5 }}>
-                    <span style={{ color: GOLD, fontWeight: 600 }}>Ideal para:</span> {v.bestFor}
+                    <span style={{ color: GOLD, fontWeight: 600 }}>Best for:</span> {v.bestFor}
                   </p>
                 </div>
               )}
@@ -532,10 +532,10 @@ export default function LogoStylesPage() {
       {/* Kerning demo */}
       <section style={{ maxWidth: '1400px', margin: '60px auto 0', padding: '40px 24px' }}>
         <p style={{ color: GOLD, fontSize: '11px', letterSpacing: '3px', textTransform: 'uppercase', margin: '0 0 8px', textAlign: 'center' }}>
-          Detalle del kerning · zoom
+          Kerning detail · zoom
         </p>
         <h2 style={{ color: textPrimary, fontSize: '20px', fontWeight: 700, margin: '0 0 24px', textAlign: 'center', letterSpacing: '-0.01em' }}>
-          Los bordes de las T se tocan en la línea central
+          The T edges meet exactly at the centerline
         </h2>
         <div
           style={{
@@ -549,9 +549,9 @@ export default function LogoStylesPage() {
           }}
         >
           {[
-            { kern: 0, label: 'Sin kerning', note: 'Sidebearings dejan ~2.4px de gap' },
-            { kern: -2.5, label: 'kern = −2.5 (actual)', note: 'Bordes tocándose exactamente' },
-            { kern: -5, label: 'kern = −5 (demasiado)', note: 'Las T se traslapan visiblemente' },
+            { kern: 0, label: 'No kerning', note: 'Sidebearings leave ~2.4px gap' },
+            { kern: -2.5, label: 'kern = −2.5 (current)', note: 'Edges touch exactly' },
+            { kern: -5, label: 'kern = −5 (too much)', note: 'The Ts visibly overlap' },
           ].map((demo) => (
             <div key={demo.kern} style={{ textAlign: 'center' }}>
               <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', maxWidth: '160px', display: 'block', margin: '0 auto 12px' }}>
@@ -569,7 +569,7 @@ export default function LogoStylesPage() {
       {/* Large detail */}
       <section style={{ maxWidth: '1400px', margin: '40px auto 0', padding: '40px 24px' }}>
         <p style={{ color: GOLD, fontSize: '11px', letterSpacing: '3px', textTransform: 'uppercase', margin: '0 0 8px', textAlign: 'center' }}>
-          Tamaño grande · v1 baseline
+          Large size · v1 baseline
         </p>
         <div
           style={{
@@ -606,7 +606,7 @@ export default function LogoStylesPage() {
             paddingBottom: '4px',
           }}
         >
-          ← Volver al Inicio
+          ← Back to Home
         </Link>
       </section>
     </main>

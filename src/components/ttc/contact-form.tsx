@@ -16,7 +16,7 @@ export function ContactForm() {
   });
 
   // Prefill the service when arriving from a "Request this service" link
-  // (/contact?service=recertification). Client-only read avoids the
+  // (/contact?service=concrete). Client-only read avoids the
   // useSearchParams Suspense requirement.
   useEffect(() => {
     const slug = new URLSearchParams(window.location.search).get('service');

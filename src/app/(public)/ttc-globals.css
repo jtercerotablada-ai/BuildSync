@@ -4439,6 +4439,16 @@ img, svg {
     transform: translateX(-50%);
   }
 
+  /* Keep the logo centered on tap/hover/focus (touch fires :hover, and the
+     base .header__logo:hover scale(1.03) would otherwise drop the translateX
+     and shift the logo ~22px to the right). */
+  .header__logo:hover,
+  .header__logo:active,
+  .header__logo:focus,
+  .header__logo:focus-visible {
+    transform: translateX(-50%) scale(1.03);
+  }
+
   .header__logo-img {
     content: url('/ttc/img/logo-icon.svg');
     height: 44px;
@@ -9619,6 +9629,90 @@ img, svg {
   .rc-elevation__tables { grid-template-columns: 1fr 1fr; }
   .rc-elevation__tables > .rc-elevation__table-card:nth-child(3) { grid-column: 1 / -1; }
 }
+
+/* ═══════════════════ Flexure tool (Design / Analysis · ACI 318-25) ═══════════════════ */
+.flx { color: var(--color-text); }
+
+.flx-sheethead {
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem;
+  padding-bottom: 0.8rem; margin-bottom: 1rem; border-bottom: 1px solid var(--color-border);
+}
+.flx-brand { font-weight: 800; letter-spacing: 0.08em; font-size: 1.05rem; }
+.flx-brand-sub { color: var(--color-text-muted); font-size: 0.78rem; }
+.flx-sheettitle { text-align: right; display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end; }
+.flx-sheettitle strong { font-size: 0.9rem; letter-spacing: 0.04em; }
+.flx-code {
+  font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.7rem; color: var(--color-accent);
+  border: 1px solid var(--color-accent); border-radius: 5px; padding: 0.1rem 0.5rem;
+}
+
+.flx-modes { display: flex; gap: 0.5rem; margin-bottom: 1.2rem; flex-wrap: wrap; }
+.flx-mode {
+  flex: 1 1 220px; padding: 0.7rem 1rem; cursor: pointer;
+  background: var(--color-bg-card); color: var(--color-text-muted);
+  border: 1px solid var(--color-border); border-radius: 10px;
+  font-weight: 600; font-size: 0.9rem; transition: all 0.18s;
+}
+.flx-mode:hover { border-color: var(--color-border-light); color: var(--color-text); }
+.flx-mode.is-active { background: var(--color-accent-soft); border-color: var(--color-accent); color: var(--color-text); }
+
+.flx-grid { display: grid; grid-template-columns: 1fr; gap: 1.2rem; }
+@media (min-width: 900px) { .flx-grid { grid-template-columns: 260px minmax(0, 1fr); } }
+@media (min-width: 1300px) { .flx-grid { grid-template-columns: 260px minmax(0, 1fr) 380px; } }
+
+.flx-col { background: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 12px; padding: 1rem 1.1rem; }
+.flx-col--draw { display: flex; flex-direction: column; gap: 0.4rem; }
+@media (max-width: 1299px) { .flx-col--draw { grid-column: 1 / -1; } }
+
+.flx-h { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent); margin: 0.2rem 0 0.7rem; font-weight: 700; }
+.flx-col--draw .flx-h:not(:first-child) { margin-top: 0.8rem; }
+
+.flx-fields { display: flex; flex-direction: column; gap: 0.7rem; }
+.flx-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.flx-field label { font-size: 0.8rem; color: var(--color-text); font-weight: 500; }
+.flx-unit { color: var(--color-text-muted); font-weight: 400; }
+.flx-field input, .flx-field select {
+  background: var(--color-bg-elevated); color: var(--color-text);
+  border: 1px solid var(--color-border); border-radius: 8px; padding: 0.5rem 0.6rem; font-size: 0.95rem; width: 100%;
+}
+.flx-field input:focus, .flx-field select:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; border-color: var(--color-accent); }
+.flx-hint { color: var(--color-text-dim); font-size: 0.72rem; }
+.flx-note { margin-top: 0.8rem; font-size: 0.82rem; color: var(--color-text-muted); }
+.flx-note strong { color: var(--color-text); }
+
+.flx-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.flx-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+.flx-k { color: var(--color-text-muted); }
+.flx-v { color: var(--color-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.flx-v strong { color: var(--color-accent-light); }
+.flx-ref { color: var(--color-text-dim); font-size: 0.76rem; text-align: right; }
+.flx-ok-row .flx-v { color: #3fa564; }
+.flx-bad-row .flx-v { color: var(--color-error); }
+
+.flx-barpick { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-end; margin-bottom: 0.4rem; }
+.flx-barpick .flx-field { flex: 1 1 130px; }
+.flx-asprov { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.3rem 0; }
+.flx-asprov > span { font-size: 0.72rem; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.flx-asprov strong { font-size: 1.15rem; }
+.flx-asprov small { font-size: 0.72rem; color: var(--color-text-dim); }
+.flx-good { color: #3fa564; }
+.flx-bad { color: var(--color-error); }
+
+/* result banner — opaque backgrounds so it reads on any section bg (light or dark) */
+.flx-banner { display: flex; gap: 0.9rem; align-items: center; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid; }
+.flx-banner__icon { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 1.3rem; font-weight: 800; color: #fff; }
+.flx-banner__text { display: flex; flex-direction: column; gap: 0.15rem; line-height: 1.4; }
+.flx-banner__text strong { font-size: 0.95rem; }
+.flx-banner__sub { font-size: 0.85rem; opacity: 0.92; }
+.flx-banner.is-pass { background: #e9f6ee; border-color: #aedcbb; color: #14633d; }
+.flx-banner.is-pass .flx-banner__icon { background: #1f7a4d; }
+.flx-banner.is-fail { background: #fdecea; border-color: #f2b3a8; color: #8e2a17; }
+.flx-banner.is-fail .flx-banner__icon { background: #c0432b; }
+
+.flx-svg { width: 100%; display: block; background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: 10px; }
+.flx-canvas { width: 100%; background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: 10px; }
+.flx-canvas--empty { display: grid; place-items: center; min-height: 200px; color: var(--color-text-dim); font-size: 0.85rem; padding: 1rem; text-align: center; }
+.flx-dim { fill: var(--color-text-muted); font-size: 10px; font-family: var(--font-mono, ui-monospace, monospace); }
 
 
 

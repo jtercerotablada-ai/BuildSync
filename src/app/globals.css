@@ -68,7 +68,7 @@
   --border-row: #94a3b8;
   --text-muted-custom: #6b7280;
   --text-secondary-custom: #9ca3af;
-  --header-band: #f3f4f6;
+  --header-band: #f6f7f8;
 
   /* Search capsule */
   --search-bg: #f1f2f4;
@@ -231,7 +231,7 @@
 /* Mobile task card */
 .mobile-task-card {
   background: white;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e0e0e0;
   border-radius: 10px;
   padding: 12px;
   margin-bottom: 6px;
@@ -319,26 +319,49 @@
    Color #404244 (rgb 64,66,68) matches Asana's SpreadsheetCell
    border verified in DevTools — dark enough to survive sub-pixel
    anti-aliasing at HiDPI displays. */
+/* Every row participates in ONE continuous table — its physical
+   width is pinned to --table-min-width so the row's borders,
+   background, and per-cell dividers all reach the same right edge,
+   regardless of the scroll viewport. Without this, rows defaulted
+   to width:100% of the scroll viewport, and any cells past that
+   edge had no row to anchor to — the horizontal line "died"
+   mid-grid while verticals continued through a ghost area. The
+   consumer (my-tasks page, list-view) sets --table-min-width on a
+   shared ancestor; every divider/clean/header row inherits it. */
+.tt-grid-divider-row {
+  min-width: var(--table-min-width, 100%);
+  /* Row-level border-bottom in ADDITION to per-cell borders. The
+     per-cell ones survive horizontal scroll (they live on each grid
+     item), the row-level one survives sub-pixel rendering at HiDPI
+     where a single 0.727px cell border can alias away. Together
+     they guarantee the horizontal divider is visible at every DPR. */
+  border-bottom: 1px solid #e0e0e0;
+}
 .tt-grid-divider-row > * {
   min-width: 0;
-  /* Stretch each grid item to the full row height. Without this,
-     align-items:center on the row collapses empty cells to 0 height,
-     making their border-left invisible — the exact bug Juan reported.
-     align-self:stretch overrides the parent's align-items:center for
-     this child only, so the cell's BOX fills the row height while its
-     inner content (flex items-center inside) stays vertically centered. */
+  /* Cells take the grid TRACK height via align-self:stretch.
+     The column header is 32px, data rows are 40px. Locking cells
+     to height:40px overflowed the header by 8px and created the
+     duplicate horizontal lines Juan marked May 22 2026 — `stretch`
+     keeps each cell exactly the height of its row. */
   align-self: stretch;
-  /* border-bottom lives on EACH CELL (not the row container) so the
-     horizontal line extends through every column the grid renders —
-     even the ones that scroll horizontally beyond the viewport's
-     right edge. Putting border-bottom on the row container only
-     painted the line up to the container's clipped width, leaving the
-     right-side columns visually orphaned (Juan's "left side has
-     horizontal lines, right side only has verticals" bug, May 2026). */
-  border-bottom: 1px solid #e5e7eb;
+  /* Prevent text wrap inside any cell — long values (e.g. a Phase
+     "M1. Framing & Loads" rendered by BuiltinFieldCell) get
+     truncated horizontally with the cell's overflow:hidden instead
+     of wrapping vertically and growing the grid track. */
+  white-space: nowrap;
+  /* NO border-bottom on cells. The row container above already
+     paints the full-width horizontal divider; if cells paint
+     their own border too, the cell-level line stops where the
+     last cell ends (= row width − padding-right) while the
+     row-level line extends through the row's padding box (= full
+     row width). The visible result is TWO parallel horizontal
+     lines at the bottom of the row with different lengths —
+     exactly the "header on top of header" Juan flagged with the
+     red marks on May 22 2026. Single source of truth: row level. */
 }
 .tt-grid-divider-row > * + * {
-  border-left: 1px solid #e5e7eb;
+  border-left: 1px solid #e0e0e0;
 }
 
 /* Header band that survives custom column wrappers — every cell in
@@ -349,7 +372,30 @@
    columns because some wrappers stacked above the row's background. */
 .tt-grid-header {
   background-color: var(--header-band);
+  min-width: var(--table-min-width, 100%);
 }
 .tt-grid-header > * {
   background-color: var(--header-band);
+}
+
+/* "Clean" variant of a grid row — same column alignment as the data
+   rows (consumer still sets `display: grid` + the shared
+   `gridTemplateColumns` inline) but the cell borders are suppressed
+   so the row reads as a single section divider, not a striped table
+   row. Asana parity for "Recently assigned / Do today / + Add task"
+   bands: alignment continues, but the internal verticals do NOT
+   cross those rows. Only a subtle horizontal border-bottom on the
+   row itself separates the band from the rows that follow. */
+.tt-grid-row-clean {
+  border-bottom: 1px solid #e0e0e0;
+  min-width: var(--table-min-width, 100%);
+}
+.tt-grid-row-clean > * {
+  min-width: 0;
+  /* Cells stretch to the row's track height (40px). Same pattern
+     as .tt-grid-divider-row > * — avoids the cell-overflow bug
+     that produced two parallel horizontal lines on rows whose
+     height differs from the previously-hardcoded cell height. */
+  align-self: stretch;
+  white-space: nowrap;
 }

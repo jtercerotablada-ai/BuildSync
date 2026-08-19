@@ -514,3 +514,52 @@
   width: 18px;
   height: 18px;
 }
+
+/* ===== Beam calculator — light-theme alignment =====
+   The calculator was authored for a dark theme (rgba(10,10,10,…) fills),
+   so on the light site the inputs rendered dark-on-dark (unreadable) and
+   the panels/diagram boxes looked like dark islands. These overrides bring
+   it onto the light B/W/gold palette. ttc-pop.css loads after ttc-globals,
+   so same-specificity selectors win without !important. */
+.beam-calc {
+  background: #ffffff;
+}
+.beam-calc__toolbar {
+  background: #faf8f3;
+}
+.beam-calc__tab-count {
+  background: rgba(20, 20, 15, 0.08);
+}
+.beam-calc__toggle input {
+  background: rgba(20, 20, 15, 0.18);
+}
+.beam-calc__toggle input::after {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.panel__input-group input,
+.panel__field select,
+.panel__field > input,
+.panel__item-input {
+  background: #ffffff;
+}
+.panel__unit {
+  background: #f3f0e8;
+}
+.panel__hint {
+  background: rgba(201, 168, 76, 0.07);
+}
+.panel__item {
+  background: #ffffff;
+}
+.support-type-btn {
+  background: #ffffff;
+}
+.results-summary__card {
+  background: #ffffff;
+}
+.diagram {
+  background: #ffffff;
+}
+.beam-calc__issue {
+  color: #b0322a;
+}
