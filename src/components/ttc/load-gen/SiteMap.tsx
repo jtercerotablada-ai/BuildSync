@@ -49,9 +49,9 @@ export function SiteMap({ location }: Props) {
         attributionControl: true,
       });
 
-      // CartoDB Dark Matter tiles — free, fits the site's dark theme
+      // CartoDB Positron (light) tiles — free, fits the luxury light theme
       L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
         {
           attribution:
             '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &middot; &copy; <a href="https://carto.com/">CARTO</a>',
