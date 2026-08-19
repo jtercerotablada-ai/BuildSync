@@ -1055,8 +1055,12 @@ export default function GoalDetailPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-900">
                 Key results
+                {/* Parens around count for screen-reader pause + visual
+                    consistency with /projects/all and /teams. Pre-fix
+                    the span rendered as "Key results3" with no
+                    separator. QC Fase 1 bug GO-2, May 22 2026. */}
                 <span className="ml-2 text-xs font-normal text-gray-400 tabular-nums">
-                  {objective.keyResults.length}
+                  ({objective.keyResults.length})
                 </span>
               </h3>
               <Button

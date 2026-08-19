@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -196,6 +196,13 @@ export function CustomFieldModal({
   const [addToAllNewTasks, setAddToAllNewTasks] = useState(true);
   const [librarySearch, setLibrarySearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Synchronous double-fire guard. setSubmitting (state) updates
+  // asynchronously, so two rapid clicks on "Create" both pass the
+  // `if (submitting) return` check and both call onFieldCreated —
+  // that's the bug Juan reported where adding a PEOPLE column
+  // produced TWO columns. A ref flips synchronously so the second
+  // click in the same tick is rejected.
+  const submittingRef = useRef(false);
 
   // Pre-fill from props when the modal opens
   useEffect(() => {
@@ -215,15 +222,20 @@ export function CustomFieldModal({
       toast.error("Field name is required");
       return;
     }
-    if (submitting) return;
+    if (submittingRef.current || submitting) return;
+    submittingRef.current = true;
 
     // No projectId in context (e.g. /my-tasks toolbar across projects)
     // → preserve old cosmetic-only behavior so we don't lose the existing
     // callback hooks downstream.
     if (!projectId) {
-      onFieldCreated?.({ name, type: fieldType, color: fieldColor });
-      toast.success(`Field "${name}" created`);
-      resetAndClose();
+      try {
+        onFieldCreated?.({ name, type: fieldType, color: fieldColor });
+        toast.success(`Field "${name}" created`);
+        resetAndClose();
+      } finally {
+        submittingRef.current = false;
+      }
       return;
     }
 
@@ -281,6 +293,7 @@ export function CustomFieldModal({
       );
     } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   }
 

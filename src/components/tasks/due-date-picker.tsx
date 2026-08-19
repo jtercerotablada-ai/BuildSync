@@ -42,8 +42,24 @@ interface DueDatePickerProps {
   startDate?: Date | null;
   /** End of the range — also used as the single date if startDate is null. */
   dueDate: Date | null;
-  /** Fires when either endpoint changes. */
-  onChange: (startDate: Date | null, dueDate: Date | null) => void;
+  /**
+   * Optional time-of-day on the due date. When present, the picker
+   * shows a time input next to the date. Asana parity (P2, May 23
+   * 2026): `dueAt` lives in the DB alongside `dueDate` so the
+   * day-level value (recurring views, "tasks due today" filters)
+   * stays clean while time gives precision when needed.
+   */
+  dueAt?: Date | null;
+  /**
+   * Fires when any endpoint changes. The 3rd argument is the new
+   * `dueAt`. Existing callers that only care about the date can
+   * ignore the 3rd arg — TypeScript treats it as optional.
+   */
+  onChange: (
+    startDate: Date | null,
+    dueDate: Date | null,
+    dueAt?: Date | null
+  ) => void;
   trigger: React.ReactNode;
 }
 
@@ -93,10 +109,21 @@ function dayOnly(d: Date): number {
 export function DueDatePicker({
   startDate = null,
   dueDate,
+  dueAt = null,
   onChange,
   trigger,
 }: DueDatePickerProps) {
   const [open, setOpen] = useState(false);
+  // Time-of-day draft. Stored as "HH:mm" string so the input
+  // can be empty (no time set). Combined with localDue at flush
+  // time to produce the dueAt datetime.
+  const [localTime, setLocalTime] = useState<string>(
+    dueAt
+      ? `${String(dueAt.getHours()).padStart(2, "0")}:${String(
+          dueAt.getMinutes()
+        ).padStart(2, "0")}`
+      : ""
+  );
   /**
    * DRAFT state.
    * The picker holds its own copy of the dates while the popover is
@@ -135,6 +162,13 @@ export function DueDatePicker({
       setLocalDue(dueDate);
       setStartInput(startDate ? formatDateInput(startDate) : '');
       setDueInput(dueDate ? formatDateInput(dueDate) : '');
+      setLocalTime(
+        dueAt
+          ? `${String(dueAt.getHours()).padStart(2, "0")}:${String(
+              dueAt.getMinutes()
+            ).padStart(2, "0")}`
+          : ""
+      );
       setFocus(startDate && !dueDate ? 'due' : 'start');
       if (startDate || dueDate) {
         setViewDate(startDate || dueDate || new Date());
@@ -169,31 +203,58 @@ export function DueDatePicker({
    */
   const localStartRef = useRef(localStart);
   const localDueRef = useRef(localDue);
+  const localTimeRef = useRef(localTime);
   const startDateRef = useRef(startDate);
   const dueDateRef = useRef(dueDate);
+  const dueAtRef = useRef(dueAt);
   const onChangeRef = useRef(onChange);
   localStartRef.current = localStart;
   localDueRef.current = localDue;
+  localTimeRef.current = localTime;
   startDateRef.current = startDate;
   dueDateRef.current = dueDate;
+  dueAtRef.current = dueAt;
   onChangeRef.current = onChange;
 
   /**
    * Flush draft state up to the parent. Called when the popover
    * dismisses; skipped when nothing actually changed so the parent
    * doesn't trigger a no-op PATCH.
+   *
+   * `dueAt` is composed at flush time by mixing the date portion of
+   * `localDue` with the time-of-day from `localTime`. When no time
+   * is entered, dueAt is null even if the date is set — Asana
+   * parity (P2, May 23 2026).
    */
   function flush() {
     const ls = localStartRef.current;
     const ld = localDueRef.current;
+    const lt = localTimeRef.current;
     const sd = startDateRef.current;
     const dd = dueDateRef.current;
+    const dat = dueAtRef.current;
+
+    // Compose dueAt from date + time when both are present. An
+    // empty time string clears dueAt regardless of date.
+    let composedDueAt: Date | null = null;
+    if (ld && lt) {
+      const m = lt.match(/^(\d{1,2}):(\d{2})$/);
+      if (m) {
+        const h = Math.min(23, Math.max(0, parseInt(m[1], 10)));
+        const min = Math.min(59, Math.max(0, parseInt(m[2], 10)));
+        composedDueAt = new Date(ld);
+        composedDueAt.setHours(h, min, 0, 0);
+      }
+    }
+
     const startChanged =
       (ls?.toDateString() || '') !== (sd?.toDateString() || '');
     const dueChanged =
       (ld?.toDateString() || '') !== (dd?.toDateString() || '');
-    if (startChanged || dueChanged) {
-      onChangeRef.current(ls, ld);
+    const dueAtChanged =
+      (composedDueAt?.getTime() ?? 0) !== (dat?.getTime() ?? 0);
+    if (startChanged || dueChanged || dueAtChanged) {
+      onChangeRef.current(ls, ld, composedDueAt);
     }
   }
 
@@ -257,6 +318,9 @@ export function DueDatePicker({
     setLocalDue(null);
     setStartInput('');
     setDueInput('');
+    // Clearing the date also clears the time — keeping a time
+    // without a date would never be flushed to the parent.
+    setLocalTime('');
     setFocus('start');
   };
 
@@ -423,6 +487,37 @@ export function DueDatePicker({
             </button>
           )}
         </div>
+
+        {/* ========== TIME (optional) ==========
+            Shown only when a due date is set. Asana parity (P2,
+            May 23 2026): the time-of-day is OPT-IN — leaving it
+            blank means "due any time that day", which matches how
+            most engineering deadlines work. When set, the task
+            shows a clock badge in the list/board views. */}
+        {localDue && (
+          <div className="flex items-center border-b px-3 py-2 gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-gray-500">
+              Time
+            </span>
+            <Input
+              type="time"
+              value={localTime}
+              onChange={(e) => setLocalTime(e.target.value)}
+              className="flex-1 h-7 text-xs text-center border-gray-300 px-1"
+              placeholder="--:--"
+            />
+            {localTime && (
+              <button
+                onClick={() => setLocalTime("")}
+                className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
+                title="Clear time"
+                type="button"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Focus hint — reflects what the next click does. After the
             user has set both endpoints the hint switches to a

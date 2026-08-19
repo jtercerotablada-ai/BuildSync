@@ -81,12 +81,44 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id as string;
+        // Propagate the workspace role onto the session so client
+        // components that read it (sidebar, role-gated UI) don't have
+        // to re-fetch from /api/auth or DB on every render.
+        (session.user as { role?: string }).role = token.role as
+          | string
+          | undefined;
       }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
+      // On sign-in (`user` populated) OR when explicitly refreshed
+      // via `update()`, look up the user's primary workspace role and
+      // stamp it on the token. proxy.ts reads `token.role` for all
+      // role-based redirects (/client, /portal, /home) — without this
+      // the role-based gating is broken because `token.role` was
+      // never being set. Fixed during QC Fase 1 on May 22 2026 (bug
+      // CL-3).
       if (user) {
         token.id = user.id;
+      }
+      if (user || trigger === "update" || !token.role) {
+        const userId = (token.id as string | undefined) ?? user?.id;
+        if (userId) {
+          // Pick the first workspace membership — multi-workspace
+          // role resolution can layer on top later (e.g. by reading
+          // the active workspace id from token.workspaceId). For now
+          // the first row matches the existing access-control logic
+          // throughout the app (see canAccessSection).
+          const member = await prisma.workspaceMember.findFirst({
+            where: { userId },
+            orderBy: { joinedAt: "asc" },
+            select: { role: true, workspaceId: true },
+          });
+          if (member) {
+            token.role = member.role;
+            token.workspaceId = member.workspaceId;
+          }
+        }
       }
       return token;
     },

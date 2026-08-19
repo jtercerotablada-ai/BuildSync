@@ -2,6 +2,20 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
+/**
+ * Project status → human label. Centralized here so every chart that
+ * groups by status renders the same wording (the `<Status>`
+ * component uses these exact labels too).
+ */
+const STATUS_LABEL_MAP: Record<string, string> = {
+  ON_TRACK: "On track",
+  AT_RISK: "At risk",
+  OFF_TRACK: "Off track",
+  ON_HOLD: "On hold",
+  COMPLETE: "Complete",
+  COMPLETED: "Complete",
+};
+
 const COLORS = [
   "#3b82f6", // blue
   "#22c55e", // green
@@ -427,7 +441,11 @@ export async function GET(req: Request) {
         { name: "Completed", value: completed, color: "#3b82f6" },
       ].filter((s) => s.value > 0),
       projectsByStatus: projectsByStatus.map((p) => ({
-        name: p.status.replace("_", " "),
+        // Title-case the label — `replace("_", " ")` was leaving the
+        // raw enum value all-caps ("OFF TRACK") in chart legends.
+        // Centralizing labels here keeps every chart's status legend
+        // consistent with the `<Status>` component labels elsewhere.
+        name: STATUS_LABEL_MAP[p.status] ?? p.status,
         value: p._count,
         color:
           p.status === "ON_TRACK"

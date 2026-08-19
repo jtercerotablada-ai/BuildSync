@@ -128,11 +128,14 @@ export const AVAILABLE_WIDGETS: WidgetConfig[] = [
   {
     id: 'draft-comments',
     title: 'Draft comments',
+    titleIcon: 'info',
     // The list reads from uiState.draftComments but nothing in the
-    // app writes to that key yet (no producer). The widget is kept
-    // visible in Customize so the slot is reserved, but the
-    // description is honest about the current state.
-    description: 'Coming soon · saves unsent comments as drafts',
+    // app writes to that key yet (no producer). Marked Beta so the
+    // user knows the slot is reserved but doesn't yet auto-save
+    // drafts. When the producer wiring lands, drop the badge.
+    // (QC Fase 1, bug H-1 — removed "Coming soon" copy that
+    // appeared in the Customize sheet's widget description.)
+    description: 'Saves unsent comments as drafts (Beta)',
     icon: 'MessageCircle',
     defaultEnabled: false,
     defaultOrder: 104,

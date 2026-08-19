@@ -386,6 +386,20 @@ export default function InboxPage() {
               <Archive className="w-4 h-4 mr-2" />
               Archive all
             </DropdownMenuItem>
+            {/* Notification settings — the button is labeled "Manage
+                notifications" so users expect a path to preferences
+                (email/push toggles, mute channels). Pre-fix the menu
+                only offered bulk inbox actions, which is misleading.
+                Now we route to /settings?section=notifications which
+                deep-links to the Notifications tab thanks to the
+                useSearchParams sync added in ST-1. QC Fase 1 manual
+                smoke test bug IN-2, May 22 2026. */}
+            <DropdownMenuItem
+              onClick={() => router.push("/settings?section=notifications")}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Notification settings
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -518,6 +532,20 @@ export default function InboxPage() {
                         `${n.sender.name}: ${n.title} - ${n.preview}`
                     )
                     .join("\n");
+                  // Bail out early if there are no notifications in
+                  // the selected window — the /api/ai/assist endpoint
+                  // rejects empty `text` with 400 (validated by
+                  // `if (!text || !prompt)`). Pre-fix the button
+                  // appeared to do nothing — fired the request,
+                  // server 400'd silently. QC Fase 1 manual smoke
+                  // test bug IN-1, May 22 2026.
+                  if (!summaryText.trim()) {
+                    setAiSummary(
+                      `No notifications in the ${periodLabel} to summarize.`
+                    );
+                    setAiSummaryLoading(false);
+                    return;
+                  }
                   const res = await fetch("/api/ai/assist", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -529,6 +557,15 @@ export default function InboxPage() {
                   if (res.ok) {
                     const data = await res.json();
                     setAiSummary(data.result);
+                  } else {
+                    // Surface error status + body to the user so they
+                    // know why nothing happened (was silent before).
+                    const err = await res.json().catch(() => ({}));
+                    setAiSummary(
+                      err.error
+                        ? `Couldn't generate summary: ${err.error}`
+                        : `Couldn't generate summary (HTTP ${res.status})`
+                    );
                   }
                 } catch {
                   setAiSummary(

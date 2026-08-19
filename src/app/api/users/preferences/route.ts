@@ -47,6 +47,11 @@ export async function PATCH(req: Request) {
       "notifyMentioned",
       "notifyProjectUpdates",
       "notifyWeeklyDigest",
+      // Asana parity (May 23 2026): 3-state digest cadence
+      // (NEVER/DAILY/WEEKLY). Coexists with the legacy boolean so
+      // either client can write. See UserPreferences in
+      // prisma/schema.prisma.
+      "notifyDigestCadence",
       "theme",
     ];
 

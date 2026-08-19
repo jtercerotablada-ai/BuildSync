@@ -795,10 +795,23 @@ function GoalsListView({
       <div>
         {objectives.map((objective) => (
           <div key={objective.id}>
-            {/* Desktop row — per-cell border-l on each column cell */}
+            {/* Desktop row — per-cell border-l on each column cell.
+                a11y: role="link" + tabIndex makes the row keyboard-
+                navigable. Enter/Space trigger the same row click. Was
+                pure `<div onClick>` pre-QC, blocking screen-reader
+                and keyboard users entirely (bug GO-1, May 22 2026). */}
             <div
-              className="hidden md:flex items-stretch hover:bg-gray-50 cursor-pointer group border-b border-[#e6e9ef]"
+              role="link"
+              tabIndex={0}
+              aria-label={`Open goal: ${objective.name}`}
+              className="hidden md:flex items-stretch hover:bg-gray-50 focus:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a84c] cursor-pointer group border-b border-[#e6e9ef]"
               onClick={() => onRowClick(objective.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onRowClick(objective.id);
+                }
+              }}
             >
               {/* Name */}
               <div className="flex-1 px-3 py-3 flex items-center justify-center gap-2">

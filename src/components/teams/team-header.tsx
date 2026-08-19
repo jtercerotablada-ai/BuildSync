@@ -80,11 +80,17 @@ export function TeamHeader({ team, activeTab }: TeamHeaderProps) {
               )}
             </div>
 
-            {/* Team name dropdown */}
+            {/* Team name dropdown. role=heading/aria-level=1 makes
+                the inner team-name text behave as the page's H1 for
+                screen readers, even though the surrounding element
+                is a dropdown trigger button (so we can't nest a real
+                <h1>). QC Fase 1 bug TM-1, May 22 2026. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-1 text-base font-semibold hover:bg-gray-100 px-2 py-1 rounded transition-colors">
-                  {team.name}
+                  <span role="heading" aria-level={1}>
+                    {team.name}
+                  </span>
                   <ChevronDown className="h-4 w-4 text-gray-400" />
                 </button>
               </DropdownMenuTrigger>

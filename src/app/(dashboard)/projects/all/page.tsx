@@ -40,6 +40,9 @@ import {
   Building2,
   GanttChart,
   ChevronDown,
+  ArrowUpDown,
+  Layers,
+  Check,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -49,7 +52,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { GanttTimeline } from "@/components/projects/gantt-timeline";
-import { computePmiSnapshot, healthVisual } from "@/lib/pmi-metrics";
+import { computePmiSnapshot, healthStatus } from "@/lib/pmi-metrics";
+import { Status } from "@/components/ui/status";
 
 type ProjectType =
   | "CONSTRUCTION"
@@ -95,6 +99,7 @@ interface Project {
     dueDate?: string | null;
   }[];
   _count: { tasks: number; sections: number };
+  archivedAt: string | null;
 }
 
 const TYPE_LABEL: Record<ProjectType, string> = {
@@ -123,6 +128,24 @@ const STATUS_DOT: Record<ProjectStatus, string> = {
 type View = "grid" | "list" | "gantt";
 const VIEW_STORAGE_KEY = "projects.view";
 
+// Labels for the Sort/Group dropdown chips. Kept here (file-scope)
+// so the JSX inline text stays terse and translations later can
+// swap these without touching the toolbar markup. PA-2 (May 22 2026).
+const SORT_LABEL: Record<"none" | "name" | "created" | "endDate" | "progress", string> = {
+  none: "None",
+  name: "Name",
+  created: "Created",
+  endDate: "Deadline",
+  progress: "Progress",
+};
+const GROUP_LABEL: Record<"none" | "type" | "gate" | "owner" | "status", string> = {
+  none: "None",
+  type: "Type",
+  gate: "Gate",
+  owner: "Owner",
+  status: "Health",
+};
+
 export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -130,6 +153,20 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<ProjectType | "ALL">("ALL");
   const [gateFilter, setGateFilter] = useState<ProjectGate | "ALL">("ALL");
+  // Archive visibility — hidden by default. Toggling shows archived
+  // projects mixed in (matches Asana's "Show archived" checkbox in
+  // the project picker). QC Fase 2 P1.1, May 23 2026.
+  const [showArchived, setShowArchived] = useState(false);
+  // Sort + Group controls — Asana-parity for the project browser.
+  // QC Fase 1 bug PA-2 (May 22 2026): /projects/all previously had
+  // only Type/Gate chips and a view switcher. Users couldn't sort
+  // by recency or name, nor visually group by type/gate/owner.
+  type SortField = "none" | "name" | "created" | "endDate" | "progress";
+  type SortDir = "asc" | "desc";
+  const [sortField, setSortField] = useState<SortField>("none");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  type GroupField = "none" | "type" | "gate" | "owner" | "status";
+  const [groupField, setGroupField] = useState<GroupField>("none");
   // Default to list view — matches Asana's project browser and is
   // denser for AEC users who want to scan many projects fast.
   // Grid and Gantt are still one click away.
@@ -163,12 +200,57 @@ export default function ProjectsPage() {
   }, [search]);
 
   const filtered = useMemo(() => {
-    return projects.filter(
+    const base = projects.filter(
       (p) =>
         (typeFilter === "ALL" || p.type === typeFilter) &&
-        (gateFilter === "ALL" || p.gate === gateFilter)
+        (gateFilter === "ALL" || p.gate === gateFilter) &&
+        (showArchived || !p.archivedAt)
     );
-  }, [projects, typeFilter, gateFilter]);
+    if (sortField === "none") return base;
+    // Stable-sort with the chosen field. We compare value-by-value
+    // and respect the asc/desc switch.
+    const sorted = [...base].sort((a, b) => {
+      let av: string | number = "";
+      let bv: string | number = "";
+      switch (sortField) {
+        case "name":
+          av = a.name?.toLowerCase() ?? "";
+          bv = b.name?.toLowerCase() ?? "";
+          break;
+        case "created":
+          // The /api/projects payload doesn't expose `createdAt`, so
+          // we use `startDate` as the next-best proxy for "recently
+          // created" (most projects backfill startDate at creation).
+          // The cuid id is also time-monotonic if startDate is null.
+          av = a.startDate ? new Date(a.startDate).getTime() : 0;
+          bv = b.startDate ? new Date(b.startDate).getTime() : 0;
+          if (!av && !bv) {
+            av = a.id;
+            bv = b.id;
+          }
+          break;
+        case "endDate":
+          av = a.endDate ? new Date(a.endDate).getTime() : Number.POSITIVE_INFINITY;
+          bv = b.endDate ? new Date(b.endDate).getTime() : Number.POSITIVE_INFINITY;
+          break;
+        case "progress": {
+          // Sort by % complete (tasks done / total). Projects with
+          // no tasks land at 0.
+          const aTotal = a._count?.tasks ?? 0;
+          const aDone = (a.tasks || []).filter((t) => t.completed).length;
+          const bTotal = b._count?.tasks ?? 0;
+          const bDone = (b.tasks || []).filter((t) => t.completed).length;
+          av = aTotal === 0 ? 0 : aDone / aTotal;
+          bv = bTotal === 0 ? 0 : bDone / bTotal;
+          break;
+        }
+      }
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [projects, typeFilter, gateFilter, sortField, sortDir, showArchived]);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
@@ -178,8 +260,13 @@ export default function ProjectsPage() {
       <div className="flex items-center justify-between px-4 md:px-8 xl:px-12 2xl:px-16 pt-6 md:pt-8 pb-4">
         <h1 className="text-[22px] md:text-[28px] font-semibold text-black tracking-tight">
           Browse projects
+          {/* Count wrapped in parens for consistent format across the
+              app (matches /teams "Teams (1)" pattern). Pre-fix the
+              span said just "1" which read as "Browse projects1" to
+              screen readers and felt glued to the title. QC Fase 1
+              bug PA-1, May 22 2026. */}
           <span className="ml-2 text-sm font-normal text-gray-400 tabular-nums">
-            {filtered.length}
+            ({filtered.length})
           </span>
         </h1>
         <Button
@@ -237,6 +324,143 @@ export default function ProjectsPage() {
             value={gateFilter}
             onChange={(v) => setGateFilter(v as ProjectGate | "ALL")}
           />
+
+          {/* Sort dropdown — Asana parity. Activates the sort
+              applied by the `filtered` memo above. Shows the active
+              field as a label suffix when set. PA-2 fix. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={
+                  "inline-flex items-center gap-1.5 h-7 px-2.5 text-[12px] rounded-md border transition-colors " +
+                  (sortField !== "none"
+                    ? "border-[#c9a84c] bg-[#fdf7e8] text-[#8a7028]"
+                    : "border-gray-200 text-gray-600 hover:bg-gray-50")
+                }
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                Sort
+                {sortField !== "none" && (
+                  <span className="text-[10px] text-[#a8893a] font-medium">
+                    ·{" "}
+                    {SORT_LABEL[sortField]}
+                    {sortDir === "desc" ? " ↓" : " ↑"}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              {(
+                [
+                  ["none", "None"],
+                  ["name", "Name (A→Z)"],
+                  ["created", "Recently created"],
+                  ["endDate", "Closest deadline"],
+                  ["progress", "% complete"],
+                ] as const
+              ).map(([value, label]) => (
+                <DropdownMenuItem
+                  key={value}
+                  onClick={() => {
+                    setSortField(value as SortField);
+                    if (value === "none") setSortDir("asc");
+                  }}
+                  className="text-[13px]"
+                >
+                  <Check
+                    className={
+                      "w-3.5 h-3.5 mr-2 " +
+                      (sortField === value ? "opacity-100" : "opacity-0")
+                    }
+                  />
+                  {label}
+                </DropdownMenuItem>
+              ))}
+              {sortField !== "none" && (
+                <>
+                  <div className="my-1 mx-2 border-t border-gray-200" />
+                  <DropdownMenuItem
+                    onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
+                    className="text-[13px]"
+                  >
+                    <ArrowUpDown className="w-3.5 h-3.5 mr-2" />
+                    {sortDir === "asc" ? "Switch to descending ↓" : "Switch to ascending ↑"}
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Group dropdown — applies to the rendered table only
+              (groups are a visual layer). Pre-fix /projects/all
+              showed a flat list with no way to organize by Type or
+              Owner — losing Asana parity. PA-2 fix. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={
+                  "inline-flex items-center gap-1.5 h-7 px-2.5 text-[12px] rounded-md border transition-colors " +
+                  (groupField !== "none"
+                    ? "border-[#c9a84c] bg-[#fdf7e8] text-[#8a7028]"
+                    : "border-gray-200 text-gray-600 hover:bg-gray-50")
+                }
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Group
+                {groupField !== "none" && (
+                  <span className="text-[10px] text-[#a8893a] font-medium">
+                    · {GROUP_LABEL[groupField]}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              {(
+                [
+                  ["none", "No grouping"],
+                  ["type", "By type"],
+                  ["gate", "By gate"],
+                  ["owner", "By owner"],
+                  ["status", "By health"],
+                ] as const
+              ).map(([value, label]) => (
+                <DropdownMenuItem
+                  key={value}
+                  onClick={() => setGroupField(value as GroupField)}
+                  className="text-[13px]"
+                >
+                  <Check
+                    className={
+                      "w-3.5 h-3.5 mr-2 " +
+                      (groupField === value ? "opacity-100" : "opacity-0")
+                    }
+                  />
+                  {label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Show archived toggle — Asana parity. Default off so
+              the picker stays light; on demand the user can pull
+              completed-and-archived projects into the view. QC Fase
+              2 P1.1, May 23 2026. */}
+          <button
+            type="button"
+            onClick={() => setShowArchived((v) => !v)}
+            className={
+              "inline-flex items-center gap-1.5 h-7 px-2.5 text-[12px] rounded-md border transition-colors " +
+              (showArchived
+                ? "border-[#c9a84c] bg-[#fdf7e8] text-[#8a7028]"
+                : "border-gray-200 text-gray-600 hover:bg-gray-50")
+            }
+            title={showArchived ? "Hide archived projects" : "Show archived projects"}
+          >
+            <Folder className="w-3.5 h-3.5" />
+            {showArchived ? "Showing archived" : "Show archived"}
+          </button>
 
           <div className="ml-auto flex items-center bg-white border rounded-md overflow-hidden">
             {(
@@ -501,7 +725,6 @@ function ProjectsListView({
           taskCount: totalTasks,
           completedTaskCount: completedTasks,
         });
-        const hv = healthVisual(pmi.health);
         const isOverdue =
           p.endDate !== null &&
           new Date(p.endDate) < new Date() &&
@@ -572,15 +795,20 @@ function ProjectsListView({
               </div>
             </div>
 
-            {/* Health pill */}
+            {/* Health pill — unified via <Status> so all status pills
+                across project/portfolio/goal/reporting reads the same.
+                `healthStatus` returns the semantic variant + canonical
+                label; the prepended ▲ keeps the overdue affordance. */}
             <div className="px-3 py-2.5 border-l border-[#e6e9ef] flex items-center">
-              <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium tabular-nums"
-                style={{ backgroundColor: hv.hex, color: hv.textHex }}
-              >
-                {isOverdue && "▲ "}
-                {hv.label}
-              </span>
+              {(() => {
+                const hs = healthStatus(pmi.health);
+                return (
+                  <Status variant={hs.variant} size="sm">
+                    {isOverdue && "▲ "}
+                    {hs.label}
+                  </Status>
+                );
+              })()}
             </div>
 
             {/* Owner */}
@@ -614,7 +842,7 @@ function ProjectsListView({
             taskCount: totalTasks,
             completedTaskCount: completedTasks,
           });
-          const hv = healthVisual(pmi.health);
+          const hs = healthStatus(pmi.health);
           return (
             <Link
               key={p.id}
@@ -630,12 +858,9 @@ function ProjectsListView({
                   <p className="text-[13px] font-medium text-black truncate">
                     {p.name}
                   </p>
-                  <span
-                    className="text-[9px] px-1.5 py-0.5 rounded font-medium tabular-nums"
-                    style={{ backgroundColor: hv.hex, color: hv.textHex }}
-                  >
-                    {hv.label}
-                  </span>
+                  <Status variant={hs.variant} size="sm">
+                    {hs.label}
+                  </Status>
                 </div>
                 <p className="text-[10px] text-gray-500 truncate font-mono">
                   {p.projectNumber || "—"} · {pmi.percentComplete}% complete

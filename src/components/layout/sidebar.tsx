@@ -22,7 +22,6 @@ import {
   Users,
   Folder,
   FolderOpen,
-  Clock,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useEffectiveAccess } from "@/hooks/use-effective-access";
@@ -64,12 +63,9 @@ function getMainNavItems(basePath: string): NavItemDef[] {
       icon: Inbox,
       section: "inbox",
     },
-    {
-      href: `${basePath}/timesheets`,
-      label: "Timesheets",
-      icon: Clock,
-      section: "timesheets",
-    },
+    // Timesheets removed May 22 2026 — Asana parity (Asana doesn't have
+    // Timesheets as a top-level nav item). Time tracking lives inside
+    // tasks via the "Time tracking" custom field type instead.
   ];
 }
 

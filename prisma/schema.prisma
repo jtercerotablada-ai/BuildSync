@@ -73,6 +73,8 @@ model User {
   teamMembers         TeamMember[]
   assignedTasks       Task[]               @relation("AssignedTasks")
   createdTasks        Task[]               @relation("CreatedTasks")
+  completedTasks      Task[]               @relation("CompletedTasks")
+  projectBriefsEdited ProjectBrief[]       @relation("ProjectBriefsEdited")
   comments            Comment[]
   activities          Activity[]
   notifications       Notification[]
@@ -129,7 +131,16 @@ model UserPreferences {
   notifyCommentAdded   Boolean @default(true)
   notifyMentioned      Boolean @default(true)
   notifyProjectUpdates Boolean @default(true)
+  // Legacy boolean kept so existing rows aren't broken — true maps
+  // to WEEKLY in the new cadence field. New code should read
+  // `notifyDigestCadence`. Will drop the boolean after one or two
+  // releases.
   notifyWeeklyDigest   Boolean @default(false)
+  // Asana parity (May 23 2026): cadence selector for the digest
+  // email — NEVER (opted out), DAILY (every morning), WEEKLY
+  // (Mondays). Asana defaults to DAILY for active users; we keep
+  // the safer NEVER until the user opts in.
+  notifyDigestCadence  DigestCadence @default(NEVER)
 
   theme String @default("system")
 
@@ -392,6 +403,13 @@ model Project {
   endDate     DateTime?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  // Archive timestamp — when set, the project is hidden from the
+  // default /projects/all view (still queryable via "Show archived"
+  // filter). Asana parity feature added during QC Fase 2 audit
+  // (May 23 2026) — `status` carries lifecycle ("On track", "Off
+  // track"), `archivedAt` is a separate visibility concern so
+  // completed-but-not-cleared projects don't clutter the picker.
+  archivedAt  DateTime?
 
   // Engineering firm extensions (nullable to preserve existing rows)
   type          ProjectType?
@@ -429,11 +447,37 @@ model Project {
   objectives    ObjectiveProject[]
   keyResults    KeyResultProject[]
   statusUpdates StatusUpdate[]
+  brief         ProjectBrief?
 
   // TTC Civil Structural - Client relations
   clientAccesses  ClientProjectAccess[] @relation("ClientAccesses")
   clientApprovals ClientApproval[]      @relation("ProjectApprovals")
   directMessages  DirectMessage[]       @relation("ProjectDirectMessages")
+}
+
+/// Long-form project brief — a single document per project that
+/// captures scope, objectives, deliverables, stakeholders, and key
+/// dates. Mirrors Asana's "Brief" feature: a sticky doc tab so the
+/// PM doesn't have to scroll a long description field every time.
+/// Added during QC Fase 2 P2 (May 23 2026).
+///
+/// One brief per project (1:1) — keeps the relation simple and
+/// lets us guard editing with the project's existing ACL instead
+/// of inventing a new permission surface. Content is stored as
+/// HTML produced by the rich-text editor so the round-trip from
+/// editor → DB → editor is lossless.
+model ProjectBrief {
+  id             String   @id @default(cuid())
+  projectId      String   @unique
+  content        String   @default("") // HTML from rich-text editor
+  lastEditedById String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lastEditedBy User?   @relation("ProjectBriefsEdited", fields: [lastEditedById], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
 }
 
 model ProjectMember {
@@ -493,6 +537,16 @@ model ProjectCompany {
 /// PROJECT_ENGINEER can stamp drawings, etc.). Independent from
 /// WorkspaceRole (platform permissions) and ProjectRole (per-project
 /// RBAC).
+// Cadence for the email digest of notifications. Used by
+// UserPreferences.notifyDigestCadence. Asana parity (May 23 2026,
+// QC Fase 2). Order matters — the UI renders them in this order
+// (None / Daily / Weekly).
+enum DigestCadence {
+  NEVER
+  DAILY
+  WEEKLY
+}
+
 enum Position {
   // ── Management / Office ────────────────────────────
   CEO
@@ -640,8 +694,18 @@ model Task {
   description   String?
   completed     Boolean        @default(false)
   completedAt   DateTime?
+  // Audit: who marked the task complete. Stored alongside
+  // completedAt so the UI can show "Closed by Juan · 2h ago"
+  // without re-querying Activity. Asana parity (May 23 2026).
+  completedById String?
   startDate     DateTime?
   dueDate       DateTime?
+  // Optional time-of-day for the due date. When set, the UI shows
+  // a clock badge and the task is considered "due at H:mm" rather
+  // than end-of-day. Same pattern Asana uses: `due_on` (the date)
+  // is the source of truth for the day; `dueAt` adds time
+  // resolution when needed. Asana parity P2 (May 23 2026).
+  dueAt         DateTime?
   position      Int            @default(0)
   isPrivate     Boolean        @default(false)
   taskType      TaskType       @default(TASK)
@@ -664,6 +728,7 @@ model Task {
   section    Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   assignee   User?    @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
   creator    User?    @relation("CreatedTasks", fields: [creatorId], references: [id], onDelete: SetNull)
+  completedBy User?   @relation("CompletedTasks", fields: [completedById], references: [id], onDelete: SetNull)
   parentTask Task?    @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
 
   subtasks          Task[]             @relation("Subtasks")

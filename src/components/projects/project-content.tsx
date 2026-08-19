@@ -44,12 +44,16 @@ import {
   Check,
   X,
   MapPin,
+  Diamond,
+  ThumbsUp,
+  FolderPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { isThisWeek, parseISO } from "date-fns";
-import { ListView } from "@/components/views/list-view";
 import { BoardView } from "@/components/views/board-view";
+import { BriefView } from "@/components/views/brief-view";
+import { ProjectListView } from "@/components/views/project-list-view";
 import { TimelineView } from "@/components/views/timeline-view";
 import { DashboardView } from "@/components/views/dashboard-view";
 import { CalendarView } from "@/components/views/calendar-view";
@@ -373,11 +377,21 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               {project.name[0]}
             </div>
 
-            {/* Project Name with Dropdown */}
+            {/* Project Name with Dropdown — span carries
+                role=heading/aria-level=1 so screen readers announce
+                the project name as the page's H1 even though the
+                outer element is a dropdown trigger. QC Fase 1 bug
+                PD-2, May 22 2026. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-1 text-base font-semibold text-slate-900 hover:text-slate-700 max-w-[180px] md:max-w-none">
-                  <span className="truncate">{project.name}</span>
+                  <span
+                    role="heading"
+                    aria-level={1}
+                    className="truncate"
+                  >
+                    {project.name}
+                  </span>
                   <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0" />
                 </button>
               </DropdownMenuTrigger>
@@ -648,6 +662,19 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               <FileText className="h-4 w-4" />
               <span className="hidden md:inline">Overview</span>
             </button>
+            {/* Brief tab — Asana-parity sticky doc per project.
+                Added during QC Fase 2 P2 (May 23 2026). */}
+            <button
+              onClick={() => handleViewChange("brief")}
+              className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+                currentView === "brief"
+                  ? "border-[#c9a84c] text-[#a8893a]"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              <span className="hidden md:inline">Brief</span>
+            </button>
             <button
               onClick={() => handleViewChange("list")}
               className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1.5 text-xs md:text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -747,171 +774,330 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               <Users className="h-4 w-4" />
               <span className="hidden md:inline">Team</span>
             </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-2 text-slate-400 hover:text-slate-600">
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => handleViewChange("workflow")}>
-                  <GitBranch className="h-4 w-4 mr-2" />
-                  Workflow
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleViewChange("messages")}>
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Messages
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleViewChange("files")}>
-                  <FolderOpen className="h-4 w-4 mr-2" />
-                  Files
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleViewChange("team")}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Team
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* "More" overflow menu — surfaces the 4 tabs that are
+                `hidden md:flex` (Workflow, Messages, Files, Team) on
+                mobile only. Previously this dropdown was shown on
+                BOTH viewports, duplicating itself with the visible
+                desktop tabs. Now `md:hidden` so it appears solely on
+                mobile. Active state is reflected in the dropdown
+                trigger color when one of its hidden items is current.
+                Fixed during QC Fase 1 May 22 2026 (bug PD-1). */}
+            {(() => {
+              const overflowTabs = ["workflow", "messages", "files", "team"];
+              const inOverflow = overflowTabs.includes(currentView);
+              return (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={`md:hidden flex items-center gap-1 px-2 py-1.5 border-b-2 transition-colors ${
+                        inOverflow
+                          ? "border-[#c9a84c] text-[#a8893a]"
+                          : "border-transparent text-slate-500 hover:text-slate-700"
+                      }`}
+                      aria-label="More views"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleViewChange("workflow")}>
+                      <GitBranch className="h-4 w-4 mr-2" />
+                      Workflow
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleViewChange("messages")}>
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Messages
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleViewChange("files")}>
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      Files
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleViewChange("team")}>
+                      <Users className="h-4 w-4 mr-2" />
+                      Team
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            })()}
           </div>
 
-          {/* Toolbar - only show for task views. Sits on its own
-              row below the view tabs (Asana parity). border-t adds
-              the thin separator Asana uses between the two strips. */}
+          {/* DESKTOP TOOLBAR — mirrors my-tasks 1:1.
+              No border-top (the gray column-header band below already
+              separates the two strips). Fixed height 42px so the
+              vertical rhythm matches my-tasks. justify-between so the
+              Add task split-button anchors the left edge while the
+              Filter / Sort / Options / Search cluster hugs the right
+              edge — same shape Juan validated on my-tasks. */}
           {showToolbar && (
-            <div className="flex items-center justify-end gap-1 overflow-x-auto flex-nowrap border-t border-slate-100 py-1.5">
-              {/* Filter */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className={cn(activeFilters.size > 0 && "text-[#a8893a] bg-[#c9a84c]/10")}>
-                    <Filter className="mr-2 h-4 w-4" />
-                    Filter
-                    {activeFilters.size > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 min-w-[20px] px-1 text-xs bg-[#c9a84c]/15 text-[#a8893a]">
-                        {activeFilters.size}
-                      </Badge>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => toggleFilter("incomplete")}>
-                    {activeFilters.has("incomplete") && <Check className="mr-2 h-4 w-4" />}
-                    <span className={cn(!activeFilters.has("incomplete") && "ml-6")}>Incomplete tasks</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toggleFilter("completed")}>
-                    {activeFilters.has("completed") && <Check className="mr-2 h-4 w-4" />}
-                    <span className={cn(!activeFilters.has("completed") && "ml-6")}>Completed tasks</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toggleFilter("due_this_week")}>
-                    {activeFilters.has("due_this_week") && <Check className="mr-2 h-4 w-4" />}
-                    <span className={cn(!activeFilters.has("due_this_week") && "ml-6")}>Due this week</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toggleFilter("assigned_to_me")}>
-                    {activeFilters.has("assigned_to_me") && <Check className="mr-2 h-4 w-4" />}
-                    <span className={cn(!activeFilters.has("assigned_to_me") && "ml-6")}>Assigned to me</span>
-                  </DropdownMenuItem>
-                  {activeFilters.size > 0 && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setActiveFilters(new Set())} className="text-black">
-                        <X className="mr-2 h-4 w-4" />
-                        Clear filters
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Sort */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className={cn(sortBy && "text-[#a8893a] bg-[#c9a84c]/10")}>
-                    {sortDirection === "desc" ? <SortDesc className="mr-2 h-4 w-4" /> : <SortAsc className="mr-2 h-4 w-4" />}
-                    Sort
-                    {sortBy && <span className="ml-1 text-xs text-[#a8893a]">({sortBy === "due_date" ? "date" : sortBy === "alphabetical" ? "A-Z" : sortBy})</span>}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => handleSort("due_date")}>
-                    {sortBy === "due_date" && <Check className="mr-2 h-4 w-4" />}
-                    <span className={cn(sortBy !== "due_date" && "ml-6")}>Due date</span>
-                    {sortBy === "due_date" && <span className="ml-auto text-xs text-slate-400">{sortDirection === "asc" ? "earliest" : "latest"}</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleSort("created")}>
-                    {sortBy === "created" && <Check className="mr-2 h-4 w-4" />}
-                    <span className={cn(sortBy !== "created" && "ml-6")}>Created on</span>
-                    {sortBy === "created" && <span className="ml-auto text-xs text-slate-400">{sortDirection === "asc" ? "oldest" : "newest"}</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleSort("alphabetical")}>
-                    {sortBy === "alphabetical" && <Check className="mr-2 h-4 w-4" />}
-                    <span className={cn(sortBy !== "alphabetical" && "ml-6")}>Alphabetical</span>
-                    {sortBy === "alphabetical" && <span className="ml-auto text-xs text-slate-400">{sortDirection === "asc" ? "A-Z" : "Z-A"}</span>}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleSort("priority")}>
-                    {sortBy === "priority" && <Check className="mr-2 h-4 w-4" />}
-                    <span className={cn(sortBy !== "priority" && "ml-6")}>Priority</span>
-                    {sortBy === "priority" && <span className="ml-auto text-xs text-slate-400">{sortDirection === "asc" ? "high first" : "low first"}</span>}
-                  </DropdownMenuItem>
-                  {sortBy && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => { setSortBy(null); setSortDirection("asc"); }} className="text-black">
-                        <X className="mr-2 h-4 w-4" />
-                        Clear sort
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Options */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className={cn(!showCompleted && "text-[#a8893a] bg-[#c9a84c]/10")}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Options
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => setShowCompleted(!showCompleted)}>
-                    {showCompleted && <Check className="mr-2 h-4 w-4" />}
-                    <span className={cn(!showCompleted && "ml-6")}>Show completed</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Search */}
-              {showSearch ? (
-                <div className="relative">
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search tasks..."
-                    className="w-44 h-8 pr-7"
-                    autoFocus
-                    onBlur={() => { if (!searchQuery) setShowSearch(false); }}
-                  />
-                  {searchQuery && (
-                    <button
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      onMouseDown={(e) => { e.preventDefault(); setSearchQuery(""); }}
+            <div
+              className="hidden md:flex items-center justify-between px-4 md:px-6"
+              style={{ height: "var(--toolbar-h, 42px)" }}
+            >
+              {/* LEFT: filled black Add task split button. Primary
+                  click + every dropdown item dispatch the same
+                  `buildsync:add-task` window event the inline-add
+                  trigger inside ProjectListView listens for, so the
+                  toolbar button opens the first section's inline
+                  input with the right task type pre-selected. */}
+              <div className="flex items-center">
+                <div className="inline-flex items-center h-8 rounded-md overflow-hidden bg-black text-white">
+                  <button
+                    onClick={() => {
+                      const firstSection = filteredSections[0];
+                      if (firstSection) {
+                        window.dispatchEvent(
+                          new CustomEvent("buildsync:add-task", {
+                            detail: { sectionId: firstSection.id, taskType: "TASK" },
+                          })
+                        );
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 h-full text-[13px] font-medium hover:bg-gray-800 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add task
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex items-center justify-center w-7 h-full border-l border-white/20 hover:bg-gray-800 transition-colors">
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      sideOffset={4}
+                      className="min-w-[260px] rounded-[10px] border-0 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
                     >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const firstSection = filteredSections[0];
+                          if (firstSection)
+                            window.dispatchEvent(
+                              new CustomEvent("buildsync:add-task", {
+                                detail: { sectionId: firstSection.id, taskType: "TASK" },
+                              })
+                            );
+                        }}
+                        className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer justify-between"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <Check className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                          Task
+                        </span>
+                        <span className="text-[10px] font-medium text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                          Default
+                        </span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const firstSection = filteredSections[0];
+                          if (firstSection)
+                            window.dispatchEvent(
+                              new CustomEvent("buildsync:add-task", {
+                                detail: { sectionId: firstSection.id, taskType: "APPROVAL" },
+                              })
+                            );
+                        }}
+                        className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                      >
+                        <ThumbsUp className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                        Approval
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const firstSection = filteredSections[0];
+                          if (firstSection)
+                            window.dispatchEvent(
+                              new CustomEvent("buildsync:add-task", {
+                                detail: { sectionId: firstSection.id, taskType: "MILESTONE" },
+                              })
+                            );
+                        }}
+                        className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                      >
+                        <Diamond className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                        Milestone
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="my-1" />
+                      <DropdownMenuItem
+                        onClick={() => {
+                          // Section creation belongs to project-content
+                          // (it persists to Section via API). For now,
+                          // emit a window event the list view can wire
+                          // into a future "Add section" inline flow.
+                          window.dispatchEvent(
+                            new CustomEvent("buildsync:add-section", { detail: {} })
+                          );
+                        }}
+                        className="h-9 px-3 gap-2.5 text-[14px] font-normal text-gray-800 rounded-md hover:bg-black/[0.04] focus:bg-black/[0.04] cursor-pointer"
+                      >
+                        <FolderPlus className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                        Section
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              ) : (
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSearch(true)}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              )}
+              </div>
 
-              {/* Clear all indicator */}
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" className="text-black hover:text-black hover:bg-gray-100" onClick={clearAllFilters}>
-                  <X className="mr-1 h-3.5 w-3.5" />
-                  Clear all
-                </Button>
-              )}
+              {/* RIGHT: Filter / Sort / Options + Search + Clear all.
+                  Same ghost-button styling as my-tasks (small, gap-0.5,
+                  no left padding cluster). */}
+              <div className="flex items-center gap-0.5">
+                {/* Filter */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={cn(
+                        "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
+                        activeFilters.size > 0
+                          ? "text-[#a8893a] bg-[#c9a84c]/10 hover:bg-[#c9a84c]/15"
+                          : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                      )}
+                    >
+                      <Filter className="w-4 h-4" />
+                      Filter{activeFilters.size > 0 ? ` (${activeFilters.size})` : ""}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => toggleFilter("incomplete")}>
+                      {activeFilters.has("incomplete") && <Check className="mr-2 h-4 w-4" />}
+                      <span className={cn(!activeFilters.has("incomplete") && "ml-6")}>Incomplete tasks</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => toggleFilter("completed")}>
+                      {activeFilters.has("completed") && <Check className="mr-2 h-4 w-4" />}
+                      <span className={cn(!activeFilters.has("completed") && "ml-6")}>Completed tasks</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => toggleFilter("due_this_week")}>
+                      {activeFilters.has("due_this_week") && <Check className="mr-2 h-4 w-4" />}
+                      <span className={cn(!activeFilters.has("due_this_week") && "ml-6")}>Due this week</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => toggleFilter("assigned_to_me")}>
+                      {activeFilters.has("assigned_to_me") && <Check className="mr-2 h-4 w-4" />}
+                      <span className={cn(!activeFilters.has("assigned_to_me") && "ml-6")}>Assigned to me</span>
+                    </DropdownMenuItem>
+                    {activeFilters.size > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setActiveFilters(new Set())} className="text-black">
+                          <X className="mr-2 h-4 w-4" />
+                          Clear filters
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Sort */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={cn(
+                        "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
+                        sortBy
+                          ? "text-[#a8893a] bg-[#c9a84c]/10 hover:bg-[#c9a84c]/15"
+                          : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                      )}
+                    >
+                      {sortDirection === "desc" ? <SortDesc className="w-4 h-4" /> : <SortAsc className="w-4 h-4" />}
+                      Sort{sortBy ? ` (${sortBy === "due_date" ? "date" : sortBy === "alphabetical" ? "A-Z" : sortBy})` : ""}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleSort("due_date")}>
+                      {sortBy === "due_date" && <Check className="mr-2 h-4 w-4" />}
+                      <span className={cn(sortBy !== "due_date" && "ml-6")}>Due date</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSort("created")}>
+                      {sortBy === "created" && <Check className="mr-2 h-4 w-4" />}
+                      <span className={cn(sortBy !== "created" && "ml-6")}>Created on</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSort("alphabetical")}>
+                      {sortBy === "alphabetical" && <Check className="mr-2 h-4 w-4" />}
+                      <span className={cn(sortBy !== "alphabetical" && "ml-6")}>Alphabetical</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSort("priority")}>
+                      {sortBy === "priority" && <Check className="mr-2 h-4 w-4" />}
+                      <span className={cn(sortBy !== "priority" && "ml-6")}>Priority</span>
+                    </DropdownMenuItem>
+                    {sortBy && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => { setSortBy(null); setSortDirection("asc"); }} className="text-black">
+                          <X className="mr-2 h-4 w-4" />
+                          Clear sort
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Options */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={cn(
+                        "flex items-center gap-1 px-2 h-7 text-[13px] rounded transition-colors",
+                        !showCompleted
+                          ? "text-[#a8893a] bg-[#c9a84c]/10 hover:bg-[#c9a84c]/15"
+                          : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                      )}
+                    >
+                      <MoreHorizontal className="w-4 h-4" />
+                      Options
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => setShowCompleted(!showCompleted)}>
+                      {showCompleted && <Check className="mr-2 h-4 w-4" />}
+                      <span className={cn(!showCompleted && "ml-6")}>Show completed</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Search */}
+                {showSearch ? (
+                  <div className="flex items-center gap-0.5 ml-1">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <Input
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search tasks..."
+                        className="pl-7 pr-7 w-44 h-8 text-[13px] border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-black/10 placeholder:text-gray-400"
+                        autoFocus
+                        onBlur={() => { if (!searchQuery) setShowSearch(false); }}
+                      />
+                      {searchQuery && (
+                        <button
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          onMouseDown={(e) => { e.preventDefault(); setSearchQuery(""); }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowSearch(true)}
+                    className="flex items-center justify-center h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors ml-1"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                )}
+
+                {/* Clear all */}
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearAllFilters}
+                    className="flex items-center gap-1 px-2 h-7 text-[13px] rounded text-black hover:bg-gray-100 transition-colors ml-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Clear all
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -930,12 +1116,15 @@ export function ProjectContent({ project, currentView }: ProjectContentProps) {
               onManageMembers={() => setMembersDialogOpen(true)}
             />
           )}
+          {currentView === "brief" && <BriefView projectId={project.id} />}
           {currentView === "list" && (
-            <ListView
+            <ProjectListView
               sections={filteredSections}
               onTaskClick={handleTaskClick}
               onAddTask={handleAddTask}
               projectId={project.id}
+              projectName={project.name}
+              projectColor={project.color}
             />
           )}
           {currentView === "board" && (

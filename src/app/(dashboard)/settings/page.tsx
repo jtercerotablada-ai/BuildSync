@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { User, Shield, Bell, Monitor, AlertTriangle, Loader2, Users } from "lucide-react";
 import { ProfileSection } from "@/components/settings/profile-section";
@@ -11,6 +12,18 @@ import { AccountSection } from "@/components/settings/account-section";
 import { WorkspaceSection } from "@/components/settings/workspace-section";
 
 type SettingsTab = "profile" | "security" | "notifications" | "display" | "workspace" | "account";
+
+const VALID_TABS: SettingsTab[] = [
+  "profile",
+  "security",
+  "notifications",
+  "display",
+  "workspace",
+  "account",
+];
+function isValidTab(s: string | null): s is SettingsTab {
+  return !!s && (VALID_TABS as string[]).includes(s);
+}
 
 const tabs: { id: SettingsTab; label: string; icon: typeof User }[] = [
   { id: "profile", label: "Profile", icon: User },
@@ -35,9 +48,49 @@ interface ProfileData {
 }
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  // Read the initial tab from `?section=` so deep-linking works
+  // (sharing a link to a specific section, opening from a "Display
+  // preferences" notification, etc.). Fall back to profile when the
+  // param is missing or unknown. Fixed during QC Fase 1 on May 22
+  // 2026 (bug ST-1: ?section= was previously ignored).
+  const initialTab: SettingsTab = (() => {
+    const s = searchParams.get("section");
+    return isValidTab(s) ? s : "profile";
+  })();
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Mirror activeTab → URL so the browser back-button and shareable
+  // links work. `replace` avoids polluting history with every tab
+  // click; user can still leave the page and come back to the same
+  // section via deep-link.
+  useEffect(() => {
+    const current = searchParams.get("section");
+    if (current === activeTab) return;
+    const params = new URLSearchParams(searchParams.toString());
+    if (activeTab === "profile") {
+      params.delete("section");
+    } else {
+      params.set("section", activeTab);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }, [activeTab, searchParams, router, pathname]);
+
+  // If the URL changes externally (browser back/forward, another
+  // component navigating), keep the active tab in sync.
+  useEffect(() => {
+    const s = searchParams.get("section");
+    const nextTab: SettingsTab = isValidTab(s) ? s : "profile";
+    if (nextTab !== activeTab) {
+      setActiveTab(nextTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   useEffect(() => {
     async function fetchProfile() {

@@ -26,6 +26,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   Calendar,
   ChevronDown,
+  ChevronRight,
   Loader2,
   Check,
   X,
@@ -63,6 +64,12 @@ interface FieldDef {
 interface CustomFieldsSectionProps {
   taskId: string;
   projectId: string | null;
+  /** Project display data — rendered in the expandable group header
+   *  next to the colored dot. When `projectName` is missing the
+   *  group falls back to "Custom fields". */
+  projectName?: string | null;
+  projectColor?: string | null;
+  projectSectionLabel?: string | null;
   /** From the task detail payload — array of { fieldId, value }. */
   values: { fieldId: string; value: unknown }[];
   onChanged: () => void;
@@ -71,9 +78,19 @@ interface CustomFieldsSectionProps {
 export function CustomFieldsSection({
   taskId,
   projectId,
+  projectName,
+  projectColor,
+  projectSectionLabel,
   values,
   onChanged,
 }: CustomFieldsSectionProps) {
+  // Expanded by default (Asana behavior). Local state — closing the
+  // group while the panel is open just hides the field list, it does
+  // NOT persist across reload.
+  const [expanded, setExpanded] = useState(true);
+  // Toggle to hide / show the custom fields entirely — the "Ocultar
+  // los campos personalizados" link Asana shows under the group.
+  const [hidden, setHidden] = useState(false);
   const [defs, setDefs] = useState<FieldDef[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -147,17 +164,72 @@ export function CustomFieldsSection({
   }
 
   return (
-    <>
-      {defs.map((def) => (
-        <CustomFieldRow
-          key={def.id}
-          def={def}
-          value={valueMap.get(def.id)}
-          saving={saving === def.id}
-          onChange={(value) => saveValue(def.id, value)}
+    <div className="-mx-5 mt-2 border-t border-[#eeeeee]">
+      {/* Group header — expandable chevron + project dot + project name
+          + optional section subtitle. Matches Asana's task detail panel
+          pattern where each project the task belongs to gets its own
+          expandable mini-table of custom fields. */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-2 px-5 py-2 text-left hover:bg-[#fafbfc] transition-colors"
+      >
+        {expanded ? (
+          <ChevronDown className="w-3.5 h-3.5 text-[#6f7782] flex-shrink-0" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5 text-[#6f7782] flex-shrink-0" />
+        )}
+        <span
+          className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
+          style={{ backgroundColor: projectColor || "#c9a84c" }}
         />
-      ))}
-    </>
+        <span className="text-[13px] font-medium text-[#1e1f21] truncate">
+          {projectName || "Custom fields"}
+        </span>
+        {projectSectionLabel && (
+          <span className="text-[12px] text-[#6f7782] truncate ml-0.5">
+            {projectSectionLabel}
+          </span>
+        )}
+      </button>
+
+      {expanded && !hidden && (
+        <div className="px-5 pb-2">
+          {defs.map((def) => (
+            <CustomFieldRow
+              key={def.id}
+              def={def}
+              value={valueMap.get(def.id)}
+              saving={saving === def.id}
+              onChange={(value) => saveValue(def.id, value)}
+            />
+          ))}
+          {/* "Hide custom fields" link, mirrors Asana's "Ocultar
+              los campos personalizados" affordance. */}
+          <button
+            type="button"
+            onClick={() => setHidden(true)}
+            className="text-[12px] text-[#6f7782] hover:text-[#1e1f21] hover:underline mt-2 transition-colors"
+          >
+            Hide custom fields
+          </button>
+        </div>
+      )}
+
+      {/* When hidden, surface a tiny "show" link so the user can
+          bring the fields back without closing the panel. */}
+      {expanded && hidden && (
+        <div className="px-5 pb-2">
+          <button
+            type="button"
+            onClick={() => setHidden(false)}
+            className="text-[12px] text-[#6f7782] hover:text-[#1e1f21] hover:underline transition-colors"
+          >
+            Show custom fields ({defs.length})
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

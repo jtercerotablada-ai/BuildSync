@@ -306,10 +306,10 @@ export default function MyTasksPage() {
   }
   const DEFAULT_MY_TASKS_UI: MyTasksUiState = {
     columnWidths: {
-      dueDate: 110,
-      collaborators: 110,
-      projects: 160,
-      visibility: 110,
+      dueDate: 130,
+      collaborators: 120,
+      projects: 180,
+      visibility: 130,
     },
     hiddenColumns: [],
     viewIcon: "📋",
@@ -330,10 +330,28 @@ export default function MyTasksPage() {
   // devices/browsers (same store as columnWidths + hiddenColumns).
   // The discriminator stays on each column: optional `builtin` key
   // means it renders from Task fields, otherwise from CustomFieldValue.
-  const customColumns = useMemo(
-    () => (myTasksUi.customColumns ?? []) as ListColumn[],
-    [myTasksUi.customColumns]
-  );
+  // Self-heal: if any two columns share an id (e.g. legacy state
+  // saved before the cf-${Date.now()}-${random} fix), re-assign the
+  // duplicates a fresh unique id so the column-header dropdown only
+  // opens on the column the user clicked, and Delete only removes
+  // that single row. This runs every hydration cycle so corrupted
+  // useUiState snapshots are normalized without manual cleanup.
+  const customColumns = useMemo(() => {
+    const raw = (myTasksUi.customColumns ?? []) as ListColumn[];
+    const seen = new Set<string>();
+    const out: ListColumn[] = [];
+    for (const col of raw) {
+      if (seen.has(col.id)) {
+        const fresh = `${col.id}-${Math.random().toString(36).slice(2, 9)}`;
+        out.push({ ...col, id: fresh });
+        seen.add(fresh);
+      } else {
+        out.push(col);
+        seen.add(col.id);
+      }
+    }
+    return out;
+  }, [myTasksUi.customColumns]);
   const setCustomColumns = useCallback(
     (
       next:
@@ -502,17 +520,51 @@ export default function MyTasksPage() {
     return cols.join(" ");
   }, [hiddenColumns, customColumns]);
 
+  // ───────────────────────────────────────────────────────────────
+  // TABLE WIDTH (architectural — Juan's "single continuous grid" fix).
+  // ───────────────────────────────────────────────────────────────
+  // Sum the actual pixel widths of every column track so we can pin
+  // each row to that exact min-width. Without this, every row is
+  // width:100% of the scroll viewport (block default), the cells
+  // overflow visually when total tracks > viewport, but the row's
+  // border-bottom (and the row's background) stops at the viewport
+  // edge — Juan saw horizontal lines cutting off mid-scroll while
+  // vertical lines kept going through a "ghost" area.
+  // With min-width pinned to the real total, every row physically
+  // extends to the full table width, so the borders, the hover
+  // background, and the column verticals all stop at the same right
+  // edge. The scroll container handles overflow once for the whole
+  // table instead of per row.
+  const tableMinWidth = useMemo(() => {
+    let w = 308; // combined first cell minimum
+    if (!hiddenColumns.has("dueDate")) w += columnWidths.dueDate;
+    if (!hiddenColumns.has("collaborators")) w += columnWidths.collaborators;
+    if (!hiddenColumns.has("projects")) w += columnWidths.projects;
+    if (!hiddenColumns.has("visibility")) w += columnWidths.visibility;
+    for (const c of customColumns) w += c.width || 110;
+    w += 32; // + Add column spacer
+    return w;
+  }, [columnWidths, hiddenColumns, customColumns]);
+
+  // Same effect that syncs --col-* also syncs --table-min-width so
+  // any descendant with `min-width: var(--table-min-width)` inherits
+  // the live total.
+  useEffect(() => {
+    const el = listContainerRef.current;
+    if (!el) return;
+    el.style.setProperty("--table-min-width", `${tableMinWidth}px`);
+  }, [tableMinWidth]);
 
   // Double-click on any resize handle → reset all columns to defaults
   const handleResizeReset = useCallback(() => {
-    const defaults = { dueDate: 110, collaborators: 110, projects: 160, visibility: 110 };
+    const defaults = { dueDate: 130, collaborators: 120, projects: 180, visibility: 130 };
     setColumnWidths(defaults);
     const el = listContainerRef.current;
     if (el) {
-      el.style.setProperty("--col-dueDate", "110px");
-      el.style.setProperty("--col-collaborators", "110px");
-      el.style.setProperty("--col-projects", "160px");
-      el.style.setProperty("--col-visibility", "110px");
+      el.style.setProperty("--col-dueDate", "130px");
+      el.style.setProperty("--col-collaborators", "120px");
+      el.style.setProperty("--col-projects", "180px");
+      el.style.setProperty("--col-visibility", "130px");
     }
   }, []);
 
@@ -1004,11 +1056,44 @@ export default function MyTasksPage() {
     // values. For cosmetic-only fields (no projectId on the modal)
     // we fall back to a synthetic id; cells stay empty until the
     // user wires the field to a project.
-    const columnId = field.id ? field.id : `cf-${Date.now()}`;
-    setCustomColumns((prev) => [
-      ...prev,
-      { id: columnId, name: field.name, type: field.type, color: field.color },
-    ]);
+    //
+    // Cosmetic id includes a random suffix so two `handleFieldCreated`
+    // calls landing in the SAME millisecond (rapid double-click or
+    // React strict-mode double-invoke) can never produce the same id.
+    // Pre-fix the duplicate-id was the root cause of "two dropdowns
+    // open simultaneously" + "Delete removes both at once" that Juan
+    // reported with the "trutrh" columns on May 22 2026 — same
+    // `cf-${Date.now()}` value collided when invoked back-to-back.
+    const randomSuffix = Math.random().toString(36).slice(2, 9);
+    const columnId = field.id ? field.id : `cf-${Date.now()}-${randomSuffix}`;
+    setCustomColumns((prev) => {
+      // Defensive dedupe — three layers because columns must NEVER
+      // share an id (the column-header dropdown is keyed off col.id;
+      // duplicate ids open two dropdowns at once and route deletes
+      // to both rows):
+      //   1. exact id match → drop the dupe (covers DB-persisted
+      //      replays).
+      //   2. name+type match → drop the dupe regardless of whether
+      //      field.id is set, because a user adding the same
+      //      cosmetic field name twice in a row is always a dupe.
+      //   3. (defense-in-depth) the new columnId already exists in
+      //      prev — possible if random suffix collides, although
+      //      vanishingly rare.
+      if (prev.some((c) => c.id === columnId)) return prev;
+      if (field.id && prev.some((c) => c.id === field.id)) return prev;
+      if (prev.some((c) => c.name === field.name && c.type === field.type)) {
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          id: columnId,
+          name: field.name,
+          type: field.type,
+          color: field.color,
+        },
+      ];
+    });
   }
 
   async function handleToggleComplete(task: Task) {
@@ -1162,7 +1247,19 @@ export default function MyTasksPage() {
                   {session?.user?.name?.split(" ").map((n) => n[0]).join("").toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-lg md:text-xl font-semibold text-gray-900 leading-none">My tasks</span>
+              {/* role=heading + aria-level=1 makes this span behave
+                  semantically like an <h1> for screen readers without
+                  breaking the dropdown trigger button (which can't
+                  contain real heading elements). Pre-fix the page
+                  had no h1 — accessibility issue from QC Fase 1
+                  bug MT-2, May 22 2026. */}
+              <span
+                role="heading"
+                aria-level={1}
+                className="text-lg md:text-xl font-semibold text-gray-900 leading-none"
+              >
+                My tasks
+              </span>
               <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
             </button>
           </DropdownMenuTrigger>
@@ -1271,53 +1368,66 @@ export default function MyTasksPage() {
         </div>
       </div>
 
-      {/* TABS ROW — mobile pill tabs + desktop underline tabs */}
-      {/* Mobile pill tabs */}
-      <div className="md:hidden flex items-center gap-1.5 px-4 py-2 overflow-x-auto border-b border-gray-200" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {viewTabs.filter(tab => ["list", "board", "calendar"].includes(tab.id)).map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setView(tab.id as ViewType)}
-              className={cn(
-                "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors",
-                view === tab.id
-                  ? "bg-gray-900 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              )}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-      {/* Desktop tabs */}
-      <div className="hidden md:flex items-center px-4 md:px-6 border-b border-gray-200 overflow-x-auto" style={{ height: "var(--tabs-h, 34px)" }}>
+      {/* TABS ROW — ONE responsive tab strip that swaps style per
+          breakpoint instead of rendering two separate DOM trees.
+          Mobile: pill tabs in a horizontal scroll. Desktop: underline
+          tabs. Same 5 tab buttons either way — fixed during QC Fase 1
+          on May 22 2026 (bug MT-1: mobile previously showed only 3 of
+          5 tabs because the mobile branch filtered them away). */}
+      <div
+        className="flex items-center border-b border-gray-200 overflow-x-auto px-4 md:px-6 py-2 md:py-0 gap-1.5 md:gap-0"
+        style={{
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+          // Desktop fixes the tab strip height via --tabs-h to match
+          // the underline-style spec. Mobile lets py-2 take over since
+          // pills need extra breathing room than underlines.
+        }}
+      >
         {viewTabs.map((tab) => {
-          // The "list" tab adopts the user's customized icon + name from
-          // the Options drawer. Other tabs keep their built-in label.
+          const Icon = tab.icon;
+          // The "list" tab adopts the user's customized icon + name
+          // from the Options drawer. Other tabs keep their built-in
+          // label.
           const isListTab = tab.id === "list";
           const label = isListTab ? viewName : tab.label;
+          const active = view === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => setView(tab.id as ViewType)}
               className={cn(
-                "flex items-center gap-1.5 px-3 h-full text-[13px] border-b-2 -mb-px transition-colors",
-                view === tab.id
-                  ? "text-gray-900 border-gray-900 font-medium"
-                  : "text-gray-500 border-transparent hover:text-gray-700"
+                // Shared layout
+                "flex items-center gap-1.5 whitespace-nowrap transition-colors",
+                // Mobile (default) — pill style
+                "px-3.5 py-1.5 rounded-full text-xs font-medium",
+                active
+                  ? "bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+                // Desktop (md+) — underline style overrides
+                "md:px-3 md:py-0 md:rounded-none md:text-[13px] md:border-b-2 md:-mb-px md:bg-transparent md:font-normal md:hover:bg-transparent",
+                active
+                  ? "md:text-gray-900 md:border-gray-900 md:font-medium"
+                  : "md:text-gray-500 md:border-transparent md:hover:text-gray-700"
               )}
+              style={{
+                // On desktop, lock the height to var(--tabs-h) so the
+                // underline lines up with the row below. On mobile,
+                // height auto + py-1.5 handles the pill rhythm.
+                height:
+                  typeof window !== "undefined" && window.innerWidth >= 768
+                    ? "var(--tabs-h, 34px)"
+                    : undefined,
+              }}
             >
-              {/* Gate the icon on `isHydrated` so we never paint the
-                  default 📋 while the server prefs are still loading.
-                  Without this gate, a user who cleared their icon sees
-                  the default flash on every page open before it
-                  disappears — the bug Juan reported repeatedly. */}
+              {/* Icon on mobile (pill); on desktop only the customized
+                  list-tab icon shows (matches the Options drawer
+                  behavior). */}
+              <Icon className="w-3.5 h-3.5 md:hidden" />
               {isListTab && myTasksUiHydrated && viewIcon && (
-                <span className="text-[14px] leading-none">{viewIcon}</span>
+                <span className="hidden md:inline text-[14px] leading-none">
+                  {viewIcon}
+                </span>
               )}
               {label}
             </button>
@@ -1583,9 +1693,25 @@ export default function MyTasksPage() {
             // had min-h-[40px] to backstop. Defining it once here
             // covers every row that style-references it.
             "--row-h": "40px",
+            // Inline-styled (not useEffect.setProperty) so React's
+            // style={{...}} merging doesn't strip it on each render.
+            // Every descendant row reads this var via the
+            // `min-width: var(--table-min-width)` rule in globals.css.
+            "--table-min-width": `${tableMinWidth}px`,
           } as React.CSSProperties}
         >
           <div className="flex-1 overflow-auto relative bg-white">
+          {/* INNER TABLE WRAPPER — pinned to var(--table-min-width).
+              Wrapping every row inside ONE container at the table's
+              true width is the architecturally-correct way to make
+              header + rows + DnD-kit wrappers + section bands all
+              live on the same horizontal track. Without it, each
+              row gets width:100% of the scroll viewport (block
+              default) and any DnD-kit / Sortable wrapper around a
+              row ends mid-grid on horizontal scroll, breaking the
+              divider line between rows (Juan's CLASH ↔ Project
+              kickoff bug — see list-view.tsx for the parallel fix). */}
+          <div style={{ minWidth: "var(--table-min-width)" }}>
           {/* COLUMN HEADERS - sticky inside the scroll container so it shares
               the same effective width as the task rows below. Living outside
               the scroll container made the header ~15px wider than each row
@@ -2194,7 +2320,8 @@ export default function MyTasksPage() {
               }}
             />
           )}
-          </div>
+          </div>{/* /inner table wrapper — min-width: var(--table-min-width) */}
+          </div>{/* /scroll container — flex-1 overflow-auto relative bg-white */}
         </div>
 
         {/* Workflow Panel */}
@@ -2233,6 +2360,16 @@ export default function MyTasksPage() {
           onUpdate={() => fetchTasks(true)}
           onAttachmentsChange={() => setAttachmentsVersion((v) => v + 1)}
           formatDueDate={formatDueDate}
+          myTasksColumns={customColumns}
+          myTasksSectionLabel={
+            // Find the smart section the task belongs to (Recently
+            // assigned / Do today / Do next week / Do later) — used
+            // as the subtitle under the "My tasks" group header,
+            // matching Asana's pattern.
+            sections.find((s) =>
+              s.tasks.some((t) => t.id === selectedTask.id)
+            )?.name ?? null
+          }
         />
       )}
 
@@ -2562,6 +2699,12 @@ function TaskSection({
   const [isCreating, setIsCreating] = useState(false);
   const [activeTaskType, setActiveTaskType] = useState<"TASK" | "MILESTONE" | "APPROVAL">("TASK");
   const inputRef = useRef<HTMLInputElement>(null);
+  // Synchronous double-fire guard for handleSubmit. Enter on the
+  // input fires handleSubmit and at the same time onBlur queues a
+  // delayed handleSubmit (120ms). Without a ref the second call
+  // can still pass the `isCreating` state check (state updates
+  // batch asynchronously) and create a duplicate task.
+  const isCreatingRef = useRef(false);
 
   // Listen for custom add-task events from the toolbar split button
   useEffect(() => {
@@ -2584,8 +2727,8 @@ function TaskSection({
   }, [isAddingTask, isCreating]);
 
   const handleSubmit = async () => {
-    if (!newTaskName.trim() || isCreating) return;
-
+    if (!newTaskName.trim() || isCreating || isCreatingRef.current) return;
+    isCreatingRef.current = true;
     setIsCreating(true);
     try {
       const success = await onAddTask(newTaskName.trim(), section.id, activeTaskType);
@@ -2595,6 +2738,7 @@ function TaskSection({
       }
     } finally {
       setIsCreating(false);
+      isCreatingRef.current = false;
     }
   };
 
@@ -2636,30 +2780,43 @@ function TaskSection({
     >
       {/* Section header — uses the SAME grid template as TaskRow so
           vertical column dividers continue through it uninterrupted
-          (Juan's "unified grid" rule, May 2026). Combined first cell
-          holds the chevron + section name + count; remaining cells
-          are empty grid items that exist only so the grid generates
+          (Juan's "unified grid" rule, May 2026). Rendered as a div
+          with role="button" because <button> with display:grid hits
+          a Chromium quirk where children stop participating in the
+          grid layout, which broke the vertical dividers on every
+          section header + add-task row. Combined first cell holds
+          the chevron + section name + count; remaining cells are
+          empty grid items that exist only so the grid generates
           their column tracks (and therefore the verticals). */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggleSection}
-        className="tt-grid-divider-row hidden md:grid items-center px-4 md:px-6 w-full text-left hover:bg-[var(--surface-hover)]"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggleSection();
+          }
+        }}
+        className="tt-grid-row-clean hidden md:grid items-center px-4 md:px-6 w-full text-left hover:bg-[var(--surface-hover)] cursor-pointer"
         style={{ height: "var(--row-h)", gridTemplateColumns: rowGridTemplate }}
       >
         {/* Combined first cell — chevron + section name + count.
             Mirrors the data row's combined Grip + Checkbox + Task
-            name slot so the chevron lines up with the row checkbox. */}
+            name slot so the chevron lines up with the row checkbox.
+            Slightly larger chevron + 14px name font for Asana parity. */}
         <div className="flex items-center min-w-0">
           <div className="w-4 -ml-1 mr-1 flex-shrink-0" aria-hidden="true" />
           <div className="w-8 flex-shrink-0 flex items-center">
             {section.collapsed ? (
-              <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+              <ChevronRight className="w-4 h-4 text-gray-600" />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+              <ChevronDown className="w-4 h-4 text-gray-600" />
             )}
           </div>
-          <span className="text-[13px] font-semibold text-gray-900 truncate">{section.name}</span>
+          <span className="text-[14px] font-semibold text-gray-900 truncate">{section.name}</span>
           {section.tasks.length > 0 && (
-            <span className="text-gray-400 text-[11px] ml-2 flex-shrink-0">{section.tasks.length}</span>
+            <span className="text-gray-400 text-[12px] ml-2 flex-shrink-0">{section.tasks.length}</span>
           )}
         </div>
         {/* Empty grid cells — one per visible column. They exist
@@ -2678,7 +2835,7 @@ function TaskSection({
           ))}
         {/* + spacer cell to match the 32px tail in rowGridTemplate */}
         <div />
-      </button>
+      </div>
 
       {/* Tasks */}
       {!section.collapsed && (
@@ -2753,11 +2910,23 @@ function TaskSection({
           ))}
 
           {/* "+ Add task" trigger row — uses unified grid so verticals
-              continue uninterrupted into the next section. */}
+              continue uninterrupted into the next section. Div with
+              role="button" instead of <button> for the same reason
+              as the section header: <button> + display:grid kills
+              the grid layout in Chromium and the verticals stop. */}
           {!isAddingTask && (
-            <button
+            <div
+              role="button"
+              tabIndex={0}
               onClick={() => { setActiveTaskType("TASK"); setIsAddingTask(true); }}
-              className="tt-grid-divider-row hidden md:grid items-center px-4 md:px-6 w-full text-left hover:bg-[var(--surface-hover)] transition-colors"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setActiveTaskType("TASK");
+                  setIsAddingTask(true);
+                }
+              }}
+              className="tt-grid-row-clean hidden md:grid items-center px-4 md:px-6 w-full text-left hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
               style={{ height: "var(--row-h)", gridTemplateColumns: rowGridTemplate }}
             >
               {/* Combined first cell — Plus icon + "Add task" label */}
@@ -2781,7 +2950,7 @@ function TaskSection({
                 ))}
               {/* + spacer cell */}
               <div />
-            </button>
+            </div>
           )}
         </SortableContext>
       )}
@@ -3406,7 +3575,7 @@ function TaskRow({
        * tracks define width). Just padding + content. */}
       {!hiddenColumns.has("dueDate") && (
       <div className="hidden md:flex pl-2.5 pr-1 overflow-hidden items-center">
-        <span className={cn("text-[13px]", dueDateInfo.className)}>
+        <span className={cn("text-[13px] truncate whitespace-nowrap", dueDateInfo.className)} title={dueDateInfo.text}>
           {dueDateInfo.text}
         </span>
       </div>
@@ -5803,6 +5972,122 @@ function DependencyChip({
   );
 }
 
+// ────────────────────────────────────────────────────────────────
+// MyTasksFieldsGroup — the "My tasks" group at the top of the task
+// detail panel's custom-fields area. Replicates Asana's pattern
+// where a personal "Mis tareas" project shows its custom fields
+// (Sprint date, Notes, Effort, Reviewer, etc.) as an expandable
+// mini-table with a section subtitle (Recently assigned / Do
+// today / ...). Fields come from the user's pinned customColumns
+// in the my-tasks list view.
+// ────────────────────────────────────────────────────────────────
+function MyTasksFieldsGroup({
+  taskId,
+  taskDetail,
+  columns,
+  sectionLabel,
+  onChanged,
+}: {
+  taskId: string;
+  taskDetail: any;
+  columns: ListColumn[];
+  sectionLabel: string | null;
+  onChanged: () => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const [hidden, setHidden] = useState(false);
+
+  if (!columns || columns.length === 0) return null;
+
+  return (
+    <div className="-mx-5 mt-2 border-t border-[#eeeeee]">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-2 px-5 py-2 text-left hover:bg-[#fafbfc] transition-colors"
+      >
+        {expanded ? (
+          <ChevronDown className="w-3.5 h-3.5 text-[#6f7782] flex-shrink-0" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5 text-[#6f7782] flex-shrink-0" />
+        )}
+        <span className="text-[13px] font-medium text-[#1e1f21]">My tasks</span>
+        {sectionLabel && (
+          <span className="text-[12px] text-[#6f7782] truncate ml-1">
+            {sectionLabel}
+          </span>
+        )}
+      </button>
+
+      {expanded && !hidden && (
+        <div className="px-5 pb-2">
+          {columns.map((col) => {
+            // Each pinned column renders as a row: label left, value right.
+            // Built-in columns read their value through BuiltinFieldCell
+            // (which already knows the id → Task field mapping). Custom
+            // columns surface a "—" placeholder for now — wiring them
+            // through EditableCustomFieldCell is a Phase 2 follow-up so
+            // they edit/persist correctly from the panel.
+            const cfv = col.builtin
+              ? null
+              : taskDetail?.customFieldValues?.find(
+                  (v: any) => v.fieldId === col.id
+                );
+            return (
+              <div
+                key={col.id}
+                className="flex items-start gap-3 min-h-9 py-1.5 border-b border-[#eeeeee] last:border-b-0"
+              >
+                <div className="w-[120px] flex-shrink-0 flex items-center gap-1.5 pt-1">
+                  <span className="text-[12px] text-[#6f7782] truncate" title={col.name}>
+                    {col.name}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0 flex items-center min-h-[28px] text-[13px] text-[#1e1f21]">
+                  {col.builtin && taskDetail ? (
+                    <BuiltinFieldCell builtinId={col.builtin} task={taskDetail} />
+                  ) : cfv ? (
+                    <EditableCustomFieldCell
+                      taskId={taskId}
+                      fieldId={cfv.field?.id ?? col.id}
+                      type={cfv.field?.type ?? "TEXT"}
+                      options={(cfv.field?.options as { id: string; label: string; color?: string }[] | null) || null}
+                      value={cfv.value}
+                    />
+                  ) : (
+                    <span className="text-[#9aa0a6]">—</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setHidden(true)}
+            className="text-[12px] text-[#6f7782] hover:text-[#1e1f21] hover:underline mt-2 transition-colors"
+          >
+            Hide custom fields
+          </button>
+        </div>
+      )}
+
+      {expanded && hidden && (
+        <div className="px-5 pb-2">
+          <button
+            type="button"
+            onClick={() => setHidden(false)}
+            className="text-[12px] text-[#6f7782] hover:text-[#1e1f21] hover:underline transition-colors"
+          >
+            Show custom fields ({columns.length})
+          </button>
+        </div>
+      )}
+    </div>
+  );
+  // Suppress unused warning in case linter complains
+  void onChanged;
+}
+
 // Task Detail Panel
 function TaskDetailPanel({
   task,
@@ -5810,6 +6095,8 @@ function TaskDetailPanel({
   onUpdate,
   onAttachmentsChange,
   formatDueDate,
+  myTasksColumns,
+  myTasksSectionLabel,
 }: {
   task: Task;
   onClose: () => void;
@@ -5818,6 +6105,15 @@ function TaskDetailPanel({
    *  invalidate any cached attachment view (e.g. the Files tab). */
   onAttachmentsChange?: () => void;
   formatDueDate: (date: string | null) => { text: string; className: string };
+  /** User's pinned my-tasks list columns. Rendered as a "My tasks"
+   *  group at the top of the panel's custom-fields area, matching
+   *  Asana's pattern where the personal "Mis tareas" project shows
+   *  its custom fields above any other project the task belongs to. */
+  myTasksColumns?: ListColumn[];
+  /** Smart-section name the task currently lives in (Recently
+   *  assigned / Do today / Do next week / Do later). Shown as a
+   *  subtitle next to the "My tasks" group header. */
+  myTasksSectionLabel?: string | null;
 }) {
   const [taskDetail, setTaskDetail] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -5844,6 +6140,10 @@ function TaskDetailPanel({
   const commentFileInputRef = useRef<HTMLInputElement>(null);
   const [pendingCommentFiles, setPendingCommentFiles] = useState<File[]>([]);
   const [postingComment, setPostingComment] = useState(false);
+  // Synchronous double-fire guard for handleAddComment (Enter key
+  // + Post button click can race before postingComment state
+  // propagates). See handleAddComment for the rationale.
+  const postingCommentRef = useRef(false);
   // Viewer state for clicking an attachment inline inside a comment.
   // We render the comment's attachments[] list when the user opens it.
   const [commentViewer, setCommentViewer] = useState<{
@@ -6066,6 +6366,13 @@ function TaskDetailPanel({
     const hasText = newComment.trim().length > 0;
     const hasFiles = pendingCommentFiles.length > 0;
     if (!hasText && !hasFiles) return;
+    // Synchronous double-fire guard. Holding Enter or rapidly
+    // pressing Enter + clicking the Post button can fire this
+    // handler twice before postingComment state propagates, which
+    // creates duplicate comments. The ref rejects the second call
+    // in the same tick.
+    if (postingCommentRef.current || postingComment) return;
+    postingCommentRef.current = true;
     setPostingComment(true);
     try {
       const res = await fetch(`/api/tasks/${task.id}/comments`, {
@@ -6124,6 +6431,7 @@ function TaskDetailPanel({
       );
     } finally {
       setPostingComment(false);
+      postingCommentRef.current = false;
     }
   }
 
@@ -6668,12 +6976,37 @@ function TaskDetailPanel({
               </DropdownMenu>
             </PropertyRow>
 
+            {/* "My tasks" group — Asana parity. Above the project's
+                custom-fields group, render a section header tied to
+                the user's My tasks list view: the smart section
+                (Recently assigned / Do today / ...) as subtitle, and
+                each pinned customColumn as a row with the task's
+                value. */}
+            {myTasksColumns && myTasksColumns.length > 0 && (
+              <MyTasksFieldsGroup
+                taskId={task.id}
+                taskDetail={taskDetail}
+                columns={myTasksColumns}
+                sectionLabel={myTasksSectionLabel ?? null}
+                onChanged={() => {
+                  fetchTaskDetail();
+                  onUpdate();
+                }}
+              />
+            )}
+
             {/* Project's custom fields — schema-defined + per-task
-                values rendered with type-appropriate editors. Hidden
-                automatically when the project has no custom fields. */}
+                values rendered with type-appropriate editors. The
+                section wraps the fields in an expandable group
+                with the project dot + name as header, matching
+                Asana's task detail panel pattern (mini-table per
+                project). Hidden automatically when the project has
+                no custom fields. */}
             <CustomFieldsSection
               taskId={task.id}
               projectId={taskDetail?.project?.id ?? null}
+              projectName={taskDetail?.project?.name ?? null}
+              projectColor={taskDetail?.project?.color ?? null}
               values={taskDetail?.customFieldValues ?? []}
               onChanged={() => {
                 fetchTaskDetail();

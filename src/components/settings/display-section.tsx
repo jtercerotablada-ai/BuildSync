@@ -102,7 +102,12 @@ export function DisplaySection() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-medium text-gray-700">Theme</p>
-          <span className="text-[10px] uppercase tracking-wider text-gray-400">
+          {/* Dark mode badge upgraded from muted all-caps to a proper
+              pill so the affordance reads consistent with other Beta /
+              Coming labels across the app. QC Fase 1 bug ST-2 — was
+              previously a thin text label that looked like a header. */}
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-2 py-0.5 text-[11px] font-medium">
+            <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />
             Dark mode coming soon
           </span>
         </div>

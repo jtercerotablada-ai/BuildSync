@@ -25,6 +25,10 @@ const updateTaskSchema = z.object({
   sectionId: z.string().optional().nullable(),
   assigneeId: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  // Optional time-of-day stored alongside `dueDate`. ISO datetime
+  // string from the client. When the user picks just a date with
+  // no time, dueAt stays null. Asana parity (P2, May 23 2026).
+  dueAt: z.string().optional().nullable(),
   startDate: z.string().optional().nullable(),
   priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH"]).optional().nullable(),
   taskStatus: z.enum(["ON_TRACK", "AT_RISK", "OFF_TRACK"]).optional().nullable(),
@@ -249,6 +253,10 @@ export async function PATCH(
         assigneeId: true,
         startDate: true,
         dueDate: true,
+        // dueAt was added during QC Fase 2 P2 (May 23 2026). The
+        // select needs it so the change-detection in the diff
+        // block below can compare old vs new without re-querying.
+        dueAt: true,
       },
     });
 
@@ -279,6 +287,13 @@ export async function PATCH(
     if (data.completed !== undefined && data.completed !== existingTask.completed) {
       updateData.completed = data.completed;
       updateData.completedAt = data.completed ? new Date() : null;
+      // Asana parity (May 23 2026): also record WHO marked it
+      // complete. Cleared on un-complete so the field always
+      // reflects the most recent closer. The activities log
+      // already records `userId` separately for the full audit
+      // trail — this denormalized field exists for fast UI
+      // ("Closed by Juan · 2h ago") without joining Activity.
+      updateData.completedById = data.completed ? userId : null;
       activities.push({
         type: data.completed ? "TASK_COMPLETED" : "TASK_UNCOMPLETED",
         data: {},
@@ -338,6 +353,22 @@ export async function PATCH(
         activities.push({
           type: "DUE_DATE_CHANGED",
           data: { dueDate: data.dueDate },
+        });
+      }
+    }
+    // dueAt (datetime, optional) — independent of dueDate so users
+    // can toggle the time on/off without losing the date. Clearing
+    // dueDate clears dueAt too (handled by the client). Asana
+    // parity P2 (May 23 2026).
+    if (data.dueAt !== undefined) {
+      const newDueAt = data.dueAt ? new Date(data.dueAt) : null;
+      const oldDueAt = (existingTask as { dueAt?: Date | null }).dueAt ?? null;
+      if (newDueAt?.getTime() !== oldDueAt?.getTime()) {
+        (updateData as Record<string, unknown>).dueAt = newDueAt;
+        datesChanged = true;
+        activities.push({
+          type: "DUE_DATE_CHANGED",
+          data: { dueAt: data.dueAt },
         });
       }
     }

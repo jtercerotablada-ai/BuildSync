@@ -722,11 +722,23 @@ export default function DashboardPage() {
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={widget.config.data} layout="vertical">
                           <XAxis type="number" />
+                          {/* width bumped from 100→140 + tickFormatter
+                              that truncates with an ellipsis instead
+                              of stripping characters. Pre-fix labels
+                              like "Brickell Mixed-Use" rendered as
+                              "BrickellMixed-Use" (no space). QC Fase
+                              1 bug RP-1, May 22 2026. */}
                           <YAxis
                             dataKey="name"
                             type="category"
-                            width={100}
+                            width={140}
                             tick={{ fontSize: 12 }}
+                            interval={0}
+                            tickFormatter={(value: string) =>
+                              value.length > 16
+                                ? `${value.slice(0, 15)}…`
+                                : value
+                            }
                           />
                           <Tooltip />
                           <Bar dataKey="value" radius={[0, 4, 4, 0]}>

@@ -22,7 +22,8 @@ import {
   type ButtonHTMLAttributes,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -118,7 +119,42 @@ interface TaskActivity {
     name: string | null;
     image: string | null;
   } | null;
+  data?: Record<string, unknown> | null;
 }
+
+/**
+ * Asana-parity labels for the activity feed. Pre-fix the panel
+ * showed raw enum text ("TASK_COMPLETED" → "task completed") which
+ * read robotic. This maps each activity type to a natural-language
+ * verb phrase. Added during QC Fase 2 P1.4 (May 23 2026).
+ */
+const ACTIVITY_VERB: Record<string, string> = {
+  TASK_CREATED: "created this task",
+  TASK_COMPLETED: "marked complete",
+  TASK_UNCOMPLETED: "reopened this task",
+  TASK_ASSIGNED: "assigned the task",
+  TASK_UNASSIGNED: "unassigned the task",
+  TASK_DUE_DATE_CHANGED: "changed the due date",
+  TASK_NAME_CHANGED: "renamed the task",
+  TASK_DESCRIPTION_CHANGED: "edited the description",
+  TASK_PRIORITY_CHANGED: "changed priority",
+  TASK_STATUS_CHANGED: "changed status",
+  TASK_MOVED_TO_SECTION: "moved to another section",
+  TASK_MOVED_TO_PROJECT: "moved to another project",
+  TASK_TYPE_CHANGED: "changed task type",
+  TASK_PRIVACY_CHANGED: "changed task privacy",
+  COMMENT_ADDED: "commented",
+  COMMENT_DELETED: "deleted a comment",
+  ATTACHMENT_ADDED: "attached a file",
+  ATTACHMENT_DELETED: "removed an attachment",
+  SUBTASK_ADDED: "added a subtask",
+  SUBTASK_REMOVED: "removed a subtask",
+  COLLABORATOR_ADDED: "added a collaborator",
+  COLLABORATOR_REMOVED: "removed a collaborator",
+  DEPENDENCY_ADDED: "added a dependency",
+  DEPENDENCY_REMOVED: "removed a dependency",
+  CUSTOM_FIELD_CHANGED: "edited a custom field",
+};
 
 interface TaskSubtask {
   id: string;
@@ -860,7 +896,13 @@ export function TaskDetailPanel({
                 dueDate={
                   taskDetail?.dueDate ? new Date(taskDetail.dueDate) : null
                 }
-                onChange={async (start, due) => {
+                dueAt={(() => {
+                  const v = (
+                    taskDetail as unknown as { dueAt?: string | null } | null
+                  )?.dueAt;
+                  return v ? new Date(v) : null;
+                })()}
+                onChange={async (start, due, dueAtVal) => {
                   try {
                     const res = await fetch(`/api/tasks/${taskId}`, {
                       method: "PATCH",
@@ -868,6 +910,13 @@ export function TaskDetailPanel({
                       body: JSON.stringify({
                         startDate: start?.toISOString() || null,
                         dueDate: due?.toISOString() || null,
+                        // dueAt is undefined when caller doesn't
+                        // care about time; null clears it. The
+                        // picker emits null when there's no time;
+                        // a real Date when time is set.
+                        ...(dueAtVal !== undefined
+                          ? { dueAt: dueAtVal?.toISOString() ?? null }
+                          : {}),
                       }),
                     });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1087,10 +1136,15 @@ export function TaskDetailPanel({
               </DropdownMenu>
             </PropertyRow>
 
-            {/* Project's custom fields */}
+            {/* Project's custom fields — wrapped in an expandable
+                group with project dot + name as header (Asana parity:
+                each project the task belongs to shows its own
+                mini-table of custom fields). */}
             <CustomFieldsSection
               taskId={taskId}
               projectId={taskDetail?.project?.id ?? null}
+              projectName={taskDetail?.project?.name ?? null}
+              projectColor={taskDetail?.project?.color ?? null}
               values={taskDetail?.customFieldValues ?? []}
               onChanged={() => {
                 fetchTaskDetail();
@@ -1491,25 +1545,47 @@ export function TaskDetailPanel({
               </>
             ) : (
               <>
-                {taskDetail?.activities?.map((activity) => (
-                  <div key={activity.id} className="flex gap-3 text-sm">
-                    <Avatar className="h-6 w-6">
-                      <AvatarFallback className="text-[10px] bg-white border border-black">
-                        {activity.user?.name?.charAt(0) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <span className="font-medium">{activity.user?.name}</span>
-                      <span className="text-black">
-                        {" "}
-                        {activity.type.replace(/_/g, " ").toLowerCase()}
-                      </span>
-                      <span className="text-black text-xs ml-2">
-                        {new Date(activity.createdAt).toLocaleDateString()}
-                      </span>
+                {/* Asana-parity activity stream — friendlier than
+                    the pre-May 2026 "task completed" raw enum dump.
+                    Each row: avatar + actor name + verb phrase +
+                    auto-updating relative time. Empty state shown
+                    when no activities exist yet. QC Fase 2 P1.4. */}
+                {taskDetail?.activities?.map((activity) => {
+                  const verb =
+                    ACTIVITY_VERB[activity.type] ??
+                    activity.type.replace(/_/g, " ").toLowerCase();
+                  const actorName = activity.user?.name ?? "Someone";
+                  return (
+                    <div
+                      key={activity.id}
+                      className="flex gap-3 text-[13px] text-gray-700 leading-snug"
+                    >
+                      <Avatar className="h-6 w-6 mt-0.5 flex-shrink-0">
+                        {activity.user?.image && (
+                          <AvatarImage src={activity.user.image} alt={actorName} />
+                        )}
+                        <AvatarFallback className="text-[10px] bg-white border border-gray-300 text-gray-700">
+                          {actorName.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <span className="font-medium text-gray-900">
+                          {actorName}
+                        </span>
+                        <span className="text-gray-500"> {verb}</span>
+                        <span className="text-gray-400 text-[11px] ml-2">
+                          <RelativeTime date={activity.createdAt} short />
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+                {(!taskDetail?.activities ||
+                  taskDetail.activities.length === 0) && (
+                  <p className="text-[13px] text-[#9aa0a6] text-center py-6">
+                    No activity yet
+                  </p>
+                )}
               </>
             )}
           </div>

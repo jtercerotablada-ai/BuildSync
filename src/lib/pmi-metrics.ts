@@ -242,3 +242,26 @@ export function healthVisual(h: PmiSnapshot["health"]): {
       return { label: "Off track", hex: "#0a0a0a", textHex: "#ffffff" };
   }
 }
+
+/**
+ * Map health → `<Status>` semantic variant. Use this instead of
+ * `healthVisual` when rendering with the shadcn-style `<Status>`
+ * component — it returns the variant name plus label so the call-site
+ * stays one line. Added May 22 2026 during QC Fase 1 (bugs PA-3, RP-2)
+ * to unify status pills across project/portfolio/goal/reporting views.
+ */
+export function healthStatus(h: PmiSnapshot["health"]): {
+  label: string;
+  variant: "success" | "warning" | "danger" | "active";
+} {
+  switch (h) {
+    case "ON_TRACK":
+      return { label: "On track", variant: "success" };
+    case "WATCH":
+      return { label: "Watch", variant: "warning" };
+    case "AT_RISK":
+      return { label: "At risk", variant: "warning" };
+    case "OFF_TRACK":
+      return { label: "Off track", variant: "danger" };
+  }
+}
