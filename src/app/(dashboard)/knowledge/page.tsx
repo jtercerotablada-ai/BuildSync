@@ -25,7 +25,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { KnowledgeTabs } from "@/components/knowledge/knowledge-tabs";
 
 interface KnowledgeRow {
   id: string;
@@ -182,8 +181,6 @@ export default function KnowledgePage() {
           New entry
         </Button>
       </div>
-
-      <KnowledgeTabs />
 
       {/* Toolbar */}
       <div className="border-b px-4 md:px-8 py-3 flex flex-wrap items-center gap-3">
