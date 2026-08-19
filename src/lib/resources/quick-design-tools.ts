@@ -33,11 +33,11 @@ export interface QuickDesignTool {
 export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
   // ─────────── Steel ───────────
   { category: 'Steel', code: 'AISC 360-22', title: 'Steel Member Design', description: 'Axial, bending, shear and combined-action checks per AISC 360-22 (LRFD) for W, S, HSS and pipe sections — full section library, limit-state capacities, utilisation and governing clause. Validated against AISC Manual values.', status: 'available', href: '/resources/steel-member', isNew: true },
-  { category: 'Steel', code: 'CSA S16-14', title: 'Steel I-Beam Design', description: 'Flexure, shear, deflection and lateral-torsional buckling for hot-rolled I-sections.', status: 'coming-soon' },
-  { category: 'Steel', code: 'AISC 360-16', title: 'Steel Angle Design', description: 'Tension, compression and flexural capacity of single and double angles.', status: 'coming-soon' },
-  { category: 'Steel', code: 'AISC 360-16', title: 'Steel I-Beam Design', description: 'Flexure, shear, deflection and lateral-torsional buckling for hot-rolled I-sections.', status: 'coming-soon' },
-  { category: 'Steel', code: 'AISC 360-16', title: 'Steel Channel Design', description: 'Bending, shear and buckling checks for hot-rolled channel (C) sections.', status: 'coming-soon' },
-  { category: 'Steel', code: 'AISC 360-22', title: 'Steel Plate Design', description: 'Minor-axis bending and shear capacity of flat plates and bars.', status: 'coming-soon', isNew: true },
+  { category: 'Steel', code: 'CSA S16-14', title: 'Steel I-Beam Design', description: 'Flexure, shear, deflection and lateral-torsional buckling for hot-rolled W and S I-sections per CSA S16-14 (LSD) — full Canadian metric shape library, section classification, Mr with LTB curve, Vr and serviceability. Validated against CISC Handbook values.', status: 'available', href: '/resources/csa-i-beam', isNew: true },
+  { category: 'Steel', code: 'AISC 360-16', title: 'Steel Angle Design', description: 'Tension, compression and flexural capacity of single (L) and double (2L) hot-rolled angles per AISC 360-16 (LRFD) — full L/2L library, D2/D3 tension with shear-lag, E5 effective-slenderness compression, E4/E6 double-angle FTB, and F10/F9 flexure with principal-axis LTB. Validated against AISC Design Examples.', status: 'available', href: '/resources/steel-angle', isNew: true },
+  { category: 'Steel', code: 'AISC 360-16', title: 'Steel I-Beam Design', description: 'Flexure, shear, deflection and lateral-torsional buckling for hot-rolled W and S I-sections per AISC 360-16 (LRFD) — full US shape library, Table B4.1 classification, Ch. F2 flexure with the φMn–Lb curve (Lp/Lr), Ch. G2 shear and serviceability. Validated against AISC Manual Table 3-2.', status: 'available', href: '/resources/i-beam', isNew: true },
+  { category: 'Steel', code: 'AISC 360-16', title: 'Steel Channel Design', description: 'Bending, shear and buckling checks for hot-rolled C and MC channels per AISC 360-16 (LRFD) — full US channel library, Table B4.1 classification, Ch. F2 major flexure with the channel c-factor and φMn–Lb curve, F6 minor flexure, G2.1(b) shear (φv 0.90), and E3/E4 flexural-torsional compression buckling. Validated against AISC Design Example F.2.', status: 'available', href: '/resources/channel', isNew: true },
+  { category: 'Steel', code: 'AISC 360-22', title: 'Steel Plate Design', description: 'Minor-axis (and major-axis) bending and shear capacity of flat plates and rectangular bars per AISC 360-22 (LRFD) — Section F11 flexure (yielding + major-axis LTB with the Lb·d/t² curve) and Section J4.2 shear (yielding φ1.00 + rupture φ0.75), with section properties and governing limit state.', status: 'available', href: '/resources/plate', isNew: true },
   { category: 'Steel', code: 'AISC 360-22', title: 'I-Beam Load Capacity Check', description: 'Quick factored-load capacity of a W-section at a given span and bracing — picks the controlling limit state.', status: 'coming-soon' },
   { category: 'Steel', code: 'AISC 360-22 Ch. I', title: 'Composite Beam & Column Design', description: 'Steel-concrete composite beams with shear studs, plus encased and filled composite columns.', status: 'coming-soon' },
 
@@ -46,9 +46,8 @@ export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
   { category: 'Cold-Formed Steel', code: 'AISI S100-16', title: 'AISI S100-16 Purlin Design', description: 'Steel purlins per AISI S100-16.', status: 'coming-soon' },
 
   // ─────────── Concrete ───────────
-  { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Concrete Shear Wall Design', description: 'Reinforced concrete walls per ACI 318-19.', status: 'coming-soon' },
-  { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Concrete Column Design', description: 'Reinforced concrete columns per ACI 318-19.', status: 'coming-soon' },
-  { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Concrete Beam Design', description: 'Reinforced concrete beams per ACI 318-19.', status: 'available', href: '/resources/beam' },
+  { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Concrete Shear Wall Design', description: 'Reinforced concrete structural walls per ACI 318-19 — in-plane shear (§11.5.4), axial-flexure P-M interaction, minimum reinforcement, simplified axial and special boundary elements (§18.10.6), with the full interaction diagram. Validated against ACI clause arithmetic and PCA/StructurePoint values.', status: 'available', href: '/resources/shear-wall', isNew: true },
+  { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Concrete Column Design', description: 'Reinforced concrete columns per ACI 318-19 — rectangular tied and circular spiral, uniaxial & biaxial P-M interaction (Bresler / PCA load contour), non-sway slenderness magnification (§6.6.4) and detailing limits, with the full interaction diagram. Validated against ACI hand calcs and StructurePoint values.', status: 'available', href: '/resources/concrete-column', isNew: true },
   { category: 'Concrete', code: 'CSA A23.3-14', title: 'CSA A23.3-14 Concrete Slab Design', description: 'RC slab resistance per CSA A23.3-14.', status: 'coming-soon' },
   { category: 'Concrete', code: 'ACI 360 R-06', title: 'ACI 360 R-06 Slab on Grade Design', description: 'Slab on grade per ACI 360 R-06.', status: 'coming-soon' },
   { category: 'Concrete', code: 'ACI 318-19', title: 'ACI 318-19 Reinforcement Development & Lap', description: 'Development and lap length per ACI 318-19.', status: 'coming-soon' },
@@ -96,7 +95,7 @@ export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
   { category: 'Scaffolding', code: 'AISC 360-16', title: 'AISC 360-16 Scaffold Member Design', description: 'Scaffolding members per AISC 360-16.', status: 'coming-soon' },
 
   // ─────────── Loading ───────────
-  { category: 'Loading', code: 'ASCE 7-22', title: 'ASCE 7-22 Wind Load Generator', description: 'MWFRS + C&C wind pressures from site lat/lng lookup.', status: 'available', href: '/resources/load-gen', isNew: true },
+  { category: 'Loading', code: 'ASCE 7-22', title: 'ASCE 7-22 Load Generator', description: 'Complete wind, snow (incl. drift), seismic and load combinations from the site address — USGS-connected.', status: 'available', href: '/resources/load-gen', isNew: true },
   { category: 'Loading', code: 'NBCC 2015', title: 'NBCC 2015 Multi-Roof Snow Drift', description: 'Snow loads per NBCC 2015.', status: 'coming-soon' },
   { category: 'Loading', code: '—', title: 'Load Combination Generator', description: 'ASCE 7 / IBC load combinations (LRFD + ASD).', status: 'coming-soon' },
   { category: 'Loading', code: 'ASCE 7-16', title: 'ASCE 7-16 Gust-Effect Factor (Imperial)', description: 'Gust-effect factors per ASCE 7-16 (Imperial).', status: 'coming-soon' },
@@ -106,9 +105,9 @@ export const QUICK_DESIGN_TOOLS: QuickDesignTool[] = [
 
   // ─────────── Analysis ───────────
   { category: 'Analysis', code: '—', title: 'Column Analysis', description: 'Analyse columns for axial and bending.', status: 'coming-soon' },
-  { category: 'Analysis', code: '—', title: 'Simply Supported Beam Analysis', description: 'Beams with distributed and point loads.', status: 'available', href: '/resources/beam' },
   { category: 'Analysis', code: '—', title: 'Section Properties', description: 'Section properties for any shape.', status: 'available', href: '/resources/section-builder' },
   { category: 'Analysis', code: '—', title: 'Multi-Span Beam Analysis', description: 'Continuous beams, hinges, springs, settlements, thermal — full FEM.', status: 'available', href: '/resources/advanced-beam', isNew: true },
+  { category: 'Analysis', code: '—', title: 'Beam Analysis', description: 'Quick and accurate single-beam analysis with shear, moment, and deflection diagrams. Direct-stiffness (FEM) Euler-Bernoulli solution for any support layout under point, distributed and moment loads. Validated against closed-form beam solutions.', status: 'available', href: '/resources/beam-analysis', isNew: true },
   { category: 'Analysis', code: '—', title: 'Column Buckling Load', description: 'Critical buckling load for compression columns.', status: 'coming-soon' },
   { category: 'Analysis', code: '—', title: '2D Stiffness Method Analysis', description: 'Stiffness matrix + force vector for 2D elements.', status: 'coming-soon' },
   { category: 'Analysis', code: '—', title: 'Cable Sag Analysis', description: 'Pre-tension for a specified cable sag.', status: 'coming-soon' },

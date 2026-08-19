@@ -31,6 +31,9 @@ export interface SteelSection {
   Iy: number; Sy: number; Zy: number; ry: number;
   J: number;   // in⁴
   Cw: number;  // in⁶
+  hw?: number; // AISC tabulated clear web height h = d − 2·kdes (in). When
+               // present, used for h/tw in classification & shear so boundary
+               // shapes match AISC tables exactly; else falls back to d − 2tf.
 }
 
 export interface SteelMaterial {
@@ -69,9 +72,11 @@ const isHSSrect = (f: SteelFamily) => f === 'HSS-R';
 const isIshape = (f: SteelFamily) => f === 'W' || f === 'S';
 const isDoublySym = (f: SteelFamily) => isIshape(f) || f === 'HSS-R' || isRound(f);
 
-/** Clear web height h ≈ d − 2·tf (fillets not in DB → slightly conservative). */
+/** Clear web height h. Uses the AISC-tabulated value (d − 2·kdes) when present,
+ *  else the fillet-free d − 2·tf (slightly conservative). */
 function webH(s: SteelSection): number {
   if (isRound(s.family)) return 0;
+  if (s.hw && s.hw > 0) return s.hw;
   return Math.max(0, s.d - 2 * s.tf);
 }
 
