@@ -197,6 +197,11 @@ export default function GoalDetailPage() {
   const [updateKROpen, setUpdateKROpen] = useState(false);
   const [selectedKR, setSelectedKR] = useState<KeyResult | null>(null);
   const [saving, setSaving] = useState(false);
+  // "Manual progress" set progressSource and then offered nothing to set the
+  // number with — the CTA still said "use sub-objectives" and the only editor
+  // on the page belonged to key results. This is that missing editor.
+  const [manualProgress, setManualProgress] = useState<string>("");
+  const [savingManual, setSavingManual] = useState(false);
   const [description, setDescription] = useState("");
   const [comment, setComment] = useState("");
   const [isLiked, setIsLiked] = useState(false);
@@ -1027,6 +1032,66 @@ export default function GoalDetailPage() {
               </DropdownMenu>
             </div>
 
+            {/* Manual progress editor — only meaningful when the goal's
+                progress is not derived from key results / sub-objectives. */}
+            {objective.progressSource === "MANUAL" && (
+              <div className="flex flex-wrap items-end gap-2 justify-center mb-4">
+                <div className="space-y-1">
+                  <Label htmlFor="manual-progress" className="text-xs">
+                    Completion
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="manual-progress"
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="w-24"
+                      value={manualProgress}
+                      placeholder={String(objective.progress)}
+                      onChange={(e) => setManualProgress(e.target.value)}
+                    />
+                    <span className="text-sm text-gray-500">%</span>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  disabled={savingManual || manualProgress.trim() === ""}
+                  onClick={async () => {
+                    const next = Math.round(Number(manualProgress));
+                    if (!Number.isFinite(next) || next < 0 || next > 100) {
+                      toast.error("Enter a number between 0 and 100");
+                      return;
+                    }
+                    setSavingManual(true);
+                    try {
+                      const res = await fetch(`/api/objectives/${objectiveId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ progress: next }),
+                      });
+                      if (!res.ok) throw new Error();
+                      setObjective((prev) =>
+                        prev ? { ...prev, progress: next } : null
+                      );
+                      setManualProgress("");
+                      toast.success("Progress updated");
+                    } catch {
+                      toast.error("Couldn't update progress");
+                    } finally {
+                      setSavingManual(false);
+                    }
+                  }}
+                >
+                  {savingManual ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Save"
+                  )}
+                </Button>
+              </div>
+            )}
+
             {/* ========== CHART ========== */}
             <GoalProgressChart
               progress={objective.progress}
@@ -1035,19 +1100,26 @@ export default function GoalDetailPage() {
               endDate={objective.endDate || undefined}
             />
 
-            {/* CTA */}
-            <p className="text-sm text-gray-500 text-center my-6">
-              Use sub-objectives to automatically update the progress of this objective.
-            </p>
-            <div className="flex justify-center">
-              <Button
-                className="bg-black hover:bg-black gap-2"
-                onClick={() => setAddKROpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Add key result
-              </Button>
-            </div>
+            {/* CTA — only when progress is actually derived from something
+                else. In MANUAL mode the editor above IS the control. */}
+            {objective.progressSource !== "MANUAL" && (
+              <>
+                <p className="text-sm text-gray-500 text-center my-6">
+                  {objective.progressSource === "SUB_OBJECTIVES"
+                    ? "Sub-objectives keep this objective's progress up to date."
+                    : "Key results keep this objective's progress up to date."}
+                </p>
+                <div className="flex justify-center">
+                  <Button
+                    className="bg-black hover:bg-black gap-2"
+                    onClick={() => setAddKROpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add key result
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* ========== KEY RESULTS SECTION ========== */}

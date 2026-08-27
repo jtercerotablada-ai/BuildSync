@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AVATAR_MAX_STORED_CHARS } from "@/lib/avatar-image";
 import { getServerSession } from "next-auth";
 import { hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
@@ -36,6 +37,24 @@ export async function POST(request: NextRequest) {
       email: bodyEmail,
       token: bodyToken,
     } = await request.json();
+
+    // Same boundary as PATCH /api/users/profile: the avatar is stored inline
+    // in User.image, so an oversized or non-image string must never land in
+    // the column (it would then ride along in every user payload).
+    if (image != null && image !== "") {
+      const validImage =
+        typeof image === "string" &&
+        (/^https?:\/\//i.test(image)
+          ? image.length <= 2048
+          : /^data:image\/(png|jpeg|webp|gif);base64,/i.test(image) &&
+            image.length <= AVATAR_MAX_STORED_CHARS);
+      if (!validImage) {
+        return NextResponse.json(
+          { error: "That profile photo couldn't be used. Try a smaller one." },
+          { status: 400 }
+        );
+      }
+    }
 
     const session = await getServerSession(authOptions);
 

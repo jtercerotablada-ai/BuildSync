@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { User, Camera, Eye, EyeOff } from "lucide-react";
 import { validatePassword } from "@/lib/password-policy";
+import { fileToAvatarDataUrl, AvatarError } from "@/lib/avatar-image";
 
 const COMPANY_NAME = "TERCERO TABLADA CIVIL AND STRUCTURAL ENGINEERING INC.";
 
@@ -208,20 +209,23 @@ function OnboardingForm() {
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError("Image must be less than 5MB");
-        return;
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      // Same normalization the profile settings use — the avatar is stored
+      // inline as a data URL, so it must be small before it is saved.
+      try {
+        setAvatarPreview(await fileToAvatarDataUrl(file));
+        setError("");
+      } catch (err) {
+        setError(
+          err instanceof AvatarError ? err.message : "Couldn't use that image"
+        );
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  }, []);
+    },
+    []
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -370,7 +374,7 @@ function OnboardingForm() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
                   onChange={handleFileChange}
                   className="hidden"
                 />

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { fileToAvatarDataUrl, AvatarError } from "@/lib/avatar-image";
 
 interface ProfileData {
   id: string;
@@ -75,15 +76,20 @@ export function ProfileSection({ profile, onUpdate }: ProfileSectionProps) {
   function handleImageUpload() {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*";
-    input.onchange = (e) => {
+    input.accept = "image/png,image/jpeg,image/webp,image/gif";
+    input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Validated + downscaled to a 256px square: the raw file used to be
+      // stored verbatim as a data URL in User.image, so a phone photo rode
+      // along in every session and mention payload.
+      try {
+        setImage(await fileToAvatarDataUrl(file));
+      } catch (err) {
+        toast.error(
+          err instanceof AvatarError ? err.message : "Couldn't use that image"
+        );
+      }
     };
     input.click();
   }

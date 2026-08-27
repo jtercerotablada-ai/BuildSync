@@ -1992,7 +1992,13 @@ export default function MyTasksPage() {
       const res = await fetch("/api/my-tasks/custom-fields", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: field.name, type: prismaType }),
+        body: JSON.stringify({
+          name: field.name,
+          type: prismaType,
+          // The options the user typed in the modal. Omitting them created a
+          // dropdown with nothing to pick.
+          ...(field.options !== undefined ? { options: field.options } : {}),
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const created = await res.json();

@@ -44,6 +44,15 @@ function toYmd(d: Date): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+/** Inverse of toYmd: a "YYYY-MM-DD" string back to LOCAL midnight of that
+ *  calendar day (never `new Date(str)`, which parses as UTC and shifts the
+ *  day for viewers west of UTC). */
+function ymdToLocalDate(ymd: string): Date | null {
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
 type TaskType = "TASK" | "MILESTONE" | "APPROVAL";
 
 interface Task {
@@ -198,6 +207,23 @@ export function CalendarView({
   function handleDragStart(e: DragEvent<HTMLButtonElement>, task: Task) {
     setDraggingTaskId(task.id);
     e.dataTransfer.setData("application/x-task-id", task.id);
+    // WHICH DAY of the bar the pointer grabbed. A multi-day bar spans several
+    // cells, and the drop used to move the task's DUE date onto the drop cell
+    // whatever the user had hold of: grabbing a 5-day bar by its first day and
+    // nudging it one cell right set due = that cell, so the bar jumped a week
+    // backwards and the task read as shortened. Moving the grabbed day to the
+    // drop day is what the gesture means.
+    const cell =
+      typeof document !== "undefined" && "elementsFromPoint" in document
+        ? (document
+            .elementsFromPoint(e.clientX, e.clientY)
+            .find((el) => el instanceof HTMLElement && el.dataset.day) as
+            | HTMLElement
+            | undefined)
+        : undefined;
+    if (cell?.dataset.day) {
+      e.dataTransfer.setData("application/x-task-grab-day", cell.dataset.day);
+    }
     e.dataTransfer.effectAllowed = "move";
   }
 
@@ -239,11 +265,20 @@ export function CalendarView({
       ? dueDateToLocalMidnight(task.startDate)
       : null;
 
+    // The day the user actually had hold of. Without it the anchor is the
+    // due date, which is only correct when the bar is one day wide.
+    const grabDayStr = e.dataTransfer.getData("application/x-task-grab-day");
+    const grabDay = grabDayStr ? ymdToLocalDate(grabDayStr) : null;
+
     const body: { dueDate?: string | null; startDate?: string | null } = {};
     if (oldStart && oldDue) {
-      // Preserve duration: shift both dates by the same whole-day delta.
-      const deltaDays = Math.round((dropDay.getTime() - oldDue.getTime()) / DAY);
-      body.dueDate = toYmd(dropDay);
+      // Preserve duration: shift both dates by the same whole-day delta,
+      // measured from the grabbed day (falling back to the due date when the
+      // drag came from somewhere without a day, e.g. the unscheduled list).
+      const anchor = grabDay ?? oldDue;
+      const deltaDays = Math.round((dropDay.getTime() - anchor.getTime()) / DAY);
+      if (deltaDays === 0) return;
+      body.dueDate = toYmd(new Date(oldDue.getTime() + deltaDays * DAY));
       body.startDate = toYmd(new Date(oldStart.getTime() + deltaDays * DAY));
     } else if (oldStart && !oldDue) {
       body.startDate = toYmd(dropDay);
@@ -766,6 +801,7 @@ export function CalendarView({
                           setNewTaskName("");
                         }
                       }}
+                      data-day={dateStr}
                       onDragOver={(e) => handleDayDragOver(e, dateStr)}
                       onDragLeave={() => {
                         if (dragOverDate === dateStr) setDragOverDate(null);

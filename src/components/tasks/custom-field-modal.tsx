@@ -65,6 +65,11 @@ export interface CreatedFieldInfo {
   name: string;
   type: string;
   color: string;
+  /** Choice options / formula / rollup config exactly as the project path
+   *  posts them. Carried so the personal (My Tasks) path can persist them
+   *  too — it used to receive name+type only, so a personal dropdown was
+   *  created with none of the options the user had just typed. */
+  options?: unknown;
 }
 
 interface CustomFieldModalProps {
@@ -281,16 +286,6 @@ export function CustomFieldModal({
     }
     if (submitting) return;
 
-    // No projectId in context (e.g. /my-tasks toolbar across projects)
-    // → preserve old cosmetic-only behavior so we don't lose the existing
-    // callback hooks downstream.
-    if (!projectId) {
-      onFieldCreated?.({ name, type: fieldType, color: fieldColor });
-      toast.success(`Field "${name}" created`);
-      resetAndClose();
-      return;
-    }
-
     const prismaType = UI_TO_PRISMA_TYPE[fieldType];
     if (!prismaType) {
       toast.error("This field type isn't supported yet");
@@ -330,6 +325,16 @@ export function CustomFieldModal({
         return;
       }
       options = { sourceFieldId: rollup.source, fn: rollup.fn };
+    }
+
+    // No projectId in context (e.g. the /my-tasks toolbar, which spans
+    // projects): the caller persists the definition itself. Hand it the
+    // options too — dropping them left the field unusable.
+    if (!projectId) {
+      onFieldCreated?.({ name, type: fieldType, color: fieldColor, options });
+      toast.success(`Field "${name}" created`);
+      resetAndClose();
+      return;
     }
 
     setSubmitting(true);

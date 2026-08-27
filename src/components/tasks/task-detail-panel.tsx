@@ -133,6 +133,9 @@ interface TaskComment {
   // we fall back to guestName for display.
   guestName?: string | null;
   source?: "INTERNAL" | "TRACKING_REPLY";
+  /** EXTERNAL comments are published on the submitter's public tracking
+   *  page; INTERNAL_NOTE ones never leave the team. */
+  visibility?: "EXTERNAL" | "INTERNAL_NOTE";
   attachments?: TaskAttachment[];
 }
 
@@ -239,6 +242,9 @@ interface TaskDetail {
   createdAt?: string;
   subtasks?: TaskSubtask[];
   comments?: TaskComment[];
+  /** True when a form submission created this task, so it has a public
+   *  tracking page a comment can be shared to. */
+  hasExternalTracking?: boolean;
   activities?: TaskActivity[];
   attachments?: TaskAttachment[];
   collaborators?: TaskCollaborator[];
@@ -317,6 +323,9 @@ export function TaskDetailPanel({
   const [newComment, setNewComment] = useState("");
   const [pendingCommentFiles, setPendingCommentFiles] = useState<File[]>([]);
   const [postingComment, setPostingComment] = useState(false);
+  // Comments are internal unless the author opts in — see the visibility
+  // note in POST /api/tasks/[taskId]/comments.
+  const [shareWithSubmitter, setShareWithSubmitter] = useState(false);
   const [commentViewer, setCommentViewer] = useState<{
     files: TaskAttachment[];
     index: number;
@@ -789,7 +798,7 @@ export function TaskDetailPanel({
       const res = await fetch(`/api/tasks/${taskId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, shareWithSubmitter }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -2180,6 +2189,14 @@ export function TaskDetailPanel({
                               via tracking link
                             </span>
                           )}
+                          {!isGuest && comment.visibility === "EXTERNAL" && (
+                            <span
+                              className="text-[10px] uppercase tracking-wider text-[#6f7782] bg-[#f3f4f6] border border-[#e0e2e6] px-1.5 py-[1px] rounded font-semibold"
+                              title="Published on the submitter's tracking page"
+                            >
+                              shared with submitter
+                            </span>
+                          )}
                           <span className="text-xs text-black">
                             {new Date(comment.createdAt).toLocaleDateString()}
                           </span>
@@ -2403,6 +2420,17 @@ export function TaskDetailPanel({
                 )}
               </button>
             </div>
+            {taskDetail?.hasExternalTracking && (
+              <label className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[#6f7782] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={shareWithSubmitter}
+                  onChange={(e) => setShareWithSubmitter(e.target.checked)}
+                  className="h-3 w-3 accent-[#1e1f21]"
+                />
+                Also send to the submitter (shown on their tracking link)
+              </label>
+            )}
             {pendingCommentFiles.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {pendingCommentFiles.map((f, i) => (

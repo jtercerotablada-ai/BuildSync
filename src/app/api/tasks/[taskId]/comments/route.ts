@@ -34,6 +34,10 @@ function getTextPreview(html: string, maxLength: number = 100): string {
 const createCommentSchema = z.object({
   content: z.string().min(1, "Comment content is required"),
   parentId: z.string().optional(),
+  /** Opt IN to publishing this comment on the submitter's public tracking
+   *  page. Everything written from the task panel is internal unless the
+   *  author says otherwise. */
+  shareWithSubmitter: z.boolean().optional(),
 });
 
 // GET /api/tasks/:taskId/comments - Get task comments
@@ -125,7 +129,8 @@ export async function POST(
     await verifyTaskAccess(currentUser.id, taskId);
 
     const body = await req.json();
-    const { content, parentId } = createCommentSchema.parse(body);
+    const { content, parentId, shareWithSubmitter } =
+      createCommentSchema.parse(body);
 
     // Verify task exists and get task name for notifications
     const task = await prisma.task.findUnique({
@@ -189,12 +194,29 @@ export async function POST(
     );
     const storedContent = buildCommentContent(plainText, mentionedMembers);
 
+    // Comment.visibility defaults to EXTERNAL in the schema — which is right
+    // for a reply typed on the tracking page, and WRONG for one typed in the
+    // task panel: every internal note ("client is stalling", "check this with
+    // the senior PE") was published on the submitter's public tracking URL
+    // with nothing in the UI saying so. Internal comments are INTERNAL_NOTE
+    // unless the author explicitly shares them, and sharing only means
+    // anything on a task that actually has a tracking page.
+    let visibility: "EXTERNAL" | "INTERNAL_NOTE" = "INTERNAL_NOTE";
+    if (shareWithSubmitter) {
+      const submission = await prisma.formSubmission.findFirst({
+        where: { taskId },
+        select: { id: true },
+      });
+      if (submission) visibility = "EXTERNAL";
+    }
+
     const comment = await prisma.comment.create({
       data: {
         content: storedContent,
         taskId,
         authorId: currentUser.id,
         parentId,
+        visibility,
       },
       include: {
         author: {

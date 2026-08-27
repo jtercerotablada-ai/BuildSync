@@ -271,6 +271,30 @@ export async function PATCH(
             { status: 404 }
           );
         }
+        // Self-parenting was the only cycle blocked, so A→B plus B→A was
+        // accepted: both goals then had a parent, so the tree (which lists
+        // roots as parentId: null) showed NEITHER, and every walk of the
+        // chain looped. Climb the proposed parent's ancestors and refuse if
+        // this objective is among them. The hop cap keeps a cycle that
+        // already exists in the data from spinning here.
+        let cursor: string | null = data.parentId;
+        for (let hops = 0; cursor && hops < 50; hops++) {
+          if (cursor === objectiveId) {
+            return NextResponse.json(
+              {
+                error:
+                  "That would make the two goals each other's parent. Pick a goal that isn't below this one.",
+              },
+              { status: 400 }
+            );
+          }
+          const next: { parentId: string | null } | null =
+            await prisma.objective.findUnique({
+              where: { id: cursor },
+              select: { parentId: true },
+            });
+          cursor = next?.parentId ?? null;
+        }
       }
       updateData.parentId = data.parentId;
     }

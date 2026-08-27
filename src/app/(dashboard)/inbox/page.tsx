@@ -1318,14 +1318,27 @@ function NotificationItem({
 
   return (
     <div
+      // A plain onClick div: the whole inbox was unreachable without a mouse
+      // — no tab stop, no Enter/Space, nothing announced to a screen reader.
+      role="button"
+      tabIndex={0}
+      aria-label={notification.title}
       className={cn(
         "flex items-start gap-3 px-3 rounded-lg cursor-pointer group transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a84c] focus-visible:ring-offset-1",
         compact ? "py-2" : "py-3",
         !notification.read
           ? "bg-[#c9a84c]/5 hover:bg-[#c9a84c]/10"
           : "hover:bg-gray-50"
       )}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return; // inner buttons keep theirs
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
     >
       {/* Row actions on hover — star (favorite) + archive/unarchive.
           A favorited star stays visible even when not hovering. */}

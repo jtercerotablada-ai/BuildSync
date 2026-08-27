@@ -38,15 +38,21 @@ const FIELD_TYPES = [
 const createSchema = z.object({
   name: z.string().min(1).max(80),
   type: z.enum(FIELD_TYPES),
-  // For DROPDOWN / MULTI_SELECT, options is an array of { id, label, color? }
+  // For DROPDOWN / MULTI_SELECT, an array of { id, label, color? }. For
+  // FORMULA / ROLLUP, the spec object — same union the project route accepts,
+  // so the personal path can persist every field type the modal can build
+  // instead of 400-ing on the ones that carry an object.
   options: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        label: z.string().min(1).max(80),
-        color: z.string().optional(),
-      })
-    )
+    .union([
+      z.array(
+        z.object({
+          id: z.string().min(1),
+          label: z.string().min(1).max(80),
+          color: z.string().optional(),
+        })
+      ),
+      z.record(z.string(), z.any()),
+    ])
     .optional(),
 });
 
@@ -80,20 +86,24 @@ export async function POST(req: Request) {
     // Seed placeholder options for choice fields when none were provided,
     // mirroring the project route's behavior.
     const needsOptions = type === "DROPDOWN" || type === "MULTI_SELECT";
-    if (needsOptions && (!options || options.length === 0)) {
+    if (needsOptions && (!Array.isArray(options) || options.length === 0)) {
       options = [
         { id: "opt-1", label: "Option 1" },
         { id: "opt-2", label: "Option 2" },
         { id: "opt-3", label: "Option 3" },
       ];
     }
+    // FORMULA / ROLLUP carry a spec object rather than a choice list; it has
+    // to persist too, otherwise the field is created inert.
+    const keepsOptions =
+      needsOptions || type === "FORMULA" || type === "ROLLUP";
 
     const def = await prisma.customFieldDefinition.create({
       data: {
         name,
         type,
         options:
-          needsOptions && options
+          keepsOptions && options
             ? JSON.parse(JSON.stringify(options))
             : null,
         isRequired: false,

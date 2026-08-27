@@ -224,6 +224,13 @@ export async function GET(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
+    // Does this task have a public tracking page? Only then can a comment be
+    // shared with the submitter, and only then should the panel offer it.
+    const submission = await prisma.formSubmission.findFirst({
+      where: { taskId },
+      select: { id: true },
+    });
+
     // Resolve collaborator user details
     const collaboratorUserIds = task.collaborators.map((c) => c.userId);
     const collaboratorUsers = collaboratorUserIds.length > 0
@@ -237,6 +244,7 @@ export async function GET(
       ...task,
       isLiked: task.likes.length > 0,
       collaborators: collaboratorUsers,
+      hasExternalTracking: submission != null,
     };
 
     return NextResponse.json(taskWithLiked);
