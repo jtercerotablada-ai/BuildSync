@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { startOfTodayUtc, startOfTomorrowUtc } from "@/lib/date-only";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
 
@@ -12,9 +13,10 @@ export async function GET() {
     }
 
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // Due dates are stored at UTC midnight; bucketing them with local
+    // getters only happened to work because the server runs in UTC.
+    const today = startOfTodayUtc(now);
+    const tomorrow = startOfTomorrowUtc(now);
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
 

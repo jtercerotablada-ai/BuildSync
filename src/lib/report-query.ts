@@ -838,12 +838,14 @@ async function runTaskQuery(
   }
 
   // Aggregate each bucket's series.
-  let rowsOut: (ChartDataRow & { __primary: number })[] = Array.from(
-    buckets.values()
-  ).map((b) => {
-    const out: ChartDataRow & { __primary: number } = {
+  let rowsOut: (ChartDataRow & { __primary: number; __sortKey: string })[] =
+    Array.from(buckets.values()).map((b) => {
+    const out: ChartDataRow & { __primary: number; __sortKey: string } = {
       name: b.label,
       __primary: 0,
+      // The bucket KEY, not its label: date labels are human ("Mar 5") and
+      // day/week ones carry no year, so sorting by label put Dec after Jan.
+      __sortKey: b.key,
     };
     if (b.color) out.color = b.color;
     let primaryTotal = 0;
@@ -871,11 +873,23 @@ async function runTaskQuery(
   const chronological =
     isDateDim || CHRONOLOGICAL_CHART_TYPES.includes(config.chartType as ChartType);
   if (chronological) {
-    rowsOut.sort((a, b) => bucketSortKey(a.name).localeCompare(bucketSortKey(b.name)));
+    // A time series is truncated from the OLD end, not the new one. Sorting
+    // ascending and taking the FIRST `limit` buckets showed the twelve oldest
+    // months on record and stopped — "Tasks completed by month" on a project
+    // with two years of history rendered 2024 and looked like work had
+    // stopped. Keep the most RECENT window instead.
+    const undated = rowsOut.filter((r) => r.__sortKey === "__nodate");
+    const dated = rowsOut
+      .filter((r) => r.__sortKey !== "__nodate")
+      .sort((a, b) => a.__sortKey.localeCompare(b.__sortKey));
+    const room = Math.max(0, limit - undated.length);
+    // "No date" is pinned ahead of the window so it can never masquerade as
+    // the latest period on a time axis.
+    rowsOut = [...undated, ...dated.slice(-room)];
   } else {
     rowsOut.sort((a, b) => b.__primary - a.__primary);
+    rowsOut = rowsOut.slice(0, limit);
   }
-  rowsOut = rowsOut.slice(0, limit);
 
   // Build seriesKeys with stable colors.
   const seriesKeys = buildSeriesKeys(
@@ -903,10 +917,13 @@ async function runTaskQuery(
     rowsOut.reduce((sum, r) => sum + (r.__primary || 0), 0)
   );
 
-  const data: ChartDataRow[] = rowsOut.map(({ __primary, ...rest }) => {
-    void __primary;
-    return rest;
-  });
+  const data: ChartDataRow[] = rowsOut.map(
+    ({ __primary, __sortKey, ...rest }) => {
+      void __primary;
+      void __sortKey;
+      return rest;
+    }
+  );
 
   return { data, seriesKeys, total };
 }
@@ -921,24 +938,6 @@ function pushSeries(bucket: Bucket, key: string, value: number | null) {
 function measureForSeries(config: ChartConfig, skey: string): Measure {
   const idx = parseInt(skey.replace("m", ""), 10);
   return config.measures[idx] ?? config.measures[0];
-}
-
-function bucketSortKey(label: string): string {
-  // For quarter/month labels we stored human labels; re-derive a sortable
-  // key. Fallback to the label itself.
-  const q = label.match(/^(\d{4})-Q(\d)$/);
-  if (q) return `${q[1]}${q[2]}`;
-  const m = label.match(/^([A-Za-z]{3})\s+(\d{4})$/);
-  if (m) {
-    const mi = MONTH_NAMES.indexOf(m[1]);
-    return `${m[2]}${String(mi + 1).padStart(2, "0")}`;
-  }
-  const dm = label.match(/^([A-Za-z]{3})\s+(\d+)$/);
-  if (dm) {
-    const mi = MONTH_NAMES.indexOf(dm[1]);
-    return `${String(mi + 1).padStart(2, "0")}${String(Number(dm[2])).padStart(2, "0")}`;
-  }
-  return label;
 }
 
 function buildSeriesKeys(
@@ -1236,7 +1235,13 @@ async function runProjectQuery(
 ): Promise<{ data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number }> {
   const where: Prisma.ProjectWhereInput = { workspaceId: ctx.workspaceId };
   if (config.scope.kind === "my") where.ownerId = ctx.userId;
-  else if (config.scope.kind === "portfolio") {
+  else if (config.scope.kind === "project") {
+    // Scope was silently ignored here: a chart built with "Projects" in ONE
+    // project counted EVERY project in the workspace, so the card on a
+    // project dashboard reported the firm's totals. The route already
+    // verified the id is in this workspace.
+    where.id = config.scope.projectId;
+  } else if (config.scope.kind === "portfolio") {
     // Restrict to the portfolio's projects (resolved + view-gated by the
     // route). workspaceId stays in the where as a defense-in-depth guard.
     // Empty id list → matches nothing (sound empty).
@@ -1315,6 +1320,13 @@ async function runGoalQuery(
 ): Promise<{ data: ChartDataRow[]; seriesKeys: ChartSeriesKey[]; total: number }> {
   const where: Prisma.ObjectiveWhereInput = { workspaceId: ctx.workspaceId };
   if (config.scope.kind === "my") where.ownerId = ctx.userId;
+
+  // Project scope: the goals LINKED to that project (ObjectiveProject join).
+  // Ignoring it meant a goals chart scoped to one project charted every goal
+  // in the workspace.
+  if (config.scope.kind === "project") {
+    where.projects = { some: { projectId: config.scope.projectId } };
+  }
 
   // Portfolio scope + goals: goals ARE linked to a portfolio via the
   // PortfolioObjective join. Resolve the linked ids (from ctx when the route

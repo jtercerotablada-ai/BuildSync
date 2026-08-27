@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { startOfTodayUtc } from "@/lib/date-only";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId, getEffectiveAccess } from "@/lib/auth-utils";
 import { canAccessSection } from "@/lib/access-control";
@@ -58,6 +59,10 @@ export async function GET(req: Request) {
 
     // Get date ranges
     const now = new Date();
+    // Due dates are stored at UTC midnight, so comparing them against the
+    // current instant counted every task due TODAY as overdue — the report
+    // never matched My Tasks, which uses this boundary.
+    const overdueBefore = startOfTodayUtc(now);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const startOfWeek = new Date(now);
@@ -110,7 +115,7 @@ export async function GET(req: Request) {
           ...baseWhere,
           completed: false,
           dueDate: {
-            lt: now,
+            lt: overdueBefore,
           },
         },
       }),
@@ -173,7 +178,7 @@ export async function GET(req: Request) {
         where: {
           ...baseWhere,
           completed: false,
-          dueDate: { lt: now },
+          dueDate: { lt: overdueBefore },
           projectId: { not: null },
         },
         _count: true,

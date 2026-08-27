@@ -42,3 +42,19 @@ export function daysFromToday(value: string | Date): number {
       MS_PER_DAY
   );
 }
+
+/** UTC midnight of today — the server-side boundary for "overdue".
+ *
+ *  Due dates are stored at UTC midnight of the due day, so comparing them to
+ *  `new Date()` marks everything due TODAY as overdue from 00:00 onward.
+ *  Every overdue count must compare against this instead. */
+export function startOfTodayUtc(from: Date = new Date()): Date {
+  return new Date(
+    Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate())
+  );
+}
+
+/** UTC midnight of the day AFTER `from` — the exclusive end of "due today". */
+export function startOfTomorrowUtc(from: Date = new Date()): Date {
+  return new Date(startOfTodayUtc(from).getTime() + 24 * 60 * 60 * 1000);
+}
