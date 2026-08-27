@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-utils";
-import { verifyTeamAccess, getErrorStatus } from "@/lib/auth-guards";
+import { verifyTeamAccess, verifyProjectAccess, getErrorStatus } from "@/lib/auth-guards";
 
 const createTaskSchema = z.object({
   name: z.string().min(1),
@@ -141,6 +141,20 @@ export async function POST(
       resolvedProjectId = firstProject.id;
     }
 
+    // Team membership is not the same as write access to THIS project. An
+    // explicit ProjectMember row always overrides the team grant —
+    // resolveProjectAccess only computes isTeamMember when the caller is
+    // neither owner nor member — so someone deliberately pinned to
+    // VIEWER/COMMENTER on a team project has canWrite=false everywhere else
+    // (POST /api/tasks correctly 403s them) and was creating tasks here
+    // anyway. Runs after resolution so it covers BOTH the supplied projectId
+    // and the "first project in the team" fallback. Ordinary team members are
+    // unaffected: the team grant flows through resolveProjectAccess as
+    // isTeamMember ⇒ canWrite.
+    await verifyProjectAccess(userId, resolvedProjectId, {
+      requireWrite: true,
+    });
+
     const task = await prisma.task.create({
       data: {
         name,
@@ -177,6 +191,13 @@ export async function POST(
         { error: error.issues[0]?.message || "Validation error" },
         { status: 400 }
       );
+    }
+    // Map the guards' AuthorizationError/NotFoundError to 403/404 the way GET
+    // already does — without this the new verifyProjectAccess denial would
+    // surface as a generic 500.
+    const { status, message } = getErrorStatus(error);
+    if (status !== 500) {
+      return NextResponse.json({ error: message }, { status });
     }
 
     console.error("Error creating task:", error);
